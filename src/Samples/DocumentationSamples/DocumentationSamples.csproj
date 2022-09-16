@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latestmajor</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Persistence\Wolverine.Persistence.Marten\Wolverine.Persistence.Marten.csproj" />
+    <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
+  </ItemGroup>
+
+</Project>

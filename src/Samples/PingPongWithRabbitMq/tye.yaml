@@ -1,0 +1,6 @@
+name: rabbitpingpong
+services:
+- name: Ponger
+  project: Ponger\Ponger.csproj
+- name: Pinger
+  project: Pinger\Pinger.csproj

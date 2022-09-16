@@ -1,0 +1,108 @@
+﻿using System;
+using Shouldly;
+using Wolverine;
+using Wolverine.Attributes;
+using Wolverine.Runtime.Handlers;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace CoreTests.Persistence.Sagas;
+
+public class saga_action_discovery : IntegrationContext
+{
+    private readonly ITestOutputHelper _output;
+    private readonly DefaultApp _fixture;
+
+    public saga_action_discovery(DefaultApp @default, ITestOutputHelper output) : base(@default)
+    {
+        _fixture = @default;
+        _output = output;
+    }
+
+    private new HandlerChain chainFor<T>()
+    {
+        var handlerChain = _fixture.ChainFor<T>();
+        if (handlerChain != null)
+        {
+            _output.WriteLine(handlerChain.SourceCode);
+        }
+
+        return handlerChain;
+    }
+
+    [Fact]
+    public void finds_actions_on_saga_state_handler_classes()
+    {
+        chainFor<SagaMessage2>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void finds_actions_on_saga_state_orchestrates_methods()
+    {
+        chainFor<SagaMessage1>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void finds_actions_on_saga_state_start_methods()
+    {
+        chainFor<SagaStarter>().ShouldNotBeNull();
+    }
+}
+
+public class MySagaStateGuy : Saga
+{
+    public Guid Id { get; set; }
+
+    public void Orchestrates(SagaMessage1 message)
+    {
+    }
+
+    public void Handle(SagaMessage2 message)
+    {
+    }
+
+    public void Start(SagaStarter starter)
+    {
+    }
+}
+
+public class SagaStarter : Message3
+{
+}
+
+public class SagaMessage1 : Message1
+{
+}
+
+public class SagaMessage2 : Message2
+{
+}
+
+[MessageIdentity("Message1")]
+public class Message1
+{
+    public Guid Id = Guid.NewGuid();
+}
+
+[MessageIdentity("Message2")]
+public class Message2
+{
+    public Guid Id = Guid.NewGuid();
+}
+
+[MessageIdentity("Message3")]
+public class Message3
+{
+}
+
+[MessageIdentity("Message4")]
+public class Message4
+{
+}
+
+[MessageIdentity("Message5")]
+public class Message5
+{
+    public int FailThisManyTimes = 0;
+    public Guid Id = Guid.NewGuid();
+}

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latestmajor</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.0.4" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Persistence\Wolverine.Persistence.EntityFrameworkCore\Wolverine.Persistence.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\Persistence\Wolverine.Persistence.SqlServer\Wolverine.Persistence.SqlServer.csproj" />
+  </ItemGroup>
+
+</Project>
