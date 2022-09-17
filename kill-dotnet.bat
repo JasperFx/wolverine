@@ -1,0 +1,1 @@
+taskkill /F /IM dotnet.exe /T

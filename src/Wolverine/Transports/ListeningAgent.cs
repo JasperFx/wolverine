@@ -63,7 +63,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         if (_listener == null) return;
 
         await _listener.StopAsync();
-        await _receiver.DrainAsync();
+        await _receiver!.DrainAsync();
 
         await _listener.DisposeAsync();
         _receiver?.Dispose();

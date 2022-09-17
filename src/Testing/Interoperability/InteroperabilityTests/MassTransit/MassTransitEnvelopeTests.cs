@@ -40,7 +40,7 @@ public class MassTransitEnvelopeTests
             CorrelationId = Guid.NewGuid().ToString(),
             ConversationId = Guid.NewGuid(),
             DeliverBy = new DateTimeOffset(new DateTime(2022, 9, 14)),
-
+            Message = new object()
         };
 
         var mtEnvelope = new MassTransitEnvelope(envelope);

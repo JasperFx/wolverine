@@ -1,0 +1,38 @@
+version: '3'
+services:
+  postgresql:
+    image: "clkao/postgres-plv8:latest"
+    ports:
+     - "5433:5432"
+    environment:
+      - POSTGRES_DATABASE=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+  
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    ports:
+     - "5672:5672"
+     - "15672:15672"
+  sqlserver:
+    image: "mcr.microsoft.com/mssql/server:2019-latest"
+    ports:
+      - "1434:1433"
+    environment:
+      - "ACCEPT_EULA=Y"
+      - "SA_PASSWORD=P@55w0rd"
+      - "MSSQL_PID=Developer"
+  pulsar:
+    image: "apachepulsar/pulsar:2.8.1"
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    command: bin/pulsar standalone
+
+  pgadmin4:
+    image: dpage/pgadmin4:latest
+    ports:
+      - 81:80
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=user@domain.com
+      - PGADMIN_DEFAULT_PASSWORD=SuperSecret

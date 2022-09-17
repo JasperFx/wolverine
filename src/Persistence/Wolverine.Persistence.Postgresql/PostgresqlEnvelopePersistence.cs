@@ -10,6 +10,7 @@ using Weasel.Core;
 using Wolverine.Logging;
 using Wolverine.Persistence.Database;
 using Wolverine.Persistence.Postgresql.Schema;
+using Wolverine.Persistence.Postgresql.Util;
 using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Postgresql;
@@ -115,7 +116,7 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
     public override Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
     {
         return DatabaseSettings.CreateCommand(_deleteIncomingEnvelopesSql)
-            .With("ids", envelopes)
+            .WithEnvelopeIds("ids", envelopes)
             .ExecuteOnce(_cancellation);
     }
 
@@ -128,7 +129,7 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
     public override Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
         return DatabaseSettings.CreateCommand(_discardAndReassignOutgoingSql)
-            .With("ids", discards)
+            .WithEnvelopeIds("ids", discards)
             .With("node", nodeId)
             .With("rids", reassigned)
             .ExecuteOnce(_cancellation);
@@ -137,7 +138,7 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
     public override Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
         return DatabaseSettings.CreateCommand(_deleteOutgoingEnvelopesSql)
-            .With("ids", envelopes)
+            .WithEnvelopeIds("ids", envelopes)
             .ExecuteOnce(_cancellation);
     }
 
@@ -153,7 +154,7 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
         if (Session.Transaction == null) throw new InvalidOperationException("No active transaction");
         return Session.Transaction.CreateCommand(_reassignOutgoingSql)
             .With("owner", ownerId)
-            .With("ids", outgoing)
+            .WithEnvelopeIds("ids", outgoing)
             .ExecuteNonQueryAsync(_cancellation);
     }
 

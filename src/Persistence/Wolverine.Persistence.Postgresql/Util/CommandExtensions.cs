@@ -8,7 +8,7 @@ namespace Wolverine.Persistence.Postgresql.Util;
 
 public static class CommandExtensions
 {
-    public static DbCommand With(this DbCommand command, string name, Envelope[] envelopes)
+    public static DbCommand WithEnvelopeIds(this DbCommand command, string name, Envelope[] envelopes)
     {
         var parameter = command.CreateParameter().As<NpgsqlParameter>();
         parameter.ParameterName = name;

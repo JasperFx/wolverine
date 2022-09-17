@@ -3,5 +3,5 @@ CREATE PROCEDURE %SCHEMA%.uspDeleteIncomingEnvelopes
 AS
 
 DELETE
-FROM %SCHEMA%.jasper_incoming_envelopes
+FROM %SCHEMA%.wolverine_incoming_envelopes
 WHERE id IN (SELECT ID FROM @IDLIST);

@@ -1,0 +1,16 @@
+{
+    "private": true,
+    "scripts": {
+        "vitepress-dev": "vitepress dev docs --port 5050",
+        "vitepress-build": "vitepress build docs",
+        "mdsnippets": "mdsnippets",
+        "docs": "npm-run-all -s mdsnippets vitepress-dev",
+        "docs-build": "npm-run-all -s mdsnippets vitepress-build"
+    },
+    "dependencies": {
+        "vitepress": "^0.20.9"
+    },
+    "devDependencies": {
+        "npm-run-all": "^4.1.5"
+    }
+}

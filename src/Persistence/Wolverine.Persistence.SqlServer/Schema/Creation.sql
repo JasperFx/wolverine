@@ -1,4 +1,4 @@
-create table %SCHEMA%.jasper_outgoing_envelopes
+create table %SCHEMA%.wolverine_outgoing_envelopes
 (
   id
   uniqueidentifier
@@ -22,7 +22,7 @@ create table %SCHEMA%.jasper_outgoing_envelopes
 ) not null
   );
 
-create table %SCHEMA%.jasper_incoming_envelopes
+create table %SCHEMA%.wolverine_incoming_envelopes
 (
   id
   uniqueidentifier
@@ -44,7 +44,7 @@ create table %SCHEMA%.jasper_incoming_envelopes
 ) not null
   );
 
-create table %SCHEMA%.jasper_dead_letters
+create table %SCHEMA%.wolverine_dead_letters
 (
   id
   uniqueidentifier
