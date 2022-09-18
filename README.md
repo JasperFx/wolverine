@@ -2,7 +2,7 @@ Jasper
 ======
 
 [![Join the chat at https://gitter.im/JasperFx/jasper](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/JasperFx/jasper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build status](https://ci.appveyor.com/api/projects/status/o23fp3diks7024x9?svg=true)](https://ci.appveyor.com/project/jasper-ci/jasper)
+[![Build status](https://ci.appveyor.com/api/projects/status/o23fp3diks7024x9?svg=true)](https://ci.appveyor.com/project/jasper-ci/jasper) [![Join the chat at https://gitter.im/JasperFx/Wolverine](https://badges.gitter.im/JasperFx/Wolverine.svg)](https://gitter.im/JasperFx/Wolverine?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 
 The [documentation is published here](http://jasperfx.github.io/).
