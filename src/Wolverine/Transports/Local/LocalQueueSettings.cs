@@ -22,7 +22,7 @@ public class LocalQueueSettings : Endpoint
     public override void Parse(Uri uri)
     {
         Name = LocalTransport.QueueName(uri);
-        Mode = uri.IsDurable() ? EndpointMode.Durable : EndpointMode.BufferedInMemory;
+        Mode = EndpointMode.BufferedInMemory;
     }
 
     public override Uri CorrectedUriForReplies()

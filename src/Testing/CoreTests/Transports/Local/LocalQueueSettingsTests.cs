@@ -32,13 +32,6 @@ public class LocalQueueSettingsTests
         endpoint.Name.ShouldBe("foo");
     }
 
-    [Fact]
-    public void create_by_uri_durable()
-    {
-        var endpoint = new LocalQueueSettings(new Uri("local://durable/foo"));
-        endpoint.Mode.ShouldBe(EndpointMode.Durable);
-        endpoint.Name.ShouldBe("foo");
-    }
 
     [Fact]
     public void reply_uri_when_durable()

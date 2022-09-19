@@ -30,7 +30,6 @@ public class TcpEndpointTests
     [InlineData("tcp://localhost:4444", "localhost", 4444, EndpointMode.BufferedInMemory)]
     [InlineData("tcp://localhost:4445", "localhost", 4445, EndpointMode.BufferedInMemory)]
     [InlineData("tcp://server1:4445", "server1", 4445, EndpointMode.BufferedInMemory)]
-    [InlineData("tcp://server1:4445/durable", "server1", 4445, EndpointMode.Durable)]
     public void parsing_uri(string uri, string host, int port, EndpointMode mode)
     {
         var endpoint = new TcpEndpoint();

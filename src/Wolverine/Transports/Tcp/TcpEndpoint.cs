@@ -62,11 +62,6 @@ public class TcpEndpoint : Endpoint
 
         HostName = uri.Host;
         Port = uri.Port;
-
-        if (uri.IsDurable())
-        {
-            Mode = EndpointMode.Durable;
-        }
     }
 
     public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)

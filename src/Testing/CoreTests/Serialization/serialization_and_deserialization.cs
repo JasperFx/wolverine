@@ -19,9 +19,9 @@ public class serialization_and_deserialization_of_single_message
         {
             SentAt = DateTime.Today.ToUniversalTime(),
             Data = new byte[] { 1, 5, 6, 11, 2, 3 },
-            Destination = "durable://localhost:2222/incoming".ToUri(),
+            Destination = "tcp://localhost:2222/incoming".ToUri(),
             DeliverBy = DateTime.Today.ToUniversalTime(),
-            ReplyUri = "durable://localhost:2221/replies".ToUri(),
+            ReplyUri = "tcp://localhost:2221/replies".ToUri(),
             SagaId = Guid.NewGuid().ToString(),
             ParentId = Guid.NewGuid().ToString()
         };

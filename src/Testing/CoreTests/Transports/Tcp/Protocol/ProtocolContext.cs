@@ -31,7 +31,7 @@ public abstract class ProtocolContext : IDisposable
 
     public ProtocolContext()
     {
-        Destination = $"durable://localhost:{thePort}/incoming".ToUri();
+        Destination = $"tcp://localhost:{thePort}/incoming".ToUri();
         _listener = new TestingListeningAgent(theReceiver, theAddress, thePort, "durable", CancellationToken.None);
 
 

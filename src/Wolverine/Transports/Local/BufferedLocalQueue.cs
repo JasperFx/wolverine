@@ -28,7 +28,7 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
 
     public bool Latched => false;
 
-    public bool IsDurable => Destination.IsDurable();
+    public bool IsDurable => false;
 
     public ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {

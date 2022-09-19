@@ -63,28 +63,12 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
         var endpoint = findEndpointByUri(uri);
         endpoint.IsListener = true;
 
-        if (uri.IsDurable())
-        {
-            endpoint.Mode = EndpointMode.Durable;
-        }
-
         return endpoint;
     }
 
     public Endpoint GetOrCreateEndpoint(Uri uri)
     {
-        var shouldBeDurable = uri.IsDurable();
-
-        var endpoint = findEndpointByUri(canonicizeUri(uri));
-
-        // It's coded this way so you don't override
-        // durability if it's already set
-        if (shouldBeDurable)
-        {
-            endpoint.Mode = EndpointMode.Durable;
-        }
-
-        return endpoint;
+        return findEndpointByUri(canonicizeUri(uri));
     }
 
     public Endpoint TryGetEndpoint(Uri uri)

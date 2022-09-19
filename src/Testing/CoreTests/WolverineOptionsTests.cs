@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Shouldly;
 using TestingSupport;
@@ -54,6 +55,18 @@ public class WolverineOptionsTests
         options4.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
 
         options5.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+    }
+
+    [Fact]
+    public async Task durable_local_queue_is_indeed_durable()
+    {
+        using var runtime = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+        
+        runtime.Services.GetRequiredService<IWolverineRuntime>()
+            .Endpoints.EndpointFor(TransportConstants.DurableLocalUri)
+            .Mode.ShouldBe(EndpointMode.Durable);
     }
 
     [Fact]

@@ -100,7 +100,7 @@ public partial class WolverineRuntime
             transport.StartSenders(this);
         }
 
-        Endpoints.StartListeners();
+        await Endpoints.StartListeners();
     }
 
     private async Task startDurabilityAgentAsync()

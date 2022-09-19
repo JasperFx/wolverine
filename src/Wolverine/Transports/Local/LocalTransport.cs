@@ -111,11 +111,6 @@ public class LocalTransport : ITransport
         var queueName = QueueName(uri);
         var settings = _queues[queueName];
 
-        if (uri.IsDurable())
-        {
-            settings.Mode = EndpointMode.Durable;
-        }
-
         return settings;
     }
 
@@ -141,16 +136,12 @@ public class LocalTransport : ITransport
             return TransportConstants.Durable;
         }
 
-        if (uri.Scheme == TransportConstants.Local && uri.Host != TransportConstants.Durable)
+        if (uri.Scheme == TransportConstants.Local)
         {
             return uri.Host;
         }
 
         var lastSegment = uri.Segments.Skip(1).LastOrDefault();
-        if (lastSegment == TransportConstants.Durable)
-        {
-            return TransportConstants.Default;
-        }
 
         return lastSegment ?? TransportConstants.Default;
     }
@@ -174,11 +165,6 @@ public class LocalTransport : ITransport
     {
         var queueName = QueueName(uri);
         var queue = _queues[queueName];
-
-        if (uri.IsDurable())
-        {
-            queue.Mode = EndpointMode.Durable;
-        }
 
         return addQueue(runtime, queue);
     }

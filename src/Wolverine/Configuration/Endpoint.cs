@@ -215,6 +215,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     public abstract IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver);
 
+    [Obsolete("Put this in EndpointCollection")]
     protected internal ISendingAgent StartSending(IWolverineRuntime runtime,
         Uri? replyUri)
     {

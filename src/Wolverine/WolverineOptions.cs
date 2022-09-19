@@ -16,6 +16,7 @@ using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
 using Wolverine.Transports.Tcp;
@@ -68,6 +69,8 @@ public sealed partial class WolverineOptions
         _advanced = new AdvancedSettings(ApplicationAssembly);
 
         deriveServiceName();
+
+        LocalQueue(TransportConstants.Durable).UseDurableInbox();
     }
 
     /// <summary>
