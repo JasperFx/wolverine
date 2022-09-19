@@ -97,7 +97,9 @@ public partial class WolverineRuntime
 
         foreach (var transport in Options)
         {
-            transport.StartSenders(this);
+            var replyUri = transport.ReplyEndpoint()?.Uri;
+
+            foreach (var endpoint in transport.Endpoints().Where(x => x.AutoStartSendingAgent())) endpoint.StartSending(this, replyUri);
         }
 
         await Endpoints.StartListeners();

@@ -42,13 +42,6 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
         };
     }
 
-    public void StartSenders(IWolverineRuntime root)
-    {
-        var replyUri = ReplyEndpoint()?.Uri;
-
-        foreach (var endpoint in endpoints().Where(x => x.AutoStartSendingAgent())) endpoint.StartSending(root, replyUri);
-    }
-
     public Endpoint ListenTo(Uri uri)
     {
         var endpoint = findEndpointByUri(uri);

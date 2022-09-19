@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Baseline;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
-using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Local;
 

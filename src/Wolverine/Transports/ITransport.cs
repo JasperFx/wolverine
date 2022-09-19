@@ -21,8 +21,6 @@ public interface ITransport
 
     Endpoint ListenTo(Uri uri);
 
-    void StartSenders(IWolverineRuntime root);
-
     Endpoint GetOrCreateEndpoint(Uri uri);
     Endpoint? TryGetEndpoint(Uri uri);
 
