@@ -13,34 +13,34 @@ public class ListenerConfiguration : ListenerConfiguration<IListenerConfiguratio
     }
 }
 
-public class ListenerConfiguration<TSelf, TEndpoint> : IListenerConfiguration<TSelf>
+public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>, IListenerConfiguration<TSelf>
     where TSelf : IListenerConfiguration<TSelf> where TEndpoint : Endpoint
 {
-    public ListenerConfiguration(TEndpoint endpoint)
+    public ListenerConfiguration(TEndpoint endpoint) : base(endpoint)
     {
-        this.endpoint = endpoint;
-        endpoint.IsListener = true;
+        add(e => e.IsListener = true);
     }
-
-    // ReSharper disable once InconsistentNaming
-    protected TEndpoint endpoint { get; }
 
     public TSelf MaximumParallelMessages(int maximumParallelHandlers)
     {
-        endpoint.ExecutionOptions.MaxDegreeOfParallelism = maximumParallelHandlers;
+        add(e => e.ExecutionOptions.MaxDegreeOfParallelism = maximumParallelHandlers);
         return this.As<TSelf>();
     }
 
     public TSelf Sequential()
     {
-        endpoint.ExecutionOptions.MaxDegreeOfParallelism = 1;
-        endpoint.ExecutionOptions.EnsureOrdered = true;
+        add(e =>
+        {
+            e.ExecutionOptions.MaxDegreeOfParallelism = 1;
+            e.ExecutionOptions.EnsureOrdered = true;
+        });
+
         return this.As<TSelf>();
     }
 
     public TSelf UseDurableInbox()
     {
-        endpoint.Mode = EndpointMode.Durable;
+        add(e => e.Mode = EndpointMode.Durable);
         return this.As<TSelf>();
     }
 
@@ -51,46 +51,54 @@ public class ListenerConfiguration<TSelf, TEndpoint> : IListenerConfiguration<TS
 
     public TSelf BufferedInMemory()
     {
-        endpoint.Mode = EndpointMode.BufferedInMemory;
+        add(e => e.Mode = EndpointMode.BufferedInMemory);
         return this.As<TSelf>();
     }
 
     public TSelf ProcessInline()
     {
-        endpoint.Mode = EndpointMode.Inline;
+        add(e => e.Mode = EndpointMode.Inline);
         return this.As<TSelf>();
     }
 
     public TSelf ConfigureExecution(Action<ExecutionDataflowBlockOptions> configure)
     {
-        configure(endpoint.ExecutionOptions);
+        add(e => configure(e.ExecutionOptions));
         return this.As<TSelf>();
     }
 
     public TSelf UseForReplies()
     {
-        endpoint.IsUsedForReplies = true;
+        add(e => e.IsUsedForReplies = true);
         return this.As<TSelf>();
     }
 
     public TSelf Named(string name)
     {
-        endpoint.Name = name;
+        add(e => e.Name = name);
         return this.As<TSelf>();
     }
 
     public TSelf CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings)
     {
-        var serializer = new NewtonsoftSerializer(customSettings);
-        endpoint.RegisterSerializer(serializer);
+        add(e =>
+        {
+            var serializer = new NewtonsoftSerializer(customSettings);
+
+            e.DefaultSerializer = serializer;
+        });
 
         return this.As<TSelf>();
     }
 
     public TSelf DefaultSerializer(IMessageSerializer serializer)
     {
-        endpoint.RegisterSerializer(serializer);
-        endpoint.DefaultSerializer = serializer;
+        add(e =>
+        {
+            e.RegisterSerializer(serializer);
+            e.DefaultSerializer = serializer;
+        });
+
         return this.As<TSelf>();
     }
 }

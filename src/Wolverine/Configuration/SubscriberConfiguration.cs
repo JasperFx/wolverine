@@ -1,28 +1,22 @@
 using System;
+using System.Collections.Generic;
 using Baseline;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
-using TypeExtensions = LamarCodeGeneration.Util.TypeExtensions;
 
 namespace Wolverine.Configuration;
 
-public class SubscriberConfiguration<T, TEndpoint> : ISubscriberConfiguration<T>
+public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>, ISubscriberConfiguration<T>
     where TEndpoint : Endpoint where T : ISubscriberConfiguration<T>
 {
-    // ReSharper disable once InconsistentNaming
-    protected readonly TEndpoint _endpoint;
-
-    public SubscriberConfiguration(TEndpoint endpoint)
+    public SubscriberConfiguration(TEndpoint endpoint) : base(endpoint)
     {
-        _endpoint = endpoint;
     }
-
-    protected TEndpoint Endpoint => _endpoint;
 
     public T UseDurableOutbox()
     {
-        _endpoint.Mode = EndpointMode.Durable;
-        return TypeExtensions.As<T>(this);
+        add(e => e.Mode = EndpointMode.Durable);
+        return this.As<T>();
     }
 
     public T UsePersistentOutbox()
@@ -33,46 +27,55 @@ public class SubscriberConfiguration<T, TEndpoint> : ISubscriberConfiguration<T>
 
     public T BufferedInMemory()
     {
-        _endpoint.Mode = EndpointMode.BufferedInMemory;
+        add(e => e.Mode = EndpointMode.BufferedInMemory);
         return this.As<T>();
     }
 
     public T SendInline()
     {
-        _endpoint.Mode = EndpointMode.Inline;
+        add(e => e.Mode = EndpointMode.Inline);
         return this.As<T>();
     }
 
     public T Named(string name)
     {
-        _endpoint.Name = name;
+        add(e => e.Name = name);
         return this.As<T>();
     }
 
     public ISubscriberConfiguration<T> CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings)
     {
-        var serializer = new NewtonsoftSerializer(customSettings);
-        _endpoint.RegisterSerializer(serializer);
+        add(e =>
+        {
+            var serializer = new NewtonsoftSerializer(customSettings);
+            e.RegisterSerializer(serializer);
+            e.DefaultSerializer = serializer;
+        });
+
         return this;
     }
 
     public ISubscriberConfiguration<T> DefaultSerializer(IMessageSerializer serializer)
     {
-        _endpoint.RegisterSerializer(serializer);
-        _endpoint.DefaultSerializer = serializer;
+        add(e =>
+        {
+            e.RegisterSerializer(serializer);
+            e.DefaultSerializer = serializer;
+        });
+
         return this.As<T>();
     }
 
     public T CustomizeOutgoing(Action<Envelope> customize)
     {
-        _endpoint.OutgoingRules.Add(new LambdaEnvelopeRule(customize));
+        add(e => e.OutgoingRules.Add(new LambdaEnvelopeRule(customize)));
 
         return this.As<T>();
     }
 
     public T CustomizeOutgoingMessagesOfType<TMessage>(Action<Envelope> customize)
     {
-        _endpoint.OutgoingRules.Add(new LambdaEnvelopeRule<TMessage>(customize));
+        add(e => e.OutgoingRules.Add(new LambdaEnvelopeRule<TMessage>(customize)));
 
         return this.As<T>();
     }
@@ -96,7 +99,7 @@ public class SubscriberConfiguration<T, TEndpoint> : ISubscriberConfiguration<T>
     /// <returns></returns>
     public T CircuitBreaking(Action<ICircuitParameters> configure)
     {
-        configure(_endpoint);
+        add(configure);
         return this.As<T>();
     }
 }

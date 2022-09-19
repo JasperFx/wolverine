@@ -92,8 +92,12 @@ namespace Wolverine.Pulsar
         /// <returns></returns>
         public PulsarListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure)
         {
-            endpoint.CircuitBreakerOptions = new CircuitBreakerOptions();
-            configure?.Invoke(endpoint.CircuitBreakerOptions);
+            add(e =>
+            {
+                e.CircuitBreakerOptions = new CircuitBreakerOptions();
+                configure?.Invoke(e.CircuitBreakerOptions);
+            });
+
 
             return this;
         }

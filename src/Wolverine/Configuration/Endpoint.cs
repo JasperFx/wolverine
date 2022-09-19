@@ -32,7 +32,8 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     private IMessageSerializer? _defaultSerializer;
     private string? _name;
     private ImHashMap<string, IMessageSerializer> _serializers = ImHashMap<string, IMessageSerializer>.Empty;
-
+    private readonly List<IDelayedEndpointConfiguration> _delayedConfiguration = new();
+    
     protected Endpoint()
     {
     }
@@ -41,6 +42,29 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     {
         // ReSharper disable once VirtualMemberCallInConstructor
         Parse(uri);
+    }
+
+    internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
+    {
+        _delayedConfiguration.Add(configuration);
+    }
+
+    private bool _hasCompiled = false;
+    
+    internal void Compile(WolverineOptions options)
+    {
+        if (_hasCompiled) return;
+
+        foreach (var configuration in _delayedConfiguration)
+        {
+            configuration.Apply();
+        }
+        
+        // TODO -- apply policies
+
+        DefaultSerializer ??= options.DefaultSerializer;
+
+        _hasCompiled = true;
     }
 
     private EndpointMode _mode = EndpointMode.BufferedInMemory;
@@ -94,23 +118,10 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     public IMessageSerializer? DefaultSerializer
     {
-        get
-        {
-            if (_defaultSerializer == null)
-            {
-                var parent = Runtime?.Options.DefaultSerializer;
-                if (parent != null)
-                {
-                    // Gives you a chance to use per-endpoint JSON settings for example
-                    _defaultSerializer = TryFindSerializer(parent.ContentType);
-                }
-            }
-
-            return _defaultSerializer ??= Runtime?.Options.DefaultSerializer;
-        }
+        get => _defaultSerializer;
         set
         {
-            RegisterSerializer(value);
+            RegisterSerializer(value ?? throw new ArgumentNullException(nameof(value)));
             _defaultSerializer = value;
         }
     }
@@ -213,7 +224,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     public abstract IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver);
 
-    protected virtual internal ISendingAgent StartSending(IWolverineRuntime runtime,
+    protected internal virtual ISendingAgent StartSending(IWolverineRuntime runtime,
         Uri? replyUri)
     {
         var sender = runtime.Advanced.StubAllOutgoingExternalSenders ? new NullSender(Uri) : CreateSender(runtime);

@@ -13,10 +13,12 @@ public class SenderConfigurationTests
     public void durably()
     {
         var endpoint = new LocalQueueSettings("foo");
+        
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
 
         var expression = new SubscriberConfiguration(endpoint);
         expression.UseDurableOutbox();
+        endpoint.Compile(new WolverineOptions());
 
         endpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
@@ -29,6 +31,8 @@ public class SenderConfigurationTests
 
         var expression = new SubscriberConfiguration(endpoint);
         expression.BufferedInMemory();
+        
+        endpoint.Compile(new WolverineOptions());
 
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
     }
@@ -41,6 +45,7 @@ public class SenderConfigurationTests
 
         var expression = new SubscriberConfiguration(endpoint);
         expression.Named("FooEndpoint");
+        endpoint.Compile(new WolverineOptions());
 
         endpoint.Name.ShouldBe("FooEndpoint");
     }
@@ -53,6 +58,7 @@ public class SenderConfigurationTests
 
         var expression = new SubscriberConfiguration(endpoint);
         expression.SendInline();
+        endpoint.Compile(new WolverineOptions());
 
         endpoint.Mode.ShouldBe(EndpointMode.Inline);
     }
@@ -66,6 +72,8 @@ public class SenderConfigurationTests
         expression.CustomizeOutgoing(e => e.Headers.Add("a", "one"));
 
         var envelope = ObjectMother.Envelope();
+        
+        endpoint.Compile(new WolverineOptions());
 
         endpoint.ApplyEnvelopeRules(envelope);
 
@@ -80,6 +88,8 @@ public class SenderConfigurationTests
         var expression = new SubscriberConfiguration(endpoint);
         expression.CustomizeOutgoingMessagesOfType<OtherMessage>(e => e.Headers.Add("g", "good"));
 
+        endpoint.Compile(new WolverineOptions());
+        
         // Negative Case
         var envelope1 = new Envelope(new Message1());
         endpoint.ApplyEnvelopeRules(envelope1);
@@ -102,6 +112,8 @@ public class SenderConfigurationTests
         var expression = new SubscriberConfiguration(endpoint);
         expression.CustomizeOutgoingMessagesOfType<BaseMessage>(e => e.Headers.Add("g", "good"));
 
+        endpoint.Compile(new WolverineOptions());
+        
         // Negative Case
         var envelope1 = new Envelope(new Message1());
         endpoint.ApplyEnvelopeRules(envelope1);

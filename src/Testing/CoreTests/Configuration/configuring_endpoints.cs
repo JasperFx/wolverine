@@ -32,7 +32,19 @@ public class configuring_endpoints : IDisposable
         theOptions = _host.Get<WolverineOptions>();
     }
 
-    private StubTransport theStubTransport => theOptions.GetOrCreate<StubTransport>();
+    private StubTransport theStubTransport
+    {
+        get
+        {
+            var transport = theOptions.GetOrCreate<StubTransport>();
+            foreach (var endpoint in transport.Endpoints)
+            {
+                endpoint.Compile(theOptions);
+            }
+
+            return transport;
+        }
+    }
 
     public void Dispose()
     {
@@ -41,14 +53,22 @@ public class configuring_endpoints : IDisposable
 
     private LocalQueueSettings localQueue(string queueName)
     {
-        return theOptions.GetOrCreate<LocalTransport>()
+        var settings = theOptions.GetOrCreate<LocalTransport>()
             .QueueFor(queueName);
+        
+        settings.Compile(theOptions);
+
+        return settings;
     }
 
     private Endpoint findEndpoint(string uri)
     {
-        return theOptions
+        var endpoint = theOptions
             .TryGetEndpoint(uri.ToUri());
+        
+        endpoint.Compile(theOptions);
+
+        return endpoint;
     }
 
     [Fact]

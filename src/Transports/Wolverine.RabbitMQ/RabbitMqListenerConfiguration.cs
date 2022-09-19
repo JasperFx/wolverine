@@ -25,8 +25,9 @@ namespace Wolverine.RabbitMQ
             {
                 throw new ArgumentOutOfRangeException(nameof(count), "Must be greater than zero");
             }
+            
+            add(e => e.ListenerCount = count);
 
-            endpoint.ListenerCount = count;
             return this;
         }
 
@@ -37,8 +38,11 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         public RabbitMqListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure)
         {
-            endpoint.CircuitBreakerOptions = new CircuitBreakerOptions();
-            configure?.Invoke(endpoint.CircuitBreakerOptions);
+            add(e =>
+            {
+                e.CircuitBreakerOptions = new CircuitBreakerOptions();
+                configure?.Invoke(e.CircuitBreakerOptions);
+            });
 
             return this;
         }
@@ -64,7 +68,7 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         public RabbitMqListenerConfiguration DefaultIncomingMessage(Type messageType)
         {
-            endpoint.ReceivesMessage(messageType);
+            add(e => e.ReceivesMessage(messageType));
             return this;
         }
 
@@ -76,7 +80,7 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         public RabbitMqListenerConfiguration PreFetchCount(ushort count)
         {
-            endpoint.PreFetchCount = count;
+            add(e => e.PreFetchCount = count);
             return this;
         }
 
@@ -88,7 +92,7 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         public RabbitMqListenerConfiguration PreFetchSize(uint size)
         {
-            endpoint.PreFetchSize = size;
+            add(e => e.PreFetchSize = size);
             return this;
         }
 
@@ -99,7 +103,7 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         public RabbitMqListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
         {
-            endpoint.UseMassTransitInterop(configure);
+            add(e => e.UseMassTransitInterop(configure));
             return this;
         }
     }

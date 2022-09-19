@@ -40,6 +40,8 @@ public class LocalQueueSettings : Endpoint
     protected internal override ISendingAgent StartSending(IWolverineRuntime runtime, Uri? replyUri)
     {
         Runtime = runtime;
+        
+        Compile(runtime.Options);
 
         Agent = buildAgent(runtime);
 

@@ -19,7 +19,7 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         public RabbitMqSubscriberConfiguration Advanced(Action<RabbitMqEndpoint> configure)
         {
-            configure(_endpoint);
+            add(configure);
             return this;
         }
 
@@ -30,7 +30,7 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         public RabbitMqSubscriberConfiguration UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
         {
-            _endpoint.UseMassTransitInterop(configure);
+            add(e => e.UseMassTransitInterop(configure));
             return this;
         }
     }

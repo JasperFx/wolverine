@@ -54,6 +54,7 @@ public class EndpointCollection : IAsyncDisposable
     {
         try
         {
+            endpoint.Compile(_options);
             var agent = buildSendingAgent(sender, endpoint);
             endpoint.Agent = agent;
 
@@ -78,11 +79,6 @@ public class EndpointCollection : IAsyncDisposable
     public IEnumerable<IListeningAgent> ActiveListeners()
     {
         return _listeners.Values;
-    }
-
-    public void AddSendingAgent(ISendingAgent sendingAgent)
-    {
-        _senders = _senders.AddOrUpdate(sendingAgent.Destination, sendingAgent);
     }
 
     public ISendingAgent GetOrBuildSendingAgent(Uri address, Action<Endpoint>? configureNewEndpoint = null)
@@ -116,7 +112,10 @@ public class EndpointCollection : IAsyncDisposable
 
     public Endpoint? EndpointFor(Uri uri)
     {
-        return _options.endpoints().FirstOrDefault(x => x.Uri == uri);
+        var endpoint = _options.endpoints().FirstOrDefault(x => x.Uri == uri);
+        endpoint?.Compile(_options);
+
+        return endpoint;
     }
 
     private ISendingAgent buildSendingAgent(ISender sender, Endpoint endpoint)
@@ -167,6 +166,8 @@ public class EndpointCollection : IAsyncDisposable
 
         var endpoint = transport.GetOrCreateEndpoint(uri);
         configureNewEndpoint?.Invoke(endpoint);
+        
+        endpoint.Compile(_options);
 
         endpoint.Runtime ??= _runtime; // This is important for serialization
         return endpoint.StartSending(_runtime, transport.ReplyEndpoint()?.Uri);
@@ -174,7 +175,7 @@ public class EndpointCollection : IAsyncDisposable
 
     public Endpoint? EndpointByName(string endpointName)
     {
-        return _options.AllEndpoints().FirstOrDefault(x => x.Name == endpointName);
+        return _options.AllEndpoints().ToArray().FirstOrDefault(x => x.Name == endpointName);
     }
 
     public IListeningAgent? FindListeningAgent(Uri uri)
@@ -199,6 +200,7 @@ public class EndpointCollection : IAsyncDisposable
 
         foreach (var endpoint in listeningEndpoints)
         {
+            endpoint.Compile(_options);
             var agent = new ListeningAgent(endpoint, _runtime);
             await agent.StartAsync().ConfigureAwait(false);
             _listeners[agent.Uri] = agent;
