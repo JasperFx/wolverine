@@ -167,6 +167,6 @@ public class MessagePublisher : CommandBus, IMessagePublisher
     private bool isDurable(Envelope envelope)
     {
         // TODO -- should this be memoized? The test on envelope Destination anyway
-        return envelope.Sender?.IsDurable ?? Runtime.GetOrBuildSendingAgent(envelope.Destination!).IsDurable;
+        return envelope.Sender?.IsDurable ?? Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination!).IsDurable;
     }
 }

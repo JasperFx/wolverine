@@ -76,6 +76,7 @@ public class RecoverIncomingMessages : IMessagingAction
 
             // Got to filter out paused listeners here
             var latched = _runtime
+                .Endpoints
                 .ActiveListeners()
                 .Where(x => x.Status == ListeningStatus.Stopped)
                 .Select(x => x.Uri)

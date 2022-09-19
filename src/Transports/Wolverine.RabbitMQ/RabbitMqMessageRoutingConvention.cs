@@ -66,7 +66,7 @@ namespace Wolverine.RabbitMQ
             _configureSending(exchange, new RabbitMappingContext(messageType, transport, runtime, endpoint));
 
             // This will start up the sending agent
-            var sendingAgent = runtime.GetOrBuildSendingAgent(endpoint.Uri);
+            var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
             yield return sendingAgent.Endpoint;
         }
 

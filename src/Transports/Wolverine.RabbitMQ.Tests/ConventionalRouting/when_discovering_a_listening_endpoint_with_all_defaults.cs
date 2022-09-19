@@ -15,7 +15,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
 
         public when_discovering_a_listening_endpoint_with_all_defaults()
         {
-            theEndpoint = theRuntime.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqEndpoint>();
+            theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqEndpoint>();
         }
 
         [Fact]
@@ -39,7 +39,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         [Fact]
         public void should_be_an_active_listener()
         {
-            theRuntime.ActiveListeners().Any(x => x.Uri == theExpectedUri)
+            theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == theExpectedUri)
                 .ShouldBeTrue();
         }
 

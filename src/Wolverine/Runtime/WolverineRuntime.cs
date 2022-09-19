@@ -9,6 +9,7 @@ using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
+using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Handlers;
@@ -51,7 +52,11 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         Cancellation = Advanced.Cancellation;
 
         ListenerTracker = new ListenerTracker(logger);
+
+        Endpoints = new EndpointCollection(this);
     }
+
+    public EndpointCollection Endpoints { get; }
 
     public ListenerTracker ListenerTracker { get; }
 

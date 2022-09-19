@@ -23,7 +23,7 @@ public interface IListeningAgent
 
 internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 {
-    private readonly WolverineRuntime _runtime;
+    private readonly IWolverineRuntime _runtime;
     private IListener? _listener;
     private IReceiver? _receiver;
     private Restarter? _restarter;

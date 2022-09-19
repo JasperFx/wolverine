@@ -22,6 +22,13 @@ namespace CoreTests.Runtime;
 
 public class MockWolverineRuntime : IWolverineRuntime
 {
+    public MockWolverineRuntime()
+    {
+        
+    }
+
+    public EndpointCollection Endpoints => throw new NotSupportedException();
+
     public WolverineOptions Options { get; } = new WolverineOptions();
 
     public AdvancedSettings? Advanced { get; } = new AdvancedSettings(null);

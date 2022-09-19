@@ -88,7 +88,7 @@ public class LocalTransport : ITransport
         queue.Agent = buildAgent(queue, runtime);
         _agents = _agents.AddOrUpdate(queue.Name, buildAgent(queue, runtime));
 
-        runtime.AddSendingAgent(buildAgent(queue, runtime));
+        runtime.Endpoints.AddSendingAgent(buildAgent(queue, runtime));
 
         return queue.Agent;
     }

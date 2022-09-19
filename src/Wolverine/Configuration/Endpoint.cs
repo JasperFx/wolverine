@@ -219,7 +219,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
         Uri? replyUri)
     {
         var sender = runtime.Advanced.StubAllOutgoingExternalSenders ? new NullSender(Uri) : CreateSender(runtime);
-        return runtime.CreateSendingAgent(replyUri, sender, this);
+        return runtime.Endpoints.CreateSendingAgent(replyUri, sender, this);
     }
 
     protected abstract ISender CreateSender(IWolverineRuntime runtime);

@@ -42,10 +42,10 @@ namespace CircuitBreakingTests
         public void find_listener_by_name()
         {
             var runtime = theListener.GetRuntime();
-            runtime.FindListeningAgent("one")
+            runtime.Endpoints.FindListeningAgent("one")
                 .Uri.ShouldBe($"tcp://localhost:{_port1}".ToUri());
 
-            runtime.FindListeningAgent("wrong")
+            runtime.Endpoints.FindListeningAgent("wrong")
                 .ShouldBeNull();
         }
 
@@ -58,22 +58,22 @@ namespace CircuitBreakingTests
 
             var runtime = theListener.GetRuntime();
 
-            runtime.FindListeningAgent(uri1).Status.ShouldBe(ListeningStatus.Accepting);
-            runtime.FindListeningAgent(uri2).Status.ShouldBe(ListeningStatus.Accepting);
-            runtime.FindListeningAgent(uri3).Status.ShouldBe(ListeningStatus.Accepting);
+            runtime.Endpoints.FindListeningAgent(uri1).Status.ShouldBe(ListeningStatus.Accepting);
+            runtime.Endpoints.FindListeningAgent(uri2).Status.ShouldBe(ListeningStatus.Accepting);
+            runtime.Endpoints.FindListeningAgent(uri3).Status.ShouldBe(ListeningStatus.Accepting);
         }
 
         [Fact]
         public void unknown_listener_is_unknown()
         {
-            theListener.GetRuntime().FindListeningAgent("unknown://server".ToUri())
+            theListener.GetRuntime().Endpoints.FindListeningAgent("unknown://server".ToUri())
                 .ShouldBeNull();
         }
 
         [Fact]
         public async Task stop_with_no_restart()
         {
-            var agent = theListener.GetRuntime().FindListeningAgent("one");
+            var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one");
             await agent.StopAsync();
 
             agent.Status.ShouldBe(ListeningStatus.Stopped);
@@ -86,7 +86,7 @@ namespace CircuitBreakingTests
         [Fact]
         public async Task pause()
         {
-            var agent = theListener.GetRuntime().FindListeningAgent("one");
+            var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one");
             await agent.PauseAsync(3.Seconds());
 
             agent.Status.ShouldBe(ListeningStatus.Stopped);
@@ -109,7 +109,7 @@ namespace CircuitBreakingTests
         [Fact]
         public async Task pause_repeatedly()
         {
-            var agent = theListener.GetRuntime().FindListeningAgent("one");
+            var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one");
             await agent.PauseAsync(1.Seconds());
             await agent.PauseAsync(1.Seconds());
             await agent.PauseAsync(3.Seconds());
@@ -151,7 +151,7 @@ namespace CircuitBreakingTests
 
             await stopWaiter;
 
-            var agent = runtime.FindListeningAgent("one");
+            var agent = runtime.Endpoints.FindListeningAgent("one");
             agent.Status.ShouldBe(ListeningStatus.Stopped);
 
             // should restart

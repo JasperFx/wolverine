@@ -26,7 +26,7 @@ internal abstract class MessageRouterBase<T> : IMessageRouter
     protected MessageRouterBase(WolverineRuntime runtime)
     {
         // We'll use this for executing scheduled envelopes that aren't native
-        LocalDurableQueue = runtime.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
+        LocalDurableQueue = runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
 
         var chain = runtime.Handlers.ChainFor(typeof(T));
         if (chain != null)
@@ -64,7 +64,7 @@ internal abstract class MessageRouterBase<T> : IMessageRouter
             return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
         }
 
-        var agent = Runtime.GetOrBuildSendingAgent(uri);
+        var agent = Runtime.Endpoints.GetOrBuildSendingAgent(uri);
         route = new MessageRoute(message.GetType(), agent.Endpoint);
         _specificRoutes = _specificRoutes.AddOrUpdate(uri, route);
 
@@ -83,10 +83,10 @@ internal abstract class MessageRouterBase<T> : IMessageRouter
             return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
         }
 
-        var endpoint = Runtime.EndpointByName(endpointName);
+        var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
         route = endpoint == null
             ? new NoNamedEndpointRoute(endpointName, Runtime.Options.AllEndpoints().Select(x => x.Name).ToArray())
-            : new MessageRoute(typeof(T), Runtime.GetOrBuildSendingAgent(endpoint.Uri).Endpoint);
+            : new MessageRoute(typeof(T), Runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri).Endpoint);
 
         _routeByName = _routeByName.AddOrUpdate(endpointName, route);
 
@@ -134,7 +134,7 @@ internal abstract class MessageRouterBase<T> : IMessageRouter
             return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
         }
 
-        var queue = Runtime.AgentForLocalQueue(workerQueue);
+        var queue = Runtime.Endpoints.AgentForLocalQueue(workerQueue);
         route = new MessageRoute(typeof(T), queue.Endpoint);
         route.Rules.AddRange(HandlerRules);
         _localRoutes = _localRoutes.AddOrUpdate(workerQueue, route);

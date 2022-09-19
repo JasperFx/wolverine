@@ -53,10 +53,10 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
             }));
 
             var uri = "rabbitmq://queue/routed".ToUri();
-            var endpoint = theRuntime.EndpointFor(uri);
+            var endpoint = theRuntime.Endpoints.EndpointFor(uri);
             endpoint.ShouldBeNull();
 
-            theRuntime.ActiveListeners().Any(x => x.Uri == uri)
+            theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
                 .ShouldBeFalse();
         }
 
@@ -68,7 +68,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
                 context.Endpoint.ListenerCount = 6;
             }));
 
-            var endpoint = theRuntime.EndpointFor("rabbitmq://queue/routed".ToUri())
+            var endpoint = theRuntime.Endpoints.EndpointFor("rabbitmq://queue/routed".ToUri())
                 .ShouldBeOfType<RabbitMqEndpoint>();
 
             endpoint.ListenerCount.ShouldBe(6);
@@ -79,7 +79,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         {
             ConfigureConventions(c => c.InboxedListenersAndOutboxedSenders());
 
-            var listeners = theRuntime.ActiveListeners().Where(x => x.Uri.Scheme == RabbitMqTransport.ProtocolName);
+            var listeners = theRuntime.Endpoints.ActiveListeners().Where(x => x.Uri.Scheme == RabbitMqTransport.ProtocolName);
             listeners.Any().ShouldBeTrue();
             foreach (var listener in listeners)
             {
@@ -92,7 +92,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         {
             ConfigureConventions(c => c.InlineListenersAndSenders());
 
-            var listeners = theRuntime.ActiveListeners().Where(x => x.Uri.Scheme == RabbitMqTransport.ProtocolName);
+            var listeners = theRuntime.Endpoints.ActiveListeners().Where(x => x.Uri.Scheme == RabbitMqTransport.ProtocolName);
             listeners.Any().ShouldBeTrue();
             foreach (var listener in listeners)
             {

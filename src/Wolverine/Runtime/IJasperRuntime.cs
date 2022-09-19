@@ -10,8 +10,7 @@ using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
-using Wolverine.Transports;
-using Wolverine.Transports.Sending;
+
 
 namespace Wolverine.Runtime;
 
@@ -33,16 +32,10 @@ public interface IWolverineRuntime
     AdvancedSettings Advanced { get; }
     CancellationToken Cancellation { get; }
     ListenerTracker ListenerTracker { get; }
+    
+    EndpointCollection Endpoints { get; }
 
-    ISendingAgent CreateSendingAgent(Uri? replyUri, ISender sender, Endpoint endpoint);
 
-    ISendingAgent GetOrBuildSendingAgent(Uri address, Action<Endpoint>? configureNewEndpoint = null);
-
-    IEnumerable<IListeningAgent> ActiveListeners();
-
-    void AddSendingAgent(ISendingAgent sendingAgent);
-
-    Endpoint? EndpointFor(Uri uri);
     IMessageRouter RoutingFor(Type messageType);
 
     /// <summary>
@@ -52,19 +45,6 @@ public interface IWolverineRuntime
     /// <returns></returns>
     T? TryFindExtension<T>() where T : class;
 
-    /// <summary>
-    /// Try to find a listening agent by Uri
-    /// </summary>
-    /// <param name="uri"></param>
-    /// <returns></returns>
-    IListeningAgent? FindListeningAgent(Uri uri);
-
-    /// <summary>
-    /// Try to find a listening agent by endpoint name
-    /// </summary>
-    /// <param name="endpointName"></param>
-    /// <returns></returns>
-    IListeningAgent? FindListeningAgent(string endpointName);
 
 
 }

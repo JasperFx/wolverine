@@ -54,7 +54,7 @@ public partial class WolverineRuntime
         }
 
         // Drain the listeners
-        foreach (var listener in _listeners.Values)
+        foreach (var listener in Endpoints.ActiveListeners())
         {
             try
             {
@@ -72,7 +72,7 @@ public partial class WolverineRuntime
     private void startInMemoryScheduledJobs()
     {
         ScheduledJobs =
-            new InMemoryScheduledJobProcessor((ILocalQueue)AgentForLocalQueue(TransportConstants.Replies));
+            new InMemoryScheduledJobProcessor((ILocalQueue)Endpoints.AgentForLocalQueue(TransportConstants.Replies));
 
         // Bit of a hack, but it's necessary. Came up in compliance tests
         if (Persistence is NullEnvelopePersistence p)
@@ -100,15 +100,7 @@ public partial class WolverineRuntime
             transport.StartSenders(this);
         }
 
-        var listeningEndpoints = Options.SelectMany(x => x.Endpoints())
-            .Where(x => x.IsListener).Where(x => x is not LocalQueueSettings);
-
-        foreach (var endpoint in listeningEndpoints)
-        {
-            var agent = new ListeningAgent(endpoint, this);
-            await agent.StartAsync().ConfigureAwait(false);
-            _listeners[agent.Uri] = agent;
-        }
+        Endpoints.StartListeners();
     }
 
     private async Task startDurabilityAgentAsync()

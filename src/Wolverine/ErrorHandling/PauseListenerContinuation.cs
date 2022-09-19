@@ -16,7 +16,7 @@ public class PauseListenerContinuation : IContinuation, IContinuationSource
 
     public ValueTask ExecuteAsync(IMessageContext context, IWolverineRuntime runtime, DateTimeOffset now)
     {
-        var agent = runtime.FindListeningAgent(context.Envelope!.Listener!.Address);
+        var agent = runtime.Endpoints.FindListeningAgent(context.Envelope!.Listener!.Address);
 
 
         if (agent != null)

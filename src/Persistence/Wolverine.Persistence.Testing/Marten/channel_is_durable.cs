@@ -21,10 +21,10 @@ public class channel_is_durable : PostgresqlContext
         });
 
         var runtime = host.Get<IWolverineRuntime>();
-        runtime.GetOrBuildSendingAgent("local://one".ToUri()).IsDurable.ShouldBeFalse();
-        runtime.GetOrBuildSendingAgent("local://durable/two".ToUri()).IsDurable.ShouldBeTrue();
+        runtime.Endpoints.GetOrBuildSendingAgent("local://one".ToUri()).IsDurable.ShouldBeFalse();
+        runtime.Endpoints.GetOrBuildSendingAgent("local://durable/two".ToUri()).IsDurable.ShouldBeTrue();
 
-        runtime.GetOrBuildSendingAgent("tcp://server1:2000".ToUri()).IsDurable.ShouldBeFalse();
-        runtime.GetOrBuildSendingAgent("tcp://server2:3000/durable".ToUri()).IsDurable.ShouldBeTrue();
+        runtime.Endpoints.GetOrBuildSendingAgent("tcp://server1:2000".ToUri()).IsDurable.ShouldBeFalse();
+        runtime.Endpoints.GetOrBuildSendingAgent("tcp://server2:3000/durable".ToUri()).IsDurable.ShouldBeTrue();
     }
 }

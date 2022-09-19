@@ -128,7 +128,7 @@ public class CommandBus : ICommandBus
         };
 
         // TODO -- memoize this.
-        var endpoint = Runtime.EndpointFor(TransportConstants.DurableLocalUri);
+        var endpoint = Runtime.Endpoints.EndpointFor(TransportConstants.DurableLocalUri);
 
         var writer = endpoint!.DefaultSerializer;
         envelope.Data = writer!.Write(envelope);

@@ -177,7 +177,7 @@ namespace TestingSupport.Compliance
         public void all_listeners_say_they_are_accepting_on_startup()
         {
             var runtime = (theReceiver ?? theSender).Get<IWolverineRuntime>();
-            foreach (var listener in runtime.ActiveListeners())
+            foreach (var listener in runtime.Endpoints.ActiveListeners())
             {
                 listener.Status.ShouldBe(ListeningStatus.Accepting);
             }
@@ -216,14 +216,14 @@ namespace TestingSupport.Compliance
             var receiving = (theReceiver ?? theSender);
             var runtime = receiving.Get<IWolverineRuntime>();
 
-            foreach (var listener in runtime.ActiveListeners())
+            foreach (var listener in runtime.Endpoints.ActiveListeners())
             {
                 await listener.StopAsync();
 
                 listener.Status.ShouldBe(ListeningStatus.Stopped);
             }
 
-            foreach (var listener in runtime.ActiveListeners())
+            foreach (var listener in runtime.Endpoints.ActiveListeners())
             {
                 await listener.StartAsync();
 

@@ -66,7 +66,7 @@ public class RecoverOutgoingMessages : IMessagingAction
             Envelope[] filtered;
             IReadOnlyList<Envelope> outgoing;
 #pragma warning restore CS8600
-            if (_runtime.GetOrBuildSendingAgent(destination).Latched)
+            if (_runtime.Endpoints.GetOrBuildSendingAgent(destination).Latched)
             {
                 return 0;
             }
@@ -87,7 +87,7 @@ public class RecoverOutgoingMessages : IMessagingAction
                 // Might easily try to do this in the time between starting
                 // and having the data fetched. Was able to make that happen in
                 // (contrived) testing
-                if (_runtime.GetOrBuildSendingAgent(destination).Latched || !filtered.Any())
+                if (_runtime.Endpoints.GetOrBuildSendingAgent(destination).Latched || !filtered.Any())
                 {
                     await storage.Session.RollbackAsync();
                     return 0;
@@ -110,7 +110,7 @@ public class RecoverOutgoingMessages : IMessagingAction
             {
                 try
                 {
-                    await _runtime.GetOrBuildSendingAgent(destination).EnqueueOutgoingAsync(envelope);
+                    await _runtime.Endpoints.GetOrBuildSendingAgent(destination).EnqueueOutgoingAsync(envelope);
                 }
                 catch (Exception? e)
                 {

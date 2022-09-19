@@ -17,14 +17,14 @@ public partial class WolverineRuntime
         if (messageType.HasAttribute<LocalQueueAttribute>())
         {
             var queueName = messageType.GetAttribute<LocalQueueAttribute>()!.QueueName;
-            return AgentForLocalQueue(queueName);
+            return Endpoints.AgentForLocalQueue(queueName);
         }
 
         var subscribers = Options.GetOrCreate<LocalTransport>().Endpoints().OfType<LocalQueueSettings>().Where(x => x.ShouldSendMessage(messageType))
             .Select(x => x.Agent)
             .ToArray();
 
-        return subscribers.FirstOrDefault() ?? GetOrBuildSendingAgent(TransportConstants.LocalUri);
+        return subscribers.FirstOrDefault() ?? Endpoints.GetOrBuildSendingAgent(TransportConstants.LocalUri);
     }
 
 
