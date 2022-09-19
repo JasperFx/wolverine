@@ -26,7 +26,6 @@ public interface ITransport
     Endpoint GetOrCreateEndpoint(Uri uri);
     Endpoint? TryGetEndpoint(Uri uri);
 
-    [Obsolete]
     IEnumerable<Endpoint> Endpoints();
     
     ValueTask InitializeAsync(IWolverineRuntime runtime);

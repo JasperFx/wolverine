@@ -15,9 +15,6 @@ public class LocalTransport : ITransport
 {
     private readonly Cache<string, LocalQueueSettings> _queues;
 
-    [Obsolete("Keep this strictly in EndpointCollection")]
-    private ImHashMap<string, ISendingAgent> _agents = ImHashMap<string, ISendingAgent>.Empty;
-
     public LocalTransport()
     {
         _queues = new(name => new LocalQueueSettings(name) { Runtime = Root });
@@ -86,7 +83,6 @@ public class LocalTransport : ITransport
     private ISendingAgent addQueue(IWolverineRuntime runtime, LocalQueueSettings queue)
     {
         queue.Agent = buildAgent(queue, runtime);
-        _agents = _agents.AddOrUpdate(queue.Name, buildAgent(queue, runtime));
 
         runtime.Endpoints.AddSendingAgent(buildAgent(queue, runtime));
 
