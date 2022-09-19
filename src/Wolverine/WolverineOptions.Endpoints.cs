@@ -67,8 +67,9 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
     /// <param name="uri"></param>
     public IListenerConfiguration ListenForMessagesFrom(Uri uri)
     {
-        var settings = findTransport(uri).ListenTo(uri);
-        return new ListenerConfiguration(settings);
+        var endpoint = findTransport(uri).GetOrCreateEndpoint(uri);
+        endpoint.IsListener = true;
+        return new ListenerConfiguration(endpoint);
     }
 
     /// <summary>

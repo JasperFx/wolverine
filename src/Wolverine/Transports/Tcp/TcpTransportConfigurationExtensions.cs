@@ -12,8 +12,9 @@ public static class TcpTransportConfigurationExtensions
     /// <param name="port"></param>
     public static IListenerConfiguration ListenAtPort(this WolverineOptions endpoints, int port)
     {
-        var settings = endpoints.GetOrCreate<TcpTransport>().ListenTo(TcpEndpoint.ToUri(port));
-        return new ListenerConfiguration(settings);
+        var endpoint = endpoints.GetOrCreate<TcpTransport>().GetOrCreateEndpoint(TcpEndpoint.ToUri(port));
+        endpoint.IsListener = true;
+        return new ListenerConfiguration(endpoint);
     }
 
     /// <summary>

@@ -19,8 +19,6 @@ public interface ITransport
 
     Endpoint? ReplyEndpoint();
 
-    Endpoint ListenTo(Uri uri);
-
     Endpoint GetOrCreateEndpoint(Uri uri);
     Endpoint? TryGetEndpoint(Uri uri);
 

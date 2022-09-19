@@ -42,14 +42,6 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
         };
     }
 
-    public Endpoint ListenTo(Uri uri)
-    {
-        var endpoint = findEndpointByUri(uri);
-        endpoint.IsListener = true;
-
-        return endpoint;
-    }
-
     public Endpoint GetOrCreateEndpoint(Uri uri)
     {
         return findEndpointByUri(uri);
