@@ -20,11 +20,6 @@ public class TcpTransport : TransportBase<TcpEndpoint>
     {
     }
 
-    protected override Uri canonicizeUri(Uri uri)
-    {
-        return new Uri($"tcp://{uri.Host}:{uri.Port}");
-    }
-
     protected override IEnumerable<TcpEndpoint> endpoints()
     {
         return _listeners;

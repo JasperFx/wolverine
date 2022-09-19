@@ -53,10 +53,6 @@ namespace Wolverine.Pulsar
         }
 
         public override Uri Uri { get; }
-        public override Uri CorrectedUriForReplies()
-        {
-            return Uri;
-        }
 
         public string Persistence { get; private set; } = Persistent;
         public string Tenant { get; private set; } = Public;

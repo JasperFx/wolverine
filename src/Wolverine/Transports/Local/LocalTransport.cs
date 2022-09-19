@@ -15,6 +15,7 @@ public class LocalTransport : ITransport
 {
     private readonly Cache<string, LocalQueueSettings> _queues;
 
+    [Obsolete("Keep this strictly in EndpointCollection")]
     private ImHashMap<string, ISendingAgent> _agents = ImHashMap<string, ISendingAgent>.Empty;
 
     public LocalTransport()

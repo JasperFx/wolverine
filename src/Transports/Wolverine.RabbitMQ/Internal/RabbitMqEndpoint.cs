@@ -139,12 +139,6 @@ namespace Wolverine.RabbitMQ.Internal
             return dict;
         }
 
-
-        public override Uri CorrectedUriForReplies()
-        {
-            return Mode == EndpointMode.Durable ? $"{Uri}/durable".ToUri() : Uri;
-        }
-
         public override void Parse(Uri uri)
         {
             if (uri.Scheme != RabbitMqTransport.ProtocolName)

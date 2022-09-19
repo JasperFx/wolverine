@@ -32,22 +32,4 @@ public class LocalQueueSettingsTests
         endpoint.Name.ShouldBe("foo");
     }
 
-
-    [Fact]
-    public void reply_uri_when_durable()
-    {
-        var endpoint = new LocalQueueSettings("foo");
-        endpoint.Mode = EndpointMode.Durable;
-
-        endpoint.CorrectedUriForReplies().ShouldBe("local://durable/foo".ToUri());
-    }
-
-    [Fact]
-    public void replay_uri_when_not_durable()
-    {
-        var endpoint = new LocalQueueSettings("foo");
-        endpoint.Mode = EndpointMode.BufferedInMemory;
-
-        endpoint.CorrectedUriForReplies().ShouldBe("local://foo".ToUri());
-    }
 }

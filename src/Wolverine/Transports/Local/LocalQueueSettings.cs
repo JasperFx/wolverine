@@ -25,11 +25,6 @@ public class LocalQueueSettings : Endpoint
         Mode = EndpointMode.BufferedInMemory;
     }
 
-    public override Uri CorrectedUriForReplies()
-    {
-        return Mode == EndpointMode.Durable ? $"local://durable/{Name}".ToUri() : $"local://{Name}".ToUri();
-    }
-
     public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
     {
         throw new NotSupportedException();

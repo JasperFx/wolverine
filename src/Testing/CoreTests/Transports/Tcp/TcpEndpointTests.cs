@@ -40,21 +40,5 @@ public class TcpEndpointTests
         endpoint.Mode.ShouldBe(mode);
     }
 
-    [Fact]
-    public void reply_uri_when_durable()
-    {
-        var endpoint = new TcpEndpoint(4444);
-        endpoint.Mode = EndpointMode.Durable;
 
-        endpoint.CorrectedUriForReplies().ShouldBe("tcp://localhost:4444/durable".ToUri());
-    }
-
-    [Fact]
-    public void reply_uri_when_not_durable()
-    {
-        var endpoint = new TcpEndpoint(4444);
-        endpoint.Mode = EndpointMode.BufferedInMemory;
-
-        endpoint.CorrectedUriForReplies().ShouldBe("tcp://localhost:4444".ToUri());
-    }
 }

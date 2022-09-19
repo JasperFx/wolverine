@@ -74,7 +74,7 @@ public class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 
     public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
-        envelope.ReplyUri ??= CorrectedUriForReplies();
+        envelope.ReplyUri ??= Destination;
 
         var callback = new StubChannelCallback(this, envelope);
         Callbacks.Add(callback);
@@ -101,11 +101,6 @@ public class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     {
         _pipeline = pipeline;
         _logger = logger;
-    }
-
-    public override Uri CorrectedUriForReplies()
-    {
-        return _stubTransport.ReplyEndpoint()!.Uri;
     }
 
     public override void Parse(Uri uri)

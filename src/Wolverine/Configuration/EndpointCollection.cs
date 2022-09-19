@@ -175,7 +175,7 @@ public class EndpointCollection : IAsyncDisposable
         configureNewEndpoint?.Invoke(endpoint);
 
         endpoint.Runtime ??= _runtime; // This is important for serialization
-        return endpoint.StartSending(_runtime, transport.ReplyEndpoint()?.CorrectedUriForReplies());
+        return endpoint.StartSending(_runtime, transport.ReplyEndpoint()?.Uri);
     }
 
     public Endpoint? EndpointByName(string endpointName)

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Wolverine.Util;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 
@@ -52,14 +51,13 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
 
     public void StartSenders(IWolverineRuntime root)
     {
-        var replyUri = ReplyEndpoint()?.CorrectedUriForReplies();
+        var replyUri = ReplyEndpoint()?.Uri;
 
         foreach (var endpoint in endpoints().Where(x => x.Subscriptions.Any())) endpoint.StartSending(root, replyUri);
     }
 
     public Endpoint ListenTo(Uri uri)
     {
-        uri = canonicizeUri(uri);
         var endpoint = findEndpointByUri(uri);
         endpoint.IsListener = true;
 
@@ -68,26 +66,15 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
 
     public Endpoint GetOrCreateEndpoint(Uri uri)
     {
-        return findEndpointByUri(canonicizeUri(uri));
+        return findEndpointByUri(uri);
     }
 
     public Endpoint TryGetEndpoint(Uri uri)
     {
-        return findEndpointByUri(canonicizeUri(uri));
+        return findEndpointByUri(uri);
     }
 
     protected abstract IEnumerable<TEndpoint> endpoints();
-
-    /// <summary>
-    ///     If ordering matters, this is a transport's
-    ///     way to ensure that Uri are evaluated consistently
-    /// </summary>
-    /// <param name="uri"></param>
-    /// <returns></returns>
-    protected virtual Uri canonicizeUri(Uri uri)
-    {
-        return uri;
-    }
 
     protected abstract TEndpoint findEndpointByUri(Uri uri);
 }

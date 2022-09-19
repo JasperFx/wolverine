@@ -124,17 +124,6 @@ namespace Wolverine.RabbitMQ.Tests.Internals
 
 
         [Fact]
-        public void build_uri_for_queue_only_and_durable()
-        {
-            new RabbitMqEndpoint(new RabbitMqTransport())
-                {
-                    QueueName = "foo",
-                    Mode = EndpointMode.Durable
-                }
-                .CorrectedUriForReplies().ShouldBe(new Uri("rabbitmq://queue/foo/durable"));
-        }
-
-        [Fact]
         public void build_uri_for_exchange_only()
         {
             new RabbitMqEndpoint(new RabbitMqTransport())
@@ -152,30 +141,6 @@ namespace Wolverine.RabbitMQ.Tests.Internals
                 ExchangeName = "ex2"
 
             }.Uri.ShouldBe("rabbitmq://exchange/ex2".ToUri());
-        }
-
-        [Fact]
-        public void generate_reply_uri_for_non_durable()
-        {
-            new RabbitMqEndpoint(new RabbitMqTransport())
-                {
-                    ExchangeName = "ex1",
-                    RoutingKey = "key1"
-                }
-                .CorrectedUriForReplies().ShouldBe(new Uri("rabbitmq://exchange/ex1/routing/key1"));
-        }
-
-        [Fact]
-        public void generate_reply_uri_for_durable()
-        {
-            new RabbitMqEndpoint(new RabbitMqTransport())
-            {
-                ExchangeName = "ex1",
-                RoutingKey = "key1",
-                Mode = EndpointMode.Durable
-            }.CorrectedUriForReplies().ShouldBe(new Uri("rabbitmq://exchange/ex1/routing/key1/durable"));
-
-
         }
 
 

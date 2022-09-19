@@ -205,12 +205,6 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
         _serializers = _serializers.AddOrUpdate(serializer.ContentType, serializer);
     }
 
-    /// <summary>
-    ///     Uri as formulated for replies. Should include a notation
-    ///     of "durable" as needed
-    /// </summary>
-    public abstract Uri CorrectedUriForReplies();
-
     public abstract void Parse(Uri uri);
 
     public abstract IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver);

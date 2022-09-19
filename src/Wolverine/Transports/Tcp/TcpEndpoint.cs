@@ -41,18 +41,7 @@ public class TcpEndpoint : Endpoint
     {
         return $"tcp://{hostName}:{port}".ToUri();
     }
-
-    public override Uri CorrectedUriForReplies()
-    {
-        var uri = ToUri(Port, HostName);
-        if (Mode != EndpointMode.Durable)
-        {
-            return uri;
-        }
-
-        return $"{uri}durable".ToUri();
-    }
-
+    
     public override void Parse(Uri uri)
     {
         if (uri.Scheme != "tcp")
