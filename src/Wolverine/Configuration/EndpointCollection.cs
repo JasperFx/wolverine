@@ -55,6 +55,7 @@ public class EndpointCollection : IAsyncDisposable
         try
         {
             var agent = buildSendingAgent(sender, endpoint);
+            endpoint.Agent = agent;
 
             agent.ReplyUri = replyUri;
 
@@ -64,8 +65,6 @@ public class EndpointCollection : IAsyncDisposable
             {
                 senderRequiringCallback.RegisterCallback(callbackAgent);
             }
-
-            AddSendingAgent(agent);
 
             return agent;
         }
@@ -100,9 +99,15 @@ public class EndpointCollection : IAsyncDisposable
 
         lock (_channelLock)
         {
-            return !_senders.TryFind(address, out agent)
-                ? buildSendingAgent(address, configureNewEndpoint)
-                : agent;
+            if (_senders.TryFind(address, out agent))
+            {
+                return agent;
+            }
+
+            agent = buildSendingAgent(address, configureNewEndpoint);
+            _senders = _senders.AddOrUpdate(address, agent);
+
+            return agent;
         }
     }
 
@@ -158,17 +163,6 @@ public class EndpointCollection : IAsyncDisposable
         {
             throw new InvalidOperationException(
                 $"There is no known transport type that can send to the Destination {uri}");
-        }
-
-        if (uri.Scheme == TransportConstants.Local)
-        {
-            var local = (LocalTransport)transport;
-            var agent = local.AddSenderForDestination(uri, _runtime);
-            agent.Endpoint.Runtime = _runtime; // This is important for serialization
-
-            AddSendingAgent(agent);
-
-            return agent;
         }
 
         var endpoint = transport.GetOrCreateEndpoint(uri);

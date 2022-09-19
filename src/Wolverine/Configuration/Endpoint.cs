@@ -86,6 +86,10 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
         return true;
     }
 
+
+    public virtual bool AutoStartSendingAgent() => Subscriptions.Any();
+
+
     internal IWolverineRuntime? Runtime { get; set; }
 
     public IMessageSerializer? DefaultSerializer
@@ -209,8 +213,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     public abstract IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver);
 
-    [Obsolete("Put this in EndpointCollection")]
-    protected internal ISendingAgent StartSending(IWolverineRuntime runtime,
+    protected virtual internal ISendingAgent StartSending(IWolverineRuntime runtime,
         Uri? replyUri)
     {
         var sender = runtime.Advanced.StubAllOutgoingExternalSenders ? new NullSender(Uri) : CreateSender(runtime);

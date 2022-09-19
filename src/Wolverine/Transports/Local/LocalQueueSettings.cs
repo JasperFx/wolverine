@@ -17,6 +17,8 @@ public class LocalQueueSettings : Endpoint
     {
     }
 
+    public override bool AutoStartSendingAgent() => true;
+
     public override Uri Uri => $"local://{Name}".ToUri();
 
     public override void Parse(Uri uri)
@@ -33,6 +35,28 @@ public class LocalQueueSettings : Endpoint
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         throw new NotSupportedException();
+    }
+
+    protected internal override ISendingAgent StartSending(IWolverineRuntime runtime, Uri? replyUri)
+    {
+        Runtime = runtime;
+
+        Agent = buildAgent(runtime);
+
+        return Agent;
+    }
+
+    private ISendingAgent buildAgent(IWolverineRuntime runtime)
+    {
+        return Mode switch
+        {
+            EndpointMode.BufferedInMemory => new BufferedLocalQueue(this, runtime),
+
+            EndpointMode.Durable => new DurableLocalQueue(this, runtime),
+
+            EndpointMode.Inline => throw new NotSupportedException(),
+            _ => throw new InvalidOperationException()
+        };
     }
 
     public override string ToString()

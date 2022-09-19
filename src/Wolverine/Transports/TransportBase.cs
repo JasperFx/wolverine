@@ -30,7 +30,7 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
         return ValueTask.CompletedTask;
     }
 
-    public Endpoint? ReplyEndpoint()
+    public virtual Endpoint? ReplyEndpoint()
     {
         var listeners = endpoints().Where(x => x.IsListener).ToArray();
 
@@ -46,7 +46,7 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
     {
         var replyUri = ReplyEndpoint()?.Uri;
 
-        foreach (var endpoint in endpoints().Where(x => x.Subscriptions.Any())) endpoint.StartSending(root, replyUri);
+        foreach (var endpoint in endpoints().Where(x => x.AutoStartSendingAgent())) endpoint.StartSending(root, replyUri);
     }
 
     public Endpoint ListenTo(Uri uri)
