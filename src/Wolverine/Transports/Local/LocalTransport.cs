@@ -54,8 +54,7 @@ public class LocalTransport : ITransport
 
     public string Name => "Local (In Memory)";
 
-
-    public ICollection<string> Protocols { get; } = new[] { TransportConstants.Local };
+    public string Protocol => TransportConstants.Local;
 
     void ITransport.StartSenders(IWolverineRuntime root)
     {

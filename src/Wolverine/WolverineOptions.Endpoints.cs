@@ -156,7 +156,7 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
 
         foreach (var transport in _transports.Values.Where(x => x.Endpoints().Any()))
         {
-            var transportNode = tree.AddNode($"[bold]{transport.Name}[/] [dim]({transport.Protocols.Join(", ")}[/])");
+            var transportNode = tree.AddNode($"[bold]{transport.Name}[/] [dim]({transport.Protocol}[/])");
             if (transport is ITreeDescriber d)
             {
                 d.Describe(transportNode);
@@ -208,7 +208,7 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
 
     public void Add(ITransport transport)
     {
-        foreach (var protocol in transport.Protocols) _transports.SmartAdd(protocol, transport);
+        _transports.SmartAdd(transport.Protocol, transport);
     }
 
     public T GetOrCreate<T>() where T : ITransport, new()
@@ -217,7 +217,7 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
         if (transport == null)
         {
             transport = new T();
-            foreach (var protocol in transport.Protocols) _transports[protocol] = transport;
+            _transports[transport.Protocol] = transport;
         }
 
         return transport;

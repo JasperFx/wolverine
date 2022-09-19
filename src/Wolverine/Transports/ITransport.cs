@@ -9,7 +9,7 @@ namespace Wolverine.Transports;
 
 public interface ITransport
 {
-    ICollection<string> Protocols { get; }
+    string Protocol { get; }
 
 
     /// <summary>

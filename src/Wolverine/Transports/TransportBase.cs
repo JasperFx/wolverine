@@ -11,20 +11,13 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
 {
     public TransportBase(string protocol, string name)
     {
-        Protocols.Add(protocol);
-        Name = name;
-    }
-
-    public TransportBase(IEnumerable<string> protocols, string name)
-    {
-        foreach (var protocol in protocols) Protocols.Add(protocol);
-
+        Protocol = protocol;
         Name = name;
     }
 
     public string Name { get; }
 
-    public ICollection<string> Protocols { get; } = new List<string>();
+    public string Protocol { get; }
 
     public IEnumerable<Endpoint> Endpoints()
     {

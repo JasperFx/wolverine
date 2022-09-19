@@ -104,7 +104,7 @@ public class WolverineOptionsTests
     public void add_transport()
     {
         var transport = Substitute.For<ITransport>();
-        transport.Protocols.Returns(new[] { "fake" });
+        transport.Protocol.Returns("fake");
 
         var collection = new WolverineOptions { transport };
 
@@ -206,9 +206,9 @@ public class WolverineOptionsTests
 
     public class FakeTransport : ITransport
     {
-        public string Name { get; } = "Fake";
+        public string Name => "Fake";
 
-        public ICollection<string> Protocols { get; } = new[] { "fake" };
+        public string Protocol => "fake";
 
 
         public Endpoint ReplyEndpoint()
