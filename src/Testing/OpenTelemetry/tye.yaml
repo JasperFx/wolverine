@@ -1,0 +1,8 @@
+name: JasperOtelTesting
+services:
+- name: Subscriber2
+  project: Subscriber2\Subscriber2.csproj
+- name: Subscriber1
+  project: Subscriber1\Subscriber1.csproj
+- name: OtelWebApi
+  project: OtelWebApi\OtelWebApi.csproj

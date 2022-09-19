@@ -170,7 +170,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/Configuration/find_handlers_with_the_default_handler_discovery.cs#L170-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L170-L218' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

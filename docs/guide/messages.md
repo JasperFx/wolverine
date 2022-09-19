@@ -155,7 +155,7 @@ opts.UseSystemTextJsonForSerialization(stj =>
     stj.UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode;
 });
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/Transports/Local/local_integration_specs.cs#L25-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L23-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

@@ -21,79 +21,16 @@ try
 finally
 {
     stopwatch.Stop();
-    logger.LogInformation("Ran something in " + stopwatch.ElapsedMilliseconds);
-}
-```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Http.Testing/Samples/CustomWolverineMiddleware.cs#L134-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatch_concept' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_stopwatch_concept-1'></a>
-```cs
-var stopwatch = new Stopwatch();
-stopwatch.Start();
-try
-{
-    // execute the HTTP request
-    // or message
-}
-finally
-{
-    stopwatch.Stop();
     logger.Info("Ran something in " + stopwatch.ElapsedMilliseconds);
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/Middleware.cs#L17-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatch_concept-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/Middleware.cs#L17-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatch_concept' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Alright, the first step is to create a LamarCompiler `Frame` class that generates that code around the inner message or HTTP handler:
 
 <!-- snippet: sample_StopwatchFrame -->
 <a id='snippet-sample_stopwatchframe'></a>
-```cs
-public class StopwatchFrame : SyncFrame
-{
-    private readonly IChain _chain;
-    private readonly Variable _stopwatch;
-    private Variable _logger;
-
-    public StopwatchFrame(IChain chain)
-    {
-        _chain = chain;
-
-        // This frame creates a Stopwatch, so we
-        // expose that fact to the rest of the generated method
-        // just in case someone else wants that
-        _stopwatch = new Variable(typeof(Stopwatch), "stopwatch", this);
-    }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        writer.Write($"var stopwatch = new {typeof(Stopwatch).FullNameInCode()}();");
-        writer.Write("stopwatch.Start();");
-
-        writer.Write("BLOCK:try");
-        Next?.GenerateCode(method, writer);
-        writer.FinishBlock();
-
-        // Write a finally block where you record the stopwatch
-        writer.Write("BLOCK:finally");
-
-        writer.Write("stopwatch.Stop();");
-        writer.Write(
-            $"{_logger.Usage}.Log(Microsoft.Extensions.Logging.LogLevel.Information, \"{_chain.Description} ran in \" + {_stopwatch.Usage}.{nameof(Stopwatch.ElapsedMilliseconds)});)");
-
-        writer.FinishBlock();
-    }
-
-    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-    {
-        // This in effect turns into "I need ILogger<IChain> injected into the
-        // compiled class"
-        _logger = chain.FindVariable(typeof(ILogger<IChain>));
-        yield return _logger;
-    }
-}
-```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Http.Testing/Samples/CustomWolverineMiddleware.cs#L17-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_stopwatchframe-1'></a>
 ```cs
 public class StopwatchFrame : SyncFrame
 {
@@ -138,7 +75,7 @@ public class StopwatchFrame : SyncFrame
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/Middleware.cs#L35-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/Middleware.cs#L35-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -169,18 +106,7 @@ public class StopwatchAttribute : ModifyChainAttribute
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Http.Testing/Samples/CustomWolverineMiddleware.cs#L65-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_stopwatchattribute-1'></a>
-```cs
-public class StopwatchAttribute : ModifyChainAttribute
-{
-    public override void Modify(IChain chain, GenerationRules rules, IContainer container)
-    {
-        chain.Middleware.Add(new StopwatchFrame(chain));
-    }
-}
-```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/Middleware.cs#L81-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/Middleware.cs#L81-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This attribute can now be placed either on a specific HTTP route endpoint method or message handler method to **only** apply to
@@ -200,19 +126,7 @@ public class ClockedEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Http.Testing/Samples/CustomWolverineMiddleware.cs#L76-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_clockedendpoint-1'></a>
-```cs
-public class ClockedEndpoint
-{
-    [Stopwatch]
-    public string get_clocked()
-    {
-        return "how fast";
-    }
-}
-```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/Middleware.cs#L91-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/Middleware.cs#L91-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, when the application is bootstrapped, this is the code that would be generated to handle the "GET /clocked" route:
@@ -295,7 +209,7 @@ public class WrapWithSimple : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/BootstrappingSamples.cs#L27-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wrapwithsimple' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/BootstrappingSamples.cs#L24-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wrapwithsimple' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then register your custom `IHandlerPolicy` with a Wolverine application like this:
@@ -304,12 +218,9 @@ Then register your custom `IHandlerPolicy` with a Wolverine application like thi
 <a id='snippet-sample_appwithhandlerpolicy'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        opts.Handlers.GlobalPolicy<WrapWithSimple>();
-    }).StartAsync();
+    .UseWolverine(opts => { opts.Handlers.GlobalPolicy<WrapWithSimple>(); }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/BootstrappingSamples.cs#L15-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appwithhandlerpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/BootstrappingSamples.cs#L15-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appwithhandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using Configure(chain) Methods
@@ -359,7 +270,7 @@ public class CustomizedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L24-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L24-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

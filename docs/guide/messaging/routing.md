@@ -24,7 +24,7 @@ public class SendingExample
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/Runtime/Samples/channels.cs#L12-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_for_static_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/Runtime/Samples/channels.cs#L7-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_for_static_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route messages to specific endpoints, we can apply static message routing rules by using a routing rule as shown below:

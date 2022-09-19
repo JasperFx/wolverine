@@ -83,12 +83,12 @@ Now, to add saga persistence, I'm going to lean on the [Marten integration](/gui
 <!-- snippet: sample_bootstrapping_order_saga_sample -->
 <a id='snippet-sample_bootstrapping_order_saga_sample'></a>
 ```cs
-using Wolverine;
 using Wolverine.Persistence.Marten;
 using Marten;
 using Oakton;
 using Oakton.Resources;
 using OrderSagaSample;
+using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
 

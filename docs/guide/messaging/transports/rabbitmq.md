@@ -48,7 +48,7 @@ return await Host.CreateDefaultBuilder(args)
         opts.Services.AddHostedService<PingerService>();
     }).RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPongWithRabbitMq/Pinger/Program.cs#L8-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPongWithRabbitMq/Pinger/Program.cs#L7-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See the [Rabbit MQ .NET Client documentation](https://www.rabbitmq.com/dotnet-api-guide.html#connecting) for more information about configuring the `ConnectionFactory` to connect to Rabbit MQ.
@@ -75,7 +75,7 @@ using var host = Host.CreateDefaultBuilder()
             .UseConventionalRouting();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L211-L221' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L211-L221' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With the defaults from above, for each message that the application can handle
@@ -143,7 +143,7 @@ using var host = Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L226-L275' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L226-L275' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -158,7 +158,7 @@ listening performance as shown below:
 <!-- snippet: sample_listening_to_rabbitmq_queue -->
 <a id='snippet-sample_listening_to_rabbitmq_queue'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // *A* way to configure Rabbit MQ using their Uri schema
@@ -190,7 +190,7 @@ using var host = Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listening_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listening_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To optimize and tune the message processing, you may want to read more about the [Rabbit MQ prefetch count and prefetch
@@ -203,7 +203,7 @@ Setting up a listener to a specific Rabbit MQ queue is shown below:
 <!-- snippet: sample_listening_to_rabbitmq_queue -->
 <a id='snippet-sample_listening_to_rabbitmq_queue'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // *A* way to configure Rabbit MQ using their Uri schema
@@ -235,7 +235,7 @@ using var host = Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listening_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listening_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -247,7 +247,7 @@ queue without worrying about an exchange or binding, you have this syntax:
 <!-- snippet: sample_publish_to_rabbitmq_queue -->
 <a id='snippet-sample_publish_to_rabbitmq_queue'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // Connect to an unsecured, local Rabbit MQ broker
@@ -265,7 +265,7 @@ using var host = Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L95-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L95-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publish to an Exchange
@@ -297,7 +297,7 @@ using var host = Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L120-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_exchange' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L120-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_exchange' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -334,7 +334,7 @@ using var host = Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L148-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L148-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Working with Topics
@@ -362,7 +362,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenToRabbitQueue("");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L16-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_to_rabbit_mq_topics_exchange' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L16-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_to_rabbit_mq_topics_exchange' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 While we're specifying the exchange name ("topics-exchange"), we did nothing to specify the topic
@@ -374,7 +374,7 @@ name. With this set up, when you publish a message in this application like so:
 var publisher = host.Services.GetRequiredService<IMessagePublisher>();
 await publisher.SendAsync(new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L37-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_topic_routed_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L37-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_topic_routed_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You will be sending that message to the "topics-exchange" with a topic name derived from
@@ -387,22 +387,21 @@ on a message type like so:
 <!-- snippet: sample_using_topic_attribute -->
 <a id='snippet-sample_using_topic_attribute'></a>
 ```cs
+[Topic("one")]
+public class TopicMessage1
+{
+}
+```
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/Configuration/TopicRoutingTester.cs#L9-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_using_topic_attribute-1'></a>
+```cs
 [Topic("color.blue")]
 public class FirstMessage
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L152-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_using_topic_attribute-1'></a>
-```cs
-[Topic("one")]
-public class TopicMessage1
-{
-
-}
-```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/Configuration/TopicRoutingTester.cs#L13-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L152-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Of course, you can always explicitly send a message to a specific topic with this syntax:
@@ -412,7 +411,7 @@ Of course, you can always explicitly send a message to a specific topic with thi
 ```cs
 await publisher.SendToTopicAsync("color.*", new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L44-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_a_specific_topic' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L44-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_a_specific_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note two things about the code above:
@@ -440,7 +439,7 @@ theSender = Host.CreateDefaultBuilder()
         });
     }).Start();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L24-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L24-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Managing Rabbit MQ Objects
@@ -482,7 +481,7 @@ using var host = Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L148-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L148-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At development time -- or occasionally in production systems -- you may want to have the messaging
@@ -499,7 +498,7 @@ using var host = Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L181-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L181-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or you can be more selective and only have certain queues of volatile messages purged
@@ -516,7 +515,7 @@ using var host = Host.CreateDefaultBuilder()
             .DeclareQueue("queue2", q => q.PurgeOnStartup = true);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.RabbitMQ.Tests/Samples.cs#L196-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L196-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://wolverinefx.github.io/oakton/guide/host/resources.html) model,

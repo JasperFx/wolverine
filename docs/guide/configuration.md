@@ -96,5 +96,5 @@ return await Host.CreateDefaultBuilder(args)
     })
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/opentelemetry/Subscriber1/Program.cs#L10-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

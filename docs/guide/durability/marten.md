@@ -298,7 +298,7 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Persistence.Testing/Marten/transactional_frame_end_to_end.cs#L87-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Persistence/Wolverine.Persistence.Testing/Marten/transactional_frame_end_to_end.cs#L86-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
@@ -313,7 +313,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Handlers.GlobalPolicy<CommandsAreTransactional>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Persistence.Testing/Marten/transactional_frame_end_to_end.cs#L46-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Persistence/Wolverine.Persistence.Testing/Marten/transactional_frame_end_to_end.cs#L46-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -614,7 +614,7 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
 
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Internal/Generated/WolverineHandlers/MarkItemReadyHandler1442193977.cs.cs#L12-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Internal/Generated/JasperHandlers/MarkItemReadyHandler1442193977.cs.cs#L12-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you probably guessed, there are some naming conventions or other questions you need to be aware of
@@ -766,11 +766,11 @@ builder.Host.UseWolverine(opts =>
     // in a separate, local queue with persistent messages for the inbox/outbox
     opts.PublishMessage<ChartingFinished>()
         .ToLocalQueue("charting")
-        .DurablyPersistedLocally();
+        .UseDurableInbox();
 
     // If we encounter a concurrency exception, just try it immediately
     // up to 3 times total
-    opts.Handlers.OnException<ConcurrencyException>().RetryNow(3);
+    opts.Handlers.OnException<ConcurrencyException>().RetryTimes(3);
 
     // It's an imperfect world, and sometimes transient connectivity errors
     // to the database happen

@@ -29,5 +29,5 @@ builder.Services.AddOpenTelemetryTracing(x =>
         .AddSource("Wolverine");
 });
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/opentelemetry/OtelWebApi/Program.cs#L37-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L37-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

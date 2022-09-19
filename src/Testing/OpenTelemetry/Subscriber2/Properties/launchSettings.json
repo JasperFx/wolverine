@@ -1,0 +1,11 @@
+﻿{
+  "profiles": {
+    "Subscriber2": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

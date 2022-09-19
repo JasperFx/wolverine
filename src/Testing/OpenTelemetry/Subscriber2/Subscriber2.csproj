@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UserSecretsId>dotnet-Subscriber2-0332C66C-99C6-4B10-A43D-356A26FE69C0</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
+      <PackageReference Include="OpenTelemetry" Version="1.3.0" />
+      <PackageReference Include="OpenTelemetry.Api" Version="1.3.0" />
+      <PackageReference Include="OpenTelemetry.Exporter.Jaeger" Version="1.3.0" />
+      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.0.0-rc8" />
+    </ItemGroup>
+
+  <ItemGroup>
+      <ProjectReference Include="..\..\..\Persistence\Wolverine.Persistence.Marten\Wolverine.Persistence.Marten.csproj" />
+      <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
+    <ProjectReference Include="..\OtelMessages\OtelMessages.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\Servers.cs">
+      <Link>Servers.cs</Link>
+    </Compile>
+  </ItemGroup>
+</Project>

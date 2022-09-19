@@ -15,12 +15,9 @@ To override the default message timeout of 60 seconds, use this syntax at bootst
 <a id='snippet-sample_set_default_timeout'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        opts.DefaultExecutionTimeout = 1.Minutes();
-    }).StartAsync();
+    .UseWolverine(opts => { opts.DefaultExecutionTimeout = 1.Minutes(); }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/Acceptance/message_timeout_mechanics.cs#L21-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_set_default_timeout' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/Acceptance/message_timeout_mechanics.cs#L21-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_set_default_timeout' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To override the message timeout on a message type by message type basis, you can use the `[MessageTimeout]`
@@ -32,5 +29,5 @@ attribute as shown below:
 [MessageTimeout(1)]
 public async Task Handle(PotentiallySlowMessage message, CancellationToken cancellationToken)
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine.Testing/Acceptance/message_timeout_mechanics.cs#L106-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagetimeout_on_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/Acceptance/message_timeout_mechanics.cs#L97-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagetimeout_on_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
