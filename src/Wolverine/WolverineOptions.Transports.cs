@@ -15,6 +15,7 @@ namespace Wolverine;
 public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 {
     private readonly Dictionary<string, ITransport> _transports = new();
+    private readonly List<IEndpointPolicy> _policies = new();
 
     internal TransportCollection()
     {
@@ -22,9 +23,17 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
         Add(new LocalTransport());
         Add(new TcpTransport());
     }
-    
+
+    internal void AddPolicy(IEndpointPolicy policy)
+    {
+        _policies.Add(policy);
+    }
+
+    internal IEnumerable<IEndpointPolicy> EndpointPolicies => _policies;
+
     public async ValueTask DisposeAsync()
     {
+        // TODO -- this is generic. Harvest this to somewhere else
         foreach (var transport in _transports.Values)
         {
             if (transport is IAsyncDisposable ad)

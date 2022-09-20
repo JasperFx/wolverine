@@ -41,7 +41,7 @@ public class LocalQueueSettings : Endpoint
     {
         Runtime = runtime;
         
-        Compile(runtime.Options);
+        Compile(runtime);
 
         Agent = buildAgent(runtime);
 

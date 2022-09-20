@@ -54,7 +54,7 @@ public class EndpointCollection : IAsyncDisposable
     {
         try
         {
-            endpoint.Compile(_options);
+            endpoint.Compile(_runtime);
             var agent = buildSendingAgent(sender, endpoint);
             endpoint.Agent = agent;
 
@@ -113,7 +113,7 @@ public class EndpointCollection : IAsyncDisposable
     public Endpoint? EndpointFor(Uri uri)
     {
         var endpoint = _options.Transports.SelectMany(x => x.Endpoints()).FirstOrDefault(x => x.Uri == uri);
-        endpoint?.Compile(_options);
+        endpoint?.Compile(_runtime);
 
         return endpoint;
     }
@@ -167,7 +167,7 @@ public class EndpointCollection : IAsyncDisposable
         var endpoint = transport.GetOrCreateEndpoint(uri);
         configureNewEndpoint?.Invoke(endpoint);
         
-        endpoint.Compile(_options);
+        endpoint.Compile(_runtime);
 
         endpoint.Runtime ??= _runtime; // This is important for serialization
         return endpoint.StartSending(_runtime, transport.ReplyEndpoint()?.Uri);
@@ -200,7 +200,7 @@ public class EndpointCollection : IAsyncDisposable
 
         foreach (var endpoint in listeningEndpoints)
         {
-            endpoint.Compile(_options);
+            endpoint.Compile(_runtime);
             var agent = new ListeningAgent(endpoint, _runtime);
             await agent.StartAsync().ConfigureAwait(false);
             _listeners[agent.Uri] = agent;

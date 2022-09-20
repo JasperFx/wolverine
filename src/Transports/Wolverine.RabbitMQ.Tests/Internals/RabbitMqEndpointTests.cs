@@ -1,7 +1,9 @@
 using System;
+using NSubstitute;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
+using Wolverine.Runtime;
 using Wolverine.Util;
 using Xunit;
 
@@ -51,7 +53,10 @@ namespace Wolverine.RabbitMQ.Tests.Internals
             endpoint.Mode = EndpointMode.BufferedInMemory;
             new RabbitMqListenerConfiguration(endpoint).MaximumParallelMessages(10);
 
-            endpoint.Compile(new WolverineOptions());
+            var wolverineRuntime = Substitute.For<IWolverineRuntime>();
+            wolverineRuntime.Options.Returns(new WolverineOptions());
+            
+            endpoint.Compile(wolverineRuntime);
             endpoint.PreFetchCount.ShouldBe((ushort)20);
         }
 
@@ -62,7 +67,10 @@ namespace Wolverine.RabbitMQ.Tests.Internals
             endpoint.Mode = EndpointMode.Durable;
             
             new RabbitMqListenerConfiguration(endpoint).MaximumParallelMessages(10);
-            endpoint.Compile(new WolverineOptions());
+            var wolverineRuntime = Substitute.For<IWolverineRuntime>();
+            wolverineRuntime.Options.Returns(new WolverineOptions());
+            
+            endpoint.Compile(wolverineRuntime);
 
             endpoint.PreFetchCount.ShouldBe((ushort)20);
         }

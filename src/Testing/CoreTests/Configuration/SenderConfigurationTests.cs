@@ -1,4 +1,5 @@
 using CoreTests.Messaging;
+using CoreTests.Runtime;
 using Shouldly;
 using TestMessages;
 using Wolverine.Configuration;
@@ -18,7 +19,7 @@ public class SenderConfigurationTests
 
         var expression = new SubscriberConfiguration(endpoint);
         expression.UseDurableOutbox();
-        endpoint.Compile(new WolverineOptions());
+        endpoint.Compile(new MockWolverineRuntime());
 
         endpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
@@ -32,7 +33,7 @@ public class SenderConfigurationTests
         var expression = new SubscriberConfiguration(endpoint);
         expression.BufferedInMemory();
         
-        endpoint.Compile(new WolverineOptions());
+        endpoint.Compile(new MockWolverineRuntime());
 
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
     }
@@ -45,7 +46,7 @@ public class SenderConfigurationTests
 
         var expression = new SubscriberConfiguration(endpoint);
         expression.Named("FooEndpoint");
-        endpoint.Compile(new WolverineOptions());
+        endpoint.Compile(new MockWolverineRuntime());
 
         endpoint.Name.ShouldBe("FooEndpoint");
     }
@@ -58,7 +59,7 @@ public class SenderConfigurationTests
 
         var expression = new SubscriberConfiguration(endpoint);
         expression.SendInline();
-        endpoint.Compile(new WolverineOptions());
+        endpoint.Compile(new MockWolverineRuntime());
 
         endpoint.Mode.ShouldBe(EndpointMode.Inline);
     }
@@ -73,7 +74,7 @@ public class SenderConfigurationTests
 
         var envelope = ObjectMother.Envelope();
         
-        endpoint.Compile(new WolverineOptions());
+        endpoint.Compile(new MockWolverineRuntime());
 
         endpoint.ApplyEnvelopeRules(envelope);
 
@@ -88,7 +89,7 @@ public class SenderConfigurationTests
         var expression = new SubscriberConfiguration(endpoint);
         expression.CustomizeOutgoingMessagesOfType<OtherMessage>(e => e.Headers.Add("g", "good"));
 
-        endpoint.Compile(new WolverineOptions());
+        endpoint.Compile(new MockWolverineRuntime());
         
         // Negative Case
         var envelope1 = new Envelope(new Message1());
@@ -112,7 +113,7 @@ public class SenderConfigurationTests
         var expression = new SubscriberConfiguration(endpoint);
         expression.CustomizeOutgoingMessagesOfType<BaseMessage>(e => e.Headers.Add("g", "good"));
 
-        endpoint.Compile(new WolverineOptions());
+        endpoint.Compile(new MockWolverineRuntime());
         
         // Negative Case
         var envelope1 = new Envelope(new Message1());

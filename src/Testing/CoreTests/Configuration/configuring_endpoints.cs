@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -17,6 +18,7 @@ public class configuring_endpoints : IDisposable
 {
     private readonly IHost _host;
     private WolverineOptions theOptions;
+    private readonly IWolverineRuntime theRuntime;
 
     public configuring_endpoints()
     {
@@ -30,6 +32,7 @@ public class configuring_endpoints : IDisposable
         }).Build();
 
         theOptions = _host.Get<WolverineOptions>();
+        theRuntime = _host.Get<IWolverineRuntime>();
     }
 
     private StubTransport theStubTransport
@@ -39,7 +42,7 @@ public class configuring_endpoints : IDisposable
             var transport = theOptions.Transports.GetOrCreate<StubTransport>();
             foreach (var endpoint in transport.Endpoints)
             {
-                endpoint.Compile(theOptions);
+                endpoint.Compile(theRuntime);
             }
 
             return transport;
@@ -56,7 +59,7 @@ public class configuring_endpoints : IDisposable
         var settings = theOptions.Transports.GetOrCreate<LocalTransport>()
             .QueueFor(queueName);
         
-        settings.Compile(theOptions);
+        settings.Compile(theRuntime);
 
         return settings;
     }
@@ -66,7 +69,7 @@ public class configuring_endpoints : IDisposable
         var endpoint = theOptions.Transports
             .TryGetEndpoint(uri.ToUri());
         
-        endpoint.Compile(theOptions);
+        endpoint.Compile(theRuntime);
 
         return endpoint;
     }

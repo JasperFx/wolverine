@@ -89,7 +89,7 @@ public partial class WolverineRuntime
             foreach (var endpoint in transport.Endpoints())
             {
                 endpoint.Runtime = this; // necessary to locate serialization
-                endpoint.Compile(Options);
+                endpoint.Compile(this);
             }
         }
 

@@ -51,7 +51,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     private bool _hasCompiled = false;
     
-    internal void Compile(WolverineOptions options)
+    internal void Compile(IWolverineRuntime runtime)
     {
         if (_hasCompiled) return;
 
@@ -62,7 +62,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
         
         // TODO -- apply policies
 
-        DefaultSerializer ??= options.DefaultSerializer;
+        DefaultSerializer ??= runtime.Options.DefaultSerializer;
 
         _hasCompiled = true;
     }
