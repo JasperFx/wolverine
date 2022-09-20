@@ -20,7 +20,7 @@ public partial class WolverineRuntime
             return Endpoints.AgentForLocalQueue(queueName);
         }
 
-        var subscribers = Options.GetOrCreate<LocalTransport>().Endpoints().OfType<LocalQueueSettings>().Where(x => x.ShouldSendMessage(messageType))
+        var subscribers = Options.Transports.GetOrCreate<LocalTransport>().Endpoints().OfType<LocalQueueSettings>().Where(x => x.ShouldSendMessage(messageType))
             .Select(x => x.Agent)
             .ToArray();
 
@@ -42,7 +42,7 @@ public partial class WolverineRuntime
             return raw;
         }
 
-        var matchingEndpoints = Options.AllEndpoints().Where(x => x.ShouldSendMessage(messageType));
+        var matchingEndpoints = Options.Transports.AllEndpoints().Where(x => x.ShouldSendMessage(messageType));
         var conventional = Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, this));
 
         var routes = matchingEndpoints.Union(conventional)

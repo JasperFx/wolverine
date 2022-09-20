@@ -51,6 +51,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals
             endpoint.Mode = EndpointMode.BufferedInMemory;
             new RabbitMqListenerConfiguration(endpoint).MaximumParallelMessages(10);
 
+            endpoint.Compile(new WolverineOptions());
             endpoint.PreFetchCount.ShouldBe((ushort)20);
         }
 
@@ -59,7 +60,9 @@ namespace Wolverine.RabbitMQ.Tests.Internals
         {
             var endpoint = new RabbitMqEndpoint(new RabbitMqTransport());
             endpoint.Mode = EndpointMode.Durable;
+            
             new RabbitMqListenerConfiguration(endpoint).MaximumParallelMessages(10);
+            endpoint.Compile(new WolverineOptions());
 
             endpoint.PreFetchCount.ShouldBe((ushort)20);
         }

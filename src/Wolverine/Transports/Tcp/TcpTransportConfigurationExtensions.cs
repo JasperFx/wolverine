@@ -10,9 +10,9 @@ public static class TcpTransportConfigurationExtensions
     ///     fast, but non-durable way
     /// </summary>
     /// <param name="port"></param>
-    public static IListenerConfiguration ListenAtPort(this WolverineOptions endpoints, int port)
+    public static IListenerConfiguration ListenAtPort(this WolverineOptions options, int port)
     {
-        var endpoint = endpoints.GetOrCreate<TcpTransport>().GetOrCreateEndpoint(TcpEndpoint.ToUri(port));
+        var endpoint = options.Transports.GetOrCreate<TcpTransport>().GetOrCreateEndpoint(TcpEndpoint.ToUri(port));
         endpoint.IsListener = true;
         return new ListenerConfiguration(endpoint);
     }
@@ -24,7 +24,7 @@ public static class TcpTransportConfigurationExtensions
     /// <param name="port"></param>
     public static ISubscriberConfiguration ToPort(this IPublishToExpression publishing, int port)
     {
-        publishing.As<PublishingExpression>().Parent.GetOrCreate<TcpTransport>();
+        publishing.As<PublishingExpression>().Parent.Transports.GetOrCreate<TcpTransport>();
         var uri = TcpEndpoint.ToUri(port);
         return publishing.To(uri);
     }
@@ -38,7 +38,7 @@ public static class TcpTransportConfigurationExtensions
     public static ISubscriberConfiguration ToServerAndPort(this IPublishToExpression publishing, string hostName,
         int port)
     {
-        publishing.As<PublishingExpression>().Parent.GetOrCreate<TcpTransport>();
+        publishing.As<PublishingExpression>().Parent.Transports.GetOrCreate<TcpTransport>();
         var uri = TcpEndpoint.ToUri(port, hostName);
         return publishing.To(uri);
     }

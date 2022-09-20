@@ -13,6 +13,8 @@ namespace Wolverine.RabbitMQ.Tests
             var expression = new RabbitMqListenerConfiguration(endpoint);
 
             expression.PreFetchCount(99).ShouldBeSameAs(expression);
+            
+            endpoint.Compile(new WolverineOptions());
 
             endpoint.PreFetchCount.ShouldBe((ushort)99);
         }
@@ -24,6 +26,7 @@ namespace Wolverine.RabbitMQ.Tests
             var expression = new RabbitMqListenerConfiguration(endpoint);
 
             expression.PreFetchSize(1111).ShouldBeSameAs(expression);
+            endpoint.Compile(new WolverineOptions());
 
             endpoint.PreFetchSize.ShouldBe((uint)1111);
         }

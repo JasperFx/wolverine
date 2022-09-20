@@ -112,7 +112,7 @@ public class EndpointCollection : IAsyncDisposable
 
     public Endpoint? EndpointFor(Uri uri)
     {
-        var endpoint = _options.endpoints().FirstOrDefault(x => x.Uri == uri);
+        var endpoint = _options.Transports.SelectMany(x => x.Endpoints()).FirstOrDefault(x => x.Uri == uri);
         endpoint?.Compile(_options);
 
         return endpoint;
@@ -157,7 +157,7 @@ public class EndpointCollection : IAsyncDisposable
 
     private ISendingAgent buildSendingAgent(Uri uri, Action<Endpoint>? configureNewEndpoint)
     {
-        var transport = _options.TransportForScheme(uri.Scheme);
+        var transport = _options.Transports.ForScheme(uri.Scheme);
         if (transport == null)
         {
             throw new InvalidOperationException(
@@ -175,7 +175,7 @@ public class EndpointCollection : IAsyncDisposable
 
     public Endpoint? EndpointByName(string endpointName)
     {
-        return _options.AllEndpoints().ToArray().FirstOrDefault(x => x.Name == endpointName);
+        return _options.Transports.AllEndpoints().ToArray().FirstOrDefault(x => x.Name == endpointName);
     }
 
     public IListeningAgent? FindListeningAgent(Uri uri)
@@ -195,7 +195,7 @@ public class EndpointCollection : IAsyncDisposable
 
     internal async Task StartListeners()
     {
-        var listeningEndpoints = _options.SelectMany(x => x.Endpoints())
+        var listeningEndpoints = _options.Transports.SelectMany(x => x.Endpoints())
             .Where(x => x.IsListener).Where(x => x is not LocalQueueSettings);
 
         foreach (var endpoint in listeningEndpoints)

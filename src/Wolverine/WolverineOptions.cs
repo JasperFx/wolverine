@@ -56,13 +56,11 @@ public sealed partial class WolverineOptions
 
     public WolverineOptions(string? assemblyName)
     {
+        Transports = new TransportCollection();
+        
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
 
         UseNewtonsoftForSerialization();
-
-        Add(new StubTransport());
-        Add(new LocalTransport());
-        Add(new TcpTransport());
 
         establishApplicationAssembly(assemblyName);
 
@@ -71,7 +69,11 @@ public sealed partial class WolverineOptions
         deriveServiceName();
 
         LocalQueue(TransportConstants.Durable).UseDurableInbox();
+
+        
     }
+    
+    public TransportCollection Transports { get; }
 
     /// <summary>
     ///     Advanced configuration options for Wolverine message processing,
@@ -311,11 +313,5 @@ public sealed partial class WolverineOptions
     public void AddSerializer(IMessageSerializer serializer)
     {
         _serializers[serializer.ContentType] = serializer;
-    }
-
-
-    internal IEnumerable<Endpoint> endpoints()
-    {
-        return this.SelectMany(x => x.Endpoints());
     }
 }

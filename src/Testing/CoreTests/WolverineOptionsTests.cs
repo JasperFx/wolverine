@@ -106,9 +106,10 @@ public class WolverineOptionsTests
         var transport = Substitute.For<ITransport>();
         transport.Protocol.Returns("fake");
 
-        var collection = new WolverineOptions { transport };
+        var collection = new WolverineOptions();
+        collection.Transports.Add(transport);
 
-        collection.ShouldContain(transport);
+        collection.Transports.ShouldContain(transport);
     }
 
     [Fact]
@@ -117,14 +118,14 @@ public class WolverineOptionsTests
         var collection = new WolverineOptions();
         Exception<InvalidOperationException>.ShouldBeThrownBy(() =>
         {
-            collection.TryGetEndpoint("wrong://server".ToUri());
+            collection.Transports.TryGetEndpoint("wrong://server".ToUri());
         });
     }
 
     [Fact]
     public void local_is_registered_by_default()
     {
-        new WolverineOptions()
+        new WolverineOptions().Transports
             .OfType<LocalTransport>()
             .Count().ShouldBe(1);
     }
@@ -132,15 +133,15 @@ public class WolverineOptionsTests
     [Fact]
     public void retrieve_transport_by_scheme()
     {
-        new WolverineOptions()
-            .TransportForScheme("local")
+        new WolverineOptions().Transports
+            .ForScheme("local")
             .ShouldBeOfType<LocalTransport>();
     }
 
     [Fact]
     public void retrieve_transport_by_type()
     {
-        new WolverineOptions()
+        new WolverineOptions().Transports
             .GetOrCreate<LocalTransport>()
             .ShouldNotBeNull();
     }
@@ -153,7 +154,7 @@ public class WolverineOptionsTests
         collection.PublishAllMessages().To("stub://two");
 
         // 2 default local queues + the 2 added here
-        collection.AllEndpoints()
+        collection.Transports.AllEndpoints()
             .Length.ShouldBe(5);
     }
 
@@ -170,8 +171,8 @@ public class WolverineOptionsTests
             x.To("stub://4444");
         });
 
-        var endpoint3333 = collection.TryGetEndpoint("stub://3333".ToUri());
-        var endpoint4444 = collection.TryGetEndpoint("stub://4444".ToUri());
+        var endpoint3333 = collection.Transports.TryGetEndpoint("stub://3333".ToUri());
+        var endpoint4444 = collection.Transports.TryGetEndpoint("stub://4444".ToUri());
 
         endpoint3333.Subscriptions[0]
             .ShouldBe(new Subscription { Scope = RoutingScope.Namespace, Match = "One" });
@@ -190,9 +191,9 @@ public class WolverineOptionsTests
     public void create_transport_type_if_missing()
     {
         var collection = new WolverineOptions();
-        var transport = collection.GetOrCreate<FakeTransport>();
+        var transport = collection.Transports.GetOrCreate<FakeTransport>();
 
-        collection.GetOrCreate<FakeTransport>()
+        collection.Transports.GetOrCreate<FakeTransport>()
             .ShouldBeSameAs(transport);
     }
 

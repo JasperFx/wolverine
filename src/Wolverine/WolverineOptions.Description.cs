@@ -11,7 +11,7 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
 {
     async Task IDescribedSystemPart.Write(TextWriter writer)
     {
-        foreach (var transport in _transports.Values.Where(x => x.Endpoints().Any()))
+        foreach (var transport in Transports.Where(x => x.Endpoints().Any()))
         {
             await writer.WriteLineAsync(transport.Name);
 
@@ -31,7 +31,7 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
     {
         var tree = new Tree("Transports and Endpoints");
 
-        foreach (var transport in _transports.Values.Where(x => x.Endpoints().Any()))
+        foreach (var transport in Transports.Where(x => x.Endpoints().Any()))
         {
             var transportNode = tree.AddNode($"[bold]{transport.Name}[/] [dim]({transport.Protocol}[/])");
             if (transport is ITreeDescriber d)

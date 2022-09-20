@@ -83,7 +83,7 @@ public partial class WolverineRuntime
 
     private async Task startMessagingTransportsAsync()
     {
-        foreach (var transport in Options)
+        foreach (var transport in Options.Transports)
         {
             await transport.InitializeAsync(this).ConfigureAwait(false);
             foreach (var endpoint in transport.Endpoints())
@@ -99,7 +99,7 @@ public partial class WolverineRuntime
             routingConvention.DiscoverListeners(this, Handlers.Chains.Select(x => x.MessageType).ToList());
         }
 
-        foreach (var transport in Options)
+        foreach (var transport in Options.Transports)
         {
             var replyUri = transport.ReplyEndpoint()?.Uri;
 

@@ -1,12 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using Oakton.Descriptions;
-using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -14,30 +9,22 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine;
 
-public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposable
+public partial class WolverineOptions : IAsyncDisposable
 {
-    private readonly Dictionary<string, ITransport> _transports = new();
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var transport in _transports.Values)
-        {
-            if (transport is IAsyncDisposable ad)
-            {
-                await ad.DisposeAsync();
-            }
-            else if (transport is IDisposable d)
-            {
-                d.Dispose();
-            }
-        }
-    }
-
     internal IList<IMessageRoutingConvention> RoutingConventions { get; } = new List<IMessageRoutingConvention>();
 
+    public IListenerConfiguration DefaultLocalQueue => LocalQueue(TransportConstants.Default);
+    public IListenerConfiguration DurableScheduledMessagesLocalQueue => LocalQueue(TransportConstants.Durable);
+
+
+    public ValueTask DisposeAsync()
+    {
+        return Transports.DisposeAsync();
+    }
+
     /// <summary>
-    /// Register a routing convention that Wolverine will use to discover and apply
-    /// message routing
+    ///     Register a routing convention that Wolverine will use to discover and apply
+    ///     message routing
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
@@ -50,8 +37,8 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
     }
 
     /// <summary>
-    /// Register a routing convention that Wolverine will use to discover and apply
-    /// message routing
+    ///     Register a routing convention that Wolverine will use to discover and apply
+    ///     message routing
     /// </summary>
     /// <param name="routingConvention"></param>
     public void RouteWith(IMessageRoutingConvention routingConvention)
@@ -59,15 +46,13 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
         RoutingConventions.Add(routingConvention);
     }
 
-
-
     /// <summary>
     ///     Directs Wolverine to set up an incoming listener for the given Uri
     /// </summary>
     /// <param name="uri"></param>
     public IListenerConfiguration ListenForMessagesFrom(Uri uri)
     {
-        var endpoint = findTransport(uri).GetOrCreateEndpoint(uri);
+        var endpoint = Transports.Find(uri).GetOrCreateEndpoint(uri);
         endpoint.IsListener = true;
         return new ListenerConfiguration(endpoint);
     }
@@ -89,8 +74,8 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
     }
 
     /// <summary>
-    /// Create a sending endpoint with no subscriptions. This
-    /// can be useful for programmatic sending to named endpoints
+    ///     Create a sending endpoint with no subscriptions. This
+    ///     can be useful for programmatic sending to named endpoints
     /// </summary>
     /// <returns></returns>
     public PublishingExpression Publish()
@@ -99,7 +84,7 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
     }
 
     /// <summary>
-    /// Shorthand syntax to route a single message type
+    ///     Shorthand syntax to route a single message type
     /// </summary>
     /// <typeparam name="TMessageType"></typeparam>
     /// <returns></returns>
@@ -108,7 +93,6 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
         var expression = new PublishingExpression(this)
         {
             AutoAddSubscriptions = true
-
         };
 
         expression.Message<TMessageType>();
@@ -129,75 +113,14 @@ public partial class WolverineOptions : IEnumerable<ITransport>, IAsyncDisposabl
 
     public IListenerConfiguration LocalQueue(string queueName)
     {
-        var settings = GetOrCreate<LocalTransport>().QueueFor(queueName);
+        var settings = Transports.GetOrCreate<LocalTransport>().QueueFor(queueName);
         return new ListenerConfiguration(settings);
     }
-
-    public IListenerConfiguration DefaultLocalQueue => LocalQueue(TransportConstants.Default);
-    public IListenerConfiguration DurableScheduledMessagesLocalQueue => LocalQueue(TransportConstants.Durable);
 
     public void StubAllExternallyOutgoingEndpoints()
     {
         Advanced.StubAllOutgoingExternalSenders = true;
     }
 
-    public IEnumerator<ITransport> GetEnumerator()
-    {
-        return _transports.Values.GetEnumerator();
-    }
 
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
-    }
-
-    public ITransport? TransportForScheme(string scheme)
-    {
-        return _transports.TryGetValue(scheme.ToLowerInvariant(), out var transport)
-            ? transport
-            : null;
-    }
-
-    public void Add(ITransport transport)
-    {
-        _transports.SmartAdd(transport.Protocol, transport);
-    }
-
-    public T GetOrCreate<T>() where T : ITransport, new()
-    {
-        var transport = _transports.Values.OfType<T>().FirstOrDefault();
-        if (transport == null)
-        {
-            transport = new T();
-            _transports[transport.Protocol] = transport;
-        }
-
-        return transport;
-    }
-
-    public Endpoint? TryGetEndpoint(Uri uri)
-    {
-        return findTransport(uri).TryGetEndpoint(uri);
-    }
-
-    private ITransport findTransport(Uri uri)
-    {
-        var transport = TransportForScheme(uri.Scheme);
-        if (transport == null)
-        {
-            throw new InvalidOperationException($"Unknown Transport scheme '{uri.Scheme}'");
-        }
-
-        return transport;
-    }
-
-    public Endpoint GetOrCreateEndpoint(Uri uri)
-    {
-        return findTransport(uri).GetOrCreateEndpoint(uri);
-    }
-
-    public Endpoint[] AllEndpoints()
-    {
-        return _transports.Values.SelectMany(x => x.Endpoints()).ToArray();
-    }
 }

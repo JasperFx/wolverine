@@ -78,7 +78,7 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         internal static RabbitMqTransport RabbitMqTransport(this WolverineOptions endpoints)
         {
-            var transports = endpoints.As<WolverineOptions>();
+            var transports = endpoints.As<WolverineOptions>().Transports;
 
             return transports.GetOrCreate<RabbitMqTransport>();
         }
@@ -157,7 +157,7 @@ namespace Wolverine.RabbitMQ
         public static RabbitMqSubscriberConfiguration ToRabbit(this IPublishToExpression publishing,
             string routingKeyOrQueueName, string exchangeName = "")
         {
-            var transports = publishing.As<PublishingExpression>().Parent;
+            var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
             var endpoint = transport.EndpointFor(routingKeyOrQueueName, exchangeName);
 
@@ -180,7 +180,7 @@ namespace Wolverine.RabbitMQ
         public static RabbitMqSubscriberConfiguration ToRabbitQueue(this IPublishToExpression publishing,
             string queueName, Action<RabbitMqQueue>? configure = null)
         {
-            var transports = publishing.As<PublishingExpression>().Parent;
+            var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
 
             var queue = transport.Queues[queueName];
@@ -205,7 +205,7 @@ namespace Wolverine.RabbitMQ
         public static RabbitMqSubscriberConfiguration ToRabbitExchange(this IPublishToExpression publishing,
             string exchangeName, Action<RabbitMqExchange>? configure = null)
         {
-            var transports = publishing.As<PublishingExpression>().Parent;
+            var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
 
             var exchange = transport.Exchanges[exchangeName];
@@ -231,7 +231,7 @@ namespace Wolverine.RabbitMQ
         public static RabbitMqSubscriberConfiguration ToRabbitTopics(this IPublishToExpression publishing,
             string exchangeName, Action<RabbitMqExchange>? configure = null)
         {
-            var transports = publishing.As<PublishingExpression>().Parent;
+            var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
 
             var exchange = transport.Exchanges[exchangeName];

@@ -36,7 +36,7 @@ public class configuring_endpoints : IDisposable
     {
         get
         {
-            var transport = theOptions.GetOrCreate<StubTransport>();
+            var transport = theOptions.Transports.GetOrCreate<StubTransport>();
             foreach (var endpoint in transport.Endpoints)
             {
                 endpoint.Compile(theOptions);
@@ -53,7 +53,7 @@ public class configuring_endpoints : IDisposable
 
     private LocalQueueSettings localQueue(string queueName)
     {
-        var settings = theOptions.GetOrCreate<LocalTransport>()
+        var settings = theOptions.Transports.GetOrCreate<LocalTransport>()
             .QueueFor(queueName);
         
         settings.Compile(theOptions);
@@ -63,7 +63,7 @@ public class configuring_endpoints : IDisposable
 
     private Endpoint findEndpoint(string uri)
     {
-        var endpoint = theOptions
+        var endpoint = theOptions.Transports
             .TryGetEndpoint(uri.ToUri());
         
         endpoint.Compile(theOptions);

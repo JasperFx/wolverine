@@ -39,7 +39,7 @@ internal abstract class MessageRouterBase<T> : IMessageRouter
         _local = new MessageRoute(typeof(T), runtime.DetermineLocalSendingAgent(typeof(T)).Endpoint);
         _local.Rules.AddRange(HandlerRules!);
 
-        _topicRoutes = runtime.Options.AllEndpoints().Where(x => x.RoutingType == RoutingMode.ByTopic)
+        _topicRoutes = runtime.Options.Transports.AllEndpoints().Where(x => x.RoutingType == RoutingMode.ByTopic)
             .Select(endpoint => new MessageRoute(typeof(T), endpoint)).ToArray();
 
         Runtime = runtime;
@@ -85,7 +85,7 @@ internal abstract class MessageRouterBase<T> : IMessageRouter
 
         var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
         route = endpoint == null
-            ? new NoNamedEndpointRoute(endpointName, Runtime.Options.AllEndpoints().Select(x => x.Name).ToArray())
+            ? new NoNamedEndpointRoute(endpointName, Runtime.Options.Transports.AllEndpoints().Select(x => x.Name).ToArray())
             : new MessageRoute(typeof(T), Runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri).Endpoint);
 
         _routeByName = _routeByName.AddOrUpdate(endpointName, route);

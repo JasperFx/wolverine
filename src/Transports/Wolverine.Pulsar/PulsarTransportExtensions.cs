@@ -17,7 +17,7 @@ namespace Wolverine.Pulsar
         /// <returns></returns>
         internal static PulsarTransport PulsarTransport(this WolverineOptions endpoints)
         {
-            var transports = endpoints.As<WolverineOptions>();
+            var transports = endpoints.As<WolverineOptions>().Transports;
 
             return transports.GetOrCreate<PulsarTransport>();
         }
@@ -51,7 +51,7 @@ namespace Wolverine.Pulsar
         /// <returns></returns>
         public static PulsarSubscriberConfiguration ToPulsarTopic(this IPublishToExpression publishing, string topicPath)
         {
-            var transports = publishing.As<PublishingExpression>().Parent;
+            var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<PulsarTransport>();
             var endpoint = transport.EndpointFor(topicPath);
 

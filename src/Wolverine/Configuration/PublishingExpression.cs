@@ -33,7 +33,7 @@ public class PublishingExpression : IPublishToExpression
     /// <returns></returns>
     public ISubscriberConfiguration To(Uri uri)
     {
-        var endpoint = Parent.GetOrCreateEndpoint(uri);
+        var endpoint = Parent.Transports.GetOrCreateEndpoint(uri);
 
         _endpoints.Add(endpoint);
 
@@ -62,7 +62,7 @@ public class PublishingExpression : IPublishToExpression
     /// </summary>
     public IListenerConfiguration Locally()
     {
-        var settings = Parent.GetOrCreate<LocalTransport>().QueueFor(TransportConstants.Default);
+        var settings = Parent.Transports.GetOrCreate<LocalTransport>().QueueFor(TransportConstants.Default);
         settings.Subscriptions.AddRange(_subscriptions);
 
         return new ListenerConfiguration(settings);
@@ -77,7 +77,7 @@ public class PublishingExpression : IPublishToExpression
     /// <returns></returns>
     public IListenerConfiguration ToLocalQueue(string queueName)
     {
-        var settings = Parent.GetOrCreate<LocalTransport>().QueueFor(queueName);
+        var settings = Parent.Transports.GetOrCreate<LocalTransport>().QueueFor(queueName);
 
         if (AutoAddSubscriptions)
         {
