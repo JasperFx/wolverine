@@ -13,16 +13,12 @@ namespace Wolverine.RabbitMQ
     public class RabbitMappingContext
     {
         public Type MessageType { get; }
-        public RabbitMqTransport Transport { get; }
         public IWolverineRuntime Runtime { get; }
-        public RabbitMqEndpoint Endpoint { get; }
 
-        public RabbitMappingContext(Type messageType, RabbitMqTransport transport, IWolverineRuntime runtime, RabbitMqEndpoint endpoint)
+        public RabbitMappingContext(Type messageType, IWolverineRuntime runtime)
         {
             MessageType = messageType;
-            Transport = transport;
             Runtime = runtime;
-            Endpoint = endpoint;
         }
     }
 
@@ -70,9 +66,12 @@ namespace Wolverine.RabbitMQ
                 endpoint.IsListener = true;
                 var queue = transport.Queues[queueName];
 
-                var context = new RabbitMappingContext(messageType, transport, runtime, endpoint);
-
-                _configureListener(queue, context);
+                var context = new RabbitMappingContext(messageType, runtime);
+                var configuration = new RabbitMqListenerConfiguration(endpoint);
+                
+                _configureListener(configuration, queue, context);
+                
+                configuration.As<IDelayedEndpointConfiguration>().Apply();
             }
         }
 
@@ -89,8 +88,13 @@ namespace Wolverine.RabbitMQ
 
             var endpoint = transport.EndpointForExchange(exchangeName);
             endpoint.Mode = Mode;
-            _configureSending(exchange, new RabbitMappingContext(messageType, transport, runtime, endpoint));
 
+            var configuration = new RabbitMqSubscriberConfiguration(endpoint);
+            
+            _configureSending(configuration, exchange, new RabbitMappingContext(messageType, runtime));
+
+            configuration.As<IDelayedEndpointConfiguration>().Apply();
+            
             // This will start up the sending agent
             var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
             yield return sendingAgent.Endpoint;
@@ -99,10 +103,10 @@ namespace Wolverine.RabbitMQ
         internal EndpointMode Mode { get; set; } = EndpointMode.BufferedInMemory;
 
         private Func<Type, string?> _queueNameForListener = t => t.ToMessageTypeName();
-        private Action<RabbitMqQueue, RabbitMappingContext> _configureListener = (_, _) => { };
+        private Action<RabbitMqListenerConfiguration, RabbitMqQueue, RabbitMappingContext> _configureListener = (_, _, _) => { };
         private Func<Type, string?> _exchangeNameForSending = t => t.ToMessageTypeName();
 
-        private Action<RabbitMqExchange, RabbitMappingContext> _configureSending = (exchange, context) =>
+        private Action<RabbitMqSubscriberConfiguration, RabbitMqExchange, RabbitMappingContext> _configureSending = (_, exchange, _) =>
         {
             exchange.BindQueue(exchange.Name);
         };
@@ -138,7 +142,7 @@ namespace Wolverine.RabbitMQ
         /// </summary>
         /// <param name="configure"></param>
         /// <returns></returns>
-        public RabbitMqMessageRoutingConvention ConfigureListener(Action<RabbitMqQueue, RabbitMappingContext> configure)
+        public RabbitMqMessageRoutingConvention ConfigureListener(Action<RabbitMqListenerConfiguration, RabbitMqQueue, RabbitMappingContext> configure)
         {
             _configureListener = configure ?? throw new ArgumentNullException(nameof(configure));
             return this;
@@ -150,7 +154,7 @@ namespace Wolverine.RabbitMQ
         /// </summary>
         /// <param name="configure"></param>
         /// <returns></returns>
-        public RabbitMqMessageRoutingConvention ConfigureSending(Action<RabbitMqExchange, RabbitMappingContext> configure)
+        public RabbitMqMessageRoutingConvention ConfigureSending(Action<RabbitMqSubscriberConfiguration, RabbitMqExchange, RabbitMappingContext> configure)
         {
             _configureSending = configure ?? throw new ArgumentNullException(nameof(configure));
             return this;

@@ -25,6 +25,8 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
         {
             action(_endpoint);
         }
+
+        _endpoint.DelayedConfiguration.Remove(this);
     }
     
     protected void add(Action<TEndpoint> action)

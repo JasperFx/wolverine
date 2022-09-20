@@ -32,7 +32,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     private IMessageSerializer? _defaultSerializer;
     private string? _name;
     private ImHashMap<string, IMessageSerializer> _serializers = ImHashMap<string, IMessageSerializer>.Empty;
-    private readonly List<IDelayedEndpointConfiguration> _delayedConfiguration = new();
+    internal readonly List<IDelayedEndpointConfiguration> DelayedConfiguration = new();
     
     protected Endpoint()
     {
@@ -46,7 +46,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
     {
-        _delayedConfiguration.Add(configuration);
+        DelayedConfiguration.Add(configuration);
     }
 
     private bool _hasCompiled = false;
@@ -60,7 +60,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
             policy.Apply(this, runtime);
         }
 
-        foreach (var configuration in _delayedConfiguration)
+        foreach (var configuration in DelayedConfiguration.ToArray())
         {
             configuration.Apply();
         }

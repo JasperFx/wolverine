@@ -73,7 +73,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         [Fact]
         public void configure_sender_overrides()
         {
-            ConfigureConventions(c => c.ConfigureSending((e, c) => c.Endpoint.OutgoingRules.Add(new FakeEnvelopeRule())));
+            ConfigureConventions(c => c.ConfigureSending((c, _, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
 
             var route = PublishingRoutesFor<PublishedMessage>().Single().Sender.Endpoint
                 .ShouldBeOfType<RabbitMqEndpoint>();
@@ -102,9 +102,9 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         [Fact]
         public void configure_listener()
         {
-            ConfigureConventions(c => c.ConfigureListener((queue, context) =>
+            ConfigureConventions(c => c.ConfigureListener((x, _, _) =>
             {
-                context.Endpoint.ListenerCount = 6;
+                x.ListenerCount(6);
             }));
 
             var endpoint = theRuntime.Endpoints.EndpointFor("rabbitmq://queue/routed".ToUri())

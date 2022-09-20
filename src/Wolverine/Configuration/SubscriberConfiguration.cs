@@ -60,6 +60,18 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         return this.As<T>();
     }
 
+    /// <summary>
+    /// Add an outgoing envelope rule to modify how messages are sent from this
+    /// endpoint
+    /// </summary>
+    /// <param name="rule"></param>
+    /// <returns></returns>
+    public T AddOutgoingRule(IEnvelopeRule rule)
+    {
+        add(e => e.OutgoingRules.Add(rule));
+        return this.As<T>();
+    }
+
     public T CustomizeOutgoing(Action<Envelope> customize)
     {
         add(e => e.OutgoingRules.Add(new LambdaEnvelopeRule(customize)));
