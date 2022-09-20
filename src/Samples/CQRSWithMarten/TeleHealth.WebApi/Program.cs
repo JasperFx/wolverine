@@ -8,7 +8,7 @@ using Oakton;
 using TeleHealth.Common;
 using Wolverine;
 using Wolverine.ErrorHandling;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
 

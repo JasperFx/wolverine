@@ -29,17 +29,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScheduledJobTests", "src\Te
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Persistence", "Persistence", "{7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Persistence.Database", "src\Persistence\Wolverine.Persistence.Database\Wolverine.Persistence.Database.csproj", "{6ED2C542-265E-464A-911C-D74476F75740}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.RDBMS", "src\Persistence\Wolverine.RDBMS\Wolverine.RDBMS.csproj", "{6ED2C542-265E-464A-911C-D74476F75740}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Persistence.EntityFrameworkCore", "src\Persistence\Wolverine.Persistence.EntityFrameworkCore\Wolverine.Persistence.EntityFrameworkCore.csproj", "{13B61139-BC4F-42E6-ABCB-8E9953E4478B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Marten", "src\Persistence\Wolverine.Marten\Wolverine.Marten.csproj", "{00FF6FFE-7B23-4DD3-BC95-6908072F357E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Persistence.Marten", "src\Persistence\Wolverine.Persistence.Marten\Wolverine.Persistence.Marten.csproj", "{00FF6FFE-7B23-4DD3-BC95-6908072F357E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Postgresql", "src\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj", "{6850F1A0-FA56-4C43-A860-0F0BDAD6187D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Persistence.Postgresql", "src\Persistence\Wolverine.Persistence.Postgresql\Wolverine.Persistence.Postgresql.csproj", "{6850F1A0-FA56-4C43-A860-0F0BDAD6187D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.SqlServer", "src\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj", "{EFEB9600-F513-48AD-8F4B-D8994B9182CA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Persistence.SqlServer", "src\Persistence\Wolverine.Persistence.SqlServer\Wolverine.Persistence.SqlServer.csproj", "{EFEB9600-F513-48AD-8F4B-D8994B9182CA}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Persistence.Testing", "src\Persistence\Wolverine.Persistence.Testing\Wolverine.Persistence.Testing.csproj", "{9CF0B286-90B6-4A2E-BB93-CE17BA822757}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PersistenceTests", "src\Persistence\PersistenceTests\PersistenceTests.csproj", "{9CF0B286-90B6-4A2E-BB93-CE17BA822757}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Transports", "Transports", "{84D32C8B-9CCE-4925-9AEC-8F445C7A2E3D}"
 EndProject
@@ -121,6 +119,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Subscriber2", "src\Testing\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TracingTests", "src\Testing\OpenTelemetry\TracingTests\TracingTests.csproj", "{3246F150-2653-4093-86E6-617D22F08A03}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.EntityFrameworkCore", "src\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj", "{EFD8CCE3-BF02-4EA4-8859-DF02692E08C8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -174,10 +174,6 @@ Global
 		{6ED2C542-265E-464A-911C-D74476F75740}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6ED2C542-265E-464A-911C-D74476F75740}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6ED2C542-265E-464A-911C-D74476F75740}.Release|Any CPU.Build.0 = Release|Any CPU
-		{13B61139-BC4F-42E6-ABCB-8E9953E4478B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{13B61139-BC4F-42E6-ABCB-8E9953E4478B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{13B61139-BC4F-42E6-ABCB-8E9953E4478B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{13B61139-BC4F-42E6-ABCB-8E9953E4478B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{00FF6FFE-7B23-4DD3-BC95-6908072F357E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{00FF6FFE-7B23-4DD3-BC95-6908072F357E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{00FF6FFE-7B23-4DD3-BC95-6908072F357E}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -326,6 +322,10 @@ Global
 		{3246F150-2653-4093-86E6-617D22F08A03}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3246F150-2653-4093-86E6-617D22F08A03}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3246F150-2653-4093-86E6-617D22F08A03}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EFD8CCE3-BF02-4EA4-8859-DF02692E08C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EFD8CCE3-BF02-4EA4-8859-DF02692E08C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EFD8CCE3-BF02-4EA4-8859-DF02692E08C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EFD8CCE3-BF02-4EA4-8859-DF02692E08C8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{902AD1EA-9C2D-4555-869F-83E3C497EF7E} = {96119B5E-B5F0-400A-9580-B342EBE26212}
@@ -339,7 +339,6 @@ Global
 		{3991BE77-2223-4CBA-B223-973CA49938F8} = {96119B5E-B5F0-400A-9580-B342EBE26212}
 		{E98F470E-B517-4267-AC24-42813DFC8B29} = {96119B5E-B5F0-400A-9580-B342EBE26212}
 		{6ED2C542-265E-464A-911C-D74476F75740} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
-		{13B61139-BC4F-42E6-ABCB-8E9953E4478B} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 		{00FF6FFE-7B23-4DD3-BC95-6908072F357E} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 		{6850F1A0-FA56-4C43-A860-0F0BDAD6187D} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 		{EFEB9600-F513-48AD-8F4B-D8994B9182CA} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
@@ -382,5 +381,6 @@ Global
 		{FE227CDD-DCA9-4B28-9B4F-B809D0012E48} = {0676FAFE-9E98-4723-84D3-74450BB9BA21}
 		{4BE7FE28-5764-43EE-9D7B-6D53A9B58F53} = {0676FAFE-9E98-4723-84D3-74450BB9BA21}
 		{3246F150-2653-4093-86E6-617D22F08A03} = {0676FAFE-9E98-4723-84D3-74450BB9BA21}
+		{EFD8CCE3-BF02-4EA4-8859-DF02692E08C8} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 	EndGlobalSection
 EndGlobal

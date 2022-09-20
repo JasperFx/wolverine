@@ -1,5 +1,5 @@
 using Wolverine;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Microsoft.AspNetCore.Mvc;
 
 namespace OrderEventSourcingSample;

@@ -4,9 +4,9 @@ using System.Threading.Tasks;
 using Baseline;
 using BenchmarkDotNet.Attributes;
 using IntegrationTests;
-using Wolverine.Persistence.Postgresql;
-using Wolverine.Persistence.SqlServer;
+using Wolverine.SqlServer;
 using Oakton.Resources;
+using Wolverine.Postgresql;
 using Wolverine.RabbitMQ;
 
 namespace Benchmarks

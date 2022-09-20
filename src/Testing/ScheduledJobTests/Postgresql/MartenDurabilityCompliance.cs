@@ -2,7 +2,7 @@
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Durability;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Marten;
 using Microsoft.Extensions.Hosting;
 

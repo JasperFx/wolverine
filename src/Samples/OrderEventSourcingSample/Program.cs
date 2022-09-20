@@ -1,7 +1,7 @@
 using Baseline.Dates;
 using Wolverine;
 using Wolverine.ErrorHandling;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Marten;
 using Marten.Exceptions;
 using Oakton;

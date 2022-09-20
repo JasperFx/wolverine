@@ -1,4 +1,4 @@
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Marten.Events;
 using Marten.Schema;
 using Wolverine.Attributes;

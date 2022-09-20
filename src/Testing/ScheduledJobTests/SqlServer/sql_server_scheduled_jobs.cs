@@ -3,7 +3,7 @@ using Baseline.Dates;
 using IntegrationTests;
 using Wolverine;
 using Wolverine.Persistence.Durability;
-using Wolverine.Persistence.SqlServer;
+using Wolverine.SqlServer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;

@@ -2,7 +2,7 @@ using Baseline.Dates;
 using IntegrationTests;
 using Wolverine;
 using Wolverine.ErrorHandling;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Marten;
 using Wolverine.RabbitMQ;
 using Xunit.Abstractions;

@@ -6,9 +6,9 @@ using Baseline;
 using BenchmarkDotNet.Attributes;
 using IntegrationTests;
 using Wolverine;
-using Wolverine.Persistence.Postgresql;
-using Wolverine.Persistence.SqlServer;
+using Wolverine.SqlServer;
 using Newtonsoft.Json;
+using Wolverine.Postgresql;
 
 namespace Benchmarks
 {

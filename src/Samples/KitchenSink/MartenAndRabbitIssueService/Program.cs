@@ -1,6 +1,6 @@
 using IntegrationTests;
 using Wolverine;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Marten;
 using MartenAndRabbitIssueService;
 using MartenAndRabbitMessages;

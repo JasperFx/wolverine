@@ -1,4 +1,4 @@
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Marten;
 using Marten.AspNetCore;
 using Oakton;

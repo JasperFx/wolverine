@@ -1,5 +1,5 @@
 using Wolverine;
-using Wolverine.Persistence.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 
 namespace InMemoryMediator

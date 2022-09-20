@@ -1,8 +1,8 @@
 ﻿using System.Threading.Tasks;
 using EFPlusSqlServerConsole.Items;
 using Wolverine;
-using Wolverine.Persistence.EntityFrameworkCore;
-using Wolverine.Persistence.SqlServer;
+using Wolverine.EntityFrameworkCore;
+using Wolverine.SqlServer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -22,7 +22,7 @@ namespace EFPlusSqlServerConsole
                     var connectionString = "Server=localhost,1435;User Id=sa;Password=P@55w0rd;Timeout=5;Encrypt=false";
 
                     // Setting up Sql Server-backed message persistence
-                    // This requires a reference to Wolverine.Persistence.SqlServer
+                    // This requires a reference to Wolverine.SqlServer
                     opts.PersistMessagesWithSqlServer(connectionString);
 
                     // Set up Entity Framework Core as the support

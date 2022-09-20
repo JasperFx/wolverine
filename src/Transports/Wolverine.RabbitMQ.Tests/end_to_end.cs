@@ -11,7 +11,7 @@ using Shouldly;
 using TestingSupport;
 using Weasel.Core;
 using Wolverine.Attributes;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Tracking;
 using Xunit;

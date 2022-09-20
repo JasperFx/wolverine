@@ -1,7 +1,7 @@
 using InMemoryMediator;
 using Wolverine;
-using Wolverine.Persistence.EntityFrameworkCore;
-using Wolverine.Persistence.SqlServer;
+using Wolverine.EntityFrameworkCore;
+using Wolverine.SqlServer;
 using Microsoft.EntityFrameworkCore;
 
 #region sample_InMediatorProgram

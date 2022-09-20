@@ -13,8 +13,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Persistence\Wolverine.Persistence.EntityFrameworkCore\Wolverine.Persistence.EntityFrameworkCore.csproj" />
-    <ProjectReference Include="..\..\Persistence\Wolverine.Persistence.SqlServer\Wolverine.Persistence.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
   </ItemGroup>
 
 </Project>

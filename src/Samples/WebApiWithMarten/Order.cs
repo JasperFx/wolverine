@@ -3,7 +3,7 @@ using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
 using Wolverine.Attributes;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 
 namespace WebApiWithMarten;
 

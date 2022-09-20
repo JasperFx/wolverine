@@ -1,6 +1,6 @@
 #region sample_bootstrapping_order_saga_sample
 
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 using Marten;
 using Oakton;
 using Oakton.Resources;

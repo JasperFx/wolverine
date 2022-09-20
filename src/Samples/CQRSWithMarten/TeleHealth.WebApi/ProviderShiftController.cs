@@ -2,7 +2,7 @@ using Marten;
 using Marten.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
 using TeleHealth.Common;
-using Wolverine.Persistence.Marten;
+using Wolverine.Marten;
 
 namespace TeleHealth.WebApi;
 

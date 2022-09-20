@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Persistence\Wolverine.Persistence.Marten\Wolverine.Persistence.Marten.csproj" />
+    <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
     <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
     <ProjectReference Include="..\MartenAndRabbitMessages\MartenAndRabbitMessages.csproj" />
   </ItemGroup>

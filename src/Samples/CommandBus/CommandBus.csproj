@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Persistence\Wolverine.Persistence.Marten\Wolverine.Persistence.Marten.csproj" />
+    <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
     <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
   </ItemGroup>
 

@@ -4,8 +4,8 @@ using System.Threading.Tasks;
 using Baseline;
 using BenchmarkDotNet.Attributes;
 using IntegrationTests;
-using Wolverine.Persistence.Postgresql;
-using Wolverine.Persistence.SqlServer;
+using Wolverine.Postgresql;
+using Wolverine.SqlServer;
 
 namespace Benchmarks
 {
