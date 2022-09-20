@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Baseline;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
@@ -31,11 +32,34 @@ namespace Wolverine.RabbitMQ
     /// </summary>
     public class RabbitMqMessageRoutingConvention : IMessageRoutingConvention
     {
-        public void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
+        /// <summary>
+        /// Optionally include (allow list) or exclude (deny list) types. By default, this will apply to all message types
+        /// </summary>
+        internal CompositeFilter<Type> TypeFilters { get; } = new();
+
+        /// <summary>
+        /// Create an allow list of included message types. This is accumulative.
+        /// </summary>
+        /// <param name="filter"></param>
+        public void IncludeTypes(Func<Type, bool> filter)
+        {
+            TypeFilters.Includes.Add(filter);
+        }
+        
+        /// <summary>
+        /// Create an deny list of included message types. This is accumulative.
+        /// </summary>
+        /// <param name="filter"></param>
+        public void ExcludeTypes(Func<Type, bool> filter)
+        {
+            TypeFilters.Excludes.Add(filter);
+        }
+        
+        void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
         {
             var transport = runtime.Options.RabbitMqTransport();
 
-            foreach (var messageType in handledMessageTypes)
+            foreach (var messageType in handledMessageTypes.Where(t => TypeFilters.Matches(t)))
             {
                 // Can be null, so bail out if there's no queue
                 var queueName = _queueNameForListener(messageType);
@@ -52,8 +76,10 @@ namespace Wolverine.RabbitMQ
             }
         }
 
-        public IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime)
+        IEnumerable<Endpoint> IMessageRoutingConvention.DiscoverSenders(Type messageType, IWolverineRuntime runtime)
         {
+            if (!TypeFilters.Matches(messageType)) yield break;
+            
             var transport = runtime.Options.RabbitMqTransport();
 
             // HAVE THIS BUILD THE EXCHANGE, and alternatively do all the bindings. Return the sending endpoint!

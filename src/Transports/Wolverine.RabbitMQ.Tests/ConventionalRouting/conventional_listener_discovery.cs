@@ -1,5 +1,6 @@
 using System.Linq;
 using Shouldly;
+using TestMessages;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Util;
@@ -23,6 +24,44 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
 
         }
 
+        [Fact]
+        public void exclude_types()
+        {
+            ConfigureConventions(c =>
+            {
+                c.ExcludeTypes(t => t == typeof(PublishedMessage));
+            });
+            
+            AssertNoRoutes<PublishedMessage>();
+            
+            var uri = "rabbitmq://queue/published.message".ToUri();
+            var endpoint = theRuntime.Endpoints.EndpointFor(uri);
+            endpoint.ShouldBeNull();
+
+            theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
+                .ShouldBeFalse();
+        }
+
+        [Fact]
+        public void include_types()
+        {
+            ConfigureConventions(c =>
+            {
+                c.IncludeTypes(t => t == typeof(PublishedMessage));
+            });
+            
+            AssertNoRoutes<Message1>();
+            
+            PublishingRoutesFor<PublishedMessage>().Any().ShouldBeTrue();
+            
+            var uri = "rabbitmq://queue/Message1".ToUri();
+            var endpoint = theRuntime.Endpoints.EndpointFor(uri);
+            endpoint.ShouldBeNull();
+
+            theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
+                .ShouldBeFalse();
+        }
+        
         public class FakeEnvelopeRule : IEnvelopeRule
         {
             public void Modify(Envelope envelope)
