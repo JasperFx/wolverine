@@ -69,9 +69,9 @@ public sealed partial class WolverineOptions
         deriveServiceName();
 
         LocalQueue(TransportConstants.Durable).UseDurableInbox();
-
-        
     }
+
+    public IPolicies Policies => new EndpointPolicies(Transports);
     
     public TransportCollection Transports { get; }
 

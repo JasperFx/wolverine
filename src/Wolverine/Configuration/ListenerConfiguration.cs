@@ -44,11 +44,6 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
-    public TSelf UsePersistentInbox()
-    {
-        return UseDurableInbox();
-    }
-
     public TSelf BufferedInMemory()
     {
         add(e => e.Mode = EndpointMode.BufferedInMemory);

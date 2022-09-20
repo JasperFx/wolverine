@@ -14,14 +14,6 @@ public interface ISubscriberConfiguration<T> where T : ISubscriberConfiguration<
     T UseDurableOutbox();
 
     /// <summary>
-    /// Force any messages enqueued to this worker queue to be durable by enrolling
-    /// outgoing messages in the active, durable envelope outbox
-    /// </summary>
-    /// <returns></returns>
-    [Obsolete("Switch to UseDurableOutbox(). Will be removed in Wolverine 2.0")]
-    T UsePersistentOutbox();
-
-    /// <summary>
     ///     By default, messages on this worker queue will not be persisted until
     ///     being successfully handled
     /// </summary>

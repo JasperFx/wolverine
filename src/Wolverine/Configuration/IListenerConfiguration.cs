@@ -28,13 +28,6 @@ public interface IListenerConfiguration<T>
     T UseDurableInbox();
 
     /// <summary>
-    ///     Force any messages enqueued to this worker queue to be durable
-    /// </summary>
-    /// <returns></returns>
-    [Obsolete("Switch to UseDurableInbox()")]
-    T UsePersistentInbox();
-
-    /// <summary>
     ///     Incoming messages are immediately moved into an in-memory queue
     ///     for parallel processing
     /// </summary>

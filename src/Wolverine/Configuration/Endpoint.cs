@@ -54,13 +54,16 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     internal void Compile(IWolverineRuntime runtime)
     {
         if (_hasCompiled) return;
+        
+        foreach (var policy in runtime.Options.Transports.EndpointPolicies)
+        {
+            policy.Apply(this, runtime);
+        }
 
         foreach (var configuration in _delayedConfiguration)
         {
             configuration.Apply();
         }
-        
-        // TODO -- apply policies
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 
