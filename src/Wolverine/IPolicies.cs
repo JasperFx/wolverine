@@ -7,6 +7,18 @@ namespace Wolverine;
 public interface IPolicies
 {
     /// <summary>
+    /// Add a new endpoint policy
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    void Add<T>() where T : IEndpointPolicy, new();
+
+    /// <summary>
+    /// Add a new endpoint policy
+    /// </summary>
+    /// <param name="policy"></param>
+    void Add(IEndpointPolicy policy);
+
+    /// <summary>
     /// Set all non local listening endpoints to be enrolled into durable inbox 
     /// </summary>
     void UseDurableInboxOnAllListeners();   

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Baseline;
 using Wolverine.Configuration;
 using Wolverine.Transports.Local;
@@ -12,6 +13,16 @@ internal class EndpointPolicies : IPolicies
     public EndpointPolicies(TransportCollection endpoints)
     {
         _endpoints = endpoints;
+    }
+
+    public void Add<T>() where T : IEndpointPolicy, new()
+    {
+        Add(new T());
+    }
+
+    public void Add(IEndpointPolicy policy)
+    {
+        _endpoints.AddPolicy(policy);
     }
 
     public void UseDurableInboxOnAllListeners()
@@ -52,7 +63,7 @@ internal class EndpointPolicies : IPolicies
         {
             if (e is LocalQueueSettings) return;
 
-            if (e.IsListener) return;
+            if (!e.Subscriptions.Any()) return;
 
             var configuration = new SubscriberConfiguration(e);
             configure(configuration);

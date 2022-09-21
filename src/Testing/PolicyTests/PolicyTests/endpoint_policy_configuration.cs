@@ -13,6 +13,7 @@ using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 
 namespace PolicyTests;
 
@@ -147,5 +148,61 @@ public class endpoint_policy_configuration : IDisposable
                 e.Mode.ShouldNotBe(EndpointMode.Durable);
             }
         });
+    }
+
+    [Fact]
+    public async Task apply_to_rabbit_mq_listeners()
+    {
+        var options = await UsingOptions(opts =>
+        {
+            opts.ListenAtPort(PortFinder.GetAvailablePort());
+            opts.PublishAllMessages().ToPort(PortFinder.GetAvailablePort());
+
+            opts.UseRabbitMq().AutoProvision()
+                .ConfigureSenders(x => x.UseDurableOutbox());
+
+            opts.ListenToRabbitQueue("one");
+            opts.PublishAllMessages().ToRabbitExchange("ex2");
+        });
+        
+        options.Transports.GetOrCreateEndpoint("rabbitmq://queue/one".ToUri())
+            .Mode.ShouldBe(EndpointMode.Inline);
+        
+        options.Transports.GetOrCreateEndpoint("rabbitmq://exchange/ex2".ToUri())
+            .Mode.ShouldBe(EndpointMode.Durable);
+
+        foreach (var endpoint in options.Transports.AllEndpoints().OfType<TcpEndpoint>())
+        {
+            endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        }
+
+    }
+    
+    [Fact]
+    public async Task apply_to_rabbit_mq_senders()
+    {
+        var options = await UsingOptions(opts =>
+        {
+            opts.ListenAtPort(PortFinder.GetAvailablePort());
+            opts.PublishAllMessages().ToPort(PortFinder.GetAvailablePort());
+
+            opts.UseRabbitMq().AutoProvision()
+                .ConfigureSenders(x => x.UseDurableOutbox());
+
+            opts.ListenToRabbitQueue("one");
+            opts.PublishAllMessages().ToRabbitExchange("ex2");
+        });
+        
+        options.Transports.GetOrCreateEndpoint("rabbitmq://queue/one".ToUri())
+            .Mode.ShouldBe(EndpointMode.Inline);
+        
+        options.Transports.GetOrCreateEndpoint("rabbitmq://exchange/ex2".ToUri())
+            .Mode.ShouldBe(EndpointMode.Durable);
+
+        foreach (var endpoint in options.Transports.AllEndpoints().OfType<TcpEndpoint>())
+        {
+            endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        }
+
     }
 }

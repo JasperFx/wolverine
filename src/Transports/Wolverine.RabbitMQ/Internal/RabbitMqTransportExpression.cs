@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Baseline;
+using Wolverine.Configuration;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.RabbitMQ.Internal
 {
@@ -114,6 +118,40 @@ namespace Wolverine.RabbitMQ.Internal
                 e.IsDurable = isDurable;
                 e.AutoDelete = autoDelete;
             });
+        }
+
+        public IRabbitMqTransportExpression ConfigureListeners(Action<RabbitMqListenerConfiguration> configure)
+        {
+            var policy = new LambdaEndpointPolicy<RabbitMqEndpoint>((e, runtime) =>
+            {
+                if (!e.IsListener) return;
+
+                var configuration = new RabbitMqListenerConfiguration(e);
+                configure(configuration);
+
+                configuration.As<IDelayedEndpointConfiguration>().Apply();
+            });
+        
+            _options.Policies.Add(policy);
+
+            return this;
+        }
+
+        public IRabbitMqTransportExpression ConfigureSenders(Action<RabbitMqSubscriberConfiguration> configure)
+        {
+            var policy = new LambdaEndpointPolicy<RabbitMqEndpoint>((e, runtime) =>
+            {
+                if (!e.Subscriptions.Any()) return;
+
+                var configuration = new RabbitMqSubscriberConfiguration(e);
+                configure(configuration);
+
+                configuration.As<IDelayedEndpointConfiguration>().Apply();
+            });
+        
+            _options.Policies.Add(policy);
+
+            return this;
         }
     }
 }

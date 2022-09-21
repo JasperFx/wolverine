@@ -66,6 +66,20 @@ namespace Wolverine.RabbitMQ
         /// <param name="configure"></param>
         IRabbitMqTransportExpression DeclareExchange(string exchangeName, ExchangeType exchangeType,
             bool isDurable = true, bool autoDelete = false);
+
+        /// <summary>
+        /// Apply a policy to all Rabbit MQ listening endpoints
+        /// </summary>
+        /// <param name="configure"></param>
+        /// <returns></returns>
+        IRabbitMqTransportExpression ConfigureListeners(Action<RabbitMqListenerConfiguration> configure);
+        
+        /// <summary>
+        /// Apply a policy to all Rabbit MQ listening endpoints
+        /// </summary>
+        /// <param name="configure"></param>
+        /// <returns></returns>
+        IRabbitMqTransportExpression ConfigureSenders(Action<RabbitMqSubscriberConfiguration> configure);
     }
 
     public static class RabbitMqTransportExtensions
