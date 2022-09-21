@@ -189,7 +189,9 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
             _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
 
         foreach (var chain in Chains)
+        {
             _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
+        }
     }
 
     public bool TryFindMessageType(string messageTypeName, out Type messageType)
@@ -211,13 +213,6 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
                 .Select(buildHandlerChain)
                 .Each(chain => { _chains = _chains.AddOrUpdate(chain.MessageType, chain); });
 
-            _calls.Where(x => !x.MessageType.IsConcrete())
-                .Each(call =>
-                {
-                    Chains
-                        .Where(c => call.CouldHandleOtherMessageType(c.MessageType))
-                        .Each(c => { c.AddAbstractedHandler(call); });
-                });
 
             _hasGrouped = true;
         }

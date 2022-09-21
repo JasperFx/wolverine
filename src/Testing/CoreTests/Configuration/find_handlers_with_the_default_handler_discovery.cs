@@ -47,14 +47,6 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
         chainFor<MovieAdded>().ShouldHaveHandler<NetflixHandler>(x => x.Consume(new MovieAdded()));
     }
 
-    [Fact]
-    public void finds_interface_messages_too()
-    {
-        chainFor<MovieAdded>().ShouldHaveHandler<NetflixHandler>(x => x.Handles((IMovieEvent)null));
-        chainFor<MovieAdded>().ShouldHaveHandler<NetflixHandler>(x => x.Handles((MovieEvent)null));
-        chainFor<MovieRemoved>().ShouldHaveHandler<NetflixHandler>(x => x.Handles((IMovieEvent)null));
-        chainFor<MovieRemoved>().ShouldHaveHandler<NetflixHandler>(x => x.Handles((MovieEvent)null));
-    }
 
     [Fact]
     public void ignore_class_marked_as_NotHandler()

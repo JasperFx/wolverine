@@ -250,19 +250,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     {
         return Handlers.ToArray();
     }
-
-    /// <summary>
-    ///     Add a secondary message handler for the message type that will
-    ///     execute after the primary action(s)
-    /// </summary>
-    /// <param name="call"></param>
-    public void AddAbstractedHandler(HandlerCall call)
-    {
-        var clone = call.Clone(MessageType);
-
-        Handlers.Add(clone);
-    }
-
+    
     public override string ToString()
     {
         return
