@@ -19,8 +19,13 @@ public partial class WolverineRuntime
             var queueName = messageType.GetAttribute<LocalQueueAttribute>()!.QueueName;
             return Endpoints.AgentForLocalQueue(queueName);
         }
+        
+        var localQueues = Options.Transports.GetOrCreate<LocalTransport>().Endpoints().OfType<LocalQueueSettings>().ToArray();
 
-        var subscribers = Options.Transports.GetOrCreate<LocalTransport>().Endpoints().OfType<LocalQueueSettings>().Where(x => x.ShouldSendMessage(messageType))
+        var handled = localQueues.FirstOrDefault(x => x.HandledMessageTypes.Contains(messageType));
+        if (handled != null) return handled.Agent!;
+
+        var subscribers = localQueues.Where(x => x.ShouldSendMessage(messageType))
             .Select(x => x.Agent)
             .ToArray();
 

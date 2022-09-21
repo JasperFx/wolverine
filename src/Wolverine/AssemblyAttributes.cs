@@ -9,6 +9,7 @@ using Oakton;
 [assembly: WolverineFeature]
 
 [assembly: InternalsVisibleTo("CoreTests")]
+[assembly: InternalsVisibleTo("PolicyTests")]
 [assembly: InternalsVisibleTo("CircuitBreakingTests")]
 [assembly: InternalsVisibleTo("TestingSupport")]
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq")]

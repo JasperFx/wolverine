@@ -2,17 +2,20 @@ using System;
 using System.Linq;
 using Baseline;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 
 namespace Wolverine;
 
-internal class EndpointPolicies : IPolicies
+internal class EndpointPolicies : IEndpointPolicies
 {
     private readonly TransportCollection _endpoints;
+    private readonly WolverineOptions _wolverineOptions;
 
-    public EndpointPolicies(TransportCollection endpoints)
+    public EndpointPolicies(TransportCollection endpoints, WolverineOptions wolverineOptions)
     {
         _endpoints = endpoints;
+        _wolverineOptions = wolverineOptions;
     }
 
     public void Add<T>() where T : IEndpointPolicy, new()
@@ -88,5 +91,13 @@ internal class EndpointPolicies : IPolicies
         });
         
         _endpoints.AddPolicy(policy);
+    }
+
+    public LocalMessageRoutingConvention UseConventionalLocalRouting()
+    {
+        var convention = new LocalMessageRoutingConvention();
+        _wolverineOptions.RoutingConventions.Add(convention);
+
+        return convention;
     }
 }

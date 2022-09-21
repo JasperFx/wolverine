@@ -1,10 +1,10 @@
 using System;
 using Wolverine.Configuration;
-using Wolverine.Transports.Local;
+using Wolverine.Runtime.Routing;
 
 namespace Wolverine;
 
-public interface IPolicies
+public interface IEndpointPolicies
 {
     /// <summary>
     /// Add a new endpoint policy
@@ -51,4 +51,9 @@ public interface IPolicies
     /// <param name="configure"></param>
     void AllLocalQueues(Action<IListenerConfiguration> configure);
 
+    /// <summary>
+    /// Apply conventional routing to local queues
+    /// </summary>
+    /// <returns></returns>
+    LocalMessageRoutingConvention UseConventionalLocalRouting();
 }

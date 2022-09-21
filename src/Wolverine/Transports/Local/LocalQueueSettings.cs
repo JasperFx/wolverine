@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Wolverine.Util;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -20,6 +21,7 @@ public class LocalQueueSettings : Endpoint
     public override bool AutoStartSendingAgent() => true;
 
     public override Uri Uri => $"local://{Name}".ToUri();
+    internal List<Type> HandledMessageTypes { get; } = new();
 
     public override void Parse(Uri uri)
     {
