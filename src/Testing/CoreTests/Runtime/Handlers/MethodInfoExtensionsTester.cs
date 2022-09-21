@@ -36,25 +36,13 @@ public class MethodInfoExtensionsTester
         methodFor(x => x.Go2(null, null)).MessageType()
             .ShouldBe(typeof(Message1));
     }
-
-    [Fact]
-    public void throw_exception_if_you_do_not_follow_that_convention()
-    {
-        methodFor(x => x.Go4(null, null)).MessageType().ShouldBeNull();
-    }
-
+    
     [Fact]
     public void throw_exception_if_you_have_no_parameters()
     {
         methodFor(x => x.Go5()).MessageType().ShouldBeNull();
     }
 
-    [Fact]
-    public void use_command_as_candidate_name()
-    {
-        methodFor(x => x.Go6(null, null)).MessageType()
-            .ShouldBe(typeof(Message3));
-    }
 
     [Fact]
     public void use_first_arg_if_it_is_concrete()
@@ -85,9 +73,6 @@ public class MethodInfoExtensionsTester
         {
         }
 
-        public void Go6(IService service, Message3 command)
-        {
-        }
 
         public void Go7(Message4 thing, IService service)
         {

@@ -29,7 +29,7 @@ public static class TypeExtensions
         typeof(ValueTuple<,,,,,,,>)
     };
 
-    public static bool IsInputTypeCandidate(this Type type)
+    public static bool IsMessageTypeCandidate(this Type type)
     {
         if (!type.IsConcrete())
         {

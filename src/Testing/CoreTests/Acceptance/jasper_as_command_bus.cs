@@ -77,7 +77,7 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
 
         var tracked = session.FindSingleTrackedMessageOfType<Message1>();
 
-        ShouldBeTestExtensions.ShouldBe(tracked.Id, message.Id);
+        tracked.Id.ShouldBe(message.Id);
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public class WorkConsumer
         _tracker = tracker;
     }
 
-    public object[] Handle(Envelope envelope, Message5 message)
+    public object[] Handle(Message5 message, Envelope envelope)
     {
         if (message.FailThisManyTimes != 0 && message.FailThisManyTimes >= envelope.Attempts)
         {

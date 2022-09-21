@@ -53,7 +53,7 @@ public class HandlerCallTester
 
 
         HandlerCall.IsCandidate(ReflectionHelper.GetMethod<ITargetHandler>(x => x.ManyIn(null, null)))
-            .ShouldBeFalse();
+            .ShouldBeTrue();
 
         HandlerCall.IsCandidate(ReflectionHelper.GetMethod<ITargetHandler>(x => x.ReturnsValueType(null)))
             .ShouldBeFalse();
@@ -74,7 +74,7 @@ public class HandlerCallTester
         object OneInManyOut(Input input);
         void ZeroInZeroOut();
 
-        void ManyIn(ISomeService i1, Input i2);
+        void ManyIn(Input i2, ISomeService i1);
 
         bool ReturnsValueType(Input input);
     }

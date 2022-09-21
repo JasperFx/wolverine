@@ -9,18 +9,18 @@ namespace TestingSupport.Compliance
     {
 
 
-        public void Consume(Envelope envelope, Message1 message)
+        public void Consume(Message1 message, Envelope envelope)
         {
         }
 
         [RequeueOn(typeof(DivideByZeroException))]
-        public void Consume(Envelope envelope, Message2 message)
+        public void Consume(Message2 message, Envelope envelope)
         {
             if (envelope.Attempts < 2) throw new DivideByZeroException();
 
         }
 
-        public void Consume(Envelope envelope, TimeoutsMessage message)
+        public void Consume(TimeoutsMessage message, Envelope envelope)
         {
             if (envelope.Attempts < 2) throw new TimeoutException();
 
