@@ -8,6 +8,7 @@ using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
+using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Runtime;
@@ -17,7 +18,7 @@ using Wolverine.Transports.Local;
 using Wolverine.Util;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence;
+namespace PersistenceTests.Marten.Persistence;
 
 public class MartenBackedListenerTests : MartenBackedListenerContext
 {
@@ -54,9 +55,9 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
             new NullLogger<PostgresqlEnvelopePersistence>());
 
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
+    private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly DocumentStore theStore;
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
-    private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     internal DurableReceiver theReceiver;
     protected AdvancedSettings theSettings;
 

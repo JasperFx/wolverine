@@ -5,7 +5,7 @@ using Wolverine.Postgresql;
 using Wolverine.Util;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Postgresql;
+namespace PersistenceTests.Postgresql;
 
 public class LocalPostgresqlBackedFixture : SendingComplianceFixture, IAsyncLifetime
 {

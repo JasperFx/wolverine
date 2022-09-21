@@ -18,7 +18,7 @@ public class RetryNowContinuationTester
         var envelope = ObjectMother.Envelope();
         envelope.Attempts = 1;
 
-        var context = Substitute.For<IMessageContext>();
+        var context = Substitute.For<IEnvelopeLifecycle>();
         context.Envelope.Returns(envelope);
 
         await continuation.ExecuteAsync(context, new MockWolverineRuntime(), DateTimeOffset.Now);

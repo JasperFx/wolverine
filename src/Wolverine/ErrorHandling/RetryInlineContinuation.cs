@@ -28,14 +28,14 @@ public class RetryInlineContinuation : IContinuation, IContinuationSource
 
     public TimeSpan? Delay => _delay;
 
-    public async ValueTask ExecuteAsync(IMessageContext context, IWolverineRuntime runtime, DateTimeOffset now)
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
     {
         if (_delay != null)
         {
             await Task.Delay(_delay.Value).ConfigureAwait(false);
         }
 
-        await context.RetryExecutionNowAsync().ConfigureAwait(false);
+        await lifecycle.RetryExecutionNowAsync().ConfigureAwait(false);
     }
 
     public override string ToString()

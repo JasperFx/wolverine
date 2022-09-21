@@ -1,4 +1,4 @@
-﻿namespace Wolverine.Persistence.Testing.Marten.Persistence.Resiliency;
+﻿namespace PersistenceTests.Marten.Persistence.Resiliency;
 
 public class QuestionHandler
 {

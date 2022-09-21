@@ -3,16 +3,17 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-public class DatabaseEnvelopeOutbox : IEnvelopeOutbox, IDisposable
+public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
 {
     private readonly IDatabaseBackedEnvelopePersistence _persistence;
     private readonly DbTransaction _tx;
 
-    public DatabaseEnvelopeOutbox(IMessageContext context, DbTransaction tx)
+    public DatabaseEnvelopeTransaction(MessageContext context, DbTransaction tx)
     {
         _persistence = context.Persistence as IDatabaseBackedEnvelopePersistence ??
                        throw new InvalidOperationException(
@@ -48,7 +49,7 @@ public class DatabaseEnvelopeOutbox : IEnvelopeOutbox, IDisposable
         return _persistence.StoreIncoming(_tx, new[] { envelope });
     }
 
-    public Task CopyToAsync(IEnvelopeOutbox other)
+    public Task CopyToAsync(IEnvelopeTransaction other)
     {
         throw new NotSupportedException(
             $"Cannot copy data from an existing Sql Server envelope transaction to {other}. You may have erroneously enlisted an IMessageContext in a transaction twice.");

@@ -4,14 +4,15 @@ using IntegrationTests;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using PersistenceTests.Marten;
 using Shouldly;
 using TestingSupport;
 using Weasel.Core.Migrations;
+using Wolverine;
 using Wolverine.Postgresql;
-using Wolverine.Persistence.Testing.Marten;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Postgresql;
+namespace PersistenceTests.Postgresql;
 
 public class configuration_extension_methods : PostgresqlContext
 {
@@ -24,7 +25,7 @@ public class configuration_extension_methods : PostgresqlContext
                 config.AddInMemoryCollection(new Dictionary<string, string>
                     { { "connection", Servers.PostgresConnectionString } });
             })
-            .UseWolverine((context, x) => { x.PersistMessagesWithPostgresql(context.Configuration["connection"]); });
+            .UseWolverine((context, x) => { PostgresqlConfigurationExtensions.PersistMessagesWithPostgresql(x, context.Configuration["connection"]); });
 
 
         using var host = builder.Build();

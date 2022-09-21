@@ -1,18 +1,23 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Baseline;
 using Baseline.Dates;
 using IntegrationTests;
+using Lamar;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
-using Wolverine.Persistence.Durability;
+using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence;
+namespace PersistenceTests.Marten.Persistence;
 
 public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposable, IAsyncLifetime
 {
@@ -64,6 +69,24 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
     public void Dispose()
     {
         theHost.Dispose();
+    }
+
+    [Fact]
+    public void marten_outbox_is_registered()
+    {
+        var container = (IContainer)theHost.Services;
+        
+        container.Model.For<IMartenOutbox>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+
+        using var nested = container.GetNestedContainer();
+
+        var outbox = nested.GetInstance<IMartenOutbox>();
+        var session = nested.GetInstance<IDocumentSession>();
+        
+        outbox.Session.ShouldBeSameAs(session);
+        
+        outbox.As<MessageContext>().Transaction.ShouldBeOfType<MartenEnvelopeTransaction>()
+            .Session.ShouldBeSameAs(session);
     }
 
     [Fact]

@@ -152,9 +152,9 @@ public class MessagePublisher : CommandBus, IMessagePublisher
 
     protected async ValueTask persistOrSendAsync(params Envelope[] outgoing)
     {
-        if (Outbox != null)
+        if (Transaction != null)
         {
-            await Outbox.PersistAsync(outgoing.Where(isDurable).ToArray());
+            await Transaction.PersistAsync(outgoing.Where(isDurable).ToArray());
 
             _outstanding.Fill(outgoing);
         }

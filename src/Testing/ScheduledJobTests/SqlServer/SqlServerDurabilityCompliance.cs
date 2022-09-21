@@ -12,6 +12,7 @@ using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine.Marten;
 using Wolverine.RDBMS;
+using Wolverine.Runtime;
 using CommandExtensions = Weasel.Core.CommandExtensions;
 
 namespace ScheduledJobTests.SqlServer;
@@ -65,8 +66,8 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         };
     }
 
-    protected override async Task withContext(IHost sender, IMessageContext context,
-        Func<IMessageContext, ValueTask> action)
+    protected override async Task withContext(IHost sender, MessageContext context,
+        Func<MessageContext, ValueTask> action)
     {
         #region sample_basic_sql_server_outbox_sample
 
@@ -77,7 +78,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
             var tx = conn.BeginTransaction();
 
             // "context" is an IMessageContext object
-            await context.EnlistInOutboxAsync(tx);
+            await context.EnlistInOutboxAsync(new DatabaseEnvelopeTransaction(context, tx));
 
             await action(context);
 

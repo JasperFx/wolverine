@@ -1,7 +1,8 @@
 ﻿using System;
+using Wolverine;
 using Wolverine.Transports;
 
-namespace Wolverine.Persistence.Testing.SqlServer;
+namespace PersistenceTests.SqlServer;
 
 public static class ObjectMother
 {

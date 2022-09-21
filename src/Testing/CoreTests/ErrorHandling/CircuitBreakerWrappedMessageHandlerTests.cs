@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using CoreTests.Runtime;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
@@ -25,7 +27,7 @@ public class CircuitBreakerWrappedMessageHandlerTests
     [Fact]
     public async Task successful_execution()
     {
-        var context = Substitute.For<IMessageContext>();
+        var context = new MessageContext(new MockWolverineRuntime());
         var token = CancellationToken.None;
 
         await theHandler.HandleAsync(context, token);
@@ -37,7 +39,7 @@ public class CircuitBreakerWrappedMessageHandlerTests
     [Fact]
     public async Task failed_execution()
     {
-        var context = Substitute.For<IMessageContext>();
+        var context = new MessageContext(new MockWolverineRuntime());
         var token = CancellationToken.None;
 
         var ex = new InvalidOperationException();

@@ -9,12 +9,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten.Sample;
+namespace PersistenceTests.Marten.Sample;
 
 public class MessageInvocationTests : PostgresqlContext, IDisposable
 {

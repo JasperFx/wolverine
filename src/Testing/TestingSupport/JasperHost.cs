@@ -43,9 +43,9 @@ namespace TestingSupport
         /// <returns></returns>
         public static IHost For(Action<WolverineOptions> configure)
         {
-            var registry = new WolverineOptions();
-            configure(registry);
-            return bootstrap(registry);
+            var options = new WolverineOptions();
+            configure(options);
+            return bootstrap(options);
         }
 
         private static IHost bootstrap(WolverineOptions options)

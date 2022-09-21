@@ -11,7 +11,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Runtime;
 
-public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeOutbox
+public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransaction, IEnvelopeLifecycle
 {
     private IChannelCallback? _channel;
     private object? _sagaId;
@@ -31,33 +31,33 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeOutbox
         Scheduled.Clear();
         _outstanding.Clear();
 
-        if (Outbox != null)
+        if (Transaction != null)
         {
-            await Outbox.RollbackAsync();
+            await Transaction.RollbackAsync();
         }
 
-        Outbox = null;
+        Transaction = null;
     }
 
-    Task IEnvelopeOutbox.PersistAsync(Envelope envelope)
+    Task IEnvelopeTransaction.PersistAsync(Envelope envelope)
     {
         _outstanding.Fill(envelope);
         return Task.CompletedTask;
     }
 
-    Task IEnvelopeOutbox.PersistAsync(Envelope[] envelopes)
+    Task IEnvelopeTransaction.PersistAsync(Envelope[] envelopes)
     {
         _outstanding.Fill(envelopes);
         return Task.CompletedTask;
     }
 
-    Task IEnvelopeOutbox.ScheduleJobAsync(Envelope envelope)
+    Task IEnvelopeTransaction.ScheduleJobAsync(Envelope envelope)
     {
         Scheduled.Fill(envelope);
         return Task.CompletedTask;
     }
 
-    async Task IEnvelopeOutbox.CopyToAsync(IEnvelopeOutbox other)
+    async Task IEnvelopeTransaction.CopyToAsync(IEnvelopeTransaction other)
     {
         await other.PersistAsync(_outstanding.ToArray());
 
@@ -165,20 +165,12 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeOutbox
             }
         }
 
-        if (ReferenceEquals(Outbox, this))
+        if (ReferenceEquals(Transaction, this))
         {
             await flushScheduledMessagesAsync();
         }
 
         _outstanding.Clear();
-    }
-
-    public async ValueTask UseInMemoryTransactionAsync()
-    {
-        if (!ReferenceEquals(this, Outbox))
-        {
-            await EnlistInOutboxAsync(this);
-        }
     }
 
     public ValueTask CompleteAsync()
@@ -252,7 +244,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeOutbox
         _outstanding.Clear();
         Scheduled.Clear();
         Envelope = null;
-        Outbox = null;
+        Transaction = null;
         _sagaId = null;
     }
 
@@ -264,7 +256,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeOutbox
         _channel = channel;
         _sagaId = originalEnvelope.SagaId;
 
-        Outbox = this;
+        Transaction = this;
 
         if (Envelope.AckRequested && Envelope.ReplyUri != null)
         {

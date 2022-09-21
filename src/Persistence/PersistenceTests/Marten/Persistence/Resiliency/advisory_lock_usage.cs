@@ -6,7 +6,7 @@ using Shouldly;
 using Wolverine.Postgresql;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence.Resiliency;
+namespace PersistenceTests.Marten.Persistence.Resiliency;
 
 public class advisory_lock_usage : PostgresqlContext
 {

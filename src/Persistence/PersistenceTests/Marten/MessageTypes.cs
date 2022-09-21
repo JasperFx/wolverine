@@ -1,7 +1,7 @@
 ﻿using System;
 using Wolverine.Attributes;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 [MessageIdentity("Message1")]
 public class Message1

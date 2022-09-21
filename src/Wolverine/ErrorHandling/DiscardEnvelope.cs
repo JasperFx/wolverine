@@ -13,14 +13,14 @@ public class DiscardEnvelope : IContinuation, IContinuationSource
     {
     }
 
-    public async ValueTask ExecuteAsync(IMessageContext context,
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
         DateTimeOffset now)
     {
         try
         {
-            runtime.MessageLogger.DiscardedEnvelope(context.Envelope!);
-            await context.CompleteAsync();
+            runtime.MessageLogger.DiscardedEnvelope(lifecycle.Envelope!);
+            await lifecycle.CompleteAsync();
         }
         catch (Exception e)
         {

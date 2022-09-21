@@ -26,7 +26,7 @@ namespace DocumentationSamples
 
     public class MyMissingHandler : IMissingHandler
     {
-        public ValueTask HandleAsync(IMessageContext context, IWolverineRuntime root)
+        public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
         {
             return context
                 .SendFailureAcknowledgementAsync("I don't know how to process this message");

@@ -17,19 +17,19 @@ public class NoHandlerContinuation : IContinuation
         _root = root;
     }
 
-    public async ValueTask ExecuteAsync(IMessageContext context,
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
         DateTimeOffset now)
     {
-        if (context.Envelope == null) throw new InvalidOperationException("Context does not have an Envelope");
+        if (lifecycle.Envelope == null) throw new InvalidOperationException("Context does not have an Envelope");
 
-        runtime.MessageLogger.NoHandlerFor(context.Envelope!);
+        runtime.MessageLogger.NoHandlerFor(lifecycle.Envelope!);
 
         foreach (var handler in _handlers)
         {
             try
             {
-                await handler.HandleAsync(context, _root);
+                await handler.HandleAsync(lifecycle, _root);
             }
             catch (Exception? e)
             {
@@ -37,16 +37,16 @@ public class NoHandlerContinuation : IContinuation
             }
         }
 
-        if (context.Envelope.AckRequested)
+        if (lifecycle.Envelope.AckRequested)
         {
-            await context.SendAcknowledgementAsync();
+            await lifecycle.SendAcknowledgementAsync();
         }
 
-        await context.CompleteAsync();
+        await lifecycle.CompleteAsync();
 
         // These two lines are important to make the message tracking work
         // if there is no handler
-        runtime.MessageLogger.ExecutionFinished(context.Envelope);
-        runtime.MessageLogger.MessageSucceeded(context.Envelope);
+        runtime.MessageLogger.ExecutionFinished(lifecycle.Envelope);
+        runtime.MessageLogger.MessageSucceeded(lifecycle.Envelope);
     }
 }

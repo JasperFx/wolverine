@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer;
+namespace PersistenceTests.SqlServer;
 
 public class SqlServerEnvelopeStorageAdminTests : SqlServerContext
 {

@@ -13,11 +13,11 @@ public interface IContinuation
     /// <summary>
     ///     Post-message handling action
     /// </summary>
-    /// <param name="context"></param>
+    /// <param name="lifecycle"></param>
     /// <param name="runtime"></param>
     /// <param name="now"></param>
     /// <returns></returns>
-    ValueTask ExecuteAsync(IMessageContext context, IWolverineRuntime runtime, DateTimeOffset now);
+    ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now);
 }
 
 #endregion

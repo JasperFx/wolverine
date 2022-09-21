@@ -1,12 +1,14 @@
 using System.Threading.Tasks;
 using IntegrationTests;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine;
 using Wolverine.Marten;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 public class Marten_StorageCommand_Smoke_Tests : PostgresqlContext
 {
@@ -21,7 +23,7 @@ public class Marten_StorageCommand_Smoke_Tests : PostgresqlContext
 
         var exitCode = await Host.CreateDefaultBuilder().UseWolverine(registry =>
         {
-            registry.Services.AddMarten(Servers.PostgresConnectionString)
+            MartenServiceCollectionExtensions.AddMarten((IServiceCollection)registry.Services, Servers.PostgresConnectionString)
                 .IntegrateWithWolverine();
         }).RunWolverineAsync(args);
 

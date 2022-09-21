@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace Wolverine.Persistence.Testing.EFCore;
+namespace PersistenceTests.EFCore;
 
 public class SampleDbContext : DbContext
 {
@@ -9,5 +9,18 @@ public class SampleDbContext : DbContext
     public SampleDbContext(DbContextOptions<SampleDbContext> options) : base(options)
     {
         _options = options;
+    }
+    
+    public DbSet<Item> Items { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Your normal EF Core mapping
+        modelBuilder.Entity<Item>(map =>
+        {
+            map.ToTable("items");
+            map.HasKey(x => x.Id);
+            map.Property(x => x.Name);
+        });
     }
 }

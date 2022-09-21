@@ -25,6 +25,8 @@ public static class WolverineOptionsMartenExtensions
             opts.Storage.Add(new MartenDatabaseSchemaFeature(schemaName ?? opts.DatabaseSchemaName));
         });
 
+        expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
+
         expression.Services.AddSingleton<IEnvelopePersistence, PostgresqlEnvelopePersistence>();
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
         expression.Services.AddSingleton<OutboxedSessionFactory>();

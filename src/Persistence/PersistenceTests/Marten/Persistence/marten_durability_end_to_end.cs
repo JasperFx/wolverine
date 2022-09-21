@@ -11,13 +11,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using TestingSupport;
 using Weasel.Postgresql;
+using Wolverine;
 using Wolverine.Attributes;
-using Wolverine.RDBMS;
 using Wolverine.Marten;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence;
+namespace PersistenceTests.Marten.Persistence;
 
 public class marten_durability_end_to_end : IAsyncLifetime
 {

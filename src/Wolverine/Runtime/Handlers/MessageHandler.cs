@@ -7,14 +7,14 @@ namespace Wolverine.Runtime.Handlers;
 
 public interface IMessageHandler
 {
-    Task HandleAsync(IMessageContext context, CancellationToken cancellation);
+    Task HandleAsync(MessageContext context, CancellationToken cancellation);
 }
 
 public abstract class MessageHandler : IMessageHandler
 {
     public HandlerChain? Chain { get; set; }
 
-    public abstract Task HandleAsync(IMessageContext context, CancellationToken cancellation);
+    public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
 }
 
 #endregion

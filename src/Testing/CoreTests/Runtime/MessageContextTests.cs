@@ -51,7 +51,7 @@ public class MessageContextTests
 
         context.ReadEnvelope(theEnvelope, Substitute.For<IChannelCallback>());
 
-        var outbox = Substitute.For<IEnvelopeOutbox>();
+        var outbox = Substitute.For<IEnvelopeTransaction>();
         await context.EnlistInOutboxAsync(outbox);
 
         await context.PublishAsync(new Message1());
@@ -65,7 +65,7 @@ public class MessageContextTests
 
         await outbox.Received().RollbackAsync();
 
-        context.Outbox.ShouldBeNull();
+        context.Transaction.ShouldBeNull();
     }
 
     [Fact]

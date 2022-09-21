@@ -7,7 +7,7 @@ using Wolverine.Marten;
 using Wolverine.Util;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 [Collection("marten")]
 public class DurableTcpTransportFixture : SendingComplianceFixture, IAsyncLifetime

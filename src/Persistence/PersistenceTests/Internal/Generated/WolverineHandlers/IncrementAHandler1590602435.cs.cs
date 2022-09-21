@@ -4,26 +4,26 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: IncrementAHandler2087566067
-    public class IncrementAHandler2087566067 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: IncrementAHandler1590602435
+    public class IncrementAHandler1590602435 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementAHandler2087566067(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementAHandler1590602435(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
 
-        public override async System.Threading.Tasks.Task HandleAsync(Wolverine.IMessageContext context, System.Threading.CancellationToken cancellation)
+        public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var letterHandler = new Wolverine.Persistence.Testing.Marten.LetterHandler();
-            var incrementA = (Wolverine.Persistence.Testing.Marten.IncrementA)context.Envelope.Message;
+            var letterHandler = new PersistenceTests.Marten.LetterHandler();
+            var incrementA = (PersistenceTests.Marten.IncrementA)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<Wolverine.Persistence.Testing.Marten.LetterAggregate>(incrementA.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementA.LetterAggregateId, cancellation).ConfigureAwait(false);
 
             var aEvent = letterHandler.Handle(incrementA, eventStream.Aggregate, documentSession);
             if (aEvent != null)
@@ -38,7 +38,7 @@ namespace Internal.Generated.WolverineHandlers
 
     }
 
-    // END: IncrementAHandler2087566067
+    // END: IncrementAHandler1590602435
     
     
 }

@@ -1,6 +1,6 @@
 ﻿using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 [Collection("marten")]
 public abstract class PostgresqlContext

@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using Marten;
 using Microsoft.Extensions.Logging;
 
-namespace Wolverine.Persistence.Testing.Marten.Sample;
+namespace PersistenceTests.Marten.Sample;
 
 #region sample_MartenUsingEndpoint_with_ctor_injection
 

@@ -10,7 +10,7 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 public class MartenCommandWorkflowAttributeTests
 {

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Tracking;
@@ -14,7 +15,7 @@ using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing;
+namespace PersistenceTests;
 
 public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAsyncLifetime
 {

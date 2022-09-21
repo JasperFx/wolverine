@@ -11,13 +11,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using TestingSupport;
 using Weasel.Core;
+using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.RDBMS;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer;
+namespace PersistenceTests.SqlServer;
 
 public class sqlserver_durability_end_to_end : IAsyncLifetime
 {

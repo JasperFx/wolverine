@@ -7,12 +7,13 @@ using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Postgresql;
 using Wolverine.Transports.Tcp;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence;
+namespace PersistenceTests.Marten.Persistence;
 
 public class MartenEnvelopePersistorTests : PostgresqlContext, IDisposable, IAsyncLifetime
 {

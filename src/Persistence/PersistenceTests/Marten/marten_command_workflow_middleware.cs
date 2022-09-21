@@ -19,7 +19,7 @@ using Wolverine.Marten;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
 {

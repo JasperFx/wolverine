@@ -80,12 +80,9 @@ public class MarkItemController : ControllerBase
     public async Task Post(
         [FromBody] MarkItemReady command,
         [FromServices] IDocumentSession session,
-        [FromServices] IMessageContext context
+        [FromServices] IMartenOutbox outbox
     )
     {
-        // Enroll in the Wolverine outbox
-        await context.EnlistInOutboxAsync(session);
-
         // Fetch the current value of the Order aggregate
         var stream = await session
             .Events
@@ -116,7 +113,7 @@ public class MarkItemController : ControllerBase
             // Note that because the context here is enrolled in a Wolverine
             // outbox, the message is registered, but not "released" to
             // be sent out until SaveChangesAsync() is called down below
-            await context.PublishAsync(new ShipOrder(command.OrderId));
+            await outbox.PublishAsync(new ShipOrder(command.OrderId));
             stream.AppendOne(new OrderReady());
         }
 

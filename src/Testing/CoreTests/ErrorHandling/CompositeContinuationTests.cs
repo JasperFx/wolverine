@@ -19,14 +19,14 @@ public class CompositeContinuationTests
 
         var continuation = new CompositeContinuation(inner1, inner2);
 
-        var context = Substitute.For<IMessageContext>();
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
         var runtime = new MockWolverineRuntime();
         var now = DateTimeOffset.UtcNow;
 
-        await continuation.ExecuteAsync(context, runtime, now);
+        await continuation.ExecuteAsync(lifecycle, runtime, now);
 
-        await inner1.Received().ExecuteAsync(context, runtime, now);
-        await inner2.Received().ExecuteAsync(context, runtime, now);
+        await inner1.Received().ExecuteAsync(lifecycle, runtime, now);
+        await inner2.Received().ExecuteAsync(lifecycle, runtime, now);
     }
 
     [Fact]
@@ -37,14 +37,14 @@ public class CompositeContinuationTests
 
         var continuation = new CompositeContinuation(inner1, inner2);
 
-        var context = Substitute.For<IMessageContext>();
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
         var runtime = new MockWolverineRuntime();
         var now = DateTimeOffset.UtcNow;
 
-        inner1.ExecuteAsync(context, runtime, now).Throws(new DivideByZeroException());
+        inner1.ExecuteAsync(lifecycle, runtime, now).Throws(new DivideByZeroException());
 
-        await continuation.ExecuteAsync(context, runtime, now);
+        await continuation.ExecuteAsync(lifecycle, runtime, now);
 
-        await inner2.Received().ExecuteAsync(context, runtime, now);
+        await inner2.Received().ExecuteAsync(lifecycle, runtime, now);
     }
 }

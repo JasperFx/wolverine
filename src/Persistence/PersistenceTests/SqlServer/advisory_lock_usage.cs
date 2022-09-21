@@ -6,7 +6,7 @@ using Shouldly;
 using Wolverine.SqlServer;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer;
+namespace PersistenceTests.SqlServer;
 
 public class advisory_lock_usage : SqlServerContext
 {

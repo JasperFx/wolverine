@@ -26,12 +26,8 @@ public class CreateOrderController : ControllerBase
     public async Task Create(
         [FromBody] CreateOrder command,
         [FromServices] IDocumentSession session,
-        [FromServices] IMessageContext context)
+        [FromServices] IMartenOutbox outbox)
     {
-        // Gotta connection the Marten session into
-        // the Wolverine outbox
-        await context.EnlistInOutboxAsync(session);
-
         var order = new Order
         {
             Description = command.Description,
@@ -42,7 +38,7 @@ public class CreateOrderController : ControllerBase
 
         // Don't worry, this message doesn't go out until
         // after the Marten transaction succeeds
-        await context.PublishAsync(new OrderCreated(order.Id));
+        await outbox.PublishAsync(new OrderCreated(order.Id));
 
         // Commit the Marten transaction
         await session.SaveChangesAsync();
@@ -113,13 +109,9 @@ public class LonghandOrderHandler
     public static async Task Handle(
         CreateOrder command,
         IDocumentSession session,
-        IMessageContext context,
+        IMartenOutbox outbox,
         CancellationToken cancellation)
     {
-        // Connect the Marten session to the outbox
-        // scoped to this specific command
-        await context.EnlistInOutboxAsync(session);
-
         var order = new Order
         {
             Description = command.Description,
@@ -130,7 +122,7 @@ public class LonghandOrderHandler
 
         // Hold on though, this message isn't actually sent
         // until the Marten session is committed
-        await context.SendAsync(new OrderCreated(order.Id));
+        await outbox.SendAsync(new OrderCreated(order.Id));
 
         // This makes the database commits, *then* flushed the
         // previously registered messages to Wolverine's sending

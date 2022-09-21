@@ -13,26 +13,26 @@ public class MessageSucceededContinuation : IContinuation
     {
     }
 
-    public async ValueTask ExecuteAsync(IMessageContext context,
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
         DateTimeOffset now)
     {
         try
         {
-            await context.FlushOutgoingMessagesAsync();
+            await lifecycle.FlushOutgoingMessagesAsync();
 
-            await context.CompleteAsync();
+            await lifecycle.CompleteAsync();
 
-            runtime.MessageLogger.MessageSucceeded(context.Envelope!);
+            runtime.MessageLogger.MessageSucceeded(lifecycle.Envelope!);
         }
         catch (Exception ex)
         {
-            await context.SendFailureAcknowledgementAsync("Sending cascading message failed: " + ex.Message);
+            await lifecycle.SendFailureAcknowledgementAsync("Sending cascading message failed: " + ex.Message);
 
             runtime.Logger.LogError(ex, "Failure while post-processing a successful envelope");
-            runtime.MessageLogger.MessageFailed(context.Envelope!, ex);
+            runtime.MessageLogger.MessageFailed(lifecycle.Envelope!, ex);
 
-            await new MoveToErrorQueue(ex).ExecuteAsync(context, runtime, now);
+            await new MoveToErrorQueue(ex).ExecuteAsync(lifecycle, runtime, now);
         }
     }
 }

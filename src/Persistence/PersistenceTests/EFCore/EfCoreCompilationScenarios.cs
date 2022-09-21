@@ -2,9 +2,10 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using TestingSupport;
+using Wolverine;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.EFCore;
+namespace PersistenceTests.EFCore;
 
 [Collection("sqlserver")]
 public class EfCoreCompilationScenarios

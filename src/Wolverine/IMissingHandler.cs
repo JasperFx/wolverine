@@ -17,7 +17,7 @@ public interface IMissingHandler
     /// <param name="context"></param>
     /// <param name="root"></param>
     /// <returns></returns>
-    ValueTask HandleAsync(IMessageContext context, IWolverineRuntime root);
+    ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root);
 }
 
 #endregion

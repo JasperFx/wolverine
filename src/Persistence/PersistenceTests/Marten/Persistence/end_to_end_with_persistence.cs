@@ -9,15 +9,16 @@ using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
-using Wolverine.Persistence.Durability;
+using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence;
+namespace PersistenceTests.Marten.Persistence;
 
 public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyncLifetime
 {

@@ -15,7 +15,7 @@ using Wolverine.Marten;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisposable
 {

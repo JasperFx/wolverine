@@ -8,11 +8,12 @@ using IntegrationTests;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer.Persistence;
+namespace PersistenceTests.SqlServer.Persistence;
 
 public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext
 {

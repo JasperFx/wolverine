@@ -12,9 +12,9 @@ public class RequeueContinuation : IContinuation, IContinuationSource
     {
     }
 
-    public ValueTask ExecuteAsync(IMessageContext context, IWolverineRuntime runtime, DateTimeOffset now)
+    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
     {
-        return context.DeferAsync();
+        return lifecycle.DeferAsync();
     }
 
     public override string ToString()

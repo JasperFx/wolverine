@@ -1,6 +1,6 @@
 using TestingSupport.Sagas;
 
-namespace Wolverine.Persistence.Testing.EFCore.Sagas;
+namespace PersistenceTests.EFCore.Sagas;
 
 public class basic_mechanics_with_long : LongIdentifiedSagaComplianceSpecs<EfCoreSagaHost>
 {

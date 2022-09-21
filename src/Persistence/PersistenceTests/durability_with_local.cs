@@ -6,16 +6,17 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
+using PersistenceTests.Marten;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.ErrorHandling;
-using Wolverine.Persistence.Durability;
 using Wolverine.Marten;
-using Wolverine.Persistence.Testing.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing;
+namespace PersistenceTests;
 
 public class durability_with_local : PostgresqlContext
 {

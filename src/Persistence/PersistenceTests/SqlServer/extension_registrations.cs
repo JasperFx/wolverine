@@ -5,11 +5,12 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.SqlServer;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer;
+namespace PersistenceTests.SqlServer;
 
 public class extension_registrations : SqlServerContext
 {

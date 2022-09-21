@@ -83,11 +83,12 @@ public class ShippingOrderFailurePolicy : UserDefinedContinuation
     {
     }
 
-    public override async ValueTask ExecuteAsync(IMessageContext context, IWolverineRuntime runtime, DateTimeOffset now)
+    public override async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime,
+        DateTimeOffset now)
     {
-        if (context.Envelope?.Message is ShipOrder cmd)
+        if (lifecycle.Envelope?.Message is ShipOrder cmd)
         {
-            await context
+            await lifecycle
                 .RespondToSenderAsync(new ShippingFailed(cmd.OrderId));
         }
     }

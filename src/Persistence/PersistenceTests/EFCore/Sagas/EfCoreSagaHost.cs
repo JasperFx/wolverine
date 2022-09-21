@@ -10,10 +10,11 @@ using TestingSupport;
 using TestingSupport.Sagas;
 using Weasel.Core;
 using Weasel.SqlServer;
+using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.SqlServer;
 
-namespace Wolverine.Persistence.Testing.EFCore.Sagas;
+namespace PersistenceTests.EFCore.Sagas;
 
 public class EfCoreSagaHost : ISagaHost
 {

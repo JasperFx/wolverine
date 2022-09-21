@@ -16,17 +16,17 @@ public class OutboxedSessionFactory
 
     /// <summary>Build new instances of IQuerySession on demand</summary>
     /// <returns></returns>
-    public IQuerySession QuerySession(IMessageContext context)
+    public IQuerySession QuerySession(MessageContext context)
     {
         return _factory.QuerySession();
     }
 
     /// <summary>Build new instances of IDocumentSession on demand</summary>
     /// <returns></returns>
-    public IDocumentSession OpenSession(IMessageContext context)
+    public IDocumentSession OpenSession(MessageContext context)
     {
         var session = _factory.OpenSession();
-        context.EnlistInOutbox(new MartenEnvelopeOutbox(session, context));
+        context.EnlistInOutbox(new MartenEnvelopeTransaction(session, context));
 
         if (_shouldPublishEvents)
         {

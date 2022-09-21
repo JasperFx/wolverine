@@ -5,16 +5,16 @@ using Wolverine.RDBMS;
 using Wolverine.Persistence.Durability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore;
 
 // ReSharper disable once InconsistentNaming
-public class EfCoreEnvelopeOutbox : IEnvelopeOutbox
+public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 {
-    private readonly DbContext _db;
     private readonly DatabaseSettings _settings;
 
-    public EfCoreEnvelopeOutbox(DbContext db, IMessageContext messaging)
+    public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
         if (messaging.Persistence is IDatabaseBackedEnvelopePersistence persistence)
         {
@@ -26,18 +26,20 @@ public class EfCoreEnvelopeOutbox : IEnvelopeOutbox
                 "This Wolverine application is not using Database backed message persistence. Please configure the message configuration");
         }
 
-        _db = db;
+        DbContext = dbContext;
     }
+
+    public DbContext DbContext { get; }
 
     public async Task PersistAsync(Envelope envelope)
     {
-        if (_db.Database.CurrentTransaction == null)
+        if (DbContext.Database.CurrentTransaction == null)
         {
-            await _db.Database.BeginTransactionAsync();
+            await DbContext.Database.BeginTransactionAsync();
         }
 
-        var conn = _db.Database.GetDbConnection();
-        var tx = _db.Database.CurrentTransaction!.GetDbTransaction();
+        var conn = DbContext.Database.GetDbConnection();
+        var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
         var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _settings);
         cmd.Transaction = tx;
         cmd.Connection = conn;
@@ -52,13 +54,13 @@ public class EfCoreEnvelopeOutbox : IEnvelopeOutbox
             return;
         }
 
-        if (_db.Database.CurrentTransaction == null)
+        if (DbContext.Database.CurrentTransaction == null)
         {
-            await _db.Database.BeginTransactionAsync();
+            await DbContext.Database.BeginTransactionAsync();
         }
 
-        var conn = _db.Database.GetDbConnection();
-        var tx = _db.Database.CurrentTransaction!.GetDbTransaction();
+        var conn = DbContext.Database.GetDbConnection();
+        var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
         var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, _settings);
         cmd.Transaction = tx;
         cmd.Connection = conn;
@@ -68,28 +70,28 @@ public class EfCoreEnvelopeOutbox : IEnvelopeOutbox
 
     public async Task ScheduleJobAsync(Envelope envelope)
     {
-        if (_db.Database.CurrentTransaction == null)
+        if (DbContext.Database.CurrentTransaction == null)
         {
-            await _db.Database.BeginTransactionAsync();
+            await DbContext.Database.BeginTransactionAsync();
         }
 
-        var conn = _db.Database.GetDbConnection();
-        var tx = _db.Database.CurrentTransaction!.GetDbTransaction();
+        var conn = DbContext.Database.GetDbConnection();
+        var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
         var builder = _settings.ToCommandBuilder();
         DatabasePersistence.BuildIncomingStorageCommand(_settings, builder, envelope);
         await builder.ExecuteNonQueryAsync(conn, tx: tx);
     }
 
-    public Task CopyToAsync(IEnvelopeOutbox other)
+    public Task CopyToAsync(IEnvelopeTransaction other)
     {
         throw new NotSupportedException();
     }
 
     public async ValueTask RollbackAsync()
     {
-        if (_db.Database.CurrentTransaction != null)
+        if (DbContext.Database.CurrentTransaction != null)
         {
-            await _db.Database.CurrentTransaction.RollbackAsync();
+            await DbContext.Database.CurrentTransaction.RollbackAsync();
         }
     }
 }

@@ -1,6 +1,6 @@
 using TestingSupport.Sagas;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence.Sagas;
+namespace PersistenceTests.Marten.Persistence.Sagas;
 
 public class basic_mechanics_with_long : LongIdentifiedSagaComplianceSpecs<MartenSagaHost>
 {

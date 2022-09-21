@@ -9,7 +9,7 @@ using TestingSupport.Sagas;
 using Weasel.Core;
 using Wolverine.Marten;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence.Sagas;
+namespace PersistenceTests.Marten.Persistence.Sagas;
 
 public class MartenSagaHost : ISagaHost
 {

@@ -1,4 +1,4 @@
-﻿namespace Wolverine.Persistence.Testing.SqlServer;
+﻿namespace PersistenceTests.SqlServer;
 
 public class WeaselTests
 {

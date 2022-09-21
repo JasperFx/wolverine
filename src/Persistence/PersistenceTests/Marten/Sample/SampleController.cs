@@ -1,9 +1,10 @@
 using System.Threading.Tasks;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine;
 using Wolverine.Marten;
 
-namespace Wolverine.Persistence.Testing.Marten.Sample;
+namespace PersistenceTests.Marten.Sample;
 
 public class SampleController : ControllerBase
 {
@@ -11,16 +12,16 @@ public class SampleController : ControllerBase
 
     public async Task<IActionResult> PostCreateUser(
         [FromBody] CreateUser user,
-        [FromServices] IMessageContext context,
+        
+        // This service is a specialized IMessagePublisher
+        [FromServices] IMartenOutbox outbox,
         [FromServices] IDocumentSession session)
     {
-        await context.EnlistInOutboxAsync(session);
-
         session.Store(new User { Name = user.Name });
 
         var @event = new UserCreated { UserName = user.Name };
 
-        await context.PublishAsync(@event);
+        await outbox.PublishAsync(@event);
 
         await session.SaveChangesAsync();
 

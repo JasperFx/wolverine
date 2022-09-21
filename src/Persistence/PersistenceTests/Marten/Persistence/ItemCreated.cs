@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence;
+namespace PersistenceTests.Marten.Persistence;
 
 public class ItemCreated
 {

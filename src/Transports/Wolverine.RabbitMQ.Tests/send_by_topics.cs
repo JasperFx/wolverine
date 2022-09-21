@@ -128,7 +128,7 @@ namespace Wolverine.RabbitMQ.Tests
 
         }
 
-        [Fact]
+        [Fact] // this is occasionally failing with timeouts when running in combination with the entire suite
         public async Task send_by_explicit_topic_2()
         {
             var session = await theSender

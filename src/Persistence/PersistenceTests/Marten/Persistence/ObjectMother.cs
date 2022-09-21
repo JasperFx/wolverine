@@ -1,6 +1,7 @@
-﻿using Wolverine.Transports;
+﻿using Wolverine;
+using Wolverine.Transports;
 
-namespace Wolverine.Persistence.Testing.Marten.Persistence;
+namespace PersistenceTests.Marten.Persistence;
 
 public static class ObjectMother
 {

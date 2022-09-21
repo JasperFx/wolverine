@@ -4,6 +4,7 @@ using Wolverine;
 using Wolverine.Marten.Publishing;
 using Wolverine.Runtime.Handlers;
 using OrderEventSourcingSample;
+using Wolverine.Runtime;
 
 namespace Internal.Generated.WolverineHandlers
 {
@@ -20,7 +21,7 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
-        public override async Task HandleAsync(IMessageContext context, CancellationToken cancellation)
+        public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
         {
             var markItemReady = (MarkItemReady)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);

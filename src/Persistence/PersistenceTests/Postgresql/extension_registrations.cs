@@ -3,14 +3,15 @@ using IntegrationTests;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using PersistenceTests.Marten;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
-using Wolverine.Persistence.Testing.Marten;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Postgresql;
+namespace PersistenceTests.Postgresql;
 
 public class extension_registrations : PostgresqlContext
 {

@@ -9,7 +9,7 @@ namespace CoreTests.Runtime;
 
 public class MessageSucceededContinuationTester
 {
-    private readonly IMessageContext theContext = Substitute.For<IMessageContext>();
+    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
     private readonly Envelope theEnvelope = ObjectMother.Envelope();
 
     private readonly MockWolverineRuntime theRuntime = new();
@@ -19,28 +19,28 @@ public class MessageSucceededContinuationTester
         theEnvelope = ObjectMother.Envelope();
         theEnvelope.Message = new object();
 
-        theContext.Envelope.Returns(theEnvelope);
+        theLifecycle.Envelope.Returns(theEnvelope);
 
         MessageSucceededContinuation.Instance
-            .ExecuteAsync(theContext, theRuntime, DateTimeOffset.Now);
+            .ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now);
     }
 
     [Fact]
     public void should_mark_the_message_as_successful()
     {
-        theContext.Received().CompleteAsync();
+        theLifecycle.Received().CompleteAsync();
     }
 
     [Fact]
     public void should_send_off_all_queued_up_cascaded_messages()
     {
-        theContext.Received().FlushOutgoingMessagesAsync();
+        theLifecycle.Received().FlushOutgoingMessagesAsync();
     }
 }
 
 public class MessageSucceededContinuation_failure_handling_Tester
 {
-    private readonly IMessageContext theContext = Substitute.For<IMessageContext>();
+    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
 
     private readonly Envelope theEnvelope = ObjectMother.Envelope();
     private readonly Exception theException = new DivideByZeroException();
@@ -48,19 +48,19 @@ public class MessageSucceededContinuation_failure_handling_Tester
 
     public MessageSucceededContinuation_failure_handling_Tester()
     {
-        theContext.When(x => x.FlushOutgoingMessagesAsync())
+        theLifecycle.When(x => x.FlushOutgoingMessagesAsync())
             .Throw(theException);
 
-        theContext.Envelope.Returns(theEnvelope);
+        theLifecycle.Envelope.Returns(theEnvelope);
 
         MessageSucceededContinuation.Instance
-            .ExecuteAsync(theContext, theRuntime, DateTimeOffset.Now);
+            .ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now);
     }
 
     [Fact]
     public void should_send_a_failure_ack()
     {
         var message = "Sending cascading message failed: " + theException.Message;
-        theContext.Received().SendFailureAcknowledgementAsync(message);
+        theLifecycle.Received().SendFailureAcknowledgementAsync(message);
     }
 }

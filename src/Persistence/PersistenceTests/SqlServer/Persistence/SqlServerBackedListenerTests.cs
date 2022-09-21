@@ -1,9 +1,10 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using Shouldly;
+using Wolverine;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer.Persistence;
+namespace PersistenceTests.SqlServer.Persistence;
 
 public class SqlServerBackedListenerTests : SqlServerBackedListenerContext
 {

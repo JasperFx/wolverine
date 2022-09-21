@@ -1,8 +1,9 @@
 using System.Threading.Tasks;
 using Baseline.Dates;
 using Microsoft.Extensions.Hosting;
+using Wolverine;
 
-namespace Wolverine.Persistence.Testing.Samples;
+namespace PersistenceTests.Samples;
 
 public static class DurabilityAgentCustomization
 {

@@ -302,13 +302,13 @@ public class RaiseAlert : IContinuation
         _ex = ex;
     }
 
-    public async ValueTask ExecuteAsync(IMessageContext context,
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
         DateTimeOffset now)
     {
-        await context.SendAsync(new RescheduledAlert
+        await lifecycle.SendAsync(new RescheduledAlert
         {
-            Id = context.Envelope.Id,
+            Id = lifecycle.Envelope.Id,
             ExceptionText = _ex.ToString()
         });
     }

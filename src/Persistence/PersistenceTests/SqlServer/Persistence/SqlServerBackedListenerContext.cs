@@ -6,23 +6,24 @@ using Baseline.Dates;
 using IntegrationTests;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Wolverine.SqlServer;
-using Wolverine.SqlServer.Persistence;
+using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
+using Wolverine.SqlServer;
+using Wolverine.SqlServer.Persistence;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Util;
 
-namespace Wolverine.Persistence.Testing.SqlServer.Persistence;
+namespace PersistenceTests.SqlServer.Persistence;
 
 public class SqlServerBackedListenerContext : SqlServerContext
 {
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
+    private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
     protected SqlServerSettings mssqlSettings;
     protected SqlServerEnvelopePersistence thePersistence;
-    private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     internal DurableReceiver theReceiver;
     protected AdvancedSettings theSettings;
 

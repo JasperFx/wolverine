@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
 using Weasel.Core;
+using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Marten;
@@ -17,7 +18,7 @@ using Wolverine.Marten.Codegen;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 public class transactional_frame_end_to_end : PostgresqlContext
 {

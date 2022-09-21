@@ -47,7 +47,7 @@ public class missing_handlers
     {
         public static IList<Envelope> Recorded = new List<Envelope>();
 
-        public ValueTask HandleAsync(IMessageContext context, IWolverineRuntime root)
+        public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
         {
             Recorded.Add(context.Envelope);
 
@@ -61,7 +61,7 @@ public class missing_handlers
     {
         public static IList<Envelope> Recorded = new List<Envelope>();
 
-        public ValueTask HandleAsync(IMessageContext context, IWolverineRuntime root)
+        public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
         {
             Recorded.Add(context.Envelope);
 
@@ -75,7 +75,7 @@ public class missing_handlers
     {
         public static IList<Envelope> Recorded = new List<Envelope>();
 
-        public ValueTask HandleAsync(IMessageContext context, IWolverineRuntime root)
+        public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
         {
             Recorded.Add(context.Envelope);
 

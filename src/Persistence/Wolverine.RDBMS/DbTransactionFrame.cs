@@ -3,6 +3,7 @@ using System.Data.Common;
 using LamarCodeGeneration;
 using LamarCodeGeneration.Frames;
 using LamarCodeGeneration.Model;
+using Wolverine.Runtime;
 
 namespace Wolverine.RDBMS;
 
@@ -29,8 +30,10 @@ public class DbTransactionFrame<TTransaction, TConnection> : AsyncFrame
 
         if (_context != null && _isUsingPersistence)
         {
+            writer.Write($"var envelopeTransaction = new {typeof(DatabaseEnvelopeTransaction).FullNameInCode()}({_context.Usage}, {Transaction.Usage});");
+            
             writer.Write(
-                $"await {typeof(DbOutboxExtensions).FullName}.{nameof(DbOutboxExtensions.EnlistInOutboxAsync)}({_context.Usage}, {Transaction.Usage});");
+                $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}(envelopeTransaction);");
         }
 
 
@@ -40,7 +43,7 @@ public class DbTransactionFrame<TTransaction, TConnection> : AsyncFrame
 
         if (ShouldFlushOutgoingMessages)
         {
-            writer.Write($"await {_context!.Usage}.{nameof(IMessageContext.FlushOutgoingMessagesAsync)}();");
+            writer.Write($"await {_context!.Usage}.{nameof(MessageContext.FlushOutgoingMessagesAsync)}();");
         }
 
         writer.Write($"{_connection.Usage}.{nameof(DbConnection.Close)}();");

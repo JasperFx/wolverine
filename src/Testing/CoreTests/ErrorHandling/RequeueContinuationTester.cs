@@ -15,7 +15,7 @@ public class RequeueContinuationTester
     {
         var envelope = ObjectMother.Envelope();
 
-        var context = Substitute.For<IMessageContext>();
+        var context = Substitute.For<IEnvelopeLifecycle>();
         context.Envelope.Returns(envelope);
 
 

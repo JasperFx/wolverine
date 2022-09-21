@@ -2,10 +2,11 @@ using System.Threading.Tasks;
 using IntegrationTests;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine;
 using Wolverine.SqlServer;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer;
+namespace PersistenceTests.SqlServer;
 
 public class SqlServer_StorageCommand_Smoke_Tests : SqlServerContext
 {
@@ -19,7 +20,7 @@ public class SqlServer_StorageCommand_Smoke_Tests : SqlServerContext
         var args = commandLine.Split(' ');
         (await Host.CreateDefaultBuilder().UseWolverine(registry =>
         {
-            registry.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
+            SqlServerConfigurationExtensions.PersistMessagesWithSqlServer(registry, Servers.SqlServerConnectionString);
         }).RunWolverineAsync(args)).ShouldBe(0);
     }
 }

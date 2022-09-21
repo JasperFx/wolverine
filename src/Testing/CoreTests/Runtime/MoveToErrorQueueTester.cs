@@ -10,7 +10,7 @@ namespace CoreTests.Runtime;
 
 public class MoveToErrorQueueTester
 {
-    private readonly IMessageContext theContext = Substitute.For<IMessageContext>();
+    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
     private readonly MoveToErrorQueue theContinuation;
     private readonly Envelope theEnvelope = ObjectMother.Envelope();
 
@@ -20,15 +20,15 @@ public class MoveToErrorQueueTester
     public MoveToErrorQueueTester()
     {
         theContinuation = new MoveToErrorQueue(theException);
-        theContext.Envelope.Returns(theEnvelope);
+        theLifecycle.Envelope.Returns(theEnvelope);
     }
 
     [Fact]
     public async Task should_send_a_failure_ack()
     {
-        await theContinuation.ExecuteAsync(theContext, theRuntime, DateTimeOffset.Now);
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now);
 
-        await theContext
+        await theLifecycle
                 .Received()
                 .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}")
             ;
@@ -37,7 +37,7 @@ public class MoveToErrorQueueTester
     [Fact]
     public async Task logging_calls()
     {
-        await theContinuation.ExecuteAsync(theContext, theRuntime, DateTimeOffset.Now);
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now);
 
         theRuntime.MessageLogger.Received().MessageFailed(theEnvelope, theException);
         theRuntime.MessageLogger.Received().MovedToErrorQueue(theEnvelope, theException);

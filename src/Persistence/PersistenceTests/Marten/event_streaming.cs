@@ -6,13 +6,14 @@ using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Transports.Tcp;
 using Wolverine.Transports.Util;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 public class event_streaming : PostgresqlContext, IAsyncLifetime
 {
@@ -24,7 +25,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         var receiverPort = PortFinder.GetAvailablePort();
 
         theReceiver = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => opts.ListenAtPort(receiverPort))
+            .UseWolverine(opts => TcpTransportConfigurationExtensions.ListenAtPort(opts, receiverPort))
             .ConfigureServices(services =>
             {
                 services.AddMarten(Servers.PostgresConnectionString)

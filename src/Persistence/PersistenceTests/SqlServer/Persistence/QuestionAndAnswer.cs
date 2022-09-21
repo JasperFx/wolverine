@@ -1,4 +1,4 @@
-﻿namespace Wolverine.Persistence.Testing.SqlServer.Persistence;
+﻿namespace PersistenceTests.SqlServer.Persistence;
 
 public class QuestionHandler
 {

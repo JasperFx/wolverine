@@ -5,6 +5,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Marten;
 using Marten;
 using Microsoft.Extensions.Hosting;
+using Wolverine.Runtime;
 
 namespace ScheduledJobTests.Postgresql;
 
@@ -41,17 +42,14 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
     }
 
 
-    protected override async Task withContext(IHost sender, IMessageContext context,
-        Func<IMessageContext, ValueTask> action)
+    protected override async Task withContext(IHost sender, MessageContext context,
+        Func<MessageContext, ValueTask> action)
     {
-        var senderStore = sender.Get<IDocumentStore>();
-
-        await using var session = senderStore.LightweightSession();
-        await context.EnlistInOutboxAsync(session);
+        var outbox = sender.Get<IMartenOutbox>();
 
         await action(context);
 
-        await session.SaveChangesAsync();
+        await outbox.Session.SaveChangesAsync();
     }
 
     protected override IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender)

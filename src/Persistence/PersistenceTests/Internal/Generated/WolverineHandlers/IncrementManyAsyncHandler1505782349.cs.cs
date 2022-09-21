@@ -4,26 +4,26 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: IncrementManyAsyncHandler294656301
-    public class IncrementManyAsyncHandler294656301 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: IncrementManyAsyncHandler1505782349
+    public class IncrementManyAsyncHandler1505782349 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementManyAsyncHandler294656301(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementManyAsyncHandler1505782349(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
 
-        public override async System.Threading.Tasks.Task HandleAsync(Wolverine.IMessageContext context, System.Threading.CancellationToken cancellation)
+        public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var letterHandler = new Wolverine.Persistence.Testing.Marten.LetterHandler();
-            var incrementManyAsync = (Wolverine.Persistence.Testing.Marten.IncrementManyAsync)context.Envelope.Message;
+            var letterHandler = new PersistenceTests.Marten.LetterHandler();
+            var incrementManyAsync = (PersistenceTests.Marten.IncrementManyAsync)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<Wolverine.Persistence.Testing.Marten.LetterAggregate>(incrementManyAsync.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementManyAsync.LetterAggregateId, cancellation).ConfigureAwait(false);
 
             var outgoing1 = await letterHandler.Handle(incrementManyAsync, eventStream.Aggregate, documentSession).ConfigureAwait(false);
             if (outgoing1 != null)
@@ -38,7 +38,7 @@ namespace Internal.Generated.WolverineHandlers
 
     }
 
-    // END: IncrementManyAsyncHandler294656301
+    // END: IncrementManyAsyncHandler1505782349
     
     
 }

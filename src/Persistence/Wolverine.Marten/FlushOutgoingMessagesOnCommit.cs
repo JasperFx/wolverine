@@ -3,8 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Baseline;
 using Marten;
-using Marten.Events;
 using Marten.Services;
+using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
@@ -34,22 +34,22 @@ internal class PublishIncomingEventsBeforeCommit : DocumentSessionListenerBase
 
 internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
 {
-    private readonly IMessageContext _bus;
+    private readonly MessageContext _context;
 
-    public FlushOutgoingMessagesOnCommit(IMessageContext bus)
+    public FlushOutgoingMessagesOnCommit(MessageContext context)
     {
-        _bus = bus;
+        _context = context;
     }
 
     public override void AfterCommit(IDocumentSession session, IChangeSet commit)
     {
 #pragma warning disable VSTHRD002
-        _bus.FlushOutgoingMessagesAsync().GetAwaiter().GetResult();
+        _context.FlushOutgoingMessagesAsync().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
     }
 
     public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
-        return _bus.FlushOutgoingMessagesAsync();
+        return _context.FlushOutgoingMessagesAsync();
     }
 }

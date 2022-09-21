@@ -22,16 +22,16 @@ public class MoveToErrorQueue : IContinuation
         _exception = exception ?? throw new ArgumentNullException(nameof(exception));
     }
 
-    public async ValueTask ExecuteAsync(IMessageContext context,
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
         DateTimeOffset now)
     {
-        await context.SendFailureAcknowledgementAsync($"Moved message {context.Envelope!.Id} to the Error Queue.\n{_exception}");
+        await lifecycle.SendFailureAcknowledgementAsync($"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{_exception}");
 
-        await context.MoveToDeadLetterQueueAsync(_exception);
+        await lifecycle.MoveToDeadLetterQueueAsync(_exception);
 
-        runtime.MessageLogger.MessageFailed(context.Envelope, _exception);
-        runtime.MessageLogger.MovedToErrorQueue(context.Envelope, _exception);
+        runtime.MessageLogger.MessageFailed(lifecycle.Envelope, _exception);
+        runtime.MessageLogger.MovedToErrorQueue(lifecycle.Envelope, _exception);
     }
 
     public override string ToString()

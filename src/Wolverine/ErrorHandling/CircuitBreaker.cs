@@ -44,7 +44,7 @@ internal class CircuitBreakerWrappedMessageHandler : IMessageHandler
         _tracker = tracker;
     }
 
-    public async Task HandleAsync(IMessageContext context, CancellationToken cancellation)
+    public async Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         try
         {

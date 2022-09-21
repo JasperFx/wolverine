@@ -14,7 +14,7 @@ internal class ForwardingHandler<T, TDestination> : MessageHandler where T : IFo
         Chain = new HandlerChain(typeof(T), graph);
     }
 
-    public override Task HandleAsync(IMessageContext context, CancellationToken cancellation)
+    public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         var innerMessage = context.Envelope!.Message!.As<T>();
         context.Envelope.Message = innerMessage.Transform();

@@ -4,26 +4,26 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: IncrementBCHandler1209368409
-    public class IncrementBCHandler1209368409 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: IncrementBCHandler254486159
+    public class IncrementBCHandler254486159 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementBCHandler1209368409(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementBCHandler254486159(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
 
-        public override async System.Threading.Tasks.Task HandleAsync(Wolverine.IMessageContext context, System.Threading.CancellationToken cancellation)
+        public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var letterHandler = new Wolverine.Persistence.Testing.Marten.LetterHandler();
-            var incrementBC = (Wolverine.Persistence.Testing.Marten.IncrementBC)context.Envelope.Message;
+            var letterHandler = new PersistenceTests.Marten.LetterHandler();
+            var incrementBC = (PersistenceTests.Marten.IncrementBC)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<Wolverine.Persistence.Testing.Marten.LetterAggregate>(incrementBC.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementBC.LetterAggregateId, cancellation).ConfigureAwait(false);
 
             var outgoing1 = letterHandler.Handle(incrementBC, eventStream.Aggregate);
             if (outgoing1 != null)
@@ -38,8 +38,8 @@ namespace Internal.Generated.WolverineHandlers
 
     }
 
-    // END: IncrementBCHandler1209368409
-
-
+    // END: IncrementBCHandler254486159
+    
+    
 }
 

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Durability;
 using Wolverine.SqlServer;
@@ -14,7 +15,7 @@ using Wolverine.SqlServer.Persistence;
 using Wolverine.Transports;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer.Persistence;
+namespace PersistenceTests.SqlServer.Persistence;
 
 [MessageIdentity("Message1")]
 public class Message1

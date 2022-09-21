@@ -15,11 +15,11 @@ public class ScheduledRetryContinuation : IContinuation, IContinuationSource
 
     public TimeSpan Delay => _delay;
 
-    public async ValueTask ExecuteAsync(IMessageContext context, IWolverineRuntime runtime, DateTimeOffset now)
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
     {
         var scheduledTime = now.Add(_delay);
 
-        await context.ReScheduleAsync(scheduledTime);
+        await lifecycle.ReScheduleAsync(scheduledTime);
     }
 
     public override string ToString()

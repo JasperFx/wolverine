@@ -7,12 +7,13 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
 using Weasel.Core;
-using Wolverine.Persistence.Durability;
+using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.Marten;
+namespace PersistenceTests.Marten;
 
 public class service_registrations : PostgresqlContext
 {

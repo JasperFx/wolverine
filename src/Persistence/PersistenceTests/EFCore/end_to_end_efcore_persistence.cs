@@ -1,24 +1,34 @@
 using System;
+using System.Data.SqlClient;
 using System.Linq;
+using System.Net.Mime;
 using System.Threading.Tasks;
+using Baseline;
 using IntegrationTests;
+using Lamar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NSubstitute.Extensions;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
-using Wolverine.Persistence.Durability;
+using Weasel.Core;
+using Weasel.SqlServer;
+using Weasel.SqlServer.Tables;
+using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Transports;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.EFCore;
+namespace PersistenceTests.EFCore;
 
 public class EFCorePersistenceContext : BaseContext
 {
-    public EFCorePersistenceContext() : base(false)
+    public EFCorePersistenceContext() : base(true)
     {
         builder.ConfigureServices((c, services) =>
             {
@@ -29,8 +39,19 @@ public class EFCorePersistenceContext : BaseContext
                 options.Services.AddSingleton<PassRecorder>();
                 options.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+                options.UseEntityFrameworkCorePersistence();
+
+                options.Policies.UseConventionalLocalRouting()
+                    .CustomizeQueues((_, q) => q.UseDurableInbox());
             });
+
+        ItemsTable = new Table("items");
+        ItemsTable.AddColumn<Guid>("Id").AsPrimaryKey();
+        ItemsTable.AddColumn<string>("Name");
+
     }
+
+    public Table ItemsTable { get; }
 }
 
 [Collection("sqlserver")]
@@ -39,10 +60,54 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     public end_to_end_efcore_persistence(EFCorePersistenceContext context)
     {
         Host = context.theHost;
+        ItemsTable = context.ItemsTable;
     }
+
+    public Table ItemsTable { get; }
 
     public IHost Host { get; }
 
+    [Fact]
+    public void service_registrations()
+    {
+        var container = (IContainer)Host.Services;
+        
+        container.Model.For<IDbContextOutbox>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        container.Model.For(typeof(IDbContextOutbox<>)).Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+    }
+
+    [Fact]
+    public void outbox_for_specific_db_context()
+    {
+        var container = (IContainer)Host.Services;
+        using var nested = container.GetNestedContainer();
+
+        var context = nested.GetInstance<SampleDbContext>();
+        var outbox = nested.GetInstance<IDbContextOutbox<SampleDbContext>>();
+        
+        outbox.DbContext.ShouldBeSameAs(context);
+        outbox.ShouldBeOfType<DbContextOutbox<SampleDbContext>>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
+            .DbContext.ShouldBeSameAs(context);
+    }
+    
+    [Fact]
+    public void outbox_for_db_context()
+    {
+        var container = (IContainer)Host.Services;
+        using var nested = container.GetNestedContainer();
+
+        var context = nested.GetInstance<SampleDbContext>();
+        var outbox = nested.GetInstance<IDbContextOutbox>();
+        
+        outbox.Enroll(context);
+        
+        outbox.ActiveContext.ShouldBeSameAs(context);
+        outbox.ShouldBeOfType<DbContextOutbox>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
+            .DbContext.ShouldBeSameAs(context);
+    }
+    
     [Fact]
     public async Task persist_an_outgoing_envelope()
     {
@@ -58,13 +123,24 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             ContentType = EnvelopeConstants.JsonContentType
         };
 
-        var context = Host.Services.GetRequiredService<SampleDbContext>();
-        var messaging = Host.Services.GetRequiredService<IMessageContext>();
+        var container = (IContainer)Host.Services;
 
-        var transaction = new EfCoreEnvelopeOutbox(context, messaging);
+        await withItemsTable();
 
-        await transaction.PersistAsync(envelope);
-        await context.SaveChangesAndFlushMessagesAsync(messaging);
+        using (var nested = container.GetNestedContainer())
+        {
+            var messaging = nested.GetInstance<IDbContextOutbox<SampleDbContext>>()
+                .ShouldBeOfType<DbContextOutbox<SampleDbContext>>();
+            
+            await messaging.DbContext.Database.EnsureCreatedAsync();
+            
+            await messaging.Transaction.PersistAsync(envelope);
+            messaging.DbContext.Items.Add(new Item { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString() });
+
+            await messaging.SaveChangesAndFlushMessagesAsync();
+        }
+        
+
 
         var persisted = await Host.Services.GetRequiredService<IEnvelopePersistence>()
             .Admin.AllOutgoingAsync();
@@ -81,6 +157,89 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         loadedEnvelope.OwnerId.ShouldBe(envelope.OwnerId);
     }
 
+    private async Task withItemsTable()
+    {
+        using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
+        {
+            await conn.OpenAsync();
+            var migration = await SchemaMigration.Determine(conn, ItemsTable);
+            if (migration.Difference != SchemaPatchDifference.None)
+            {
+                await new SqlServerMigrator().ApplyAll(conn, migration, AutoCreate.CreateOrUpdate);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task use_non_generic_outbox()
+    {
+        var id = Guid.NewGuid();
+        
+        var container = (IContainer)Host.Services;
+        
+        await withItemsTable();
+
+        var waiter = OutboxedMessageHandler.WaitForNextMessage();
+        
+        using (var nested = container.GetNestedContainer())
+        {
+            var context = nested.GetInstance<SampleDbContext>();
+            var messaging = nested.GetInstance<IDbContextOutbox>();
+        
+            messaging.Enroll(context);
+
+            context.Items.Add(new Item { Id = id, Name = "Bill" });
+            await messaging.SendAsync(new OutboxedMessage { Id = id });
+            
+            await messaging.SaveChangesAndFlushMessagesAsync();
+        }
+
+        var message = await waiter;
+        message.Id.ShouldBe(id);
+        
+        using (var nested = container.GetNestedContainer())
+        {
+            var context = nested.GetInstance<SampleDbContext>();
+            (await context.Items.FindAsync(id)).ShouldNotBeNull();
+        }
+        
+        
+    }
+
+    [Fact]
+    public async Task use_generic_outbox()
+    {
+        var id = Guid.NewGuid();
+        
+        var container = (IContainer)Host.Services;
+        
+        await withItemsTable();
+
+        var waiter = OutboxedMessageHandler.WaitForNextMessage();
+        
+        using (var nested = container.GetNestedContainer())
+        {
+            var outbox = nested.GetInstance<IDbContextOutbox<SampleDbContext>>();
+
+            outbox.DbContext.Items.Add(new Item { Id = id, Name = "Bill" });
+            await outbox.SendAsync(new OutboxedMessage { Id = id });
+            
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        }
+
+        var message = await waiter;
+        message.Id.ShouldBe(id);
+        
+        using (var nested = container.GetNestedContainer())
+        {
+            var context = nested.GetInstance<SampleDbContext>();
+            (await context.Items.FindAsync(id)).ShouldNotBeNull();
+        }
+        
+        
+    }
+
+    
     [Fact]
     public async Task persist_an_incoming_envelope()
     {
@@ -98,13 +257,20 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             ContentType = EnvelopeConstants.JsonContentType
         };
 
-        var context = Host.Services.GetRequiredService<SampleDbContext>();
-        var messaging = Host.Services.GetRequiredService<IMessageContext>();
+        var container = (IContainer)Host.Services;
+        
+        await withItemsTable();
 
-        var transaction = new EfCoreEnvelopeOutbox(context, messaging);
+        using (var nested = container.GetNestedContainer())
+        {
+            var context = nested.GetInstance<SampleDbContext>();
+            var messaging = nested.GetInstance<IDbContextOutbox>();
+        
+            messaging.Enroll(context);
 
-        await transaction.ScheduleJobAsync(envelope);
-        await context.SaveChangesAndFlushMessagesAsync(messaging);
+            await messaging.As<MessageContext>().Transaction.ScheduleJobAsync(envelope);
+            await messaging.SaveChangesAndFlushMessagesAsync();
+        }
 
         var persisted = await Host.Services.GetRequiredService<IEnvelopePersistence>()
             .Admin.AllIncomingAsync();

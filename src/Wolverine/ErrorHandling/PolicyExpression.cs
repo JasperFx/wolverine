@@ -15,7 +15,7 @@ public abstract class UserDefinedContinuation : IContinuationSource, IContinuati
     }
 
     public string Description { get; }
-    public abstract ValueTask ExecuteAsync(IMessageContext context, IWolverineRuntime runtime, DateTimeOffset now);
+    public abstract ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now);
 
     public IContinuation Build(Exception ex, Envelope envelope)
     {
@@ -44,7 +44,7 @@ public interface IAdditionalActions
     /// <param name="action"></param>
     /// <param name="description"></param>
     /// <returns></returns>
-    IAdditionalActions And(Func<IWolverineRuntime, IMessageContext, Exception, ValueTask> action,
+    IAdditionalActions And(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
         string description = "User supplied");
 
     /// <summary>
@@ -181,7 +181,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     /// <param name="source"></param>
     /// <param name="description"></param>
     /// <returns></returns>
-    public IAdditionalActions And(Func<IWolverineRuntime, IMessageContext, Exception, ValueTask> action, string description = "User supplied")
+    public IAdditionalActions And(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action, string description = "User supplied")
     {
         var source = new UserDefinedContinuationSource(action, description);
         return And(source);
@@ -205,9 +205,9 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
 internal class UserDefinedContinuationSource : IContinuationSource
 {
-    private readonly Func<IWolverineRuntime, IMessageContext, Exception, ValueTask> _source;
+    private readonly Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> _source;
 
-    public UserDefinedContinuationSource(Func<IWolverineRuntime, IMessageContext, Exception, ValueTask> source, string description = "User supplied")
+    public UserDefinedContinuationSource(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> source, string description = "User supplied")
     {
         Description = description;
         _source = source;
@@ -222,19 +222,19 @@ internal class UserDefinedContinuationSource : IContinuationSource
 
 internal class LambdaContinuation : IContinuation
 {
-    private readonly Func<IWolverineRuntime, IMessageContext, Exception, ValueTask> _action;
+    private readonly Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> _action;
     private readonly Exception _exception;
 
-    public LambdaContinuation(Func<IWolverineRuntime, IMessageContext, Exception, ValueTask> action,
+    public LambdaContinuation(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
         Exception exception)
     {
         _action = action;
         _exception = exception;
     }
 
-    public ValueTask ExecuteAsync(IMessageContext context, IWolverineRuntime runtime, DateTimeOffset now)
+    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
     {
-        return _action(runtime, context, _exception);
+        return _action(runtime, lifecycle, _exception);
     }
 }
 

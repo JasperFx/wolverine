@@ -30,7 +30,7 @@ public class CommandBus : ICommandBus
         CorrelationId = correlationId;
     }
 
-    public string? CorrelationId { get; protected set; }
+    public string? CorrelationId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
     public IEnvelopePersistence Persistence { get; }
@@ -38,7 +38,7 @@ public class CommandBus : ICommandBus
 
     public IEnumerable<Envelope> Outstanding => _outstanding;
 
-    public IEnvelopeOutbox? Outbox { get; protected set; }
+    public IEnvelopeTransaction? Transaction { get; protected set; }
     public Guid ConversationId { get; protected set; }
 
 
@@ -163,9 +163,9 @@ public class CommandBus : ICommandBus
         envelope.OwnerId = TransportConstants.AnyNode;
         envelope.Status = EnvelopeStatus.Scheduled;
 
-        if (Outbox != null)
+        if (Transaction != null)
         {
-            return Outbox.ScheduleJobAsync(envelope);
+            return Transaction.ScheduleJobAsync(envelope);
         }
 
         if (Persistence is NullEnvelopePersistence)
@@ -184,13 +184,13 @@ public class CommandBus : ICommandBus
             throw new InvalidOperationException("Envelope has not been routed");
         }
 
-        if (Outbox is not null)
+        if (Transaction is not null)
         {
             _outstanding.Fill(envelope);
 
             if (envelope.Sender.IsDurable)
             {
-                await Outbox.PersistAsync(envelope);
+                await Transaction.PersistAsync(envelope);
             }
 
             return;
@@ -199,18 +199,18 @@ public class CommandBus : ICommandBus
         await envelope.StoreAndForwardAsync();
     }
 
-    public void EnlistInOutbox(IEnvelopeOutbox outbox)
+    public void EnlistInOutbox(IEnvelopeTransaction transaction)
     {
-        Outbox = outbox;
+        Transaction = transaction;
     }
 
-    public Task EnlistInOutboxAsync(IEnvelopeOutbox outbox)
+    public Task EnlistInOutboxAsync(IEnvelopeTransaction transaction)
     {
-        var original = Outbox;
-        Outbox = outbox;
+        var original = Transaction;
+        Transaction = transaction;
 
         return original == null
             ? Task.CompletedTask
-            : original.CopyToAsync(outbox);
+            : original.CopyToAsync(transaction);
     }
 }

@@ -7,11 +7,12 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
 using Weasel.Core.Migrations;
+using Wolverine;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using Xunit;
 
-namespace Wolverine.Persistence.Testing.SqlServer;
+namespace PersistenceTests.SqlServer;
 
 public class configuration_extension_methods : SqlServerContext
 {
@@ -26,7 +27,7 @@ public class configuration_extension_methods : SqlServerContext
             })
             .UseWolverine((context, options) =>
             {
-                options.PersistMessagesWithSqlServer(context.Configuration["connection"]);
+                SqlServerConfigurationExtensions.PersistMessagesWithSqlServer(options, context.Configuration["connection"]);
             });
 
 

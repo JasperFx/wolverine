@@ -57,12 +57,8 @@ app.MapPost("/orders/create2", (CreateOrder command, ICommandBus bus)
 
 #region sample_create_order_through_minimal_api
 
-app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession session, IMessageContext context) =>
+app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession session, IMartenOutbox outbox) =>
 {
-    // Gotta connection the Marten session into
-    // the Wolverine outbox
-    await context.EnlistInOutboxAsync(session);
-
     var order = new Order
     {
         Description = command.Description,
@@ -73,7 +69,7 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 
     // Don't worry, this message doesn't go out until
     // after the Marten transaction succeeds
-    await context.PublishAsync(new OrderCreated(order.Id));
+    await outbox.PublishAsync(new OrderCreated(order.Id));
 
     // Commit the Marten transaction
     await session.SaveChangesAsync();

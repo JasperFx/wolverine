@@ -13,6 +13,7 @@ using LamarCodeGeneration.Frames;
 using LamarCodeGeneration.Model;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Persistence;
+using Wolverine.Runtime;
 using TypeExtensions = Baseline.TypeExtensions;
 
 namespace Wolverine.EntityFrameworkCore.Codegen;
@@ -39,7 +40,7 @@ public class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITr
 
         if (chain.ShouldFlushOutgoingMessages())
         {
-            chain.Postprocessors.Add(MethodCall.For<IMessageContext>(x => x.FlushOutgoingMessagesAsync()));
+            chain.Postprocessors.Add(MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync()));
         }
     }
 
@@ -150,8 +151,10 @@ public class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITr
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
             writer.WriteComment("Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
+            writer.Write($"var envelopeTransaction = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context.Usage});");
+            
             writer.Write(
-                $"await {typeof(WolverineEnvelopeEntityFrameworkCoreExtensions).FullName}.{nameof(WolverineEnvelopeEntityFrameworkCoreExtensions.EnlistInOutboxAsync)}({_context!.Usage}, {_dbContext!.Usage});");
+                $"await context.{nameof(MessageContext.EnlistInOutboxAsync)}(envelopeTransaction);");
 
             Next?.GenerateCode(method, writer);
         }

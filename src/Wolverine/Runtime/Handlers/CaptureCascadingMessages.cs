@@ -9,7 +9,7 @@ public class CaptureCascadingMessages : MethodCall
 {
     private static readonly MethodInfo _method =
 #pragma warning disable CS8625
-        ReflectionHelper.GetMethod<IMessageContext>(x => x.EnqueueCascadingAsync(null));
+        ReflectionHelper.GetMethod<MessageContext>(x => x.EnqueueCascadingAsync(null));
 #pragma warning restore CS8625
 
 

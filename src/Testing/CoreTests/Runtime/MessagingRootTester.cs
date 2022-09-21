@@ -18,8 +18,8 @@ public class MessagingRootTester
         var context = (IMessageContext)context1;
 
         context.Envelope.ShouldBe(original);
-        context.Outbox.ShouldNotBeNull();
+        context1.Transaction.ShouldNotBeNull();
 
-        context.As<MessageContext>().Outbox.ShouldBeSameAs(context);
+        context.As<MessageContext>().Transaction.ShouldBeSameAs(context);
     }
 }
