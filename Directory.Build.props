@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
     <PropertyGroup>
-        <VersionPrefix>1.0.0</VersionPrefix>
-        <VersionSuffix>alpha-1</VersionSuffix>
+        <VersionPrefix>0.8.0</VersionPrefix>
         <LangVersion>10</LangVersion>
         <Authors>Jeremy D. Miller</Authors>
-        <PackageIconUrl>https://github.com/JasperFx/jasper/blob/master/documentation/content/jasper-icon.png?raw=true</PackageIconUrl>
-        <PackageProjectUrl>http://jasperfx.github.io/jasper</PackageProjectUrl>
+        <PackageIconUrl>https://github.com/JasperFx/wolverine/blob/main/docs/public/logo.png?raw=true</PackageIconUrl>
+        <PackageProjectUrl>http://github.com/jasperfx/wolverine</PackageProjectUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        
         <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618</NoWarn>
     </PropertyGroup>
 </Project>
