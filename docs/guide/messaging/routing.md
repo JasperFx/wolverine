@@ -24,7 +24,7 @@ public class SendingExample
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/CoreTests/Runtime/Samples/channels.cs#L7-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_for_static_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/channels.cs#L7-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_for_static_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route messages to specific endpoints, we can apply static message routing rules by using a routing rule as shown below:
@@ -76,7 +76,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToPort(3333);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/DocumentationSamples/StaticPublishingRule.cs#L14-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_staticpublishingrules' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StaticPublishingRule.cs#L14-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_staticpublishingrules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that doing the message type filtering by namespace will also include child namespaces. In

@@ -47,7 +47,7 @@ builder.Host.UseWolverine(opts =>
         .UseDurableInbox();
 });
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/WebApiWithMarten/Program.cs#L9-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L9-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 TODO -- link to the outbox page
@@ -118,7 +118,7 @@ public static async Task Handle(
     await session.SaveChangesAsync(cancellation);
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/WebApiWithMarten/Order.cs#L111-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_longhand_order_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L111-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_longhand_order_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above, the `OrderCreated` message is registered with the Wolverine `IMessageContext` for the current message, but nothing more than that is actually happening at that point.
@@ -173,7 +173,7 @@ public class CreateOrderController : ControllerBase
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/WebApiWithMarten/Order.cs#L21-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createordercontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L21-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createordercontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From a Minimal API, that could be this:
@@ -203,7 +203,7 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
     await session.SaveChangesAsync();
 });
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/WebApiWithMarten/Program.cs#L58-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_order_through_minimal_api' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L58-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_order_through_minimal_api' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -238,7 +238,7 @@ public static OrderCreated Handle(CreateOrder command, IDocumentSession session)
     return new OrderCreated(order.Id);
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/WebApiWithMarten/Order.cs#L56-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L56-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you need to take more control over how the outgoing `OrderCreated` message is sent, you can use this slightly different alternative:
@@ -267,7 +267,7 @@ public static ValueTask Handle(
         new DeliveryOptions{DeliverWithin = 5.Minutes()});
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/WebApiWithMarten/Order.cs#L83-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler_alternative' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L83-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler_alternative' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In both cases Wolverine's transactional middleware for Marten is taking care of registering the Marten session with Wolverine's outbox before you call into the message handler, and
@@ -298,7 +298,7 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L86-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L86-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
@@ -313,7 +313,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Handlers.GlobalPolicy<CommandsAreTransactional>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L46-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L46-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -359,7 +359,7 @@ builder.Host.UseWolverine(opts =>
         .UseDurableInbox();
 });
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/WebApiWithMarten/Program.cs#L9-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L9-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 But this time, focus on the Wolverine configuration of the local queue named "important." By marking this local queue as persistent, any messages sent to this queue
@@ -379,7 +379,7 @@ Or finally, it's less code to opt into Wolverine's outbox by delegating to the [
 app.MapPost("/orders/create2", (CreateOrder command, ICommandBus bus)
     => bus.InvokeAsync(command));
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/WebApiWithMarten/Program.cs#L49-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delegate_to_command_bus_from_minimal_api' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L49-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delegate_to_command_bus_from_minimal_api' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Saga Storage
@@ -456,7 +456,7 @@ public class Order
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Order.cs#L26-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_event_sourced_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L26-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_event_sourced_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At a minimum, we're going to want a command handler for this command message that marks an order item as ready to ship and then evaluates whether
@@ -468,7 +468,7 @@ or not based on the current state of the `Order` aggregate whether or not the lo
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above we're also utilizing Wolverine's [outbox messaging](/guide/persistence/) support to both order and guarantee the delivery of a `ShipOrder` message when
@@ -528,7 +528,7 @@ public async Task Post(
     await session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Order.cs#L77-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L77-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully that code is easy to understand, but there's some potentially repetitive code
@@ -568,7 +568,7 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Order.cs#L256-L283' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L256-L283' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, Wolverine is wrapping middleware around our basic command handler to
@@ -614,7 +614,7 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
 
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Internal/Generated/JasperHandlers/MarkItemReadyHandler1442193977.cs.cs#L12-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Internal/Generated/JasperHandlers/MarkItemReadyHandler1442193977.cs.cs#L12-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you probably guessed, there are some naming conventions or other questions you need to be aware of
@@ -658,7 +658,7 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Alternatives/Signatures.cs#L26-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Alternatives/Signatures.cs#L26-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Just as in other Wolverine [message handlers](/guide/messages/handlers), you can use
@@ -678,7 +678,7 @@ by appending "Id" to the aggregate type name (it's not case sensitive if you wer
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you want to use a different member, bypass the convention, or just don't like conventional
@@ -698,7 +698,7 @@ public class MarkItemReady
     public string ItemName { get; init; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/OrderEventSourcingSample/Alternatives/Signatures.cs#L9-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Alternatives/Signatures.cs#L9-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing Events
@@ -751,7 +751,7 @@ builder.Services.AddMarten(opts =>
     // the Wolverine outbox during SaveChangesAsync()
     .EventForwardingToWolverine();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L45-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_wolverine_event_publishing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L45-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_wolverine_event_publishing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This does need to be paired with a little bit of Wolverine configuration to add
@@ -778,7 +778,7 @@ builder.Host.UseWolverine(opts =>
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
 });
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L17-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_event_subscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L17-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_event_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

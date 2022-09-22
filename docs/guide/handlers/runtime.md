@@ -33,7 +33,7 @@ public abstract class MessageHandler : IMessageHandler
     public abstract Task HandleAsync(IMessageContext context, CancellationToken cancellation);
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Wolverine/Runtime/Handlers/MessageHandler.cs#L6-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Handlers/MessageHandler.cs#L6-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

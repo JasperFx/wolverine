@@ -40,7 +40,7 @@ builder.Host.UseWolverine(opts =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/RabbitMqBootstrapping/Program.cs#L1-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_connection_to_rabbit_mq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/RabbitMqBootstrapping/Program.cs#L1-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_connection_to_rabbit_mq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Listening Endpoint Configuration

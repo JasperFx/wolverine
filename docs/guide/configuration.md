@@ -45,7 +45,7 @@ app.MapPost("/issues/assign", (AssignIssue body, ICommandBus bus) => bus.InvokeA
 
 app.Run();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## "Headless" Applications
@@ -96,5 +96,5 @@ return await Host.CreateDefaultBuilder(args)
     })
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

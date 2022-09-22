@@ -1,7 +1,7 @@
 {
     "Convention": "InPlaceOverwrite",
     "LinkFormat": "GitHub",
-    "UrlPrefix": "https://github.com/JasperFx/alba/blob/master",
+    "UrlPrefix": "https://github.com/JasperFx/wolverine/blob/main",
     "ExcludeMarkdownDirectories": ["documentation"],
     "ExcludeSnippetDirectories": [],
     "TreatMissingAsWarning": false

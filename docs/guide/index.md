@@ -50,7 +50,7 @@ The two *commands* for the POST endpoints are below:
 ```cs
 public record CreateIssue(Guid OriginatorId, string Title, string Description);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/Quickstart/CreateIssue.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_commands' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssue.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_commands' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's jump right into the `Program.cs` file of our new web service:
@@ -84,7 +84,7 @@ app.MapPost("/issues/assign", (AssignIssue body, ICommandBus bus) => bus.InvokeA
 
 app.Run();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Alright, let's talk about what's going on up above:
@@ -131,7 +131,7 @@ public class CreateIssueHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/Quickstart/CreateIssueHandler.cs#L1-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_createissuehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssueHandler.cs#L1-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_createissuehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully that code is simple enough, but let's talk what you do not see in this code or
@@ -184,7 +184,7 @@ public static class IssueCreatedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/Quickstart/IssueCreatedHandler.cs#L5-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_issuecreatedhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/IssueCreatedHandler.cs#L5-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_issuecreatedhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, you'll notice that Wolverine is happy to allow you to use static methods as

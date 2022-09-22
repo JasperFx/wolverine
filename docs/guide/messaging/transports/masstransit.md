@@ -43,7 +43,7 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
 
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Testing/Interoperability/InteroperabilityTests/MassTransit/MassTransitSpecs.cs#L24-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransit_interoperability' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Interoperability/InteroperabilityTests/MassTransit/MassTransitSpecs.cs#L24-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransit_interoperability' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

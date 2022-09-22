@@ -42,7 +42,7 @@ public class Pong
     public int Number { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPong/Messages/Messages.cs#L3-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pingpongmessages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Messages/Messages.cs#L3-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pingpongmessages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And next, I'll start a small *Pinger* service with the `dotnet new worker` template. There's just three pieces of code, starting with the boostrapping code:
@@ -73,7 +73,7 @@ return await Host.CreateDefaultBuilder(args)
     })
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPong/Pinger/Program.cs#L1-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrappingpinger' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Pinger/Program.cs#L1-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrappingpinger' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and the `Worker` class that's just going to publish a new `Ping` message once a second:
@@ -112,7 +112,7 @@ public class Worker : BackgroundService
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPong/Pinger/Worker.cs#L1-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pingpong_worker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Pinger/Worker.cs#L1-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pingpong_worker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and lastly a message handler for any `Pong` messages coming back from the `Ponger` we'll build next:
@@ -132,7 +132,7 @@ public class PongHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPong/Pinger/PongHandler.cs#L1-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ponghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Pinger/PongHandler.cs#L1-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ponghandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Okay then, next let's move on to building the `Ponger` application. This time I'll use `dotnet new console` to start the new
@@ -154,7 +154,7 @@ return await Host.CreateDefaultBuilder(args)
     })
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPong/Ponger/Program.cs#L1-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pongerbootstrapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/Program.cs#L1-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pongerbootstrapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And a message handler for the `Ping` messages that will turn right around and shoot a `Pong` response right back
@@ -178,7 +178,7 @@ public class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_pinghandler-1'></a>
 ```cs
 public static class PingHandler
@@ -208,7 +208,7 @@ public static class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L8-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L8-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If I start up first the *Ponger* service, then the *Pinger* service, I'll see console output like this from *Pinger*:

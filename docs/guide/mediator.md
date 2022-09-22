@@ -52,7 +52,7 @@ builder.Services.AddDbContext<ItemsDbContext>(
     // use this DbContext type
     optionsLifetime: ServiceLifetime.Singleton);
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/InMemoryMediator/Program.cs#L7-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmediatorprogram' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L7-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmediatorprogram' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, let's add a Wolverine message handler that will:
@@ -99,7 +99,7 @@ public class ItemHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/InMemoryMediator/ItemHandler.cs#L5-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_items' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/ItemHandler.cs#L5-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_items' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 **Note**, as long as this handler class is public and in the main application assembly, Wolverine is going
@@ -113,7 +113,7 @@ Now, moving up to the API layer, we can add a new HTTP endpoint to delegate to W
 ```cs
 app.MapPost("/items/create", (CreateItemCommand cmd, ICommandBus bus) => bus.InvokeAsync(cmd));
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/InMemoryMediator/Program.cs#L46-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_usewolverineasmediatorcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L46-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_usewolverineasmediatorcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There isn't much to this code -- and that's the entire point! When Wolverine registers itself into
@@ -193,7 +193,7 @@ public class DoItAllMyselfItemController : ControllerBase
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/InMemoryMediator/DoItAllMyselfItemController.cs#L7-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_doitallmyselfitemcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/DoItAllMyselfItemController.cs#L7-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_doitallmyselfitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So one, there's just more going on in the `/items/create` HTTP endpoint defined above because you're needing to do a little bit of
@@ -217,7 +217,7 @@ example code simpler):
 ```cs
 app.MapPost("/items/create2", (CreateItemCommand cmd, ICommandBus bus) => bus.InvokeAsync<ItemCreated>(cmd));
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Samples/InMemoryMediator/Program.cs#L52-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_withresponsecontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L52-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_withresponsecontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using the `ICommandBus.Invoke<T>(message)` overload, the returned `ItemCreated` response
