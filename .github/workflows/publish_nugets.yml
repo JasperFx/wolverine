@@ -1,0 +1,25 @@
+name: Publish Jasper Nugets
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 6.0.x
+
+    - name: Run Pack
+      run: ./build.sh --no-color pack
+      shell: bash
+
+    - name: Publish to NuGet
+      run: |
+        find . -name '*.nupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_API_KEY}} --skip-duplicate \;
+        # find . -name '*.snupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_API_KEY}} \;
+      shell: bash
