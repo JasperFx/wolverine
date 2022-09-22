@@ -151,7 +151,7 @@ namespace build
 
             });
 
-            Target("pack", DependsOn("compile"), ForEach("./src/Wolverine", "./src/Transports/Wolverine.RabbitMQ", "./src/Persistence/Wolverine.Database", "./src/Persistence/Wolverine.Postgresql", "./src/Persistence/Wolverine.Marten"), project =>
+            Target("pack", DependsOn("compile"), ForEach("./src/Wolverine", "./src/Transports/Wolverine.RabbitMQ", "./src/Persistence/Wolverine.RDBMS", "./src/Persistence/Wolverine.Postgresql", "./src/Persistence/Wolverine.Marten"), project =>
                 Run("dotnet", $"pack {project} -o ./artifacts --configuration Release"));
 
 
