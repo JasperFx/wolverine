@@ -1,0 +1,17 @@
+:root {
+  --vp-c-brand: #f7ba09;
+  --vp-c-brand-light: #b48125;
+  --vp-c-brand-dark: #673018;
+  --vp-home-hero-name-color: #f7ba09; 
+  --vp-button-brand-bg: #673018;
+  --vp-button-brand-hover-border: var(--vp-c-brand);
+  --vp-button-brand-hover-bg: var(--vp-c-brand);
+}
+
+.logo {
+  height: 35px!important;
+}
+
+.title {
+  color: var(--vp-c-brand)!important;
+}

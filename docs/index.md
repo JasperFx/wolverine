@@ -1,9 +1,21 @@
 ---
-home: true
-heroImage: /wolverine.png
-heroText: Wolverine
-actionText: Get Started
-actionLink: /guide/
+layout: home
+sidebar: false
+
+title: Wolverine
+titleTemplate: Next Generation .NET Command and Message Bus
+
+hero:
+  name: Wolverine
+  text: Next Generation .NET Command and Message Bus
+  tagline: A batteries included modern and opinionated library!
+  image:
+    src: /logo.png
+    alt: Wolverine Logo image
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /guide/
 
 features:
 - title: 💪 Command Execution

@@ -120,12 +120,11 @@ using var host = Host.CreateDefaultBuilder()
                 x.QueueNameForListener(type => type.FullName.Replace('.', '-'));
 
                 // Or maybe you want to conditionally configure listening endpoints
-                x.ConfigureListener((queue, context) =>
+                x.ConfigureListener((listener, queue, context) =>
                 {
                     if (context.MessageType.IsInNamespace("MyApp.Messages.Important"))
                     {
-                        context.Endpoint.Mode = EndpointMode.Durable;
-                        context.Endpoint.ListenerCount = 5;
+                        listener.UseDurableInbox().ListenerCount(5);
                     }
                     else
                     {
@@ -136,14 +135,14 @@ using var host = Host.CreateDefaultBuilder()
 
                 })
                 // Or maybe you want to conditionally configure the outgoing exchange
-                .ConfigureSending((ex, context) =>
+                .ConfigureSending((_, ex, _) =>
                 {
                     ex.ExchangeType = ExchangeType.Direct;
                 });
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L226-L275' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/alba/blob/master/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L226-L274' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

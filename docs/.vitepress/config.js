@@ -1,14 +1,18 @@
+import { BUNDLED_LANGUAGES } from 'shiki'
+
+// Include `cs` as alias for csharp
+BUNDLED_LANGUAGES
+  .find(lang => lang.id === 'csharp').aliases.push('cs');
+
 module.exports = {
+    base: '/',
+    lang: 'en-US',
     title: 'Wolverine',
     description: 'Next Generation Command and Message Bus for .NET',
     head: [],
+    lastUpdated: true,
     themeConfig: {
-        logo: null,
-        repo: 'JasperFx/wolverine',
-        docsDir: 'docs',
-        docsBranch: 'master',
-        editLinks: true,
-        editLinkText: 'Suggest changes to this page',
+        logo: '/logo.png',
 
         nav: [
             { text: 'Guide', link: '/guide/' },
@@ -21,83 +25,85 @@ module.exports = {
             indexName: 'wolverine_index'
         },
 
-        sidebar: [
+        editLink: {
+          pattern: 'https://github.com/JasperFx/wolverine/edit/main/docs/:path',
+          text: 'Suggest changes to this page'
+        },
+
+        footer: {
+          message: 'Released under the MIT License.',
+          copyright: 'Copyright © Jeremy D. Miller and contributors.',
+        },
+
+        sidebar: {
+          '/guide/': [
             {
-                text: 'Getting Started',
-                link: '/guide/',
-                children: tableOfContents()
-            }
-        ]
+              text: 'Introduction',
+              collapsible: true,
+              items: [ {text: 'What is Wolverine?', link: '/guide/'} ]
+            },
+            {
+              text: 'Mediator',
+              collapsible: true,
+              items: [ {text: 'Use as Mediator', link: '/guide/mediator'} ]
+            },
+            {
+              text: 'Command Bus',
+              collapsible: true,
+              items: [ {text: 'Use as Command Bus', link: '/guide/in-memory-bus'} ]
+            },
+            {
+              text: 'Messaging Bus',
+              collapsible: true,
+              items: [ 
+                {text: 'Use as Messaging Bus', link: '/guide/messaging/'},
+                {text: 'Configuring Messaging', link: '/guide/messaging/configuration'},
+                {text: 'Message Routing', link: '/guide/messaging/routing'},
+                {text: 'Publishing and Sending', link: '/guide/messaging/pubsub'},
+                {text: 'Message Expiration', link: '/guide/messaging/expiration'},
+                {text: 'Transports', link: '/guide/messaging/transports/'},
+                {text: 'Rabbit MQ Transport', link: '/guide/messaging/transports/rabbitmq'},
+                {text: 'Pulsar Transport', link: '/guide/messaging/transports/pulsar'},
+                {text: 'TCP Transport', link: '/guide/messaging/transports/tcp'},
+                {text: 'MassTransit Interop', link: '/guide/messaging/transports/masstransit'},
+                {text: 'Scheduled Delivery', link: '/guide/messaging/scheduled'},
+                {text: 'Message Correlation', link: '/guide/messaging/correlation'}
+              ]
+            },
+            {
+              text: 'Durable Messaging',
+              collapsible: true,
+              items: [ 
+                {text: 'Durable Inbox and Outbox Messaging', link: '/guide/durability/'},
+                {text: 'Stateful Sagas', link: '/guide/durability/sagas'},
+                {text: 'Stateful Sagas using Marten', link: '/guide/durability/marten'},
+                {text: 'Stateful Sagas using Entity Framework Core', link: '/guide/durability/efcore'}
+              ]
+            },
+            {
+              text: 'General',
+              collapsible: true,
+              items: [ 
+                {text: 'Messages and Serialization', link: '/guide/messages'},
+                {text: 'Scheduled', link: '/guide/scheduled'},
+                {text: 'Configuration', link: '/guide/configuration'},
+                {text: 'Instrumentation, Diagnostics, and Logging', link: '/guide/logging'},
+                {text: 'Test Automation Support', link: '/guide/testing'},
+                {text: 'Command Line Integration', link: '/guide/command-line'},
+                {text: 'Best Practices', link: '/guide/best-practices'},
+                {text: 'Extensions', link: '/guide/extensions'}
+                // {text: 'Alba Setup', link: '/guide/hosting'},
+                // {text: 'Integrating with xUnit.Net', link: '/guide/xunit'},
+                // {text: 'Integrating with NUnit', link: '/guide/nunit'},
+                // {text: 'Extension Model', link: '/guide/extensions'},
+                // {text: 'Security Extensions', link: '/guide/security'}
+              ]
+            },
+          ]
+        }
     },
     markdown: {
         linkify: false
     }
 }
-
-function tableOfContents() {
-    return [
-      {text: "As Mediator", link: '/guide/mediator'},
-      {text: "As Command Bus", link: '/guide/in-memory-bus'},
-      {
-        text: "As Messaging Bus",
-        link: '/guide/messaging/',
-        children: [
-          {text: "Configuring Messaging", link: '/guide/messaging/configuration'},
-          {text: "Message Routing", link: '/guide/messaging/routing'},
-          {text: "Publishing and Sending", link: '/guide/messaging/pubsub'},
-          {text: "Message Expiration", link: '/guide/messaging/expiration'},
-          {text: "Transports", link: '/guide/messaging/transports/', children: [
-              {text: "With Rabbit MQ", link: '/guide/messaging/transports/rabbitmq'},
-              {text: "With Pulsar", link: '/guide/messaging/transports/pulsar'},
-              {text: "With TCP", link: '/guide/messaging/transports/tcp'},
-              {text: "MassTransit Interop", link: '/guide/messaging/transports/masstransit'}
-            ]},
-          {text: "Scheduled Delivery", link: '/guide/messaging/scheduled'},
-          {text: "Message Correlation", link: '/guide/messaging/correlation'},
-        ]
-
-
-      },
-      {
-        text: "Durable Messaging",
-        link: '/guide/durability/',
-        children: [
-          {text: "Stateful Sagas", link: '/guide/durability/sagas'},
-          {text: "With Marten", link: '/guide/durability/marten'},
-          {text: "With Entity Framework Core", link: '/guide/durability/efcore'}
-        ]
-      },
-      {text: 'Messages and Serialization', link: '/guide/messages'},
-      {
-        text: "Message Handlers",
-        link: '/guide/handlers/',
-        children: [
-          {text: "Message Handling Runtime", link: '/guide/handlers/runtime'},
-          {text: "Cascading Messages", link: '/guide/handlers/cascading'},
-          {text: "Discovery", link: '/guide/handlers/discovery'},
-          {text: "Error Handling", link: '/guide/handlers/error-handling'},
-          {text: "Middleware", link: '/guide/handlers/middleware'},
-          {text: "Message Timeouts", link: '/guide/handlers/timeout'}
-        ]
-      },
-      {text: "Scheduled", link: '/guide/scheduled'},
-      {text: "Configuration", link: '/guide/configuration'},
-      {text: "Instrumentation, Diagnostics, and Logging", link: '/guide/logging'},
-      {text: "Test Automation Support", link: '/guide/testing'},
-      {text: "Command Line Integration", link: '/guide/command-line'},
-      {text: "Best Practices", link: '/guide/best-practices'},
-      {text: "Extensions", link: '/guide/extensions'}
-
-    ]
-}
-
-/*
-
-
-        {text: 'Alba Setup', link: '/guide/hosting'},
-        {text: 'Integrating with xUnit.Net', link: '/guide/xunit'},
-        {text: 'Integrating with NUnit', link: '/guide/nunit'},
-        {text: 'Extension Model', link: '/guide/extensions'},
-        {text: 'Security Extensions', link: '/guide/security'}
- */
 
