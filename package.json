@@ -1,7 +1,7 @@
 {
     "private": true,
     "scripts": {
-        "vitepress-dev": "vitepress dev docs --port 5050",
+        "vitepress-dev": "vitepress dev docs --port 5050 --open",
         "vitepress-build": "vitepress build docs",
         "mdsnippets": "mdsnippets",
         "docs": "npm-run-all -s mdsnippets vitepress-dev",

@@ -9,7 +9,12 @@ module.exports = {
     lang: 'en-US',
     title: 'Wolverine',
     description: 'Next Generation Command and Message Bus for .NET',
-    head: [],
+    head: [
+      ['link', { rel: 'apple-touch-icon', type: 'image/png', size: "180x180", href: '/apple-icon-180x180.png' }],
+      ['link', { rel: 'icon', type: 'image/png', size: "32x32", href: '/favicon-32x32.png' }],
+      ['link', { rel: 'icon', type: 'image/png', size: "16x16", href: '/favicon-16x16.png' }],
+      ['link', { rel: 'manifest', manifest: '/manifest.json' }],
+    ],
     lastUpdated: true,
     themeConfig: {
         logo: '/logo.png',
@@ -36,7 +41,7 @@ module.exports = {
         },
 
         sidebar: {
-          '/guide/': [
+          '/': [
             {
               text: 'Introduction',
               collapsible: true,
