@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Baseline.Dates;
 
-namespace Wolverine.Transports.Util;
+namespace Wolverine.Util.Dataflow;
 
 public class BatchingBlock<T> : IDisposable
 {

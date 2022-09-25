@@ -141,7 +141,7 @@ namespace CircuitBreakingTests
 
             var runtime = theListener.GetRuntime();
 
-            var stopWaiter = runtime.ListenerTracker.WaitForListenerStatus("one", ListeningStatus.Stopped, 1.Minutes());
+            var stopWaiter = runtime.ListenerTracker.WaitForListenerStatusAsync("one", ListeningStatus.Stopped, 1.Minutes());
 
             await sender
                 .TrackActivity()

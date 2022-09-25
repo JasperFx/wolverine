@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Wolverine.Logging;
 using Microsoft.Extensions.Logging;
-using Wolverine.Transports.Util;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 

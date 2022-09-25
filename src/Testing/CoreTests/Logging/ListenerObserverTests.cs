@@ -29,7 +29,7 @@ public class ListenerObserverTests
     [Fact]
     public async Task record_status()
     {
-        var waiter = theTracker.WaitForListenerStatus(TransportConstants.LocalUri, ListeningStatus.Accepting,
+        var waiter = theTracker.WaitForListenerStatusAsync(TransportConstants.LocalUri, ListeningStatus.Accepting,
             10.Seconds());
 
         theTracker.Publish(new ListenerState(TransportConstants.LocalUri, "DefaultLocal", ListeningStatus.Accepting));
@@ -43,7 +43,7 @@ public class ListenerObserverTests
     [Fact]
     public async Task record_status_and_wait_by_endpoint_name()
     {
-        var waiter = theTracker.WaitForListenerStatus("local", ListeningStatus.Accepting,
+        var waiter = theTracker.WaitForListenerStatusAsync("local", ListeningStatus.Accepting,
             10.Seconds());
 
         theTracker.Publish(new ListenerState(TransportConstants.LocalUri, "local", ListeningStatus.Accepting));

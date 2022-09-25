@@ -2,7 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Wolverine.Transports.Util;
+namespace Wolverine.Util;
 
 public static class TaskExtensions
 {

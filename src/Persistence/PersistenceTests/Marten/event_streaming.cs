@@ -10,7 +10,7 @@ using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Transports.Tcp;
-using Wolverine.Transports.Util;
+using Wolverine.Util;
 using Xunit;
 
 namespace PersistenceTests.Marten;

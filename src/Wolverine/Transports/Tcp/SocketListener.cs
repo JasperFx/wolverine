@@ -5,7 +5,6 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Wolverine.Transports.Util;
 using Wolverine.Util;
 using Microsoft.Extensions.Logging;
 

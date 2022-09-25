@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Wolverine.Transports.Util;
+namespace Wolverine.Util;
 
 public static class StreamExtensions
 {
