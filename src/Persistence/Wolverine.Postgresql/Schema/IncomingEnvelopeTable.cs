@@ -27,5 +27,6 @@ internal class IncomingEnvelopeTable : Table
         AddColumn<bool>(DatabaseConstants.AckRequested);
         AddColumn<string>(DatabaseConstants.ReplyUri);
         AddColumn<string>(DatabaseConstants.ReceivedAt);
+        AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
     }
 }

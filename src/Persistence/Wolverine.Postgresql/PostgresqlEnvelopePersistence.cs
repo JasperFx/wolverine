@@ -173,7 +173,7 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
     {
         return Session
             .CreateCommand(_findAtLargeEnvelopesSql)
-            .FetchList(r => DatabasePersistence.ReadIncoming(r));
+            .FetchList(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 
     public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
@@ -190,6 +190,6 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
             .CreateCommand(
                 $"select {DatabaseConstants.IncomingFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time LIMIT {Settings.RecoveryBatchSize}")
             .With("time", utcNow)
-            .FetchList(r => DatabasePersistence.ReadIncoming(r, _cancellation), _cancellation);
+            .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 }

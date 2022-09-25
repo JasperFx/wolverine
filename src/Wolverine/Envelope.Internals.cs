@@ -14,7 +14,8 @@ public enum EnvelopeStatus
 {
     Outgoing,
     Scheduled,
-    Incoming
+    Incoming,
+    Handled
 }
 
 // Why is this a partial you ask?

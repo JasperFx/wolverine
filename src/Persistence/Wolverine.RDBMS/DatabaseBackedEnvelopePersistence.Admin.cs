@@ -42,7 +42,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
         return await conn
             .CreateCommand(
                 $"select {DatabaseConstants.IncomingFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable}")
-            .FetchList(r => DatabasePersistence.ReadIncoming(r, _cancellation), _cancellation);
+            .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 
     public async Task<IReadOnlyList<Envelope>> AllOutgoingAsync()

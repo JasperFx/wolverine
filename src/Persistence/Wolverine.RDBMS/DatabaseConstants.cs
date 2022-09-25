@@ -41,4 +41,6 @@ public static class DatabaseConstants
 
     public static readonly string DeadLetterFields =
         $"{Id}, {ExecutionTime}, {Attempts}, {Body}, {ConversationId}, {CorrelationId}, {ParentId}, {SagaId}, {MessageType}, {ContentType}, {ReplyRequested}, {AckRequested}, {ReplyUri}, {Source}, {Explanation}, {ExceptionText}, {ExceptionType}, {ExceptionMessage}";
+
+    public const string KeepUntil = "keep_until";
 }
