@@ -17,11 +17,12 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
     public abstract Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync();
     public abstract Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
-    public Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         return DatabaseSettings
             .CreateCommand(_deleteIncomingEnvelopeById)
             .With("id", envelope.Id)
+            .With("keepUntil", DateTimeOffset.UtcNow.Add(Settings.KeepAfterMessageHandling))
             .ExecuteOnce(_cancellation);
     }
 

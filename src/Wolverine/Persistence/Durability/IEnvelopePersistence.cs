@@ -26,7 +26,7 @@ public interface IEnvelopePersistence : IDisposable
 
     Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes);
 
-    Task DeleteIncomingEnvelopeAsync(Envelope envelope);
+    Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope);
 
     void Describe(TextWriter writer);
     Task ScheduleJobAsync(Envelope envelope);

@@ -80,6 +80,11 @@ public class SqlServerEnvelopePersistence : DatabaseBackedEnvelopePersistence<Sq
                 case EnvelopeStatus.Incoming:
                     counts.Incoming = count;
                     break;
+                
+                case EnvelopeStatus.Handled:
+                    counts.Handled = count;
+                    break;
+                
                 case EnvelopeStatus.Scheduled:
                     counts.Scheduled = count;
                     break;

@@ -35,6 +35,12 @@ public class AdvancedSettings
     /// </summary>
     public bool DurabilityAgentEnabled { get; set; } = true;
 
+    
+    /// <summary>
+    /// How long should successfully handled messages be kept to use in idempotency checking
+    /// </summary>
+    public TimeSpan KeepAfterMessageHandling { get; set; } = 5.Minutes();
+
     /// <summary>
     ///     Default is false. Turn this on to see when every polling DurabilityAgent
     ///     action executes. Warning, it's a LOT of noise

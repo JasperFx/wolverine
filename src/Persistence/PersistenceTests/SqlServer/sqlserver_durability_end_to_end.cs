@@ -185,7 +185,7 @@ create table receiver.trace_doc
         conn.Open();
 
         return (int)conn.CreateCommand(
-                $"select count(*) from receiver.{DatabaseConstants.IncomingTable}")
+                $"select count(*) from receiver.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'")
             .ExecuteScalar();
     }
 

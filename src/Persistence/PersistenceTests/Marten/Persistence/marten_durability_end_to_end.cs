@@ -192,7 +192,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         conn.Open();
 
         return (long)conn.CreateCommand(
-                $"select count(*) from receiver.{DatabaseConstants.IncomingTable}")
+                $"select count(*) from receiver.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'")
             .ExecuteScalar();
     }
 

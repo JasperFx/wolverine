@@ -150,4 +150,22 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
         stored.OwnerId.ShouldBe(5890);
         stored.Status.ShouldBe(envelope.Status);
     }
+    
+
+    [Fact]
+    public async Task mark_envelope_as_handled()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        await thePersistence.StoreIncomingAsync(envelope);
+
+        await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        
+        counts.Incoming.ShouldBe(0);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(1);
+
+    }
 }

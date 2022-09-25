@@ -87,6 +87,23 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext
     }
 
     [Fact]
+    public async Task mark_envelope_as_handled()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        await thePersistence.StoreIncomingAsync(envelope);
+
+        await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        
+        counts.Incoming.ShouldBe(0);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(1);
+
+    }
+
+    [Fact]
     public async Task delete_multiple_outgoing_envelope()
     {
         var list = new List<Envelope>();

@@ -19,7 +19,7 @@ public class NullEnvelopePersistence : IEnvelopePersistence, IEnvelopeStorageAdm
         return Task.CompletedTask;
     }
 
-    public Task DeleteIncomingEnvelopeAsync(Envelope envelope)
+    public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         return Task.CompletedTask;
     }

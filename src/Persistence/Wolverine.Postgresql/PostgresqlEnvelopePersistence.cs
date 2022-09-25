@@ -92,6 +92,10 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
                 {
                     counts.Incoming = count;
                 }
+                else if (status == EnvelopeStatus.Handled)
+                {
+                    counts.Handled = count;
+                }
                 else if (status == EnvelopeStatus.Scheduled)
                 {
                     counts.Scheduled = count;

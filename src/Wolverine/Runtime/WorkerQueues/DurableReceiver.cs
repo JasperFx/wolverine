@@ -77,7 +77,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
     public async ValueTask CompleteAsync(Envelope envelope)
     {
-        await executeWithRetriesAsync(() => _persistence.DeleteIncomingEnvelopeAsync(envelope));
+        await executeWithRetriesAsync(() => _persistence.MarkIncomingEnvelopeAsHandledAsync(envelope));
     }
 
     public async ValueTask DeferAsync(Envelope envelope)

@@ -104,7 +104,7 @@ public static class DatabasePersistence
             $@"insert into {settings.SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) values ({parameterList});");
     }
 
-    public static async Task<Envelope> ReadIncoming(DbDataReader reader, CancellationToken cancellation = default)
+    public static async Task<Envelope> ReadIncomingAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
         var envelope = new Envelope
         {

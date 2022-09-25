@@ -33,7 +33,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T> : DatabaseBas
 
         _cancellation = settings.Cancellation;
         _deleteIncomingEnvelopeById =
-            $"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where id = @id";
+            $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
         _incrementIncominEnvelopeAttempts =
             $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id";
 
