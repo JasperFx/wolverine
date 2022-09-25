@@ -26,8 +26,9 @@ public class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposabl
     private readonly ActionBlock<IMessagingAction> _worker;
     private readonly ILocalQueue _locals;
 
-    private Timer? _nodeReassignmentTimer;
+    private Timer? _nodeReassignmentTimer;  
     private Timer? _scheduledJobTimer;
+    private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
 
 #pragma warning disable CS8618
     public DurabilityAgent(IWolverineRuntime runtime, ILogger logger,
@@ -58,6 +59,7 @@ public class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposabl
         _incomingMessages = new RecoverIncomingMessages(locals, settings, logger, runtime);
         _outgoingMessages = new RecoverOutgoingMessages(runtime, settings, logger);
         _nodeReassignment = new NodeReassignment(settings);
+        _deleteExpired = new DeleteExpiredHandledEnvelopes();
         _scheduledJobs = new RunScheduledJobs(settings, logger);
     }
 
@@ -114,9 +116,14 @@ public class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposabl
             _worker.Post(_scheduledJobs);
             _worker.Post(_incomingMessages);
             _worker.Post(_outgoingMessages);
+            
         }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
 
-        _nodeReassignmentTimer = new Timer(_ => _worker.Post(_nodeReassignment), _settings,
+        _nodeReassignmentTimer = new Timer(_ =>
+            {
+                _worker.Post(_nodeReassignment);
+                _worker.Post(_deleteExpired);
+            }, _settings,
             _settings.FirstNodeReassignmentExecution, _settings.NodeReassignmentPollingTime);
     }
 

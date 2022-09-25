@@ -7,6 +7,7 @@ using IntegrationTests;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer;
@@ -23,7 +24,7 @@ public class SqlServerBackedListenerContext : SqlServerContext
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
     protected SqlServerSettings mssqlSettings;
-    protected SqlServerEnvelopePersistence thePersistence;
+    protected IEnvelopePersistence thePersistence;
     internal DurableReceiver theReceiver;
     protected AdvancedSettings theSettings;
 

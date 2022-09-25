@@ -132,4 +132,16 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
 
         return report;
     }
+
+    public Task DeleteExpiredHandledEnvelopesAsync(DateTimeOffset utcNow)
+    {
+        if (Session.Transaction == null)
+        {
+            throw new InvalidOperationException("No current transaction");
+        }
+
+        return Session.CreateCommand(_deleteExpiredHandledEnvelopes)
+            .With("time", utcNow)
+            .ExecuteNonQueryAsync(_cancellation);
+    }
 }

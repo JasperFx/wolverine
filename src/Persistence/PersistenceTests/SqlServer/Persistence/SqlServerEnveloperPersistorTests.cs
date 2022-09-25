@@ -3,32 +3,34 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Baseline;
+using Baseline.Dates;
 using Baseline.Reflection;
 using IntegrationTests;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using TestingSupport;
 using Wolverine;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using Xunit;
 
 namespace PersistenceTests.SqlServer.Persistence;
 
-public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext
+public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext, IDisposable
 {
-    public SqlServerEnveloperPersistorTests()
+    public IHost theHost = WolverineHost.For(opts =>
     {
-        thePersistence
-            = new SqlServerEnvelopePersistence(new SqlServerSettings
-            {
-                ConnectionString = Servers.SqlServerConnectionString
-            }, new AdvancedSettings(null), new NullLogger<SqlServerEnvelopePersistence>());
-    }
+        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "receiver");
+    });
 
     protected override Task initialize()
     {
+        
+        thePersistence = theHost.Services.GetRequiredService<IEnvelopePersistence>();
         return thePersistence.Admin.ClearAllAsync();
     }
 
@@ -101,6 +103,26 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(1);
 
+    }
+    
+    [Fact]
+    public async Task delete_expired_envelopes()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        await thePersistence.StoreIncomingAsync(envelope);
+
+        await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance,
+            -1000);
+        await thePersistence.Session.BeginAsync();
+        await thePersistence.DeleteExpiredHandledEnvelopesAsync(DateTimeOffset.UtcNow.Add(1.Hours()));
+        await thePersistence.Session.CommitAsync();
+        
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        
+        counts.Incoming.ShouldBe(0);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(0);
     }
 
     [Fact]
@@ -419,5 +441,10 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext
             .ShouldHaveTheSameElementsAs(stored.Select(x => x.Id).OrderBy(x => x));
 
         stored.Each(x => x.OwnerId.ShouldBe(111));
+    }
+
+    public void Dispose()
+    {
+        theHost?.Dispose();
     }
 }

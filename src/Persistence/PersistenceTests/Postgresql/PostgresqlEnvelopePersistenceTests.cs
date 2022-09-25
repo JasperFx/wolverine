@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Baseline.Dates;
 using IntegrationTests;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -167,5 +168,25 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(1);
 
+    }
+
+    [Fact]
+    public async Task delete_expired_envelopes()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        await thePersistence.StoreIncomingAsync(envelope);
+
+        await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        await thePersistence.Session.BeginAsync();
+        await thePersistence.DeleteExpiredHandledEnvelopesAsync(DateTimeOffset.UtcNow.Add(1.Hours()));
+        await thePersistence.Session.CommitAsync();
+        
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        
+        counts.Incoming.ShouldBe(0);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(0);
     }
 }

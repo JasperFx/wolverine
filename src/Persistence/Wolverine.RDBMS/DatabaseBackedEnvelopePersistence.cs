@@ -17,6 +17,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T> : DatabaseBas
 {
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
+    private readonly string _deleteExpiredHandledEnvelopes;
 
     protected DatabaseBackedEnvelopePersistence(DatabaseSettings databaseSettings, AdvancedSettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
@@ -39,6 +40,10 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T> : DatabaseBas
 
         // ReSharper disable once VirtualMemberCallInConstructor
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(databaseSettings, settings);
+
+
+        _deleteExpiredHandledEnvelopes =
+            $"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @time";
     }
 
     public AdvancedSettings Settings { get; }

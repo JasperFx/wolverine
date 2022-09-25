@@ -62,4 +62,6 @@ public interface IEnvelopePersistence : IDisposable
     Task ReleaseIncomingAsync(int ownerId, Uri receivedAt);
 
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
+
+    Task DeleteExpiredHandledEnvelopesAsync(DateTimeOffset utcNow);
 }
