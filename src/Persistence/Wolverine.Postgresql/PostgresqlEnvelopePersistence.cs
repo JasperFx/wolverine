@@ -59,6 +59,17 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
         }
     }
 
+    protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
+    {
+        if (ex is PostgresException postgresException)
+        {
+            return 
+                postgresException.Message.Contains("duplicate key value violates unique constraint") ;
+        }
+
+        return false;
+    }
+
     public override async Task<PersistedCounts> FetchCountsAsync()
     {
         var counts = new PersistedCounts();

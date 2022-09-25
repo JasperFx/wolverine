@@ -52,6 +52,11 @@ public class SqlServerEnvelopePersistence : DatabaseBackedEnvelopePersistence<Sq
         }
     }
 
+    protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
+    {
+        return (ex is SqlException sqlEx && sqlEx.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint"));
+    }
+
     public override async Task<PersistedCounts> FetchCountsAsync()
     {
         var counts = new PersistedCounts();

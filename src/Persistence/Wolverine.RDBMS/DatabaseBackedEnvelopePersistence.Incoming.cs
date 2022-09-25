@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading.Tasks;
 using Weasel.Core;
+using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
 
@@ -48,15 +49,28 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
             .ExecuteOnce(_cancellation);
     }
 
-    public Task StoreIncomingAsync(Envelope envelope)
+    public async Task StoreIncomingAsync(Envelope envelope)
     {
         var builder = DatabaseSettings.ToCommandBuilder();
         DatabasePersistence.BuildIncomingStorageCommand(DatabaseSettings, builder, envelope);
 
         var cmd = builder.Compile();
-        return cmd.ExecuteOnce(_cancellation);
+        try
+        {
+            await cmd.ExecuteOnce(_cancellation).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            if (isExceptionFromDuplicateEnvelope(e))
+            {
+                throw new DuplicateIncomingEnvelopeException(envelope.Id);
+            }
+
+            throw;
+        }
     }
 
+    protected abstract bool isExceptionFromDuplicateEnvelope(Exception ex);
     public async Task StoreIncomingAsync(Envelope[] envelopes)
     {
         var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, DatabaseSettings);

@@ -1,21 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using IntegrationTests;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
+using PersistenceTests.Marten;
+using PersistenceTests.Marten.Persistence;
 using Shouldly;
 using TestingSupport;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Transports.Tcp;
 using Xunit;
 
-namespace PersistenceTests.Marten.Persistence;
+namespace PersistenceTests.Postgresql;
 
-public class MartenEnvelopePersistorTests : PostgresqlContext, IDisposable, IAsyncLifetime
+public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable, IAsyncLifetime
 {
     public IHost theHost = WolverineHost.For(opts =>
     {
@@ -28,11 +33,15 @@ public class MartenEnvelopePersistorTests : PostgresqlContext, IDisposable, IAsy
         opts.ListenAtPort(2345).UseDurableInbox();
     });
 
+    private IEnvelopePersistence thePersistence;
+
     public async Task InitializeAsync()
     {
         var store = theHost.Get<IDocumentStore>();
         await store.Advanced.Clean.CompletelyRemoveAllAsync();
         await theHost.ResetResourceState();
+
+        thePersistence = theHost.Services.GetRequiredService<IEnvelopePersistence>();
     }
 
     public Task DisposeAsync()
@@ -95,5 +104,50 @@ public class MartenEnvelopePersistorTests : PostgresqlContext, IDisposable, IAsy
         counts.Incoming.ShouldBe(10);
         counts.Scheduled.ShouldBe(7);
         counts.Outgoing.ShouldBe(3);
+    }
+    
+    [Fact]
+    public async Task store_a_single_incoming_envelope()
+    {
+        var envelope = SqlServer.ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.StoreIncomingAsync(envelope);
+
+        var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
+
+        stored.Id.ShouldBe(envelope.Id);
+        stored.OwnerId.ShouldBe(envelope.OwnerId);
+        stored.Status.ShouldBe(envelope.Status);
+    }
+    
+    [Fact]
+    public async Task store_a_single_incoming_envelope_that_is_a_duplicate()
+    {
+        var envelope = SqlServer.ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.StoreIncomingAsync(envelope);
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
+        {
+            await thePersistence.StoreIncomingAsync(envelope);
+        });
+    }
+
+    [Fact]
+    public async Task store_a_single_outgoing_envelope()
+    {
+        var envelope = SqlServer.ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Outgoing;
+
+        await thePersistence.StoreOutgoingAsync(envelope, 5890);
+
+        var stored = (await thePersistence.Admin.AllOutgoingAsync())
+            .Single();
+
+        stored.Id.ShouldBe(envelope.Id);
+        stored.OwnerId.ShouldBe(5890);
+        stored.Status.ShouldBe(envelope.Status);
     }
 }

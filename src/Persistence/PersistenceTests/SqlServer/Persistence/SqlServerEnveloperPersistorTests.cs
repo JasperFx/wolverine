@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using TestingSupport;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using Xunit;
@@ -343,6 +344,20 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext
         stored.Id.ShouldBe(envelope.Id);
         stored.OwnerId.ShouldBe(5890);
         stored.Status.ShouldBe(envelope.Status);
+    }
+    
+    [Fact]
+    public async Task store_a_single_incoming_envelope_that_is_a_duplicate()
+    {
+        var envelope = SqlServer.ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.StoreIncomingAsync(envelope);
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
+        {
+            await thePersistence.StoreIncomingAsync(envelope);
+        });
     }
 
     [Fact]

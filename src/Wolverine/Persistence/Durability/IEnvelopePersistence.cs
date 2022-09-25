@@ -11,28 +11,21 @@ public interface IEnvelopePersistence : IDisposable
 
     IDurableStorageSession Session { get; }
 
-    // Used by IRetries and DurableCallback
     Task ScheduleExecutionAsync(Envelope[] envelopes);
 
 
-    // Used by DurableCallback
     Task MoveToDeadLetterStorageAsync(ErrorReport[] errors);
 
     Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? ex);
 
-    // Used by DurableCallback
     Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope);
 
-    // Used by LoopbackSendingAgent
     Task StoreIncomingAsync(Envelope envelope);
 
-    // Used by DurableListener and LoopbackSendingAgent
     Task StoreIncomingAsync(Envelope[] envelopes);
 
-    // DurableListener and DurableRetryAgent
     Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes);
 
-    // Used by DurableCallback
     Task DeleteIncomingEnvelopeAsync(Envelope envelope);
 
     void Describe(TextWriter writer);
@@ -49,19 +42,14 @@ public interface IEnvelopePersistence : IDisposable
     Task DeleteByDestinationAsync(Uri? destination);
     Task<Uri[]> FindAllDestinationsAsync();
 
-    // Used by DurableRetryAgent, could go to IDurabilityAgent
     Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
 
-    // Used by DurableSendingAgent, could go to durability agent
     Task StoreOutgoingAsync(Envelope envelope, int ownerId);
 
-    // Used by DurableSendingAgent
     Task StoreOutgoingAsync(Envelope[] envelopes, int ownerId);
 
-    // Used by DurableSendingAgent
     Task DeleteOutgoingAsync(Envelope[] envelopes);
 
-    // Used by DurableSendingAgent
     Task DeleteOutgoingAsync(Envelope envelope);
 
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync();
