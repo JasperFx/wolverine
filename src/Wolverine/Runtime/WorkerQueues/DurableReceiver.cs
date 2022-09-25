@@ -13,7 +13,7 @@ namespace Wolverine.Runtime.WorkerQueues;
 
 internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue, IAsyncDisposable
 {
-    private readonly ILogger _logger;
+    protected readonly ILogger _logger;
     private readonly IEnvelopePersistence _persistence;
     private readonly ActionBlock<Envelope> _receiver;
     private readonly AdvancedSettings _settings;
@@ -136,7 +136,17 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             var now = DateTimeOffset.UtcNow;
             envelope.MarkReceived(listener, now, _settings);
 
-            await _persistence.StoreIncomingAsync(envelope);
+            try
+            {
+                await _persistence.StoreIncomingAsync(envelope);
+            }
+            catch (DuplicateIncomingEnvelopeException e)
+            {
+                _logger.LogError(e, "Duplicate incoming envelope detected");
+                
+                await listener.CompleteAsync(envelope);
+                return; // Duplicate envelope, get out of here.
+            }
 
             if (envelope.Status == EnvelopeStatus.Incoming)
             {

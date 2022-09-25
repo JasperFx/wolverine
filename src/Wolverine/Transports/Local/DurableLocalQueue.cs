@@ -65,7 +65,15 @@ internal class DurableLocalQueue : DurableReceiver, ISendingAgent
             ? _settings.UniqueNodeId
             : TransportConstants.AnyNode;
 
-        await _persistence.StoreIncomingAsync(envelope);
+        try
+        {
+            await _persistence.StoreIncomingAsync(envelope);
+        }
+        catch (DuplicateIncomingEnvelopeException e)
+        {
+            _logger.LogError(e, "Duplicate incoming envelope detected");
+            return; // Duplicate envelope, get out of here.
+        }
 
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
