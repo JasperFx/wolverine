@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>RabbitMQ Transport for Jasper Messaging Systems</Description>
-    <Authors>Jeremy D. Miller, Mike Schenk, Mark Wuhrich</Authors>
+    <Description>RabbitMQ Transport for Wolverine Messaging Systems</Description>
     <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
     <PackageId>Wolverine.RabbitMQ</PackageId>

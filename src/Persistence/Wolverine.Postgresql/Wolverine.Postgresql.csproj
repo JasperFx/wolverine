@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>Postgresql Saga, Message, and Outbox storage for Jasper applications</Description>
+    <Description>Postgresql Saga, Message, and Outbox storage for Wolverine applications</Description>
     <Authors>Jeremy D. Miller</Authors>
     <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
