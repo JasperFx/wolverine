@@ -23,14 +23,14 @@ code generation with Roslyn](https://jeremydmiller.com/2015/11/11/using-roslyn-f
 ```cs
 public interface IMessageHandler
 {
-    Task HandleAsync(IMessageContext context, CancellationToken cancellation);
+    Task HandleAsync(MessageContext context, CancellationToken cancellation);
 }
 
 public abstract class MessageHandler : IMessageHandler
 {
     public HandlerChain? Chain { get; set; }
 
-    public abstract Task HandleAsync(IMessageContext context, CancellationToken cancellation);
+    public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Handlers/MessageHandler.cs#L6-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagehandler' title='Start of snippet'>anchor</a></sup>

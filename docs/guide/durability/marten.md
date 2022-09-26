@@ -93,13 +93,9 @@ an `OrderCreated` event through Wolverine messaging. Using the outbox, that hand
 public static async Task Handle(
     CreateOrder command,
     IDocumentSession session,
-    IMessageContext context,
+    IMartenOutbox outbox,
     CancellationToken cancellation)
 {
-    // Connect the Marten session to the outbox
-    // scoped to this specific command
-    await context.EnlistInOutboxAsync(session);
-
     var order = new Order
     {
         Description = command.Description,
@@ -110,7 +106,7 @@ public static async Task Handle(
 
     // Hold on though, this message isn't actually sent
     // until the Marten session is committed
-    await context.SendAsync(new OrderCreated(order.Id));
+    await outbox.SendAsync(new OrderCreated(order.Id));
 
     // This makes the database commits, *then* flushed the
     // previously registered messages to Wolverine's sending
@@ -118,7 +114,7 @@ public static async Task Handle(
     await session.SaveChangesAsync(cancellation);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L111-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_longhand_order_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L107-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_longhand_order_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above, the `OrderCreated` message is registered with the Wolverine `IMessageContext` for the current message, but nothing more than that is actually happening at that point.
@@ -150,12 +146,8 @@ public class CreateOrderController : ControllerBase
     public async Task Create(
         [FromBody] CreateOrder command,
         [FromServices] IDocumentSession session,
-        [FromServices] IMessageContext context)
+        [FromServices] IMartenOutbox outbox)
     {
-        // Gotta connection the Marten session into
-        // the Wolverine outbox
-        await context.EnlistInOutboxAsync(session);
-
         var order = new Order
         {
             Description = command.Description,
@@ -166,14 +158,14 @@ public class CreateOrderController : ControllerBase
 
         // Don't worry, this message doesn't go out until
         // after the Marten transaction succeeds
-        await context.PublishAsync(new OrderCreated(order.Id));
+        await outbox.PublishAsync(new OrderCreated(order.Id));
 
         // Commit the Marten transaction
         await session.SaveChangesAsync();
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L21-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createordercontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L21-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createordercontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From a Minimal API, that could be this:
@@ -181,12 +173,8 @@ From a Minimal API, that could be this:
 <!-- snippet: sample_create_order_through_minimal_api -->
 <a id='snippet-sample_create_order_through_minimal_api'></a>
 ```cs
-app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession session, IMessageContext context) =>
+app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession session, IMartenOutbox outbox) =>
 {
-    // Gotta connection the Marten session into
-    // the Wolverine outbox
-    await context.EnlistInOutboxAsync(session);
-
     var order = new Order
     {
         Description = command.Description,
@@ -197,13 +185,13 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 
     // Don't worry, this message doesn't go out until
     // after the Marten transaction succeeds
-    await context.PublishAsync(new OrderCreated(order.Id));
+    await outbox.PublishAsync(new OrderCreated(order.Id));
 
     // Commit the Marten transaction
     await session.SaveChangesAsync();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L58-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_order_through_minimal_api' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L58-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_order_through_minimal_api' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -238,7 +226,7 @@ public static OrderCreated Handle(CreateOrder command, IDocumentSession session)
     return new OrderCreated(order.Id);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L56-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L52-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you need to take more control over how the outgoing `OrderCreated` message is sent, you can use this slightly different alternative:
@@ -267,7 +255,7 @@ public static ValueTask Handle(
         new DeliveryOptions{DeliverWithin = 5.Minutes()});
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L83-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler_alternative' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L79-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler_alternative' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In both cases Wolverine's transactional middleware for Marten is taking care of registering the Marten session with Wolverine's outbox before you call into the message handler, and
@@ -298,7 +286,7 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L86-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L87-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
@@ -313,7 +301,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Handlers.GlobalPolicy<CommandsAreTransactional>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L46-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L47-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -483,12 +471,9 @@ Before getting into Wolverine middleware strategies, let's first build out an MV
 public async Task Post(
     [FromBody] MarkItemReady command,
     [FromServices] IDocumentSession session,
-    [FromServices] IMessageContext context
+    [FromServices] IMartenOutbox outbox
 )
 {
-    // Enroll in the Wolverine outbox
-    await context.EnlistInOutboxAsync(session);
-
     // Fetch the current value of the Order aggregate
     var stream = await session
         .Events
@@ -519,7 +504,7 @@ public async Task Post(
         // Note that because the context here is enrolled in a Wolverine
         // outbox, the message is registered, but not "released" to
         // be sent out until SaveChangesAsync() is called down below
-        await context.PublishAsync(new ShipOrder(command.OrderId));
+        await outbox.PublishAsync(new ShipOrder(command.OrderId));
         stream.AppendOne(new OrderReady());
     }
 
@@ -528,7 +513,7 @@ public async Task Post(
     await session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L77-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L77-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully that code is easy to understand, but there's some potentially repetitive code
@@ -568,7 +553,7 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L256-L283' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L253-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, Wolverine is wrapping middleware around our basic command handler to
@@ -593,7 +578,7 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
         _outboxedSessionFactory = outboxedSessionFactory;
     }
 
-    public override async Task HandleAsync(IMessageContext context, CancellationToken cancellation)
+    public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         var markItemReady = (MarkItemReady)context.Envelope.Message;
         await using var documentSession = _outboxedSessionFactory.OpenSession(context);
@@ -614,7 +599,7 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
 
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Internal/Generated/JasperHandlers/MarkItemReadyHandler1442193977.cs.cs#L12-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Internal/Generated/JasperHandlers/MarkItemReadyHandler1442193977.cs.cs#L13-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you probably guessed, there are some naming conventions or other questions you need to be aware of

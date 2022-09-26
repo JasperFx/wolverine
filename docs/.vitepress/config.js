@@ -90,6 +90,14 @@ module.exports = {
               collapsible: true,
               items: [ 
                 {text: 'Messages and Serialization', link: '/guide/messages'},
+                {text: 'Message Handlers', link: '/guide/handlers/', items: [
+                  {text: 'Discovery', link: '/guide/handlers/discovery'},
+                  {text: 'Error Handling', link: '/guide/handlers/error-handling'},
+                  {text: 'Cascading Messages', link: '/guide/handlers/cascading'},
+                  {text: 'Middleware', link: '/guide/handlers/middleware'},
+                  {text: 'Runtime Architecture', link: '/guide/handlers/runtime'},
+                  {text: 'Execution Timeouts', link: '/guide/handlers/timeout'}
+                ]},
                 {text: 'Scheduled', link: '/guide/scheduled'},
                 {text: 'Configuration', link: '/guide/configuration'},
                 {text: 'Instrumentation, Diagnostics, and Logging', link: '/guide/logging'},
