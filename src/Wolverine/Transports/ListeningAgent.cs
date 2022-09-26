@@ -34,6 +34,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private readonly ILogger _logger;
     private readonly HandlerPipeline _pipeline;
     private readonly CircuitBreaker? _circuitBreaker;
+    private readonly BackPressureAgent _backPressureAgent;
 
     public ListeningAgent(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -52,6 +53,12 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         else
         {
             _pipeline = new HandlerPipeline(runtime, runtime);
+        }
+
+        if (endpoint.ShouldEnforceBackPressure())
+        {
+            _backPressureAgent = new BackPressureAgent(this, endpoint);
+            _backPressureAgent.Start();
         }
     }
 
@@ -87,7 +94,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     {
         if (Status == ListeningStatus.Accepting) return;
 
-        _receiver = await buildReceiverAsync();
+        _receiver ??= await buildReceiverAsync();
 
         _listener = Endpoint.BuildListener(_runtime, _receiver);
 
@@ -147,11 +154,13 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     {
         _receiver?.Dispose();
         _circuitBreaker?.SafeDispose();
+        _backPressureAgent?.SafeDispose();
     }
 
     public async ValueTask DisposeAsync()
     {
         _restarter?.SafeDispose();
+        _backPressureAgent?.SafeDispose();
 
         if (_listener != null) await _listener.DisposeAsync();
         _receiver?.Dispose();

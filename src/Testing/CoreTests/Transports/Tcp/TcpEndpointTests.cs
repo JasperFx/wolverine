@@ -40,5 +40,15 @@ public class TcpEndpointTests
         endpoint.Mode.ShouldBe(mode);
     }
 
+    [Theory]
+    [InlineData(EndpointMode.BufferedInMemory, true)]
+    [InlineData(EndpointMode.Durable, true)]
+    public void should_enforce_back_pressure(EndpointMode mode, bool shouldEnforce)
+    {
+        var endpoint = new TcpEndpoint();
+        endpoint.Mode = mode;
+        endpoint.ShouldEnforceBackPressure().ShouldBe(shouldEnforce);
+    }
+
 
 }

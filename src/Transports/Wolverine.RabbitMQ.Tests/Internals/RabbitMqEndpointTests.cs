@@ -194,6 +194,17 @@ namespace Wolverine.RabbitMQ.Tests.Internals
 
             endpoint.MassTransitUri().ShouldBe("rabbitmq://rabbitserver/v1/bar".ToUri());
         }
+        
+        [Theory]
+        [InlineData(EndpointMode.BufferedInMemory, true)]
+        [InlineData(EndpointMode.Durable, true)]
+        [InlineData(EndpointMode.Inline, false)]
+        public void should_enforce_back_pressure(EndpointMode mode, bool shouldEnforce)
+        {
+            var endpoint = new RabbitMqEndpoint(new RabbitMqTransport());
+            endpoint.Mode = mode;
+            endpoint.ShouldEnforceBackPressure().ShouldBe(shouldEnforce);
+        }
 
 
     }

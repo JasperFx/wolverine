@@ -248,4 +248,8 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     }
 
 
+    public virtual bool ShouldEnforceBackPressure()
+    {
+        return Mode != EndpointMode.Inline;
+    }
 }
