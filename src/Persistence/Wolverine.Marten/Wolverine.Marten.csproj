@@ -3,7 +3,7 @@
     <Description>Marten-backed Persistence for Wolverine Applications</Description>
     <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
-    <PackageId>Wolverine.Marten</PackageId>
+    <PackageId>WolverineFx.Marten</PackageId>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>

@@ -3,7 +3,7 @@
     <Description>RabbitMQ Transport for Wolverine Messaging Systems</Description>
     <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
-    <PackageId>Wolverine.RabbitMQ</PackageId>
+    <PackageId>WolverineFx.RabbitMQ</PackageId>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>

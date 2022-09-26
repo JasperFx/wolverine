@@ -6,7 +6,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
     <AssemblyName>Wolverine.Postgresql</AssemblyName>
-    <PackageId>Wolverine.Postgresql</PackageId>
+    <PackageId>WolverineFx.Postgresql</PackageId>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>

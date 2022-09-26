@@ -3,7 +3,7 @@
     <Description>In-memory command bus and asynchronous messaging framework</Description>
     <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
-    <PackageId>Wolverine</PackageId>
+    <PackageId>WolverineFx</PackageId>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
   </PropertyGroup>

@@ -4,7 +4,7 @@
     <Description>Core ADO.Net related functionality for using database backed persistence with Wolverine</Description>
     <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
-    <PackageId>Wolverine.RDBMS</PackageId>
+    <PackageId>WolverineFx.RDBMS</PackageId>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
