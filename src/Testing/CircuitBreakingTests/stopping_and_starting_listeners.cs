@@ -74,7 +74,7 @@ namespace CircuitBreakingTests
         public async Task stop_with_no_restart()
         {
             var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one");
-            await agent.StopAsync();
+            await agent.StopAndDrainAsync();
 
             agent.Status.ShouldBe(ListeningStatus.Stopped);
 

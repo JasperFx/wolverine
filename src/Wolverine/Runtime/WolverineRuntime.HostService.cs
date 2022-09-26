@@ -58,7 +58,7 @@ public partial class WolverineRuntime
         {
             try
             {
-                await listener.StopAsync();
+                await listener.StopAndDrainAsync();
             }
             catch (Exception e)
             {

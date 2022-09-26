@@ -16,9 +16,13 @@ public interface IListeningAgent
     Uri Uri { get; }
     ListeningStatus Status { get; }
     Endpoint Endpoint { get; }
-    ValueTask StopAsync();
+    ValueTask StopAndDrainAsync();
     ValueTask StartAsync();
     ValueTask PauseAsync(TimeSpan pauseTime);
+
+    ValueTask StopReceiving();
+    
+    int QueueCount { get; }
 }
 
 internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
@@ -51,13 +55,15 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         }
     }
 
+    public int QueueCount => _receiver?.QueueCount ?? 0;
+
     public Endpoint Endpoint { get; }
 
     public Uri Uri { get; }
 
     public ListeningStatus Status { get; private set; } = ListeningStatus.Stopped;
 
-    public async ValueTask StopAsync()
+    public async ValueTask StopAndDrainAsync()
     {
         if (Status == ListeningStatus.Stopped) return;
         if (_listener == null) return;
@@ -94,7 +100,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
     {
-        await StopAsync();
+        await StopAndDrainAsync();
 
         _circuitBreaker?.Reset();
 
@@ -102,6 +108,11 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _restarter = new Restarter(this, pauseTime);
 
+    }
+
+    public ValueTask StopReceiving()
+    {
+        throw new NotImplementedException();
     }
 
     private async ValueTask<IReceiver> buildReceiver()

@@ -218,7 +218,7 @@ namespace TestingSupport.Compliance
 
             foreach (var listener in runtime.Endpoints.ActiveListeners())
             {
-                await listener.StopAsync();
+                await listener.StopAndDrainAsync();
 
                 listener.Status.ShouldBe(ListeningStatus.Stopped);
             }

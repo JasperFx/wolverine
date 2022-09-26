@@ -104,6 +104,8 @@ public class StubReceiverCallback : IReceiver
         return ValueTask.CompletedTask;
     }
 
+    public int QueueCount => 0;
+
 
     public void Dispose()
     {

@@ -20,6 +20,8 @@ public class InlineReceiver : IReceiver
         _settings = runtime.Advanced;
     }
 
+    public int QueueCount => 0;
+
     public void Dispose()
     {
         // Nothing

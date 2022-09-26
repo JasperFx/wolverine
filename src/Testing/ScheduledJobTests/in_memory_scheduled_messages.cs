@@ -57,6 +57,8 @@ public class in_memory_scheduled_messages : ILocalQueue
         return ValueTask.CompletedTask;
     }
 
+    public int QueueCount => 0;
+
     void IDisposable.Dispose()
     {
     }

@@ -12,6 +12,7 @@ public class LocalQueueSettings : Endpoint
     public LocalQueueSettings(string name)
     {
         Name = name.ToLowerInvariant();
+        BufferingLimits = new BufferingLimits(int.MaxValue, 0);
     }
 
     public LocalQueueSettings(Uri uri) : base(uri)

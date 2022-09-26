@@ -75,6 +75,8 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
     public Uri Address { get;  }
 
+    public int QueueCount => _receiver.InputCount;
+
     public async ValueTask CompleteAsync(Envelope envelope)
     {
         await executeWithRetriesAsync(() => _persistence.MarkIncomingEnvelopeAsHandledAsync(envelope));

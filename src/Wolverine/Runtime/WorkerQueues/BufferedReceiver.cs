@@ -54,6 +54,8 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }, endpoint.ExecutionOptions);
     }
 
+    public int QueueCount => _receivingBlock.InputCount;
+
     public async ValueTask DrainAsync()
     {
         _latched = true;
