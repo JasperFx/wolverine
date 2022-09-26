@@ -3,6 +3,7 @@ using System.Threading.Tasks.Dataflow;
 using LamarCodeGeneration.Util;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 
 namespace Wolverine.Configuration;
 
@@ -25,6 +26,18 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     {
         add(e => e.ExecutionOptions.MaxDegreeOfParallelism = maximumParallelHandlers);
         return this.As<TSelf>();
+    }
+
+    public TSelf UseDurableInbox(BufferingLimits limits)
+    {
+        add(e => e.BufferingLimits = limits);
+        return UseDurableInbox();
+    }
+
+    public TSelf BufferedInMemory(BufferingLimits limits)
+    {
+        add(e => e.BufferingLimits = limits);
+        return BufferedInMemory();
     }
 
     public TSelf Sequential()

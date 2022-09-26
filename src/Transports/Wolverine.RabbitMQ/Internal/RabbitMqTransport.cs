@@ -34,7 +34,7 @@ namespace Wolverine.RabbitMQ.Internal
             Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
         }
 
-        internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
+        internal IConnection endListeningConnection => _listenerConnection ??= BuildConnection();
         internal IConnection SendingConnection => _sendingConnection ??= BuildConnection();
 
         /// <summary>

@@ -2,6 +2,7 @@
 using System.Threading.Tasks.Dataflow;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 
 namespace Wolverine.Configuration;
 
@@ -26,6 +27,12 @@ public interface IListenerConfiguration<T>
     /// </summary>
     /// <returns></returns>
     T UseDurableInbox();
+    
+    /// <summary>
+    ///     Force any messages enqueued to this worker queue to be durable
+    /// </summary>
+    /// <returns></returns>
+    T UseDurableInbox(BufferingLimits limits);
 
     /// <summary>
     ///     Incoming messages are immediately moved into an in-memory queue
@@ -33,6 +40,13 @@ public interface IListenerConfiguration<T>
     /// </summary>
     /// <returns></returns>
     T BufferedInMemory();
+    
+    /// <summary>
+    ///     Incoming messages are immediately moved into an in-memory queue
+    ///     for parallel processing
+    /// </summary>
+    /// <returns></returns>
+    T BufferedInMemory(BufferingLimits limits);
 
 
     /// <summary>

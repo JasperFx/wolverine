@@ -72,6 +72,8 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     private EndpointMode _mode = EndpointMode.BufferedInMemory;
 
+    public BufferingLimits BufferingLimits { get; set; } = new(1000, 500);
+    
     /// <summary>
     /// If present, adds a circuit breaker to the active listening agent
     /// for this endpoint at runtime

@@ -29,6 +29,9 @@ public class configuring_endpoints : IDisposable
             x.ListenForMessagesFrom("local://three").UseDurableInbox();
             x.ListenForMessagesFrom("local://four").UseDurableInbox().BufferedInMemory();
             x.ListenForMessagesFrom("local://five").ProcessInline();
+
+            x.ListenForMessagesFrom("local://durable1").UseDurableInbox(new BufferingLimits(500, 250));
+            x.ListenForMessagesFrom("local://buffered1").BufferedInMemory(new BufferingLimits(250, 100));
         }).Build();
 
         theOptions = _host.Get<WolverineOptions>();
@@ -72,6 +75,30 @@ public class configuring_endpoints : IDisposable
         endpoint.Compile(theRuntime);
 
         return endpoint;
+    }
+
+    [Fact]
+    public void has_default_buffering_options_on_buffered()
+    {
+        var queue = localQueue("four");
+        queue.BufferingLimits.Maximum.ShouldBe(1000);
+        queue.BufferingLimits.Restart.ShouldBe(500);
+    }
+
+    [Fact]
+    public void override_buffering_limits_on_buffered()
+    {
+        var queue = localQueue("buffered1");
+        queue.BufferingLimits.Maximum.ShouldBe(250);
+        queue.BufferingLimits.Restart.ShouldBe(100);
+    }
+    
+    [Fact]
+    public void override_buffering_limits_on_durable()
+    {
+        var queue = localQueue("durable1");
+        queue.BufferingLimits.Maximum.ShouldBe(500);
+        queue.BufferingLimits.Restart.ShouldBe(250);
     }
 
     [Fact]

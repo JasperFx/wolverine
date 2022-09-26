@@ -22,6 +22,7 @@ public class LocalQueueSettings : Endpoint
 
     public override Uri Uri => $"local://{Name}".ToUri();
     internal List<Type> HandledMessageTypes { get; } = new();
+    
 
     public override void Parse(Uri uri)
     {
