@@ -20,7 +20,7 @@ public interface IListeningAgent
     ValueTask StartAsync();
     ValueTask PauseAsync(TimeSpan pauseTime);
 
-    ValueTask StopReceiving();
+    ValueTask MarkAsTooBusyAndStopReceiving();
     
     int QueueCount { get; }
 }
@@ -87,7 +87,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     {
         if (Status == ListeningStatus.Accepting) return;
 
-        _receiver = await buildReceiver();
+        _receiver = await buildReceiverAsync();
 
         _listener = Endpoint.BuildListener(_runtime, _receiver);
 
@@ -110,12 +110,20 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     }
 
-    public ValueTask StopReceiving()
+    public async ValueTask MarkAsTooBusyAndStopReceiving()
     {
-        throw new NotImplementedException();
+        if (Status != ListeningStatus.Accepting || _listener == null) return;
+        await _listener.StopAsync();
+        await _listener.DisposeAsync();
+        _listener = null;
+        
+        Status = ListeningStatus.TooBusy;
+        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.Name, Status));
+
+        _logger.LogInformation("Marked listener at {Uri} as too busy and stopped receiving", Uri);
     }
 
-    private async ValueTask<IReceiver> buildReceiver()
+    private async ValueTask<IReceiver> buildReceiverAsync()
     {
         switch (Endpoint.Mode)
         {

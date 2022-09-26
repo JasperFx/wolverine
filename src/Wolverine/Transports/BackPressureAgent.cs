@@ -9,7 +9,7 @@ internal class BackPressureAgent : IDisposable
 {
     private readonly IListeningAgent _agent;
     private readonly Endpoint _endpoint;
-    private Timer _timer;
+    private Timer? _timer;
 
     public BackPressureAgent(IListeningAgent agent, Endpoint endpoint)
     {
@@ -19,7 +19,7 @@ internal class BackPressureAgent : IDisposable
 
     public void Dispose()
     {
-        _timer.Dispose();
+        _timer?.Dispose();
     }
 
     public void Start()
@@ -47,14 +47,11 @@ internal class BackPressureAgent : IDisposable
             case ListeningStatus.Unknown:
                 if (_agent.QueueCount > _endpoint.BufferingLimits.Maximum)
                 {
-                    await _agent.StopReceiving();
+                    await _agent.MarkAsTooBusyAndStopReceiving();
                 }
 
                 break;
-                
-            case ListeningStatus.Stopped:
-                return;
-                
+            
             case ListeningStatus.TooBusy:
                 if (_agent.QueueCount <= _endpoint.BufferingLimits.Restart)
                 {
@@ -62,6 +59,8 @@ internal class BackPressureAgent : IDisposable
                 }
 
                 break;
+            default:
+                return;
         }
     }
 }

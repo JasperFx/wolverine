@@ -239,6 +239,37 @@ namespace TestingSupport.Compliance
             session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
                 .ShouldNotBeNull();
         }
+        
+        
+        [Fact]
+        public async Task can_stop_receiving_when_too_busy_and_restart_listeners()
+        {
+            var receiving = (theReceiver ?? theSender);
+            var runtime = receiving.Get<IWolverineRuntime>();
+
+            foreach (var listener in runtime.Endpoints.ActiveListeners())
+            {
+                await listener.MarkAsTooBusyAndStopReceiving();
+
+                listener.Status.ShouldBe(ListeningStatus.TooBusy);
+            }
+
+            foreach (var listener in runtime.Endpoints.ActiveListeners())
+            {
+                await listener.StartAsync();
+
+                listener.Status.ShouldBe(ListeningStatus.Accepting);
+            }
+
+            var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
+                .AlsoTrack(theReceiver)
+                .DoNotAssertOnExceptionsDetected()
+                .ExecuteAndWaitAsync(c => c.SendAsync(theOutboundAddress, new Message1()));
+
+
+            session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
+                .ShouldNotBeNull();
+        }
 
 
         [Fact]
