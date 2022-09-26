@@ -5,10 +5,8 @@
     <Authors>Jeremy D. Miller</Authors>
     <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
-    <AssemblyName>Jasper.Persistence.Postgresql</AssemblyName>
-    <PackageId>Jasper.Persistence.Postgresql</PackageId>
-    <PackageIconUrl>https://avatars2.githubusercontent.com/u/10048186?v=3&amp;s=200</PackageIconUrl>
-    <PackageProjectUrl>http://jasperfx.github.io</PackageProjectUrl>
+    <AssemblyName>Wolverine.Postgresql</AssemblyName>
+    <PackageId>Wolverine.Postgresql</PackageId>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
     <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
