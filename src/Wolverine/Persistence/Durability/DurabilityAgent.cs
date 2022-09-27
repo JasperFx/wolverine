@@ -56,7 +56,7 @@ public class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposabl
             CancellationToken = _settings.Cancellation
         });
 
-        _incomingMessages = new RecoverIncomingMessages(locals, settings, logger, runtime);
+        _incomingMessages = new RecoverIncomingMessages(settings, logger, runtime.Endpoints);
         _outgoingMessages = new RecoverOutgoingMessages(runtime, settings, logger);
         _nodeReassignment = new NodeReassignment(settings);
         _deleteExpired = new DeleteExpiredHandledEnvelopes();

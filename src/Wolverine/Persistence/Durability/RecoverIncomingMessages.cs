@@ -1,29 +1,24 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
-using Wolverine.Logging;
 using Microsoft.Extensions.Logging;
-using Wolverine.Runtime;
-using Wolverine.Runtime.WorkerQueues;
+using Wolverine.Configuration;
+using Wolverine.Logging;
 using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Durability;
 
 public class RecoverIncomingMessages : IMessagingAction
 {
+    private readonly IEndpointCollection _endpoints;
     private readonly ILogger _logger;
-    private readonly IWolverineRuntime _runtime;
     private readonly AdvancedSettings _settings;
-    private readonly ILocalQueue _locals;
 
-    public RecoverIncomingMessages(ILocalQueue locals, AdvancedSettings settings,
-        ILogger logger, IWolverineRuntime runtime)
+    public RecoverIncomingMessages(AdvancedSettings settings,
+        ILogger logger, IEndpointCollection endpoints)
     {
-        _locals = locals;
         _settings = settings;
         _logger = logger;
-        _runtime = runtime;
+        _endpoints = endpoints;
     }
 
     public async Task ExecuteAsync(IEnvelopePersistence storage, IDurabilityAgent agent)
@@ -35,15 +30,13 @@ public class RecoverIncomingMessages : IMessagingAction
             return;
         }
 
-        bool rescheduleImmediately = false;
-        
+        var rescheduleImmediately = false;
+
         try
         {
             var counts = await storage.LoadAtLargeIncomingCountsAsync();
             foreach (var count in counts)
-            {
                 rescheduleImmediately = rescheduleImmediately || await TryRecoverIncomingMessagesAsync(storage, count);
-            }
         }
         finally
         {
@@ -56,30 +49,56 @@ public class RecoverIncomingMessages : IMessagingAction
         }
     }
 
+    public string Description => "Recover persisted incoming messages";
+
+    public virtual int DeterminePageSize(IListeningAgent listener, IncomingCount count)
+    {
+        if (listener!.Status != ListeningStatus.Accepting)
+        {
+            return 0;
+        }
+
+        var pageSize = _settings.RecoveryBatchSize;
+        if (pageSize > count.Count)
+        {
+            pageSize = count.Count;
+        }
+
+        if (pageSize + listener.QueueCount > listener.Endpoint.BufferingLimits.Maximum)
+        {
+            pageSize = listener.Endpoint.BufferingLimits.Maximum - listener.QueueCount - 1;
+        }
+
+        if (pageSize < 0) return 0;
+        
+        return pageSize;
+    }
+
     internal async Task<bool> TryRecoverIncomingMessagesAsync(IEnvelopePersistence storage, IncomingCount count)
     {
-        var listener = _runtime.Endpoints.FindListeningAgent(count.Destination) ??
-                       _runtime.Endpoints.FindListeningAgent(TransportConstants.Durable);
+        var listener = _endpoints.FindListeningAgent(count.Destination) ??
+                       _endpoints.FindListeningAgent(TransportConstants.Durable);
 
-        if (listener!.Status != ListeningStatus.Accepting)
+        var pageSize = DeterminePageSize(listener!, count);
+
+        if (pageSize <= 0)
         {
             return false;
         }
 
-        bool shouldFetchMore = false;
+        await RecoverMessagesAsync(storage, count, pageSize, listener).ConfigureAwait(false);
 
+        // Reschedule again if it wasn't able to grab all outstanding envelopes
+        return pageSize < count.Count;
+    }
+
+    public virtual async Task RecoverMessagesAsync(IEnvelopePersistence storage, IncomingCount count, int pageSize,
+        IListeningAgent listener)
+    {
         await storage.Session.BeginAsync();
 
         try
         {
-            var pageSize = _settings.RecoveryBatchSize;
-            if (pageSize + listener.QueueCount > listener.Endpoint.BufferingLimits.Maximum)
-            {
-                pageSize = listener.Endpoint.BufferingLimits.Maximum - listener.QueueCount - 1;
-            }
-
-            shouldFetchMore = pageSize < count.Count;
-
             var envelopes = await storage.LoadPageOfGloballyOwnedIncomingAsync(count.Destination, pageSize);
             await storage.ReassignIncomingAsync(_settings.UniqueNodeId, envelopes);
 
@@ -93,11 +112,5 @@ public class RecoverIncomingMessages : IMessagingAction
             await storage.Session.RollbackAsync();
             _logger.LogError(e, "Error trying to recover incoming envelopes");
         }
-
-        return shouldFetchMore;
     }
-
-    public string Description => "Recover persisted incoming messages";
 }
-
-
