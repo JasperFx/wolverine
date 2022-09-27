@@ -11,7 +11,8 @@ public static class ObjectMother
         {
             Data = new byte[] { 1, 2, 3, 4 },
             MessageType = "Something",
-            Destination = TransportConstants.ScheduledUri
+            Destination = TransportConstants.ScheduledUri,
+            ContentType = "application/json"
         };
     }
 }

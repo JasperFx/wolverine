@@ -85,7 +85,7 @@ public class NullEnvelopePersistence : IEnvelopePersistence, IEnvelopeStorageAdm
         return Task.CompletedTask;
     }
 
-    public Task StoreIncomingAsync(Envelope[] envelopes)
+    public Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
         foreach (var envelope in envelopes.Where(x => x.Status == EnvelopeStatus.Scheduled))
             ScheduledJobs?.Enqueue(envelope.ScheduledTime!.Value, envelope);
@@ -169,7 +169,12 @@ public class NullEnvelopePersistence : IEnvelopePersistence, IEnvelopeStorageAdm
         throw new NotSupportedException();
     }
 
-    public Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync()
+    public Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync()
+    {
+        return Task.FromResult((IReadOnlyList<IncomingCount>)new List<IncomingCount>());
+    }
+
+    public Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
         throw new NotSupportedException();
     }

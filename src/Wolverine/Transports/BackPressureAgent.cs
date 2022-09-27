@@ -47,7 +47,7 @@ internal class BackPressureAgent : IDisposable
             case ListeningStatus.Unknown:
                 if (_agent.QueueCount > _endpoint.BufferingLimits.Maximum)
                 {
-                    await _agent.MarkAsTooBusyAndStopReceiving();
+                    await _agent.MarkAsTooBusyAndStopReceivingAsync();
                 }
 
                 break;

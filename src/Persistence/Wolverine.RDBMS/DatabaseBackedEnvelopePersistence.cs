@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Diagnostics;
 using System.IO;
@@ -9,6 +10,7 @@ using Wolverine.Persistence.Durability;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
+using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
@@ -18,6 +20,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T> : DatabaseBas
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
     private readonly string _deleteExpiredHandledEnvelopes;
+    private readonly string _findAtLargeIncomingEnvelopeCountsSql;
 
     protected DatabaseBackedEnvelopePersistence(DatabaseSettings databaseSettings, AdvancedSettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
@@ -44,6 +47,9 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T> : DatabaseBas
 
         _deleteExpiredHandledEnvelopes =
             $"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @time";
+
+        _findAtLargeIncomingEnvelopeCountsSql =
+            $"select {DatabaseConstants.ReceivedAt}, count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
     }
 
     public AdvancedSettings Settings { get; }
@@ -120,6 +126,17 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
             .ExecuteNonQueryAsync(_cancellation);
 
         Debug.WriteLine($"Released {impacted} incoming envelopes in storage from owner {ownerId} and Uri {receivedAt}");
+    }
+
+    public Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync()
+    {
+        return Session.CreateCommand(_findAtLargeIncomingEnvelopeCountsSql).FetchList(async reader =>
+        {
+            var address = new Uri(await reader.GetFieldValueAsync<string>(0, _cancellation).ConfigureAwait(false));
+            var count = await reader.GetFieldValueAsync<int>(1, _cancellation).ConfigureAwait(false);
+
+            return new IncomingCount(address, count);
+        }, cancellation: _cancellation);
     }
 
     public void Dispose()

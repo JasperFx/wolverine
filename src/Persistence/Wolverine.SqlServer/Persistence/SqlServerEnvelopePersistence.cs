@@ -28,7 +28,7 @@ public class SqlServerEnvelopePersistence : DatabaseBackedEnvelopePersistence<Sq
     {
         _databaseSettings = databaseSettings;
         _findAtLargeEnvelopesSql =
-            $"select top {settings.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}'";
+            $"select top (@limit) {DatabaseConstants.IncomingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
 
         _moveToDeadLetterStorageSql = $"EXEC {_databaseSettings.SchemaName}.uspDeleteIncomingEnvelopes @IDLIST;";
     }
@@ -161,9 +161,11 @@ public class SqlServerEnvelopePersistence : DatabaseBackedEnvelopePersistence<Sq
             .WithIdList(DatabaseSettings, envelopes).ExecuteOnce(_cancellation);
     }
 
-    public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync()
+    public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
         return Session.CreateCommand(_findAtLargeEnvelopesSql)
+            .With("address", listenerAddress.ToString())
+            .With("limit", limit)
             .FetchList(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 

@@ -33,7 +33,7 @@ public interface IWolverineRuntime
     CancellationToken Cancellation { get; }
     ListenerTracker ListenerTracker { get; }
     
-    EndpointCollection Endpoints { get; }
+    IEndpointCollection Endpoints { get; }
 
 
     IMessageRouter RoutingFor(Type messageType);

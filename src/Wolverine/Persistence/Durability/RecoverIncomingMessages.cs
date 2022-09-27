@@ -28,81 +28,76 @@ public class RecoverIncomingMessages : IMessagingAction
 
     public async Task ExecuteAsync(IEnvelopePersistence storage, IDurabilityAgent agent)
     {
-        // TODO -- enforce back pressure here on the retries listener!
-
-        await storage.Session.BeginAsync();
-
-        var incoming = await determineIncomingAsync(storage);
-
-        if (incoming.Count > 0)
+        // We don't need this to be transactional
+        var gotLock = await storage.Session.TryGetGlobalLockAsync(TransportConstants.IncomingMessageLockId);
+        if (!gotLock)
         {
-            _logger.RecoveredIncoming(incoming);
-
-            foreach (var envelope in incoming)
-            {
-                envelope.OwnerId = _settings.UniqueNodeId;
-                _locals.Enqueue(envelope);
-            }
-
-            // TODO -- this should be smart enough later to check for back pressure before rescheduling
-            if (incoming.Count == _settings.RecoveryBatchSize)
-            {
-                agent.RescheduleIncomingRecovery();
-            }
+            return;
         }
-    }
 
-    public string Description { get; } = "Recover persisted incoming messages";
-
-    private async Task<IReadOnlyList<Envelope>> determineIncomingAsync(IEnvelopePersistence storage)
-    {
+        bool rescheduleImmediately = false;
+        
         try
         {
-            var gotLock = await storage.Session.TryGetGlobalLockAsync(TransportConstants.IncomingMessageLockId);
-
-            if (!gotLock)
+            var counts = await storage.LoadAtLargeIncomingCountsAsync();
+            foreach (var count in counts)
             {
-                await storage.Session.RollbackAsync();
-                return new List<Envelope>();
+                rescheduleImmediately = rescheduleImmediately || await TryRecoverIncomingMessagesAsync(storage, count);
             }
-
-            var incoming = await storage.LoadPageOfGloballyOwnedIncomingAsync();
-
-            if (!incoming.Any())
-            {
-                await storage.Session.RollbackAsync();
-                return incoming; // Okay to return the empty list here any way
-            }
-
-            // Got to filter out paused listeners here
-            var latched = _runtime
-                .Endpoints
-                .ActiveListeners()
-                .Where(x => x.Status == ListeningStatus.Stopped)
-                .Select(x => x.Uri)
-                .ToArray();
-
-            if (latched.Any())
-            {
-                incoming = incoming.Where(e => !latched.Contains(e.Destination)).ToList();
-            }
-
-            await storage.ReassignIncomingAsync(_settings.UniqueNodeId, incoming);
-
-            await storage.Session.CommitAsync();
-
-            return incoming;
-        }
-        catch (Exception)
-        {
-            await storage.Session.RollbackAsync();
-            throw;
         }
         finally
         {
             await storage.Session.ReleaseGlobalLockAsync(TransportConstants.IncomingMessageLockId);
         }
 
-        return new List<Envelope>();
+        if (rescheduleImmediately)
+        {
+            agent.RescheduleIncomingRecovery();
+        }
     }
+
+    internal async Task<bool> TryRecoverIncomingMessagesAsync(IEnvelopePersistence storage, IncomingCount count)
+    {
+        var listener = _runtime.Endpoints.FindListeningAgent(count.Destination) ??
+                       _runtime.Endpoints.FindListeningAgent(TransportConstants.Durable);
+
+        if (listener!.Status != ListeningStatus.Accepting)
+        {
+            return false;
+        }
+
+        bool shouldFetchMore = false;
+
+        await storage.Session.BeginAsync();
+
+        try
+        {
+            var pageSize = _settings.RecoveryBatchSize;
+            if (pageSize + listener.QueueCount > listener.Endpoint.BufferingLimits.Maximum)
+            {
+                pageSize = listener.Endpoint.BufferingLimits.Maximum - listener.QueueCount - 1;
+            }
+
+            shouldFetchMore = pageSize < count.Count;
+
+            var envelopes = await storage.LoadPageOfGloballyOwnedIncomingAsync(count.Destination, pageSize);
+            await storage.ReassignIncomingAsync(_settings.UniqueNodeId, envelopes);
+
+            await storage.Session.CommitAsync();
+
+            listener.EnqueueDirectly(envelopes);
+            _logger.RecoveredIncoming(envelopes);
+        }
+        catch (Exception e)
+        {
+            await storage.Session.RollbackAsync();
+            _logger.LogError(e, "Error trying to recover incoming envelopes");
+        }
+
+        return shouldFetchMore;
+    }
+
+    public string Description => "Recover persisted incoming messages";
 }
+
+

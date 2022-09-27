@@ -22,7 +22,7 @@ public interface IEnvelopePersistence : IDisposable
 
     Task StoreIncomingAsync(Envelope envelope);
 
-    Task StoreIncomingAsync(Envelope[] envelopes);
+    Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes);
 
     Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes);
 
@@ -52,7 +52,7 @@ public interface IEnvelopePersistence : IDisposable
 
     Task DeleteOutgoingAsync(Envelope envelope);
 
-    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync();
+    
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
     // TODO -- call this in system drain?
@@ -64,4 +64,10 @@ public interface IEnvelopePersistence : IDisposable
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
 
     Task DeleteExpiredHandledEnvelopesAsync(DateTimeOffset utcNow);
+
+    Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync();
+    
+    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 }
+
+public record IncomingCount(Uri Destination, int Count);

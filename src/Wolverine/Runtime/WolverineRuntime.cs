@@ -53,10 +53,10 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         ListenerTracker = new ListenerTracker(logger);
 
-        Endpoints = new EndpointCollection(this);
+        _endpoints = new EndpointCollection(this);
     }
 
-    public EndpointCollection Endpoints { get; }
+    public IEndpointCollection Endpoints => _endpoints;
 
     public ListenerTracker ListenerTracker { get; }
 
@@ -74,6 +74,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     public CancellationToken Cancellation { get; }
 
     private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
+    private readonly EndpointCollection _endpoints;
 
     public T? TryFindExtension<T>() where T : class
     {

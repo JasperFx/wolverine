@@ -26,7 +26,7 @@ public class MockWolverineRuntime : IWolverineRuntime
         
     }
 
-    public EndpointCollection Endpoints => throw new NotSupportedException();
+    public IEndpointCollection Endpoints { get; } = Substitute.For<IEndpointCollection>();
 
     public WolverineOptions Options { get; } = new WolverineOptions();
 
@@ -39,47 +39,12 @@ public class MockWolverineRuntime : IWolverineRuntime
 
     public ListenerTracker ListenerTracker { get; } = new(NullLogger.Instance);
 
-    public ISendingAgent CreateSendingAgent(Uri replyUri, ISender sender, Endpoint endpoint)
-    {
-        throw new NotImplementedException();
-    }
-
-    public ISendingAgent GetOrBuildSendingAgent(Uri address, Action<Endpoint> configureNewEndpoint = null)
-    {
-        throw new NotImplementedException();
-    }
-
-    public IEnumerable<IListeningAgent> ActiveListeners()
-    {
-        throw new NotImplementedException();
-    }
-
-    public void AddSendingAgent(ISendingAgent sendingAgent)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Endpoint EndpointFor(Uri uri)
-    {
-        return Substitute.For<Endpoint>(uri);
-    }
-
     public IMessageRouter RoutingFor(Type messageType)
     {
         return Substitute.For<IMessageRouter>();
     }
 
-    public T TryFindExtension<T>() where T : class
-    {
-        throw new NotImplementedException();
-    }
-
-    public IListeningAgent? FindListeningAgent(Uri uri)
-    {
-        throw new NotImplementedException();
-    }
-
-    public IListeningAgent? FindListeningAgent(string endpointName)
+    public T? TryFindExtension<T>() where T : class
     {
         throw new NotImplementedException();
     }
@@ -92,16 +57,6 @@ public class MockWolverineRuntime : IWolverineRuntime
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {
         throw new NotSupportedException();
-    }
-
-    public ValueTask StopListenerAsync(Uri uri, TimeSpan? restart)
-    {
-        throw new NotImplementedException();
-    }
-
-    public ListeningStatus ListeningStatusFor(Uri uri)
-    {
-        throw new NotImplementedException();
     }
 
     public bool TryFindMessageType(string? messageTypeName, out Type messageType)

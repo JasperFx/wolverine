@@ -25,7 +25,7 @@ public class BackPressureAgentTests
         
         theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceiving();
+        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.DidNotReceive().StartAsync();
     }
     
@@ -37,7 +37,7 @@ public class BackPressureAgentTests
         
         theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceiving();
+        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.DidNotReceive().StartAsync();
     }
     
@@ -50,7 +50,7 @@ public class BackPressureAgentTests
         
         theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.Received().MarkAsTooBusyAndStopReceiving();
+        theListeningAgent.Received().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.DidNotReceive().StartAsync();
     }
     
@@ -63,7 +63,7 @@ public class BackPressureAgentTests
         
         theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceiving();
+        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.DidNotReceive().StartAsync();
     }
 
@@ -75,7 +75,7 @@ public class BackPressureAgentTests
         
         theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceiving();
+        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.Received().StartAsync();
     }
     
@@ -88,7 +88,7 @@ public class BackPressureAgentTests
         
         theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceiving();
+        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.Received().StartAsync();
     }
     

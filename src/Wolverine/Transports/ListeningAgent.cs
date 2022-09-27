@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Baseline;
@@ -20,9 +21,10 @@ public interface IListeningAgent
     ValueTask StartAsync();
     ValueTask PauseAsync(TimeSpan pauseTime);
 
-    ValueTask MarkAsTooBusyAndStopReceiving();
+    ValueTask MarkAsTooBusyAndStopReceivingAsync();
     
     int QueueCount { get; }
+    void EnqueueDirectly(IEnumerable<Envelope> envelopes);
 }
 
 internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
@@ -62,7 +64,25 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         }
     }
 
-    public int QueueCount => _receiver?.QueueCount ?? 0;
+    public int QueueCount => _receiver is ILocalQueue q ? q.QueueCount : 0;
+
+    public void EnqueueDirectly(IEnumerable<Envelope> envelopes)
+    {
+        if (_receiver is ILocalQueue queue)
+        {
+            var uniqueNodeId = _runtime.Advanced.UniqueNodeId;
+            foreach (var envelope in envelopes)
+            {
+                envelope.OwnerId = uniqueNodeId;
+                queue.Enqueue(envelope);
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException("There is no active, local queue for this listening endpoint at " +
+                                                Endpoint.Uri);
+        }
+    }
 
     public Endpoint Endpoint { get; }
 
@@ -117,7 +137,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     }
 
-    public async ValueTask MarkAsTooBusyAndStopReceiving()
+    public async ValueTask MarkAsTooBusyAndStopReceivingAsync()
     {
         if (Status != ListeningStatus.Accepting || _listener == null) return;
         await _listener.StopAsync();

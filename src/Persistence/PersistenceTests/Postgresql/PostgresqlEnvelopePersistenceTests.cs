@@ -16,7 +16,9 @@ using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 
 namespace PersistenceTests.Postgresql;
@@ -188,5 +190,119 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
         counts.Incoming.ShouldBe(0);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task load_incoming_counts()
+    {
+        var random = new Random();
+        
+        var localOne = "local://one".ToUri();
+        var localTwo = "local://two".ToUri();
+        
+        var list = new List<Envelope>();
+        for (int i = 0; i < 100; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            list.Add(envelope);
+
+            if (random.Next(0, 10) > 6)
+            {
+                envelope.OwnerId = TransportConstants.AnyNode;
+            }
+            else
+            {
+                envelope.OwnerId = 5;
+            }
+
+            if (random.Next(0, 10) > 4)
+            {
+                envelope.Destination = localOne;
+            }
+            else
+            {
+                envelope.Destination = localTwo;
+            }
+
+            if (random.Next(0, 10) > 3)
+            {
+                envelope.Status = EnvelopeStatus.Incoming;
+            }
+            else
+            {
+                envelope.Status = EnvelopeStatus.Handled;
+            }
+        }
+
+        await thePersistence.StoreIncomingAsync(list);
+
+
+        var counts = await thePersistence.LoadAtLargeIncomingCountsAsync();
+
+
+        counts[0].Destination.ShouldBe(localOne);
+        counts[0].Count.ShouldBe(list.Count(x => x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming && x.Destination == localOne));
+
+        counts[1].Destination.ShouldBe(localTwo);
+        counts[1].Count.ShouldBe(list.Count(x => x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming && x.Destination == localTwo));
+
+    }
+
+    [Fact]
+    public async Task fetch_incoming_by_owner_and_address()
+    {
+        var random = new Random();
+        
+        var localOne = "local://one".ToUri();
+        var localTwo = "local://two".ToUri();
+        
+        var list = new List<Envelope>();
+        for (int i = 0; i < 1000; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            list.Add(envelope);
+
+            if (random.Next(0, 10) > 6)
+            {
+                envelope.OwnerId = TransportConstants.AnyNode;
+            }
+            else
+            {
+                envelope.OwnerId = 5;
+            }
+
+            if (random.Next(0, 10) > 4)
+            {
+                envelope.Destination = localOne;
+            }
+            else
+            {
+                envelope.Destination = localTwo;
+            }
+
+            if (random.Next(0, 10) > 3)
+            {
+                envelope.Status = EnvelopeStatus.Incoming;
+            }
+            else
+            {
+                envelope.Status = EnvelopeStatus.Handled;
+            }
+        }
+
+        await thePersistence.StoreIncomingAsync(list);
+
+        var limit = list.Count(x =>
+            x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
+            x.Destination == localOne) - 1;
+        var one = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(localOne, limit);
+        foreach (var envelope in one)
+        {
+            envelope.Destination.ShouldBe(localOne);
+            envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
+            envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
+        }
+        
+        one.Count.ShouldBe(limit);
     }
 }

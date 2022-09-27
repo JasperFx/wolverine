@@ -13,7 +13,20 @@ using Wolverine.Util;
 
 namespace Wolverine.Configuration;
 
-public class EndpointCollection : IAsyncDisposable
+public interface IEndpointCollection : IAsyncDisposable
+{
+    ISendingAgent CreateSendingAgent(Uri? replyUri, ISender sender, Endpoint endpoint);
+    IEnumerable<IListeningAgent> ActiveListeners();
+    ISendingAgent GetOrBuildSendingAgent(Uri address, Action<Endpoint>? configureNewEndpoint = null);
+    Endpoint? EndpointFor(Uri uri);
+    ISendingAgent AgentForLocalQueue(string queueName);
+    Endpoint? EndpointByName(string endpointName);
+    IListeningAgent? FindListeningAgent(Uri uri);
+    IListeningAgent? FindListeningAgent(string endpointName);
+    Task StartListenersAsync();
+}
+
+public class EndpointCollection : IEndpointCollection
 {
     private readonly WolverineRuntime _runtime;
 
@@ -193,7 +206,7 @@ public class EndpointCollection : IAsyncDisposable
         return _listeners.Values.FirstOrDefault(x => x.Endpoint.Name.EqualsIgnoreCase(endpointName));
     }
 
-    internal async Task StartListeners()
+    public async Task StartListenersAsync()
     {
         var listeningEndpoints = _options.Transports.SelectMany(x => x.Endpoints())
             .Where(x => x.IsListener).Where(x => x is not LocalQueueSettings);

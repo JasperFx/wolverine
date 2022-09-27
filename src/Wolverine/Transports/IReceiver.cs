@@ -9,6 +9,5 @@ public interface IReceiver : IDisposable
     ValueTask ReceivedAsync(IListener listener, Envelope envelope);
 
     ValueTask DrainAsync();
-    
-    int QueueCount { get; }
+
 }

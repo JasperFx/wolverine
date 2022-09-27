@@ -14,7 +14,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
     public abstract Task MoveToDeadLetterStorageAsync(ErrorReport[] errors);
     public abstract Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes);
 
-    public abstract Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync();
+    public abstract Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     public abstract Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
@@ -72,7 +72,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
     }
 
     protected abstract bool isExceptionFromDuplicateEnvelope(Exception ex);
-    public async Task StoreIncomingAsync(Envelope[] envelopes)
+    public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
         var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, DatabaseSettings);
 

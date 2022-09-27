@@ -39,7 +39,7 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
             $"delete from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} WHERE id = ANY(@ids);";
 
         _findAtLargeEnvelopesSql =
-            $"select {DatabaseConstants.IncomingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' limit {settings.RecoveryBatchSize}";
+            $"select {DatabaseConstants.IncomingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = :address limit :limit";
 
         _discardAndReassignOutgoingSql = _deleteOutgoingEnvelopesSql +
                                          $";update {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
@@ -173,10 +173,12 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-    public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync()
+    public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
         return Session
             .CreateCommand(_findAtLargeEnvelopesSql)
+            .With("address", listenerAddress.ToString())
+            .With("limit", limit)
             .FetchList(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 

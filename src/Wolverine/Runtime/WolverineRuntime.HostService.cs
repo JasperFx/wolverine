@@ -106,7 +106,7 @@ public partial class WolverineRuntime
             foreach (var endpoint in transport.Endpoints().Where(x => x.AutoStartSendingAgent())) endpoint.StartSending(this, replyUri);
         }
 
-        await Endpoints.StartListeners();
+        await Endpoints.StartListenersAsync();
     }
 
     private async Task startDurabilityAgentAsync()

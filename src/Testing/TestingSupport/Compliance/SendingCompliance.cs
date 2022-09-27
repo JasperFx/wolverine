@@ -249,7 +249,7 @@ namespace TestingSupport.Compliance
 
             foreach (var listener in runtime.Endpoints.ActiveListeners())
             {
-                await listener.MarkAsTooBusyAndStopReceiving();
+                await listener.MarkAsTooBusyAndStopReceivingAsync();
 
                 listener.Status.ShouldBe(ListeningStatus.TooBusy);
             }
