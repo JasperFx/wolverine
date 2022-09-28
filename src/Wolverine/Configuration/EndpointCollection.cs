@@ -173,7 +173,7 @@ public class EndpointCollection : IEndpointCollection
         var transport = _options.Transports.ForScheme(uri.Scheme);
         if (transport == null)
         {
-            throw new InvalidOperationException(
+            throw new UnknownTransportException(
                 $"There is no known transport type that can send to the Destination {uri}");
         }
 
@@ -220,3 +220,4 @@ public class EndpointCollection : IEndpointCollection
         }
     }
 }
+

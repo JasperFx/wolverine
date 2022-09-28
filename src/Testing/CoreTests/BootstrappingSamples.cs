@@ -15,7 +15,7 @@ public class BootstrappingSamples
         #region sample_AppWithHandlerPolicy
 
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.Handlers.GlobalPolicy<WrapWithSimple>(); }).StartAsync();
+            .UseWolverine(opts => { opts.Handlers.AddPolicy<WrapWithSimple>(); }).StartAsync();
 
         #endregion
     }

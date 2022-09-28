@@ -1,5 +1,11 @@
 # Middleware
 
+TODO -- make the stopwatch sample cleaner
+TODO -- talk about conventional middleware approach
+TODO -- match by message type
+TODO -- add FluentValidation sample
+TODO -- add example of the Marten & EF Core transaction middleware
+
 ::: tip warning
 This whole code compilation model is pretty new and there aren't enough examples yet. Feel very free to ask questions in the Gitter room linked in the top bar of this page.
 :::

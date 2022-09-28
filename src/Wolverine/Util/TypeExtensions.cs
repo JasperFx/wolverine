@@ -29,6 +29,12 @@ public static class TypeExtensions
         typeof(ValueTuple<,,,,,,,>)
     };
 
+    // TODO -- move this to Baseline
+    public static bool IsStatic(this Type type)
+    {
+        return type.IsAbstract && type.IsSealed;
+    }
+
     public static bool IsMessageTypeCandidate(this Type type)
     {
         if (!type.IsConcrete())

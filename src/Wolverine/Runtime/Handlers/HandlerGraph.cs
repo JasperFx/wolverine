@@ -10,6 +10,7 @@ using LamarCodeGeneration;
 using LamarCompiler;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Middleware;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -22,7 +23,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     private readonly List<HandlerCall> _calls = new();
 
     private readonly IList<Action> _configurations = new List<Action>();
-    private readonly IList<IHandlerPolicy> _globals = new List<IHandlerPolicy>();
+    private readonly IList<IHandlerPolicy> _policies = new List<IHandlerPolicy>();
 
     private readonly object _groupingLock = new();
 
@@ -50,6 +51,34 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
     public FailureRuleCollection Failures { get; set; } = new();
 
+    internal void AddChain(HandlerChain chain)
+    {
+        _chains = _chains.AddOrUpdate(chain.MessageType, chain);
+    }
+
+    public void AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
+    {
+        AddMiddleware(typeof(T), filter);
+    }
+
+    public void AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null)
+    {
+        var policy = findOrCreateMiddlewarePolicy();
+
+        policy.AddType(middlewareType, filter);
+    }
+
+    private MiddlewarePolicy findOrCreateMiddlewarePolicy()
+    {
+        var policy = _policies.OfType<MiddlewarePolicy>().FirstOrDefault();
+        if (policy == null)
+        {
+            policy = new MiddlewarePolicy();
+            _policies.Add(policy);
+        }
+
+        return policy;
+    }
 
     public IHandlerConfiguration Discovery(Action<HandlerSource> configure)
     {
@@ -61,18 +90,18 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     ///     Applies a handler policy to all known message handlers
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public void GlobalPolicy<T>() where T : IHandlerPolicy, new()
+    public void AddPolicy<T>() where T : IHandlerPolicy, new()
     {
-        GlobalPolicy(new T());
+        AddPolicy(new T());
     }
 
     /// <summary>
     ///     Applies a handler policy to all known message handlers
     /// </summary>
     /// <param name="policy"></param>
-    public void GlobalPolicy(IHandlerPolicy policy)
+    public void AddPolicy(IHandlerPolicy policy)
     {
-        _globals.Add(policy);
+        _policies.Add(policy);
     }
 
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
@@ -175,7 +204,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
         Group();
 
-        foreach (var policy in _globals) policy.Apply(this, Rules, container);
+        foreach (var policy in _policies) policy.Apply(this, Rules, container);
 
         Container = container;
 
@@ -256,5 +285,13 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     public void RegisterMessageType(Type messageType)
     {
         _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
+    }
+
+    public void AddMiddlewareByMessageType(Type middlewareType)
+    {
+        var policy = findOrCreateMiddlewarePolicy();
+
+        var application = policy.AddType(middlewareType);
+        application.MatchByMessageType = true;
     }
 }

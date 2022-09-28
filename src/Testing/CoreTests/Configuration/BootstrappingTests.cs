@@ -29,7 +29,7 @@ public class BootstrappingTests : IntegrationContext
     [Fact]
     public void can_apply_a_wrapper_to_all_chains()
     {
-        with(opts => opts.Handlers.GlobalPolicy<WrapWithSimple>());
+        with(opts => opts.Handlers.AddPolicy<WrapWithSimple>());
 
         chainFor<MovieAdded>().Middleware.OfType<SimpleWrapper>().Any().ShouldBeTrue();
     }

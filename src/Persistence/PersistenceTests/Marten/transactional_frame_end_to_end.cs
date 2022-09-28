@@ -50,7 +50,7 @@ public class transactional_frame_end_to_end : PostgresqlContext
             .UseWolverine(opts =>
             {
                 // And actually use the policy
-                opts.Handlers.GlobalPolicy<CommandsAreTransactional>();
+                opts.Handlers.AddPolicy<CommandsAreTransactional>();
             }).StartAsync();
 
         #endregion
