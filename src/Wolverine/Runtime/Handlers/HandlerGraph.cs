@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Baseline;
@@ -26,6 +27,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     private readonly IList<IHandlerPolicy> _policies = new List<IHandlerPolicy>();
 
     private readonly object _groupingLock = new();
+    private readonly object _compilingLock = new();
 
     internal readonly HandlerSource Source = new();
 
@@ -167,8 +169,9 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
             }
             else
             {
-                lock (chain)
+                lock (_compilingLock)
                 {
+                    Debug.WriteLine("Starting to compile chain " + chain.MessageType.NameInCode());
                     if (chain.Handler == null)
                     {
                         chain.InitializeSynchronously(Rules!, this, Container);
@@ -178,6 +181,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
                     {
                         handler = chain.Handler;
                     }
+                    Debug.WriteLine("Finished building the chain " + chain.MessageType.NameInCode());
                 }
             }
 
