@@ -9,6 +9,7 @@ using Baseline;
 using Baseline.Dates;
 using BaselineTypeDiscovery;
 using Lamar;
+using LamarCodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -47,7 +48,6 @@ public sealed partial class WolverineOptions
     private readonly ServiceRegistry _services = new();
     private Assembly? _applicationAssembly;
     private readonly HandlerGraph _handlerGraph = new();
-    private readonly List<IWolverineExtension> _appliedExtensions = new();
 
 
     public WolverineOptions() : this(null)
@@ -214,7 +214,13 @@ public sealed partial class WolverineOptions
         }
     }
 
-    internal List<IWolverineExtension> AppliedExtensions => _appliedExtensions;
+    internal List<IWolverineExtension> AppliedExtensions { get; } = new();
+
+    /// <summary>
+    /// Direct Wolverine to make any necessary database patches for envelope storage upon
+    /// application start
+    /// </summary>
+    public bool AutoBuildEnvelopeStorageOnStartup { get; set; } = false;
 
     internal void ApplyExtensions(IWolverineExtension[] extensions)
     {
@@ -314,4 +320,15 @@ public sealed partial class WolverineOptions
     {
         _serializers[serializer.ContentType] = serializer;
     }
+
+    /// <summary>
+    /// Automatically rebuild the 
+    /// </summary>
+    public void OptimizeArtifactWorkflow(TypeLoadMode productionMode = TypeLoadMode.Auto)
+    {
+        ProductionTypeLoadMode = productionMode;
+        Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>();
+    }
+
+    internal TypeLoadMode ProductionTypeLoadMode { get; set; }
 }

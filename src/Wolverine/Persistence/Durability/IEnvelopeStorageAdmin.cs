@@ -33,4 +33,11 @@ public interface IEnvelopeStorageAdmin
     Task ReleaseAllOwnershipAsync();
 
     public Task CheckAsync(CancellationToken token);
+    
+    /// <summary>
+    /// Apply any necessary database migrations to bring the underlying envelope
+    /// storage to the configured requirements of the Wolverine system
+    /// </summary>
+    /// <returns></returns>
+    Task MigrateAsync();
 }

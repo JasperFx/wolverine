@@ -28,9 +28,9 @@ public class MockWolverineRuntime : IWolverineRuntime
 
     public IEndpointCollection Endpoints { get; } = Substitute.For<IEndpointCollection>();
 
-    public WolverineOptions Options { get; } = new WolverineOptions();
+    public WolverineOptions Options { get; } = new();
 
-    public AdvancedSettings? Advanced { get; } = new AdvancedSettings(null);
+    public AdvancedSettings Advanced { get; } = new(null);
 
     public HandlerGraph Handlers { get; } = new();
 

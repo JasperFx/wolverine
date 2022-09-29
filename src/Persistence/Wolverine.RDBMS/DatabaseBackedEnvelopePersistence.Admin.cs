@@ -22,14 +22,27 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
         await using var conn = DatabaseSettings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
+        await migrateAsync(conn);
+
+        await truncateEnvelopeDataAsync(conn);
+    }
+
+    public async Task MigrateAsync()
+    {
+        await using var conn = DatabaseSettings.CreateConnection();
+        await conn.OpenAsync(_cancellation);
+
+        await migrateAsync(conn);
+    }
+
+    private async Task migrateAsync(DbConnection conn)
+    {
         var migration = await SchemaMigration.Determine(conn, Objects);
 
         if (migration.Difference != SchemaPatchDifference.None)
         {
             await Migrator.ApplyAll(conn, migration, AutoCreate.CreateOrUpdate);
         }
-
-        await truncateEnvelopeDataAsync(conn);
     }
 
     public abstract Task<PersistedCounts> FetchCountsAsync();

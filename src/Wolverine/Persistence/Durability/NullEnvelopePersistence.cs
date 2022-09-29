@@ -209,6 +209,11 @@ public class NullEnvelopePersistence : IEnvelopePersistence, IEnvelopeStorageAdm
         return Task.CompletedTask;
     }
 
+    public Task MigrateAsync()
+    {
+        return Task.CompletedTask;
+    }
+
     public Task<PersistedCounts> FetchCountsAsync()
     {
         // Nothing to do, but keeps the metrics from blowing up

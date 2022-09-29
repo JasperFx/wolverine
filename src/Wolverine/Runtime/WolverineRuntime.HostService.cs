@@ -23,6 +23,11 @@ public partial class WolverineRuntime
             // Build up the message handlers
             await Handlers.CompileAsync(Options, _container);
 
+            if (Options.AutoBuildEnvelopeStorageOnStartup && Persistence is not NullEnvelopePersistence)
+            {
+                await Persistence.Admin.MigrateAsync();
+            }
+            
             await startMessagingTransportsAsync();
 
             startInMemoryScheduledJobs();
