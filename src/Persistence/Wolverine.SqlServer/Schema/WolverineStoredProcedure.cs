@@ -1,9 +1,9 @@
 using System.IO;
 using System.Reflection;
 using Baseline;
-using Wolverine.RDBMS;
 using Weasel.Core;
 using Weasel.SqlServer.Procedures;
+using Wolverine.RDBMS;
 
 namespace Wolverine.SqlServer.Schema;
 
