@@ -324,7 +324,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
         var acknowledgement = new FailureAcknowledgement
         {
-            CorrelationId = Envelope.Id,
+            RequestId = Envelope.Id,
             Message = failureDescription
         };
 

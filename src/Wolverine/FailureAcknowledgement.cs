@@ -4,12 +4,12 @@ namespace Wolverine;
 
 public class FailureAcknowledgement
 {
-    public Guid CorrelationId { get; init; }
+    public Guid RequestId { get; init; }
     public string Message { get; init; } = null!;
 
     protected bool Equals(FailureAcknowledgement other)
     {
-        return Equals(CorrelationId, other.CorrelationId) && string.Equals(Message, other.Message);
+        return Equals(RequestId, other.RequestId) && string.Equals(Message, other.Message);
     }
 
     public override bool Equals(object? obj)
@@ -36,13 +36,13 @@ public class FailureAcknowledgement
     {
         unchecked
         {
-            return (CorrelationId.GetHashCode() * 397) ^
+            return (RequestId.GetHashCode() * 397) ^
                    Message.GetHashCode();
         }
     }
 
     public override string ToString()
     {
-        return $"Failure acknowledgement for {CorrelationId} / '{Message}'";
+        return $"Failure acknowledgement for {RequestId} / '{Message}'";
     }
 }

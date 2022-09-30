@@ -1,4 +1,5 @@
-﻿using Wolverine;
+﻿using System;
+using Wolverine;
 using Wolverine.Transports;
 
 namespace CoreTests.Messaging;
@@ -9,6 +10,7 @@ public static class ObjectMother
     {
         return new Envelope
         {
+            Id = Guid.NewGuid(),
             Data = new byte[] { 1, 2, 3, 4 },
             MessageType = "Something",
             Destination = TransportConstants.ScheduledUri,
