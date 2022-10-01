@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Baseline.Dates;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 
@@ -110,8 +111,8 @@ internal class Executor : IExecutor
             return null; // TODO: later let's have it return an executor that calls missing handlers
         }
 
-        var timeoutSpan = handler.Chain!.DetermineMessageTimeout(runtime.Options);
-        var rules = handler.Chain.Failures.CombineRules(handlerGraph.Failures);
+        var timeoutSpan = handler.Chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
+        var rules = handler.Chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
         return new Executor(runtime, handler, rules, timeoutSpan);
     }
 }

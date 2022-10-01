@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,6 +14,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Middleware;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.ResponseReply;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 
@@ -39,24 +41,26 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
     private ImHashMap<string, Type> _messageTypes = ImHashMap<string, Type>.Empty;
 
-
     public HandlerGraph()
     {
         // All of this is to seed the handler and its associated retry policies
         // for scheduling outgoing messages
-        _handlers = _handlers.AddOrUpdate(typeof(Envelope), new ScheduledSendEnvelopeHandler(this));
+        AddMessageHandler(typeof(Envelope), new ScheduledSendEnvelopeHandler(this));
+        
+        RegisterMessageType(typeof(Acknowledgement));
+        RegisterMessageType(typeof(FailureAcknowledgement));
     }
 
+    internal void AddMessageHandler(Type messageType, MessageHandler handler)
+    {
+        _handlers = _handlers.AddOrUpdate(messageType, handler);
+    }
+    
     internal IContainer? Container { get; set; }
 
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
 
     public FailureRuleCollection Failures { get; set; } = new();
-
-    internal void AddChain(HandlerChain chain)
-    {
-        _chains = _chains.AddOrUpdate(chain.MessageType, chain);
-    }
 
     public void AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
     {
@@ -285,10 +289,14 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     {
         return _chains.TryFind(messageType, out _);
     }
+    
+    private ImmutableList<Type> _replyTypes = ImmutableList<Type>.Empty;
 
     public void RegisterMessageType(Type messageType)
     {
+        if (_replyTypes.Contains(messageType)) return;
         _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
+        _replyTypes = _replyTypes.Add(messageType);
     }
 
     public void AddMiddlewareByMessageType(Type middlewareType)

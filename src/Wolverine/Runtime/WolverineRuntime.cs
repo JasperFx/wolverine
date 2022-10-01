@@ -13,6 +13,7 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.ResponseReply;
 using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Runtime;
@@ -35,6 +36,9 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         Advanced = options.Advanced;
         Options = options;
         Handlers = options.HandlerGraph;
+        
+        
+        
         Logger = logger;
 
         _uniqueNodeId = options.Advanced.UniqueNodeId;
@@ -54,7 +58,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         ListenerTracker = new ListenerTracker(logger);
 
         _endpoints = new EndpointCollection(this);
+
+        Replies = new ReplyTracker(logger);
+        Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
+        Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies));
     }
+
+    public IReplyTracker Replies { get; }
 
     public IEndpointCollection Endpoints => _endpoints;
 

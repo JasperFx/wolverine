@@ -9,6 +9,7 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.ResponseReply;
 using Wolverine.Runtime.Routing;
 
 
@@ -33,6 +34,7 @@ public interface IWolverineRuntime
     CancellationToken Cancellation { get; }
     ListenerTracker ListenerTracker { get; }
     
+    IReplyTracker Replies { get; }  
     IEndpointCollection Endpoints { get; }
 
 
@@ -46,7 +48,7 @@ public interface IWolverineRuntime
     T? TryFindExtension<T>() where T : class;
 
 
-
+    void RegisterMessageType(Type messageType);
 }
 
 internal interface IExecutorFactory

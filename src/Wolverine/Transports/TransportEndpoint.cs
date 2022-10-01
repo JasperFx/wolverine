@@ -47,6 +47,7 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
         MapPropertyToHeader(x => x.ScheduledTime!, EnvelopeConstants.ExecutionTimeKey);
 
         MapPropertyToHeader(x => x.AckRequested, EnvelopeConstants.AckRequestedKey);
+        MapPropertyToHeader(x => x.IsResponse, EnvelopeConstants.IsResponseKey);
         MapPropertyToHeader(x => x.MessageType!, EnvelopeConstants.MessageTypeKey);
         MapPropertyToHeader(x => x.AcceptedContentTypes, EnvelopeConstants.AcceptedContentTypesKey);
 

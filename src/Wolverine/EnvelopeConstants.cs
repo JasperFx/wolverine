@@ -19,4 +19,5 @@ public static class EnvelopeConstants
     public const string AcceptedContentTypesKey = "accepted-content-types";
     public const string DeliverByHeader = "deliver-by";
     public const string ParentIdKey = "parent-id";
+    public const string IsResponseKey = "is-response";
 }

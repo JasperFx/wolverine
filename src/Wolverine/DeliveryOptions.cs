@@ -72,6 +72,8 @@ public class DeliveryOptions
         if (ResponseType != null) envelope.ReplyRequested = ResponseType.ToMessageTypeName();
         if (SagaId != null) envelope.SagaId = SagaId;
         if (ContentType != null) envelope.ContentType = ContentType;
+
+        if (IsResponse) envelope.IsResponse = true;
     }
 
     /// <summary>
@@ -115,4 +117,6 @@ public class DeliveryOptions
     ///     Mimetype of the serialized data
     /// </summary>
     public string? ContentType { get; set; }
+
+    internal bool IsResponse { get; set; }
 }

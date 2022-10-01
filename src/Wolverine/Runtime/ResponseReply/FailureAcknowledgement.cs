@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Wolverine;
+namespace Wolverine.Runtime.ResponseReply;
 
 public class FailureAcknowledgement
 {

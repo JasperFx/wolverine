@@ -1,8 +1,11 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Baseline.Dates;
 using CoreTests.Messaging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TestMessages;
+using Wolverine.Runtime;
 using Wolverine.Runtime.ResponseReply;
 using Xunit;
 
@@ -10,11 +13,11 @@ namespace CoreTests.Runtime.ResponseReply;
 
 public class response_handling : IDisposable
 {
-    private readonly ResponseHandler theHandler = new ResponseHandler();
+    private readonly ReplyTracker _theListener = new ReplyTracker(NullLogger<WolverineRuntime>.Instance);
 
     public void Dispose()
     {
-        theHandler?.Dispose();
+        _theListener?.Dispose();
     }
 
     [Fact]
@@ -22,9 +25,9 @@ public class response_handling : IDisposable
     {
         var envelope = ObjectMother.Envelope();
 
-        var waiter = theHandler.RegisterCallback<Message1>(envelope, 5.Seconds());
+        var waiter = _theListener.RegisterListener<Message1>(envelope, CancellationToken.None, 5.Seconds());
         
-        theHandler.HasListener(envelope.Id).ShouldBeTrue();
+        _theListener.HasListener(envelope.Id).ShouldBeTrue();
     }
 
     [Fact]
@@ -32,7 +35,7 @@ public class response_handling : IDisposable
     {
         var envelope = ObjectMother.Envelope();
 
-        var waiter = theHandler.RegisterCallback<Message1>(envelope, 5.Seconds());
+        var waiter = _theListener.RegisterListener<Message1>(envelope, CancellationToken.None, 5.Seconds());
         
         waiter.Status.ShouldBe(TaskStatus.WaitingForActivation);
 
@@ -43,12 +46,12 @@ public class response_handling : IDisposable
             Message = theMessage
         };
 
-        theHandler.Complete(response);
+        _theListener.Complete(response);
 
 
         (await waiter).ShouldBe(theMessage);
         
-        theHandler.HasListener(envelope.Id).ShouldBeFalse();
+        _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }
     
     [Fact]
@@ -56,7 +59,7 @@ public class response_handling : IDisposable
     {
         var envelope = ObjectMother.Envelope();
 
-        var waiter = theHandler.RegisterCallback<Message1>(envelope, 5.Seconds());
+        var waiter = _theListener.RegisterListener<Message1>(envelope, CancellationToken.None, 5.Seconds());
         
         waiter.Status.ShouldBe(TaskStatus.WaitingForActivation);
 
@@ -67,14 +70,14 @@ public class response_handling : IDisposable
             Message = ack
         };
 
-        theHandler.Complete(response);
+        _theListener.Complete(response);
 
         await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
             await waiter;
         });
         
-        theHandler.HasListener(envelope.Id).ShouldBeFalse();
+        _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }
     
         
@@ -83,7 +86,7 @@ public class response_handling : IDisposable
     {
         var envelope = ObjectMother.Envelope();
 
-        var waiter = theHandler.RegisterCallback<Message1>(envelope, 250.Milliseconds());
+        var waiter = _theListener.RegisterListener<Message1>(envelope, CancellationToken.None, 250.Milliseconds());
         
         waiter.Status.ShouldBe(TaskStatus.WaitingForActivation);
         
@@ -92,6 +95,6 @@ public class response_handling : IDisposable
             await waiter;
         });
         
-        theHandler.HasListener(envelope.Id).ShouldBeFalse();
+        _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }
 }

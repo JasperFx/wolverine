@@ -84,6 +84,7 @@ public partial class Envelope
     }
 
     public IListener? Listener { get; private set; }
+    public bool IsResponse { get; set; }
 
     /// <summary>
     ///     Create a new Envelope that is a response to the current

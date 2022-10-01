@@ -7,6 +7,7 @@ using Baseline;
 using Wolverine.Util;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.ResponseReply;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime;
@@ -123,7 +124,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
                 await sendsMyself.ApplyAsync(this);
                 return;
 
-            case Envelope env:
+            case Envelope _:
                 throw new InvalidOperationException(
                     "You cannot directly send an Envelope. You may want to use ISendMyself for cascading messages");
                 return;
@@ -136,7 +137,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
         if (message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
-            await SendAsync(Envelope.ReplyUri!, message);
+            await SendAsync(Envelope.ReplyUri!, message, new DeliveryOptions{IsResponse = true});
             return;
         }
 
@@ -149,6 +150,11 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
     public async Task FlushOutgoingMessagesAsync()
     {
+        if (Envelope.ReplyRequested.IsNotEmpty() && Outstanding.All(x => x.MessageType != Envelope.ReplyRequested))
+        {
+            await SendFailureAcknowledgementAsync($"No response was created for expected response '{Envelope.ReplyRequested}'");
+        }
+        
         if (!Outstanding.Any()) return;
 
         foreach (var envelope in Outstanding)
@@ -260,8 +266,9 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
         if (Envelope.AckRequested && Envelope.ReplyUri != null)
         {
-            var ack = new Acknowledgement { CorrelationId = Envelope.Id };
+            var ack = new Acknowledgement { RequestId = Envelope.Id };
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement)).RouteToDestination(ack, Envelope.ReplyUri, null);
+            trackEnvelopeCorrelation(ackEnvelope);
             _outstanding.Add(ackEnvelope);
         }
     }
@@ -297,7 +304,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
         var acknowledgement = new Acknowledgement
         {
-            CorrelationId = Envelope.Id
+            RequestId = Envelope.Id
         };
 
         var envelope = Runtime.RoutingFor(typeof(Acknowledgement))

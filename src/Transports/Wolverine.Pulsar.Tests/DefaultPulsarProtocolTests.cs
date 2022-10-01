@@ -83,6 +83,20 @@ namespace Wolverine.Pulsar.Tests
             theOriginal.AckRequested = false;
             theEnvelope.AckRequested.ShouldBeFalse();
         }
+        
+        [Fact]
+        public void is_response_true()
+        {
+            theOriginal.IsResponse = true;
+            theEnvelope.IsResponse.ShouldBeTrue();
+        }
+
+        [Fact]
+        public void is_response_false()
+        {
+            theOriginal.IsResponse = false;
+            theEnvelope.IsResponse.ShouldBeFalse();
+        }
 
         [Fact]
         public void content_type()

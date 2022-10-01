@@ -139,7 +139,8 @@ public class HandlerPipeline : IHandlerPipeline
             }
             else
             {
-                envelope.Message = serializer.ReadFromData(envelope.Data);
+                continuation = new NoHandlerContinuation(_runtime.MissingHandlers(), _runtime);
+                return false;
             }
 
             if (envelope.Message == null)
@@ -180,6 +181,12 @@ public class HandlerPipeline : IHandlerPipeline
         }
 
         Logger.ExecutionStarted(envelope);
+
+        if (envelope.IsResponse)
+        {
+            _runtime.Replies.Complete(envelope);
+            return MessageSucceededContinuation.Instance;
+        }
 
         var executor = ExecutorFor(envelope.Message!.GetType());
 

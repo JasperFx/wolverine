@@ -44,6 +44,7 @@ public class serialization_and_deserialization_of_single_message
         }
     }
 
+
     [Fact]
     public void accepted_content_types_positive()
     {
@@ -56,6 +57,20 @@ public class serialization_and_deserialization_of_single_message
     {
         outgoing.AckRequested = false;
         incoming.AckRequested.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void is_response_positive()
+    {
+        outgoing.IsResponse = true;
+        incoming.IsResponse.ShouldBeTrue();
+    }
+    
+    [Fact]
+    public void is_response_negative()
+    {
+        outgoing.IsResponse = false;
+        incoming.IsResponse.ShouldBeFalse();
     }
 
     [Fact]

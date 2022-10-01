@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Wolverine.Runtime.Serialization;
 
@@ -80,7 +81,11 @@ public class NewtonsoftSerializer : IMessageSerializer
             CloseInput = false
         };
 
-        return _serializer.Deserialize(jsonReader)!;
+        var message = _serializer.Deserialize(jsonReader)!;
+
+        if (message is JObject) return null;
+
+        return message;
     }
 
     public byte[] WriteMessage(object message)

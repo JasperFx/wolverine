@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
+using Wolverine.Runtime.ResponseReply;
 
 namespace Wolverine.Tracking;
 
@@ -192,4 +193,32 @@ public class TrackedSessionConfiguration
     }
 
 
+    public async Task<(ITrackedSession, T?)> RequestAndWaitAsync<T>(Func<IMessageContext, Task<T>> requestInvocation) 
+    {
+        T response = default;
+
+        Func<IMessageContext, Task> invocation = async c =>
+        {
+            response = await requestInvocation(c);
+        };
+
+        var session = await ExecuteAndWaitAsync(invocation);
+
+        return (session, response);
+    }
+
+
+    public async Task<(ITrackedSession, Acknowledgement?)> SendMessageAndWaitForAcknowledgementAsync(Func<IMessageContext, Task<Acknowledgement>> sendAndWaitInvocation)
+    {
+        Acknowledgement response = default;
+
+        Func<IMessageContext, Task> invocation = async c =>
+        {
+            response = await sendAndWaitInvocation(c);
+        };
+
+        var session = await ExecuteAndWaitAsync(invocation);
+
+        return (session, response);
+    }
 }

@@ -1,14 +1,15 @@
 ﻿using System;
 
-namespace Wolverine;
+namespace Wolverine.Runtime.ResponseReply;
 
 public class Acknowledgement
 {
-    public Guid CorrelationId { get; set; }
-
+    public Guid RequestId { get; set; }
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+    
     protected bool Equals(Acknowledgement other)
     {
-        return Equals(CorrelationId, other.CorrelationId);
+        return Equals(RequestId, other.RequestId);
     }
 
     public override bool Equals(object? obj)
@@ -33,6 +34,6 @@ public class Acknowledgement
 
     public override int GetHashCode()
     {
-        return CorrelationId.GetHashCode();
+        return RequestId.GetHashCode();
     }
 }

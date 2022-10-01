@@ -1,5 +1,7 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
+using Wolverine.Runtime.ResponseReply;
 
 namespace Wolverine;
 
@@ -70,4 +72,13 @@ public interface IMessagePublisher : ICommandBus
     /// <param name="options"></param>
     /// <typeparam name="T"></typeparam>
     ValueTask SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null);
+
+
+    Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null);
+    Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message, CancellationToken cancellation = default, TimeSpan? timeout = null);
+    Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message, CancellationToken cancellation = default, TimeSpan? timeout = null);
+
+    Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class;
+    Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class;
+    Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class;
 }

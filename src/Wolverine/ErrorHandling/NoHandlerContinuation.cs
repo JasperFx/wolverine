@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Baseline;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 
@@ -37,9 +38,10 @@ public class NoHandlerContinuation : IContinuation
             }
         }
 
-        if (lifecycle.Envelope.AckRequested)
+        if (lifecycle.Envelope.AckRequested || lifecycle.Envelope.ReplyRequested.IsNotEmpty())
         {
-            await lifecycle.SendAcknowledgementAsync();
+            await lifecycle.SendFailureAcknowledgementAsync(
+                $"No known message handler for message type '{lifecycle.Envelope.MessageType}'");
         }
 
         await lifecycle.CompleteAsync();

@@ -1,8 +1,12 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Baseline;
+using Baseline.Dates;
 using Lamar;
+using LamarCodeGeneration;
+using Wolverine.Runtime.ResponseReply;
 
 namespace Wolverine.Runtime;
 
@@ -168,5 +172,170 @@ public class MessagePublisher : CommandBus, IMessagePublisher
     {
         // TODO -- should this be memoized? The test on envelope Destination anyway
         return envelope.Sender?.IsDurable ?? Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination!).IsDurable;
+    }
+
+    public async Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+        
+        timeout ??= 5.Seconds();
+        
+        var options = new DeliveryOptions
+        {
+            AckRequested = true,
+            DeliverWithin = timeout.Value
+        };
+
+        // Cannot trust the T here. Can be "object"
+        var candidates = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
+        if (candidates.Length > 1)
+            throw new InvalidOperationException(
+                $"There are multiple subscribing endpoints {candidates.Select(x => x.Destination.ToString()).Join(", ")} for message {message.GetType().FullNameInCode()}");
+
+        var outgoing = candidates.Single();
+            
+        trackEnvelopeCorrelation(outgoing);
+        options.Override(outgoing);
+        
+        var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
+
+        await persistOrSendAsync(outgoing);
+
+        return await waiter;
+    }
+
+    public async Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+        
+        timeout ??= 5.Seconds();
+        
+        var options = new DeliveryOptions
+        {
+            AckRequested = true,
+            DeliverWithin = timeout.Value
+        };
+
+        var outgoing = Runtime.RoutingFor(message.GetType()).RouteToDestination(message, destination, options);
+
+        trackEnvelopeCorrelation(outgoing);
+        options.Override(outgoing);
+        
+        var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
+
+        await persistOrSendAsync(outgoing);
+
+        return await waiter;
+    }
+
+    public async Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+        
+        timeout ??= 5.Seconds();
+        
+        var options = new DeliveryOptions
+        {
+            AckRequested = true,
+            DeliverWithin = timeout.Value
+        };
+
+        var outgoing = Runtime.RoutingFor(message.GetType()).RouteToEndpointByName(message, endpointName, options);
+
+        trackEnvelopeCorrelation(outgoing);
+        options.Override(outgoing);
+        
+        var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
+
+        await persistOrSendAsync(outgoing);
+
+        return await waiter;
+    }
+
+    public async Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+    {
+        Runtime.RegisterMessageType(typeof(T));
+        timeout ??= 5.Seconds();
+        var options = DeliveryOptions.RequireResponse<T>();
+        options.DeliverWithin = timeout ?? 5.Seconds();
+
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        // Cannot trust the T here. Can be "object"
+        var candidates = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
+        if (candidates.Length > 1)
+            throw new InvalidOperationException(
+                $"There are multiple subscribing endpoints {candidates.Select(x => x.Destination.ToString()).Join(", ")} for message {message.GetType().FullNameInCode()}");
+
+        var outgoing = candidates.Single();
+            
+        trackEnvelopeCorrelation(outgoing);
+        options.Override(outgoing);
+        
+        var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
+
+        await persistOrSendAsync(outgoing);
+
+        return await waiter;
+    }
+
+    public async Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+    {
+        Runtime.RegisterMessageType(typeof(T));
+        timeout ??= 5.Seconds();
+        var options = DeliveryOptions.RequireResponse<T>();
+        options.DeliverWithin = timeout ?? 5.Seconds();
+
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var outgoing = Runtime.RoutingFor(message.GetType()).RouteToDestination(message, destination, options);
+
+        trackEnvelopeCorrelation(outgoing);
+        options.Override(outgoing);
+        
+        var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
+
+        await persistOrSendAsync(outgoing);
+
+        return await waiter;
+    }
+
+    public async Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+    {
+        Runtime.RegisterMessageType(typeof(T));
+        timeout ??= 5.Seconds();
+        var options = DeliveryOptions.RequireResponse<T>();
+        options.DeliverWithin = timeout ?? 5.Seconds();
+
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var outgoing = Runtime.RoutingFor(message.GetType()).RouteToEndpointByName(message, endpointName, options);
+
+        trackEnvelopeCorrelation(outgoing);
+        options.Override(outgoing);
+        
+        var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
+
+        await persistOrSendAsync(outgoing);
+
+        return await waiter;
     }
 }

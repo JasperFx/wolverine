@@ -15,6 +15,8 @@ public partial class WolverineRuntime : IAsyncDisposable
             await StopAsync(CancellationToken.None);
         }
 
+        Replies.Dispose();
+
         await Endpoints.DisposeAsync();
 
         Advanced.Cancel();

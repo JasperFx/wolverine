@@ -241,7 +241,16 @@ public class TrackedSession : ITrackedSession
         {
             await using var scope = _primaryHost.Services.As<IContainer>().GetNestedContainer();
             var context = scope.GetInstance<IMessageContext>();
-            await Execution(context);
+            await Execution(context).WaitAsync(Timeout);
+        }
+        catch (TimeoutException)
+        {
+            cleanUp();
+            
+            var message =
+                buildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
+
+            throw new TimeoutException(message);
         }
         catch (Exception)
         {

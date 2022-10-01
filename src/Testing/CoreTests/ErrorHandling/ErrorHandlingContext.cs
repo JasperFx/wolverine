@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using TestingSupport;
 using TestingSupport.ErrorHandling;
 using Wolverine;
+using Wolverine.Runtime.ResponseReply;
 using Wolverine.Tracking;
 
 namespace CoreTests.ErrorHandling;

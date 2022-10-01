@@ -73,6 +73,10 @@ public static class EnvelopeSerializer
                 case EnvelopeConstants.AckRequestedKey:
                     env.AckRequested = value.Equals("true", StringComparison.OrdinalIgnoreCase);
                     break;
+                
+                case EnvelopeConstants.IsResponseKey:
+                    env.IsResponse = value.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    break;
 
                 case EnvelopeConstants.ExecutionTimeKey:
                     env.ScheduledTime = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
@@ -203,6 +207,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.IdKey, env.Id);
         writer.WriteProp(ref count, EnvelopeConstants.ReplyRequestedKey, env.ReplyRequested);
         writer.WriteProp(ref count, EnvelopeConstants.AckRequestedKey, env.AckRequested);
+        writer.WriteProp(ref count, EnvelopeConstants.IsResponseKey, env.IsResponse);
 
         if (env.ScheduledTime.HasValue)
         {

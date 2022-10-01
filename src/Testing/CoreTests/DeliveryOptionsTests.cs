@@ -206,4 +206,17 @@ public class DeliveryOptionsTests
 
         envelope.ContentType.ShouldBe(EnvelopeConstants.JsonContentType);
     }
+
+    [Fact]
+    public void override_is_response()
+    {
+        var options = new DeliveryOptions { IsResponse = true };
+        
+        var envelope = ObjectMother.Envelope();
+        envelope.IsResponse.ShouldBeFalse();
+        
+        options.Override(envelope);
+
+        envelope.IsResponse.ShouldBeTrue();
+    }
 }
