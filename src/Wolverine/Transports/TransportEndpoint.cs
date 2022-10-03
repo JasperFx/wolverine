@@ -20,12 +20,12 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
     private Lazy<Action<Envelope, TIncoming>> _mapIncoming = null!;
     private Lazy<Action<Envelope, TOutgoing>> _mapOutgoing = null!;
 
-    protected TransportEndpoint(Uri uri) : base(uri)
+    protected TransportEndpoint(Uri uri) : base(uri, EndpointRole.Application)
     {
         initialize();
     }
 
-    protected TransportEndpoint()
+    protected TransportEndpoint() : base(EndpointRole.Application)
     {
         initialize();
     }

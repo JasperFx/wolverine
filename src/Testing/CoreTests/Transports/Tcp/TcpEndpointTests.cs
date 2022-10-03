@@ -21,6 +21,12 @@ public class TcpEndpointTests
     }
 
     [Fact]
+    public void default_role_is_application()
+    {
+        new TcpEndpoint().Role.ShouldBe(EndpointRole.Application);
+    }
+
+    [Fact]
     public void will_not_allow_you_to_configure_as_inline()
     {
         Exception<InvalidOperationException>.ShouldBeThrownBy(() => { new TcpEndpoint().Mode = EndpointMode.Inline; });

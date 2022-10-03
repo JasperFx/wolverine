@@ -9,12 +9,12 @@ namespace Wolverine.Transports.Local;
 
 public class LocalQueueSettings : Endpoint
 {
-    public LocalQueueSettings(string name)
+    public LocalQueueSettings(string name) : base(EndpointRole.Application)
     {
         Name = name.ToLowerInvariant();
     }
 
-    public LocalQueueSettings(Uri uri) : base(uri)
+    public LocalQueueSettings(Uri uri) : base(uri, EndpointRole.Application)
     {
     }
 

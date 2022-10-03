@@ -17,7 +17,7 @@ public class TcpEndpoint : Endpoint
     {
     }
 
-    public TcpEndpoint(string hostName, int port)
+    public TcpEndpoint(string hostName, int port) : base(EndpointRole.Application)
     {
         HostName = hostName;
         Port = port;
@@ -31,6 +31,7 @@ public class TcpEndpoint : Endpoint
     public string HostName { get; private set; }
 
     public int Port { get; private set; }
+    
 
     protected override bool supportsMode(EndpointMode mode)
     {

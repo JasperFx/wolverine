@@ -22,7 +22,7 @@ public class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     private IMessageLogger? _logger;
     private IHandlerPipeline? _pipeline;
 
-    public StubEndpoint(Uri destination, StubTransport stubTransport) : base(destination)
+    public StubEndpoint(Uri destination, StubTransport stubTransport) : base(destination, EndpointRole.Application)
     {
         _stubTransport = stubTransport;
         Destination = destination;

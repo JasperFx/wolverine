@@ -24,6 +24,19 @@ public enum EndpointMode
     Inline
 }
 
+public enum EndpointRole
+{
+    /// <summary>
+    /// This endpoint is configured by Wolverine itself
+    /// </summary>
+    Wolverine,
+    
+    /// <summary>
+    /// This endpoint is configured and owned by the application itself
+    /// </summary>
+    Application
+}
+
 /// <summary>
 ///     Configuration for a single message listener within a Wolverine application
 /// </summary>
@@ -34,15 +47,18 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     private ImHashMap<string, IMessageSerializer> _serializers = ImHashMap<string, IMessageSerializer>.Empty;
     internal readonly List<IDelayedEndpointConfiguration> DelayedConfiguration = new();
     
-    protected Endpoint()
+    protected Endpoint(EndpointRole role)
     {
+        Role = role;
     }
 
-    protected Endpoint(Uri uri)
+    protected Endpoint(Uri uri, EndpointRole role)
     {
         // ReSharper disable once VirtualMemberCallInConstructor
         Parse(uri);
     }
+    
+    public EndpointRole Role { get; }
 
     internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
     {
