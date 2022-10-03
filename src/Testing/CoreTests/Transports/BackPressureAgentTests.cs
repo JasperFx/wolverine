@@ -20,11 +20,18 @@ public class BackPressureAgentTests
     [Fact]
     public void do_nothing_when_accepting_and_under_the_threshold()
     {
-        theListeningAgent.Status.Returns(ListeningStatus.Accepting);
-        theListeningAgent.QueueCount.Returns(theEndpoint.BufferingLimits.Maximum - 1);
+        theListeningAgent.Status
+            .Returns(ListeningStatus.Accepting);
+        theListeningAgent.QueueCount
+            .Returns(theEndpoint.BufferingLimits.Maximum - 1);
         
+        // Evaluate whether or not the listening should be paused
+        // based on the current queued item count, the current status
+        // of the listening agent, and the configured buffering limits
+        // for the endpoint
         theBackPressureAgent.CheckNowAsync();
 
+        // Should decide NOT to do anything in this particular case
         theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.DidNotReceive().StartAsync();
     }
