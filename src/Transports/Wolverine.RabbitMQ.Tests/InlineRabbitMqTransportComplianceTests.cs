@@ -5,10 +5,10 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests
 {
-    public class InlineRabbitMqSendingFixture : SendingComplianceFixture, IAsyncLifetime
+    public class InlineRabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifetime
     {
 
-        public InlineRabbitMqSendingFixture() : base($"rabbitmq://queue/{RabbitTesting.NextQueueName()}".ToUri())
+        public InlineRabbitMqTransportFixture() : base($"rabbitmq://queue/{RabbitTesting.NextQueueName()}".ToUri())
         {
 
         }
@@ -47,7 +47,7 @@ namespace Wolverine.RabbitMQ.Tests
 
 
     [Collection("acceptance")]
-    public class InlineRabbitMqSendingComplianceTests : SendingCompliance<InlineRabbitMqSendingFixture>
+    public class InlineRabbitMqTransportComplianceTests : TransportCompliance<InlineRabbitMqTransportFixture>
     {
 
     }

@@ -7,7 +7,7 @@ using Xunit;
 
 namespace CoreTests.Transports.Tcp;
 
-public class LightweightTcpFixture : SendingComplianceFixture, IAsyncLifetime
+public class LightweightTcpFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public LightweightTcpFixture() : base($"tcp://localhost:{PortFinder.GetAvailablePort()}/incoming".ToUri())
     {
@@ -27,6 +27,6 @@ public class LightweightTcpFixture : SendingComplianceFixture, IAsyncLifetime
 }
 
 [Collection("compliance")]
-public class LightweightTcpTransportCompliance : SendingCompliance<LightweightTcpFixture>
+public class LightweightTcpTransportCompliance : TransportCompliance<LightweightTcpFixture>
 {
 }

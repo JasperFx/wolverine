@@ -8,9 +8,9 @@ using Xunit;
 
 namespace Wolverine.Pulsar.Tests
 {
-    public class InlinePulsarSendingFixture : SendingComplianceFixture, IAsyncLifetime
+    public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
     {
-        public InlinePulsarSendingFixture() : base(null)
+        public InlinePulsarTransportFixture() : base(null)
         {
 
         }
@@ -51,7 +51,7 @@ namespace Wolverine.Pulsar.Tests
 
 
     [Collection("acceptance")]
-    public class InlinePulsarSendingComplianceTests : SendingCompliance<InlinePulsarSendingFixture>
+    public class InlinePulsarTransportComplianceTests : TransportCompliance<InlinePulsarTransportFixture>
     {
 
     }

@@ -25,5 +25,20 @@ namespace TestingSupport.Compliance
             if (envelope.Attempts < 2) throw new TimeoutException();
 
         }
+
+        public Response Handle(Request request)
+        {
+            return new Response { Name = request.Name };
+        }
+    }
+
+    public class Request
+    {
+        public string Name { get; set; }
+    }
+
+    public class Response
+    {
+        public string Name { get; set; }
     }
 }

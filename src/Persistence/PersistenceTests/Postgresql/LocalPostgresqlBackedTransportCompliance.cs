@@ -7,7 +7,7 @@ using Xunit;
 
 namespace PersistenceTests.Postgresql;
 
-public class LocalPostgresqlBackedFixture : SendingComplianceFixture, IAsyncLifetime
+public class LocalPostgresqlBackedFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public LocalPostgresqlBackedFixture() : base("local://one/durable".ToUri())
     {
@@ -26,6 +26,6 @@ public class LocalPostgresqlBackedFixture : SendingComplianceFixture, IAsyncLife
 }
 
 [Collection("marten")]
-public class LocalPostgresqlBackedTransportCompliance : SendingCompliance<LocalPostgresqlBackedFixture>
+public class LocalPostgresqlBackedTransportCompliance : TransportCompliance<LocalPostgresqlBackedFixture>
 {
 }

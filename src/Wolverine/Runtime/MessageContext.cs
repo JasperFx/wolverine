@@ -150,7 +150,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
     public async Task FlushOutgoingMessagesAsync()
     {
-        if (Envelope.ReplyRequested.IsNotEmpty() && Outstanding.All(x => x.MessageType != Envelope.ReplyRequested))
+        if (Envelope != null && Envelope.ReplyRequested.IsNotEmpty() && Outstanding.All(x => x.MessageType != Envelope.ReplyRequested))
         {
             await SendFailureAcknowledgementAsync($"No response was created for expected response '{Envelope.ReplyRequested}'");
         }

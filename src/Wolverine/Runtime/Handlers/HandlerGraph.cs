@@ -17,6 +17,7 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.ResponseReply;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -46,6 +47,8 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         // All of this is to seed the handler and its associated retry policies
         // for scheduling outgoing messages
         AddMessageHandler(typeof(Envelope), new ScheduledSendEnvelopeHandler(this));
+
+        _messageTypes = _messageTypes.AddOrUpdate(TransportConstants.ScheduledEnvelope, typeof(Envelope));
         
         RegisterMessageType(typeof(Acknowledgement));
         RegisterMessageType(typeof(FailureAcknowledgement));

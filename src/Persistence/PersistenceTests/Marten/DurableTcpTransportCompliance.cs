@@ -10,7 +10,7 @@ using Xunit;
 namespace PersistenceTests.Marten;
 
 [Collection("marten")]
-public class DurableTcpTransportFixture : SendingComplianceFixture, IAsyncLifetime
+public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public DurableTcpTransportFixture() : base($"tcp://localhost:{PortFinder.GetAvailablePort()}/incoming".ToUri())
     {
@@ -52,6 +52,6 @@ public class DurableTcpTransportFixture : SendingComplianceFixture, IAsyncLifeti
 }
 
 [Collection("marten")]
-public class DurableTcpTransportCompliance : SendingCompliance<DurableTcpTransportFixture>
+public class DurableTcpTransportCompliance : TransportCompliance<DurableTcpTransportFixture>
 {
 }

@@ -23,7 +23,7 @@ using Xunit;
 
 namespace TestingSupport.Compliance
 {
-    public abstract class SendingComplianceFixture : IDisposable
+    public abstract class TransportComplianceFixture : IDisposable
     {
         public IHost Sender { get; private set; }
         public IHost Receiver { get; private set; }
@@ -31,7 +31,7 @@ namespace TestingSupport.Compliance
 
         public readonly TimeSpan DefaultTimeout = 5.Seconds();
 
-        protected SendingComplianceFixture(Uri destination, int defaultTimeInSeconds = 5)
+        protected TransportComplianceFixture(Uri destination, int defaultTimeInSeconds = 5)
         {
             OutboundAddress = destination;
             DefaultTimeout = defaultTimeInSeconds.Seconds();
@@ -128,7 +128,7 @@ namespace TestingSupport.Compliance
         public virtual void BeforeEach(){}
     }
 
-    public abstract class SendingCompliance<T> : IAsyncLifetime where T : SendingComplianceFixture, new()
+    public abstract class TransportCompliance<T> : IAsyncLifetime where T : TransportComplianceFixture, new()
     {
         protected IHost theSender;
         protected IHost theReceiver;
@@ -138,7 +138,7 @@ namespace TestingSupport.Compliance
         protected readonly ErrorCausingMessage theMessage = new ErrorCausingMessage();
         private ITrackedSession _session;
 
-        protected SendingCompliance()
+        protected TransportCompliance()
         {
             Fixture = new T();
 
@@ -286,6 +286,31 @@ namespace TestingSupport.Compliance
 
             session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
                 .Id.ShouldBe(message1.Id);
+        }
+
+        [Fact]
+        public async Task can_send_and_wait()
+        {
+            var message1 = new Message1();
+
+            var (session, ack) = await theSender.TrackActivity(Fixture.DefaultTimeout)
+                .AlsoTrack(theReceiver)
+                .Timeout(30.Seconds())
+                .SendMessageAndWaitForAcknowledgementAsync(c => c.SendAndWaitAsync(message1));
+
+            ack.ShouldNotBeNull();
+        }
+
+        [Fact]
+        public async Task can_request_reply()
+        {
+            var request = new Request { Name = "Nick Bolton" };
+
+            var (session, response) = await theSender.TrackActivity(Fixture.DefaultTimeout)
+                .AlsoTrack(theReceiver)
+                .RequestAndWaitAsync(c => c.RequestAsync<Response>(request));
+            
+            response.Name.ShouldBe(request.Name);
         }
 
         [Fact]
