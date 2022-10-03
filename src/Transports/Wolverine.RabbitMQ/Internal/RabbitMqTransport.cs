@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Baseline;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -13,6 +14,7 @@ namespace Wolverine.RabbitMQ.Internal
     public partial class RabbitMqTransport : TransportBase<RabbitMqEndpoint>, IDisposable
     {
         public const string ProtocolName = "rabbitmq";
+        public const string ResponseEndpointName = "RabbitMqResponses";
 
         private readonly LightweightCache<Uri, RabbitMqEndpoint> _endpoints;
         private IConnection? _listenerConnection;
@@ -74,6 +76,8 @@ namespace Wolverine.RabbitMQ.Internal
 
         public override ValueTask InitializeAsync(IWolverineRuntime runtime)
         {
+            tryBuildResponseQueueEndpoint(runtime);
+            
             if (AutoProvision)
             {
                 InitializeAllObjects(runtime.Logger);
@@ -85,6 +89,27 @@ namespace Wolverine.RabbitMQ.Internal
             }
 
             return ValueTask.CompletedTask;
+        }
+
+        private void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
+        {
+            var queueName = $"wolverine.response.{runtime.Advanced.UniqueNodeId}";
+
+            var queue = Queues[queueName];
+            queue.AutoDelete = true;
+            queue.IsDurable = false;
+
+            var endpoint = new RabbitMqEndpoint(EndpointRole.System,this)
+            {
+                QueueName = queueName,
+                IsListener = true,
+                Mode = EndpointMode.Inline,
+                IsUsedForReplies = true,
+                ListenerCount = 5,
+                Name = ResponseEndpointName
+            };
+
+            _endpoints[endpoint.Uri] = endpoint;
         }
 
         internal IConnection BuildConnection()
@@ -121,6 +146,13 @@ namespace Wolverine.RabbitMQ.Internal
 
         internal void InitializeEndpoint(RabbitMqEndpoint endpoint, IModel channel, ILogger logger)
         {
+            // This bit of hokey-ness is 
+            if (endpoint.QueueName.IsNotEmpty() && endpoint.QueueName.StartsWith("wolverine.") &&
+                endpoint.Role == EndpointRole.Application)
+            {
+                return;
+            }
+            
             if (AutoProvision)
             {
                 if (endpoint.ExchangeName.IsNotEmpty())
@@ -132,17 +164,14 @@ namespace Wolverine.RabbitMQ.Internal
                 if (endpoint.QueueName.IsNotEmpty())
                 {
                     var queue = Queues[endpoint.QueueName];
-                    queue.Declare(channel!, logger);
-
-                    if (queue.PurgeOnStartup || AutoPurgeAllQueues)
-                    {
-                        channel!.QueuePurge(queue.Name);
-                    }
+                    queue.Initialize(channel, logger, AutoPurgeAllQueues);
                 }
             }
             else if (endpoint.QueueName.IsNotEmpty() && endpoint.QueueName.IsNotEmpty())
             {
                 var queue = Queues[endpoint.QueueName];
+
+                if (!queue.IsDurable || queue.AutoDelete) return;
 
                 if (queue.PurgeOnStartup || AutoPurgeAllQueues)
                 {

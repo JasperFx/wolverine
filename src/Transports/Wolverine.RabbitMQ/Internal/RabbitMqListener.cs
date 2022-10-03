@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Baseline;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
@@ -32,6 +33,15 @@ namespace Wolverine.RabbitMQ.Internal
 
             EnsureConnected();
 
+            if (endpoint.QueueName.IsNotEmpty())
+            {
+                var queue = transport.Queues[endpoint.QueueName];
+                if (transport.AutoProvision || queue.AutoDelete)
+                {
+                    queue.Declare(Channel, logger);
+                }
+            }
+            
             _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
             _consumer = new WorkerQueueMessageConsumer(receiver, _logger, this, Endpoint, Address,
                 _cancellation);

@@ -24,7 +24,6 @@ namespace Wolverine.RabbitMQ.Tests
 
                 opts
                     .ListenToRabbitQueue(listener)
-                    .UseForReplies()
                     .ProcessInline();
 
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();

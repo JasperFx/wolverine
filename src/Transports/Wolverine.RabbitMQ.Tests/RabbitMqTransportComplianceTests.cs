@@ -27,7 +27,7 @@ namespace Wolverine.RabbitMQ.Tests
                     .AutoPurgeOnStartup()
                     .DeclareQueue(queueName);
 
-                opts.ListenToRabbitQueue(listener).UseForReplies();
+                opts.ListenToRabbitQueue(listener);
             });
 
             await ReceiverIs(opts =>

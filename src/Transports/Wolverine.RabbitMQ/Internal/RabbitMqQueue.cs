@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace Wolverine.RabbitMQ.Internal
 {
@@ -42,8 +43,21 @@ namespace Wolverine.RabbitMQ.Internal
         {
             if (HasDeclared) return;
 
-            channel.QueueDeclare(Name, IsDurable, IsExclusive, AutoDelete, Arguments);
-            logger.LogInformation("Declared Rabbit MQ queue '{Name}' as IsDurable={IsDurable}, IsExclusive={IsExclusive}, AutoDelete={AutoDelete}", Name, IsDurable, IsExclusive, AutoDelete);
+            try
+            {
+                channel.QueueDeclare(Name, IsDurable, IsExclusive, AutoDelete, Arguments);
+                logger.LogInformation("Declared Rabbit MQ queue '{Name}' as IsDurable={IsDurable}, IsExclusive={IsExclusive}, AutoDelete={AutoDelete}", Name, IsDurable, IsExclusive, AutoDelete);
+            }
+            catch (OperationInterruptedException e)
+            {
+                if (e.Message.Contains("inequivalent arg"))
+                {
+                    logger.LogDebug("Queue {Queue} exists with different configuration", Name);
+                    return;
+                }
+
+                throw;
+            }
 
             HasDeclared = true;
         }
@@ -63,6 +77,16 @@ namespace Wolverine.RabbitMQ.Internal
             {
                 Console.WriteLine("Unable to purge queue " + Name);
                 Console.WriteLine(e);
+            }
+        }
+
+        public void Initialize(IModel channel, ILogger logger, bool autoPurgeAllQueues)
+        {
+            Declare(channel, logger);
+            if (!IsDurable || IsExclusive || AutoDelete) return;
+            if (PurgeOnStartup || autoPurgeAllQueues)
+            {
+                channel.QueuePurge(Name);
             }
         }
     }

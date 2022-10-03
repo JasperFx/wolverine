@@ -120,6 +120,9 @@ namespace Wolverine.RabbitMQ.Internal
 
             foreach (var other in others)
             {
+                var queue = Queues[other];
+                if (queue.AutoDelete) continue;
+                
                 Console.WriteLine($"Purging Rabbit MQ queue '{other}'");
                 try
                 {
@@ -166,15 +169,15 @@ namespace Wolverine.RabbitMQ.Internal
             using var connection = BuildConnection();
             using var channel = connection.CreateModel();
 
-            foreach (var queue in Queues)
+            foreach (var queue in Queues.Where(x => !x.AutoDelete))
             {
-                Console.WriteLine("Declaring Rabbit MQ queue " + queue);
+                logger.LogInformation("Declaring Rabbit MQ queue {Queue}", queue);
                 queue.Declare(channel, logger);
             }
 
             foreach (var exchange in Exchanges)
             {
-                Console.WriteLine("Declaring Rabbit MQ exchange " + exchange);
+                logger.LogInformation("Declaring Rabbit MQ exchange {Exchange}", exchange);
                 exchange.Declare(channel, logger);
             }
 

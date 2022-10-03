@@ -29,6 +29,11 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
     {
         initialize();
     }
+    
+    protected TransportEndpoint(EndpointRole role) : base(role)
+    {
+        initialize();
+    }
 
     private void initialize()
     {
@@ -410,4 +415,15 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
 
 public abstract class TransportEndpoint<T> : TransportEndpoint<T, T>
 {
+    protected TransportEndpoint(Uri uri) : base(uri)
+    {
+    }
+
+    protected TransportEndpoint()
+    {
+    }
+
+    protected TransportEndpoint(EndpointRole role) : base(role)
+    {
+    }
 }

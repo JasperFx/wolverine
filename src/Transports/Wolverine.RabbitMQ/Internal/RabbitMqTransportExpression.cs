@@ -124,6 +124,7 @@ namespace Wolverine.RabbitMQ.Internal
         {
             var policy = new LambdaEndpointPolicy<RabbitMqEndpoint>((e, runtime) =>
             {
+                if (e.Role == EndpointRole.System) return;
                 if (!e.IsListener) return;
 
                 var configuration = new RabbitMqListenerConfiguration(e);
@@ -141,6 +142,7 @@ namespace Wolverine.RabbitMQ.Internal
         {
             var policy = new LambdaEndpointPolicy<RabbitMqEndpoint>((e, runtime) =>
             {
+                if (e.Role == EndpointRole.System) return;
                 if (!e.Subscriptions.Any()) return;
 
                 var configuration = new RabbitMqSubscriberConfiguration(e);

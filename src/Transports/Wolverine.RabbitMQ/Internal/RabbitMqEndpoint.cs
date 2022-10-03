@@ -20,7 +20,7 @@ namespace Wolverine.RabbitMQ.Internal
         public const string RoutingSegment = "routing";
         private readonly RabbitMqTransport _parent;
 
-        public RabbitMqEndpoint(RabbitMqTransport parent)
+        public RabbitMqEndpoint(EndpointRole role, RabbitMqTransport parent) : base(role)
         {
             MapProperty(x => x.CorrelationId!, (e, p) => e.CorrelationId = p.CorrelationId,
                 (e, p) => p.CorrelationId = e.CorrelationId);
@@ -39,6 +39,11 @@ namespace Wolverine.RabbitMQ.Internal
             _parent = parent;
 
             Mode = EndpointMode.Inline;
+        }
+
+        public RabbitMqEndpoint(RabbitMqTransport parent) : this(EndpointRole.Application, parent)
+        {
+
         }
 
         public string ExchangeName { get; set; } = string.Empty;

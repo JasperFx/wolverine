@@ -18,6 +18,7 @@ using Oakton.Resources;
 using Shouldly;
 using TestingSupport.ErrorHandling;
 using TestMessages;
+using Wolverine.Configuration;
 using Xunit;
 
 
@@ -216,14 +217,14 @@ namespace TestingSupport.Compliance
             var receiving = (theReceiver ?? theSender);
             var runtime = receiving.Get<IWolverineRuntime>();
 
-            foreach (var listener in runtime.Endpoints.ActiveListeners())
+            foreach (var listener in runtime.Endpoints.ActiveListeners().Where(x => x.Endpoint.Role == EndpointRole.Application))
             {
                 await listener.StopAndDrainAsync();
 
                 listener.Status.ShouldBe(ListeningStatus.Stopped);
             }
 
-            foreach (var listener in runtime.Endpoints.ActiveListeners())
+            foreach (var listener in runtime.Endpoints.ActiveListeners().Where(x => x.Endpoint.Role == EndpointRole.Application))
             {
                 await listener.StartAsync();
 
@@ -247,14 +248,14 @@ namespace TestingSupport.Compliance
             var receiving = (theReceiver ?? theSender);
             var runtime = receiving.Get<IWolverineRuntime>();
 
-            foreach (var listener in runtime.Endpoints.ActiveListeners())
+            foreach (var listener in runtime.Endpoints.ActiveListeners().Where(x => x.Endpoint.Role == EndpointRole.Application))
             {
                 await listener.MarkAsTooBusyAndStopReceivingAsync();
 
                 listener.Status.ShouldBe(ListeningStatus.TooBusy);
             }
 
-            foreach (var listener in runtime.Endpoints.ActiveListeners())
+            foreach (var listener in runtime.Endpoints.ActiveListeners().Where(x => x.Endpoint.Role == EndpointRole.Application))
             {
                 await listener.StartAsync();
 

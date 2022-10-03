@@ -120,7 +120,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
 
             var listeners = theRuntime.Endpoints.ActiveListeners().Where(x => x.Uri.Scheme == RabbitMqTransport.ProtocolName);
             listeners.Any().ShouldBeTrue();
-            foreach (var listener in listeners)
+            foreach (var listener in listeners.Where(x => x.Endpoint.Role == EndpointRole.Application))
             {
                 listener.Endpoint.Mode.ShouldBe(EndpointMode.Durable);
             }

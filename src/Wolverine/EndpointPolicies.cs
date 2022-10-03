@@ -47,6 +47,7 @@ internal class EndpointPolicies : IEndpointPolicies
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
+            if (e.Role == EndpointRole.System) return;
             if (e is LocalQueueSettings) return;
 
             if (!e.IsListener) return;
@@ -65,6 +66,7 @@ internal class EndpointPolicies : IEndpointPolicies
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
             if (e is LocalQueueSettings) return;
+            if (e.Role == EndpointRole.System) return;
 
             if (!e.Subscriptions.Any()) return;
 
@@ -83,6 +85,7 @@ internal class EndpointPolicies : IEndpointPolicies
         {
             if (e is LocalQueueSettings local)
             {
+                if (e.Role == EndpointRole.System) return;
                 var configuration = new ListenerConfiguration(local);
                 configure(configuration);
 

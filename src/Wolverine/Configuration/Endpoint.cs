@@ -29,7 +29,7 @@ public enum EndpointRole
     /// <summary>
     /// This endpoint is configured by Wolverine itself
     /// </summary>
-    Wolverine,
+    System,
     
     /// <summary>
     /// This endpoint is configured and owned by the application itself

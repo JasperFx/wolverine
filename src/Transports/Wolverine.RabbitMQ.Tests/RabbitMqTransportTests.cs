@@ -3,13 +3,17 @@ using NSubstitute;
 using RabbitMQ.Client;
 using Shouldly;
 using Wolverine.RabbitMQ.Internal;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests
 {
     public class RabbitMqTransportTests
     {
-        private readonly RabbitMqTransport theTransport = new RabbitMqTransport();
+        private readonly RabbitMqTransport theTransport = new RabbitMqTransport
+        {
+            
+        };
         private readonly IModel theChannel = Substitute.For<IModel>();
 
 
@@ -35,7 +39,6 @@ namespace Wolverine.RabbitMQ.Tests
             {
                 QueueName = "foo",
                 ExchangeName = "bar",
-
             };
 
             theTransport.Queues["foo"].PurgeOnStartup = false;
@@ -135,5 +138,10 @@ namespace Wolverine.RabbitMQ.Tests
             theChannel.Received().ExchangeDeclare("bar", "fanout", true, false, theTransport.Exchanges["bar"].Arguments);
             theChannel.Received().QueuePurge("foo");
         }
+
     }
+
+
 }
+
+
