@@ -1,10 +1,7 @@
 using System;
 using CoreTests.Messaging;
-using Shouldly;
-using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
-using Wolverine.Runtime;
 using Xunit;
 
 namespace CoreTests.ErrorHandling;
@@ -22,8 +19,8 @@ public class FailureRuleTests
     [Fact]
     public void does_not_match_exception()
     {
-        ShouldBeBooleanExtensions.ShouldBeFalse(theRule.TryCreateContinuation(new BadImageFormatException(),
-            theEnvelope, out var continuation));
+        theRule.TryCreateContinuation(new BadImageFormatException(),
+            theEnvelope, out var continuation).ShouldBeFalse();
     }
 
     [Fact]
@@ -34,10 +31,10 @@ public class FailureRuleTests
         // Should treat it as the 1st attempt
         theEnvelope.Attempts = 0;
 
-        ShouldBeBooleanExtensions.ShouldBeTrue(theRule.TryCreateContinuation(new DivideByZeroException(), theEnvelope,
-            out var continuation));
+        theRule.TryCreateContinuation(new DivideByZeroException(), theEnvelope,
+            out var continuation).ShouldBeTrue();
 
-        ShouldBeTestExtensions.ShouldBe<IContinuation>(continuation, RequeueContinuation.Instance);
+        continuation.ShouldBe(RequeueContinuation.Instance);
     }
 
     [Fact]
@@ -47,10 +44,10 @@ public class FailureRuleTests
 
         theEnvelope.Attempts = 1;
 
-        ShouldBeBooleanExtensions.ShouldBeTrue(theRule.TryCreateContinuation(new DivideByZeroException(), theEnvelope,
-            out var continuation));
+        theRule.TryCreateContinuation(new DivideByZeroException(), theEnvelope,
+            out var continuation).ShouldBeTrue();
 
-        ShouldBeTestExtensions.ShouldBe<IContinuation>(continuation, RequeueContinuation.Instance);
+        continuation.ShouldBe(RequeueContinuation.Instance);
     }
 
     [Fact]
@@ -61,10 +58,10 @@ public class FailureRuleTests
 
         theEnvelope.Attempts = 2;
 
-        ShouldBeBooleanExtensions.ShouldBeTrue(theRule.TryCreateContinuation(new DivideByZeroException(), theEnvelope,
-            out var continuation));
+        theRule.TryCreateContinuation(new DivideByZeroException(), theEnvelope,
+            out var continuation).ShouldBeTrue();
 
-        ShouldBeTestExtensions.ShouldBe<IContinuation>(continuation, RetryInlineContinuation.Instance);
+        continuation.ShouldBe(RetryInlineContinuation.Instance);
     }
 
     [Fact]
@@ -76,9 +73,9 @@ public class FailureRuleTests
         // This exceeds the known usages
         theEnvelope.Attempts = 3;
 
-        ShouldBeBooleanExtensions.ShouldBeTrue(theRule.TryCreateContinuation(new DivideByZeroException(), theEnvelope,
-            out var continuation));
+        theRule.TryCreateContinuation(new DivideByZeroException(), theEnvelope,
+            out var continuation).ShouldBeTrue();
 
-        ShouldBeTestExtensions.ShouldBeOfType<MoveToErrorQueue>(continuation);
+        continuation.ShouldBeOfType<MoveToErrorQueue>();
     }
 }

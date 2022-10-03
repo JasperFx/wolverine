@@ -22,7 +22,7 @@ public class FailureSlotTests
 
         var slot = new FailureSlot(3, source);
 
-        ShouldBeTestExtensions.ShouldBe(slot.Build(ex, env), continuation);
+        slot.Build(ex, env).ShouldBe(continuation);
     }
 
     [Fact]

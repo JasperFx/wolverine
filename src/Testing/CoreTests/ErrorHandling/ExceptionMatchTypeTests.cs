@@ -1,5 +1,4 @@
 using System;
-using Shouldly;
 using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
 using Xunit;
@@ -12,16 +11,16 @@ public class ExceptionMatchTypeTests
     public void exclude_match()
     {
         var match = new ExcludeType<BadImageFormatException>();
-        ShouldBeBooleanExtensions.ShouldBeTrue(match.Matches(new Exception()));
-        ShouldBeBooleanExtensions.ShouldBeFalse(match.Matches(new BadImageFormatException()));
+        match.Matches(new Exception()).ShouldBeTrue();
+        match.Matches(new BadImageFormatException()).ShouldBeFalse();
     }
 
     [Fact]
     public void type_match()
     {
         var match = new TypeMatch<BadImageFormatException>();
-        ShouldBeBooleanExtensions.ShouldBeTrue(match.Matches(new BadImageFormatException()));
-        ShouldBeBooleanExtensions.ShouldBeFalse(match.Matches(new DivideByZeroException()));
+        match.Matches(new BadImageFormatException()).ShouldBeTrue();
+        match.Matches(new DivideByZeroException()).ShouldBeFalse();
     }
 
     [Fact]
@@ -64,9 +63,9 @@ public class ExceptionMatchTypeTests
     {
         var match = new InnerMatch(new TypeMatch<BadImageFormatException>());
 
-        ShouldBeBooleanExtensions.ShouldBeFalse(match.Matches(new BadImageFormatException()));
-        ShouldBeBooleanExtensions.ShouldBeFalse(match.Matches(new Exception("bad", new DivideByZeroException())));
+        match.Matches(new BadImageFormatException()).ShouldBeFalse();
+        match.Matches(new Exception("bad", new DivideByZeroException())).ShouldBeFalse();
 
-        ShouldBeBooleanExtensions.ShouldBeTrue(match.Matches(new Exception("bad", new BadImageFormatException())));
+        match.Matches(new Exception("bad", new BadImageFormatException())).ShouldBeTrue();
     }
 }
