@@ -7,7 +7,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-public class NoHandlerContinuation : IContinuation
+internal class NoHandlerContinuation : IContinuation
 {
     private readonly IReadOnlyList<IMissingHandler> _handlers;
     private readonly IWolverineRuntime _root;
