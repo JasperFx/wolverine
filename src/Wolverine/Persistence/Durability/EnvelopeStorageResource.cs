@@ -17,7 +17,7 @@ internal class EnvelopeStorageResource : IStatefulResource
 
     public Task Check(CancellationToken token)
     {
-        return _persistence.Admin.CheckAsync(token);
+        return _persistence.Admin.CheckConnectivityAsync(token);
     }
 
     public Task ClearState(CancellationToken token)

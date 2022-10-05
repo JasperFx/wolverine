@@ -10,7 +10,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Persistence.Durability;
 
-public class RecoverOutgoingMessages : IMessagingAction
+internal class RecoverOutgoingMessages : IMessagingAction
 {
     private readonly ILogger _logger;
     private readonly IWolverineRuntime _runtime;

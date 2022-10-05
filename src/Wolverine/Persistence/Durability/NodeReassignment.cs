@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Durability;
 
-public class NodeReassignment : IMessagingAction
+internal class NodeReassignment : IMessagingAction
 {
     private readonly AdvancedSettings _settings;
 

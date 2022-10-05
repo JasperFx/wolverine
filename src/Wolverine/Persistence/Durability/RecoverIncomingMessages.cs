@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Durability;
 
-public class RecoverIncomingMessages : IMessagingAction
+internal class RecoverIncomingMessages : IMessagingAction
 {
     private readonly IEndpointCollection _endpoints;
     private readonly ILogger _logger;
