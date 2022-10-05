@@ -10,7 +10,7 @@ using Oakton.Parsing;
 
 namespace Wolverine.Persistence.Sagas;
 
-public class PullSagaIdFromMessageFrame : SyncFrame
+internal class PullSagaIdFromMessageFrame : SyncFrame
 {
     private readonly Type _messageType;
     private readonly MemberInfo _sagaIdMember;

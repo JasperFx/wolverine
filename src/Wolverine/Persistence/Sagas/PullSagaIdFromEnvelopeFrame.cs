@@ -6,7 +6,7 @@ using LamarCodeGeneration.Model;
 
 namespace Wolverine.Persistence.Sagas;
 
-public class PullSagaIdFromEnvelopeFrame : SyncFrame
+internal class PullSagaIdFromEnvelopeFrame : SyncFrame
 {
     private Variable? _envelope;
 

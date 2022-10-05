@@ -4,7 +4,7 @@ namespace Wolverine.Persistence.Durability;
 
 
 // TODO -- should these all be ValueTask?
-internal interface IEnvelopeTransaction
+public interface IEnvelopeTransaction
 {
     Task PersistAsync(Envelope envelope);
     Task PersistAsync(Envelope[] envelopes);

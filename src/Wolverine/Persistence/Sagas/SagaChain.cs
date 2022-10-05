@@ -12,7 +12,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Persistence.Sagas;
 
-public class SagaChain : HandlerChain
+internal class SagaChain : HandlerChain
 {
     private readonly Type _sagaType;
     public const string Orchestrate = "Orchestrate";
