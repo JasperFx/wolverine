@@ -7,7 +7,7 @@ using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Runtime.Scheduled;
 
-public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
+internal class InMemoryScheduledJobProcessor : IScheduledJobProcessor
 {
     private readonly Cache<Guid, InMemoryScheduledJob> _outstandingJobs = new();
 

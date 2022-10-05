@@ -12,7 +12,7 @@ using Wolverine.RDBMS;
 
 namespace Wolverine.Marten.Persistence.Operations;
 
-public class StoreOutgoingEnvelope : IStorageOperation
+internal class StoreOutgoingEnvelope : IStorageOperation
 {
     private readonly string _outgoingTable;
     private readonly int _ownerId;

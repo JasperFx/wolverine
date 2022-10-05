@@ -5,7 +5,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Runtime;
 
-public sealed partial class WolverineRuntime : IMessageLogger
+internal sealed partial class WolverineRuntime : IMessageLogger
 {
     public const int SentEventId = 100;
     public const int ReceivedEventId = 101;
@@ -17,17 +17,17 @@ public sealed partial class WolverineRuntime : IMessageLogger
     public const int NoRoutesEventId = 107;
     public const int MovedToErrorQueueId = 108;
     public const int UndeliverableEventId = 108;
-    private static readonly Action<ILogger, string, Guid, Exception> _executionFinished;
-    private static readonly Action<ILogger, string, Guid, Exception> _executionStarted;
+    private static readonly Action<ILogger, string, Guid, Exception?> _executionFinished;
+    private static readonly Action<ILogger, string, Guid, Exception?> _executionStarted;
 
     private static readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
-    private static readonly Action<ILogger, string, Guid, string, Exception> _messageSucceeded;
-    private static readonly Action<ILogger, Envelope, Exception> _movedToErrorQueue;
-    private static readonly Action<ILogger, string, Guid, string, Exception> _noHandler;
-    private static readonly Action<ILogger, Envelope, Exception> _noRoutes;
-    private static readonly Action<ILogger, string, Guid, string, string, Exception> _received;
-    private static readonly Action<ILogger, string, Guid, string, Exception> _sent;
-    private static readonly Action<ILogger, Envelope, Exception> _undeliverable;
+    private static readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
+    private static readonly Action<ILogger, Envelope, Exception?> _movedToErrorQueue;
+    private static readonly Action<ILogger, string, Guid, string, Exception?> _noHandler;
+    private static readonly Action<ILogger, Envelope, Exception?> _noRoutes;
+    private static readonly Action<ILogger, string, Guid, string, string, Exception?> _received;
+    private static readonly Action<ILogger, string, Guid, string, Exception?> _sent;
+    private static readonly Action<ILogger, Envelope, Exception?> _undeliverable;
 
     static WolverineRuntime()
     {
@@ -68,15 +68,15 @@ public sealed partial class WolverineRuntime : IMessageLogger
     public void Sent(Envelope envelope)
     {
         ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId);
-        _sent(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString(), null);
+        _sent(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty, null);
     }
 
     // TODO -- add a URI for the received point
     public void Received(Envelope envelope)
     {
         ActiveSession?.Record(EventType.Received, envelope, _serviceName, _uniqueNodeId);
-        _received(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString(),
-            envelope.ReplyUri?.ToString(), null);
+        _received(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty,
+            envelope.ReplyUri?.ToString() ?? string.Empty, null);
     }
 
     public void ExecutionStarted(Envelope envelope)
@@ -95,20 +95,20 @@ public sealed partial class WolverineRuntime : IMessageLogger
     {
         ActiveSession?.Record(EventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
         // TODO -- bring back: _metrics.MessageExecuted(envelope);
-        _messageSucceeded(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.ReplyUri?.ToString(), null);
+        _messageSucceeded(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), null);
     }
 
     public void MessageFailed(Envelope envelope, Exception ex)
     {
         ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
         // TODO -- bring back: _metrics.MessageExecuted(envelope);
-        _messageFailed(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.ReplyUri?.ToString(), ex);
+        _messageFailed(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), ex);
     }
 
     public void NoHandlerFor(Envelope envelope)
     {
         ActiveSession?.Record(EventType.NoHandlers, envelope, _serviceName, _uniqueNodeId);
-        _noHandler(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.ReplyUri?.ToString(), null);
+        _noHandler(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.ReplyUri?.ToString() ?? string.Empty, null);
     }
 
     public void NoRoutesFor(Envelope envelope)

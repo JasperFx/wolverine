@@ -6,7 +6,7 @@ using Oakton.Parsing;
 namespace Wolverine.Marten.Codegen;
 
 // TODO -- this should be in LamarCodeGeneration
-public class MemberAccessVariable : Variable
+internal class MemberAccessVariable : Variable
 {
     private readonly Variable _parent;
     private readonly MemberInfo _member;

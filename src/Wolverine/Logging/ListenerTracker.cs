@@ -18,21 +18,31 @@ public class ListenerTracker : WatchedObservable<ListenerState>, IObserver<Liste
     private readonly LightweightCache<string, ListenerState> _byName
         = new(name => new ListenerState("unknown://".ToUri(), name, ListeningStatus.Unknown));
 
-    public ListenerTracker(ILogger logger) : base(logger)
+    internal ListenerTracker(ILogger logger) : base(logger)
     {
         Subscribe(this);
     }
 
+    /// <summary>
+    /// Current status of a listener by endpoint 
+    /// </summary>
+    /// <param name="uri"></param>
+    /// <returns></returns>
     public ListeningStatus StatusFor(Uri uri)
     {
         return _states[uri].Status;
     }
 
+    /// <summary>
+    /// Current status of a listener by the endpoint name
+    /// </summary>
+    /// <param name="endpointState"></param>
+    /// <returns></returns>
     public ListeningStatus StatusFor(string endpointState)
     {
         return _byName[endpointState].Status;
     }
-
+    
     public Task WaitForListenerStatusAsync(string endpointName, ListeningStatus status, TimeSpan timeout)
     {
         var listenerState = _byName[endpointName];

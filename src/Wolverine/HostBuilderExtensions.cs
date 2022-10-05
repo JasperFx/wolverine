@@ -113,7 +113,6 @@ public static class HostBuilderExtensions
             // The runtime is also a hosted service
             services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
 
-            services.AddSingleton<IMetrics, NulloMetrics>();
             services.MessagingRootService(x => x.MessageLogger);
 
             services.AddSingleton<IDescribedSystemPart>(s => s.GetRequiredService<WolverineOptions>().HandlerGraph);
@@ -145,7 +144,9 @@ public static class HostBuilderExtensions
                 if (handlers.Rules == null)
                 {
                     handlers.CompileAsync(container.GetInstance<WolverineOptions>(), container)
+#pragma warning disable VSTHRD002
                         .GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
                 }
 
                 handlers.Rules ??= c.GetRequiredService<WolverineOptions>().Advanced.CodeGeneration;

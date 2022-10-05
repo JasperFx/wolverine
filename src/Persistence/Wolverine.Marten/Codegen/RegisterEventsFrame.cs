@@ -7,7 +7,7 @@ using LamarCodeGeneration.Frames;
 using LamarCodeGeneration.Model;
 using Marten.Events;
 
-namespace Wolverine.Marten;
+namespace Wolverine.Marten.Codegen;
 
 internal class RegisterEventsFrame<T> : MethodCall
 {

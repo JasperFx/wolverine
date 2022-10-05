@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Baseline;
 using Lamar;
-using Microsoft.CodeAnalysis.Options;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Scheduled;
@@ -14,7 +13,7 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime;
 
-public partial class WolverineRuntime
+internal partial class WolverineRuntime
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {

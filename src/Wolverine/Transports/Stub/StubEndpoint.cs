@@ -11,7 +11,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Stub;
 
-public class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
+internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 {
     private readonly StubTransport _stubTransport;
     // ReSharper disable once CollectionNeverQueried.Global

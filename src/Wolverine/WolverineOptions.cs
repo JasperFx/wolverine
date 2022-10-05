@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using Baseline;
 using Baseline.Dates;
@@ -11,16 +10,12 @@ using BaselineTypeDiscovery;
 using Lamar;
 using LamarCodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
-using Wolverine.Transports.Local;
-using Wolverine.Transports.Stub;
-using Wolverine.Transports.Tcp;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
 
@@ -32,22 +27,20 @@ namespace Wolverine;
 public sealed partial class WolverineOptions
 {
     /// <summary>
-    /// You may use this to "help" Wolverine in testing scenarios to force
-    /// it to consider this assembly as the main application assembly rather
-    /// that assuming that the IDE or test runner assembly is the application assembly
+    ///     You may use this to "help" Wolverine in testing scenarios to force
+    ///     it to consider this assembly as the main application assembly rather
+    ///     that assuming that the IDE or test runner assembly is the application assembly
     /// </summary>
     public static Assembly? RememberedApplicationAssembly;
+
     private readonly IList<Type> _extensionTypes = new List<Type>();
 
     private readonly IDictionary<string, IMessageSerializer>
         _serializers = new Dictionary<string, IMessageSerializer>();
 
-    private IMessageSerializer? _defaultSerializer;
-    private readonly AdvancedSettings _advanced;
-    private TimeSpan _defaultExecutionTimeout = 60.Seconds();
-    private readonly ServiceRegistry _services = new();
     private Assembly? _applicationAssembly;
-    private readonly HandlerGraph _handlerGraph = new();
+
+    private IMessageSerializer? _defaultSerializer;
 
 
     public WolverineOptions() : this(null)
@@ -57,48 +50,52 @@ public sealed partial class WolverineOptions
     public WolverineOptions(string? assemblyName)
     {
         Transports = new TransportCollection();
-        
+
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
 
         UseNewtonsoftForSerialization();
 
         establishApplicationAssembly(assemblyName);
 
-        _advanced = new AdvancedSettings(ApplicationAssembly);
+        Advanced = new AdvancedSettings(ApplicationAssembly);
 
         deriveServiceName();
 
         LocalQueue(TransportConstants.Durable).UseDurableInbox();
     }
 
+    /// <summary>
+    /// Options for applying conventional configuration to all or a subset of messaging endpoints
+    /// </summary>
     public IEndpointPolicies Policies => new EndpointPolicies(Transports, this);
-    
+
+    /// <summary>
+    /// 
+    /// </summary>
     public TransportCollection Transports { get; }
 
     /// <summary>
     ///     Advanced configuration options for Wolverine message processing,
     ///     job scheduling, validation, and resiliency features
     /// </summary>
-    public AdvancedSettings Advanced => _advanced;
+    public AdvancedSettings Advanced { get; }
 
     /// <summary>
     ///     The default message execution timeout. This uses a CancellationTokenSource
     ///     behind the scenes, and the timeout enforcement is dependent on the usage within handlers
     /// </summary>
-    public TimeSpan DefaultExecutionTimeout
-    {
-        get => _defaultExecutionTimeout;
-        set => _defaultExecutionTimeout = value;
-    }
+    public TimeSpan DefaultExecutionTimeout { get; set; } = 60.Seconds();
 
 
     /// <summary>
-    ///     Register additional services to the underlying IoC container
+    /// Register additional services to the underlying IoC container with either .NET standard IServiceCollection extension methods or Lamar's registry DSL syntax . This usage will have access to the application's
+    /// full ServiceCollection *at the time of this call*
     /// </summary>
-    public ServiceRegistry Services => _services;
+    public ServiceRegistry Services { get; } = new();
 
     /// <summary>
-    ///     The main application assembly for this Wolverine system
+    /// The main application assembly for this Wolverine system. You may need or want to explicitly set this in automated test harness
+    /// scenarios. Defaults to the application entry assembly
     /// </summary>
     public Assembly? ApplicationAssembly
     {
@@ -106,6 +103,7 @@ public sealed partial class WolverineOptions
         set
         {
             _applicationAssembly = value;
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
             if (Advanced != null)
             {
                 Advanced.CodeGeneration.ApplicationAssembly = value;
@@ -114,7 +112,7 @@ public sealed partial class WolverineOptions
         }
     }
 
-    internal HandlerGraph HandlerGraph => _handlerGraph;
+    internal HandlerGraph HandlerGraph { get; } = new();
 
     /// <summary>
     ///     Options to control how Wolverine discovers message handler actions, error
@@ -132,13 +130,17 @@ public sealed partial class WolverineOptions
         set => Advanced.ServiceName = value;
     }
 
+    /// <summary>
+    /// Override or get the default message serializer for the application. The default is based around Newtonsoft.Json
+    /// </summary>
+    /// <exception cref="InvalidOperationException"></exception>
     public IMessageSerializer DefaultSerializer
     {
         get
         {
-            return (_defaultSerializer ??=
+            return _defaultSerializer ??=
                 _serializers.Values.FirstOrDefault(x => x.ContentType == EnvelopeConstants.JsonContentType) ??
-                _serializers.Values.First());
+                _serializers.Values.First();
         }
         set
         {
@@ -151,6 +153,16 @@ public sealed partial class WolverineOptions
             _defaultSerializer = value;
         }
     }
+
+    internal List<IWolverineExtension> AppliedExtensions { get; } = new();
+
+    /// <summary>
+    ///     Direct Wolverine to make any necessary database patches for envelope storage upon
+    ///     application start
+    /// </summary>
+    public bool AutoBuildEnvelopeStorageOnStartup { get; set; }
+
+    internal TypeLoadMode ProductionTypeLoadMode { get; set; }
 
 
     /// <summary>
@@ -213,14 +225,6 @@ public sealed partial class WolverineOptions
             throw new InvalidOperationException("Unable to determine an application assembly");
         }
     }
-
-    internal List<IWolverineExtension> AppliedExtensions { get; } = new();
-
-    /// <summary>
-    /// Direct Wolverine to make any necessary database patches for envelope storage upon
-    /// application start
-    /// </summary>
-    public bool AutoBuildEnvelopeStorageOnStartup { get; set; } = false;
 
     internal void ApplyExtensions(IWolverineExtension[] extensions)
     {
@@ -292,7 +296,7 @@ public sealed partial class WolverineOptions
         foreach (var assembly in assemblies) HandlerGraph.Source.IncludeAssembly(assembly);
     }
 
-    public IMessageSerializer FindSerializer(string contentType)
+    internal IMessageSerializer FindSerializer(string contentType)
     {
         if (_serializers.TryGetValue(contentType, out var serializer))
         {
@@ -322,13 +326,11 @@ public sealed partial class WolverineOptions
     }
 
     /// <summary>
-    /// Automatically rebuild the 
+    ///     Automatically rebuild the
     /// </summary>
     public void OptimizeArtifactWorkflow(TypeLoadMode productionMode = TypeLoadMode.Auto)
     {
         ProductionTypeLoadMode = productionMode;
         Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>();
     }
-
-    internal TypeLoadMode ProductionTypeLoadMode { get; set; }
 }

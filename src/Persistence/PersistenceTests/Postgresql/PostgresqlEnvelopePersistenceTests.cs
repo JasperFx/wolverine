@@ -61,7 +61,7 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
     [Fact]
     public async Task get_counts()
     {
-        var thePersistor = theHost.Get<PostgresqlEnvelopePersistence>();
+        var thePersistor = theHost.Get<IEnvelopePersistence>();
 
         var list = new List<Envelope>();
 

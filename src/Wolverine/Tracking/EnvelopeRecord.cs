@@ -25,9 +25,9 @@ public class EnvelopeRecord
     /// <summary>
     /// If available, the open telemetry activity id when
     /// </summary>
-    public string ActivityId { get; init; }
-    public string ParentId { get; init; }
-    public string RootId { get; init; }
+    public string? ActivityId { get; init; }
+    public string? ParentId { get; init; }
+    public string? RootId { get; init; }
 
     public Envelope Envelope { get; }
     public long SessionTime { get; }

@@ -11,7 +11,7 @@ using Wolverine.Persistence;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 
-public class MartenSagaPersistenceFrameProvider : ISagaPersistenceFrameProvider, ITransactionFrameProvider
+internal class MartenSagaPersistenceFrameProvider : ISagaPersistenceFrameProvider, ITransactionFrameProvider
 {
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {

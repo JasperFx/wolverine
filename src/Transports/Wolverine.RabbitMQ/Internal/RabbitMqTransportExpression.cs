@@ -7,7 +7,7 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class RabbitMqTransportExpression : IRabbitMqTransportExpression
+    internal class RabbitMqTransportExpression : IRabbitMqTransportExpression
     {
         private readonly RabbitMqTransport _transport;
         private readonly WolverineOptions _options;

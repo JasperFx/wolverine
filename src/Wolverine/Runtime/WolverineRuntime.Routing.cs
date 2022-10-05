@@ -10,7 +10,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
 
-public partial class WolverineRuntime
+internal partial class WolverineRuntime
 {
     internal ISendingAgent DetermineLocalSendingAgent(Type messageType)
     {

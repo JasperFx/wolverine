@@ -1,7 +1,7 @@
 namespace Wolverine.Runtime.Interop.MassTransit;
 
 // Taken from MassTransit code
-public static class MassTransitHeaders
+internal static class MassTransitHeaders
 {
     /// <summary>
     ///     The reason for a message action being taken

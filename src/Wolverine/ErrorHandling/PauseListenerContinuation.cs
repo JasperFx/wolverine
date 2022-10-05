@@ -5,7 +5,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-public class PauseListenerContinuation : IContinuation, IContinuationSource
+internal class PauseListenerContinuation : IContinuation, IContinuationSource
 {
     public PauseListenerContinuation(TimeSpan pauseTime)
     {

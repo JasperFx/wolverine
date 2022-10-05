@@ -17,10 +17,26 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Configuration;
 
+/// <summary>
+/// Defines how message listening or sending functions
+/// at runtime
+/// </summary>
 public enum EndpointMode
 {
+    /// <summary>
+    /// Persistence backed inbox for listeners or outbox for sending endpoints
+    /// </summary>
     Durable,
+    
+    /// <summary>
+    /// Outgoing or incoming messages are buffered in local, in memory queues
+    /// </summary>
     BufferedInMemory,
+    
+    /// <summary>
+    /// Incoming messages are processed inline with the external message listening. Outgoing messages are delivered inline
+    /// with the triggering operation
+    /// </summary>
     Inline
 }
 
@@ -54,10 +70,14 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     protected Endpoint(Uri uri, EndpointRole role)
     {
+        Role = role;
         // ReSharper disable once VirtualMemberCallInConstructor
         Parse(uri);
     }
     
+    /// <summary>
+    /// Is the endpoint controlled and configured by the application or Wolverine itself?
+    /// </summary>
     public EndpointRole Role { get; }
 
     internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
@@ -65,7 +85,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
         DelayedConfiguration.Add(configuration);
     }
 
-    private bool _hasCompiled = false;
+    private bool _hasCompiled;
     
     internal void Compile(IWolverineRuntime runtime)
     {
@@ -88,6 +108,9 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     private EndpointMode _mode = EndpointMode.BufferedInMemory;
 
+    /// <summary>
+    /// Local message buffering limits and restart thresholds for back pressure mechanics
+    /// </summary>
     public BufferingLimits BufferingLimits { get; set; } = new(1000, 500);
     
     /// <summary>
@@ -96,7 +119,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     /// </summary>
     public CircuitBreakerOptions? CircuitBreakerOptions { get; set; }
 
-    public IList<Subscription> Subscriptions { get; } = new List<Subscription>();
+    internal IList<Subscription> Subscriptions { get; } = new List<Subscription>();
 
     /// <summary>
     ///     Mark whether or not the receiver for this listener should use
@@ -117,7 +140,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
         }
     }
 
-
+    
     public RoutingMode RoutingType { get; set; } = RoutingMode.Static;
 
     internal bool ShouldSendMessage(Type messageType)
@@ -137,6 +160,10 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
 
     internal IWolverineRuntime? Runtime { get; set; }
 
+    /// <summary>
+    /// Get or override the default message serializer for just this endpoint
+    /// </summary>
+    /// <exception cref="ArgumentNullException"></exception>
     public IMessageSerializer? DefaultSerializer
     {
         get => _defaultSerializer;
@@ -162,10 +189,20 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     /// </summary>
     public abstract Uri Uri { get; }
 
+    /// <summary>
+    /// Configuration for the local TPL Dataflow queue for listening endpoints configured as either
+    /// BufferedInMemory or Durable
+    /// </summary>
     public ExecutionDataflowBlockOptions ExecutionOptions { get; set; } = new();
 
+    /// <summary>
+    /// Is this endpoint used to listen for incoming messages?
+    /// </summary>
     public bool IsListener { get; set; }
 
+    /// <summary>
+    /// Is this a preferred endpoint for replies to the system?
+    /// </summary>
     public bool IsUsedForReplies { get; set; }
 
     internal IList<IEnvelopeRule> OutgoingRules { get; } = new List<IEnvelopeRule>();
@@ -236,22 +273,42 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
         return serializer;
     }
 
+    /// <summary>
+    /// Add an additional message serializer to just this endpoint
+    /// </summary>
+    /// <param name="serializer"></param>
     public void RegisterSerializer(IMessageSerializer serializer)
     {
         _serializers = _serializers.AddOrUpdate(serializer.ContentType, serializer);
     }
 
+    /// <summary>
+    /// Parse a Uri and set any necessary values on this endpoint that are inferred from the Uri
+    /// </summary>
+    /// <param name="uri"></param>
     public abstract void Parse(Uri uri);
 
+    /// <summary>
+    /// Build a message listener for this endpoint at runtime
+    /// </summary>
+    /// <param name="runtime"></param>
+    /// <param name="receiver"></param>
+    /// <returns></returns>
     public abstract IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver);
 
+    /// <summary>
+    /// Create new sending agent for this 
+    /// </summary>
+    /// <param name="runtime"></param>
+    /// <param name="replyUri"></param>
+    /// <returns></returns>
     protected internal virtual ISendingAgent StartSending(IWolverineRuntime runtime,
         Uri? replyUri)
     {
         var sender = runtime.Advanced.StubAllOutgoingExternalSenders ? new NullSender(Uri) : CreateSender(runtime);
         return runtime.Endpoints.CreateSendingAgent(replyUri, sender, this);
     }
-
+    
     protected abstract ISender CreateSender(IWolverineRuntime runtime);
 
     // This is only surviving to support testing
@@ -262,7 +319,6 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
             rule.Modify(envelope);
         }
     }
-
 
     public virtual bool ShouldEnforceBackPressure()
     {

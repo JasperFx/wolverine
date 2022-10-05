@@ -8,7 +8,7 @@ using Marten.Events;
 
 namespace Wolverine.Marten.Codegen;
 
-public class MissingAggregateCheckFrame : SyncFrame
+internal class MissingAggregateCheckFrame : SyncFrame
 {
     private readonly Type _aggregateType;
     private readonly Type _commandType;

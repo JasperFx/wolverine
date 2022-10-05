@@ -9,7 +9,7 @@ using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Persistence.Durability;
 
-public class NullEnvelopePersistence : IEnvelopePersistence, IEnvelopeStorageAdmin
+internal class NullEnvelopePersistence : IEnvelopePersistence, IEnvelopeStorageAdmin
 {
     public IScheduledJobProcessor? ScheduledJobs { get; set; }
     public IEnvelopeStorageAdmin Admin => this;
@@ -204,7 +204,7 @@ public class NullEnvelopePersistence : IEnvelopePersistence, IEnvelopeStorageAdm
         return Task.CompletedTask;
     }
 
-    public Task CheckAsync(CancellationToken token)
+    public Task CheckConnectivityAsync(CancellationToken token)
     {
         return Task.CompletedTask;
     }

@@ -7,7 +7,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Local;
 
-public class LocalQueueSettings : Endpoint
+internal class LocalQueueSettings : Endpoint
 {
     public LocalQueueSettings(string name) : base(EndpointRole.Application)
     {

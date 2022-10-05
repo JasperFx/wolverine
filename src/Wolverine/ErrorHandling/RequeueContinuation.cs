@@ -4,7 +4,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-public class RequeueContinuation : IContinuation, IContinuationSource
+internal class RequeueContinuation : IContinuation, IContinuationSource
 {
     public static readonly RequeueContinuation Instance = new();
 

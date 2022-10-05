@@ -2,7 +2,7 @@
 
 namespace Wolverine.Runtime.Handlers;
 
-public static class VariableExtensions
+internal static class VariableExtensions
 {
     public static bool ShouldBeCascaded(this Variable variable)
     {

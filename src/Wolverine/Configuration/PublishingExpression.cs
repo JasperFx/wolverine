@@ -90,17 +90,33 @@ public class PublishingExpression : IPublishToExpression
     }
 
 
+    /// <summary>
+    /// Create a publishing rule for a single message type
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
     public PublishingExpression Message<T>()
     {
         return Message(typeof(T));
     }
 
+    /// <summary>
+    /// Create a publishing rule for a single message type
+    /// </summary>
+    /// <param name="type"></param>
+    /// <returns></returns>
     public PublishingExpression Message(Type type)
     {
         _subscriptions.Add(Subscription.ForType(type));
         return this;
     }
 
+    /// <summary>
+    /// Create a publishing rule for all message types from within the
+    /// specified namespace
+    /// </summary>
+    /// <param name="namespace"></param>
+    /// <returns></returns>
     public PublishingExpression MessagesFromNamespace(string @namespace)
     {
         _subscriptions.Add(new Subscription
@@ -112,17 +128,33 @@ public class PublishingExpression : IPublishToExpression
         return this;
     }
 
+    /// <summary>
+    /// Create a publishing rule for all message types from within the
+    /// specified namespace holding the marker type "T"
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
     public PublishingExpression MessagesFromNamespaceContaining<T>()
     {
         return MessagesFromNamespace(typeof(T).Namespace!);
     }
 
+    /// <summary>
+    /// Create a publishing rule for all messages from the given assembly
+    /// </summary>
+    /// <param name="assembly"></param>
+    /// <returns></returns>
     public PublishingExpression MessagesFromAssembly(Assembly assembly)
     {
         _subscriptions.Add(new Subscription(assembly));
         return this;
     }
 
+    /// <summary>
+    /// Create a publishing rule for all messages from the given assembly that contains the type T
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
     public PublishingExpression MessagesFromAssemblyContaining<T>()
     {
         return MessagesFromAssembly(typeof(T).Assembly);

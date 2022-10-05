@@ -18,7 +18,7 @@ public static class WolverineOptionsMartenExtensions
     /// <param name="schemaName">Optionally move the Wolverine envelope storage to a separate schema</param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string schemaName = null)
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null)
     {
         expression.Services.ConfigureMarten(opts =>
         {

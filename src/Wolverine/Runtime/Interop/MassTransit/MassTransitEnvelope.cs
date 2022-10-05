@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using LamarCodeGeneration;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 
@@ -54,9 +53,11 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
     public string? ConversationId { get; set; }
     public string? InitiatorId { get; set; }
     public string? SourceAddress { get; set; }
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public string? DestinationAddress { get; set; }
     public string? ResponseAddress { get; set; }
     public string? FaultAddress { get; set; }
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public string[]? MessageType { get; set; }
 
     public T? Message { get; set; }
@@ -98,7 +99,8 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
     }
 
     // Wolverine doesn't care about this, so don't bother deserializing it
-    public BusHostInfo? Host => BusHostInfo.Instance;
+    // ReSharper disable once UnusedMember.Global
+    public BusHostInfo Host => BusHostInfo.Instance;
 }
 
 [Serializable]

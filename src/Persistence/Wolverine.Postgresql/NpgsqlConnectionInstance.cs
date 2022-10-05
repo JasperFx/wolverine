@@ -12,7 +12,7 @@ using Npgsql;
 
 namespace Wolverine.Postgresql;
 
-public class NpgsqlConnectionInstance : Instance
+internal class NpgsqlConnectionInstance : Instance
 {
     private Instance? _settings;
 

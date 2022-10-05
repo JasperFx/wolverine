@@ -4,7 +4,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Scheduled;
 
-public static class EnvelopeScheduleExtensions
+internal static class EnvelopeScheduleExtensions
 {
     public static Envelope ForScheduledSend(this Envelope envelope, ISendingAgent? sender)
     {

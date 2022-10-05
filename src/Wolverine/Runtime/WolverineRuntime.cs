@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Baseline.ImTools;
-using Wolverine.ErrorHandling;
-using Wolverine.Runtime.Routing;
 using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,7 +16,7 @@ using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Runtime;
 
-public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
+internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 {
     private readonly IContainer _container;
 
@@ -77,7 +75,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
 
-    public DurabilityAgent? Durability { get; private set; }
+    internal DurabilityAgent? Durability { get; private set; }
 
     internal HandlerGraph Handlers { get; }
 
@@ -88,7 +86,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public T? TryFindExtension<T>() where T : class
     {
-        if (_extensions.TryFind(typeof(T), out var raw)) return (T)raw;
+        if (_extensions.TryFind(typeof(T), out var raw)) return raw as T;
 
         var extension = Options.AppliedExtensions.OfType<T>().FirstOrDefault();
         _extensions = _extensions.AddOrUpdate(typeof(T), extension);

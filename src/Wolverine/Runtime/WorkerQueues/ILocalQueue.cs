@@ -2,7 +2,7 @@
 
 namespace Wolverine.Runtime.WorkerQueues;
 
-public interface ILocalQueue : IReceiver
+internal interface ILocalQueue : IReceiver
 {
     void Enqueue(Envelope envelope);
     int QueueCount { get; }

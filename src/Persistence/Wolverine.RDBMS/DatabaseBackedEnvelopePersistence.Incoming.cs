@@ -26,7 +26,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
             .ExecuteOnce(_cancellation);
     }
 
-    public Task StoreIncoming(DbTransaction tx, Envelope[] envelopes)
+    public Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
         var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, DatabaseSettings);
 
@@ -37,7 +37,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
     }
 
 
-    public Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? ex)
+    public Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception ex)
     {
         return MoveToDeadLetterStorageAsync(new[] { new ErrorReport(envelope, ex) });
     }

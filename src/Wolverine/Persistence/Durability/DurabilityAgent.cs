@@ -10,7 +10,7 @@ using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Persistence.Durability;
 
-public class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposable
+internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposable
 {
     private readonly bool _disabled;
     private readonly IMessagingAction _incomingMessages;

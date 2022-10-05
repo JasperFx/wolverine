@@ -31,7 +31,7 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 
     internal IEnumerable<IEndpointPolicy> EndpointPolicies => _policies;
 
-    public async ValueTask DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         // TODO -- this is generic. Harvest this to somewhere else
         foreach (var transport in _transports.Values)

@@ -4,7 +4,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-public class ScheduledRetryContinuation : IContinuation, IContinuationSource
+internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
 {
     public ScheduledRetryContinuation(TimeSpan delay)
     {

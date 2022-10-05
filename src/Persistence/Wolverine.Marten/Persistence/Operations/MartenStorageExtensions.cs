@@ -3,7 +3,7 @@ using Marten;
 
 namespace Wolverine.Marten.Persistence.Operations;
 
-public static class MartenStorageExtensions
+internal static class MartenStorageExtensions
 {
     public static void StoreIncoming(this IDocumentSession session, PostgresqlSettings settings, Envelope envelope)
     {

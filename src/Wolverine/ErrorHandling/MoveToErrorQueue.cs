@@ -13,7 +13,7 @@ internal class MoveToErrorQueueSource : IContinuationSource
     }
 }
 
-public class MoveToErrorQueue : IContinuation
+internal class MoveToErrorQueue : IContinuation
 {
     private readonly Exception _exception;
 

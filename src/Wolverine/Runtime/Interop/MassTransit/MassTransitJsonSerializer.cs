@@ -7,22 +7,7 @@ using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 
-public interface IMassTransitInterop
-{
-    /// <summary>
-    ///     Use System.Text.Json as the default JSON serialization with optional configuration
-    /// </summary>
-    /// <param name="configuration"></param>
-    void UseSystemTextJsonForSerialization(Action<JsonSerializerOptions>? configuration = null);
-
-    /// <summary>
-    ///     Use Newtonsoft.Json as the default JSON serialization with optional configuration
-    /// </summary>
-    /// <param name="configuration"></param>
-    void UseNewtonsoftForSerialization(Action<JsonSerializerSettings>? configuration = null);
-}
-
-public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
+internal class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
 {
     private readonly string? _destination;
     private readonly IMassTransitInteropEndpoint _endpoint;
@@ -38,7 +23,7 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
     {
         _endpoint = endpoint;
         _destination = endpoint.MassTransitUri()?.ToString();
-        _reply = new Lazy<string>(() => endpoint.MassTransitReplyUri()?.ToString());
+        _reply = new Lazy<string>(() => endpoint.MassTransitReplyUri()?.ToString() ?? string.Empty);
     }
 
     /// <summary>

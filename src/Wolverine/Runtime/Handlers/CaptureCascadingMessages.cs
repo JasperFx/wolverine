@@ -5,7 +5,7 @@ using LamarCodeGeneration.Model;
 
 namespace Wolverine.Runtime.Handlers;
 
-public class CaptureCascadingMessages : MethodCall
+internal class CaptureCascadingMessages : MethodCall
 {
     private static readonly MethodInfo _method =
 #pragma warning disable CS8625

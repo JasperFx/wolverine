@@ -1,6 +1,6 @@
 namespace Wolverine.Tracking;
 
-public interface ITrackedCondition
+internal interface ITrackedCondition
 {
     void Record(EnvelopeRecord record);
     bool IsCompleted();

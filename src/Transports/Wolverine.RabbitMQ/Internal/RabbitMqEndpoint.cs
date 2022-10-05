@@ -20,7 +20,7 @@ namespace Wolverine.RabbitMQ.Internal
         public const string RoutingSegment = "routing";
         private readonly RabbitMqTransport _parent;
 
-        public RabbitMqEndpoint(EndpointRole role, RabbitMqTransport parent) : base(role)
+        internal RabbitMqEndpoint(EndpointRole role, RabbitMqTransport parent) : base(role)
         {
             MapProperty(x => x.CorrelationId!, (e, p) => e.CorrelationId = p.CorrelationId,
                 (e, p) => p.CorrelationId = e.CorrelationId);
@@ -41,7 +41,7 @@ namespace Wolverine.RabbitMQ.Internal
             Mode = EndpointMode.Inline;
         }
 
-        public RabbitMqEndpoint(RabbitMqTransport parent) : this(EndpointRole.Application, parent)
+        internal RabbitMqEndpoint(RabbitMqTransport parent) : this(EndpointRole.Application, parent)
         {
 
         }
@@ -275,14 +275,14 @@ namespace Wolverine.RabbitMQ.Internal
 
             DefaultSerializer = serializer;
 
-            var replyUri = new Lazy<string>(() => MassTransitReplyUri()?.ToString());
+            var replyUri = new Lazy<string>(() => MassTransitReplyUri()?.ToString() ?? string.Empty);
 
-            MapOutgoingProperty(x => x.ReplyUri, (e, p) =>
+            MapOutgoingProperty(x => x.ReplyUri!, (e, p) =>
             {
                 p.Headers[MassTransitHeaders.ResponseAddress] = replyUri.Value;
             });
 
-            MapPropertyToHeader(x => x.MessageType, MassTransitHeaders.MessageType);
+            MapPropertyToHeader(x => x.MessageType!, MassTransitHeaders.MessageType);
         }
     }
 }

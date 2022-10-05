@@ -8,7 +8,7 @@ namespace Wolverine.Postgresql.Util;
 
 public static class CommandExtensions
 {
-    public static DbCommand WithEnvelopeIds(this DbCommand command, string name, Envelope[] envelopes)
+    internal static DbCommand WithEnvelopeIds(this DbCommand command, string name, Envelope[] envelopes)
     {
         var parameter = command.CreateParameter().As<NpgsqlParameter>();
         parameter.ParameterName = name;

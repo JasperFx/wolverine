@@ -10,7 +10,7 @@ using Wolverine.Logging;
 
 namespace Wolverine.Transports.Sending;
 
-public abstract class SendingAgent : ISendingAgent, ISenderCallback, ICircuit, IAsyncDisposable
+internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ICircuit, IAsyncDisposable
 {
     private readonly ILogger _logger;
     private readonly IMessageLogger _messageLogger;

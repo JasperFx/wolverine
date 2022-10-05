@@ -55,7 +55,7 @@ public class CircuitBreakerOptions
     /// <returns></returns>
     public CircuitBreakerOptions Exclude<T>(Func<T, bool>? filter = null) where T : Exception
     {
-        _match.Exclude<T>(filter);
+        _match.Exclude(filter);
         return this;
     }
 
@@ -67,7 +67,7 @@ public class CircuitBreakerOptions
     /// <returns></returns>
     public CircuitBreakerOptions Include<T>(Func<T, bool>? filter = null) where T : Exception
     {
-        _match.Include<T>(filter);
+        _match.Include(filter);
         return this;
     }
 
@@ -91,14 +91,6 @@ public class CircuitBreakerOptions
 
         if (FailurePercentageThreshold <= 1) yield return $"{nameof(FailurePercentageThreshold)} must be at least 1";
         if (FailurePercentageThreshold >= 100) yield return $"{nameof(FailurePercentageThreshold)} must be less than 100";
-
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-        if (PauseTime == null) yield return $"{nameof(PauseTime)} cannot be null";
-
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-        if (TrackingPeriod == null) yield return $"{nameof(TrackingPeriod)} cannot be null";
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-        if (SamplingPeriod == null) yield return $"{nameof(SamplingPeriod)} cannot be null";
     }
 
 

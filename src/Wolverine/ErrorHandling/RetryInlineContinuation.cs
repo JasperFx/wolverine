@@ -4,7 +4,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-public class RetryInlineContinuation : IContinuation, IContinuationSource
+internal class RetryInlineContinuation : IContinuation, IContinuationSource
 {
     public static readonly RetryInlineContinuation Instance = new();
 

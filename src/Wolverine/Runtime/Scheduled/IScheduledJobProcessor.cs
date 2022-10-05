@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace Wolverine.Runtime.Scheduled;
 
-public interface IScheduledJobProcessor : IDisposable
+internal interface IScheduledJobProcessor : IDisposable
 {
     void Enqueue(DateTimeOffset executionTime, Envelope envelope);
 

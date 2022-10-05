@@ -13,7 +13,7 @@ namespace Wolverine.SqlServer;
 /// <summary>
 ///     Activates the Sql Server backed message persistence
 /// </summary>
-public class SqlServerBackedPersistence : IWolverineExtension
+internal class SqlServerBackedPersistence : IWolverineExtension
 {
     public SqlServerSettings Settings { get; } = new();
 

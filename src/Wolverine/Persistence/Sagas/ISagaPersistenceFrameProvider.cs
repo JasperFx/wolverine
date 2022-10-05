@@ -5,6 +5,9 @@ using LamarCodeGeneration.Model;
 
 namespace Wolverine.Persistence.Sagas;
 
+/// <summary>
+/// This must be implemented for new types of saga storage
+/// </summary>
 public interface ISagaPersistenceFrameProvider
 {
     Type DetermineSagaIdType(Type sagaType, IContainer container);

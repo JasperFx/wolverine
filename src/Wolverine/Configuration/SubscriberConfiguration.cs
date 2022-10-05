@@ -6,10 +6,15 @@ using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Configuration;
 
+/// <summary>
+/// Base class for custom fluent interface expressions for external transport subscriber endpoints
+/// </summary>
+/// <typeparam name="T"></typeparam>
+/// <typeparam name="TEndpoint"></typeparam>
 public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>, ISubscriberConfiguration<T>
     where TEndpoint : Endpoint where T : ISubscriberConfiguration<T>
 {
-    public SubscriberConfiguration(TEndpoint endpoint) : base(endpoint)
+    protected SubscriberConfiguration(TEndpoint endpoint) : base(endpoint)
     {
     }
 

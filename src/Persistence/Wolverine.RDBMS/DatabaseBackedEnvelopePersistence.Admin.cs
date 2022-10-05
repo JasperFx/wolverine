@@ -8,6 +8,10 @@ using Weasel.Core;
 
 namespace Wolverine.RDBMS;
 
+/// <summary>
+/// Base class for relational database backed envelope persistence
+/// </summary>
+/// <typeparam name="T"></typeparam>
 public abstract partial class DatabaseBackedEnvelopePersistence<T>
 {
     public async Task ClearAllAsync()
@@ -79,7 +83,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-    public async Task CheckAsync(CancellationToken token)
+    public async Task CheckConnectivityAsync(CancellationToken token)
     {
         await using var conn = DatabaseSettings.CreateConnection();
         await conn.OpenAsync(token);

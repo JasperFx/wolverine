@@ -4,7 +4,7 @@ using LamarCodeGeneration.Model;
 
 namespace Wolverine.Runtime.Handlers;
 
-public class MessageFrame : Frame
+internal class MessageFrame : Frame
 {
     private readonly Variable _envelope;
     private readonly MessageVariable _message;

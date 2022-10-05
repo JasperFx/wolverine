@@ -1,12 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.ImTools;
 
 namespace Wolverine.Runtime;
 
-public partial class WolverineRuntime : IAsyncDisposable
+internal partial class WolverineRuntime : IAsyncDisposable
 {
     async ValueTask IAsyncDisposable.DisposeAsync()
     {

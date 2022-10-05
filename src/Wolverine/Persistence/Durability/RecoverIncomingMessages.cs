@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Durability;
 
-public class RecoverIncomingMessages : IMessagingAction
+internal class RecoverIncomingMessages : IMessagingAction
 {
     private readonly IEndpointCollection _endpoints;
     private readonly ILogger _logger;
@@ -86,7 +86,7 @@ public class RecoverIncomingMessages : IMessagingAction
             return false;
         }
 
-        await RecoverMessagesAsync(storage, count, pageSize, listener).ConfigureAwait(false);
+        await RecoverMessagesAsync(storage, count, pageSize, listener!).ConfigureAwait(false);
 
         // Reschedule again if it wasn't able to grab all outstanding envelopes
         return pageSize < count.Count;

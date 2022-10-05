@@ -12,7 +12,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Persistence.Sagas;
 
-public class SagaChain : HandlerChain
+internal class SagaChain : HandlerChain
 {
     private readonly Type _sagaType;
     public const string Orchestrate = "Orchestrate";
@@ -42,9 +42,9 @@ public class SagaChain : HandlerChain
         SagaIdMember = DetermineSagaIdMember(MessageType);
     }
 
-    internal static MemberInfo DetermineSagaIdMember(Type messageType)
+    internal static MemberInfo? DetermineSagaIdMember(Type messageType)
     {
-        var members = messageType.GetFields().OfType<MemberInfo>().Concat(messageType.GetProperties());
+        var members = messageType.GetFields().OfType<MemberInfo>().Concat(messageType.GetProperties()).ToArray();
         return members.FirstOrDefault(x => x.HasAttribute<SagaIdentityAttribute>())
                        ?? members.FirstOrDefault(x => x.Name == SagaIdMemberName) ??
                        members.FirstOrDefault(x => x.Name.EqualsIgnoreCase("Id"));
@@ -52,11 +52,11 @@ public class SagaChain : HandlerChain
 
     public MemberInfo? SagaIdMember { get; set; }
 
-    public MethodCall[] ExistingCalls { get; set; }
+    public MethodCall[] ExistingCalls { get; set; } = Array.Empty<MethodCall>();
 
-    public MethodCall[] StartingCalls { get; set; }
+    public MethodCall[] StartingCalls { get; set; } = Array.Empty<MethodCall>();
 
-    public MethodCall[] NotFoundCalls { get; set; }
+    public MethodCall[] NotFoundCalls { get; set; } = Array.Empty<MethodCall>();
 
     private MethodCall[] findByNames(params string[] methodNames)
     {

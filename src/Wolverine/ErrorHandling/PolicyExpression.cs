@@ -7,6 +7,9 @@ using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
+/// <summary>
+/// Base class for a custom continuation action for a runtime message error
+/// </summary>
 public abstract class UserDefinedContinuation : IContinuationSource, IContinuation
 {
     protected UserDefinedContinuation(string description)
@@ -422,11 +425,20 @@ public class PolicyExpression : IFailureActions
         return new FailureActions(_match, _parent).ScheduleRetry(delays);
     }
 
+    /// <summary>
+    /// Retry the current message exactly one additional time
+    /// </summary>
+    /// <returns></returns>
     public IAdditionalActions RetryOnce()
     {
         return new FailureActions(_match, _parent).RetryOnce();
     }
 
+    /// <summary>
+    /// Retry the current message up to this number of additional times
+    /// </summary>
+    /// <param name="attempts"></param>
+    /// <returns></returns>
     public IAdditionalActions RetryTimes(int attempts)
     {
         return new FailureActions(_match, _parent).RetryTimes(attempts);

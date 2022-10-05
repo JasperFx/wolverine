@@ -8,8 +8,15 @@ namespace Wolverine.Marten;
 /// </summary>
 public interface IMartenOutbox : IMessagePublisher
 {
+    /// <summary>
+    /// Enroll a Marten document session into the outbox'd sender
+    /// </summary>
+    /// <param name="session"></param>
     void Enroll(IDocumentSession session);
     
+    /// <summary>
+    /// Current document session
+    /// </summary>
     IDocumentSession? Session { get; }
 }
 

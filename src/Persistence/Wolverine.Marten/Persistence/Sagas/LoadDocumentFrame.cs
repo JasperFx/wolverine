@@ -10,14 +10,12 @@ namespace Wolverine.Marten.Persistence.Sagas;
 
 internal class LoadDocumentFrame : AsyncFrame
 {
-    private readonly Type _sagaType;
     private readonly Variable _sagaId;
-    private Variable _session;
-    private Variable _cancellation;
+    private Variable? _session;
+    private Variable? _cancellation;
 
     public LoadDocumentFrame(Type sagaType, Variable sagaId)
     {
-        _sagaType = sagaType;
         _sagaId = sagaId;
 
         Saga = new Variable(sagaType, this);
@@ -36,7 +34,7 @@ internal class LoadDocumentFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Saga.Usage} = await {_session.Usage}.LoadAsync<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {_cancellation.Usage}).ConfigureAwait(false);");
+        writer.Write($"var {Saga.Usage} = await {_session!.Usage}.LoadAsync<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {_cancellation!.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 

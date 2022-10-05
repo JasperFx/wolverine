@@ -9,7 +9,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class RabbitMqListener : RabbitMqConnectionAgent, IListener
+    internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
     {
         private readonly ILogger _logger;
         private readonly string _routingKey;
@@ -53,6 +53,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         public void Stop()
         {
+            if (_consumer == null) return;
             foreach (var consumerTag in _consumer.ConsumerTags)
             {
                 Channel.BasicCancelNoWait(consumerTag);
@@ -87,7 +88,7 @@ namespace Wolverine.RabbitMQ.Internal
                 return false;
             }
 
-            await e.Listener.RequeueAsync(e);
+            await e.RabbitMqListener.RequeueAsync(e);
             return true;
         }
 

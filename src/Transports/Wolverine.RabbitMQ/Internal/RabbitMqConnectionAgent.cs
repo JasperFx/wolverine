@@ -4,7 +4,7 @@ using RabbitMQ.Client;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public abstract class RabbitMqConnectionAgent : IDisposable
+    internal abstract class RabbitMqConnectionAgent : IDisposable
     {
         private readonly IConnection _connection;
         private readonly RabbitMqTransport _transport;
