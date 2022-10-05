@@ -15,12 +15,12 @@ public class RespondToSender : ISendMyself
         _message = message;
     }
 
-    public ValueTask ApplyAsync(IMessageContext context)
+    ValueTask ISendMyself.ApplyAsync(IMessageContext context)
     {
         return context.RespondToSenderAsync(_message);
     }
 
-    protected bool Equals(RespondToSender other)
+    private bool Equals(RespondToSender other)
     {
         return _message.Equals(other._message);
     }

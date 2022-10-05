@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
+using Baseline;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -13,13 +13,20 @@ public partial class WolverineOptions : IAsyncDisposable
 {
     internal IList<IMessageRoutingConvention> RoutingConventions { get; } = new List<IMessageRoutingConvention>();
 
+    /// <summary>
+    /// Configure the properties of the default, local queue
+    /// </summary>
     public IListenerConfiguration DefaultLocalQueue => LocalQueue(TransportConstants.Default);
+    
+    /// <summary>
+    /// Configure the properties of the default, durable local queue 
+    /// </summary>
     public IListenerConfiguration DurableScheduledMessagesLocalQueue => LocalQueue(TransportConstants.Durable);
 
 
-    public ValueTask DisposeAsync()
+    ValueTask IAsyncDisposable.DisposeAsync()
     {
-        return Transports.DisposeAsync();
+        return Transports.As<IAsyncDisposable>().DisposeAsync();
     }
 
     /// <summary>
@@ -65,7 +72,11 @@ public partial class WolverineOptions : IAsyncDisposable
         return ListenForMessagesFrom(new Uri(uriString));
     }
 
-
+    /// <summary>
+    /// Configure a potentially complex publishing/routing/subscription rule
+    /// to one or more messaging endpoints
+    /// </summary>
+    /// <param name="configuration"></param>
     public void Publish(Action<PublishingExpression> configuration)
     {
         var expression = new PublishingExpression(this);
@@ -100,6 +111,10 @@ public partial class WolverineOptions : IAsyncDisposable
         return expression;
     }
 
+    /// <summary>
+    /// Start a publishing rule for all possible messages
+    /// </summary>
+    /// <returns></returns>
     public IPublishToExpression PublishAllMessages()
     {
         var expression = new PublishingExpression(this)
@@ -111,12 +126,20 @@ public partial class WolverineOptions : IAsyncDisposable
         return expression;
     }
 
+    /// <summary>
+    /// Configure a local queue by name. The local queue will be created if it does not already exist
+    /// </summary>
+    /// <param name="queueName"></param>
+    /// <returns></returns>
     public IListenerConfiguration LocalQueue(string queueName)
     {
         var settings = Transports.GetOrCreate<LocalTransport>().QueueFor(queueName);
         return new ListenerConfiguration(settings);
     }
 
+    /// <summary>
+    /// For testing mode, this directs Wolverine to stub out all outbound message sending
+    /// </summary>
     public void StubAllExternallyOutgoingEndpoints()
     {
         Advanced.StubAllOutgoingExternalSenders = true;

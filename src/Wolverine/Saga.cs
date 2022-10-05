@@ -19,7 +19,7 @@ public abstract class Saga
     /// <summary>
     ///     Called to mark this saga as "complete"
     /// </summary>
-    public void MarkCompleted()
+    protected void MarkCompleted()
     {
         _isCompleted = true;
     }
