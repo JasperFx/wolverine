@@ -113,7 +113,6 @@ public static class HostBuilderExtensions
             // The runtime is also a hosted service
             services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
 
-            services.AddSingleton<IMetrics, NulloMetrics>();
             services.MessagingRootService(x => x.MessageLogger);
 
             services.AddSingleton<IDescribedSystemPart>(s => s.GetRequiredService<WolverineOptions>().HandlerGraph);

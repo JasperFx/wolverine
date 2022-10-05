@@ -6,7 +6,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Logging;
 
-public static class TransportLoggerExtensions
+internal static class TransportLoggerExtensions
 {
     public const int OutgoingBatchSucceededEventId = 200;
     public const int OutgoingBatchFailedEventId = 201;

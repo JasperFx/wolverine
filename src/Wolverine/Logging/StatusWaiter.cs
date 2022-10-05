@@ -3,7 +3,7 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Logging;
 
-internal class StatusWaiter : ConditionalWaiter<ListenerState>, IObserver<ListenerState>
+internal class StatusWaiter : ConditionalWaiter<ListenerState>
 {
 
     private readonly ListenerState _expected;
