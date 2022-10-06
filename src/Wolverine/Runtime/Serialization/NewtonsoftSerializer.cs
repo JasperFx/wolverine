@@ -46,7 +46,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
 
     public byte[] Write(Envelope envelope)
     {
-        var message = envelope.Message;
+        var message = envelope.Message!;
         return WriteMessage(message);
     }
 
@@ -83,7 +83,8 @@ internal class NewtonsoftSerializer : IMessageSerializer
 
         var message = _serializer.Deserialize(jsonReader)!;
 
-        if (message is JObject) return null;
+        if (message is JObject)
+            throw new InvalidOperationException("Unable to determine the message type in deserialization");
 
         return message;
     }

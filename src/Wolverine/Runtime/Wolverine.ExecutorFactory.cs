@@ -12,6 +12,6 @@ internal partial class WolverineRuntime : IExecutorFactory
             ? new NoHandlerExecutor(messageType, this)
             : (IExecutor)Executor.Build(this, Handlers, messageType);
 
-        return executor;
+        return executor!;
     }
 }

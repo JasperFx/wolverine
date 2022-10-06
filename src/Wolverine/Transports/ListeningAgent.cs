@@ -36,7 +36,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private readonly ILogger _logger;
     private readonly HandlerPipeline _pipeline;
     private readonly CircuitBreaker? _circuitBreaker;
-    private readonly BackPressureAgent _backPressureAgent;
+    private readonly BackPressureAgent? _backPressureAgent;
 
     public ListeningAgent(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -200,7 +200,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             _cancellation = new CancellationTokenSource();
             _task = Task.Delay(timeSpan, _cancellation.Token)
-                .ContinueWith(async t =>
+                .ContinueWith(async _ =>
                 {
                     if (_cancellation.IsCancellationRequested) return;
                     await parent.StartAsync();

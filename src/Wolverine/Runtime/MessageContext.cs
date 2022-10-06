@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Baseline;
@@ -72,9 +71,16 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
     internal ValueTask ForwardScheduledEnvelopeAsync(Envelope envelope)
     {
-        // TODO -- harden this a bit?
+        if (envelope.Destination == null)
+            throw new InvalidOperationException($"{nameof(Envelope.Destination)} is missing");
+
+        if (envelope.ContentType == null)
+            throw new InvalidOperationException("${nameof(Envelope.ContentType} is missing");
+        
         envelope.Sender = Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination);
         envelope.Serializer = Runtime.Options.FindSerializer(envelope.ContentType);
+
+        if (envelope.Serializer == null) throw new InvalidOperationException($"Invalid content type '{envelope.ContentType}'");
 
         return persistOrSendAsync(envelope);
     }
@@ -127,7 +133,6 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
             case Envelope _:
                 throw new InvalidOperationException(
                     "You cannot directly send an Envelope. You may want to use ISendMyself for cascading messages");
-                return;
 
             case IEnumerable<object> enumerable:
                 foreach (var o in enumerable) await EnqueueCascadingAsync(o);

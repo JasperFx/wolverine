@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Baseline;
@@ -17,10 +16,11 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly ActionBlock<Envelope> _receivingBlock;
     private readonly InMemoryScheduledJobProcessor _scheduler;
     private readonly AdvancedSettings _settings;
-    private bool _latched = false;
+    private bool _latched;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
+        Address = endpoint.Uri;
         _logger = runtime.Logger;
         _settings = runtime.Advanced;
         Pipeline = pipeline;
@@ -65,7 +65,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public IHandlerPipeline Pipeline { get; }
 
-    public Uri? Address { get; set; }
+    public Uri Address { get; }
 
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
@@ -134,7 +134,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             await listener.CompleteAsync(envelope);
         }
 
-        _logger.IncomingBatchReceived(messages);
+        _logger.IncomingBatchReceived(Address, messages);
     }
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)

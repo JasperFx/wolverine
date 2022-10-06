@@ -48,8 +48,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
     {
         private readonly MethodInfo[] _befores;
         private readonly MethodInfo[] _afters;
-        private readonly ConstructorInfo _constructor;
-
+        private readonly ConstructorInfo? _constructor;
 
         public Type MiddlewareType { get; }
         public Func<HandlerChain, bool> Filter { get; private set; }
@@ -179,7 +178,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
         }
         
 
-        public bool MatchByMessageType { get; set; } = false;
+        public bool MatchByMessageType { get; set; }
 
     }
 

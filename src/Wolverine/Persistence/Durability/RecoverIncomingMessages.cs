@@ -86,7 +86,7 @@ internal class RecoverIncomingMessages : IMessagingAction
             return false;
         }
 
-        await RecoverMessagesAsync(storage, count, pageSize, listener).ConfigureAwait(false);
+        await RecoverMessagesAsync(storage, count, pageSize, listener!).ConfigureAwait(false);
 
         // Reschedule again if it wasn't able to grab all outstanding envelopes
         return pageSize < count.Count;

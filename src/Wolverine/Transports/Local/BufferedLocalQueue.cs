@@ -17,7 +17,7 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
     public BufferedLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime, runtime.Pipeline)
     {
         _messageLogger = runtime.MessageLogger;
-        Destination = Address = endpoint.Uri;
+        Destination = endpoint.Uri;
         Endpoint = endpoint;
     }
 

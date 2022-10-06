@@ -144,7 +144,9 @@ public static class HostBuilderExtensions
                 if (handlers.Rules == null)
                 {
                     handlers.CompileAsync(container.GetInstance<WolverineOptions>(), container)
+#pragma warning disable VSTHRD002
                         .GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
                 }
 
                 handlers.Rules ??= c.GetRequiredService<WolverineOptions>().Advanced.CodeGeneration;

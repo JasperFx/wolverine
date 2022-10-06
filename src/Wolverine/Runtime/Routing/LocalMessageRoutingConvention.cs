@@ -10,7 +10,7 @@ namespace Wolverine.Runtime.Routing;
 
 public class LocalMessageRoutingConvention : IMessageRoutingConvention
 {
-    private Action<Type,IListenerConfiguration> _customization;
+    private Action<Type,IListenerConfiguration> _customization = (_, _) => {};
     private Func<Type, string> _determineName = t => t.ToMessageTypeName();
 
     /// <summary>

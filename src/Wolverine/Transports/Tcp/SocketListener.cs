@@ -5,7 +5,6 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Wolverine.Util;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Transports.Tcp;
@@ -21,7 +20,7 @@ public class SocketListener : IListener, IDisposable
     private ActionBlock<Socket>? _socketHandling;
     private IReceiver _receiver;
     private readonly CancellationToken _parentToken;
-    private CancellationTokenSource _listenerCancellation;
+    private CancellationTokenSource? _listenerCancellation;
 
     public SocketListener(TcpEndpoint endpoint, IReceiver receiver, ILogger logger, IPAddress ipaddr, int port,
         CancellationToken cancellationToken)
@@ -84,11 +83,12 @@ public class SocketListener : IListener, IDisposable
         _listener?.Stop();
         _listener?.Server.Dispose();
         _receivingLoop?.Dispose();
+        _receiver.Dispose();
     }
 
     public async ValueTask DisposeAsync()
     {
-        _listenerCancellation.Cancel();
+        _listenerCancellation?.Cancel();
         _listener?.Stop();
         _listener = null;
 

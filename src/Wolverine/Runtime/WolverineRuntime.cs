@@ -1,11 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Threading;
 using Baseline.ImTools;
-using Wolverine.ErrorHandling;
-using Wolverine.Runtime.Routing;
 using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -89,7 +86,7 @@ internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedServi
 
     public T? TryFindExtension<T>() where T : class
     {
-        if (_extensions.TryFind(typeof(T), out var raw)) return (T)raw;
+        if (_extensions.TryFind(typeof(T), out var raw)) return raw as T;
 
         var extension = Options.AppliedExtensions.OfType<T>().FirstOrDefault();
         _extensions = _extensions.AddOrUpdate(typeof(T), extension);

@@ -103,12 +103,12 @@ internal class Executor : IExecutor
         }
     }
 
-    public static Executor? Build(IWolverineRuntime runtime, HandlerGraph handlerGraph, Type messageType)
+    public static IExecutor Build(IWolverineRuntime runtime, HandlerGraph handlerGraph, Type messageType)
     {
         var handler = handlerGraph.HandlerFor(messageType);
         if (handler == null)
         {
-            return null; // TODO: later let's have it return an executor that calls missing handlers
+            return new NoHandlerExecutor(messageType, (WolverineRuntime)runtime);
         }
 
         var timeoutSpan = handler.Chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();

@@ -193,7 +193,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         var candidates = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
         if (candidates.Length > 1)
             throw new InvalidOperationException(
-                $"There are multiple subscribing endpoints {candidates.Select(x => x.Destination.ToString()).Join(", ")} for message {message.GetType().FullNameInCode()}");
+                $"There are multiple subscribing endpoints {candidates.Select(x => x.Destination!.ToString()).Join(", ")} for message {message.GetType().FullNameInCode()}");
 
         var outgoing = candidates.Single();
             
@@ -277,7 +277,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         var candidates = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
         if (candidates.Length > 1)
             throw new InvalidOperationException(
-                $"There are multiple subscribing endpoints {candidates.Select(x => x.Destination.ToString()).Join(", ")} for message {message.GetType().FullNameInCode()}");
+                $"There are multiple subscribing endpoints {candidates.Select(x => x.Destination!.ToString()).Join(", ")} for message {message.GetType().FullNameInCode()}");
 
         var outgoing = candidates.Single();
             

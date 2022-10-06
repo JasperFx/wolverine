@@ -204,7 +204,7 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public async Task<(ITrackedSession, T?)> RequestAndWaitAsync<T>(Func<IMessageContext, Task<T>> requestInvocation) 
     {
-        T response = default;
+        T? response = default;
 
         Func<IMessageContext, Task> invocation = async c =>
         {
@@ -224,7 +224,7 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public async Task<(ITrackedSession, Acknowledgement?)> SendMessageAndWaitForAcknowledgementAsync(Func<IMessageContext, Task<Acknowledgement>> sendAndWaitInvocation)
     {
-        Acknowledgement response = default;
+        Acknowledgement? response = default;
 
         Func<IMessageContext, Task> invocation = async c =>
         {

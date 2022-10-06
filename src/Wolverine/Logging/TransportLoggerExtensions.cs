@@ -19,7 +19,7 @@ internal static class TransportLoggerExtensions
     public const int DiscardedExpiredEventId = 208;
     public const int DiscardedUnknownTransportEventId = 209;
     public const int ListeningStatusChangedEventId = 210;
-    private static readonly Action<ILogger, Uri, Exception> _circuitBroken;
+    private static readonly Action<ILogger, Uri, Exception?> _circuitBroken;
     private static readonly Action<ILogger, Uri, Exception?> _circuitResumed;
     private static readonly Action<ILogger, Envelope, Exception?> _discardedExpired;
     private static readonly Action<ILogger, Envelope, Exception?> _discardedUnknownTransport;
@@ -85,14 +85,14 @@ internal static class TransportLoggerExtensions
         _outgoingBatchFailed(logger, batch.Destination, ex);
     }
 
-    public static void IncomingBatchReceived(this ILogger logger, IEnumerable<Envelope> envelopes)
+    public static void IncomingBatchReceived(this ILogger logger, Uri address, IReadOnlyList<Envelope> envelopes)
     {
-        _incomingBatchReceived(logger, envelopes.Count(), envelopes.FirstOrDefault()?.ReplyUri, null);
+        _incomingBatchReceived(logger, envelopes.Count(), address, null);
     }
 
-    public static void IncomingReceived(this ILogger logger, Envelope envelope, Uri? address)
+    public static void IncomingReceived(this ILogger logger, Envelope envelope, Uri address)
     {
-        _incomingReceived(logger, envelope.ReplyUri, null);
+        _incomingReceived(logger, address, null);
     }
 
     public static void CircuitBroken(this ILogger logger, Uri destination)
