@@ -38,7 +38,7 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
             return Task.CompletedTask;
         }
 
-        return _persistence.StoreOutgoing(_tx, envelopes);
+        return _persistence.StoreOutgoingAsync(_tx, envelopes);
     }
 
     public Task ScheduleJobAsync(Envelope envelope)
@@ -46,7 +46,7 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
         envelope.OwnerId = TransportConstants.AnyNode;
         envelope.Status = EnvelopeStatus.Scheduled;
 
-        return _persistence.StoreIncoming(_tx, new[] { envelope });
+        return _persistence.StoreIncomingAsync(_tx, new[] { envelope });
     }
 
     public Task CopyToAsync(IEnvelopeTransaction other)

@@ -91,9 +91,9 @@ public class SqlServerEnvelopePersistence : DatabaseBackedEnvelopePersistence<Sq
             }
         }
 
-        counts.Outgoing = (int)await conn
+        counts.Outgoing = (int)(await conn
             .CreateCommand($"select count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable}")
-            .ExecuteScalarAsync();
+            .ExecuteScalarAsync())!;
 
 
         return counts;
@@ -179,7 +179,7 @@ public class SqlServerEnvelopePersistence : DatabaseBackedEnvelopePersistence<Sq
 
     public override Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
     {
-        return Session.Transaction
+        return Session!.Transaction!
             .CreateCommand(
                 $"select TOP {Settings.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time")
             .With("time", utcNow)

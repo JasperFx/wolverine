@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using Baseline;
 using Baseline.ImTools;
@@ -19,7 +18,7 @@ using TypeExtensions = Baseline.TypeExtensions;
 namespace Wolverine.EntityFrameworkCore.Codegen;
 
 // ReSharper disable once InconsistentNaming
-public class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITransactionFrameProvider
+internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITransactionFrameProvider
 {
     public void ApplyTransactionSupport(IChain chain, IContainer container)
     {
@@ -40,7 +39,9 @@ public class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITr
 
         if (chain.ShouldFlushOutgoingMessages())
         {
+#pragma warning disable CS4014
             chain.Postprocessors.Add(MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync()));
+#pragma warning restore CS4014
         }
     }
 
@@ -102,7 +103,7 @@ public class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITr
     {
         var dbContextType = DetermineDbContextType(saga.VariableType, container);
         var method =
-            dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), new Type[] { typeof(CancellationToken) });
+            dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
 
         return new MethodCall(dbContextType, method);
     }
@@ -151,7 +152,7 @@ public class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITr
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
             writer.WriteComment("Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
-            writer.Write($"var envelopeTransaction = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context.Usage});");
+            writer.Write($"var envelopeTransaction = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext!.Usage}, {_context!.Usage});");
             
             writer.Write(
                 $"await context.{nameof(MessageContext.EnlistInOutboxAsync)}(envelopeTransaction);");
@@ -175,7 +176,7 @@ internal class DbContextOperationFrame : SyncFrame
     private readonly Type _dbContextType;
     private readonly Variable _saga;
     private readonly string _methodName;
-    private Variable _context;
+    private Variable? _context;
 
     public DbContextOperationFrame(Type dbContextType, Variable saga, string methodName)
     {
@@ -192,7 +193,7 @@ internal class DbContextOperationFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"{_context.Usage}.{_methodName}({_saga.Usage});");
+        writer.Write($"{_context!.Usage}.{_methodName}({_saga.Usage});");
         Next?.GenerateCode(method, writer);
     }
 }
@@ -200,15 +201,13 @@ internal class DbContextOperationFrame : SyncFrame
 internal class LoadEntityFrame : AsyncFrame
 {
     private readonly Type _dbContextType;
-    private readonly Type _sagaType;
     private readonly Variable _sagaId;
-    private Variable _context;
-    private Variable _cancellation;
+    private Variable? _context;
+    private Variable? _cancellation;
 
     public LoadEntityFrame(Type dbContextType, Type sagaType, Variable sagaId)
     {
         _dbContextType = dbContextType;
-        _sagaType = sagaType;
         _sagaId = sagaId;
 
         Saga = new Variable(sagaType, this);
@@ -227,7 +226,7 @@ internal class LoadEntityFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Saga.Usage} = await {_context.Usage}.{nameof(DbContext.FindAsync)}<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}).ConfigureAwait(false);");
+        writer.Write($"var {Saga.Usage} = await {_context!.Usage}.{nameof(DbContext.FindAsync)}<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 

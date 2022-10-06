@@ -10,7 +10,7 @@ using Wolverine.Runtime;
 namespace Wolverine.EntityFrameworkCore;
 
 // ReSharper disable once InconsistentNaming
-public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
+internal class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly DatabaseSettings _settings;
 

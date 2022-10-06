@@ -8,7 +8,7 @@ using Wolverine.Marten.Publishing;
 
 namespace Wolverine.Marten.Codegen;
 
-public class TransactionalFrame : Frame
+internal class TransactionalFrame : Frame
 {
     private readonly IList<Loaded> _loadedDocs = new List<Loaded>();
 

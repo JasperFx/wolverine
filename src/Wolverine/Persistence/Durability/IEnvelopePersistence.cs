@@ -16,7 +16,7 @@ public interface IEnvelopePersistence : IDisposable
 
     Task MoveToDeadLetterStorageAsync(ErrorReport[] errors);
 
-    Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? ex);
+    Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception ex);
 
     Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope);
 

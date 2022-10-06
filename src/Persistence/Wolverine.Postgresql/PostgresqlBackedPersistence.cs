@@ -11,7 +11,7 @@ namespace Wolverine.Postgresql;
 /// <summary>
 ///     Activates the Sql Server backed message persistence
 /// </summary>
-public class PostgresqlBackedPersistence : IWolverineExtension
+internal class PostgresqlBackedPersistence : IWolverineExtension
 {
     public PostgresqlSettings Settings { get; } = new();
 

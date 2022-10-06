@@ -12,7 +12,7 @@ using Spectre.Console.Rendering;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public partial class RabbitMqTransport : IStatefulResource
+    internal partial class RabbitMqTransport : IStatefulResource
     {
         public Task Check(CancellationToken token)
         {
@@ -120,7 +120,7 @@ namespace Wolverine.RabbitMQ.Internal
 
             foreach (var other in others)
             {
-                var queue = Queues[other];
+                var queue = Queues[other!];
                 if (queue.AutoDelete) continue;
                 
                 Console.WriteLine($"Purging Rabbit MQ queue '{other}'");

@@ -10,7 +10,7 @@ namespace Wolverine.RabbitMQ.Internal
     {
         private readonly RabbitMqTransport _parent;
 
-        public RabbitMqExchange(string name, RabbitMqTransport parent)
+        internal RabbitMqExchange(string name, RabbitMqTransport parent)
         {
             _parent = parent;
             Name = name;

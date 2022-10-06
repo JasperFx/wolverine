@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Wolverine.SqlServer.Util;
 
-public class SqlConnectionInstance : Instance
+internal class SqlConnectionInstance : Instance
 {
     private Instance? _settings;
 

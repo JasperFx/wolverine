@@ -8,7 +8,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class ParallelRabbitMqListener : IListener, IDisposable
+    internal class ParallelRabbitMqListener : IListener, IDisposable
     {
         private readonly IList<RabbitMqListener> _listeners = new List<RabbitMqListener>();
 

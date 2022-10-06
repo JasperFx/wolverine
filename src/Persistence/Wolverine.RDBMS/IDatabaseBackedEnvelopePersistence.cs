@@ -9,6 +9,8 @@ public interface IDatabaseBackedEnvelopePersistence : IEnvelopePersistence
     public AdvancedSettings Settings { get; }
 
     public DatabaseSettings DatabaseSettings { get; }
-    Task StoreIncoming(DbTransaction tx, Envelope[] envelopes);
-    Task StoreOutgoing(DbTransaction tx, Envelope[] envelopes);
+    
+    // TODO -- should there be a cancellation token here?
+    Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
+    Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
 }

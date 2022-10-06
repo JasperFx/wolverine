@@ -8,7 +8,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
-public class MartenEnvelopeTransaction : IEnvelopeTransaction
+internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly int _nodeId;
     private readonly PostgresqlSettings _settings;

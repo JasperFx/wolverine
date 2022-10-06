@@ -10,7 +10,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class RabbitMqSender : RabbitMqConnectionAgent, ISender
+    internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
     {
         private readonly RabbitMqEndpoint _endpoint;
         private readonly string _exchangeName;

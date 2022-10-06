@@ -6,7 +6,7 @@ using Wolverine.Util;
 
 namespace Wolverine.RDBMS;
 
-public static class ReaderExtensions
+internal static class ReaderExtensions
 {
     // TODO -- move this to Weasel
     public static async Task<Uri?> ReadUriAsync(this DbDataReader reader, int index,

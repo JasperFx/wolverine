@@ -8,7 +8,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Wolverine.SqlServer.Util;
 
-public static class SqlCommandExtensions
+internal static class SqlCommandExtensions
 {
     public static DbCommand WithIdList(this DbCommand cmd, DatabaseSettings settings, IReadOnlyList<Envelope> envelopes,
         string parameterName = "IDLIST")

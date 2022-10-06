@@ -124,7 +124,7 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
     private MethodCall generateLoadAggregateCode(IChain chain)
     {
         chain.Middleware.Add(new EventStoreFrame());
-        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<MethodCall>(this, AggregateType);
+        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<MethodCall>(this, AggregateType!);
         chain.Middleware.Add(loader);
         return loader;
     }

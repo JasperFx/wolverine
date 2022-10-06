@@ -15,7 +15,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Postgresql;
 
-public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<NpgsqlConnection>
+internal class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<NpgsqlConnection>
 {
     private readonly string _deleteIncomingEnvelopesSql;
     private readonly string _deleteOutgoingEnvelopesSql;
@@ -192,7 +192,7 @@ public class PostgresqlEnvelopePersistence : DatabaseBackedEnvelopePersistence<N
 
     public override Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
     {
-        return Session.Transaction
+        return Session!.Transaction!
             .CreateCommand(
                 $"select {DatabaseConstants.IncomingFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time LIMIT {Settings.RecoveryBatchSize}")
             .With("time", utcNow)

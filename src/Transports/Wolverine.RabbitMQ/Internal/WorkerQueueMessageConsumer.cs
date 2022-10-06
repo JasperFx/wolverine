@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
+    internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
     {
         private readonly Uri _address;
         private readonly CancellationToken _cancellation;

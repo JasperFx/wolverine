@@ -5,10 +5,9 @@ using Wolverine.Runtime.Interop.MassTransit;
 
 namespace Wolverine.RabbitMQ
 {
-    public class
-        RabbitMqSubscriberConfiguration : SubscriberConfiguration<RabbitMqSubscriberConfiguration, RabbitMqEndpoint>
+    public class RabbitMqSubscriberConfiguration : SubscriberConfiguration<RabbitMqSubscriberConfiguration, RabbitMqEndpoint>
     {
-        public RabbitMqSubscriberConfiguration(RabbitMqEndpoint endpoint) : base(endpoint)
+        internal RabbitMqSubscriberConfiguration(RabbitMqEndpoint endpoint) : base(endpoint)
         {
         }
 

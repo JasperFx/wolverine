@@ -74,7 +74,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T>
         return cmd.ExecuteOnce(CancellationToken.None);
     }
 
-    public Task StoreOutgoing(DbTransaction tx, Envelope[] envelopes)
+    public Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
     {
         var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Settings.UniqueNodeId, DatabaseSettings);
         cmd.Connection = tx.Connection;
