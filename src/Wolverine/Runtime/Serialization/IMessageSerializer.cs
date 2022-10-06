@@ -2,6 +2,9 @@ using System;
 
 namespace Wolverine.Runtime.Serialization;
 
+/// <summary>
+/// Wolverine's primary interface for message serialization
+/// </summary>
 public interface IMessageSerializer
 {
     string ContentType { get; }

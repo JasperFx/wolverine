@@ -14,7 +14,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Tracking;
 
-public class TrackedSession : ITrackedSession
+internal class TrackedSession : ITrackedSession
 {
     private readonly IList<ITrackedCondition> _conditions = new List<ITrackedCondition>();
 

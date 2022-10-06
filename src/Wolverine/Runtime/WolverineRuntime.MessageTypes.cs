@@ -5,7 +5,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
-public partial class WolverineRuntime
+internal partial class WolverineRuntime
 {
     public bool TryFindMessageType(string messageTypeName, out Type messageType)
     {

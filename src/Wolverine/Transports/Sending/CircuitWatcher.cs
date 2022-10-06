@@ -5,18 +5,18 @@ using Baseline;
 
 namespace Wolverine.Transports.Sending;
 
-public interface ICircuitTester
+internal interface ICircuitTester
 {
     Task<bool> TryToResumeAsync(CancellationToken cancellationToken);
 }
 
-public interface ICircuit : ICircuitTester
+internal interface ICircuit : ICircuitTester
 {
     TimeSpan RetryInterval { get; }
     Task ResumeAsync(CancellationToken cancellationToken);
 }
 
-public class CircuitWatcher : IDisposable
+internal class CircuitWatcher : IDisposable
 {
     private readonly CancellationToken _cancellation;
     private readonly ICircuit _circuit;

@@ -6,15 +6,11 @@ using System.Reflection;
 namespace Wolverine.Runtime.Interop.MassTransit;
 
 [Serializable]
-public class BusHostInfo
+internal class BusHostInfo
 {
-    public static readonly BusHostInfo Instance = new BusHostInfo(false);
+    public static readonly BusHostInfo Instance = new BusHostInfo();
 
     public BusHostInfo()
-    {
-    }
-
-    public BusHostInfo(bool initialize)
     {
         FrameworkVersion = Environment.Version.ToString();
         OperatingSystemVersion = Environment.OSVersion.ToString();

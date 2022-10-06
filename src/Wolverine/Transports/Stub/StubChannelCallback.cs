@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Wolverine.Transports.Stub;
 
-public class StubChannelCallback : IChannelCallback
+internal class StubChannelCallback : IChannelCallback
 {
     private readonly StubEndpoint _endpoint;
     private readonly Envelope _envelope;

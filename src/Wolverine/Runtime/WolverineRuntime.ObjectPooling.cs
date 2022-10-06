@@ -2,7 +2,7 @@ using Microsoft.Extensions.ObjectPool;
 
 namespace Wolverine.Runtime;
 
-public partial class WolverineRuntime : PooledObjectPolicy<MessageContext>
+internal partial class WolverineRuntime : PooledObjectPolicy<MessageContext>
 {
     public override bool Return(MessageContext context)
     {

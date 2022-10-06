@@ -26,6 +26,12 @@ public static class WolverineHostMessageTrackingExtensions
         return new TrackedSessionConfiguration(session);
     }
 
+    /// <summary>
+    /// Start a new tracked session with an explicit timeout
+    /// </summary>
+    /// <param name="host"></param>
+    /// <param name="trackingTimeout"></param>
+    /// <returns></returns>
     public static TrackedSessionConfiguration TrackActivity(this IHost host, TimeSpan trackingTimeout)
     {
         var session = new TrackedSession(host);

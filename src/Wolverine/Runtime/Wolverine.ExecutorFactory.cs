@@ -3,7 +3,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime;
 
-public partial class WolverineRuntime : IExecutorFactory
+internal partial class WolverineRuntime : IExecutorFactory
 {
     IExecutor IExecutorFactory.BuildFor(Type messageType)
     {

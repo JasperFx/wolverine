@@ -5,7 +5,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Runtime;
 
-public sealed partial class WolverineRuntime : IMessageLogger
+internal sealed partial class WolverineRuntime : IMessageLogger
 {
     public const int SentEventId = 100;
     public const int ReceivedEventId = 101;

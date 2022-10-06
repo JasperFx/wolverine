@@ -3,7 +3,7 @@ using LamarCodeGeneration.Model;
 
 namespace Wolverine.Runtime.Handlers;
 
-public class MessageHandlerVariableSource : IVariableSource
+internal class MessageHandlerVariableSource : IVariableSource
 {
     public MessageHandlerVariableSource(Type messageType)
     {

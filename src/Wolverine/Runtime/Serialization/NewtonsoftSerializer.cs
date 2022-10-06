@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Wolverine.Runtime.Serialization;
 
-public class NewtonsoftSerializer : IMessageSerializer
+internal class NewtonsoftSerializer : IMessageSerializer
 {
     private readonly ArrayPool<byte> _bytePool;
     private readonly JsonArrayPool<char> _jsonCharPool;

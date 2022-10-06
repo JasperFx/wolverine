@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Tracking;
 
-public class EnvelopeHistory
+internal class EnvelopeHistory
 {
     private readonly List<EnvelopeRecord> _records = new();
 

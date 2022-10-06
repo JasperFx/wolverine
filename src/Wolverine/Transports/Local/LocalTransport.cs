@@ -8,7 +8,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Transports.Local;
 
-public class LocalTransport : TransportBase<LocalQueueSettings>
+internal class LocalTransport : TransportBase<LocalQueueSettings>
 {
     private readonly Cache<string, LocalQueueSettings> _queues;
     

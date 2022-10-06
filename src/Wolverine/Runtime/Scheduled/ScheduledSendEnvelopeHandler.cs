@@ -5,7 +5,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime.Scheduled;
 
-public class ScheduledSendEnvelopeHandler : MessageHandler
+internal class ScheduledSendEnvelopeHandler : MessageHandler
 {
     public ScheduledSendEnvelopeHandler(HandlerGraph parent)
     {

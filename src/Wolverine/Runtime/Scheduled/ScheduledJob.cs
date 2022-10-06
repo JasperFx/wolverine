@@ -2,7 +2,7 @@
 
 namespace Wolverine.Runtime.Scheduled;
 
-public class ScheduledJob
+internal class ScheduledJob
 {
     public ScheduledJob(Guid envelopeId)
     {

@@ -7,7 +7,7 @@ namespace Wolverine.Runtime.Serialization;
 /// <summary>
 ///     Use System.Text.Json as the JSON serialization
 /// </summary>
-public class SystemTextJsonSerializer : IMessageSerializer
+internal class SystemTextJsonSerializer : IMessageSerializer
 {
     public static JsonSerializerOptions DefaultOptions()
     {

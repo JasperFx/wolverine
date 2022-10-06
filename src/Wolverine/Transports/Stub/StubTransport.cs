@@ -6,7 +6,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Transports.Stub;
 
-public class StubTransport : TransportBase<StubEndpoint>
+internal class StubTransport : TransportBase<StubEndpoint>
 {
     public StubTransport() : base("stub", "Stub")
     {

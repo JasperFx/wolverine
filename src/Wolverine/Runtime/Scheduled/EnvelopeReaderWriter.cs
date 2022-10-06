@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Scheduled;
 
-public class EnvelopeReaderWriter : IMessageSerializer
+internal class EnvelopeReaderWriter : IMessageSerializer
 {
     public static IMessageSerializer Instance { get; } = new EnvelopeReaderWriter();
     public string ContentType => TransportConstants.SerializedEnvelope;

@@ -2,7 +2,7 @@ using Baseline;
 
 namespace Wolverine.Tracking;
 
-public class WaitForMessage<T> : ITrackedCondition
+internal class WaitForMessage<T> : ITrackedCondition
 {
     private bool _isCompleted;
 

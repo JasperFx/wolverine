@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using Baseline.ImTools;
@@ -18,7 +19,7 @@ using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Runtime;
 
-public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
+internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 {
     private readonly IContainer _container;
 
@@ -77,7 +78,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
 
-    public DurabilityAgent? Durability { get; private set; }
+    internal DurabilityAgent? Durability { get; private set; }
 
     internal HandlerGraph Handlers { get; }
 

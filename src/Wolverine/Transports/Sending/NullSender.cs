@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace Wolverine.Transports.Sending;
 
-public class NullSender : ISender
+internal class NullSender : ISender
 {
     public NullSender(Uri destination)
     {
