@@ -22,19 +22,6 @@ public interface ITrackedSession
     T FindSingleTrackedMessageOfType<T>();
 
     /// <summary>
-    ///     Return an array of the unique messages sent, received, or handled
-    /// </summary>
-    /// <returns></returns>
-    IEnumerable<object> UniqueMessages();
-
-    /// <summary>
-    ///     Return an array of the unique messages sent, received, or handled
-    ///     for a particular EventType
-    /// </summary>
-    /// <returns></returns>
-    IEnumerable<object> UniqueMessages(EventType eventType);
-
-    /// <summary>
     ///     Find the single tracked message of type T for the given EventType. Will throw an exception
     ///     if there were more than one instance of this type
     /// </summary>
@@ -67,12 +54,6 @@ public interface ITrackedSession
     EnvelopeRecord[] AllRecordsInOrder();
 
     /// <summary>
-    ///     Was there zero activity tracked
-    /// </summary>
-    /// <returns></returns>
-    bool HasNoRecordsOfAnyKind();
-
-    /// <summary>
     ///     Access all the activity in the time order they
     ///     were logged for the given EventType
     /// </summary>
@@ -86,24 +67,23 @@ public interface ITrackedSession
     /// <returns></returns>
     IReadOnlyList<Exception> AllExceptions();
 
-    /// <summary>
-    /// Find the single, expected envelope received
-    /// for the message type "T"
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    Envelope FindSingleReceivedEnvelopeForMessageType<T>();
 
     /// <summary>
-    /// Find the single, expected envelope that was *executed*
-    /// for the message type "T"
-    ///
-    /// Use this for messages that were processed through
-    /// ICommandBus.InvokeAsync()
+    /// Records of all messages received during the tracked session
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    Envelope FindSingleExecutedEnvelopeForMessageType<T>();
+    RecordCollection Received { get; }
+    
+    /// <summary>
+    /// Records of all messages sent during the tracked session. This will include messages
+    /// published to local queues
+    /// </summary>
+    RecordCollection Sent { get; }
+    
+    /// <summary>
+    /// Message processing records for messages that were executed. Note that this includes message
+    /// executions that failed and additional attempts as a separate record in the case of retries
+    /// </summary>
+    RecordCollection Executed { get; }
 }
 
 #endregion

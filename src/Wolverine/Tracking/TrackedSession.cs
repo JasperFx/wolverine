@@ -89,18 +89,6 @@ internal class TrackedSession : ITrackedSession
             .Single();
     }
 
-    public IEnumerable<object> UniqueMessages()
-    {
-        return _envelopes.Select(x => x.Message).Where(x => x != null)!;
-    }
-
-    public IEnumerable<object> UniqueMessages(EventType eventType)
-    {
-        return _envelopes
-            .Where(x => x.Has(eventType))
-            .Select(x => x.MessageFor(eventType)).Where(x => x != null)!;
-    }
-
     public T FindSingleTrackedMessageOfType<T>(EventType eventType)
     {
         var messages = AllRecordsInOrder()
@@ -140,12 +128,7 @@ internal class TrackedSession : ITrackedSession
     {
         return _envelopes.SelectMany(x => x.Records).OrderBy(x => x.SessionTime).ToArray();
     }
-
-    public bool HasNoRecordsOfAnyKind()
-    {
-        return !_envelopes.Any();
-    }
-
+    
     public EnvelopeRecord[] AllRecordsInOrder(EventType eventType)
     {
         return _envelopes
@@ -162,13 +145,8 @@ internal class TrackedSession : ITrackedSession
             .Distinct().ToList()!;
     }
 
-    public Envelope FindSingleReceivedEnvelopeForMessageType<T>()
-    {
-        return FindEnvelopesWithMessageType<T>().Single(x => x.EventType == EventType.Received)
-            .Envelope;
-    }
 
-    public Envelope FindSingleExecutedEnvelopeForMessageType<T>()
+    public Envelope SingleExecutedEnvelopeOf<T>()
     {
         return FindEnvelopesWithMessageType<T>().Single(x => x.EventType == EventType.ExecutionFinished)
             .Envelope;
@@ -370,4 +348,10 @@ internal class TrackedSession : ITrackedSession
 
         return $"{conditions}\n\n{activity}\\{exceptions}";
     }
+
+    public RecordCollection Received => new RecordCollection(EventType.Received, this);
+    public RecordCollection Sent => new RecordCollection(EventType.Sent, this);
+    
+
+    public RecordCollection Executed => new RecordCollection(EventType.ExecutionFinished, this);
 }

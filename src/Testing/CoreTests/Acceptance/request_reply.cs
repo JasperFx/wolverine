@@ -116,7 +116,7 @@ public class request_reply : IAsyncLifetime
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
         
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<Response1>();
+        var envelope = session.Received.SingleEnvelope<Response1>();
         envelope.Source.ShouldBe("Receiver1");
         envelope.Message.ShouldBe(response);
         
@@ -148,7 +148,7 @@ public class request_reply : IAsyncLifetime
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
         
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<Response1>();
+        var envelope = session.Received.SingleEnvelope<Response1>();
         envelope.Source.ShouldBe("Receiver2");
         envelope.Message.ShouldBe(response);
         
@@ -171,7 +171,7 @@ public class request_reply : IAsyncLifetime
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
         
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<Response1>();
+        var envelope = session.Received.SingleEnvelope<Response1>();
         envelope.Source.ShouldBe("Receiver2");
         envelope.Message.ShouldBe(response);
         
@@ -224,7 +224,7 @@ public class request_reply : IAsyncLifetime
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
         
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<Acknowledgement>();
+        var envelope = session.Received.SingleEnvelope<Acknowledgement>();
         envelope.Source.ShouldBe("Receiver1");
     }
     
@@ -241,7 +241,7 @@ public class request_reply : IAsyncLifetime
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
         
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<Acknowledgement>();
+        var envelope = session.Received.SingleEnvelope<Acknowledgement>();
         envelope.Source.ShouldBe("Receiver2");
     }
     
@@ -260,7 +260,7 @@ public class request_reply : IAsyncLifetime
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
         
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<Acknowledgement>();
+        var envelope = session.Received.SingleEnvelope<Acknowledgement>();
         envelope.Source.ShouldBe("Receiver2");
     }
     

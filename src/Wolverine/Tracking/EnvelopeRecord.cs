@@ -22,6 +22,8 @@ public class EnvelopeRecord
         }
     }
 
+    public object? Message => Envelope.Message;
+
     /// <summary>
     /// If available, the open telemetry activity id when
     /// </summary>
@@ -30,6 +32,10 @@ public class EnvelopeRecord
     public string? RootId { get; init; }
 
     public Envelope Envelope { get; }
+    
+    /// <summary>
+    /// A timestamp of the milliseconds since the tracked session was started before this event
+    /// </summary>
     public long SessionTime { get; }
     public Exception? Exception { get; }
     public EventType EventType { get; }

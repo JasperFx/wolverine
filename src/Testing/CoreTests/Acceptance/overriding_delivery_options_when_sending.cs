@@ -43,7 +43,7 @@ public class overriding_delivery_options_when_sending : SendingContext
             .SendMessageAndWaitAsync(new MessageWithSpecialAttribute());
 
         var outgoing = session
-            .FindSingleReceivedEnvelopeForMessageType<MessageWithSpecialAttribute>();
+            .Received.SingleEnvelope<MessageWithSpecialAttribute>();
 
         outgoing.Headers["special"].ShouldBe("true");
     }
@@ -93,7 +93,7 @@ public class overriding_delivery_options_when_sending : SendingContext
                 AckRequested = true
             });
 
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<StatusMessage>();
+        var envelope = session.Received.SingleEnvelope<StatusMessage>();
         envelope.AckRequested.ShouldBeTrue();
     }
 
@@ -111,7 +111,7 @@ public class overriding_delivery_options_when_sending : SendingContext
                 AckRequested = true
             });
 
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<StatusMessage>();
+        var envelope = session.Received.SingleEnvelope<StatusMessage>();
         envelope.AckRequested.ShouldBeTrue();
     }
 
@@ -127,7 +127,7 @@ public class overriding_delivery_options_when_sending : SendingContext
                 AckRequested = true
             });
 
-        var envelope = session.FindSingleReceivedEnvelopeForMessageType<StatusMessage>();
+        var envelope = session.Received.SingleEnvelope<StatusMessage>();
         envelope.AckRequested.ShouldBeTrue();
     }
 

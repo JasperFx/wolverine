@@ -67,7 +67,7 @@ public class custom_error_action_raises_new_message_1 : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<ShippingFailed>(theSender)
             .SendMessageAndWaitAsync(new ShipOrder(5));
 
-        var env = session.FindSingleReceivedEnvelopeForMessageType<ShippingFailed>();
+        var env = session.Received.SingleEnvelope<ShippingFailed>();
         env.Source.ShouldBe("Receiver");
         env.Message.ShouldBeOfType<ShippingFailed>()
             .OrderId.ShouldBe(5);
@@ -145,7 +145,7 @@ public class custom_error_action_raises_new_message_2 : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<ShippingFailed>(theSender)
             .SendMessageAndWaitAsync(new ShipOrder(5));
 
-        var env = session.FindSingleReceivedEnvelopeForMessageType<ShippingFailed>();
+        var env = session.Received.SingleEnvelope<ShippingFailed>();
         env.Source.ShouldBe("Receiver");
         env.Message.ShouldBeOfType<ShippingFailed>()
             .OrderId.ShouldBe(5);
