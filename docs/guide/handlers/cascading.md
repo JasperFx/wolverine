@@ -245,3 +245,11 @@ public class TupleResponseHandler
 
 The sample above still treats both `GoNorth` and the `ScheduledResponse` as cascading messages. The Wolverine team thinks that the
 tuple-ized signature makes the code more self-documenting and easier to unit test.
+
+## Responding to Sender
+
+TODO -- show ResponseToSender
+
+## Custom Outgoing Publishing
+
+TODO -- talk about 

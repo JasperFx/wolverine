@@ -2,27 +2,47 @@ using System.Threading.Tasks;
 
 namespace Wolverine;
 
+public static class Respond
+{
+    /// <summary>
+    /// Send a message back to the original sender of the current message
+    /// </summary>
+    /// <param name="response"></param>
+    /// <returns></returns>
+    public static RespondToSender ToSender(object response)
+    {
+        return new RespondToSender(response);
+    }
+    
+    
+}
+
+
+
 /// <summary>
 /// Declares that the inner message should be sent
 /// to the original sender of a processed message
 /// </summary>
 public class RespondToSender : ISendMyself
 {
-    private readonly object _message;
-
     public RespondToSender(object message)
     {
-        _message = message;
+        Message = message;
     }
+
+    /// <summary>
+    /// Inner message
+    /// </summary>
+    public object Message { get; }
 
     ValueTask ISendMyself.ApplyAsync(IMessageContext context)
     {
-        return context.RespondToSenderAsync(_message);
+        return context.RespondToSenderAsync(Message);
     }
 
     private bool Equals(RespondToSender other)
     {
-        return _message.Equals(other._message);
+        return Message.Equals(other.Message);
     }
 
     public override bool Equals(object? obj)
@@ -47,11 +67,11 @@ public class RespondToSender : ISendMyself
 
     public override string ToString()
     {
-        return $"Respond to sender with : {_message}";
+        return $"Respond to sender with : {Message}";
     }
 
     public override int GetHashCode()
     {
-        return _message.GetHashCode();
+        return Message.GetHashCode();
     }
 }

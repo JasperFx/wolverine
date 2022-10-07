@@ -145,13 +145,6 @@ internal class TrackedSession : ITrackedSession
             .Distinct().ToList()!;
     }
 
-
-    public Envelope SingleExecutedEnvelopeOf<T>()
-    {
-        return FindEnvelopesWithMessageType<T>().Single(x => x.EventType == EventType.ExecutionFinished)
-            .Envelope;
-    }
-
     public void WatchOther(IHost host)
     {
         if (ReferenceEquals(host, _primaryHost))
@@ -180,13 +173,13 @@ internal class TrackedSession : ITrackedSession
         if (Status == TrackingStatus.TimedOut)
         {
             var message =
-                buildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
+                BuildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
 
             throw new TimeoutException(message);
         }
     }
 
-    private string buildActivityMessage(string description)
+    internal string BuildActivityMessage(string description)
     {
         var writer = new StringWriter();
         writer.WriteLine(description);
@@ -226,7 +219,7 @@ internal class TrackedSession : ITrackedSession
             cleanUp();
             
             var message =
-                buildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
+                BuildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
 
             throw new TimeoutException(message);
         }

@@ -3,8 +3,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Baseline.Dates;
 using Shouldly;
+using TestingSupport;
+using TestingSupport.Compliance;
 using Wolverine;
 using Wolverine.Tracking;
+using Wolverine.Transports.Tcp;
 using Xunit;
 
 namespace CoreTests.Acceptance;
@@ -40,13 +43,60 @@ public class using_ISendMyself_as_cascading_message : IntegrationContext
 
         envelope.Status.ShouldBe(EnvelopeStatus.Scheduled);
     }
+
+    [Fact]
+    public async Task using_respond()
+    {
+        var receiverPort = PortFinder.GetAvailablePort();
+        var senderPort = PortFinder.GetAvailablePort();
+
+        using var sender = WolverineHost.For(opts =>
+        {
+            opts.PublishMessage<RequestTrigger>().ToPort(receiverPort);
+            opts.ListenAtPort(senderPort);
+            opts.ServiceName = "Sender";
+        });
+
+        using var receiver = WolverineHost.For(opts =>
+        {
+            opts.ServiceName = "Receiver";
+            opts.ListenAtPort(receiverPort);
+        });
+
+        var session = await sender.TrackActivity()
+            .AlsoTrack(receiver)
+            .SendMessageAndWaitAsync(new RequestTrigger(58)); // RIP Derrick Thomas.
+
+        var envelope = session.Received.SingleEnvelope<TriggeredResponse>();
+        envelope.Message.ShouldBeOfType<TriggeredResponse>()
+            .Number.ShouldBe(58);
+        
+        envelope.Source.ShouldBe("Receiver");
+        envelope.Destination.Port.ShouldBe(senderPort);
+    }
 }
+
+public record RequestTrigger(int Number);
+
+public record TriggeredResponse(int Number);
+
+
 
 public class TriggerHandler
 {
+    public static object Handle(RequestTrigger trigger)
+    {
+        return Respond.ToSender(new TriggeredResponse(trigger.Number));
+    }    
+    
     public SelfSender Handle(TriggerMessage message)
     {
         return new SelfSender(message.Id);
+    }
+
+    public void Handle(TriggeredResponse response)
+    {
+        
     }
 
     public void Handle(Cascaded cascaded)

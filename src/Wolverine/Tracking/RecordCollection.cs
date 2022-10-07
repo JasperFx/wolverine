@@ -22,13 +22,14 @@ public class RecordCollection
         switch (records.Length)
         {
             case 0:
-                throw new Exception($"No messages of type {typeof(T).FullNameInCode()} were received");
-            
+                throw new Exception(_parent.BuildActivityMessage($"No messages of type {typeof(T).FullNameInCode()} were received"));
+
             case 1:
                 return (T)records.Single().Message!;
             
             default:
-                throw new Exception($"Received {records.Length} messages of type {typeof(T).FullNameInCode()}");
+                throw new Exception(_parent.BuildActivityMessage(
+                    $"Received {records.Length} messages of type {typeof(T).FullNameInCode()}"));
         }
     }
 
@@ -44,13 +45,14 @@ public class RecordCollection
         switch (records.Length)
         {
             case 0:
-                throw new Exception($"No messages of type {typeof(T).FullNameInCode()} were received");
+                throw new Exception(_parent.BuildActivityMessage($"No messages of type {typeof(T).FullNameInCode()} were received"));
             
             case 1:
                 return records.Single().Envelope;
             
             default:
-                throw new Exception($"Received {records.Length} messages of type {typeof(T).FullNameInCode()}");
+                throw new Exception(_parent.BuildActivityMessage(
+                    $"Received {records.Length} messages of type {typeof(T).FullNameInCode()}"));
         }
     }
 
