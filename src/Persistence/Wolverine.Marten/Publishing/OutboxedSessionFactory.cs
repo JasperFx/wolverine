@@ -1,3 +1,4 @@
+using System;
 using Wolverine.Runtime;
 using Marten;
 
@@ -26,6 +27,14 @@ public class OutboxedSessionFactory
     public IDocumentSession OpenSession(MessageContext context)
     {
         var session = _factory.OpenSession();
+        
+        if (context.ConversationId != Guid.Empty)
+        {
+            session.CausationId = context.ConversationId.ToString();
+        }
+        
+        session.CorrelationId = context.CorrelationId;
+        
         context.EnlistInOutbox(new MartenEnvelopeTransaction(session, context));
 
         if (_shouldPublishEvents)
