@@ -24,13 +24,13 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
         _sagaIdMember = sagaIdMember;
 
         _sagaIdType = sagaIdMember.GetMemberType();
-        if (!SagaFramePolicy.ValidSagaIdTypes.Contains(_sagaIdType))
+        if (!SagaChain.ValidSagaIdTypes.Contains(_sagaIdType))
         {
             throw new ArgumentOutOfRangeException(nameof(messageType),
-                $"SagaId must be one of {SagaFramePolicy.ValidSagaIdTypes.Select(x => x.NameInCode()).Join(", ")}, but was {_sagaIdType.NameInCode()}");
+                $"SagaId must be one of {SagaChain.ValidSagaIdTypes.Select(x => x.NameInCode()).Join(", ")}, but was {_sagaIdType.NameInCode()}");
         }
 
-        SagaId = new Variable(_sagaIdType, SagaFramePolicy.SagaIdVariableName, this);
+        SagaId = new Variable(_sagaIdType, SagaChain.SagaIdVariableName, this);
     }
 
     public Variable SagaId { get; }
@@ -40,9 +40,9 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
         if (_sagaIdType == typeof(string))
         {
             writer.Write(
-                $"{_sagaIdType.NameInCode()} {SagaFramePolicy.SagaIdVariableName} = {_envelope!.Usage}.{nameof(Envelope.SagaId)} ?? {_message!.Usage}.{_sagaIdMember.Name};");
+                $"{_sagaIdType.NameInCode()} {SagaChain.SagaIdVariableName} = {_envelope!.Usage}.{nameof(Envelope.SagaId)} ?? {_message!.Usage}.{_sagaIdMember.Name};");
             writer.Write(
-                $"if (string.{nameof(string.IsNullOrEmpty)}({SagaFramePolicy.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
+                $"if (string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
         }
         else
         {

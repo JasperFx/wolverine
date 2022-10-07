@@ -12,7 +12,7 @@ internal class PullSagaIdFromEnvelopeFrame : SyncFrame
 
     public PullSagaIdFromEnvelopeFrame(Type sagaIdType)
     {
-        SagaId = new Variable(sagaIdType, SagaFramePolicy.SagaIdVariableName, this);
+        SagaId = new Variable(sagaIdType, SagaChain.SagaIdVariableName, this);
     }
 
     public Variable SagaId { get; }
@@ -23,7 +23,7 @@ internal class PullSagaIdFromEnvelopeFrame : SyncFrame
         {
             writer.Write($"var {SagaId.Usage} = {_envelope!.Usage}.{nameof(Envelope.SagaId)};");
             writer.Write(
-                $"if (string.{nameof(string.IsNullOrEmpty)}({SagaFramePolicy.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
+                $"if (string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
         }
         else
         {
