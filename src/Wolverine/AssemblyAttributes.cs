@@ -24,5 +24,5 @@ using Oakton;
 [assembly: InternalsVisibleTo("Wolverine.EntityFrameworkCore")]
 [assembly: InternalsVisibleTo("Wolverine.Pulsar")]
 [assembly: InternalsVisibleTo("Wolverine.Pulsar.Tests")]
-[assembly: InternalsVisibleTo("InteroperabilityTests")]
+[assembly: InternalsVisibleTo("MassTransitInteropTests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]

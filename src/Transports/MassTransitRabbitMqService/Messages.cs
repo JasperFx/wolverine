@@ -1,6 +1,6 @@
 using System;
 
-namespace InteropMessages
+namespace MassTransitService
 {
     public class InitialMessage
     {
@@ -17,7 +17,7 @@ namespace InteropMessages
         public Guid Id { get; set; }
     }
 
-    public class ToMassTransit
+    public class ToExternal
     {
         public Guid Id { get; set; }
     }

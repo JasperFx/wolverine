@@ -119,7 +119,7 @@ public class Samples
     {
         #region sample_publish_to_rabbitmq_exchange
 
-        using var host = Host.CreateDefaultBuilder()
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 // Connect to an unsecured, local Rabbit MQ broker
@@ -147,7 +147,7 @@ public class Samples
     {
         #region sample_publish_to_rabbitmq_routing_key
 
-        using var host = Host.CreateDefaultBuilder()
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq(rabbit =>
@@ -180,7 +180,7 @@ public class Samples
     {
         #region sample_autopurge_rabbitmq
 
-        using var host = Host.CreateDefaultBuilder()
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq()
@@ -195,7 +195,7 @@ public class Samples
     {
         #region sample_autopurge_selective_queues
 
-        using var host = Host.CreateDefaultBuilder()
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq()
@@ -210,7 +210,7 @@ public class Samples
     {
         #region sample_activating_rabbit_mq_conventional_routing
 
-        using var host = Host.CreateDefaultBuilder()
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq()
@@ -225,7 +225,7 @@ public class Samples
     {
         #region sample_activating_rabbit_mq_conventional_routing_customized
 
-        using var host = Host.CreateDefaultBuilder()
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq()

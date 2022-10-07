@@ -27,6 +27,8 @@ namespace Wolverine.RabbitMQ.Internal
             MapProperty(x => x.ContentType!, (e, p) => e.ContentType = p.ContentType,
                 (e, p) => p.ContentType = e.ContentType);
 
+            MapProperty(x => x.Id, (e, props) => e.Id = Guid.Parse(props.MessageId), (e, props) => props.MessageId = e.Id.ToString());
+            
             MapProperty(x => x.DeliverBy!, (_, _) => {}, (e, props) =>
             {
                 if (e.DeliverBy.HasValue)
@@ -35,6 +37,8 @@ namespace Wolverine.RabbitMQ.Internal
                     props.Expiration = ttl.ToString();
                 }
             });
+            
+            MapProperty(x => x.MessageType, (e, props) => e.MessageType = props.Type, (e, props) => props.Type = e.MessageType);
 
             _parent = parent;
 
@@ -283,6 +287,63 @@ namespace Wolverine.RabbitMQ.Internal
             });
 
             MapPropertyToHeader(x => x.MessageType!, MassTransitHeaders.MessageType);
+        }
+
+        public void UseNServiceBusInterop()
+        {
+            MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
+            MapPropertyToHeader(x => x.SentAt, "NServiceBus.TimeSent");
+
+            var replyAddress = new Lazy<string>(() =>
+            {
+                var replyEndpoint = (RabbitMqEndpoint)_parent.ReplyEndpoint();
+                return replyEndpoint.QueueName ?? replyEndpoint.ExchangeName;
+            });
+
+            void WriteReplyToAddress(Envelope e, IBasicProperties props) => props.Headers["NServiceBus.ReplyToAddress"] = replyAddress.Value;
+
+            void ReadReplyUri(Envelope e, IBasicProperties props)
+            {
+                var queueName = props.Headers["NServiceBus.ReplyToAddress"];
+                e.ReplyUri = new Uri($"rabbitmq://queue/{queueName}");
+            }
+
+            MapProperty(x => x.ReplyUri!, ReadReplyUri, WriteReplyToAddress);
+
+
+            /*
+NServiceBus.MessageId = 3e2004d4-c904-4bf6-8c99-af2a014be393
+NServiceBus.MessageIntent = Publish
+NServiceBus.ConversationId = 4b27d3e8-e3ad-4036-8708-af2a014be394
+NServiceBus.CorrelationId = 3e2004d4-c904-4bf6-8c99-af2a014be393
+NServiceBus.ReplyToAddress = nsb
+NServiceBus.OriginatingMachine = JMILLER1
+NServiceBus.OriginatingEndpoint = nsb
+$.diagnostics.originating.hostid = 7fd33c512b2d8f201e00fd7d77b454b1
+NServiceBus.ContentType = application/json
+NServiceBus.EnclosedMessageTypes = NServiceBusRabbitMqService.ResponseMessage, NServiceBusRabbitMqService, Version=0.8.2.0, Culture=neutral, PublicKeyToken=null
+NServiceBus.Version = 7.8.0
+NServiceBus.TimeSent = 2022-10-10 20:08:22:330866 Z
+NServiceBus.Transport.RabbitMQ.ConfirmationId = 1
+?{"Id":"e597a489-6f59-4713-b0a4-676419194cac"}
+
+             */
+
+            /*
+            var serializer = new MassTransitJsonSerializer(this);
+            configure?.Invoke(serializer);
+
+            DefaultSerializer = serializer;
+
+            var replyUri = new Lazy<string>(() => MassTransitReplyUri()?.ToString() ?? string.Empty);
+
+            MapOutgoingProperty(x => x.ReplyUri!, (e, p) =>
+            {
+                p.Headers[MassTransitHeaders.ResponseAddress] = replyUri.Value;
+            });
+
+            MapPropertyToHeader(x => x.MessageType!, MassTransitHeaders.MessageType);
+             */
         }
     }
 }

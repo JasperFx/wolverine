@@ -1,10 +1,8 @@
 using System;
-using Wolverine;
 using Wolverine.Runtime.Interop.MassTransit;
-using Shouldly;
 using Xunit;
 
-namespace InteroperabilityTests.MassTransit;
+namespace CoreTests.Runtime.Interop;
 
 public class MassTransitEnvelopeTests
 {

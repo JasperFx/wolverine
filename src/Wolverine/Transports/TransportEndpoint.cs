@@ -12,6 +12,8 @@ namespace Wolverine.Transports;
 
 public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
 {
+    const string datetimeoffset_format = "yyyy-MM-dd HH:mm:ss:ffffff Z";
+    
     private readonly Dictionary<PropertyInfo, string> _envelopeToHeader = new();
 
     private readonly Dictionary<PropertyInfo, Action<Envelope, TOutgoing>> _envelopeToOutgoing = new();
@@ -106,6 +108,8 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
         var getString = GetType().GetMethod(nameof(readString), BindingFlags.NonPublic | BindingFlags.Instance);
         var getGuid = GetType().GetMethod(nameof(readGuid), BindingFlags.NonPublic | BindingFlags.Instance);
         var getBoolean = GetType().GetMethod(nameof(readBoolean), BindingFlags.NonPublic | BindingFlags.Instance);
+        var getNullableDateTimeOffset =
+            GetType().GetMethod(nameof(readNullableDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
         var getDateTimeOffset =
             GetType().GetMethod(nameof(readDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
         var getStringArray =
@@ -133,9 +137,13 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
             {
                 getMethod = getBoolean!;
             }
-            else if (pair.Key.PropertyType == typeof(DateTimeOffset?))
+            else if (pair.Key.PropertyType == typeof(DateTimeOffset))
             {
                 getMethod = getDateTimeOffset!;
+            }
+            else if (pair.Key.PropertyType == typeof(DateTimeOffset?))
+            {
+                getMethod = getNullableDateTimeOffset!;
             }
             else if (pair.Key.PropertyType == typeof(int))
             {
@@ -183,6 +191,8 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
         var setString = GetType().GetMethod(nameof(writeString), BindingFlags.NonPublic | BindingFlags.Instance);
         var setGuid = GetType().GetMethod(nameof(writeGuid), BindingFlags.NonPublic | BindingFlags.Instance);
         var setBoolean = GetType().GetMethod(nameof(writeBoolean), BindingFlags.NonPublic | BindingFlags.Instance);
+        var setNullableDateTimeOffset =
+            GetType().GetMethod(nameof(writeNullableDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
         var setDateTimeOffset =
             GetType().GetMethod(nameof(writeDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
         var setStringArray =
@@ -211,9 +221,13 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
             {
                 setMethod = setBoolean!;
             }
-            else if (pair.Key.PropertyType == typeof(DateTimeOffset?))
+            else if (pair.Key.PropertyType == typeof(DateTimeOffset))
             {
                 setMethod = setDateTimeOffset!;
+            }
+            else if (pair.Key.PropertyType == typeof(DateTimeOffset?))
+            {
+                setMethod = setNullableDateTimeOffset!;
             }
             else if (pair.Key.PropertyType == typeof(int))
             {
@@ -365,12 +379,17 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
         }
     }
 
-    protected void writeDateTimeOffset(TOutgoing outgoing, string key, DateTimeOffset? value)
+    protected void writeNullableDateTimeOffset(TOutgoing outgoing, string key, DateTimeOffset? value)
     {
         if (value.HasValue)
         {
-            writeOutgoingHeader(outgoing, key, value.ToString()!);
+            writeOutgoingHeader(outgoing, key, value.Value.ToString(datetimeoffset_format)!);
         }
+    }
+
+    protected void writeDateTimeOffset(TOutgoing outgoing, string key, DateTimeOffset value)
+    {
+        writeOutgoingHeader(outgoing, key, value.ToUniversalTime().ToString(datetimeoffset_format));
     }
 
     protected Guid readGuid(TIncoming incoming, string key)
@@ -398,8 +417,21 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
 
         return false;
     }
+    
+    protected DateTimeOffset readDateTimeOffset(TIncoming incoming, string key)
+    {
+        if (tryReadIncomingHeader(incoming, key, out var raw))
+        {
+            if (DateTimeOffset.TryParse(raw, out var flag))
+            {
+                return flag;
+            }
+        }
 
-    protected DateTimeOffset? readDateTimeOffset(TIncoming incoming, string key)
+        return default;
+    }
+
+    protected DateTimeOffset? readNullableDateTimeOffset(TIncoming incoming, string key)
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
