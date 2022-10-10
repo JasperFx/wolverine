@@ -8,7 +8,7 @@ or [Pulsar](https://pulsar.apache.org/).
 
 To put this into perspective, here's how a Wolverine application could be connected to the outside world:
 
-![Wolverine Messaging Architecture](/WolverineMessaging.drawio.png)
+![Wolverine Messaging Architecture](/WolverineMessaging.png)
 
 :::tip
 The diagram above should just say "Message Handler" as Wolverine makes no differentiation between commands or events, but Jeremy is being too lazy to fix the diagram.
