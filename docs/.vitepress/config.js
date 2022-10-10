@@ -117,6 +117,7 @@ module.exports = {
     },
     markdown: {
         linkify: false
-    }
+    },
+    ignoreDeadLinks: true
 }
 
