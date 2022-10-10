@@ -1,10 +1,11 @@
 import { BUNDLED_LANGUAGES } from 'shiki'
+import { withMermaid } from "vitepress-plugin-mermaid"
 
 // Include `cs` as alias for csharp
 BUNDLED_LANGUAGES
   .find(lang => lang.id === 'csharp').aliases.push('cs');
 
-module.exports = {
+export default withMermaid({
     base: '/',
     lang: 'en-US',
     title: 'Wolverine',
@@ -119,5 +120,5 @@ module.exports = {
         linkify: false
     },
     ignoreDeadLinks: true
-}
+})
 
