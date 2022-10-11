@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Tracking;
@@ -28,6 +30,11 @@ internal sealed partial class WolverineRuntime : IMessageLogger
     private static readonly Action<ILogger, string, Guid, string, string, Exception?> _received;
     private static readonly Action<ILogger, string, Guid, string, Exception?> _sent;
     private static readonly Action<ILogger, Envelope, Exception?> _undeliverable;
+    private readonly Counter<int> _sentCounter;
+    private readonly Histogram<long> _executionCounter;
+    private readonly Histogram<double> _effectiveTime;
+    private readonly Counter<int> _successCounter;
+    private readonly Counter<int> _deadLetterQueueCounter;
 
     static WolverineRuntime()
     {
@@ -67,6 +74,7 @@ internal sealed partial class WolverineRuntime : IMessageLogger
 
     public void Sent(Envelope envelope)
     {
+        _sentCounter.Add(1, envelope.ToHeaders());
         ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId);
         _sent(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty, null);
     }
@@ -81,18 +89,31 @@ internal sealed partial class WolverineRuntime : IMessageLogger
 
     public void ExecutionStarted(Envelope envelope)
     {
+        envelope.StartTiming();
         ActiveSession?.Record(EventType.ExecutionStarted, envelope, _serviceName, _uniqueNodeId);
         _executionStarted(Logger, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
     public void ExecutionFinished(Envelope envelope)
     {
+        var time = envelope.StopTiming();
+        if (time > 0)
+        {
+            _executionCounter.Record(time, envelope.ToHeaders());
+        }
+        
         ActiveSession?.Record(EventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
         _executionFinished(Logger, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
     public void MessageSucceeded(Envelope envelope)
     {
+        // TODO -- enable later. We're not bringing SentAt through the inbox/outbox
+        // var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+        // _effectiveTime.Record(time, envelope.ToHeaders());
+
+        _successCounter.Add(1, envelope.ToHeaders());
+        
         ActiveSession?.Record(EventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
         // TODO -- bring back: _metrics.MessageExecuted(envelope);
         _messageSucceeded(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), null);
@@ -100,6 +121,12 @@ internal sealed partial class WolverineRuntime : IMessageLogger
 
     public void MessageFailed(Envelope envelope, Exception ex)
     {
+        // TODO -- enable later. We're not bringing SentAt through the inbox/outbox
+        // var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+        // _effectiveTime.Record(time, envelope.ToHeaders());
+        
+        _deadLetterQueueCounter.Add(1, envelope.ToHeaders());
+        
         ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
         // TODO -- bring back: _metrics.MessageExecuted(envelope);
         _messageFailed(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), ex);

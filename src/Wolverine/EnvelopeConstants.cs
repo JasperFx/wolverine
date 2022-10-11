@@ -13,6 +13,7 @@ public static class EnvelopeConstants
     public const string DestinationKey = "destination";
     public const string ReplyUriKey = "reply-uri";
     public const string ExecutionTimeKey = "time-to-send";
+    public const string SentAtKey = "sent-at";
     public const string AttemptsKey = "attempts";
     public const string AckRequestedKey = "ack-requested";
     public const string MessageTypeKey = "message-type";

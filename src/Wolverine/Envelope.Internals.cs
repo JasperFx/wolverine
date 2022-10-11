@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Wolverine.Util;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
+using Wolverine.Util;
 
 namespace Wolverine;
 
@@ -24,6 +24,7 @@ public enum EnvelopeStatus
 public partial class Envelope
 {
     private bool _enqueued;
+    private Stopwatch? _timer;
 
     internal Envelope(object message, ISendingAgent agent)
     {
@@ -41,7 +42,6 @@ public partial class Envelope
         Serializer = writer ?? throw new ArgumentNullException(nameof(writer));
         ContentType = writer.ContentType;
     }
-
 
     public IMessageSerializer? Serializer { get; set; }
 
@@ -67,6 +67,45 @@ public partial class Envelope
 
     internal ISendingAgent? Sender { get; set; }
 
+    public IListener? Listener { get; private set; }
+    public bool IsResponse { get; set; }
+
+    internal void StartTiming()
+    {
+        _timer = new Stopwatch();
+        _timer.Start();
+    }
+
+    internal long StopTiming()
+    {
+        if (_timer == null)
+        {
+            return 0;
+        }
+
+        _timer.Stop();
+        return _timer.ElapsedMilliseconds;
+
+        _timer = null;
+    }
+
+    internal KeyValuePair<string, object?>[] ToHeaders()
+    {
+        if (Destination == null)
+        {
+            return new[]
+            {
+                new KeyValuePair<string, object?>(nameof(MessageType), MessageType)
+            };
+        }
+
+        return new[]
+        {
+            new(nameof(Destination), Destination.ToString()),
+            new KeyValuePair<string, object?>(nameof(MessageType), MessageType)
+        };
+    }
+
     internal void MarkReceived(IListener listener, DateTimeOffset now, AdvancedSettings settings)
     {
         Listener = listener;
@@ -82,9 +121,6 @@ public partial class Envelope
             OwnerId = settings.UniqueNodeId;
         }
     }
-
-    public IListener? Listener { get; private set; }
-    public bool IsResponse { get; set; }
 
     /// <summary>
     ///     Create a new Envelope that is a response to the current

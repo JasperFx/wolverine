@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 using Baseline.ImTools;
@@ -34,8 +35,8 @@ internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedServi
         Advanced = options.Advanced;
         Options = options;
         Handlers = options.HandlerGraph;
-        
-        
+
+        Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
         
         Logger = logger;
 
@@ -60,7 +61,14 @@ internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedServi
         Replies = new ReplyTracker(logger);
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
         Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies));
+
+        _sentCounter = Meter.CreateCounter<int>("messages-sent", "Messages", "Number of messages sent");
+        _executionCounter = Meter.CreateHistogram<long>("message-execution", "Milliseconds", "Execution time in seconds");
+        _successCounter = Meter.CreateCounter<int>("messages-succeeded", "Messages", "Number of messages successfully processed");
+        _deadLetterQueueCounter = Meter.CreateCounter<int>("dead-letter-queue", "Messages", "Number of messages moved to dead letter queues");
     }
+    
+    internal Meter Meter { get; }
 
     public IReplyTracker Replies { get; }
 
