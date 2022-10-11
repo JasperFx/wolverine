@@ -152,6 +152,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
     {
         outbound.Source = Runtime.Advanced.ServiceName;
         outbound.CorrelationId = CorrelationId;
+        outbound.ConversationId = outbound.Id; // the message chain originates here
     }
 
     protected async ValueTask persistOrSendAsync(params Envelope[] outgoing)

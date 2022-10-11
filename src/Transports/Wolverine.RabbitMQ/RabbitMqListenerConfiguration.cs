@@ -106,5 +106,15 @@ namespace Wolverine.RabbitMQ
             add(e => e.UseMassTransitInterop(configure));
             return this;
         }
+
+        /// <summary>
+        /// Add NServiceBus interoperability to this Rabbit MQ listening endpoint
+        /// </summary>
+        /// <returns></returns>
+        public RabbitMqListenerConfiguration UseNServiceBusInterop()
+        {
+            add(e => e.UseNServiceBusInterop());
+            return this;
+        }
     }
 }

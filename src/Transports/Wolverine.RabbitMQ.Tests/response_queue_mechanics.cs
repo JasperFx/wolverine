@@ -13,7 +13,7 @@ public class response_queue_mechanics : IAsyncLifetime
 {
     private IHost _host;
     private string theExpectedResponseQueueName;
-    private RabbitMqEndpoint? theEndpoint;
+    private RabbitMqEndpoint theEndpoint;
 
     public async Task InitializeAsync()
     {

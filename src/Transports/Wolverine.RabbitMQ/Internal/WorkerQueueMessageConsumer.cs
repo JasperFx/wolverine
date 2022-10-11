@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -45,6 +46,7 @@ namespace Wolverine.RabbitMQ.Internal
             }
 
             var envelope = new RabbitMqEnvelope(_listener, deliveryTag);
+
             try
             {
                 envelope.Data = body.ToArray(); // TODO -- use byte sequence instead!

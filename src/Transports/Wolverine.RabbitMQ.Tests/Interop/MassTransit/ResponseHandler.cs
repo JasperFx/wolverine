@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using InteropMessages;
-using Wolverine;
+using MassTransitService;
 
-namespace InteroperabilityTests.MassTransit
+namespace Wolverine.RabbitMQ.Tests.Interop.MassTransit
 {
     public class ResponseHandler
     {
@@ -12,7 +11,7 @@ namespace InteroperabilityTests.MassTransit
         public static ValueTask Handle(ResponseMessage message, Envelope envelope, IMessageContext context)
         {
             Received.Add(envelope);
-            return context.RespondToSenderAsync(new ToMassTransit { Id = message.Id });
+            return context.RespondToSenderAsync(new ToExternal { Id = message.Id });
         }
     }
 
@@ -20,7 +19,7 @@ namespace InteroperabilityTests.MassTransit
     {
         public static ValueTask Handle(ToWolverine message, IMessageContext context)
         {
-            var response = new ToMassTransit
+            var response = new ToExternal
             {
                 Id = message.Id
             };

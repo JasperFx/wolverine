@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using InteropMessages;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 

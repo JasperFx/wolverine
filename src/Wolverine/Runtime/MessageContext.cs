@@ -299,7 +299,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
         if (Envelope != null)
         {
-            outbound.ConversationId = Envelope.Id;
+            outbound.ConversationId = Envelope.ConversationId == Guid.Empty ? Envelope.Id : Envelope.ConversationId;
         }
     }
 

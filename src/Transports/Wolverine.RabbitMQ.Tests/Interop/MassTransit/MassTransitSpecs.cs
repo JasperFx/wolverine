@@ -2,18 +2,16 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Baseline.Dates;
-using InteropMessages;
-using Wolverine;
-using Wolverine.Tracking;
 using MassTransit;
+using MassTransitService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.RabbitMQ;
+using Wolverine.Tracking;
 using Xunit;
 using IHost = Microsoft.Extensions.Hosting.IHost;
 
-namespace InteroperabilityTests.MassTransit
+namespace Wolverine.RabbitMQ.Tests.Interop.MassTransit
 {
     public class MassTransitFixture : IAsyncLifetime
     {
@@ -25,6 +23,8 @@ namespace InteroperabilityTests.MassTransit
 
             Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
             {
+                opts.ApplicationAssembly = GetType().Assembly;
+                
                 opts.UseRabbitMq()
                     .AutoProvision().AutoPurgeOnStartup()
                     .BindExchange("wolverine").ToQueue("wolverine")
@@ -92,6 +92,10 @@ namespace InteroperabilityTests.MassTransit
             var envelope = ResponseHandler.Received.FirstOrDefault();
             envelope.Message.ShouldBeOfType<ResponseMessage>().Id.ShouldBe(id);
             envelope.ShouldNotBeNull();
+            
+            envelope.Id.ShouldNotBe(Guid.Empty);
+            envelope.ConversationId.ShouldNotBe(Guid.Empty);
+            
         }
 
         [Fact]

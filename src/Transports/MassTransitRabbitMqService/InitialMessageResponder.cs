@@ -1,5 +1,5 @@
+using System;
 using System.Threading.Tasks;
-using InteropMessages;
 using MassTransit;
 
 namespace MassTransitService
