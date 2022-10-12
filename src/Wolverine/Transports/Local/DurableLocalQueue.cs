@@ -1,7 +1,9 @@
 using System;
 using System.Threading.Tasks;
+using Baseline;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -11,14 +13,16 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Local;
 
-internal class DurableLocalQueue : DurableReceiver, ISendingAgent
+internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit
 {
     private readonly IMessageLogger _messageLogger;
     private readonly IEnvelopePersistence _persistence;
     private readonly IMessageSerializer _serializer;
     private readonly AdvancedSettings _settings;
+    private readonly DurableReceiver _receiver;
+    private readonly ILogger _logger;
 
-    public DurableLocalQueue(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline) : base(endpoint, runtime, pipeline)
+    public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
         _settings = runtime.Advanced;
         _persistence = runtime.Persistence;
@@ -30,7 +34,25 @@ internal class DurableLocalQueue : DurableReceiver, ISendingAgent
 
         Endpoint = endpoint;
         ReplyUri = TransportConstants.RepliesUri;
+
+        _logger = runtime.Logger;
+
+        if (endpoint.CircuitBreakerOptions != null)
+        {
+            CircuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this);
+            Pipeline = new HandlerPipeline(runtime, new CircuitBreakerTrackedExecutorFactory(CircuitBreaker, runtime));
+        }
+        else
+        {
+            Pipeline = runtime.Pipeline;
+        }
+
+        _receiver = new DurableReceiver(endpoint, runtime, Pipeline);
     }
+
+    public IHandlerPipeline Pipeline { get; }
+
+    public CircuitBreaker? CircuitBreaker { get; }
 
     public Uri Destination { get; }
 
@@ -46,7 +68,7 @@ internal class DurableLocalQueue : DurableReceiver, ISendingAgent
     {
         _messageLogger.Sent(envelope);
 
-        Enqueue(envelope);
+        _receiver.Enqueue(envelope);
 
         return ValueTask.CompletedTask;
     }
@@ -77,7 +99,7 @@ internal class DurableLocalQueue : DurableReceiver, ISendingAgent
 
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
-            Enqueue(envelope);
+            _receiver.Enqueue(envelope);
         }
     }
 
@@ -96,5 +118,16 @@ internal class DurableLocalQueue : DurableReceiver, ISendingAgent
             _serializer.Write(envelope);
             envelope.ContentType = _serializer.ContentType;
         }
+    }
+
+    public void Dispose()
+    {
+        _receiver.Dispose();
+        CircuitBreaker?.SafeDispose();
+    }
+
+    public ValueTask PauseAsync(TimeSpan pauseTime)
+    {
+        throw new NotImplementedException();
     }
 }

@@ -3,6 +3,8 @@ using Baseline.Dates;
 using CoreTests.Runtime;
 using Shouldly;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
+using Wolverine.Runtime;
 using Wolverine.Transports.Local;
 using Wolverine.Util;
 using Xunit;
@@ -74,5 +76,7 @@ public class LocalQueueSettingsTests
 
         endpoint.CircuitBreakerOptions.ShouldNotBeNull();
     }
+
+
 
 }

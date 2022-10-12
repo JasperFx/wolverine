@@ -18,7 +18,6 @@ public class HandlerPipeline : IHandlerPipeline
     private readonly HandlerGraph _graph;
 
     private readonly WolverineRuntime _runtime;
-    private readonly IExecutorFactory _executorFactory;
 
 
     private readonly AdvancedSettings _settings;
@@ -31,7 +30,7 @@ public class HandlerPipeline : IHandlerPipeline
     {
         _graph = runtime.Handlers;
         _runtime = runtime;
-        _executorFactory = executorFactory;
+        ExecutorFactory = executorFactory;
         _contextPool = runtime.ExecutionPool;
         _cancellation = runtime.Cancellation;
 
@@ -39,6 +38,8 @@ public class HandlerPipeline : IHandlerPipeline
 
         _settings = runtime.Advanced;
     }
+
+    internal IExecutorFactory ExecutorFactory { get; }
 
     public IMessageLogger Logger { get; }
 
@@ -203,7 +204,7 @@ public class HandlerPipeline : IHandlerPipeline
             return executor;
         }
 
-        executor = _executorFactory.BuildFor(messageType);
+        executor = ExecutorFactory.BuildFor(messageType);
 
         _executors = _executors.AddOrUpdate(messageType, executor);
 

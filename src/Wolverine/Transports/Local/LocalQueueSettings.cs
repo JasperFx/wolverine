@@ -73,29 +73,25 @@ public class LocalQueueSettings : Endpoint
         
         Compile(runtime);
 
-        Agent = buildAgent(runtime);
+        Agent = BuildAgent(runtime);
 
         return Agent;
     }
 
-    private ISendingAgent buildAgent(IWolverineRuntime runtime)
+    internal ISendingAgent BuildAgent(IWolverineRuntime runtime)
     {
         return Mode switch
         {
             EndpointMode.BufferedInMemory => new BufferedLocalQueue(this, runtime),
 
-            EndpointMode.Durable => new DurableLocalQueue(this, runtime, runtime.Pipeline),
+            EndpointMode.Durable => new DurableLocalQueue(this, (WolverineRuntime)runtime),
 
             EndpointMode.Inline => throw new NotSupportedException(),
             _ => throw new InvalidOperationException()
         };
     }
-    
-    /// <summary>
-    /// If present, adds a circuit breaker to the active listening agent
-    /// for this endpoint at runtime. This is only used for Durable queues
-    /// </summary>
-    public CircuitBreakerOptions? CircuitBreakerOptions { get; set; }
+
+
 
     public override string ToString()
     {

@@ -15,19 +15,20 @@ namespace Wolverine.ErrorHandling;
 
 internal class CircuitBreakerTrackedExecutorFactory : IExecutorFactory
 {
-    private readonly CircuitBreaker _breaker;
     private readonly IExecutorFactory _innerFactory;
 
     public CircuitBreakerTrackedExecutorFactory(CircuitBreaker breaker, IExecutorFactory innerFactory)
     {
-        _breaker = breaker;
+        Breaker = breaker;
         _innerFactory = innerFactory;
     }
+
+    public CircuitBreaker Breaker { get; }
 
     public IExecutor BuildFor(Type messageType)
     {
         var executor = _innerFactory.BuildFor(messageType);
-        if (executor is Executor e) return e.WrapWithMessageTracking(_breaker);
+        if (executor is Executor e) return e.WrapWithMessageTracking(Breaker);
 
         return executor;
     }
@@ -67,7 +68,6 @@ internal interface IMessageSuccessTracker
 
 internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 {
-    private readonly CircuitBreakerOptions _options;
     private readonly IExceptionMatch _match;
     private readonly IListenerCircuit _circuit;
     private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
@@ -78,17 +78,19 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 
     public CircuitBreaker(CircuitBreakerOptions options, IListenerCircuit circuit)
     {
-        _options = options;
+        Options = options;
         _match = options.ToExceptionMatch();
         _circuit = circuit;
 
         _processingBlock = new ActionBlock<object[]>(processExceptionsAsync);
         _batching = new BatchingBlock<object>(options.SamplingPeriod, _processingBlock);
 
-        GenerationPeriod = ((int)Math.Floor(_options.TrackingPeriod.TotalSeconds / 4)).Seconds();
+        GenerationPeriod = ((int)Math.Floor(Options.TrackingPeriod.TotalSeconds / 4)).Seconds();
 
-        _ratio = _options.FailurePercentageThreshold / 100.0;
+        _ratio = Options.FailurePercentageThreshold / 100.0;
     }
+
+    public CircuitBreakerOptions Options { get; }
 
     public TimeSpan GenerationPeriod { get; set; }
 
@@ -108,7 +110,7 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
         var failures = _generations.Sum(x => x.Failures);
         var totals = _generations.Sum(x => x.Total);
 
-        if (totals < _options.MinimumThreshold) return false;
+        if (totals < Options.MinimumThreshold) return false;
 
         return (failures / ((double)totals) >= _ratio);
     }
@@ -133,7 +135,7 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 
         if (failures > 0 && ShouldStopProcessing())
         {
-            await _circuit.PauseAsync(_options.PauseTime);
+            await _circuit.PauseAsync(Options.PauseTime);
         }
     }
 
@@ -172,7 +174,7 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
         public Generation(DateTimeOffset start, CircuitBreaker parent)
         {
             Start = start;
-            Expires = start.Add(parent._options.TrackingPeriod);
+            Expires = start.Add(parent.Options.TrackingPeriod);
             End = start.Add(parent.GenerationPeriod);
         }
 
