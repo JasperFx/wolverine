@@ -16,12 +16,12 @@ public partial class WolverineOptions : IAsyncDisposable
     /// <summary>
     /// Configure the properties of the default, local queue
     /// </summary>
-    public IListenerConfiguration DefaultLocalQueue => LocalQueue(TransportConstants.Default);
+    public LocalQueueConfiguration DefaultLocalQueue => LocalQueue(TransportConstants.Default);
     
     /// <summary>
     /// Configure the properties of the default, durable local queue 
     /// </summary>
-    public IListenerConfiguration DurableScheduledMessagesLocalQueue => LocalQueue(TransportConstants.Durable);
+    public LocalQueueConfiguration DurableScheduledMessagesLocalQueue => LocalQueue(TransportConstants.Durable);
 
 
     ValueTask IAsyncDisposable.DisposeAsync()
@@ -131,10 +131,10 @@ public partial class WolverineOptions : IAsyncDisposable
     /// </summary>
     /// <param name="queueName"></param>
     /// <returns></returns>
-    public IListenerConfiguration LocalQueue(string queueName)
+    public LocalQueueConfiguration LocalQueue(string queueName)
     {
         var settings = Transports.GetOrCreate<LocalTransport>().QueueFor(queueName);
-        return new ListenerConfiguration(settings);
+        return new LocalQueueConfiguration(settings);
     }
 
     /// <summary>

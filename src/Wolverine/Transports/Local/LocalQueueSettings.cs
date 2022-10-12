@@ -2,12 +2,37 @@ using System;
 using System.Collections.Generic;
 using Wolverine.Util;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Local;
 
-internal class LocalQueueSettings : Endpoint
+public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfiguration, LocalQueueSettings>
+{
+    public LocalQueueConfiguration(LocalQueueSettings endpoint) : base(endpoint)
+    {
+    }
+    
+    /// <summary>
+    /// Add circuit breaker exception handling to this local queue. This will only
+    /// be applied if the local queue is marked as durable!!!
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public LocalQueueConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure = null)
+    {
+        add(e =>
+        {
+            e.CircuitBreakerOptions = new CircuitBreakerOptions();
+            configure?.Invoke(e.CircuitBreakerOptions);
+        });
+
+        return this;
+    }
+}
+
+public class LocalQueueSettings : Endpoint
 {
     public LocalQueueSettings(string name) : base(EndpointRole.Application)
     {
@@ -65,6 +90,12 @@ internal class LocalQueueSettings : Endpoint
             _ => throw new InvalidOperationException()
         };
     }
+    
+    /// <summary>
+    /// If present, adds a circuit breaker to the active listening agent
+    /// for this endpoint at runtime. This is only used for Durable queues
+    /// </summary>
+    public CircuitBreakerOptions? CircuitBreakerOptions { get; set; }
 
     public override string ToString()
     {

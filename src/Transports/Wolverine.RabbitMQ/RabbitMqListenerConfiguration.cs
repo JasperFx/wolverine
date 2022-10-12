@@ -36,7 +36,7 @@ namespace Wolverine.RabbitMQ
         /// </summary>
         /// <param name="configure"></param>
         /// <returns></returns>
-        public RabbitMqListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure)
+        public RabbitMqListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure = null)
         {
             add(e =>
             {

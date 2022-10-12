@@ -90,7 +90,7 @@ namespace Wolverine.Pulsar
         /// </summary>
         /// <param name="configure"></param>
         /// <returns></returns>
-        public PulsarListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure)
+        public PulsarListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure = null)
         {
             add(e =>
             {

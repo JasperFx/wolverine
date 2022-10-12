@@ -1,4 +1,6 @@
 using System;
+using Baseline.Dates;
+using CoreTests.Runtime;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Transports.Local;
@@ -44,6 +46,33 @@ public class LocalQueueSettingsTests
         var endpoint = new LocalQueueSettings(new Uri("local://Foo"));
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
         endpoint.Name.ShouldBe("foo");
+    }
+
+    [Fact]
+    public void configure_circuit_breaker_options_with_defaults()
+    {
+        var endpoint = new LocalQueueSettings(new Uri("local://Foo"));
+        new LocalQueueConfiguration(endpoint).CircuitBreaker();
+        endpoint.Compile(new MockWolverineRuntime());
+        
+        endpoint.CircuitBreakerOptions.ShouldNotBeNull();
+    }
+    
+    
+    [Fact]
+    public void configure_circuit_breaker_options_with_explicit_config()
+    {
+        var endpoint = new LocalQueueSettings(new Uri("local://Foo"));
+        new LocalQueueConfiguration(endpoint).CircuitBreaker(cb =>
+        {
+            cb.PauseTime = 23.Minutes();
+        });
+        
+        endpoint.Compile(new MockWolverineRuntime());
+        
+        endpoint.CircuitBreakerOptions.PauseTime.ShouldBe(23.Minutes());
+
+        endpoint.CircuitBreakerOptions.ShouldNotBeNull();
     }
 
 }
