@@ -31,7 +31,7 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
     private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
 
 #pragma warning disable CS8618
-    public DurabilityAgent(IWolverineRuntime runtime, ILogger logger,
+    internal DurabilityAgent(WolverineRuntime runtime, ILogger logger,
 #pragma warning restore CS8618
         ILogger<DurabilityAgent> trace,
         ILocalQueue locals,
