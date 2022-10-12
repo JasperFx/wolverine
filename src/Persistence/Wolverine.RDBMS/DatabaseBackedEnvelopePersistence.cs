@@ -115,7 +115,7 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
-        using var conn = CreateConnection();
+        await using var conn = CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         var impacted = await conn
@@ -124,8 +124,6 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
             .With("owner", ownerId)
             .With("uri", receivedAt.ToString())
             .ExecuteNonQueryAsync(_cancellation);
-
-        Debug.WriteLine($"Released {impacted} incoming envelopes in storage from owner {ownerId} and Uri {receivedAt}");
     }
 
     public Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync()

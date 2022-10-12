@@ -31,5 +31,7 @@ internal class DeadLettersTable : Table
         AddColumn<string>(DatabaseConstants.ExceptionText);
         AddColumn<string>(DatabaseConstants.ExceptionType);
         AddColumn<string>(DatabaseConstants.ExceptionMessage);
+
+        AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
     }
 }

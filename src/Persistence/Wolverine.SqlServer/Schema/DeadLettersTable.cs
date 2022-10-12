@@ -31,5 +31,7 @@ internal class DeadLettersTable : Table
         AddColumn(DatabaseConstants.ExceptionText, "varchar(max)");
         AddColumn(DatabaseConstants.ExceptionType, "varchar(max)");
         AddColumn(DatabaseConstants.ExceptionMessage, "varchar(max)");
+        
+        AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
     }
 }

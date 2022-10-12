@@ -360,6 +360,7 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext, 
     public async Task store_a_single_incoming_envelope()
     {
         var envelope = ObjectMother.Envelope();
+        envelope.SentAt = (DateTimeOffset)DateTime.Today.ToUniversalTime();
         envelope.Status = EnvelopeStatus.Incoming;
 
         await thePersistence.StoreIncomingAsync(envelope);
@@ -369,6 +370,8 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext, 
         stored.Id.ShouldBe(envelope.Id);
         stored.OwnerId.ShouldBe(envelope.OwnerId);
         stored.Status.ShouldBe(envelope.Status);
+        
+        stored.SentAt.ShouldBe(envelope.SentAt);
     }
 
     [Fact]
@@ -376,6 +379,7 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext, 
     {
         var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Outgoing;
+        envelope.SentAt = (DateTimeOffset)DateTime.Today.ToUniversalTime();
 
         await thePersistence.StoreOutgoingAsync(envelope, 5890);
 
@@ -385,6 +389,8 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext, 
         stored.Id.ShouldBe(envelope.Id);
         stored.OwnerId.ShouldBe(5890);
         stored.Status.ShouldBe(envelope.Status);
+        
+        stored.SentAt.ShouldBe(envelope.SentAt);
     }
     
     [Fact]

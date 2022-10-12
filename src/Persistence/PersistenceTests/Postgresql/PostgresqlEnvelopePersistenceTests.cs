@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Baseline;
 using Baseline.Dates;
 using IntegrationTests;
 using Marten;
@@ -114,6 +115,7 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
     {
         var envelope = SqlServer.ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
 
         await thePersistence.StoreIncomingAsync(envelope);
 
@@ -122,6 +124,8 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
         stored.Id.ShouldBe(envelope.Id);
         stored.OwnerId.ShouldBe(envelope.OwnerId);
         stored.Status.ShouldBe(envelope.Status);
+        
+        stored.SentAt.ShouldBe(envelope.SentAt);
     }
     
     [Fact]
@@ -143,6 +147,7 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
     {
         var envelope = SqlServer.ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Outgoing;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
 
         await thePersistence.StoreOutgoingAsync(envelope, 5890);
 
@@ -152,6 +157,7 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
         stored.Id.ShouldBe(envelope.Id);
         stored.OwnerId.ShouldBe(5890);
         stored.Status.ShouldBe(envelope.Status);
+        stored.SentAt.ShouldBe(envelope.SentAt);
     }
     
 

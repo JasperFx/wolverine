@@ -55,6 +55,7 @@ public static class DatabasePersistence
         list.Add(builder.AddParameter(envelope.ReplyRequested));
         list.Add(builder.AddParameter(envelope.AckRequested));
         list.Add(builder.AddParameter(envelope.ReplyUri?.ToString()));
+        list.Add(builder.AddParameter(envelope.SentAt.ToUniversalTime()));
 
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
@@ -92,7 +93,8 @@ public static class DatabasePersistence
             builder.AddParameter(envelope.ReplyRequested),
             builder.AddParameter(envelope.AckRequested),
             builder.AddParameter(envelope.ReplyUri?.ToString()),
-            builder.AddParameter(envelope.Destination?.ToString())
+            builder.AddParameter(envelope.Destination?.ToString()),
+            builder.AddParameter(envelope.SentAt.ToUniversalTime())
         };
 
         // TODO -- this seems like a good thing to generalize and move to Weasel
@@ -132,6 +134,7 @@ public static class DatabasePersistence
         envelope.AckRequested = await reader.GetFieldValueAsync<bool>(13, cancellation);
         envelope.ReplyUri = await reader.ReadUriAsync(14, cancellation);
         envelope.Destination = await reader.ReadUriAsync(15, cancellation);
+        envelope.SentAt = await reader.GetFieldValueAsync<DateTimeOffset>(16, cancellation);
 
         return envelope;
     }
@@ -161,6 +164,7 @@ public static class DatabasePersistence
             list.Add(builder.AddParameter(error.ExceptionText));
             list.Add(builder.AddParameter(error.ExceptionType));
             list.Add(builder.AddParameter(error.ExceptionMessage));
+            list.Add(builder.AddParameter(error.Envelope.SentAt.ToUniversalTime()));
 
             var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
@@ -194,6 +198,7 @@ public static class DatabasePersistence
         envelope.ReplyRequested = await reader.MaybeReadAsync<string>(12, cancellation);
         envelope.AckRequested = await reader.GetFieldValueAsync<bool>(13, cancellation);
         envelope.ReplyUri = await reader.ReadUriAsync(14, cancellation);
+        envelope.SentAt = await reader.GetFieldValueAsync<DateTimeOffset>(15, cancellation);
 
         return envelope;
     }

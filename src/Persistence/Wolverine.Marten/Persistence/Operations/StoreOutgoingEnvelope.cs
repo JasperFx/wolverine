@@ -44,7 +44,8 @@ internal class StoreOutgoingEnvelope : IStorageOperation
             builder.AddParameter(Envelope.ContentType),
             builder.AddParameter(Envelope.ReplyRequested),
             builder.AddParameter(Envelope.AckRequested),
-            builder.AddParameter(Envelope.ReplyUri?.ToString())
+            builder.AddParameter(Envelope.ReplyUri?.ToString()),
+            builder.AddParameter(Envelope.SentAt.ToUniversalTime())
         };
 
         var parameterList = list.Select(x => $":{x.ParameterName}").Join(", ");

@@ -26,5 +26,6 @@ internal class OutgoingEnvelopeTable : Table
         AddColumn(DatabaseConstants.ReplyRequested, "varchar(250)");
         AddColumn<bool>(DatabaseConstants.AckRequested);
         AddColumn<string>(DatabaseConstants.ReplyUri);
+        AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
     }
 }
