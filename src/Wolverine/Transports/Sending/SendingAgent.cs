@@ -10,7 +10,7 @@ using Wolverine.Logging;
 
 namespace Wolverine.Transports.Sending;
 
-internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ICircuit, IAsyncDisposable
+internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
 {
     private readonly ILogger _logger;
     private readonly IMessageLogger _messageLogger;
@@ -48,9 +48,9 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ICircuit,
         return _sender.PingAsync();
     }
 
-    TimeSpan ICircuit.RetryInterval => Endpoint.PingIntervalForCircuitResume;
+    TimeSpan ISenderCircuit.RetryInterval => Endpoint.PingIntervalForCircuitResume;
 
-    Task ICircuit.ResumeAsync(CancellationToken cancellationToken)
+    Task ISenderCircuit.ResumeAsync(CancellationToken cancellationToken)
     {
         _circuitWatcher?.SafeDispose();
         _circuitWatcher = null;

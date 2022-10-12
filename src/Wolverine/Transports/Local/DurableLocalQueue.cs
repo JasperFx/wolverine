@@ -57,7 +57,7 @@ internal class DurableLocalQueue : DurableReceiver, ISendingAgent
         writeMessageData(envelope);
 
         // TODO -- have to watch this one
-        envelope.Status = envelope.IsScheduledForLater(DateTimeOffset.Now)
+        envelope.Status = envelope.IsScheduledForLater(DateTimeOffset.UtcNow)
             ? EnvelopeStatus.Scheduled
             : EnvelopeStatus.Incoming;
 

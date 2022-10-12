@@ -10,7 +10,7 @@ internal interface ICircuitTester
     Task<bool> TryToResumeAsync(CancellationToken cancellationToken);
 }
 
-internal interface ICircuit : ICircuitTester
+internal interface ISenderCircuit : ICircuitTester
 {
     TimeSpan RetryInterval { get; }
     Task ResumeAsync(CancellationToken cancellationToken);
@@ -19,12 +19,12 @@ internal interface ICircuit : ICircuitTester
 internal class CircuitWatcher : IDisposable
 {
     private readonly CancellationToken _cancellation;
-    private readonly ICircuit _circuit;
+    private readonly ISenderCircuit _senderCircuit;
     private readonly Task _task;
 
-    public CircuitWatcher(ICircuit circuit, CancellationToken cancellation)
+    public CircuitWatcher(ISenderCircuit senderCircuit, CancellationToken cancellation)
     {
-        _circuit = circuit;
+        _senderCircuit = senderCircuit;
         _cancellation = cancellation;
 
         _task = Task.Run(pingUntilConnectedAsync, _cancellation);
@@ -39,15 +39,15 @@ internal class CircuitWatcher : IDisposable
     {
         while (!_cancellation.IsCancellationRequested)
         {
-            await Task.Delay(_circuit.RetryInterval, _cancellation);
+            await Task.Delay(_senderCircuit.RetryInterval, _cancellation);
 
             try
             {
-                var pinged = await _circuit.TryToResumeAsync(_cancellation);
+                var pinged = await _senderCircuit.TryToResumeAsync(_cancellation);
 
                 if (pinged)
                 {
-                    await _circuit.ResumeAsync(_cancellation);
+                    await _senderCircuit.ResumeAsync(_cancellation);
                     return;
                 }
             }

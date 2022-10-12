@@ -69,18 +69,18 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 {
     private readonly CircuitBreakerOptions _options;
     private readonly IExceptionMatch _match;
-    private readonly IListeningAgent _listeningAgent;
+    private readonly IListenerCircuit _circuit;
     private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
     private readonly ActionBlock<object[]> _processingBlock;
     private readonly BatchingBlock<object> _batching;
     private readonly List<Generation> _generations = new();
     private readonly double _ratio;
 
-    public CircuitBreaker(CircuitBreakerOptions options, IListeningAgent listeningAgent)
+    public CircuitBreaker(CircuitBreakerOptions options, IListenerCircuit circuit)
     {
         _options = options;
         _match = options.ToExceptionMatch();
-        _listeningAgent = listeningAgent;
+        _circuit = circuit;
 
         _processingBlock = new ActionBlock<object[]>(processExceptionsAsync);
         _batching = new BatchingBlock<object>(options.SamplingPeriod, _processingBlock);
@@ -110,7 +110,7 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 
         if (totals < _options.MinimumThreshold) return false;
 
-        return (((double)failures) / ((double)totals) >= _ratio);
+        return (failures / ((double)totals) >= _ratio);
     }
 
     private Task processExceptionsAsync(object[] tokens)
@@ -133,7 +133,7 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 
         if (failures > 0 && ShouldStopProcessing())
         {
-            await _listeningAgent.PauseAsync(_options.PauseTime);
+            await _circuit.PauseAsync(_options.PauseTime);
         }
     }
 

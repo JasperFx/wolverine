@@ -12,14 +12,19 @@ using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Transports;
 
-public interface IListeningAgent
+public interface IListenerCircuit
+{
+    ValueTask PauseAsync(TimeSpan pauseTime);
+}
+
+public interface IListeningAgent : IListenerCircuit
 {
     Uri Uri { get; }
     ListeningStatus Status { get; }
     Endpoint Endpoint { get; }
     ValueTask StopAndDrainAsync();
     ValueTask StartAsync();
-    ValueTask PauseAsync(TimeSpan pauseTime);
+    
 
     ValueTask MarkAsTooBusyAndStopReceivingAsync();
     

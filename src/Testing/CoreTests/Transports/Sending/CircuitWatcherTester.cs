@@ -25,7 +25,7 @@ public class CircuitWatcherTester
     }
 }
 
-public class StubCircuit : ICircuit
+public class StubCircuit : ISenderCircuit
 {
     private readonly ManualResetEvent _completed;
     private readonly int _failureCount;
