@@ -29,6 +29,7 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
     private Timer? _nodeReassignmentTimer;  
     private Timer? _scheduledJobTimer;
     private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
+    private readonly MetricsCalculator _metrics;
 
 #pragma warning disable CS8618
     internal DurabilityAgent(WolverineRuntime runtime, ILogger logger,
@@ -49,6 +50,8 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
         _locals = locals;
         _storage = storage;
         _settings = settings;
+
+        _metrics = new MetricsCalculator(runtime.Meter);
 
         _worker = new ActionBlock<IMessagingAction>(processActionAsync, new ExecutionDataflowBlockOptions
         {
@@ -116,7 +119,8 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
             _worker.Post(_scheduledJobs);
             _worker.Post(_incomingMessages);
             _worker.Post(_outgoingMessages);
-            
+            _worker.Post(_metrics);
+
         }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
 
         _nodeReassignmentTimer = new Timer(_ =>
