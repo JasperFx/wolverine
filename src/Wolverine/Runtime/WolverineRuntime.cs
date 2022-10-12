@@ -66,6 +66,9 @@ internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedServi
         _executionCounter = Meter.CreateHistogram<long>("message-execution", "Milliseconds", "Execution time in seconds");
         _successCounter = Meter.CreateCounter<int>("messages-succeeded", "Messages", "Number of messages successfully processed");
         _deadLetterQueueCounter = Meter.CreateCounter<int>("dead-letter-queue", "Messages", "Number of messages moved to dead letter queues");
+
+        _effectiveTime = Meter.CreateHistogram<double>("effective-message-time", "Milliseconds",
+            "Effective time between a message being sent and being completely handled");
     }
     
     internal Meter Meter { get; }

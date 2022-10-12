@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
@@ -79,7 +78,6 @@ internal sealed partial class WolverineRuntime : IMessageLogger
         _sent(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty, null);
     }
 
-    // TODO -- add a URI for the received point
     public void Received(Envelope envelope)
     {
         ActiveSession?.Record(EventType.Received, envelope, _serviceName, _uniqueNodeId);
@@ -108,27 +106,23 @@ internal sealed partial class WolverineRuntime : IMessageLogger
 
     public void MessageSucceeded(Envelope envelope)
     {
-        // TODO -- enable later. We're not bringing SentAt through the inbox/outbox
-        // var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-        // _effectiveTime.Record(time, envelope.ToHeaders());
+        var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+        _effectiveTime.Record(time, envelope.ToHeaders());
 
         _successCounter.Add(1, envelope.ToHeaders());
         
         ActiveSession?.Record(EventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
-        // TODO -- bring back: _metrics.MessageExecuted(envelope);
         _messageSucceeded(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), null);
     }
 
     public void MessageFailed(Envelope envelope, Exception ex)
     {
-        // TODO -- enable later. We're not bringing SentAt through the inbox/outbox
-        // var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-        // _effectiveTime.Record(time, envelope.ToHeaders());
+        var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+        _effectiveTime.Record(time, envelope.ToHeaders());
         
         _deadLetterQueueCounter.Add(1, envelope.ToHeaders());
         
         ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
-        // TODO -- bring back: _metrics.MessageExecuted(envelope);
         _messageFailed(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), ex);
     }
 

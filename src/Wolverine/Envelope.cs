@@ -148,7 +148,7 @@ public partial class Envelope
     public int Attempts { get; internal set; }
 
 
-    public DateTimeOffset SentAt { get; internal set; } = DateTimeOffset.Now;
+    public DateTimeOffset SentAt { get; internal set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     ///     The name of the service that sent this envelope

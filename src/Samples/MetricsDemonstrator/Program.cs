@@ -1,5 +1,9 @@
+using IntegrationTests;
+using Marten;
 using MetricsDemonstrator;
+using Oakton.Resources;
 using Wolverine;
+using Wolverine.Marten;
 using Wolverine.Transports.Tcp;
 
 var port1 = PortFinder.GetAvailablePort();
@@ -10,6 +14,11 @@ IHost host = Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
     {
         opts.Services.AddHostedService<PublishingHostedService>();
+        opts.Services.AddMarten(m =>
+        {
+            m.Connection(Servers.PostgresConnectionString);
+            m.DatabaseSchemaName = "metrics";
+        }).IntegrateWithWolverine();
 
         opts.ServiceName = "Metrics";
 
@@ -25,6 +34,7 @@ IHost host = Host.CreateDefaultBuilder(args)
         opts.PublishMessage<Message4>().ToPort(port2).UseDurableOutbox();
         opts.PublishMessage<Message5>().ToPort(port3).UseDurableOutbox();
     })
+    .UseResourceSetupOnStartup()
     .ConfigureServices(services =>
     {
         services.AddHostedService<PublishingHostedService>();
