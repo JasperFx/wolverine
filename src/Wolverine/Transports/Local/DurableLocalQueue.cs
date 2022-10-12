@@ -18,7 +18,7 @@ internal class DurableLocalQueue : DurableReceiver, ISendingAgent
     private readonly IMessageSerializer _serializer;
     private readonly AdvancedSettings _settings;
 
-    public DurableLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime, runtime.Pipeline)
+    public DurableLocalQueue(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline) : base(endpoint, runtime, pipeline)
     {
         _settings = runtime.Advanced;
         _persistence = runtime.Persistence;

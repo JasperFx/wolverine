@@ -59,7 +59,7 @@ internal class LocalQueueSettings : Endpoint
         {
             EndpointMode.BufferedInMemory => new BufferedLocalQueue(this, runtime),
 
-            EndpointMode.Durable => new DurableLocalQueue(this, runtime),
+            EndpointMode.Durable => new DurableLocalQueue(this, runtime, runtime.Pipeline),
 
             EndpointMode.Inline => throw new NotSupportedException(),
             _ => throw new InvalidOperationException()
