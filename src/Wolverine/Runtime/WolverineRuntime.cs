@@ -62,12 +62,12 @@ internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedServi
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
         Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies));
 
-        _sentCounter = Meter.CreateCounter<int>("messages-sent", "Messages", "Number of messages sent");
-        _executionCounter = Meter.CreateHistogram<long>("message-execution", "Milliseconds", "Execution time in seconds");
-        _successCounter = Meter.CreateCounter<int>("messages-succeeded", "Messages", "Number of messages successfully processed");
-        _deadLetterQueueCounter = Meter.CreateCounter<int>("dead-letter-queue", "Messages", "Number of messages moved to dead letter queues");
+        _sentCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSent, MetricsConstants.Messages, "Number of messages sent");
+        _executionCounter = Meter.CreateHistogram<long>(MetricsConstants.ExecutionTime, MetricsConstants.Milliseconds, "Execution time in seconds");
+        _successCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSucceeded, MetricsConstants.Messages, "Number of messages successfully processed");
+        _deadLetterQueueCounter = Meter.CreateCounter<int>(MetricsConstants.DeadLetterQueue, MetricsConstants.Messages, "Number of messages moved to dead letter queues");
 
-        _effectiveTime = Meter.CreateHistogram<double>("effective-message-time", "Milliseconds",
+        _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime, MetricsConstants.Milliseconds,
             "Effective time between a message being sent and being completely handled");
     }
     

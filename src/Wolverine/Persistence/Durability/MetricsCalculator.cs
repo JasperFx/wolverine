@@ -12,9 +12,9 @@ internal class MetricsCalculator : IMessagingAction
 
     public MetricsCalculator(Meter meter)
     {
-        _incoming = meter.CreateObservableGauge<int>("inbox-count", () => Counts.Incoming, "Messages", "Inboxed messages");
-        _outgoing = meter.CreateObservableGauge<int>("outgoing-count", () => Counts.Outgoing, "Messages", "Outboxed messages");
-        _scheduled = meter.CreateObservableGauge<int>("scheduled-count", () => Counts.Scheduled, "Messages", "Scheduled messages");
+        _incoming = meter.CreateObservableGauge<int>(MetricsConstants.InboxCount, () => Counts.Incoming, MetricsConstants.Messages, "Inbox messages");
+        _outgoing = meter.CreateObservableGauge<int>(MetricsConstants.OutboxCount, () => Counts.Outgoing, MetricsConstants.Messages, "Outbox messages");
+        _scheduled = meter.CreateObservableGauge<int>(MetricsConstants.ScheduledCount, () => Counts.Scheduled, MetricsConstants.Messages, "Scheduled messages");
     }
     
     public string Description { get; } = "Metrics collection of inbox and outbox";
