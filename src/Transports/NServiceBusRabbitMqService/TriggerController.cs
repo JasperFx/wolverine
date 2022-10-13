@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using NServiceBus;
 
-namespace NServiceBusService
+namespace NServiceBusRabbitMqService
 {
     public class TriggerController : ControllerBase
     {

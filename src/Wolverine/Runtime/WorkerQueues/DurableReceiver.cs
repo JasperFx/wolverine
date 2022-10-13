@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Logging;
@@ -29,7 +30,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         Uri = endpoint.Uri;
 
         endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
-
+        
         _receiver = new ActionBlock<Envelope>(async envelope =>
         {
             if (_latched)

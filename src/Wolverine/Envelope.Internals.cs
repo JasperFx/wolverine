@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using Lamar.IoC.Instances;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
@@ -184,8 +186,10 @@ public partial class Envelope
         }
 
         _enqueued = true;
-
-        return Sender.EnqueueOutgoingAsync(this);
+        
+        return Sender.Latched 
+            ? ValueTask.CompletedTask 
+            : Sender.EnqueueOutgoingAsync(this);
     }
 
     /// <summary>
@@ -219,5 +223,18 @@ public partial class Envelope
         activity.MaybeSetTag(WolverineTracing.PayloadSizeBytes, MessagePayloadSize);
 
         activity.MaybeSetTag(WolverineTracing.MessagingConversationId, ConversationId);
+    }
+
+    internal async ValueTask PersistAsync(IEnvelopeTransaction transaction)
+    {
+        if (Sender is { IsDurable: true })
+        {
+            if (Sender.Latched)
+            {
+                OwnerId = TransportConstants.AnyNode;
+            }
+            
+            await transaction.PersistAsync(this);
+        }
     }
 }

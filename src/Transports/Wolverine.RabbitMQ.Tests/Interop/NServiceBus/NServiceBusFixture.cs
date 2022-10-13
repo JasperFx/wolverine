@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
-using NServiceBusService;
+using NServiceBusRabbitMqService;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.Interop.NServiceBus;
@@ -36,7 +36,7 @@ public class NServiceBusFixture : IAsyncLifetime
 
         #endregion
 
-        _nServiceBus = await NServiceBusService.Program.CreateHostBuilder(Array.Empty<string>())
+        _nServiceBus = await Program.CreateHostBuilder(Array.Empty<string>())
             .StartAsync();
     }
 

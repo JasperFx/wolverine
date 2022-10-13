@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 
-namespace NServiceBusService
+namespace NServiceBusRabbitMqService
 {
     public class Startup
     {

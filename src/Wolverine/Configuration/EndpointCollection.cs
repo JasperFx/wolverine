@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using Baseline;
 using Baseline.ImTools;
+using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
@@ -217,6 +219,27 @@ public class EndpointCollection : IEndpointCollection
             var agent = new ListeningAgent(endpoint, _runtime);
             await agent.StartAsync().ConfigureAwait(false);
             _listeners[agent.Uri] = agent;
+        }
+    }
+
+    public async Task DrainAsync()
+    {
+        // Drain the listeners
+        foreach (var listener in ActiveListeners())
+        {
+            try
+            {
+                await listener.StopAndDrainAsync();
+            }
+            catch (Exception e)
+            {
+                _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in listener {Uri}", listener.Uri);
+            }
+        }
+
+        foreach (var queue in _localSenders.Enumerate().Select(x => x.Value).OfType<ILocalQueue>())
+        {
+            await queue.DrainAsync();
         }
     }
 }

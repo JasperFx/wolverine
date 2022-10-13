@@ -116,7 +116,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         public void Complete(ulong deliveryTag)
         {
-            Channel.BasicAck(deliveryTag, false);
+            Channel.BasicAck(deliveryTag, true);
         }
     }
 }

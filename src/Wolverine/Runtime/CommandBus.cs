@@ -92,7 +92,7 @@ public class CommandBus : ICommandBus
         envelope.ConversationId = ConversationId;
         envelope.Source = Runtime.Advanced.ServiceName;
 
-        return persistOrSendAsync(envelope);
+        return PersistOrSendAsync(envelope);
     }
 
     public ValueTask EnqueueAsync<T>(T message, string workerQueueName)
@@ -107,7 +107,7 @@ public class CommandBus : ICommandBus
         envelope.ConversationId = ConversationId;
         envelope.Source = Runtime.Advanced.ServiceName;
 
-        return persistOrSendAsync(envelope);
+        return PersistOrSendAsync(envelope);
     }
 
     public async Task<Guid> ScheduleAsync<T>(T message, DateTimeOffset executionTime)
@@ -177,7 +177,7 @@ public class CommandBus : ICommandBus
         return Persistence.ScheduleJobAsync(envelope);
     }
 
-    protected async ValueTask persistOrSendAsync(Envelope envelope)
+    internal async ValueTask PersistOrSendAsync(Envelope envelope)
     {
         if (envelope.Sender is null)
         {
@@ -188,11 +188,8 @@ public class CommandBus : ICommandBus
         {
             _outstanding.Fill(envelope);
 
-            if (envelope.Sender.IsDurable)
-            {
-                await Transaction.PersistAsync(envelope);
-            }
-
+            await envelope.PersistAsync(Transaction);
+            
             return;
         }
 

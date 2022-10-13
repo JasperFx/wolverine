@@ -126,7 +126,6 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
         _nodeReassignmentTimer = new Timer(_ =>
             {
                 _worker.Post(_nodeReassignment);
-                _worker.Post(_deleteExpired);
             }, _settings,
             _settings.FirstNodeReassignmentExecution, _settings.NodeReassignmentPollingTime);
     }

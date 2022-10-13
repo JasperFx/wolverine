@@ -60,12 +60,12 @@ public class PublishingExpression : IPublishToExpression
     ///     Publishes the matching messages locally to the default
     ///     local queue
     /// </summary>
-    public IListenerConfiguration Locally()
+    public LocalQueueConfiguration Locally()
     {
         var settings = Parent.Transports.GetOrCreate<LocalTransport>().QueueFor(TransportConstants.Default);
         settings.Subscriptions.AddRange(_subscriptions);
 
-        return new ListenerConfiguration(settings);
+        return new LocalQueueConfiguration(settings);
     }
 
 
@@ -75,7 +75,7 @@ public class PublishingExpression : IPublishToExpression
     /// </summary>
     /// <param name="queueName"></param>
     /// <returns></returns>
-    public IListenerConfiguration ToLocalQueue(string queueName)
+    public LocalQueueConfiguration ToLocalQueue(string queueName)
     {
         var settings = Parent.Transports.GetOrCreate<LocalTransport>().QueueFor(queueName);
 
@@ -86,7 +86,7 @@ public class PublishingExpression : IPublishToExpression
 
         _endpoints.Add(settings);
 
-        return new ListenerConfiguration(settings);
+        return new LocalQueueConfiguration(settings);
     }
 
 

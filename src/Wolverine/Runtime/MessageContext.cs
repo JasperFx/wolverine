@@ -82,7 +82,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
         if (envelope.Serializer == null) throw new InvalidOperationException($"Invalid content type '{envelope.ContentType}'");
 
-        return persistOrSendAsync(envelope);
+        return PersistOrSendAsync(envelope);
     }
 
     /// <summary>

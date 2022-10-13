@@ -17,6 +17,16 @@ public static class ErrorHandlingPolicyExtensions
     }
 
     /// <summary>
+    /// Apply this rule on all exceptions
+    /// </summary>
+    /// <param name="policies"></param>
+    /// <returns></returns>
+    public static PolicyExpression OnAnyException(this IWithFailurePolicies policies)
+    {
+        return new PolicyExpression(policies.Failures, new AlwaysMatches());
+    }
+
+    /// <summary>
     ///     Specifies the type of exception that this policy can handle with additional filters on this exception type.
     /// </summary>
     /// <typeparam name="TException">The type of the exception.</typeparam>

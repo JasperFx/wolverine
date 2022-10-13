@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Baseline;
 using Microsoft.Extensions.Logging;
@@ -13,13 +14,13 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Local;
 
-internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit, ILocalQueue
+internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 {
     private readonly IMessageLogger _messageLogger;
     private readonly IEnvelopePersistence _persistence;
     private readonly IMessageSerializer _serializer;
     private readonly AdvancedSettings _settings;
-    private readonly DurableReceiver _receiver;
+    private DurableReceiver? _receiver;
     private readonly ILogger _logger;
     private Restarter? _restarter;
     private readonly WolverineRuntime _runtime;
@@ -62,6 +63,18 @@ internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit,
 
     public Endpoint Endpoint { get; }
 
+    int IListenerCircuit.QueueCount => _receiver?.QueueCount ?? 0;
+
+    void IListenerCircuit.EnqueueDirectly(IEnumerable<Envelope> envelopes)
+    {
+        if (_receiver == null) return;
+        
+        foreach (var envelope in envelopes)
+        {
+            _receiver.Enqueue(envelope);
+        }
+    }
+
     public Uri? ReplyUri { get; set; }
 
     public bool Latched { get; private set; }
@@ -70,6 +83,9 @@ internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit,
 
     public ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
+        // The envelope would be persisted regardless
+        if (Latched) return ValueTask.CompletedTask;
+        
         _messageLogger.Sent(envelope);
 
         _receiver.Enqueue(envelope);
@@ -91,6 +107,11 @@ internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit,
             ? _settings.UniqueNodeId
             : TransportConstants.AnyNode;
 
+        if (Latched)
+        {
+            envelope.OwnerId = TransportConstants.AnyNode;
+        }
+
         try
         {
             await _persistence.StoreIncomingAsync(envelope);
@@ -101,9 +122,11 @@ internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit,
             return; // Duplicate envelope, get out of here.
         }
 
+        if (Latched) return;
+
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
-            _receiver.Enqueue(envelope);
+            _receiver!.Enqueue(envelope);
         }
     }
 
@@ -134,12 +157,19 @@ internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit,
     public async ValueTask PauseAsync(TimeSpan pauseTime)
     {
         Latched = true;
-        
-        await _receiver.DrainAsync();
+
+        if (_receiver != null)
+        {
+            await _receiver.DrainAsync();
+        }
+
+        _receiver = null;
 
         CircuitBreaker?.Reset();
+        
+        _runtime.ListenerTracker.Publish(new ListenerState(Endpoint.Uri, Endpoint.Name, ListeningStatus.Stopped));
 
-        _logger.LogInformation("Pausing message listening at {Uri}", _receiver.Uri);
+        _logger.LogInformation("Pausing message listening at {Uri}", Endpoint.Uri);
 
         _restarter = new Restarter(this, pauseTime);
 
@@ -147,6 +177,7 @@ internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit,
 
     public ValueTask StartAsync()
     {
+        _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline);
         Latched = false;
         _runtime.ListenerTracker.Publish(new ListenerState(_receiver.Uri, Endpoint.Name, ListeningStatus.Accepting));
         _restarter?.Dispose();
@@ -154,25 +185,27 @@ internal class DurableLocalQueue : ISendingAgent, IDisposable, IListenerCircuit,
         return ValueTask.CompletedTask;
     }
 
+    ListeningStatus IListenerCircuit.Status => Latched ? ListeningStatus.TooBusy : ListeningStatus.Accepting;
+
     ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
     {
-        return _receiver.ReceivedAsync(listener, messages);
+        return _receiver!.ReceivedAsync(listener, messages);
     }
 
     ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope envelope)
     {
-        return _receiver.ReceivedAsync(listener, envelope);
+        return _receiver!.ReceivedAsync(listener, envelope);
     }
 
     ValueTask IReceiver.DrainAsync()
     {
-        return _receiver.DrainAsync();
+        return _receiver!.DrainAsync();
     }
 
     void ILocalQueue.Enqueue(Envelope envelope)
     {
-        _receiver.Enqueue(envelope);
+        _receiver?.Enqueue(envelope);
     }
 
-    int ILocalQueue.QueueCount => _receiver.QueueCount;
+    int ILocalQueue.QueueCount => _receiver?.QueueCount ?? 0;
 }

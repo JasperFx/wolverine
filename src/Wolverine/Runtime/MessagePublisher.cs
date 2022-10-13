@@ -7,6 +7,7 @@ using Baseline.Dates;
 using Lamar;
 using LamarCodeGeneration;
 using Wolverine.Runtime.ResponseReply;
+using Wolverine.Transports;
 
 namespace Wolverine.Runtime;
 
@@ -32,7 +33,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
         trackEnvelopeCorrelation(outgoing);
 
-        return persistOrSendAsync(outgoing);
+        return PersistOrSendAsync(outgoing);
     }
 
     public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null)
@@ -51,7 +52,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
 
         if (outgoing.Any())
         {
-            return persistOrSendAsync(outgoing);
+            return PersistOrSendAsync(outgoing);
         }
 
         Runtime.MessageLogger.NoRoutesFor(envelope);
@@ -67,7 +68,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         }
 
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteToTopic(message, topicName, options);
-        return persistOrSendAsync(outgoing);
+        return PersistOrSendAsync(outgoing);
     }
 
     public ValueTask SendToEndpointAsync(string endpointName, object message, DeliveryOptions? options = null)
@@ -85,7 +86,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         var outgoing = Runtime.RoutingFor(message.GetType())
             .RouteToEndpointByName(message, endpointName, options);
 
-        return persistOrSendAsync(outgoing);
+        return PersistOrSendAsync(outgoing);
     }
 
     /// <summary>
@@ -111,7 +112,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
 
         trackEnvelopeCorrelation(envelope);
 
-        return persistOrSendAsync(envelope);
+        return PersistOrSendAsync(envelope);
     }
 
     /// <summary>
@@ -155,11 +156,19 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         outbound.ConversationId = outbound.Id; // the message chain originates here
     }
 
-    protected async ValueTask persistOrSendAsync(params Envelope[] outgoing)
+    internal async ValueTask PersistOrSendAsync(params Envelope[] outgoing)
     {
         if (Transaction != null)
         {
-            await Transaction.PersistAsync(outgoing.Where(isDurable).ToArray());
+            // This filtering is done to only persist envelopes where 
+            // the sender is currently latched
+            var envelopes = outgoing.Where(isDurable).ToArray();
+            foreach (var envelope in envelopes.Where(x => x.Sender is {Latched:true}))
+            {
+                envelope.OwnerId = TransportConstants.AnyNode;
+            }
+            
+            await Transaction.PersistAsync(envelopes);
 
             _outstanding.Fill(outgoing);
         }
@@ -202,7 +211,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         
         var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
 
-        await persistOrSendAsync(outgoing);
+        await PersistOrSendAsync(outgoing);
 
         return await waiter;
     }
@@ -229,7 +238,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         
         var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
 
-        await persistOrSendAsync(outgoing);
+        await PersistOrSendAsync(outgoing);
 
         return await waiter;
     }
@@ -256,7 +265,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         
         var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
 
-        await persistOrSendAsync(outgoing);
+        await PersistOrSendAsync(outgoing);
 
         return await waiter;
     }
@@ -286,7 +295,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         
         var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
 
-        await persistOrSendAsync(outgoing);
+        await PersistOrSendAsync(outgoing);
 
         return await waiter;
     }
@@ -310,7 +319,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         
         var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
 
-        await persistOrSendAsync(outgoing);
+        await PersistOrSendAsync(outgoing);
 
         return await waiter;
     }
@@ -334,7 +343,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         
         var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
 
-        await persistOrSendAsync(outgoing);
+        await PersistOrSendAsync(outgoing);
 
         return await waiter;
     }

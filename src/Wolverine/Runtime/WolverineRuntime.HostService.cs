@@ -57,19 +57,9 @@ internal partial class WolverineRuntime
             await Durability.StopAsync(cancellationToken);
         }
 
-        // Drain the listeners
-        foreach (var listener in Endpoints.ActiveListeners())
-        {
-            try
-            {
-                await listener.StopAndDrainAsync();
-            }
-            catch (Exception e)
-            {
-                Logger.LogError(e, "Failed to 'drain' outstanding messages in listener {Uri}", listener.Uri);
-            }
-        }
 
+        await _endpoints.DrainAsync();
+ 
         Advanced.Cancel();
     }
 

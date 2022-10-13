@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Baseline.Dates;
 using Microsoft.Extensions.DependencyInjection;
 using NServiceBus;
-using NServiceBusService;
+using NServiceBusRabbitMqService;
 using Shouldly;
 using Wolverine.Tracking;
 using Xunit;

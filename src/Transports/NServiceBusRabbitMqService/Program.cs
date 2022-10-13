@@ -1,9 +1,8 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using NServiceBus;
-using NServiceBus.Routing;
 
-namespace NServiceBusService
+namespace NServiceBusRabbitMqService
 {
     public class Program
     {

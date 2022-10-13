@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -51,7 +52,7 @@ internal class RecoverIncomingMessages : IMessagingAction
 
     public string Description => "Recover persisted incoming messages";
 
-    public virtual int DeterminePageSize(IListeningAgent listener, IncomingCount count)
+    public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count)
     {
         if (listener!.Status != ListeningStatus.Accepting)
         {
@@ -76,8 +77,7 @@ internal class RecoverIncomingMessages : IMessagingAction
 
     internal async Task<bool> TryRecoverIncomingMessagesAsync(IEnvelopePersistence storage, IncomingCount count)
     {
-        var listener = _endpoints.FindListeningAgent(count.Destination) ??
-                       _endpoints.FindListeningAgent(TransportConstants.Durable);
+        var listener = findListenerCircuit(count);
 
         var pageSize = DeterminePageSize(listener!, count);
 
@@ -92,8 +92,20 @@ internal class RecoverIncomingMessages : IMessagingAction
         return pageSize < count.Count;
     }
 
+    private IListenerCircuit findListenerCircuit(IncomingCount count)
+    {
+        if (count.Destination.Scheme == TransportConstants.Local)
+        {
+            return (IListenerCircuit)_endpoints.GetOrBuildSendingAgent(count.Destination);
+        }
+        
+        var listener = _endpoints.FindListeningAgent(count.Destination) ??
+                       _endpoints.FindListeningAgent(TransportConstants.Durable);
+        return listener!;
+    }
+
     public virtual async Task RecoverMessagesAsync(IEnvelopePersistence storage, IncomingCount count, int pageSize,
-        IListeningAgent listener)
+        IListenerCircuit listener)
     {
         await storage.Session.BeginAsync();
 

@@ -16,19 +16,21 @@ public interface IListenerCircuit
 {
     ValueTask PauseAsync(TimeSpan pauseTime);
     ValueTask StartAsync();
+    
+    ListeningStatus Status { get; }
+    Endpoint Endpoint { get; }
+    int QueueCount { get; }
+    
+    void EnqueueDirectly(IEnumerable<Envelope> envelopes);
 }
 
 public interface IListeningAgent : IListenerCircuit
 {
     Uri Uri { get; }
-    ListeningStatus Status { get; }
-    Endpoint Endpoint { get; }
+
     ValueTask StopAndDrainAsync();
 
     ValueTask MarkAsTooBusyAndStopReceivingAsync();
-    
-    int QueueCount { get; }
-    void EnqueueDirectly(IEnumerable<Envelope> envelopes);
 }
 
 internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent

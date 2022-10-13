@@ -1,5 +1,6 @@
 using System;
 using Wolverine.Runtime.Routing;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.Configuration;
 
@@ -27,12 +28,12 @@ public interface IPublishToExpression
     /// </summary>
     /// <param name="queueName"></param>
     /// <returns></returns>
-    IListenerConfiguration ToLocalQueue(string queueName);
+    LocalQueueConfiguration ToLocalQueue(string queueName);
 
     /// <summary>
     ///     Publishes the matching messages locally to the default
     ///     local queue
     /// </summary>
-    IListenerConfiguration Locally();
+    LocalQueueConfiguration Locally();
 
 }

@@ -9,6 +9,7 @@ using IntegrationTests;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Shouldly;
 using TestingSupport;
 using Wolverine;
@@ -431,6 +432,8 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext, 
     [Fact]
     public async Task store_multiple_outgoing_envelopes()
     {
+        await thePersistence.Admin.ClearAllAsync();
+        
         var list = new List<Envelope>();
 
         for (var i = 0; i < 10; i++)

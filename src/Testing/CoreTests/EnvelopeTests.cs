@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Threading.Tasks;
 using CoreTests.Messaging;
 using NSubstitute;
 using Shouldly;
 using TestMessages;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -12,7 +14,7 @@ using Xunit;
 
 namespace CoreTests;
 
-public class EnvelopeTester
+public class EnvelopeTests
 {
     [Fact]
     public void automatically_set_the_message_type_header_off_of_the_message()
@@ -218,7 +220,95 @@ public class EnvelopeTester
         envelope.Status.ShouldBe(EnvelopeStatus.Scheduled);
         envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
     }
+    
+    [Fact]
+    public async Task should_persist_when_sender_is_durable()
+    {
+        var transaction = Substitute.For<IEnvelopeTransaction>();
+        var sender = Substitute.For<ISendingAgent>();
 
+        sender.IsDurable.Returns(true);
+        sender.Latched.Returns(false);
+
+        var envelope = ObjectMother.Envelope();
+        envelope.OwnerId = 33333;
+        envelope.Sender = sender;
+
+        await envelope.PersistAsync(transaction);
+
+        await transaction.Received().PersistAsync(envelope);
+        envelope.OwnerId.ShouldBe(33333);
+    }
+        
+    [Fact]
+    public async Task should_persist_when_sender_is_durable_but_set_owner_to_0_when_sender_is_latched()
+    {
+        var transaction = Substitute.For<IEnvelopeTransaction>();
+        var sender = Substitute.For<ISendingAgent>();
+
+        sender.IsDurable.Returns(true);
+        sender.Latched.Returns(true);
+
+        var envelope = ObjectMother.Envelope();
+        envelope.OwnerId = 33333;
+        envelope.Sender = sender;
+
+        await envelope.PersistAsync(transaction);
+
+        await transaction.Received().PersistAsync(envelope);
+        envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
+    }
+
+    [Fact]
+    public async Task do_not_persist_when_sender_is_not_durable()
+    {
+        var transaction = Substitute.For<IEnvelopeTransaction>();
+        var sender = Substitute.For<ISendingAgent>();
+
+        sender.IsDurable.Returns(false);
+        sender.Latched.Returns(false);
+
+        var envelope = ObjectMother.Envelope();
+        envelope.OwnerId = 33333;
+        envelope.Sender = sender;
+
+        await envelope.PersistAsync(transaction);
+
+        await transaction.DidNotReceive().PersistAsync(envelope);
+    }
+
+    [Fact]
+    public async Task quick_send_when_sender_is_not_latched()
+    {
+        var sender = Substitute.For<ISendingAgent>();
+
+        sender.Latched.Returns(false);
+
+        var envelope = ObjectMother.Envelope();
+        envelope.OwnerId = 33333;
+        envelope.Sender = sender;
+
+        await envelope.QuickSendAsync();
+
+        await sender.Received().EnqueueOutgoingAsync(envelope);
+    }
+    
+    [Fact]
+    public async Task quick_send_when_sender_is_latched_should_not_send()
+    {
+        var sender = Substitute.For<ISendingAgent>();
+
+        sender.Latched.Returns(true);
+        sender.IsDurable.Returns(true);
+
+        var envelope = ObjectMother.Envelope();
+        envelope.OwnerId = 33333;
+        envelope.Sender = sender;
+
+        await envelope.QuickSendAsync();
+
+        await sender.DidNotReceive().EnqueueOutgoingAsync(envelope);
+    }
 
     public class when_building_an_envelope_for_scheduled_send
     {
@@ -278,5 +368,8 @@ public class EnvelopeTester
         {
             theScheduledEnvelope.ContentType.ShouldBe(TransportConstants.SerializedEnvelope);
         }
+
+
     }
+    
 }

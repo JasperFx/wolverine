@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using NServiceBusService;
+using NServiceBusRabbitMqService;
 
 namespace Wolverine.RabbitMQ.Tests.Interop.NServiceBus
 {

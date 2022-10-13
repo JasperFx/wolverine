@@ -1,6 +1,6 @@
 using NServiceBus;
 
-namespace NServiceBusService
+namespace NServiceBusRabbitMqService
 {
     public class InitialMessageResponder : IHandleMessages<InitialMessage>
     {
