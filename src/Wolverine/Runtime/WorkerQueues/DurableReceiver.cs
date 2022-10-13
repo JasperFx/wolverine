@@ -26,7 +26,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         _persistence = runtime.Persistence;
         _logger = runtime.Logger;
 
-        Address = endpoint.Uri;
+        Uri = endpoint.Uri;
 
         endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
 
@@ -53,7 +53,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         }, endpoint.ExecutionOptions);
     }
 
-    public Uri Address { get; }
+    public Uri Uri { get; }
 
     public async ValueTask DisposeAsync()
     {
@@ -79,7 +79,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
     public void Enqueue(Envelope envelope)
     {
-        envelope.ReplyUri = envelope.ReplyUri ?? Address;
+        envelope.ReplyUri = envelope.ReplyUri ?? Uri;
         _receiver.Post(envelope);
     }
 
@@ -127,7 +127,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
             await listener.CompleteAsync(envelope);
 
-            _logger.IncomingReceived(envelope, Address);
+            _logger.IncomingReceived(envelope, Uri);
         }
         finally
         {
@@ -143,7 +143,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
         await executeWithRetriesAsync(async () =>
         {
-            await _persistence.ReleaseIncomingAsync(_settings.UniqueNodeId, Address);
+            await _persistence.ReleaseIncomingAsync(_settings.UniqueNodeId, Uri);
         });
     }
 
@@ -207,11 +207,11 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             await listener.CompleteAsync(message);
         }
 
-        _logger.IncomingBatchReceived(Address, envelopes);
+        _logger.IncomingBatchReceived(Uri, envelopes);
     }
 
     public Task ClearInFlightIncomingAsync()
     {
-        return executeWithRetriesAsync(() => _persistence.ReleaseIncomingAsync(_settings.UniqueNodeId, Address));
+        return executeWithRetriesAsync(() => _persistence.ReleaseIncomingAsync(_settings.UniqueNodeId, Uri));
     }
 }

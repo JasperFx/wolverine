@@ -15,6 +15,7 @@ namespace Wolverine.Transports;
 public interface IListenerCircuit
 {
     ValueTask PauseAsync(TimeSpan pauseTime);
+    ValueTask StartAsync();
 }
 
 public interface IListeningAgent : IListenerCircuit
@@ -23,8 +24,6 @@ public interface IListeningAgent : IListenerCircuit
     ListeningStatus Status { get; }
     Endpoint Endpoint { get; }
     ValueTask StopAndDrainAsync();
-    ValueTask StartAsync();
-    
 
     ValueTask MarkAsTooBusyAndStopReceivingAsync();
     
@@ -137,7 +136,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _circuitBreaker?.Reset();
 
         _logger.LogInformation("Pausing message listening at {Uri}", Uri);
-
+        // TODO -- publish through the ListenerTracker here
         _restarter = new Restarter(this, pauseTime);
 
     }
@@ -195,28 +194,28 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _listener = null;
         _receiver = null;
     }
+}
 
-    internal class Restarter : IDisposable
+internal class Restarter : IDisposable
+{
+    private readonly CancellationTokenSource _cancellation;
+    private readonly Task<Task> _task;
+
+    public Restarter(IListenerCircuit parent, TimeSpan timeSpan)
     {
-        private readonly CancellationTokenSource _cancellation;
-        private readonly Task<Task> _task;
-
-        public Restarter(ListeningAgent parent, TimeSpan timeSpan)
-        {
-            _cancellation = new CancellationTokenSource();
-            _task = Task.Delay(timeSpan, _cancellation.Token)
-                .ContinueWith(async _ =>
-                {
-                    if (_cancellation.IsCancellationRequested) return;
-                    await parent.StartAsync();
-                }, TaskScheduler.Default);
-        }
+        _cancellation = new CancellationTokenSource();
+        _task = Task.Delay(timeSpan, _cancellation.Token)
+            .ContinueWith(async _ =>
+            {
+                if (_cancellation.IsCancellationRequested) return;
+                await parent.StartAsync();
+            }, TaskScheduler.Default);
+    }
 
 
-        public void Dispose()
-        {
-            _cancellation.Cancel();
-            _task.SafeDispose();
-        }
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _task.SafeDispose();
     }
 }
