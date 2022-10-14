@@ -139,7 +139,7 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
     {
         envelope.Status = EnvelopeStatus.Outgoing;
         envelope.OwnerId = _settings.UniqueNodeId;
-        envelope.ReplyUri = envelope.ReplyUri ?? ReplyUri;
+        envelope.ReplyUri ??= ReplyUri;
     }
 
     protected abstract Task storeAndForwardAsync(Envelope envelope);

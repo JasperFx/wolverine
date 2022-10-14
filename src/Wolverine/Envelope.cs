@@ -206,7 +206,7 @@ public partial class Envelope
     /// <summary>
     ///     Specific message id for this envelope
     /// </summary>
-    public Guid Id { get; internal set; } = CombGuidIdGeneration.NewGuid();
+    public Guid Id { get; set; } = CombGuidIdGeneration.NewGuid();
 
     /// <summary>
     ///     If specified, the message type alias for the reply message that is requested for this message
