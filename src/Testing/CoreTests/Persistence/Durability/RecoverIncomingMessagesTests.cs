@@ -16,7 +16,7 @@ public class RecoverIncomingMessagesTests
     public const int theRecoveryBatchSize = 100;
     public const int theBufferedLimit = 500;
     
-    private readonly IListeningAgent theAgent = Substitute.For<IListeningAgent>(); 
+    private readonly IListeningAgent theAgent = Substitute.For<IListeningAgent, IListenerCircuit>(); 
     private readonly AdvancedSettings theSettings = new AdvancedSettings(null)
     {
         RecoveryBatchSize = theRecoveryBatchSize
@@ -66,7 +66,7 @@ public class RecoverIncomingMessagesTests
     public async Task do_nothing_when_page_size_is_0()
     {
         var action = Substitute.For<RecoverIncomingMessages>(theSettings, NullLogger.Instance, theEndpoints);
-        var count = new IncomingCount(new Uri("local://one"), 23);
+        var count = new IncomingCount(new Uri("stub://one"), 23);
 
         action.DeterminePageSize(theAgent, count).Returns(0);
 
@@ -86,7 +86,7 @@ public class RecoverIncomingMessagesTests
     public async Task recover_messages_when_page_size_is_non_zero_but_all_were_recovered()
     {
         var action = Substitute.For<RecoverIncomingMessages>(theSettings, NullLogger.Instance, theEndpoints);
-        var count = new IncomingCount(new Uri("local://one"), 11);
+        var count = new IncomingCount(new Uri("stub://one"), 11);
 
         action.DeterminePageSize(theAgent, count).Returns(11);
 
@@ -107,7 +107,7 @@ public class RecoverIncomingMessagesTests
     public async Task recover_messages_when_page_size_is_non_zero_and_not_all_on_server_were_were_recovered()
     {
         var action = Substitute.For<RecoverIncomingMessages>(theSettings, NullLogger.Instance, theEndpoints);
-        var count = new IncomingCount(new Uri("local://one"), 100);
+        var count = new IncomingCount(new Uri("stub://one"), 100);
 
         action.DeterminePageSize(theAgent, count).Returns(11);
 
