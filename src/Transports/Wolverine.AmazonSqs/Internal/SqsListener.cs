@@ -33,8 +33,10 @@ internal class SqsListener : IListener
 
                 var request = new ReceiveMessageRequest(_endpoint.QueueUrl)
                 {
-                    MessageAttributeNames = _headers
+                    MessageAttributeNames = _headers,
                 };
+
+                _endpoint.ConfigureRequest(request);
                 
                 var results = await _transport.Client.ReceiveMessageAsync(request, _cancellation.Token);
 

@@ -15,6 +15,46 @@ public class AmazonSqsEndpointTests
         new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
             .Mode.ShouldBe(EndpointMode.BufferedInMemory);
     }
+
+    [Fact]
+    public void default_visibility_timeout_is_2_minutes()
+    {
+        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+            .VisibilityTimeout.ShouldBe(120);
+    }
+
+    [Fact]
+    public void default_wait_time_is_5()
+    {
+        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+            .WaitTimeSeconds.ShouldBe(5);
+    }
+
+    [Fact]
+    public void max_number_of_messages_by_default_is_10()
+    {
+        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+            .MaxNumberOfMessages.ShouldBe(10);
+    }
+
+    [Fact]
+    public void configure_request()
+    {
+        var endpoint = new AmazonSqsEndpoint("foo", new AmazonSqsTransport())
+        {
+            MaxNumberOfMessages = 8,
+            VisibilityTimeout = 3,
+            WaitTimeSeconds = 11
+        };
+
+        var request = new ReceiveMessageRequest();
+        
+        endpoint.ConfigureRequest(request);
+        
+        request.VisibilityTimeout.ShouldBe(endpoint.VisibilityTimeout);
+        request.MaxNumberOfMessages.ShouldBe(endpoint.MaxNumberOfMessages);
+        request.WaitTimeSeconds.ShouldBe(endpoint.WaitTimeSeconds);
+    }
 }
 
 public class when_initializing_the_endpoint
@@ -101,4 +141,5 @@ public class when_initializing_the_endpoint
 
         await theClient.Received().PurgeQueueAsync(theSqsQueueUrl);
     }
+
 }

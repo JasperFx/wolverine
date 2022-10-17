@@ -8,4 +8,5 @@ public class AmazonSqsListenerConfiguration : SubscriberConfiguration<AmazonSqsL
     internal AmazonSqsListenerConfiguration(AmazonSqsEndpoint endpoint) : base(endpoint)
     {
     }
+    
 }

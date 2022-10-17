@@ -49,12 +49,14 @@ public static class AmazonSqsTransportExtensions
     /// <param name="configure">
     ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
     ///     <returns></returns>
-    public static AmazonSqsListenerConfiguration ListenToSqsQueue(this WolverineOptions endpoints, string queueName)
+    public static AmazonSqsListenerConfiguration ListenToSqsQueue(this WolverineOptions endpoints, string queueName, Action<IAmazonSqsListeningEndpoint>? configure = null )
     {
         var transport = endpoints.AmazonSqsTransport();
 
         var endpoint = transport.EndpointForQueue(queueName);
         endpoint.IsListener = true;
+        
+        configure?.Invoke(endpoint);
 
         return new AmazonSqsListenerConfiguration(endpoint);
     }

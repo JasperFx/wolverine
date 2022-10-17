@@ -3,6 +3,7 @@ using Amazon.SQS;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.AmazonSqs.Internal;
 
 namespace Wolverine.AmazonSqs.Tests;
 
@@ -70,5 +71,35 @@ public class bootstrapping
         queueUrl.ShouldNotBeNull();
 
         await transport.Client.DeleteQueueAsync(queueUrl);
+    }
+
+    [Fact]
+    public async Task configure_listening()
+    {
+        var queueName = "wolverine-" + Guid.NewGuid().ToString();
+        
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransportLocally().AutoPurgeOnStartup().AutoProvision();
+
+                opts.ListenToSqsQueue(queueName, e =>
+                {
+                    e.VisibilityTimeout = 4;
+                    e.MaxNumberOfMessages = 5;
+                    e.WaitTimeSeconds = 6;
+                });
+            }).StartAsync();
+        
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+
+        var endpoint = options.Transports.GetOrCreateEndpoint(new Uri($"sqs://{queueName}"))
+            .ShouldBeOfType<AmazonSqsEndpoint>();
+        
+        endpoint.VisibilityTimeout.ShouldBe(4);
+        endpoint.MaxNumberOfMessages.ShouldBe(5);
+        endpoint.WaitTimeSeconds.ShouldBe(6);
+        
+        
     }
 }

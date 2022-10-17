@@ -37,6 +37,28 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
         initialize();
     }
 
+    /// <summary>
+    /// The duration (in seconds) that the received messages are hidden from subsequent retrieve
+    /// requests after being retrieved by a <code>ReceiveMessage</code> request. The default is
+    /// 120.
+    /// </summary>
+    public int VisibilityTimeout { get; set; } = 120;
+
+    /// <summary>
+    /// The duration (in seconds) for which the call waits for a message to arrive in the
+    /// queue before returning. If a message is available, the call returns sooner than <code>WaitTimeSeconds</code>.
+    /// If no messages are available and the wait time expires, the call returns successfully
+    /// with an empty list of messages. Default is 5.
+    /// </summary>
+    public int WaitTimeSeconds { get; set; } = 5;
+
+    /// <summary>
+    /// The maximum number of messages to return. Amazon SQS never returns more messages than
+    /// this value (however, fewer messages might be returned). Valid values: 1 to 10. Default:
+    /// 10.
+    /// </summary>
+    public int MaxNumberOfMessages { get; set; } = 10;
+
     public IEnumerable<string> AllHeaders()
     {
         return _envelopeToHeader.Values;
