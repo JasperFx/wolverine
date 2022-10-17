@@ -29,7 +29,6 @@ public class Playing
         
         using var client = new AmazonSQSClient(credentials, config);
 
-        
         await client.CreateQueueAsync("wolverine-foo");
         
         

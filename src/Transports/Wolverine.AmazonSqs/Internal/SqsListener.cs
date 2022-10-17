@@ -1,5 +1,4 @@
 using System.Text;
-using Amazon.SQS;
 using Amazon.SQS.Model;
 using Baseline;
 using Microsoft.Extensions.Logging;
