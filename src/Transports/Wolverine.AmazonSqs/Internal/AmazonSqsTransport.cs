@@ -9,33 +9,6 @@ namespace Wolverine.AmazonSqs.Internal;
 
 internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqsTransportConfiguration
 {
-    /* TODO
- - config the batch size for sending and receiving
- - config the polling time
- - does it support delayed delivery? That's cool.
- - default credentials?
- - configure the credentials. Chain in FI?
- - alter the AmazonSQSConfig. Like Rabbit MQ?
- - AutoProvision
- - AutoPurge
- - IStatefulResource support
- - prefix!!!
- - SNS topics
- - conventional routing
- - conventions for SQS endpoints
- - configure the queues
- - dedicated reply queue?
- 
- - On Monday, just make the barebones basics work.
- - UseSqs(Action<AmazonSQSConfig>).Credentials()
- - UseSqsFromLocalstackIfDevelopment() -- be nice to have a DEV setting
- - build client in transport
- - extension methods for listening & subscribing
- - TransportCompliance for durable
- - TransportCompliance for buffered
- 
- */
-    
     private readonly Cache<string, AmazonSqsEndpoint> _queues;
     private Func<IWolverineRuntime, AWSCredentials>? _credentialSource;
 
