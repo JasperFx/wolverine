@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Baseline;
 
 namespace Wolverine.Runtime;
 
@@ -16,6 +17,8 @@ internal partial class WolverineRuntime : IAsyncDisposable
         Replies.Dispose();
 
         await Endpoints.DisposeAsync();
+
+        await Options.Transports.As<IAsyncDisposable>().DisposeAsync();
 
         Advanced.Cancel();
 

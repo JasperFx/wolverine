@@ -40,8 +40,7 @@ internal class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRe
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        var client = _parent.CreateClient();
-        var protocol = new SqsSenderProtocol(this, client, runtime.Logger);
+        var protocol = new SqsSenderProtocol(this, _parent.Client, runtime.Logger);
         return new BatchedSender(Uri, protocol, runtime.Cancellation,
             runtime.Logger);
     }

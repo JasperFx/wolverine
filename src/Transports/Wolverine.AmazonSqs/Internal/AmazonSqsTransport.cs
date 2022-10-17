@@ -1,3 +1,4 @@
+using Amazon.Runtime;
 using Amazon.SQS;
 using Baseline;
 using Wolverine.Runtime;
@@ -5,7 +6,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>
+internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqsTransportConfiguration
 {
     /* TODO
  - config the batch size for sending and receiving
@@ -34,11 +35,14 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>
  */
     
     private readonly Cache<string, AmazonSqsEndpoint> _queues;
+    private Func<IWolverineRuntime, AWSCredentials>? _credentialSource;
 
     public AmazonSqsTransport() : base("sqs", "Amazon SQS")
     {
         _queues = new(name => new AmazonSqsEndpoint(name, this));
     }
+
+    public AmazonSQSConfig Config { get; } = new();
 
     protected override IEnumerable<AmazonSqsEndpoint> endpoints()
     {
@@ -54,14 +58,35 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>
 
     public override ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
-        // TODO -- auto provision and auto purge
+        if (_credentialSource == null)
+        {
+            Client = new AmazonSQSClient(Config);
+        }
+        else
+        {
+            var credentials = _credentialSource(runtime);
+            Client = new AmazonSQSClient(credentials, Config);
+        }
+        
+        // TO
+        //
+        // DO -- auto provision and auto purge
         // TODO -- can spin up a dedicated queue for a node?
         return ValueTask.CompletedTask;
         
     }
 
-    internal IAmazonSQS CreateClient()
+    internal AmazonSQSClient Client { get; private set; }
+
+    public IAmazonSqsTransportConfiguration Credentials(AWSCredentials credentials)
     {
-        throw new NotImplementedException();
+        _credentialSource = r => credentials;
+        return this;
+    }
+
+    public IAmazonSqsTransportConfiguration Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
+    {
+        _credentialSource = credentialSource;
+        return this;
     }
 }
