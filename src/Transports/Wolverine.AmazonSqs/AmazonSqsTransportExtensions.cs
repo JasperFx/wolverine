@@ -2,7 +2,6 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Baseline;
 using Wolverine.AmazonSqs.Internal;
-using Wolverine.Runtime;
 
 namespace Wolverine.AmazonSqs;
 
@@ -40,12 +39,23 @@ public static class AmazonSqsTransportExtensions
         return options.UseAmazonSqsTransport(config => config.ServiceURL = $"http://localhost:{port}")
             .Credentials(new BasicAWSCredentials("ignore", "ignore"));
     }
-}
+    
+    /// <summary>
+    ///     Listen for incoming messages at the designated Rabbit MQ queue by name
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="queueName">The name of the Rabbit MQ queue</param>
+    /// <param name="configure">
+    ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
+    ///     <returns></returns>
+    public static AmazonSqsListenerConfiguration ListenToSqsQueue(this WolverineOptions endpoints, string queueName)
+    {
+        var transport = endpoints.AmazonSqsTransport();
 
-public interface IAmazonSqsTransportConfiguration
-{
-    IAmazonSqsTransportConfiguration Credentials(AWSCredentials credentials);
-    IAmazonSqsTransportConfiguration Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource);
-    
-    
+        var endpoint = transport.EndpointForQueue(queueName);
+        endpoint.IsListener = true;
+
+        return new AmazonSqsListenerConfiguration(endpoint);
+    }
+
 }

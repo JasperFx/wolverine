@@ -1,5 +1,6 @@
 using Amazon.Runtime;
 using Amazon.SQS;
+using Amazon.SQS.Model;
 using Baseline;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -22,6 +23,8 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
  - SNS topics
  - conventional routing
  - conventions for SQS endpoints
+ - configure the queues
+ - dedicated reply queue?
  
  - On Monday, just make the barebones basics work.
  - UseSqs(Action<AmazonSQSConfig>).Credentials()
@@ -42,7 +45,14 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
         _queues = new(name => new AmazonSqsEndpoint(name, this));
     }
 
+    internal AmazonSqsTransport(IAmazonSQS client) : this()
+    {
+        Client = client;
+    }
+
     public AmazonSQSConfig Config { get; } = new();
+    public bool AutoProvision { get; set; }
+    public bool AutoPurgeOnStartup { get; set; }
 
     protected override IEnumerable<AmazonSqsEndpoint> endpoints()
     {
@@ -56,7 +66,7 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
         return _queues[uri.Host];
     }
 
-    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
+    public override async ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
         if (_credentialSource == null)
         {
@@ -67,26 +77,42 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
             var credentials = _credentialSource(runtime);
             Client = new AmazonSQSClient(credentials, Config);
         }
-        
-        // TO
-        //
-        // DO -- auto provision and auto purge
-        // TODO -- can spin up a dedicated queue for a node?
-        return ValueTask.CompletedTask;
-        
+
+        foreach (var endpoint in _queues)
+        {
+            await endpoint.InitializeAsync();
+        }
+
     }
 
-    internal AmazonSQSClient Client { get; private set; }
+    internal AmazonSqsEndpoint EndpointForQueue(string queueName)
+    {
+        return _queues[queueName];
+    }
 
-    public IAmazonSqsTransportConfiguration Credentials(AWSCredentials credentials)
+    internal IAmazonSQS Client { get; private set; }
+
+    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.Credentials(AWSCredentials credentials)
     {
         _credentialSource = r => credentials;
         return this;
     }
 
-    public IAmazonSqsTransportConfiguration Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
+    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
     {
         _credentialSource = credentialSource;
+        return this;
+    }
+
+    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.AutoProvision()
+    {
+        AutoProvision = true;
+        return this;
+    }
+
+    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.AutoPurgeOnStartup()
+    {
+        AutoPurgeOnStartup = true;
         return this;
     }
 }

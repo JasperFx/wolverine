@@ -1,4 +1,5 @@
 using Amazon.SQS.Model;
+using Baseline;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -6,18 +7,18 @@ using Wolverine.Util;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequestEntry>
+public class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequestEntry>
 {
     private readonly AmazonSqsTransport _parent;
     public string QueueName { get; private set; }
 
     [Obsolete("Get rid of this soon when the Parse() thing goes away")]
-    public AmazonSqsEndpoint(AmazonSqsTransport parent)
+    internal AmazonSqsEndpoint(AmazonSqsTransport parent)
     {
         _parent = parent;
     }
 
-    public AmazonSqsEndpoint(string queueName, AmazonSqsTransport parent)
+    internal AmazonSqsEndpoint(string queueName, AmazonSqsTransport parent)
     {
         _parent = parent;
         QueueName = queueName;
@@ -31,15 +32,51 @@ internal class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRe
     }
     
     // Set by the AmazonSqsTransport parent
-    internal string QueueUrl { get; set; }
+    internal string QueueUrl { get; private set; }
+
+    internal async ValueTask InitializeAsync()
+    {
+        // TODO -- allow for config on endpoint?
+        if (_parent.AutoProvision)
+        {
+            // TODO -- use the configuration here for FIFO or Standard
+            var response = await _parent.Client.CreateQueueAsync(QueueName);
+
+            QueueUrl = response.QueueUrl;
+        }
+
+        if (QueueUrl.IsEmpty())
+        {
+            var response = await _parent.Client.GetQueueUrlAsync(QueueName);
+            QueueUrl = response.QueueUrl;
+        }
+
+        // TODO -- allow for endpoint by endpoint variance
+        if (_parent.AutoPurgeOnStartup)
+        {
+            await _parent.Client.PurgeQueueAsync(QueueUrl);
+        }
+    }
 
     public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
     {
+        assertReady();
+
         return new SqsListener(runtime.Logger, this, _parent, receiver);
+    }
+
+    private void assertReady()
+    {
+        if (QueueUrl.IsEmpty()) throw new InvalidOperationException("This endpoint has not yet been initialized");
+
+        if (_parent.Client == null)
+            throw new InvalidOperationException("The parent transport has not yet been initialized");
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
+        assertReady();
+        
         var protocol = new SqsSenderProtocol(this, _parent.Client, runtime.Logger);
         return new BatchedSender(Uri, protocol, runtime.Cancellation,
             runtime.Logger);
@@ -61,4 +98,5 @@ internal class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRe
         value = null;
         return false;
     }
+
 }
