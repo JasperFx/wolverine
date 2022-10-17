@@ -11,19 +11,18 @@ internal class SqsListener : IListener
     private readonly ILogger _logger;
     private readonly AmazonSqsEndpoint _endpoint;
     private readonly AmazonSqsTransport _transport;
-    private readonly IReceiver _receiver;
     private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
     private readonly Task _task;
-    private readonly List<string> _headers;
 
     public SqsListener(ILogger logger, AmazonSqsEndpoint endpoint, AmazonSqsTransport transport, IReceiver receiver)
     {
+        if (transport.Client == null) throw new InvalidOperationException("Parent transport has not been initialized");
+        
         _logger = logger;
         _endpoint = endpoint;
         _transport = transport;
-        _receiver = receiver;
 
-        _headers = endpoint.AllHeaders().ToList();
+        var headers = endpoint.AllHeaders().ToList();
 
         _task = Task.Run(async () =>
         {
@@ -33,7 +32,7 @@ internal class SqsListener : IListener
 
                 var request = new ReceiveMessageRequest(_endpoint.QueueUrl)
                 {
-                    MessageAttributeNames = _headers,
+                    MessageAttributeNames = headers,
                 };
 
                 _endpoint.ConfigureRequest(request);
@@ -45,11 +44,12 @@ internal class SqsListener : IListener
                     var envelopes = results.Messages.Select(buildEnvelope)
                         .ToArray();
 
-                    await _receiver.ReceivedAsync(this, envelopes);
+                    // ReSharper disable once CoVariantArrayConversion
+                    await receiver.ReceivedAsync(this, envelopes);
                 }
                 
                 // TODO -- harden all of this
-                // TODO -- put a cooldown here? Back pressure here?
+                // TODO -- put a cooldown here? 
 
             }
         }, _cancellation.Token);
@@ -95,13 +95,13 @@ internal class SqsListener : IListener
     public Task CompleteAsync(Message sqsMessage)
     {
         // TODO -- harden this like crazy
-        return _transport.Client.DeleteMessageAsync(_endpoint.QueueUrl, sqsMessage.ReceiptHandle);
+        return _transport.Client!.DeleteMessageAsync(_endpoint.QueueUrl, sqsMessage.ReceiptHandle);
     }
 
     public Task DeferAsync(Message sqsMessage)
     {
         // TODO -- harden this like crazy
         // TODO -- the visibility timeout needs to be configurable by timeout
-        return _transport.Client.ChangeMessageVisibilityAsync(_endpoint.QueueUrl, sqsMessage.ReceiptHandle, 1000);
+        return _transport.Client!.ChangeMessageVisibilityAsync(_endpoint.QueueUrl, sqsMessage.ReceiptHandle, 1000);
     }
 }

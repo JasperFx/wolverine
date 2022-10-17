@@ -7,31 +7,6 @@ using Wolverine.Util;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public interface IAmazonSqsListeningEndpoint
-{
-    /// <summary>
-    /// The duration (in seconds) that the received messages are hidden from subsequent retrieve
-    /// requests after being retrieved by a <code>ReceiveMessage</code> request. The default is
-    /// 120.
-    /// </summary>
-    int VisibilityTimeout { get; set; }
-
-    /// <summary>
-    /// The duration (in seconds) for which the call waits for a message to arrive in the
-    /// queue before returning. If a message is available, the call returns sooner than <code>WaitTimeSeconds</code>.
-    /// If no messages are available and the wait time expires, the call returns successfully
-    /// with an empty list of messages. Default is 5.
-    /// </summary>
-    int WaitTimeSeconds { get; set; }
-
-    /// <summary>
-    /// The maximum number of messages to return. Amazon SQS never returns more messages than
-    /// this value (however, fewer messages might be returned). Valid values: 1 to 10. Default:
-    /// 10.
-    /// </summary>
-    int MaxNumberOfMessages { get; set; }
-}
-
 public class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequestEntry>, IAmazonSqsListeningEndpoint
 {
     private readonly AmazonSqsTransport _parent;
@@ -59,13 +34,16 @@ public class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequ
     }
 
     // Set by the AmazonSqsTransport parent
-    internal string QueueUrl { get; private set; }
+    internal string? QueueUrl { get; private set; }
 
     private bool _initialized;
     
     internal async ValueTask InitializeAsync()
     {
         if (_initialized) return;
+
+        if (_parent.Client == null)
+            throw new InvalidOperationException($"Parent {nameof(AmazonSqsTransport)} has not been initialized");
         
         // TODO -- allow for config on endpoint?
         if (_parent.AutoProvision)
@@ -108,7 +86,7 @@ public class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequ
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        var protocol = new SqsSenderProtocol(this, _parent.Client, runtime.Logger);
+        var protocol = new SqsSenderProtocol(this, _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"), runtime.Logger);
         return new BatchedSender(Uri, protocol, runtime.Cancellation,
             runtime.Logger);
     }

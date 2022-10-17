@@ -62,7 +62,7 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
         return _queues[queueName];
     }
 
-    internal IAmazonSQS Client { get; private set; }
+    internal IAmazonSQS? Client { get; private set; }
 
     IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.Credentials(AWSCredentials credentials)
     {
