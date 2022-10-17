@@ -1,5 +1,7 @@
+using System.Text;
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using Baseline;
 using Microsoft.Extensions.Logging;
 using Wolverine.Transports;
 
@@ -11,18 +13,53 @@ internal class SqsListener : IListener
     private readonly AmazonSqsEndpoint _endpoint;
     private readonly AmazonSqsTransport _transport;
     private readonly IReceiver _receiver;
-
-    private readonly string _queueUrl;
-    private readonly IAmazonSQS _sqs;
+    private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
+    private readonly Task _task;
+    private readonly List<string> _headers;
 
     public SqsListener(ILogger logger, AmazonSqsEndpoint endpoint, AmazonSqsTransport transport, IReceiver receiver)
     {
-        // TODO -- really needs an ISqsClient and a queue url. Not really needing the parent
-        
         _logger = logger;
         _endpoint = endpoint;
         _transport = transport;
         _receiver = receiver;
+
+        _headers = endpoint.AllHeaders().ToList();
+
+        _task = Task.Run(async () =>
+        {
+            while (!_cancellation.Token.IsCancellationRequested)
+            {
+                // TODO -- harden like crazy
+
+                var request = new ReceiveMessageRequest(_endpoint.QueueUrl)
+                {
+                    MessageAttributeNames = _headers
+                };
+                
+                var results = await _transport.Client.ReceiveMessageAsync(request, _cancellation.Token);
+
+                if (results.Messages.Any())
+                {
+                    var envelopes = results.Messages.Select(buildEnvelope)
+                        .ToArray();
+
+                    await _receiver.ReceivedAsync(this, envelopes);
+                }
+                
+                // TODO -- harden all of this
+                // TODO -- put a cooldown here? Back pressure here?
+
+            }
+        }, _cancellation.Token);
+    }
+
+    private AmazonSqsEnvelope buildEnvelope(Message message)
+    {
+        var envelope = new AmazonSqsEnvelope(this, message);
+        _endpoint.MapIncomingToEnvelope(envelope, message);
+        envelope.Data = Encoding.Default.GetBytes(message.Body);
+        return envelope;
     }
 
     public async ValueTask CompleteAsync(Envelope envelope)
@@ -43,25 +80,27 @@ internal class SqsListener : IListener
 
     public ValueTask DisposeAsync()
     {
+        _cancellation.Cancel();
+        _task.SafeDispose();
         return ValueTask.CompletedTask;
     }
 
     public Uri Address => _endpoint.Uri;
     public ValueTask StopAsync()
     {
-        throw new NotImplementedException();
+        return DisposeAsync();
     }
 
     public Task CompleteAsync(Message sqsMessage)
     {
         // TODO -- harden this like crazy
-        return _sqs.DeleteMessageAsync(_queueUrl, sqsMessage.ReceiptHandle);
+        return _transport.Client.DeleteMessageAsync(_endpoint.QueueUrl, sqsMessage.ReceiptHandle);
     }
 
     public Task DeferAsync(Message sqsMessage)
     {
         // TODO -- harden this like crazy
         // TODO -- the visibility timeout needs to be configurable by timeout
-        return _sqs.ChangeMessageVisibilityAsync(_queueUrl, sqsMessage.ReceiptHandle, 1000);
+        return _transport.Client.ChangeMessageVisibilityAsync(_endpoint.QueueUrl, sqsMessage.ReceiptHandle, 1000);
     }
 }

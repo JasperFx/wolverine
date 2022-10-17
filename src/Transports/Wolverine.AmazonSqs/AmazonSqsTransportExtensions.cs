@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Baseline;
 using Wolverine.AmazonSqs.Internal;
+using Wolverine.Configuration;
 
 namespace Wolverine.AmazonSqs;
 
@@ -56,6 +57,19 @@ public static class AmazonSqsTransportExtensions
         endpoint.IsListener = true;
 
         return new AmazonSqsListenerConfiguration(endpoint);
+    }
+
+    public static AmazonSqsSubscriberConfiguration ToSqsQueue(this IPublishToExpression publishing, string queueName)
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<AmazonSqsTransport>();
+
+        var endpoint = transport.EndpointForQueue(queueName);
+        
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(endpoint.Uri);
+
+        return new AmazonSqsSubscriberConfiguration(endpoint);
     }
 
 }

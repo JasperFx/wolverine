@@ -32,7 +32,6 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
  - build client in transport
  - extension methods for listening & subscribing
  - TransportCompliance for durable
- - TransportCompliance for inline
  - TransportCompliance for buffered
  
  */

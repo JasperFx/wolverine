@@ -24,11 +24,13 @@ internal class SqsSenderProtocol : ISenderProtocol
     {
         var entries = batch.Messages.Select(CreateOutgoingEntry).ToList();
 
-        var request = new SendMessageBatchRequest(_endpoint.QueueName, entries);
+        var request = new SendMessageBatchRequest(_endpoint.QueueUrl, entries);
 
         try
         {
-            await _sqs.SendMessageBatchAsync(request);
+            var response = await _sqs.SendMessageBatchAsync(request);
+            
+            // TODO -- going to have to check the response!!!
             await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception e)
@@ -39,11 +41,7 @@ internal class SqsSenderProtocol : ISenderProtocol
 
     private SendMessageBatchRequestEntry CreateOutgoingEntry(Envelope x)
     {
-        var entry = new SendMessageBatchRequestEntry
-        {
-            MessageBody = Encoding.Default.GetString(x.Data!)
-        };
-
+        var entry = new SendMessageBatchRequestEntry(x.Id.ToString(), Encoding.Default.GetString(x.Data!));
         _endpoint.MapEnvelopeToOutgoing(x, entry);
 
         return entry;

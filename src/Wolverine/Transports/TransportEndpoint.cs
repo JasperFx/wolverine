@@ -37,6 +37,11 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
         initialize();
     }
 
+    public IEnumerable<string> AllHeaders()
+    {
+        return _envelopeToHeader.Values;
+    }
+
     private void initialize()
     {
         _mapIncoming = new Lazy<Action<Envelope, TIncoming>>(compileIncoming);

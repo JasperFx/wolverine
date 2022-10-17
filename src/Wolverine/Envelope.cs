@@ -201,7 +201,7 @@ public partial class Envelope
     /// <summary>
     ///     Specifies the accepted content types for the requested reply
     /// </summary>
-    public string?[] AcceptedContentTypes { get; set; } = new string?[0];
+    public string?[] AcceptedContentTypes { get; set; } = new string?[]{"application/json"};
 
     /// <summary>
     ///     Specific message id for this envelope

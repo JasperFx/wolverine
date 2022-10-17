@@ -84,7 +84,7 @@ public class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequ
 
     protected override void writeOutgoingHeader(SendMessageBatchRequestEntry outgoing, string key, string value)
     {
-        outgoing.MessageAttributes[key] = new MessageAttributeValue { StringValue = value };
+        outgoing.MessageAttributes[key] = new MessageAttributeValue { StringValue = value, DataType = "String"};
     }
 
     protected override bool tryReadIncomingHeader(Message incoming, string key, out string? value)
