@@ -22,6 +22,8 @@ internal class SqsSenderProtocol : ISenderProtocol
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
+        await _endpoint.InitializeAsync();
+        
         var entries = batch.Messages.Select(CreateOutgoingEntry).ToList();
 
         var request = new SendMessageBatchRequest(_endpoint.QueueUrl, entries);

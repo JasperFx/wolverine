@@ -45,6 +45,7 @@ public class HandlerPipeline : IHandlerPipeline
 
     public Task InvokeAsync(Envelope envelope, IChannelCallback channel)
     {
+        if (_cancellation.IsCancellationRequested) return Task.CompletedTask;
         using var activity = WolverineTracing.StartExecuting(envelope);
 
         return InvokeAsync(envelope, channel, activity);
@@ -52,6 +53,8 @@ public class HandlerPipeline : IHandlerPipeline
 
     public async Task InvokeAsync(Envelope envelope, IChannelCallback channel, Activity? activity)
     {
+        if (_cancellation.IsCancellationRequested) return;
+        
         try
         {
             var context = _contextPool.Get();
@@ -85,6 +88,8 @@ public class HandlerPipeline : IHandlerPipeline
 
     public async Task InvokeNowAsync(Envelope envelope, CancellationToken cancellation = default)
     {
+        if (_cancellation.IsCancellationRequested) return;
+        
         if (envelope.Message == null)
         {
             throw new ArgumentNullException(nameof(envelope.Message));

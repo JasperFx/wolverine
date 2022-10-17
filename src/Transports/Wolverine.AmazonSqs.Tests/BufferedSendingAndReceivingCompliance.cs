@@ -5,7 +5,7 @@ namespace Wolverine.AmazonSqs.Tests;
 
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public BufferedComplianceFixture() : base(new Uri("sqs://buffered-receiver"))
+    public BufferedComplianceFixture() : base(new Uri("sqs://buffered-receiver"), 120)
     {
     }
 

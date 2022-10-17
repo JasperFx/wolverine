@@ -34,8 +34,12 @@ public class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequ
     // Set by the AmazonSqsTransport parent
     internal string QueueUrl { get; private set; }
 
+    private bool _initialized;
+    
     internal async ValueTask InitializeAsync()
     {
+        if (_initialized) return;
+        
         // TODO -- allow for config on endpoint?
         if (_parent.AutoProvision)
         {
@@ -56,6 +60,8 @@ public class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequ
         {
             await _parent.Client.PurgeQueueAsync(QueueUrl);
         }
+
+        _initialized = true;
     }
 
     public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
@@ -75,8 +81,6 @@ public class AmazonSqsEndpoint : TransportEndpoint<Message, SendMessageBatchRequ
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        assertReady();
-        
         var protocol = new SqsSenderProtocol(this, _parent.Client, runtime.Logger);
         return new BatchedSender(Uri, protocol, runtime.Cancellation,
             runtime.Logger);

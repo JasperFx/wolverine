@@ -297,7 +297,7 @@ namespace TestingSupport.Compliance
             var (session, ack) = await theSender.TrackActivity(Fixture.DefaultTimeout)
                 .AlsoTrack(theReceiver)
                 .Timeout(30.Seconds())
-                .SendMessageAndWaitForAcknowledgementAsync(c => c.SendAndWaitAsync(message1));
+                .SendMessageAndWaitForAcknowledgementAsync(c => c.SendAndWaitAsync(message1, timeout:1.Minutes()));
 
             ack.ShouldNotBeNull();
         }
@@ -309,7 +309,7 @@ namespace TestingSupport.Compliance
 
             var (session, response) = await theSender.TrackActivity(Fixture.DefaultTimeout)
                 .AlsoTrack(theReceiver)
-                .RequestAndWaitAsync(c => c.RequestAsync<Response>(request));
+                .RequestAndWaitAsync(c => c.RequestAsync<Response>(request, timeout:1.Minutes()));
             
             response.Name.ShouldBe(request.Name);
         }
@@ -347,7 +347,7 @@ namespace TestingSupport.Compliance
             var session2 = await theSender
                 .TrackActivity(Fixture.DefaultTimeout)
                 .AlsoTrack(theReceiver)
-
+                .Timeout(1.Minutes())
                 .ExecuteAndWaitAsync(action);
 
             var envelopes = session2
