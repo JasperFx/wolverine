@@ -15,7 +15,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
 
         public when_discovering_a_listening_endpoint_with_all_defaults()
         {
-            theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqEndpoint>();
+            theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
         }
 
         [Fact]

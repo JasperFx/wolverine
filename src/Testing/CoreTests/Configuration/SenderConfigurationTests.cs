@@ -48,7 +48,7 @@ public class SenderConfigurationTests
         expression.Named("FooEndpoint");
         endpoint.Compile(new MockWolverineRuntime());
 
-        endpoint.Name.ShouldBe("FooEndpoint");
+        endpoint.EndpointName.ShouldBe("FooEndpoint");
     }
 
     [Fact]

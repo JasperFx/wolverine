@@ -15,7 +15,7 @@ public class LocalTransportTests
     public void has_default_queues(string queueName)
     {
         new LocalTransport()
-            .AllQueues().Any(x => x.Name == queueName)
+            .AllQueues().Any(x => x.EndpointName == queueName)
             .ShouldBeTrue();
     }
 
@@ -31,7 +31,7 @@ public class LocalTransportTests
     public void LocalQueueSettings_forces_the_queue_name_to_be_lower_case()
     {
         new LocalQueueSettings("Foo")
-            .Name.ShouldBe("foo");
+            .EndpointName.ShouldBe("foo");
     }
 
 

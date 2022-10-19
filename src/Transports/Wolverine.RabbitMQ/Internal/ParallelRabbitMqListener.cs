@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Baseline;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
@@ -12,8 +13,8 @@ namespace Wolverine.RabbitMQ.Internal
     {
         private readonly IList<RabbitMqListener> _listeners = new List<RabbitMqListener>();
 
-        public ParallelRabbitMqListener(ILogger logger,
-            RabbitMqEndpoint endpoint, RabbitMqTransport transport, IReceiver receiver)
+        public ParallelRabbitMqListener(IWolverineRuntime logger,
+            RabbitMqQueue endpoint, RabbitMqTransport transport, IReceiver receiver)
         {
             Address = endpoint.Uri;
             for (var i = 0; i < endpoint.ListenerCount; i++)

@@ -11,10 +11,10 @@ internal class StubTransport : TransportBase<StubEndpoint>
     public StubTransport() : base("stub", "Stub")
     {
         Endpoints =
-            new LightweightCache<Uri, StubEndpoint>(u => new StubEndpoint(u, this));
+            new LightweightCache<string, StubEndpoint>(name => new StubEndpoint(name, this));
     }
 
-    public new LightweightCache<Uri, StubEndpoint> Endpoints { get; }
+    public new LightweightCache<string, StubEndpoint> Endpoints { get; }
 
     protected override IEnumerable<StubEndpoint> endpoints()
     {
@@ -23,7 +23,8 @@ internal class StubTransport : TransportBase<StubEndpoint>
 
     protected override StubEndpoint findEndpointByUri(Uri uri)
     {
-        return Endpoints[uri];
+        var name = uri.Host;
+        return Endpoints[name];
     }
 
     public override ValueTask InitializeAsync(IWolverineRuntime runtime)

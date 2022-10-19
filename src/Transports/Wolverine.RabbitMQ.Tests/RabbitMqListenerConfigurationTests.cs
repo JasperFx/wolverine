@@ -11,7 +11,7 @@ namespace Wolverine.RabbitMQ.Tests
         [Fact]
         public void override_prefetch_count()
         {
-            var endpoint = new RabbitMqEndpoint(new RabbitMqTransport());
+            var endpoint = new RabbitMqQueue("foo",new RabbitMqTransport());
             var expression = new RabbitMqListenerConfiguration(endpoint);
 
             expression.PreFetchCount(99).ShouldBeSameAs(expression);
@@ -27,7 +27,7 @@ namespace Wolverine.RabbitMQ.Tests
         [Fact]
         public void override_prefetch_size()
         {
-            var endpoint = new RabbitMqEndpoint(new RabbitMqTransport());
+            var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
             var expression = new RabbitMqListenerConfiguration(endpoint);
 
             expression.PreFetchSize(1111).ShouldBeSameAs(expression);

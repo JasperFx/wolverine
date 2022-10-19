@@ -6,9 +6,9 @@ using Wolverine.Runtime.Interop.MassTransit;
 
 namespace Wolverine.RabbitMQ
 {
-    public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListenerConfiguration, RabbitMqEndpoint>
+    public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListenerConfiguration, RabbitMqQueue>
     {
-        public RabbitMqListenerConfiguration(RabbitMqEndpoint endpoint) : base(endpoint)
+        public RabbitMqListenerConfiguration(RabbitMqQueue endpoint) : base(endpoint)
         {
         }
 
@@ -68,7 +68,7 @@ namespace Wolverine.RabbitMQ
         /// <returns></returns>
         public RabbitMqListenerConfiguration DefaultIncomingMessage(Type messageType)
         {
-            add(e => e.ReceivesMessage(messageType));
+            add(e => e.MessageType = messageType);
             return this;
         }
 

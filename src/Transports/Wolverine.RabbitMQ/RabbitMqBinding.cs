@@ -12,7 +12,7 @@ namespace Wolverine.RabbitMQ
         {
             ExchangeName = exchangeName ?? throw new ArgumentNullException(nameof(exchangeName));
             Queue = queue ?? throw new ArgumentNullException(nameof(queue));
-            BindingKey = bindingKey ?? $"{ExchangeName}_{Queue.Name}";
+            BindingKey = bindingKey ?? $"{ExchangeName}_{Queue.EndpointName}";
         }
 
         public string BindingKey { get; }
@@ -26,15 +26,15 @@ namespace Wolverine.RabbitMQ
         {
             if (HasDeclared) return;
             Queue.Declare(channel, logger);
-            channel.QueueBind(Queue.Name, ExchangeName, BindingKey, Arguments);
-            logger.LogInformation("Declared a Rabbit Mq binding '{Key}' from exchange {Exchange} to {Queue}", BindingKey, ExchangeName, Queue.Name);
+            channel.QueueBind(Queue.EndpointName, ExchangeName, BindingKey, Arguments);
+            logger.LogInformation("Declared a Rabbit Mq binding '{Key}' from exchange {Exchange} to {Queue}", BindingKey, ExchangeName, Queue.EndpointName);
 
             HasDeclared = true;
         }
 
         public void Teardown(IModel channel)
         {
-            channel.QueueUnbind(Queue.Name, ExchangeName, BindingKey, Arguments);
+            channel.QueueUnbind(Queue.EndpointName, ExchangeName, BindingKey, Arguments);
         }
 
         protected bool Equals(RabbitMqBinding other)

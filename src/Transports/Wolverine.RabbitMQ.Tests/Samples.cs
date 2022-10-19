@@ -168,8 +168,7 @@ public class Samples
                     // start up time
                     .AutoProvision();
 
-                opts.PublishAllMessages().ToRabbit("key1");
-
+                opts.PublishAllMessages().ToRabbitExchange("exchange1");
 
             }).StartAsync();
 

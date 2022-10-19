@@ -38,7 +38,7 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
 
     public T Named(string name)
     {
-        add(e => e.Name = name);
+        add(e => e.EndpointName = name);
         return this.As<T>();
     }
 

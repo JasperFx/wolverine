@@ -28,14 +28,14 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         [Fact]
         public void routed_to_rabbit_mq_exchange()
         {
-            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqEndpoint>();
+            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
             endpoint.ExchangeName.ShouldBe(typeof(PublishedMessage).ToMessageTypeName());
         }
 
         [Fact]
         public void endpoint_mode_is_buffered_by_default()
         {
-            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqEndpoint>();
+            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
             endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
         }
 
@@ -45,7 +45,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
             // The rabbit object construction is lazy, so force it to happen
             await new MessagePublisher(theRuntime).SendAsync(new PublishedMessage());
 
-            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqEndpoint>();
+            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
             theTransport.Exchanges.Has(endpoint.ExchangeName).ShouldBeTrue();
             var theExchange = theTransport.Exchanges[endpoint.ExchangeName];
             theExchange.HasDeclared.ShouldBeTrue();
@@ -57,10 +57,10 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
             // The rabbit object construction is lazy, so force it to happen
             await new MessagePublisher(theRuntime).SendAsync(new PublishedMessage());
 
-            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqEndpoint>();
+            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
             var theExchange = theTransport.Exchanges[endpoint.ExchangeName];
             var binding = theExchange.Bindings().Single().ShouldNotBeNull();
-            binding.Queue.Name.ShouldBe(theExchange.Name);
+            binding.Queue.EndpointName.ShouldBe(theExchange.Name);
             binding.Queue.HasDeclared.ShouldBeTrue();
             binding.HasDeclared.ShouldBeTrue();
         }

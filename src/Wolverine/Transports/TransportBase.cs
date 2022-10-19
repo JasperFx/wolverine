@@ -44,6 +44,8 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
 
     public Endpoint GetOrCreateEndpoint(Uri uri)
     {
+        if (uri.Scheme != Protocol)
+            throw new ArgumentOutOfRangeException($"Uri must have scheme '{Protocol}', but received {uri.Scheme}");
         return findEndpointByUri(uri);
     }
 

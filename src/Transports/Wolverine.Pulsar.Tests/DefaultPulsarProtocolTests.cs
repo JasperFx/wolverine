@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Reflection;
+using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Internal.PulsarApi;
 using Wolverine.Util;
@@ -10,18 +11,50 @@ using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities;
 using NSubstitute;
 using Shouldly;
 using TestingSupport;
+using Wolverine.Runtime;
 using Xunit;
 using MessageMetadata = DotPulsar.MessageMetadata;
 
 namespace Wolverine.Pulsar.Tests
 {
+    internal class StubMessage : IMessage<ReadOnlySequence<byte>>
+    {
+        public MessageId MessageId { get; }
+        public ReadOnlySequence<byte> Data { get; }
+        public string ProducerName { get; }
+        public byte[]? SchemaVersion { get; }
+        public ulong SequenceId { get; }
+        public uint RedeliveryCount { get; }
+        public bool HasEventTime { get; }
+        public ulong EventTime { get; }
+        public DateTime EventTimeAsDateTime { get; }
+        public DateTimeOffset EventTimeAsDateTimeOffset { get; }
+        public bool HasBase64EncodedKey { get; }
+        public bool HasKey { get; }
+        public string? Key { get; }
+        public byte[]? KeyBytes { get; }
+        public bool HasOrderingKey { get; }
+        public byte[]? OrderingKey { get; }
+        public ulong PublishTime { get; }
+        public DateTime PublishTimeAsDateTime { get; }
+        public DateTimeOffset PublishTimeAsDateTimeOffset { get; }
+        public IReadOnlyDictionary<string, string> Properties { get; set; }
+        public ReadOnlySequence<byte> Value()
+        {
+            throw new NotImplementedException();
+        }
+    }
+    
     public class DefaultPulsarProtocolTests
     {
         public DefaultPulsarProtocolTests()
         {
             _mapped = new Lazy<Envelope>(() =>
             {
-                var mapper = new PulsarEndpoint("pulsar://persistent/public/default/one".ToUri(), new PulsarTransport());
+                var endpoint = new PulsarEndpoint("pulsar://persistent/public/default/one".ToUri(), new PulsarTransport());
+                var runtime = Substitute.For<IWolverineRuntime>();
+                
+                var mapper = endpoint.BuildMapper(runtime);
                 var metadata = new MessageMetadata();
 
                 mapper.MapEnvelopeToOutgoing(theOriginal, metadata);
@@ -39,8 +72,7 @@ namespace Wolverine.Pulsar.Tests
                     properties[pair.Key] = pair.Value;
                 }
 
-                var message = Substitute.For<IMessage<ReadOnlySequence<byte>>>();
-                message.Properties.Returns(properties);
+                var message = new StubMessage { Properties = properties };
 
                 var envelope = new PulsarEnvelope(message);
 

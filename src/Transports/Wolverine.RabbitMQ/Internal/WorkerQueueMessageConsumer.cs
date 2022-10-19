@@ -1,8 +1,10 @@
 using System;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualBasic.CompilerServices;
 using RabbitMQ.Client;
 using Wolverine.Transports;
 
@@ -12,7 +14,7 @@ namespace Wolverine.RabbitMQ.Internal
     {
         private readonly Uri _address;
         private readonly CancellationToken _cancellation;
-        private readonly RabbitMqEndpoint _endpoint;
+        private readonly IEnvelopeMapper<IBasicProperties, IBasicProperties> _mapper;
         private readonly ILogger _logger;
         private readonly IReceiver _workerQueue;
         private readonly RabbitMqListener _listener;
@@ -20,12 +22,12 @@ namespace Wolverine.RabbitMQ.Internal
 
         public WorkerQueueMessageConsumer(IReceiver workerQueue, ILogger logger,
             RabbitMqListener listener,
-            RabbitMqEndpoint endpoint, Uri address, CancellationToken cancellation)
+            IEnvelopeMapper<IBasicProperties, IBasicProperties> mapper, Uri address, CancellationToken cancellation)
         {
             _workerQueue = workerQueue;
             _logger = logger;
             _listener = listener;
-            _endpoint = endpoint;
+            _mapper = mapper;
             _address = address;
             _cancellation = cancellation;
         }
@@ -50,7 +52,7 @@ namespace Wolverine.RabbitMQ.Internal
             try
             {
                 envelope.Data = body.ToArray(); // TODO -- use byte sequence instead!
-                _endpoint.MapIncomingToEnvelope(envelope, properties);
+                _mapper.MapIncomingToEnvelope(envelope, properties);
             }
             catch (Exception e)
             {

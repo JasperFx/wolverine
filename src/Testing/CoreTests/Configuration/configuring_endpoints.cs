@@ -104,7 +104,7 @@ public class configuring_endpoints : IDisposable
     [Fact]
     public void can_set_the_endpoint_name()
     {
-        localQueue("one").Name.ShouldBe("one");
+        localQueue("one").EndpointName.ShouldBe("one");
     }
 
     [Fact]

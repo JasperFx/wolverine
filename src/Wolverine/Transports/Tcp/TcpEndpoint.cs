@@ -17,16 +17,14 @@ public class TcpEndpoint : Endpoint
     {
     }
 
-    public TcpEndpoint(string hostName, int port) : base(EndpointRole.Application)
+    public TcpEndpoint(string hostName, int port) : base( ToUri(port, hostName), EndpointRole.Application)
     {
         HostName = hostName;
         Port = port;
 
         // ReSharper disable once VirtualMemberCallInConstructor
-        Name = Uri.ToString();
+        EndpointName = Uri.ToString();
     }
-
-    public override Uri Uri => ToUri(Port, HostName);
 
     public string HostName { get; private set; }
 
@@ -41,17 +39,6 @@ public class TcpEndpoint : Endpoint
     public static Uri ToUri(int port, string hostName = "localhost")
     {
         return $"tcp://{hostName}:{port}".ToUri();
-    }
-    
-    public override void Parse(Uri uri)
-    {
-        if (uri.Scheme != "tcp")
-        {
-            throw new ArgumentOutOfRangeException(nameof(uri));
-        }
-
-        HostName = uri.Host;
-        Port = uri.Port;
     }
 
     public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)

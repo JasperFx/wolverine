@@ -62,17 +62,11 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     private string? _name;
     private ImHashMap<string, IMessageSerializer> _serializers = ImHashMap<string, IMessageSerializer>.Empty;
     internal readonly List<IDelayedEndpointConfiguration> DelayedConfiguration = new();
-    
-    protected Endpoint(EndpointRole role)
-    {
-        Role = role;
-    }
 
     protected Endpoint(Uri uri, EndpointRole role)
     {
         Role = role;
-        // ReSharper disable once VirtualMemberCallInConstructor
-        Parse(uri);
+        Uri = uri;
     }
     
     /// <summary>
@@ -178,7 +172,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     /// <summary>
     ///     Descriptive Name for this listener. Optional.
     /// </summary>
-    public string Name
+    public string EndpointName
     {
         get => _name ?? Uri.ToString();
         set => _name = value;
@@ -187,7 +181,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     /// <summary>
     ///     The actual address of the listener, including the transport scheme
     /// </summary>
-    public abstract Uri Uri { get; }
+    public Uri Uri { get; }
 
     /// <summary>
     /// Configuration for the local TPL Dataflow queue for listening endpoints configured as either
@@ -228,11 +222,16 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     /// </summary>
     public int MaximumEnvelopeRetryStorage { get; set; } = 100;
 
+    /// <summary>
+    /// Optional default message type if this endpoint only receives one message type
+    /// </summary>
+    public Type? MessageType { get; set; }
+
     public virtual IDictionary<string, object> DescribeProperties()
     {
         var dict = new Dictionary<string, object>
         {
-            { nameof(Name), Name },
+            { nameof(EndpointName), EndpointName },
             { nameof(Mode), Mode },
             { nameof(PingIntervalForCircuitResume), PingIntervalForCircuitResume },
             { nameof(FailuresBeforeCircuitBreaks), PingIntervalForCircuitResume }
@@ -281,12 +280,6 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     {
         _serializers = _serializers.AddOrUpdate(serializer.ContentType, serializer);
     }
-
-    /// <summary>
-    /// Parse a Uri and set any necessary values on this endpoint that are inferred from the Uri
-    /// </summary>
-    /// <param name="uri"></param>
-    public abstract void Parse(Uri uri);
 
     /// <summary>
     /// Build a message listener for this endpoint at runtime

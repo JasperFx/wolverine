@@ -5,6 +5,7 @@ using Baseline;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
@@ -18,16 +19,16 @@ namespace Wolverine.RabbitMQ.Internal
         private CancellationToken _cancellation = CancellationToken.None;
         private WorkerQueueMessageConsumer? _consumer;
 
-        public RabbitMqListener(ILogger logger,
-            RabbitMqEndpoint endpoint, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection, transport, endpoint, logger)
+        public RabbitMqListener(IWolverineRuntime runtime,
+            RabbitMqQueue endpoint, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection, endpoint, runtime.Logger)
         {
-            _logger = logger;
+            _logger = runtime.Logger;
             Endpoint = endpoint;
             Address = endpoint.Uri;
 
-            _routingKey = endpoint.RoutingKey ?? endpoint.QueueName ?? "";
+            _routingKey = endpoint.QueueName ?? "";
 
-            _sender = new RabbitMqSender(Endpoint, transport, RoutingMode.Static, logger);
+            _sender = new RabbitMqSender(Endpoint, transport, RoutingMode.Static, runtime);
 
             _cancellation.Register(teardownChannel);
 
@@ -38,12 +39,14 @@ namespace Wolverine.RabbitMQ.Internal
                 var queue = transport.Queues[endpoint.QueueName];
                 if (transport.AutoProvision || queue.AutoDelete)
                 {
-                    queue.Declare(Channel, logger);
+                    queue.Declare(Channel, runtime.Logger);
                 }
             }
+
+            var mapper = endpoint.BuildMapper(runtime);
             
             _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
-            _consumer = new WorkerQueueMessageConsumer(receiver, _logger, this, Endpoint, Address,
+            _consumer = new WorkerQueueMessageConsumer(receiver, _logger, this, mapper, Address,
                 _cancellation);
 
             Channel.BasicQos(Endpoint.PreFetchSize, Endpoint.PreFetchCount, false);
@@ -66,7 +69,7 @@ namespace Wolverine.RabbitMQ.Internal
             return ValueTask.CompletedTask;
         }
 
-        public RabbitMqEndpoint Endpoint { get; }
+        public RabbitMqQueue Endpoint { get; }
 
         public override void Dispose()
         {

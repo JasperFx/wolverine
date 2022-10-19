@@ -37,23 +37,23 @@ public class LocalQueueSettingsTests
     [Fact]
     public void create_by_uri()
     {
-        var endpoint = new LocalQueueSettings(new Uri("local://foo"));
+        var endpoint = new LocalQueueSettings("foo");
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
-        endpoint.Name.ShouldBe("foo");
+        endpoint.EndpointName.ShouldBe("foo");
     }
 
     [Fact]
     public void create_by_uri_case_insensitive()
     {
-        var endpoint = new LocalQueueSettings(new Uri("local://Foo"));
+        var endpoint = new LocalQueueSettings("Foo");
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
-        endpoint.Name.ShouldBe("foo");
+        endpoint.EndpointName.ShouldBe("foo");
     }
 
     [Fact]
     public void configure_circuit_breaker_options_with_defaults()
     {
-        var endpoint = new LocalQueueSettings(new Uri("local://Foo"));
+        var endpoint = new LocalQueueSettings("foo");
         new LocalQueueConfiguration(endpoint).CircuitBreaker();
         endpoint.Compile(new MockWolverineRuntime());
         
@@ -64,7 +64,7 @@ public class LocalQueueSettingsTests
     [Fact]
     public void configure_circuit_breaker_options_with_explicit_config()
     {
-        var endpoint = new LocalQueueSettings(new Uri("local://Foo"));
+        var endpoint = new LocalQueueSettings("Foo");
         new LocalQueueConfiguration(endpoint).CircuitBreaker(cb =>
         {
             cb.PauseTime = 23.Minutes();

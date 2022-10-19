@@ -122,7 +122,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         public IRabbitMqTransportExpression ConfigureListeners(Action<RabbitMqListenerConfiguration> configure)
         {
-            var policy = new LambdaEndpointPolicy<RabbitMqEndpoint>((e, runtime) =>
+            var policy = new LambdaEndpointPolicy<RabbitMqQueue>((e, runtime) =>
             {
                 if (e.Role == EndpointRole.System) return;
                 if (!e.IsListener) return;

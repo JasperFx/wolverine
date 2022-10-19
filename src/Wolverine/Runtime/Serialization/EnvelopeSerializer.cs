@@ -86,7 +86,7 @@ internal static class EnvelopeSerializer
                     env.Attempts = int.Parse(value);
                     break;
 
-                case EnvelopeConstants.DeliverByHeader:
+                case EnvelopeConstants.DeliverByKey:
                     env.DeliverBy = DateTime.Parse(value);
                     break;
 
@@ -220,7 +220,7 @@ internal static class EnvelopeSerializer
 
 
         writer.WriteProp(ref count, EnvelopeConstants.AttemptsKey, env.Attempts);
-        writer.WriteProp(ref count, EnvelopeConstants.DeliverByHeader, env.DeliverBy);
+        writer.WriteProp(ref count, EnvelopeConstants.DeliverByKey, env.DeliverBy);
 
         foreach (var pair in env.Headers)
         {

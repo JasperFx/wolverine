@@ -39,7 +39,7 @@ namespace Wolverine.RabbitMQ.Internal
 
                         foreach (var binding in exchange.Bindings())
                         {
-                            bindingTable.AddRow(binding.BindingKey ?? string.Empty, binding.Queue.Name ?? string.Empty,
+                            bindingTable.AddRow(binding.BindingKey ?? string.Empty, binding.Queue.EndpointName ?? string.Empty,
                                 binding.Arguments.Select(pair => $"{pair.Key}={pair.Value}").Join(", "));
                         }
 
@@ -49,7 +49,7 @@ namespace Wolverine.RabbitMQ.Internal
             }
 
             var queueNode = parentNode.AddNode("Queues");
-            foreach (var queue in Queues) queueNode.AddNode(queue.Name);
+            foreach (var queue in Queues) queueNode.AddNode(queue.EndpointName);
         }
     }
 }

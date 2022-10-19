@@ -192,7 +192,7 @@ namespace Wolverine.RabbitMQ.Tests
                     .BindExchange(exchangeName)
                     .ToQueue(queueName, "key2");
 
-                opts.PublishAllMessages().ToRabbit("key2", exchangeName);
+                opts.PublishAllMessages().ToRabbitExchange(exchangeName);
             });
 
             var receiver = WolverineHost.For(opts =>
@@ -366,7 +366,7 @@ namespace Wolverine.RabbitMQ.Tests
                     .BindExchange("topics", ExchangeType.Topic)
                     .ToQueue(queueName, "special");
 
-                opts.PublishAllMessages().ToRabbit("special", "topics");
+                opts.PublishAllMessages().ToRabbitTopic( "special","topics");
 
                 opts.Handlers.DisableConventionalDiscovery();
             });

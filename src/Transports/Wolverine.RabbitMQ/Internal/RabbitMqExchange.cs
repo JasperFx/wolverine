@@ -1,20 +1,47 @@
 using System;
 using System.Collections.Generic;
+using Baseline;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class RabbitMqExchange
+    public class RabbitMqExchange : RabbitMqEndpoint
     {
         private readonly RabbitMqTransport _parent;
+        
+        internal LightweightCache<string, RabbitMqTopicEndpoint> Topics { get; }
 
-        internal RabbitMqExchange(string name, RabbitMqTransport parent)
+        internal RabbitMqExchange(string name, RabbitMqTransport parent) 
+            : base(new Uri($"{RabbitMqTransport.ProtocolName}://{RabbitMqEndpoint.ExchangeSegment}/{name}"), EndpointRole.Application, parent)
         {
             _parent = parent;
             Name = name;
             DeclaredName = name == TransportConstants.Default ? "" : Name;
+            ExchangeName = name;
+
+            Topics = new(topic => new RabbitMqTopicEndpoint(topic, this, _parent));
+        }
+
+        public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+        {
+            throw new NotSupportedException();
+        }
+        
+        internal override void Initialize(IModel channel, ILogger logger)
+        {
+            if (_parent.AutoProvision)
+            {
+                Declare(channel, logger);
+            }
+        }
+
+        internal override string RoutingKey()
+        {
+            return string.Empty;
         }
 
         public bool HasDeclared { get; private set; }

@@ -76,7 +76,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
             ConfigureConventions(c => c.ConfigureSending((c, _, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
 
             var route = PublishingRoutesFor<PublishedMessage>().Single().Sender.Endpoint
-                .ShouldBeOfType<RabbitMqEndpoint>();
+                .ShouldBeOfType<RabbitMqExchange>();
 
             route.OutgoingRules.Single().ShouldBeOfType<FakeEnvelopeRule>();
         }
@@ -108,7 +108,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
             }));
 
             var endpoint = theRuntime.Endpoints.EndpointFor("rabbitmq://queue/routed".ToUri())
-                .ShouldBeOfType<RabbitMqEndpoint>();
+                .ShouldBeOfType<RabbitMqQueue>();
 
             endpoint.ListenerCount.ShouldBe(6);
         }

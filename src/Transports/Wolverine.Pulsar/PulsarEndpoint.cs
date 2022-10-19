@@ -5,13 +5,14 @@ using System.Linq;
 using Baseline;
 using DotPulsar;
 using DotPulsar.Abstractions;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pulsar
 {
-    public class PulsarEndpoint : TransportEndpoint<IMessage<ReadOnlySequence<byte>>, MessageMetadata>
+    public class PulsarEndpoint : Endpoint
     {
         private readonly PulsarTransport _parent;
         public const string Persistent = "persistent";
@@ -31,10 +32,10 @@ namespace Wolverine.Pulsar
             return new Uri($"pulsar://{uri.Scheme}/{uri.Host}/{uri.Segments.Skip(1).Select(x => x.TrimEnd('/')).Join("/")}");
         }
 
-        public PulsarEndpoint(Uri uri, PulsarTransport parent) : base(uri)
+        public PulsarEndpoint(Uri uri, PulsarTransport parent) : base(uri, EndpointRole.Application)
         {
             _parent = parent;
-            Uri = uri;
+            Parse(uri);
         }
 
         public override IDictionary<string, object> DescribeProperties()
@@ -52,33 +53,17 @@ namespace Wolverine.Pulsar
             return dict;
         }
 
-        public override Uri Uri { get; }
-
         public string Persistence { get; private set; } = Persistent;
         public string Tenant { get; private set; } = Public;
         public string Namespace { get; private set; } = DefaultNamespace;
         public string? TopicName { get; private set;}
 
-        protected override void writeOutgoingHeader(MessageMetadata outgoing, string key, string value)
+        internal PulsarEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
         {
-            outgoing[key] = value;
+            return new PulsarEnvelopeMapper(this, runtime);
         }
-
-        protected override bool tryReadIncomingHeader(IMessage<ReadOnlySequence<byte>> incoming, string key,
-            out string? value)
-        {
-            return incoming.Properties.TryGetValue(key, out value);
-        }
-
-        protected override void writeIncomingHeaders(IMessage<ReadOnlySequence<byte>> incoming, Envelope envelope)
-        {
-            foreach (var pair in incoming.Properties)
-            {
-                envelope.Headers[pair.Key] = pair.Value;
-            }
-        }
-
-        public override void Parse(Uri uri)
+        
+        internal void Parse(Uri uri)
         {
             if (uri.Segments.Length != 4)
             {
@@ -104,12 +89,12 @@ namespace Wolverine.Pulsar
         public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
         {
             // TODO -- parallel listener option????
-            return new PulsarListener(this, receiver, _parent, runtime.Cancellation);
+            return new PulsarListener(runtime, this, receiver, _parent, runtime.Cancellation);
         }
 
         protected override ISender CreateSender(IWolverineRuntime runtime)
         {
-            return new PulsarSender(this, _parent, runtime.Cancellation);
+            return new PulsarSender(runtime, this, _parent, runtime.Cancellation);
         }
 
     }

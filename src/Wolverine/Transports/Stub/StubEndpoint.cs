@@ -22,15 +22,12 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     private IMessageLogger? _logger;
     private IHandlerPipeline? _pipeline;
 
-    public StubEndpoint(Uri destination, StubTransport stubTransport) : base(destination, EndpointRole.Application)
+    public StubEndpoint(string queueName, StubTransport stubTransport) : base($"stub://{queueName}".ToUri(), EndpointRole.Application)
     {
         _stubTransport = stubTransport;
-        Destination = destination;
         Agent = this;
+        EndpointName = queueName;
     }
-
-    public override Uri Uri => $"stub://{Name}".ToUri();
-
     public ValueTask StopAsync()
     {
         return ValueTask.CompletedTask;
@@ -64,7 +61,7 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
         return ValueTask.CompletedTask;
     }
 
-    public Uri Destination { get; }
+    public Uri Destination => Uri;
 
     Uri? ISendingAgent.ReplyUri
     {
@@ -101,11 +98,6 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     {
         _pipeline = pipeline;
         _logger = logger;
-    }
-
-    public override void Parse(Uri uri)
-    {
-        Name = uri.Host;
     }
 
     public override IListener BuildListener(IWolverineRuntime runtime, IReceiver? receiver)

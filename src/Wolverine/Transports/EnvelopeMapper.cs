@@ -1,17 +1,28 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using Baseline;
 using Baseline.Reflection;
-using Wolverine.Util;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
+using Wolverine.Util;
 
 namespace Wolverine.Transports;
 
-public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
+public interface IEnvelopeMapper<TIncoming, TOutgoing>
 {
+    IEnumerable<string> AllHeaders();
+    void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
+    void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing);
+}
+
+public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>
+{
+    private readonly Endpoint _endpoint;
+    private readonly IWolverineRuntime _runtime;
     const string datetimeoffset_format = "yyyy-MM-dd HH:mm:ss:ffffff Z";
     
     private readonly Dictionary<PropertyInfo, string> _envelopeToHeader = new();
@@ -22,50 +33,11 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
     private Lazy<Action<Envelope, TIncoming>> _mapIncoming = null!;
     private Lazy<Action<Envelope, TOutgoing>> _mapOutgoing = null!;
 
-    protected TransportEndpoint(Uri uri) : base(uri, EndpointRole.Application)
+    public EnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime)
     {
-        initialize();
-    }
-
-    protected TransportEndpoint() : base(EndpointRole.Application)
-    {
-        initialize();
-    }
-    
-    protected TransportEndpoint(EndpointRole role) : base(role)
-    {
-        initialize();
-    }
-
-    /// <summary>
-    /// The duration (in seconds) that the received messages are hidden from subsequent retrieve
-    /// requests after being retrieved by a <code>ReceiveMessage</code> request. The default is
-    /// 120.
-    /// </summary>
-    public int VisibilityTimeout { get; set; } = 120;
-
-    /// <summary>
-    /// The duration (in seconds) for which the call waits for a message to arrive in the
-    /// queue before returning. If a message is available, the call returns sooner than <code>WaitTimeSeconds</code>.
-    /// If no messages are available and the wait time expires, the call returns successfully
-    /// with an empty list of messages. Default is 5.
-    /// </summary>
-    public int WaitTimeSeconds { get; set; } = 5;
-
-    /// <summary>
-    /// The maximum number of messages to return. Amazon SQS never returns more messages than
-    /// this value (however, fewer messages might be returned). Valid values: 1 to 10. Default:
-    /// 10.
-    /// </summary>
-    public int MaxNumberOfMessages { get; set; } = 10;
-
-    public IEnumerable<string> AllHeaders()
-    {
-        return _envelopeToHeader.Values;
-    }
-
-    private void initialize()
-    {
+        _endpoint = endpoint;
+        _runtime = runtime;
+        
         _mapIncoming = new Lazy<Action<Envelope, TIncoming>>(compileIncoming);
         _mapOutgoing = new Lazy<Action<Envelope, TOutgoing>>(compileOutgoing);
 
@@ -88,11 +60,16 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
         MapPropertyToHeader(x => x.AcceptedContentTypes, EnvelopeConstants.AcceptedContentTypesKey);
 
         // TODO -- could check it here, then delete it on the spot instead of mapping it!!
-        MapPropertyToHeader(x => x.DeliverBy!, EnvelopeConstants.DeliverByHeader);
+        MapPropertyToHeader(x => x.DeliverBy!, EnvelopeConstants.DeliverByKey);
 
         MapPropertyToHeader(x => x.Attempts, EnvelopeConstants.AttemptsKey);
     }
-
+    
+    public IEnumerable<string> AllHeaders()
+    {
+        return _envelopeToHeader.Values;
+    }
+    
     /// <summary>
     ///     This endpoint will assume that any unidentified incoming message types
     ///     are the supplied message type. This is meant primarily for interaction
@@ -306,7 +283,7 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
         _mapIncoming.Value(envelope, incoming);
 
         var contentType = envelope.ContentType;
-        var serializer = TryFindSerializer(contentType) ?? DefaultSerializer;
+        var serializer = _endpoint.TryFindSerializer(contentType) ?? _endpoint.DefaultSerializer;
         envelope.Serializer = serializer;
     }
 
@@ -412,7 +389,7 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
     {
         if (value.HasValue)
         {
-            writeOutgoingHeader(outgoing, key, value.Value.ToString(datetimeoffset_format)!);
+            writeOutgoingHeader(outgoing, key, value.Value.ToUniversalTime().ToString(datetimeoffset_format)!);
         }
     }
 
@@ -464,27 +441,12 @@ public abstract class TransportEndpoint<TIncoming, TOutgoing> : Endpoint
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
-            if (DateTimeOffset.TryParse(raw, out var flag))
+            if (DateTimeOffset.TryParseExact(raw, datetimeoffset_format, null, DateTimeStyles.AssumeUniversal, out var flag))
             {
                 return flag;
             }
         }
 
         return null;
-    }
-}
-
-public abstract class TransportEndpoint<T> : TransportEndpoint<T, T>
-{
-    protected TransportEndpoint(Uri uri) : base(uri)
-    {
-    }
-
-    protected TransportEndpoint()
-    {
-    }
-
-    protected TransportEndpoint(EndpointRole role) : base(role)
-    {
     }
 }

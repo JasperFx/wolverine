@@ -190,7 +190,7 @@ public class EndpointCollection : IEndpointCollection
 
     public Endpoint? EndpointByName(string endpointName)
     {
-        return _options.Transports.AllEndpoints().ToArray().FirstOrDefault(x => x.Name == endpointName);
+        return _options.Transports.AllEndpoints().ToArray().FirstOrDefault(x => x.EndpointName == endpointName);
     }
 
     public IListeningAgent? FindListeningAgent(Uri uri)
@@ -205,7 +205,7 @@ public class EndpointCollection : IEndpointCollection
 
     public IListeningAgent? FindListeningAgent(string endpointName)
     {
-        return _listeners.Values.FirstOrDefault(x => x.Endpoint.Name.EqualsIgnoreCase(endpointName));
+        return _listeners.Values.FirstOrDefault(x => x.Endpoint.EndpointName.EqualsIgnoreCase(endpointName));
     }
 
     public async Task StartListenersAsync()

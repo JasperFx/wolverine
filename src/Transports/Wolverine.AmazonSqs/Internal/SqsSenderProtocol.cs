@@ -2,6 +2,7 @@ using System.Text;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -11,13 +12,13 @@ internal class SqsSenderProtocol : ISenderProtocol
 {
     private readonly AmazonSqsEndpoint _endpoint;
     private readonly IAmazonSQS _sqs;
-    private readonly ILogger _logger;
+    private readonly AmazonSqsMapper _mapper;
 
-    public SqsSenderProtocol(AmazonSqsEndpoint endpoint, IAmazonSQS sqs, ILogger logger)
+    public SqsSenderProtocol(IWolverineRuntime runtime, AmazonSqsEndpoint endpoint, IAmazonSQS sqs)
     {
         _endpoint = endpoint;
         _sqs = sqs;
-        _logger = logger;
+        _mapper = endpoint.BuildMapper(runtime);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
@@ -44,7 +45,7 @@ internal class SqsSenderProtocol : ISenderProtocol
     private SendMessageBatchRequestEntry CreateOutgoingEntry(Envelope x)
     {
         var entry = new SendMessageBatchRequestEntry(x.Id.ToString(), Encoding.Default.GetString(x.Data!));
-        _endpoint.MapEnvelopeToOutgoing(x, entry);
+        _mapper.MapEnvelopeToOutgoing(x, entry);
 
         return entry;
     }

@@ -17,6 +17,13 @@ public class AmazonSqsEndpointTests
     }
 
     [Fact]
+    public void uri()
+    {
+        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+            .Uri.ShouldBe(new Uri("sqs://foo"));
+    }
+
+    [Fact]
     public void default_visibility_timeout_is_2_minutes()
     {
         new AmazonSqsEndpoint("foo",new AmazonSqsTransport())

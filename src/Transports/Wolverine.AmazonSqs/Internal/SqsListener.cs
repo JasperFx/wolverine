@@ -2,6 +2,7 @@ using System.Text;
 using Amazon.SQS.Model;
 using Baseline;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
@@ -13,16 +14,19 @@ internal class SqsListener : IListener
     private readonly AmazonSqsTransport _transport;
     private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
     private readonly Task _task;
+    private readonly AmazonSqsMapper _mapper;
 
-    public SqsListener(ILogger logger, AmazonSqsEndpoint endpoint, AmazonSqsTransport transport, IReceiver receiver)
+    public SqsListener(IWolverineRuntime runtime, AmazonSqsEndpoint endpoint, AmazonSqsTransport transport,
+        IReceiver receiver)
     {
         if (transport.Client == null) throw new InvalidOperationException("Parent transport has not been initialized");
-        
-        _logger = logger;
+
+        _mapper = new AmazonSqsMapper(endpoint, runtime);
+        _logger = runtime.Logger;
         _endpoint = endpoint;
         _transport = transport;
 
-        var headers = endpoint.AllHeaders().ToList();
+        var headers = _mapper.AllHeaders().ToList();
 
         _task = Task.Run(async () =>
         {
@@ -58,7 +62,7 @@ internal class SqsListener : IListener
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
         var envelope = new AmazonSqsEnvelope(this, message);
-        _endpoint.MapIncomingToEnvelope(envelope, message);
+        _mapper.MapIncomingToEnvelope(envelope, message);
         envelope.Data = Encoding.Default.GetBytes(message.Body);
         return envelope;
     }

@@ -83,7 +83,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
     public TSelf Named(string name)
     {
-        add(e => e.Name = name);
+        add(e => e.EndpointName = name);
         return this.As<TSelf>();
     }
 

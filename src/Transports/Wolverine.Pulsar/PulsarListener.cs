@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.Pulsar
@@ -16,16 +17,18 @@ namespace Wolverine.Pulsar
         private readonly PulsarSender _sender;
         private IReceiver _receiver;
         private readonly CancellationTokenSource _localCancellation;
+        private readonly PulsarEnvelopeMapper _mapper;
 
-        public PulsarListener(PulsarEndpoint endpoint, IReceiver receiver, PulsarTransport transport,
+        public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
+            PulsarTransport transport,
             CancellationToken cancellation)
         {
-            var endpoint1 = endpoint;
             _cancellation = cancellation;
 
             Address = endpoint.Uri;
 
-            _sender = new PulsarSender(endpoint, transport, _cancellation);
+            _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
+            _mapper = endpoint.BuildMapper(runtime);
 
             _receiver = receiver;
 
@@ -39,7 +42,7 @@ namespace Wolverine.Pulsar
                 .SubscriptionName("Wolverine")
                 // TODO -- more options here. Give the user complete
                 // control over the Pulsar usage. Maybe expose ConsumerOptions on endpoint
-                .Topic(endpoint1.PulsarTopic())
+                .Topic(endpoint.PulsarTopic())
                 .Create();
 
             _receivingLoop = Task.Run(async () =>
@@ -50,7 +53,7 @@ namespace Wolverine.Pulsar
 
                     // TODO -- invoke the deserialization here. A
                     envelope.Data = message.Data.ToArray();
-                    endpoint1.MapIncomingToEnvelope(envelope, message);
+                    _mapper.MapIncomingToEnvelope(envelope, message);
 
                     // TODO -- the worker queue should already have the Uri,
                     // so just take in envelope

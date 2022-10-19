@@ -82,7 +82,7 @@ public class LocalMessageRoutingConvention : IMessageRoutingConvention
         foreach (var messageType in matching)
         {
             var queueName = _determineName(messageType);
-            var queue = transport.AllQueues().FirstOrDefault(x => x.Name == queueName);
+            var queue = transport.AllQueues().FirstOrDefault(x => x.EndpointName == queueName);
             
             if (queue == null)
             {

@@ -225,19 +225,19 @@ public class endpoint_policy_configuration : IDisposable
 
         var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))
             .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint1.Name.ShouldBe(typeof(Message1).ToMessageTypeName().ToLowerInvariant());
+        endpoint1.EndpointName.ShouldBe(typeof(Message1).ToMessageTypeName().ToLowerInvariant());
         endpoint1.Mode.ShouldBe(EndpointMode.Durable);
 
         var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))
             .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint2.Name.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
+        endpoint2.EndpointName.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
         endpoint2.Mode.ShouldBe(EndpointMode.Durable);
         
         runtime.DetermineLocalSendingAgent(typeof(Message3))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().Name.ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
+            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName.ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
         
         runtime.DetermineLocalSendingAgent(typeof(Message4))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().Name.ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
+            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName.ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
     }
     
     [Fact]
@@ -259,19 +259,19 @@ public class endpoint_policy_configuration : IDisposable
 
         var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))
             .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint1.Name.ShouldBe(TransportConstants.Default);
+        endpoint1.EndpointName.ShouldBe(TransportConstants.Default);
         endpoint1.Mode.ShouldBe(EndpointMode.BufferedInMemory);
 
         var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))
             .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint2.Name.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
+        endpoint2.EndpointName.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
         endpoint2.Mode.ShouldBe(EndpointMode.Durable);
         
         runtime.DetermineLocalSendingAgent(typeof(Message3))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().Name.ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
+            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName.ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
         
         runtime.DetermineLocalSendingAgent(typeof(Message4))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().Name.ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
+            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName.ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
     }
     
     [Fact]
@@ -293,19 +293,19 @@ public class endpoint_policy_configuration : IDisposable
 
         var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))
             .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint1.Name.ShouldBe(TransportConstants.Default);
+        endpoint1.EndpointName.ShouldBe(TransportConstants.Default);
         endpoint1.Mode.ShouldBe(EndpointMode.BufferedInMemory);
 
         var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))
             .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint2.Name.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
+        endpoint2.EndpointName.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
         endpoint2.Mode.ShouldBe(EndpointMode.Durable);
         
         runtime.DetermineLocalSendingAgent(typeof(Message3))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().Name.ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
+            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName.ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
         
         runtime.DetermineLocalSendingAgent(typeof(Message4))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().Name.ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
+            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName.ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
     }
     
     [Fact]
@@ -326,19 +326,19 @@ public class endpoint_policy_configuration : IDisposable
 
         var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))
             .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint1.Name.ShouldBe(typeof(Message1).ToMessageTypeName().ToLowerInvariant()+ "_more");
+        endpoint1.EndpointName.ShouldBe(typeof(Message1).ToMessageTypeName().ToLowerInvariant()+ "_more");
         endpoint1.Mode.ShouldBe(EndpointMode.Durable);
 
         var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))
             .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint2.Name.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant()+ "_more");
+        endpoint2.EndpointName.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant()+ "_more");
         endpoint2.Mode.ShouldBe(EndpointMode.Durable);
         
         runtime.DetermineLocalSendingAgent(typeof(Message3))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().Name.ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant()+ "_more");
+            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName.ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant()+ "_more");
         
         runtime.DetermineLocalSendingAgent(typeof(Message4))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().Name.ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant()+ "_more");
+            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName.ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant()+ "_more");
     }
 }
 

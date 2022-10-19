@@ -16,7 +16,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         {
             ConfigureConventions(c => c.QueueNameForListener(t => t.ToMessageTypeName() + "2"));
 
-            theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqEndpoint>();
+            theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
         }
 
         [Fact]

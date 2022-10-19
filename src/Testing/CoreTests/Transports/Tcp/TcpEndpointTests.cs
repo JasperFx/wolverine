@@ -33,20 +33,6 @@ public class TcpEndpointTests
     }
 
     [Theory]
-    [InlineData("tcp://localhost:4444", "localhost", 4444, EndpointMode.BufferedInMemory)]
-    [InlineData("tcp://localhost:4445", "localhost", 4445, EndpointMode.BufferedInMemory)]
-    [InlineData("tcp://server1:4445", "server1", 4445, EndpointMode.BufferedInMemory)]
-    public void parsing_uri(string uri, string host, int port, EndpointMode mode)
-    {
-        var endpoint = new TcpEndpoint();
-        endpoint.Parse(uri.ToUri());
-
-        endpoint.HostName.ShouldBe(host);
-        endpoint.Port.ShouldBe(port);
-        endpoint.Mode.ShouldBe(mode);
-    }
-
-    [Theory]
     [InlineData(EndpointMode.BufferedInMemory, true)]
     [InlineData(EndpointMode.Durable, true)]
     public void should_enforce_back_pressure(EndpointMode mode, bool shouldEnforce)

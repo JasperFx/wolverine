@@ -111,7 +111,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _receiver = null;
 
         Status = ListeningStatus.Stopped;
-        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.Name, Status));
+        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Stopped message listener at {Uri}", Uri);
     }
@@ -125,7 +125,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _listener = Endpoint.BuildListener(_runtime, _receiver);
 
         Status = ListeningStatus.Accepting;
-        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.Name, Status));
+        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Started message listening at {Uri}", Uri);
 
@@ -151,7 +151,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _listener = null;
         
         Status = ListeningStatus.TooBusy;
-        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.Name, Status));
+        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Marked listener at {Uri} as too busy and stopped receiving", Uri);
     }

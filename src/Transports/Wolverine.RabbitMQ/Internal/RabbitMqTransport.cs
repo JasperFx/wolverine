@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Baseline;
-using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -16,24 +16,15 @@ namespace Wolverine.RabbitMQ.Internal
         public const string ProtocolName = "rabbitmq";
         public const string ResponseEndpointName = "RabbitMqResponses";
 
-        private readonly LightweightCache<Uri, RabbitMqEndpoint> _endpoints;
         private IConnection? _listenerConnection;
         private IConnection? _sendingConnection;
 
         public RabbitMqTransport() : base(ProtocolName, "Rabbit MQ")
         {
             ConnectionFactory.AutomaticRecoveryEnabled = true;
+            Queues = new(name => new RabbitMqQueue(name, this));
 
-            _endpoints =
-                new LightweightCache<Uri, RabbitMqEndpoint>(uri =>
-                {
-                    var endpoint = new RabbitMqEndpoint(this);
-                    endpoint.Parse(uri);
-
-                    return endpoint;
-                });
-
-            Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
+            Exchanges = new(name => new RabbitMqExchange(name, this));
         }
 
         internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
@@ -53,7 +44,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         public LightweightCache<string, RabbitMqExchange> Exchanges { get; }
 
-        public LightweightCache<string, RabbitMqQueue> Queues { get; } = new(name => new RabbitMqQueue(name));
+        public LightweightCache<string, RabbitMqQueue> Queues { get; }
 
         public void Dispose()
         {
@@ -66,27 +57,45 @@ namespace Wolverine.RabbitMQ.Internal
 
         protected override IEnumerable<RabbitMqEndpoint> endpoints()
         {
-            return _endpoints;
+            foreach (var exchange in Exchanges)
+            {
+                yield return exchange;
+
+                foreach (var topic in exchange.Topics)
+                {
+                    yield return topic;
+                }
+            }
+
+            foreach (var queue in Queues)
+            {
+                yield return queue;
+            }
         }
 
         protected override RabbitMqEndpoint findEndpointByUri(Uri uri)
         {
-            return _endpoints[uri];
+            var type = uri.Host;
+
+            var name = uri.Segments.Last();
+            switch (type)
+            {
+                case RabbitMqEndpoint.QueueSegment:
+                    return Queues[name];
+                
+                case RabbitMqEndpoint.ExchangeSegment:
+                    return Exchanges[name];
+                
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(uri), $"Invalid Rabbit MQ object type '{type}'");
+            }
         }
 
         public override ValueTask InitializeAsync(IWolverineRuntime runtime)
         {
             tryBuildResponseQueueEndpoint(runtime);
             
-            if (AutoProvision)
-            {
-                InitializeAllObjects(runtime.Logger);
-            }
-
-            if (AutoPurgeAllQueues)
-            {
-                PurgeAllQueues();
-            }
+            InitializeAllObjects(runtime.Logger);
 
             return ValueTask.CompletedTask;
         }
@@ -95,21 +104,17 @@ namespace Wolverine.RabbitMQ.Internal
         {
             var queueName = $"wolverine.response.{runtime.Advanced.UniqueNodeId}";
 
-            var queue = Queues[queueName];
-            queue.AutoDelete = true;
-            queue.IsDurable = false;
-
-            var endpoint = new RabbitMqEndpoint(EndpointRole.System,this)
+            var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
             {
-                QueueName = queueName,
+                AutoDelete = true,
+                IsDurable = false,
                 IsListener = true,
-                Mode = EndpointMode.Inline,
                 IsUsedForReplies = true,
                 ListenerCount = 5,
-                Name = ResponseEndpointName
+                EndpointName = ResponseEndpointName
             };
 
-            _endpoints[endpoint.Uri] = endpoint;
+            Queues[queueName] = queue;
         }
 
         internal IConnection BuildConnection()
@@ -119,67 +124,15 @@ namespace Wolverine.RabbitMQ.Internal
                 : ConnectionFactory.CreateConnection();
         }
 
-        public RabbitMqEndpoint EndpointForQueue(string queueName)
+        public RabbitMqQueue EndpointForQueue(string queueName)
         {
-            // Yeah, it's super inefficient, but it only happens once or twice
-            // when bootstrapping'
-            var temp = new RabbitMqEndpoint(this) { QueueName = queueName };
-            return findEndpointByUri(temp.Uri);
+            return Queues[queueName];
         }
 
-        public RabbitMqEndpoint EndpointFor(string routingKey, string exchangeName)
+        public RabbitMqExchange EndpointForExchange(string exchangeName)
         {
-            var temp = new RabbitMqEndpoint(this)
-            {
-                RoutingKey = routingKey,
-                ExchangeName = exchangeName
-            };
-
-            return findEndpointByUri(temp.Uri);
+            return Exchanges[exchangeName];
         }
-
-        public RabbitMqEndpoint EndpointForExchange(string exchangeName)
-        {
-            var temp = new RabbitMqEndpoint(this) { ExchangeName = exchangeName };
-            return findEndpointByUri(temp.Uri);
-        }
-
-        internal void InitializeEndpoint(RabbitMqEndpoint endpoint, IModel channel, ILogger logger)
-        {
-            // This bit of hokey-ness is 
-            if (endpoint.QueueName.IsNotEmpty() && endpoint.QueueName.StartsWith("wolverine.") &&
-                endpoint.Role == EndpointRole.Application)
-            {
-                return;
-            }
-            
-            if (AutoProvision)
-            {
-                if (endpoint.ExchangeName.IsNotEmpty())
-                {
-                    var exchange = Exchanges[endpoint.ExchangeName];
-                    exchange.Declare(channel!, logger);
-                }
-
-                if (endpoint.QueueName.IsNotEmpty())
-                {
-                    var queue = Queues[endpoint.QueueName];
-                    queue.Initialize(channel, logger, AutoPurgeAllQueues);
-                }
-            }
-            else if (endpoint.QueueName.IsNotEmpty() && endpoint.QueueName.IsNotEmpty())
-            {
-                var queue = Queues[endpoint.QueueName];
-
-                if (!queue.IsDurable || queue.AutoDelete) return;
-
-                if (queue.PurgeOnStartup || AutoPurgeAllQueues)
-                {
-                    channel!.QueuePurge(queue.Name);
-                }
-            }
-        }
-
 
         public IEnumerable<RabbitMqBinding> Bindings()
         {

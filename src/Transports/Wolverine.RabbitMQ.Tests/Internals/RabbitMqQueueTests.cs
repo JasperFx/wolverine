@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Baseline.Dates;
 using Baseline.Reflection;
@@ -12,12 +13,18 @@ namespace Wolverine.RabbitMQ.Tests.Internals
 {
     public class RabbitMqQueueTests
     {
+        private readonly RabbitMqTransport theTransport = new RabbitMqTransport
+        {
+            
+        };
+        private readonly IModel theChannel = Substitute.For<IModel>();
+        
         [Fact]
         public void defaults()
         {
-            var queue = new RabbitMqQueue("foo");
+            var queue = new RabbitMqQueue("foo", new RabbitMqTransport());
 
-            queue.Name.ShouldBe("foo");
+            queue.EndpointName.ShouldBe("foo");
             queue.IsDurable.ShouldBeTrue();
             queue.IsExclusive.ShouldBeFalse();
             queue.AutoDelete.ShouldBeFalse();
@@ -27,9 +34,16 @@ namespace Wolverine.RabbitMQ.Tests.Internals
         [Fact]
         public void set_time_to_live()
         {
-            var queue = new RabbitMqQueue("foo");
+            var queue = new RabbitMqQueue("foo", new RabbitMqTransport());
             queue.TimeToLive(3.Minutes());
             queue.Arguments["x-message-ttl"].ShouldBe(180000);
+        }
+
+        [Fact]
+        public void uri_construction()
+        {
+            var queue = new RabbitMqQueue("foo", new RabbitMqTransport());
+            queue.Uri.ShouldBe(new Uri("rabbitmq://queue/foo"));
         }
 
         [Theory]
@@ -38,7 +52,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals
         [InlineData(false, false, true)]
         public void declare(bool autoDelete, bool isExclusive, bool isDurable)
         {
-            var queue = new RabbitMqQueue("foo")
+            var queue = new RabbitMqQueue("foo", new RabbitMqTransport())
             {
                 AutoDelete = autoDelete,
                 IsExclusive = isExclusive,
@@ -62,7 +76,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals
         [InlineData(false, false, true)]
         public void declare_second_time(bool autoDelete, bool isExclusive, bool isDurable)
         {
-            var queue = new RabbitMqQueue("foo")
+            var queue = new RabbitMqQueue("foo", new RabbitMqTransport())
             {
                 AutoDelete = autoDelete,
                 IsExclusive = isExclusive,
@@ -81,9 +95,81 @@ namespace Wolverine.RabbitMQ.Tests.Internals
         }
 
         [Fact]
-        public void purge_messages_on_first_usage()
+        public void initialize_with_no_auto_provision_or_auto_purge()
         {
+            theTransport.AutoProvision = false;
+            theTransport.AutoPurgeAllQueues = false;
+            var queue = new RabbitMqQueue("foo", theTransport);
 
+            theTransport.Queues["foo"].PurgeOnStartup = false;
+            
+            queue.Initialize(theChannel, NullLogger.Instance);
+            
+            theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
+            theChannel.DidNotReceiveWithAnyArgs().QueuePurge("foo");
+        }
+
+
+        [Fact]
+        public void initialize_with_no_auto_provision_but_auto_purge_on_endpoint_only()
+        {
+            theTransport.AutoProvision = false;
+            theTransport.AutoPurgeAllQueues = false;
+
+            var endpoint = theTransport.Queues["foo"];
+            endpoint.PurgeOnStartup = true;
+
+            endpoint.Initialize(theChannel, NullLogger.Instance);
+
+            theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
+            theChannel.Received().QueuePurge("foo");
+        }
+
+        [Fact]
+        public void initialize_with_no_auto_provision_but_global_auto_purge()
+        {
+            theTransport.AutoProvision = false;
+            theTransport.AutoPurgeAllQueues = true;
+
+            var endpoint = new RabbitMqQueue("foo",theTransport);
+
+            theTransport.Queues["foo"].PurgeOnStartup = false;
+
+            endpoint.Initialize(theChannel, NullLogger.Instance);
+
+            theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
+            theChannel.Received().QueuePurge("foo");
+        }
+
+        [Fact]
+        public void initialize_with_auto_provision_and_global_auto_purge()
+        {
+            theTransport.AutoProvision = true;
+            theTransport.AutoPurgeAllQueues = true;
+
+            var endpoint = new RabbitMqQueue("foo", theTransport);
+
+            theTransport.Queues["foo"].PurgeOnStartup = false;
+
+            endpoint.Initialize(theChannel, NullLogger.Instance);
+
+            theChannel.Received().QueueDeclare("foo", true, false, false, endpoint.Arguments);
+            theChannel.Received().QueuePurge("foo");
+        }
+
+        [Fact]
+        public void initialize_with_auto_provision_and_local_auto_purge()
+        {
+            theTransport.AutoProvision = true;
+            theTransport.AutoPurgeAllQueues = false;
+
+            var endpoint = theTransport.Queues["foo"];
+            endpoint.PurgeOnStartup = true;
+
+            endpoint.Initialize(theChannel, NullLogger.Instance);
+
+            theChannel.Received().QueueDeclare("foo", true, false, false, endpoint.Arguments);
+            theChannel.Received().QueuePurge("foo");
         }
     }
 }

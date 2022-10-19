@@ -7,16 +7,14 @@ namespace Wolverine.RabbitMQ.Internal
     internal abstract class RabbitMqConnectionAgent : IDisposable
     {
         private readonly IConnection _connection;
-        private readonly RabbitMqTransport _transport;
         private readonly RabbitMqEndpoint _endpoint;
         private readonly ILogger _logger;
         protected readonly object Locker = new();
 
-        protected RabbitMqConnectionAgent(IConnection connection, RabbitMqTransport transport,
+        protected RabbitMqConnectionAgent(IConnection connection,
             RabbitMqEndpoint endpoint, ILogger logger)
         {
             _connection = connection;
-            _transport = transport;
             _endpoint = endpoint;
             _logger = logger;
         }
@@ -53,8 +51,8 @@ namespace Wolverine.RabbitMQ.Internal
                 }
 
                 startNewChannel();
-
-                _transport.InitializeEndpoint(_endpoint, _channel!, _logger);
+                
+                _endpoint.Initialize(_channel!, _logger);
 
                 State = AgentState.Connected;
             }

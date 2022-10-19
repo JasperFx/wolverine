@@ -13,7 +13,7 @@ public class response_queue_mechanics : IAsyncLifetime
 {
     private IHost _host;
     private string theExpectedResponseQueueName;
-    private RabbitMqEndpoint theEndpoint;
+    private RabbitMqQueue theEndpoint;
 
     public async Task InitializeAsync()
     {
@@ -28,7 +28,7 @@ public class response_queue_mechanics : IAsyncLifetime
         theExpectedResponseQueueName = $"myapp_response_{options.Advanced.UniqueNodeId}";
         
         theEndpoint = _host.GetRuntime().Endpoints.EndpointByName(RabbitMqTransport.ResponseEndpointName)
-            .ShouldBeOfType<RabbitMqEndpoint>();
+            .ShouldBeOfType<RabbitMqQueue>();
 
     }
 

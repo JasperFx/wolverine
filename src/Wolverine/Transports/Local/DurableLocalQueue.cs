@@ -167,7 +167,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         CircuitBreaker?.Reset();
         
-        _runtime.ListenerTracker.Publish(new ListenerState(Endpoint.Uri, Endpoint.Name, ListeningStatus.Stopped));
+        _runtime.ListenerTracker.Publish(new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
 
         _logger.LogInformation("Pausing message listening at {Uri}", Endpoint.Uri);
 
@@ -179,7 +179,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     {
         _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline);
         Latched = false;
-        _runtime.ListenerTracker.Publish(new ListenerState(_receiver.Uri, Endpoint.Name, ListeningStatus.Accepting));
+        _runtime.ListenerTracker.Publish(new ListenerState(_receiver.Uri, Endpoint.EndpointName, ListeningStatus.Accepting));
         _restarter?.Dispose();
         _restarter = null;
         return ValueTask.CompletedTask;

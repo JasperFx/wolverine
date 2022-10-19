@@ -85,7 +85,7 @@ internal abstract class MessageRouterBase<T> : IMessageRouter
 
         var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
         route = endpoint == null
-            ? new NoNamedEndpointRoute(endpointName, Runtime.Options.Transports.AllEndpoints().Select(x => x.Name).ToArray())
+            ? new NoNamedEndpointRoute(endpointName, Runtime.Options.Transports.AllEndpoints().Select(x => x.EndpointName).ToArray())
             : new MessageRoute(typeof(T), Runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri).Endpoint);
 
         _routeByName = _routeByName.AddOrUpdate(endpointName, route);

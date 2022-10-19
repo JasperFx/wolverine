@@ -4,33 +4,40 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal
 {
+    internal interface IRabbitMqEndpoint
+    {
+        
+    }
+    
     internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
     {
-        private readonly RabbitMqEndpoint _endpoint;
         private readonly string _exchangeName;
         private readonly bool _isDurable;
         private readonly string _key;
         private Func<Envelope, string> _toRoutingKey;
+        private readonly IEnvelopeMapper<IBasicProperties, IBasicProperties> _mapper;
 
         public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,
-            RoutingMode routingType, ILogger logger) : base(
-            transport.SendingConnection, transport, endpoint, logger)
+            RoutingMode routingType, IWolverineRuntime runtime) : base(
+            transport.SendingConnection, endpoint, runtime.Logger)
         {
-            _endpoint = endpoint;
             Destination = endpoint.Uri;
 
             _isDurable = endpoint.Mode == EndpointMode.Durable;
 
-            _exchangeName = endpoint.ExchangeName == TransportConstants.Default ? "" : endpoint.ExchangeName;
-            _key = endpoint.RoutingKey ?? endpoint.QueueName ?? "";
+            _exchangeName = endpoint.ExchangeName;
+            _key = endpoint.RoutingKey();
 
             _toRoutingKey = routingType == RoutingMode.Static ? _ => _key : TopicRouting.DetermineTopicName;
+
+            _mapper = endpoint.BuildMapper(runtime);
         }
 
         public bool SupportsNativeScheduledSend { get; } = false;
@@ -49,7 +56,7 @@ namespace Wolverine.RabbitMQ.Internal
             props.Persistent = _isDurable;
             props.Headers = new Dictionary<string, object>();
 
-            _endpoint.MapEnvelopeToOutgoing(envelope, props);
+            _mapper.MapEnvelopeToOutgoing(envelope, props);
 
             var routingKey = _toRoutingKey(envelope);
             Channel.BasicPublish(_exchangeName, routingKey, props, envelope.Data);

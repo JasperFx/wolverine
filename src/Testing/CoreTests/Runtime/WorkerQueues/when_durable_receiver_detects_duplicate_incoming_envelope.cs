@@ -26,7 +26,7 @@ public class when_durable_receiver_detects_duplicate_incoming_envelope : IAsyncL
         theRuntime = new MockWolverineRuntime();
 
 
-        var stubEndpoint = new StubEndpoint("stub://one".ToUri(), new StubTransport());
+        var stubEndpoint = new StubEndpoint("one", new StubTransport());
         theReceiver = new DurableReceiver(stubEndpoint, theRuntime, thePipeline);
 
         theRuntime.Persistence.StoreIncomingAsync(theEnvelope)

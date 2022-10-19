@@ -34,28 +34,15 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
 
 public class LocalQueueSettings : Endpoint
 {
-    public LocalQueueSettings(string name) : base(EndpointRole.Application)
+    public LocalQueueSettings(string name) : base($"local://{name}".ToUri() ,EndpointRole.Application)
     {
-        Name = name.ToLowerInvariant();
-    }
-
-    public LocalQueueSettings(Uri uri) : base(uri, EndpointRole.Application)
-    {
+        EndpointName = name.ToLowerInvariant();
     }
 
     public override bool ShouldEnforceBackPressure() => false;
 
     public override bool AutoStartSendingAgent() => true;
-
-    public override Uri Uri => $"local://{Name}".ToUri();
     internal List<Type> HandledMessageTypes { get; } = new();
-    
-
-    public override void Parse(Uri uri)
-    {
-        Name = LocalTransport.QueueName(uri);
-        Mode = EndpointMode.BufferedInMemory;
-    }
 
     public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
     {
@@ -95,6 +82,6 @@ public class LocalQueueSettings : Endpoint
 
     public override string ToString()
     {
-        return $"Local Queue '{Name}'";
+        return $"Local Queue '{EndpointName}'";
     }
 }

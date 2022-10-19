@@ -7,13 +7,7 @@ namespace Wolverine.Transports.Tcp;
 public class TcpTransport : TransportBase<TcpEndpoint>
 {
     private readonly LightweightCache<Uri, TcpEndpoint> _listeners =
-        new(uri =>
-        {
-            var endpoint = new TcpEndpoint();
-            endpoint.Parse(uri);
-
-            return endpoint;
-        });
+        new(uri => new TcpEndpoint(uri.Host, uri.Port));
 
     public TcpTransport() :
         base("tcp", "TCP Sockets")

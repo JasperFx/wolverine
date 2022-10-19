@@ -35,14 +35,19 @@ public class PublishingExpression : IPublishToExpression
     {
         var endpoint = Parent.Transports.GetOrCreateEndpoint(uri);
 
+        AddSubscriber(endpoint);
+
+        return new SubscriberConfiguration(endpoint);
+    }
+
+    public void AddSubscriber(Endpoint endpoint)
+    {
         _endpoints.Add(endpoint);
 
         if (AutoAddSubscriptions)
         {
             endpoint.Subscriptions.AddRange(_subscriptions);
         }
-
-        return new SubscriberConfiguration(endpoint);
     }
 
 

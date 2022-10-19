@@ -162,23 +162,24 @@ namespace Wolverine.RabbitMQ
         ///     optionally an exchange
         /// </summary>
         /// <param name="publishing"></param>
-        /// <param name="routingKeyOrQueueName">
-        ///     This is used as the routing key when publishing. Can be either a binding key or a
-        ///     queue name or a static topic name if the exchange is topic-based
+        /// <param name="topicName">
+        ///  A static topic name if the exchange is topic-based
         /// </param>
-        /// <param name="exchangeName">Optional, you only need to supply this if you are using a non-default exchange</param>
+        /// <param name="exchangeName">Exchange name</param>
         /// <returns></returns>
-        public static RabbitMqSubscriberConfiguration ToRabbit(this IPublishToExpression publishing,
-            string routingKeyOrQueueName, string exchangeName = "")
+        public static RabbitMqSubscriberConfiguration ToRabbitTopic(this IPublishToExpression publishing,
+            string topicName, string exchangeName)
         {
             var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
-            var endpoint = transport.EndpointFor(routingKeyOrQueueName, exchangeName);
+            var exchange = transport.EndpointForExchange(exchangeName);
+            exchange.ExchangeType = ExchangeType.Topic;
+            
+            var topicEndpoint = exchange.Topics[topicName];
 
-            // This is necessary unfortunately to hook up the subscription rules
-            publishing.To(endpoint.Uri);
+            publishing.As<PublishingExpression>().AddSubscriber(topicEndpoint);
 
-            return new RabbitMqSubscriberConfiguration(endpoint);
+            return new RabbitMqSubscriberConfiguration(exchange);
         }
 
         /// <summary>

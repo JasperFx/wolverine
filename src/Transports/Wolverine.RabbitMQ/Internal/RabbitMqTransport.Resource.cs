@@ -109,37 +109,19 @@ namespace Wolverine.RabbitMQ.Internal
             using var connection = BuildConnection();
             using var channel = connection.CreateModel();
 
-            foreach (var queue in Queues)
+            try
             {
-                Console.WriteLine($"Purging Rabbit MQ queue '{queue}'");
-                queue.Purge(channel);
-            }
-
-            var others = _endpoints.Select(x => x.QueueName).Where(x => x.IsNotEmpty())
-                .Where(x => Queues.All(q => q.Name != x)).ToArray();
-
-            foreach (var other in others)
-            {
-                var queue = Queues[other!];
-                if (queue.AutoDelete) continue;
-                
-                Console.WriteLine($"Purging Rabbit MQ queue '{other}'");
-                try
+                foreach (var queue in Queues)
                 {
-                    channel.QueuePurge(other);
-                }
-                catch (OperationInterruptedException e)
-                {
-                    if (!e.Message.Contains("NOT_FOUND"))
-                    {
-                        throw;
-                    }
+                    Console.WriteLine($"Purging Rabbit MQ queue '{queue}'");
+                    queue.Purge(channel);
                 }
             }
-
-            channel.Close();
-
-            connection.Close();
+            finally
+            {
+                channel.Close();
+                connection.Close();
+            }
         }
 
         internal void TeardownAll()
@@ -169,7 +151,7 @@ namespace Wolverine.RabbitMQ.Internal
             using var connection = BuildConnection();
             using var channel = connection.CreateModel();
 
-            foreach (var queue in Queues.Where(x => !x.AutoDelete))
+            foreach (var queue in Queues)
             {
                 logger.LogInformation("Declaring Rabbit MQ queue {Queue}", queue);
                 queue.Declare(channel, logger);
@@ -188,7 +170,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         private string[] allKnownQueueNames()
         {
-            return Queues.Select(x => x.Name).ToArray()!;
+            return Queues.Select(x => x.EndpointName).ToArray()!;
         }
     }
 

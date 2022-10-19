@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
+using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pulsar
@@ -14,8 +15,10 @@ namespace Wolverine.Pulsar
         private readonly PulsarEndpoint _endpoint;
         private readonly CancellationToken _cancellation;
         private readonly IProducer<ReadOnlySequence<byte>> _producer;
+        private readonly PulsarEnvelopeMapper _mapper;
 
-        public PulsarSender(PulsarEndpoint endpoint, PulsarTransport transport, CancellationToken cancellation)
+        public PulsarSender(IWolverineRuntime runtime, PulsarEndpoint endpoint, PulsarTransport transport,
+            CancellationToken cancellation)
         {
             _endpoint = endpoint;
             _cancellation = cancellation;
@@ -24,6 +27,7 @@ namespace Wolverine.Pulsar
             _producer = transport.Client!.NewProducer().Topic(_endpoint.PulsarTopic()).Create();
 
             Destination = _endpoint.Uri;
+            _mapper = endpoint.BuildMapper(runtime);
         }
 
         public ValueTask DisposeAsync()
@@ -53,7 +57,7 @@ namespace Wolverine.Pulsar
         {
             var message = new MessageMetadata();
 
-            _endpoint.MapEnvelopeToOutgoing(envelope, message);
+            _mapper.MapEnvelopeToOutgoing(envelope, message);
 
             await _producer.Send(message, new ReadOnlySequence<byte>(envelope.Data!), _cancellation);
         }
