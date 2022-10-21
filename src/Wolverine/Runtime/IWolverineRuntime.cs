@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime.Scheduled;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
@@ -23,6 +24,8 @@ public interface IWolverineRuntime
     /// <param name="executionTime"></param>
     /// <param name="envelope"></param>
     void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope);
+    
+    IHostEnvironment Environment { get; }
 
     IHandlerPipeline Pipeline { get; }
     IMessageLogger MessageLogger { get; }

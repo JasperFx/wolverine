@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Baseline;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -26,6 +27,8 @@ public class MockWolverineRuntime : IWolverineRuntime
     {
         
     }
+
+    public IHostEnvironment Environment { get; } = Substitute.For<IHostEnvironment>();
 
     public IEndpointCollection Endpoints { get; } = Substitute.For<IEndpointCollection>();
 

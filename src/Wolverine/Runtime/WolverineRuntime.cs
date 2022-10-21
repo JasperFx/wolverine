@@ -30,16 +30,17 @@ internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedServi
 
     public WolverineRuntime(WolverineOptions options,
         IContainer container,
-        ILogger<WolverineRuntime> logger)
+        ILogger<WolverineRuntime> logger, IHostEnvironment environment)
     {
         Advanced = options.Advanced;
         Options = options;
         Handlers = options.HandlerGraph;
+        Environment = environment;
 
         Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
         
         Logger = logger;
-
+        
         _uniqueNodeId = options.Advanced.UniqueNodeId;
         _serviceName = options.ServiceName ?? "WolverineService";
 
@@ -117,6 +118,8 @@ internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedServi
     {
         ScheduledJobs.Enqueue(executionTime, envelope);
     }
+
+    public IHostEnvironment Environment { get; }
 
     public IHandlerPipeline Pipeline { get; }
 

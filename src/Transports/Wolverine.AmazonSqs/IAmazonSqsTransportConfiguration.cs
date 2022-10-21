@@ -30,4 +30,12 @@ public interface IAmazonSqsTransportConfiguration
     /// </summary>
     /// <returns></returns>
     IAmazonSqsTransportConfiguration AutoPurgeOnStartup();
+
+    /// <summary>
+    /// Direct this application to use a LocalStack connection when
+    /// the system is detected to be running with EnvironmentName == "Development"
+    /// </summary>
+    /// <param name="port">Port to connect to LocalStack. Default is 4566</param>
+    /// <returns></returns>
+    IAmazonSqsTransportConfiguration UseLocalStackIfDevelopment(int port = 4566);
 }

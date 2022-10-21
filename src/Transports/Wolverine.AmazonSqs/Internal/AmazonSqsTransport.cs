@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Baseline;
+using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -42,6 +43,10 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
 
     public override async ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
+        if (UseLocalStackInDevelopment && runtime.Environment.IsDevelopment())
+        {
+        }
+        
         Client ??= BuildClient(runtime);
 
         foreach (var endpoint in Queues)
@@ -92,9 +97,26 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
         return this;
     }
 
+    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.UseLocalStackIfDevelopment(int port = 4566)
+    {
+        LocalStackPort = port;
+        UseLocalStackInDevelopment = true;
+        return this;
+    }
+
+    public int LocalStackPort { get; set; }
+
+    public bool UseLocalStackInDevelopment { get; set; }
+
     public override bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
     {
         resource = new AmazonSqsTransportStatefulResource(this, runtime);
         return true;
+    }
+
+    public void ConnectToLocalStack(int port = 4566)
+    {
+        _credentialSource = _ => new BasicAWSCredentials("ignore", "ignore");
+        Config.ServiceURL = $"http://localhost:{port}";
     }
 }

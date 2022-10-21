@@ -37,8 +37,10 @@ public static class AmazonSqsTransportExtensions
     /// <returns></returns>
     public static IAmazonSqsTransportConfiguration UseAmazonSqsTransportLocally(this WolverineOptions options, int port = 4566)
     {
-        return options.UseAmazonSqsTransport(config => config.ServiceURL = $"http://localhost:{port}")
-            .Credentials(new BasicAWSCredentials("ignore", "ignore"));
+        var transport = options.AmazonSqsTransport();
+        transport.ConnectToLocalStack(port);
+
+        return transport;
     }
     
     /// <summary>
