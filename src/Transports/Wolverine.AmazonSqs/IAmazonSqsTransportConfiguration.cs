@@ -38,4 +38,19 @@ public interface IAmazonSqsTransportConfiguration
     /// <param name="port">Port to connect to LocalStack. Default is 4566</param>
     /// <returns></returns>
     IAmazonSqsTransportConfiguration UseLocalStackIfDevelopment(int port = 4566);
+    
+    
+    /// <summary>
+    /// Apply a policy to all Rabbit MQ listening endpoints
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    IAmazonSqsTransportConfiguration ConfigureListeners(Action<AmazonSqsListenerConfiguration> configure);
+        
+    /// <summary>
+    /// Apply a policy to all Rabbit MQ listening endpoints
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    IAmazonSqsTransportConfiguration ConfigureSenders(Action<AmazonSqsSubscriberConfiguration> configure);
 }

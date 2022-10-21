@@ -5,11 +5,6 @@ using Wolverine.Marten;
 
 namespace Wolverine.AmazonSqs.Tests;
 
-public class DurableSendingAndReceivingCompliance
-{
-    
-}
-
 public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public DurableComplianceFixture() : base(new Uri("sqs://durable-receiver"), 120)
@@ -22,7 +17,9 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
         {
             opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoPurgeOnStartup()
+                .ConfigureListeners(x => x.UseDurableInbox())
+                .ConfigureListeners(x => x.UseDurableInbox());
 
             opts.Services.AddMarten(store =>
             {
@@ -30,15 +27,16 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 store.DatabaseSchemaName = "sender";
             }).IntegrateWithWolverine("sender").ApplyAllDatabaseChangesOnStartup();
 
-            opts.ListenToSqsQueue("durable-sender")
-                .UseDurableOutbox();
+            opts.ListenToSqsQueue("durable-sender");
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoPurgeOnStartup()
+                .ConfigureListeners(x => x.UseDurableInbox())
+                .ConfigureListeners(x => x.UseDurableInbox());
             
             opts.Services.AddMarten(store =>
             {

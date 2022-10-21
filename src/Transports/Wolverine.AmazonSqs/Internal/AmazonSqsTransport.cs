@@ -4,15 +4,14 @@ using Amazon.SQS.Model;
 using Baseline;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqsTransportConfiguration
+internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>
 {
-    private Func<IWolverineRuntime, AWSCredentials>? _credentialSource;
-
     public AmazonSqsTransport() : base("sqs", "Amazon SQS")
     {
         Queues = new(name => new AmazonSqsEndpoint(name, this));
@@ -22,6 +21,8 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
     {
         Client = client;
     }
+
+    public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
 
     public Cache<string, AmazonSqsEndpoint> Queues { get; }
 
@@ -57,12 +58,12 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
 
     public IAmazonSQS BuildClient(IWolverineRuntime runtime)
     {
-        if (_credentialSource == null)
+        if (CredentialSource == null)
         {
             return new AmazonSQSClient(Config);
         }
 
-        var credentials = _credentialSource(runtime);
+        var credentials = CredentialSource(runtime);
         return new AmazonSQSClient(credentials, Config);
     }
 
@@ -72,37 +73,7 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
     }
 
     internal IAmazonSQS? Client { get; private set; }
-
-    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.Credentials(AWSCredentials credentials)
-    {
-        _credentialSource = r => credentials;
-        return this;
-    }
-
-    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
-    {
-        _credentialSource = credentialSource;
-        return this;
-    }
-
-    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.AutoProvision()
-    {
-        AutoProvision = true;
-        return this;
-    }
-
-    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.AutoPurgeOnStartup()
-    {
-        AutoPurgeOnStartup = true;
-        return this;
-    }
-
-    IAmazonSqsTransportConfiguration IAmazonSqsTransportConfiguration.UseLocalStackIfDevelopment(int port = 4566)
-    {
-        LocalStackPort = port;
-        UseLocalStackInDevelopment = true;
-        return this;
-    }
+    
 
     public int LocalStackPort { get; set; }
 
@@ -116,7 +87,86 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>, IAmazonSqs
 
     public void ConnectToLocalStack(int port = 4566)
     {
-        _credentialSource = _ => new BasicAWSCredentials("ignore", "ignore");
+        CredentialSource = _ => new BasicAWSCredentials("ignore", "ignore");
         Config.ServiceURL = $"http://localhost:{port}";
+    }
+}
+
+internal class AmazonSqlTransportConfiguration : IAmazonSqsTransportConfiguration
+{
+    private readonly AmazonSqsTransport _transport;
+    private readonly WolverineOptions _options;
+
+    public AmazonSqlTransportConfiguration(AmazonSqsTransport transport, WolverineOptions options)
+    {
+        _transport = transport;
+        _options = options;
+    }
+
+    public IAmazonSqsTransportConfiguration Credentials(AWSCredentials credentials)
+    {
+        _transport.CredentialSource = r => credentials;
+        return this;
+    }
+
+    public IAmazonSqsTransportConfiguration Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
+    {
+        _transport.CredentialSource = credentialSource;
+        return this;
+    }
+
+    public IAmazonSqsTransportConfiguration AutoProvision()
+    {
+        _transport.AutoProvision = true;
+        return this;
+    }
+
+    public IAmazonSqsTransportConfiguration AutoPurgeOnStartup()
+    {
+        _transport.AutoPurgeOnStartup = true;
+        return this;
+    }
+
+    public IAmazonSqsTransportConfiguration UseLocalStackIfDevelopment(int port = 4566)
+    {
+        _transport.LocalStackPort = port;
+        _transport.UseLocalStackInDevelopment = true;
+        return this;
+    }
+
+    public IAmazonSqsTransportConfiguration ConfigureListeners(Action<AmazonSqsListenerConfiguration> configure)
+    {
+        var policy = new LambdaEndpointPolicy<AmazonSqsEndpoint>((e, runtime) =>
+        {
+            if (e.Role == EndpointRole.System) return;
+            if (!e.IsListener) return;
+
+            var configuration = new AmazonSqsListenerConfiguration(e);
+            configure(configuration);
+
+            configuration.As<IDelayedEndpointConfiguration>().Apply();
+        });
+        
+        _options.Policies.Add(policy);
+
+        return this;
+    }
+
+    public IAmazonSqsTransportConfiguration ConfigureSenders(Action<AmazonSqsSubscriberConfiguration> configure)
+    {
+        var policy = new LambdaEndpointPolicy<AmazonSqsEndpoint>((e, runtime) =>
+        {
+            if (e.Role == EndpointRole.System) return;
+            if (!e.Subscriptions.Any()) return;
+
+            var configuration = new AmazonSqsSubscriberConfiguration(e);
+            configure(configuration);
+
+            configuration.As<IDelayedEndpointConfiguration>().Apply();
+        });
+        
+        _options.Policies.Add(policy);
+
+        return this;
     }
 }

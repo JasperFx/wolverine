@@ -8,7 +8,7 @@ public interface IEndpointPolicy
     void Apply(Endpoint endpoint, IWolverineRuntime runtime);
 }
 
-internal class LambdaEndpointPolicy<T> : IEndpointPolicy where T : Endpoint
+public class LambdaEndpointPolicy<T> : IEndpointPolicy where T : Endpoint
 {
     private readonly Action<T, IWolverineRuntime> _configure;
 
@@ -22,3 +22,4 @@ internal class LambdaEndpointPolicy<T> : IEndpointPolicy where T : Endpoint
         if (endpoint is T e) _configure(e, runtime);
     }
 }
+

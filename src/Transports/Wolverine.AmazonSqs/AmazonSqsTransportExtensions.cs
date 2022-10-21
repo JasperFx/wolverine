@@ -1,6 +1,7 @@
 using Amazon.Runtime;
 using Amazon.SQS;
 using Baseline;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 
@@ -25,7 +26,7 @@ public static class AmazonSqsTransportExtensions
     {
         var transport = options.AmazonSqsTransport();
         configuration(transport.Config);
-        return transport;
+        return new AmazonSqlTransportConfiguration(transport, options);
     }
 
 
@@ -40,7 +41,7 @@ public static class AmazonSqsTransportExtensions
         var transport = options.AmazonSqsTransport();
         transport.ConnectToLocalStack(port);
 
-        return transport;
+        return new AmazonSqlTransportConfiguration(transport, options);
     }
     
     /// <summary>

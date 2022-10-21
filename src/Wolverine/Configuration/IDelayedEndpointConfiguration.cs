@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Wolverine.Configuration;
 
-internal interface IDelayedEndpointConfiguration
+public interface IDelayedEndpointConfiguration
 {
     void Apply();
 }

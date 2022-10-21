@@ -113,7 +113,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     /// </summary>
     public CircuitBreakerOptions? CircuitBreakerOptions { get; set; }
 
-    internal IList<Subscription> Subscriptions { get; } = new List<Subscription>();
+    public IList<Subscription> Subscriptions { get; } = new List<Subscription>();
 
     /// <summary>
     ///     Mark whether or not the receiver for this listener should use
