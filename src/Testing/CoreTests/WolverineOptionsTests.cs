@@ -7,6 +7,7 @@ using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
+using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
 using TestingSupport.Fakes;
@@ -245,6 +246,12 @@ public class WolverineOptionsTests
         public ValueTask InitializeAsync(IWolverineRuntime runtime)
         {
             throw new NotImplementedException();
+        }
+
+        public bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
+        {
+            resource = null;
+            return false;
         }
 
         public void Dispose()

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Oakton.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 
@@ -57,4 +58,10 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
     protected abstract IEnumerable<TEndpoint> endpoints();
 
     protected abstract TEndpoint findEndpointByUri(Uri uri);
+
+    public virtual bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
+    {
+        resource = null;
+        return false;
+    }
 }

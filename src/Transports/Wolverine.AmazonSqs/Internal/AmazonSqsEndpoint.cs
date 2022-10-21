@@ -1,3 +1,4 @@
+using Amazon.SQS;
 using Amazon.SQS.Model;
 using Baseline;
 using Wolverine.Configuration;
@@ -46,35 +47,54 @@ public class AmazonSqsEndpoint : Endpoint, IAmazonSqsListeningEndpoint
 
     private bool _initialized;
     
+    // TODO -- put the if/then logic outside of this!
     internal async ValueTask InitializeAsync()
     {
         if (_initialized) return;
 
-        if (_parent.Client == null)
+        var client = _parent.Client;
+        
+        if (client == null)
             throw new InvalidOperationException($"Parent {nameof(AmazonSqsTransport)} has not been initialized");
         
         // TODO -- allow for config on endpoint?
         if (_parent.AutoProvision)
         {
-            // TODO -- use the configuration here for FIFO or Standard
-            var response = await _parent.Client.CreateQueueAsync(QueueName);
-
-            QueueUrl = response.QueueUrl;
+            await SetupAsync(client);
         }
 
         if (QueueUrl.IsEmpty())
         {
-            var response = await _parent.Client.GetQueueUrlAsync(QueueName);
+            var response = await client.GetQueueUrlAsync(QueueName);
             QueueUrl = response.QueueUrl;
         }
 
         // TODO -- allow for endpoint by endpoint variance
         if (_parent.AutoPurgeOnStartup)
         {
-            await _parent.Client.PurgeQueueAsync(QueueUrl);
+            await client.PurgeQueueAsync(QueueUrl);
         }
 
         _initialized = true;
+    }
+
+    internal async Task SetupAsync(IAmazonSQS client)
+    {
+        // TODO -- use the configuration here for FIFO or Standard
+        var response = await client.CreateQueueAsync(QueueName);
+
+        QueueUrl = response.QueueUrl;
+    }
+
+    public async Task PurgeAsync(IAmazonSQS client)
+    {
+        if (QueueUrl.IsEmpty())
+        {
+            var response = await client.GetQueueUrlAsync(QueueName);
+            QueueUrl = response.QueueUrl;
+        }
+        
+        await client.PurgeQueueAsync(QueueUrl);
     }
 
     public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
@@ -111,5 +131,26 @@ public class AmazonSqsEndpoint : Endpoint, IAmazonSqsListeningEndpoint
     internal AmazonSqsMapper BuildMapper(IWolverineRuntime runtime)
     {
         return new AmazonSqsMapper(this, runtime);
+    }
+
+
+    public async Task TeardownAsync(IAmazonSQS client, CancellationToken token)
+    {
+        if (QueueUrl == null)
+        {
+            try
+            {
+                QueueUrl = (await client.GetQueueUrlAsync(QueueName)).QueueUrl;
+            }
+            catch (Exception)
+            {
+                return;
+            }
+        }
+        
+        await client.DeleteQueueAsync(new DeleteQueueRequest
+        {
+            QueueUrl = QueueUrl
+        }, token);
     }
 }

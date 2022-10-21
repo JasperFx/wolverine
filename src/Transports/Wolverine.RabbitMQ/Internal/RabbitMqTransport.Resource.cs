@@ -9,11 +9,19 @@ using Oakton.Resources;
 using RabbitMQ.Client.Exceptions;
 using Spectre.Console;
 using Spectre.Console.Rendering;
+using Wolverine.Runtime;
+using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
     internal partial class RabbitMqTransport : IStatefulResource
     {
+        public override bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
+        {
+            resource = this;
+            return true;
+        }
+
         public Task Check(CancellationToken token)
         {
             var queueNames = allKnownQueueNames();
@@ -102,7 +110,7 @@ namespace Wolverine.RabbitMQ.Internal
             return Task.FromResult((IRenderable)table);
         }
 
-        string IStatefulResource.Type => "WolverineTransport";
+        string IStatefulResource.Type => TransportConstants.WolverineTransport;
 
         internal void PurgeAllQueues()
         {

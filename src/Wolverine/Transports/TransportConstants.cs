@@ -26,4 +26,6 @@ public static class TransportConstants
     public static readonly Uri LocalUri = "local://".ToUri();
 
     public static readonly int AnyNode = 0;
+
+    public const string WolverineTransport = "WolverineTransport";
 }
