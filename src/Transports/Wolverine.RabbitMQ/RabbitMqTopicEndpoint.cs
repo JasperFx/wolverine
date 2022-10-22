@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
@@ -30,7 +31,7 @@ internal class RabbitMqTopicEndpoint : RabbitMqEndpoint
         return dict;
     }
 
-    public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         throw new NotSupportedException();
     }

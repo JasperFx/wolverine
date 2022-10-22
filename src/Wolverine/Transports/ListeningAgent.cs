@@ -122,7 +122,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _receiver ??= await buildReceiverAsync();
 
-        _listener = Endpoint.BuildListener(_runtime, _receiver);
+        _listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
 
         Status = ListeningStatus.Accepting;
         _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));

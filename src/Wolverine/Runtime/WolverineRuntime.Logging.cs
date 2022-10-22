@@ -6,7 +6,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Runtime;
 
-internal sealed partial class WolverineRuntime : IMessageLogger
+public sealed partial class WolverineRuntime : IMessageLogger
 {
     public const int SentEventId = 100;
     public const int ReceivedEventId = 101;
@@ -69,7 +69,7 @@ internal sealed partial class WolverineRuntime : IMessageLogger
             "Discarding {envelope}");
     }
 
-    public TrackedSession? ActiveSession { get; internal set; }
+    internal TrackedSession? ActiveSession { get; set; }
 
     public void Sent(Envelope envelope)
     {

@@ -6,7 +6,7 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime.Routing;
 
-internal class MessageRouter<T> : MessageRouterBase<T>
+public class MessageRouter<T> : MessageRouterBase<T>
 {
     public MessageRouter(WolverineRuntime runtime, IEnumerable<MessageRoute> routes) : base(runtime)
     {

@@ -17,7 +17,7 @@ using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Runtime;
 
-internal sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
+public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 {
     private readonly IContainer _container;
 

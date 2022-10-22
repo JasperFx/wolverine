@@ -5,7 +5,7 @@ using Baseline;
 
 namespace Wolverine.Runtime;
 
-internal partial class WolverineRuntime : IAsyncDisposable
+public partial class WolverineRuntime : IAsyncDisposable
 {
     async ValueTask IAsyncDisposable.DisposeAsync()
     {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Baseline;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -26,7 +27,7 @@ namespace Wolverine.RabbitMQ.Internal
             Topics = new(topic => new RabbitMqTopicEndpoint(topic, this, _parent));
         }
 
-        public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+        public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
         {
             throw new NotSupportedException();
         }

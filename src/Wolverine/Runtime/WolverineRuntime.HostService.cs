@@ -13,7 +13,7 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime;
 
-internal partial class WolverineRuntime
+public partial class WolverineRuntime
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {

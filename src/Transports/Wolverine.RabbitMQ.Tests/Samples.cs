@@ -248,7 +248,7 @@ public class Samples
                         x.QueueNameForListener(type => type.FullName.Replace('.', '-'));
 
                         // Or maybe you want to conditionally configure listening endpoints
-                        x.ConfigureListener((listener, queue, context) =>
+                        x.ConfigureListeners((listener, queue, context) =>
                         {
                             if (context.MessageType.IsInNamespace("MyApp.Messages.Important"))
                             {

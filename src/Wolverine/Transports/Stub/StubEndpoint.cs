@@ -100,9 +100,9 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
         _logger = logger;
     }
 
-    public override IListener BuildListener(IWolverineRuntime runtime, IReceiver? receiver)
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        return this;
+        return ValueTask.FromResult<IListener>(this);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)

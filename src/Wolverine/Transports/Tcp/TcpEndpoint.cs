@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Threading.Tasks;
 using Wolverine.Util;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -41,7 +42,7 @@ public class TcpEndpoint : Endpoint
         return $"tcp://{hostName}:{port}".ToUri();
     }
 
-    public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         // check the uri for an ip address to bind to
         var cancellation = runtime.Advanced.Cancellation;
@@ -50,13 +51,15 @@ public class TcpEndpoint : Endpoint
 
         if (hostNameType != UriHostNameType.IPv4 && hostNameType != UriHostNameType.IPv6)
         {
-            return HostName == "localhost"
+            var listener = HostName == "localhost"
                 ? new SocketListener(this, receiver, runtime.Logger, IPAddress.Loopback, Port, cancellation)
                 : new SocketListener(this, receiver, runtime.Logger, IPAddress.Any, Port, cancellation);
+            
+            return ValueTask.FromResult<IListener>(listener);
         }
 
         var ipaddr = IPAddress.Parse(HostName);
-        return new SocketListener(this, receiver, runtime.Logger, ipaddr, Port, cancellation);
+        return ValueTask.FromResult<IListener>(new SocketListener(this, receiver, runtime.Logger, ipaddr, Port, cancellation));
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)

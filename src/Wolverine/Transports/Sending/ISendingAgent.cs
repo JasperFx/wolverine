@@ -10,7 +10,6 @@ public interface ISendingAgent
     Uri? ReplyUri { get; set; }
     bool Latched { get; }
 
-
     bool IsDurable { get; }
 
     bool SupportsNativeScheduledSend { get; }

@@ -97,21 +97,19 @@ public class AmazonSqsEndpoint : Endpoint, IAmazonSqsListeningEndpoint
         await client.PurgeQueueAsync(QueueUrl);
     }
 
-    public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        assertReady();
+        if (_parent.Client == null)
+            throw new InvalidOperationException("The parent transport has not yet been initialized");
+
+        if (QueueUrl.IsEmpty())
+        {
+            await InitializeAsync();
+        }
 
         return new SqsListener(runtime, this, _parent, receiver);
     }
-
-    private void assertReady()
-    {
-        if (QueueUrl.IsEmpty()) throw new InvalidOperationException("This endpoint has not yet been initialized");
-
-        if (_parent.Client == null)
-            throw new InvalidOperationException("The parent transport has not yet been initialized");
-    }
-
+    
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         var protocol = new SqsSenderProtocol(runtime, this, _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));

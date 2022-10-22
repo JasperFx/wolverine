@@ -4,7 +4,7 @@ using Oakton.Resources;
 
 namespace Wolverine.Runtime;
 
-internal partial class WolverineRuntime : IStatefulResourceSource
+public partial class WolverineRuntime : IStatefulResourceSource
 {
     IReadOnlyList<IStatefulResource> IStatefulResourceSource.FindResources()
     {

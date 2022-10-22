@@ -11,7 +11,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
 
-internal abstract class MessageRouterBase<T> : IMessageRouter
+public abstract class MessageRouterBase<T> : IMessageRouter
 {
     internal WolverineRuntime Runtime { get; }
 

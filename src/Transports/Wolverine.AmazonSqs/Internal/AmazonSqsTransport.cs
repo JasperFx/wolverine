@@ -24,7 +24,7 @@ internal class AmazonSqsTransport : TransportBase<AmazonSqsEndpoint>
 
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
 
-    public Cache<string, AmazonSqsEndpoint> Queues { get; }
+    public LightweightCache<string, AmazonSqsEndpoint> Queues { get; }
 
     public AmazonSQSConfig Config { get; } = new();
     public bool AutoProvision { get; set; }
@@ -167,6 +167,16 @@ internal class AmazonSqlTransportConfiguration : IAmazonSqsTransportConfiguratio
         
         _options.Policies.Add(policy);
 
+        return this;
+    }
+
+    public IAmazonSqsTransportConfiguration UseConventionalRouting(Action<AmazonSqsMessageRoutingConvention>? configure = null)
+    {
+        var routing = new AmazonSqsMessageRoutingConvention();
+        configure?.Invoke(routing);
+        
+        _options.RouteWith(routing);
+        
         return this;
     }
 }

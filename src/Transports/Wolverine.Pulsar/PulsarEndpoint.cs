@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Baseline;
 using DotPulsar;
 using DotPulsar.Abstractions;
@@ -86,10 +87,11 @@ namespace Wolverine.Pulsar
             return $"{Persistence}://{Tenant}/{Namespace}/{TopicName}";
         }
 
-        public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+        public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
         {
             // TODO -- parallel listener option????
-            return new PulsarListener(runtime, this, receiver, _parent, runtime.Cancellation);
+            var listener = new PulsarListener(runtime, this, receiver, _parent, runtime.Cancellation);
+            return ValueTask.FromResult<IListener>(listener);
         }
 
         protected override ISender CreateSender(IWolverineRuntime runtime)

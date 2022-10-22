@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Baseline;
 using Baseline.Dates;
@@ -199,7 +200,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     /// </summary>
     public bool IsUsedForReplies { get; set; }
 
-    internal IList<IEnvelopeRule> OutgoingRules { get; } = new List<IEnvelopeRule>();
+    public IList<IEnvelopeRule> OutgoingRules { get; } = new List<IEnvelopeRule>();
 
     internal ISendingAgent? Agent { get; set; }
 
@@ -287,7 +288,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     /// <param name="runtime"></param>
     /// <param name="receiver"></param>
     /// <returns></returns>
-    public abstract IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver);
+    public abstract ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver);
 
     /// <summary>
     /// Create new sending agent for this 

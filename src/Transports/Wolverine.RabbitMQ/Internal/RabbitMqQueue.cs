@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
@@ -172,11 +173,13 @@ namespace Wolverine.RabbitMQ.Internal
             set => _preFetchCount = value;
         }
 
-        public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+        public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
         {
-            return ListenerCount > 1
-                ? new ParallelRabbitMqListener(runtime, this, _parent, receiver)
+            var listener = ListenerCount > 1
+                ? (IListener)new ParallelRabbitMqListener(runtime, this, _parent, receiver)
                 : new RabbitMqListener(runtime, this, _parent, receiver);
+            
+            return ValueTask.FromResult<IListener>(listener);
         }
 
     }

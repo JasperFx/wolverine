@@ -12,7 +12,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
 
-internal class MessageRoute : IMessageRoute
+public class MessageRoute : IMessageRoute
 {
     private static ImHashMap<Type, IList<IEnvelopeRule>> _rulesByMessageType = ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 

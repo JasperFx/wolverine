@@ -142,7 +142,7 @@ namespace Wolverine.RabbitMQ
         /// </summary>
         /// <param name="configure"></param>
         /// <returns></returns>
-        public RabbitMqMessageRoutingConvention ConfigureListener(Action<RabbitMqListenerConfiguration, RabbitMqQueue, RabbitMappingContext> configure)
+        public RabbitMqMessageRoutingConvention ConfigureListeners(Action<RabbitMqListenerConfiguration, RabbitMqQueue, RabbitMappingContext> configure)
         {
             _configureListener = configure ?? throw new ArgumentNullException(nameof(configure));
             return this;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Wolverine.Util;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -44,7 +45,7 @@ public class LocalQueueSettings : Endpoint
     public override bool AutoStartSendingAgent() => true;
     internal List<Type> HandledMessageTypes { get; } = new();
 
-    public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         throw new NotSupportedException();
     }

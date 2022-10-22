@@ -53,4 +53,6 @@ public interface IAmazonSqsTransportConfiguration
     /// <param name="configure"></param>
     /// <returns></returns>
     IAmazonSqsTransportConfiguration ConfigureSenders(Action<AmazonSqsSubscriberConfiguration> configure);
+
+    IAmazonSqsTransportConfiguration UseConventionalRouting(Action<AmazonSqsMessageRoutingConvention>? configure = null);
 }

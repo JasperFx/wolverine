@@ -2,7 +2,7 @@ using System;
 
 namespace Wolverine.Runtime.Routing;
 
-internal class EmptyMessageRouter<T> : MessageRouterBase<T>
+public class EmptyMessageRouter<T> : MessageRouterBase<T>
 {
     public EmptyMessageRouter(WolverineRuntime runtime) : base(runtime)
     {
