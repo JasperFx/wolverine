@@ -70,7 +70,7 @@ public class AmazonSqsEndpoint : Endpoint, IAmazonSqsListeningEndpoint
         }
 
         // TODO -- allow for endpoint by endpoint variance
-        if (_parent.AutoPurgeOnStartup)
+        if (_parent.AutoPurgeAllQueues)
         {
             await client.PurgeQueueAsync(QueueUrl);
         }
@@ -138,7 +138,7 @@ public class AmazonSqsEndpoint : Endpoint, IAmazonSqsListeningEndpoint
         {
             try
             {
-                QueueUrl = (await client.GetQueueUrlAsync(QueueName)).QueueUrl;
+                QueueUrl = (await client.GetQueueUrlAsync(QueueName, token)).QueueUrl;
             }
             catch (Exception)
             {

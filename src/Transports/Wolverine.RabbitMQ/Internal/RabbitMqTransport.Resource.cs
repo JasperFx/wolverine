@@ -48,7 +48,6 @@ namespace Wolverine.RabbitMQ.Internal
             }
 
             channel.Close();
-
             connection.Close();
 
             if (missing.Any())
@@ -86,8 +85,10 @@ namespace Wolverine.RabbitMQ.Internal
                 return Task.FromResult((IRenderable)new Markup("[gray]No known queues.[/]"));
             }
 
-            var table = new Table();
-            table.Alignment = Justify.Left;
+            var table = new Table
+            {
+                Alignment = Justify.Left
+            };
             table.AddColumn("Queue");
             table.AddColumn("Count");
 
@@ -172,7 +173,6 @@ namespace Wolverine.RabbitMQ.Internal
             }
 
             channel.Close();
-
             connection.Close();
         }
 

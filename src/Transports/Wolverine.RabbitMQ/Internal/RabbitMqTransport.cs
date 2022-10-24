@@ -11,7 +11,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    internal partial class RabbitMqTransport : TransportBase<RabbitMqEndpoint>, IDisposable
+    internal partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDisposable
     {
         public const string ProtocolName = "rabbitmq";
         public const string ResponseEndpointName = "RabbitMqResponses";
@@ -29,14 +29,6 @@ namespace Wolverine.RabbitMQ.Internal
 
         internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
         internal IConnection SendingConnection => _sendingConnection ??= BuildConnection();
-
-        /// <summary>
-        /// Should Wolverine attempt to auto-provision all exchanges, queues, and bindings
-        /// if they do not already exist?
-        /// </summary>
-        public bool AutoProvision { get; set; }
-
-        public bool AutoPurgeAllQueues { get; set; }
 
         public ConnectionFactory ConnectionFactory { get; } = new();
 
@@ -138,28 +130,5 @@ namespace Wolverine.RabbitMQ.Internal
         {
             return Exchanges.SelectMany(x => x.Bindings());
         }
-    }
-
-    public interface IBindingExpression
-    {
-        /// <summary>
-        ///     Bind the named exchange to a queue. The routing key will be
-        ///     [exchange name]_[queue name]
-        /// </summary>
-        /// <param name="queueName"></param>
-        /// <param name="configure">Optional configuration of the Rabbit MQ queue</param>
-        /// <param name="arguments">Optional configuration for arguments to the Rabbit MQ binding</param>
-        IRabbitMqTransportExpression ToQueue(string queueName, Action<RabbitMqQueue>? configure = null,
-            Dictionary<string, object>? arguments = null);
-
-        /// <summary>
-        ///     Bind the named exchange to a queue with a user supplied binding key
-        /// </summary>
-        /// <param name="queueName"></param>
-        /// <param name="bindingKey"></param>
-        /// <param name="configure">Optional configuration of the Rabbit MQ queue</param>
-        /// <param name="arguments">Optional configuration for arguments to the Rabbit MQ binding</param>
-        IRabbitMqTransportExpression ToQueue(string queueName, string bindingKey,
-            Action<RabbitMqQueue>? configure = null, Dictionary<string, object>? arguments = null);
     }
 }

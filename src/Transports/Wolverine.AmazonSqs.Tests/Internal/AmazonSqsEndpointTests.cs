@@ -116,7 +116,7 @@ public class when_initializing_the_endpoint
     [Fact]
     public async Task do_not_purge_when_not_auto_purge()
     {
-        theTransport.AutoPurgeOnStartup = false;
+        theTransport.AutoPurgeAllQueues = false;
         theTransport.AutoProvision = false;
 
         // Gotta set this up to make the test work
@@ -134,7 +134,7 @@ public class when_initializing_the_endpoint
     [Fact]
     public async Task should_purge_when_auto_purge()
     {
-        theTransport.AutoPurgeOnStartup = true;
+        theTransport.AutoPurgeAllQueues = true;
         theTransport.AutoProvision = false;
 
         // Gotta set this up to make the test work
