@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Baseline;
+using Oakton.Resources;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -27,8 +27,9 @@ namespace Wolverine.RabbitMQ.Internal
             Exchanges = new(name => new RabbitMqExchange(name, this));
         }
 
-        public ValueTask ConnectAsync()
+        public override ValueTask ConnectAsync(IWolverineRuntime logger)
         {
+            // TODO -- log the connection
             _listenerConnection ??= BuildConnection();
             _sendingConnection ??= BuildConnection();
             
@@ -53,6 +54,12 @@ namespace Wolverine.RabbitMQ.Internal
 
             _sendingConnection?.Close();
             _sendingConnection?.SafeDispose();
+        }
+        
+        public override bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
+        {
+            resource = new RabbitMqStatefulResource(this, runtime);
+            return true;
         }
 
         protected override IEnumerable<RabbitMqEndpoint> endpoints()
@@ -89,15 +96,6 @@ namespace Wolverine.RabbitMQ.Internal
                 default:
                     throw new ArgumentOutOfRangeException(nameof(uri), $"Invalid Rabbit MQ object type '{type}'");
             }
-        }
-
-        public override ValueTask InitializeAsync(IWolverineRuntime runtime)
-        {
-            tryBuildResponseQueueEndpoint(runtime);
-            
-            InitializeAllObjects(runtime.Logger);
-
-            return ValueTask.CompletedTask;
         }
 
         protected override void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)

@@ -3,17 +3,18 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Baseline;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class AmazonSqsTransport : BrokerTransport<AmazonSqsEndpoint>
+internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 {
     public AmazonSqsTransport() : base("sqs", "Amazon SQS")
     {
-        Queues = new(name => new AmazonSqsEndpoint(name, this));
+        Queues = new(name => new AmazonSqsQueue(name, this));
     }
 
     internal AmazonSqsTransport(IAmazonSQS client) : this()
@@ -23,30 +24,26 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsEndpoint>
 
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
 
-    public LightweightCache<string, AmazonSqsEndpoint> Queues { get; }
+    public LightweightCache<string, AmazonSqsQueue> Queues { get; }
 
     public AmazonSQSConfig Config { get; } = new();
 
-    protected override IEnumerable<AmazonSqsEndpoint> endpoints()
+    protected override IEnumerable<AmazonSqsQueue> endpoints()
     {
         return Queues;
     }
 
-    protected override AmazonSqsEndpoint findEndpointByUri(Uri uri)
+    protected override AmazonSqsQueue findEndpointByUri(Uri uri)
     {
         if (uri.Scheme != Protocol) throw new ArgumentOutOfRangeException(nameof(uri));
 
         return Queues[uri.Host];
     }
 
-    public override async ValueTask InitializeAsync(IWolverineRuntime runtime)
+    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         Client ??= BuildClient(runtime);
-
-        foreach (var endpoint in Queues)
-        {
-            await endpoint.InitializeAsync();
-        }
+        return ValueTask.CompletedTask;
     }
 
     public IAmazonSQS BuildClient(IWolverineRuntime runtime)
@@ -60,7 +57,7 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsEndpoint>
         return new AmazonSQSClient(credentials, Config);
     }
 
-    internal AmazonSqsEndpoint EndpointForQueue(string queueName)
+    internal AmazonSqsQueue EndpointForQueue(string queueName)
     {
         return Queues[queueName];
     }

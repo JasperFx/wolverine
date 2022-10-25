@@ -74,7 +74,7 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
             ConfigureConventions(c => c.ConfigureSending((c,  _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
 
             var route = PublishingRoutesFor<PublishedMessage>().Single().Sender.Endpoint
-                .ShouldBeOfType<AmazonSqsEndpoint>();
+                .ShouldBeOfType<AmazonSqsQueue>();
 
             route.OutgoingRules.Single().ShouldBeOfType<FakeEnvelopeRule>();
         }
@@ -106,7 +106,7 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
             }));
 
             var endpoint = theRuntime.Endpoints.EndpointFor("sqs://routed".ToUri())
-                .ShouldBeOfType<AmazonSqsEndpoint>();
+                .ShouldBeOfType<AmazonSqsQueue>();
 
             endpoint.Mode.ShouldBe(EndpointMode.Durable);
         }

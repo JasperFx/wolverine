@@ -26,5 +26,5 @@ public interface ITransport
     
     ValueTask InitializeAsync(IWolverineRuntime runtime);
 
-    bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource);
+    bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource);
 }

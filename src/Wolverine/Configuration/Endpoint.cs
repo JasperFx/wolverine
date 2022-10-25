@@ -6,6 +6,7 @@ using System.Threading.Tasks.Dataflow;
 using Baseline;
 using Baseline.Dates;
 using Baseline.ImTools;
+using Microsoft.Extensions.Logging;
 using Oakton.Descriptions;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
@@ -317,5 +318,16 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     public virtual bool ShouldEnforceBackPressure()
     {
         return Mode != EndpointMode.Inline;
+    }
+
+
+    /// <summary>
+    /// One time initialization of this endpoint
+    /// </summary>
+    /// <param name="logger"></param>
+    /// <returns></returns>
+    public virtual ValueTask InitializeAsync(ILogger logger)
+    {
+        return ValueTask.CompletedTask;
     }
 }

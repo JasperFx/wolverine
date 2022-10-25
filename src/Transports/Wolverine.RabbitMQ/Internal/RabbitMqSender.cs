@@ -23,29 +23,33 @@ namespace Wolverine.RabbitMQ.Internal
         private readonly string _key;
         private Func<Envelope, string> _toRoutingKey;
         private readonly IEnvelopeMapper<IBasicProperties, IBasicProperties> _mapper;
+        private readonly RabbitMqEndpoint _queue;
 
-        public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,
+        public RabbitMqSender(RabbitMqEndpoint queue, RabbitMqTransport transport,
             RoutingMode routingType, IWolverineRuntime runtime) : base(
-            transport.SendingConnection, endpoint, runtime.Logger)
+            transport.SendingConnection, queue, runtime.Logger)
         {
-            Destination = endpoint.Uri;
+            Destination = queue.Uri;
 
-            _isDurable = endpoint.Mode == EndpointMode.Durable;
+            _isDurable = queue.Mode == EndpointMode.Durable;
 
-            _exchangeName = endpoint.ExchangeName;
-            _key = endpoint.RoutingKey();
+            _exchangeName = queue.ExchangeName;
+            _key = queue.RoutingKey();
 
             _toRoutingKey = routingType == RoutingMode.Static ? _ => _key : TopicRouting.DetermineTopicName;
 
-            _mapper = endpoint.BuildMapper(runtime);
+            _mapper = queue.BuildMapper(runtime);
+            _queue = queue;
+            
+            EnsureConnected();
         }
 
-        public bool SupportsNativeScheduledSend { get; } = false;
+        public bool SupportsNativeScheduledSend => false;
         public Uri Destination { get; }
 
-        public ValueTask SendAsync(Envelope envelope)
+        public async ValueTask SendAsync(Envelope envelope)
         {
-            EnsureConnected();
+            await _queue.InitializeAsync(_logger);
 
             if (State == AgentState.Disconnected)
             {
@@ -60,8 +64,6 @@ namespace Wolverine.RabbitMQ.Internal
 
             var routingKey = _toRoutingKey(envelope);
             Channel.BasicPublish(_exchangeName, routingKey, props, envelope.Data);
-
-            return ValueTask.CompletedTask;
         }
 
         public Task<bool> PingAsync()

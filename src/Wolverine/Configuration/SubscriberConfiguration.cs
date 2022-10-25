@@ -14,7 +14,7 @@ namespace Wolverine.Configuration;
 public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>, ISubscriberConfiguration<T>
     where TEndpoint : Endpoint where T : ISubscriberConfiguration<T>
 {
-    protected SubscriberConfiguration(TEndpoint endpoint) : base(endpoint)
+    protected SubscriberConfiguration(TEndpoint queue) : base(queue)
     {
     }
 

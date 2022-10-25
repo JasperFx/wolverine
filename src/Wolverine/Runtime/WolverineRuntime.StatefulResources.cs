@@ -14,7 +14,7 @@ public partial class WolverineRuntime : IStatefulResourceSource
         {
             if (transport.TryBuildStatefulResource(this, out var resource))
             {
-                list.Add(resource);
+                list.Add(resource!);
             }
         }
         

@@ -47,11 +47,22 @@ namespace Wolverine.RabbitMQ.Internal
         /// </summary>
         public bool PurgeOnStartup { get; set; }
 
-        internal override ValueTask InitializeAsync(ILogger logger)
+        private bool _initialized;
+        
+        public override ValueTask InitializeAsync(ILogger logger)
         {
-            var connection = _parent.ListeningConnection;
+            if (_initialized) return ValueTask.CompletedTask;
 
-            return InitializeAsync(connection, logger);
+            try
+            {
+                var connection = _parent.ListeningConnection;
+
+                return InitializeAsync(connection, logger);
+            }
+            finally
+            {
+                _initialized = true;
+            }
         }
 
         internal ValueTask InitializeAsync(IConnection connection, ILogger logger)
@@ -178,13 +189,13 @@ namespace Wolverine.RabbitMQ.Internal
             set => _preFetchCount = value;
         }
 
-        public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+        public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
         {
-            var listener = ListenerCount > 1
-                ? (IListener)new ParallelRabbitMqListener(runtime, this, _parent, receiver)
+            await InitializeAsync(runtime.Logger);
+
+            return ListenerCount > 1
+                ? new ParallelRabbitMqListener(runtime, this, _parent, receiver)
                 : new RabbitMqListener(runtime, this, _parent, receiver);
-            
-            return ValueTask.FromResult<IListener>(listener);
         }
 
     }

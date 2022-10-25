@@ -11,22 +11,22 @@ public interface IDelayedEndpointConfiguration
 public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpointConfiguration where TEndpoint : Endpoint
 {
     private readonly List<Action<TEndpoint>> _configurations = new();
-    private readonly TEndpoint _endpoint;
+    private readonly TEndpoint _queue;
 
-    protected DelayedEndpointConfiguration(TEndpoint endpoint)
+    protected DelayedEndpointConfiguration(TEndpoint queue)
     {
-        _endpoint = endpoint;
-        _endpoint.RegisterDelayedConfiguration(this);
+        _queue = queue;
+        _queue.RegisterDelayedConfiguration(this);
     }
 
     void IDelayedEndpointConfiguration.Apply()
     {
         foreach (var action in _configurations)
         {
-            action(_endpoint);
+            action(_queue);
         }
 
-        _endpoint.DelayedConfiguration.Remove(this);
+        _queue.DelayedConfiguration.Remove(this);
     }
     
     protected void add(Action<TEndpoint> action)

@@ -87,8 +87,6 @@ public partial class Envelope
 
         _timer.Stop();
         return _timer.ElapsedMilliseconds;
-
-        _timer = null;
     }
 
     internal KeyValuePair<string, object?>[] ToHeaders()

@@ -17,7 +17,7 @@ public class ListenerConfiguration : ListenerConfiguration<IListenerConfiguratio
 public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>, IListenerConfiguration<TSelf>
     where TSelf : IListenerConfiguration<TSelf> where TEndpoint : Endpoint
 {
-    public ListenerConfiguration(TEndpoint endpoint) : base(endpoint)
+    public ListenerConfiguration(TEndpoint queue) : base(queue)
     {
         add(e => e.IsListener = true);
     }

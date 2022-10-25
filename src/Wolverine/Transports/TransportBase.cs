@@ -59,9 +59,9 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
 
     protected abstract TEndpoint findEndpointByUri(Uri uri);
 
-    public virtual bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
+    public virtual bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
     {
-        resource = null;
+        resource = default;
         return false;
     }
 }

@@ -7,26 +7,26 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
     public class when_discovering_a_listening_endpoint_with_overridden_queue_naming : ConventionalRoutingContext
     {
         private readonly Uri theExpectedUri = "sqs://routedmessage2".ToUri();
-        private readonly AmazonSqsEndpoint theEndpoint;
+        private readonly AmazonSqsQueue theQueue;
 
         public when_discovering_a_listening_endpoint_with_overridden_queue_naming()
         {
             ConfigureConventions(c => c.QueueNameForListener(t => t.Name.ToLower() + "2"));
 
             var theRuntimeEndpoints = theRuntime.Endpoints.ActiveListeners().ToArray();
-            theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AmazonSqsEndpoint>();
+            theQueue = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AmazonSqsQueue>();
         }
 
         [Fact]
         public void endpoint_should_be_a_listener()
         {
-            theEndpoint.IsListener.ShouldBeTrue();
+            theQueue.IsListener.ShouldBeTrue();
         }
 
         [Fact]
         public void endpoint_should_not_be_null()
         {
-            theEndpoint.ShouldNotBeNull();
+            theQueue.ShouldNotBeNull();
         }
 
         [Fact]

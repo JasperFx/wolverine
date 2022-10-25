@@ -1,6 +1,7 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Baseline;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -9,12 +10,12 @@ using Wolverine.Util;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqsEndpoint : Endpoint, IAmazonSqsListeningEndpoint
+public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint
 {
     private readonly AmazonSqsTransport _parent;
     public string QueueName { get; private set; }
 
-    internal AmazonSqsEndpoint(string queueName, AmazonSqsTransport parent) : base( new Uri($"sqs://{queueName}"),EndpointRole.Application)
+    internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base( new Uri($"sqs://{queueName}"),EndpointRole.Application)
     {
         _parent = parent;
         QueueName = queueName;
@@ -48,8 +49,9 @@ public class AmazonSqsEndpoint : Endpoint, IAmazonSqsListeningEndpoint
     private bool _initialized;
     
     // TODO -- put the if/then logic outside of this!
-    internal async ValueTask InitializeAsync()
+    public override async ValueTask InitializeAsync(ILogger logger)
     {
+        // TODO -- do some logging here?
         if (_initialized) return;
 
         var client = _parent.Client;
@@ -104,7 +106,7 @@ public class AmazonSqsEndpoint : Endpoint, IAmazonSqsListeningEndpoint
 
         if (QueueUrl.IsEmpty())
         {
-            await InitializeAsync();
+            await InitializeAsync(runtime.Logger);
         }
 
         return new SqsListener(runtime, this, _parent, receiver);

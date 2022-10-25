@@ -81,14 +81,9 @@ internal class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoin
         TransportType = ServiceBusTransportType.AmqpTcp
     };
 
-    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
+    public override ValueTask ConnectAsync(IWolverineRuntime logger)
     {
-        return base.InitializeAsync(runtime);
-    }
-
-    public override bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
-    {
-        return base.TryBuildStatefulResource(runtime, out resource);
+        throw new NotImplementedException();
     }
 }
 

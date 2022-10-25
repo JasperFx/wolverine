@@ -25,14 +25,14 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
         [Fact]
         public void routed_to_sqs_queue()
         {
-            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<AmazonSqsEndpoint>();
+            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<AmazonSqsQueue>();
             endpoint.QueueName.ShouldBe("published-message");
         }
 
         [Fact]
         public void endpoint_mode_is_buffered_by_default()
         {
-            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<AmazonSqsEndpoint>();
+            var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<AmazonSqsQueue>();
             endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
         }
 

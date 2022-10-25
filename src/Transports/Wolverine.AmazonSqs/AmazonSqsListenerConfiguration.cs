@@ -3,9 +3,9 @@ using Wolverine.Configuration;
 
 namespace Wolverine.AmazonSqs;
 
-public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsListenerConfiguration, AmazonSqsEndpoint>
+public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsListenerConfiguration, AmazonSqsQueue>
 {
-    internal AmazonSqsListenerConfiguration(AmazonSqsEndpoint endpoint) : base(endpoint)
+    internal AmazonSqsListenerConfiguration(AmazonSqsQueue queue) : base(queue)
     {
     }
     

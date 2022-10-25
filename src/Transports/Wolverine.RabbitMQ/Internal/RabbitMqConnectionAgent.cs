@@ -7,34 +7,21 @@ namespace Wolverine.RabbitMQ.Internal
     internal abstract class RabbitMqConnectionAgent : IDisposable
     {
         private readonly IConnection _connection;
-        private readonly RabbitMqEndpoint _endpoint;
-        private readonly ILogger _logger;
+        private readonly RabbitMqEndpoint _queue;
+        protected readonly ILogger _logger;
         protected readonly object Locker = new();
 
         protected RabbitMqConnectionAgent(IConnection connection,
-            RabbitMqEndpoint endpoint, ILogger logger)
+            RabbitMqEndpoint queue, ILogger logger)
         {
             _connection = connection;
-            _endpoint = endpoint;
+            _queue = queue;
             _logger = logger;
         }
 
         internal AgentState State { get; private set; } = AgentState.Disconnected;
 
-        private IModel? _channel;
-
-        internal IModel Channel
-        {
-            get
-            {
-                if (_channel == null)
-                {
-                    EnsureConnected();
-                }
-
-                return _channel!;
-            }
-        }
+        internal IModel Channel { get; set; }
 
         public virtual void Dispose()
         {
@@ -51,8 +38,6 @@ namespace Wolverine.RabbitMQ.Internal
                 }
 
                 startNewChannel();
-                
-                _endpoint.InitializeAsync(_logger);
 
                 State = AgentState.Connected;
             }
@@ -60,9 +45,9 @@ namespace Wolverine.RabbitMQ.Internal
 
         protected void startNewChannel()
         {
-            _channel = _connection.CreateModel();
+            Channel = _connection.CreateModel();
 
-            _channel.ModelShutdown += ChannelOnModelShutdown;
+            Channel.ModelShutdown += ChannelOnModelShutdown;
         }
 
         private void ChannelOnModelShutdown(object? sender, ShutdownEventArgs e)
@@ -72,15 +57,15 @@ namespace Wolverine.RabbitMQ.Internal
 
         protected void teardownChannel()
         {
-            if (_channel != null)
+            if (Channel != null)
             {
-                _channel.ModelShutdown -= ChannelOnModelShutdown;
-                _channel.Close();
-                _channel.Abort();
-                _channel.Dispose();
+                Channel.ModelShutdown -= ChannelOnModelShutdown;
+                Channel.Close();
+                Channel.Abort();
+                Channel.Dispose();
             }
 
-            _channel = null;
+            Channel = null;
 
             State = AgentState.Disconnected;
         }

@@ -8,29 +8,29 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
     public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
     {
         private readonly Uri theExpectedUri = "sqs://routed".ToUri();
-        private readonly AmazonSqsEndpoint theEndpoint;
+        private readonly AmazonSqsQueue theQueue;
 
         public when_discovering_a_listening_endpoint_with_all_defaults()
         {
-            theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AmazonSqsEndpoint>();
+            theQueue = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AmazonSqsQueue>();
         }
 
         [Fact]
         public void endpoint_should_be_a_listener()
         {
-            theEndpoint.IsListener.ShouldBeTrue();
+            theQueue.IsListener.ShouldBeTrue();
         }
 
         [Fact]
         public void endpoint_should_not_be_null()
         {
-            theEndpoint.ShouldNotBeNull();
+            theQueue.ShouldNotBeNull();
         }
 
         [Fact]
         public void mode_is_buffered_by_default()
         {
-            theEndpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+            theQueue.Mode.ShouldBe(EndpointMode.BufferedInMemory);
         }
 
         [Fact]

@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 
@@ -31,5 +32,19 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint> wher
     protected virtual void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
     {
         
+    }
+
+    public abstract ValueTask ConnectAsync(IWolverineRuntime logger);
+    
+    public sealed override async ValueTask InitializeAsync(IWolverineRuntime runtime)
+    {
+        tryBuildResponseQueueEndpoint(runtime);
+
+        await ConnectAsync(runtime);
+
+        foreach (var endpoint in endpoints())
+        {
+            await endpoint.InitializeAsync(runtime.Logger);
+        }
     }
 }

@@ -94,7 +94,7 @@ public class bootstrapping
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
         var endpoint = options.Transports.GetOrCreateEndpoint(new Uri($"sqs://{queueName}"))
-            .ShouldBeOfType<AmazonSqsEndpoint>();
+            .ShouldBeOfType<AmazonSqsQueue>();
         
         endpoint.VisibilityTimeout.ShouldBe(4);
         endpoint.MaxNumberOfMessages.ShouldBe(5);

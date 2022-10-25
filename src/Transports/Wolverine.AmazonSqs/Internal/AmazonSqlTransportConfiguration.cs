@@ -49,7 +49,7 @@ internal class AmazonSqlTransportConfiguration : IAmazonSqsTransportConfiguratio
 
     public IAmazonSqsTransportConfiguration ConfigureListeners(Action<AmazonSqsListenerConfiguration> configure)
     {
-        var policy = new LambdaEndpointPolicy<AmazonSqsEndpoint>((e, runtime) =>
+        var policy = new LambdaEndpointPolicy<AmazonSqsQueue>((e, runtime) =>
         {
             if (e.Role == EndpointRole.System) return;
             if (!e.IsListener) return;
@@ -67,7 +67,7 @@ internal class AmazonSqlTransportConfiguration : IAmazonSqsTransportConfiguratio
 
     public IAmazonSqsTransportConfiguration ConfigureSenders(Action<AmazonSqsSubscriberConfiguration> configure)
     {
-        var policy = new LambdaEndpointPolicy<AmazonSqsEndpoint>((e, runtime) =>
+        var policy = new LambdaEndpointPolicy<AmazonSqsQueue>((e, runtime) =>
         {
             if (e.Role == EndpointRole.System) return;
             if (!e.Subscriptions.Any()) return;

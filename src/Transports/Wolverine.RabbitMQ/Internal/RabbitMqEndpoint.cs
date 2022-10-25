@@ -31,7 +31,6 @@ namespace Wolverine.RabbitMQ.Internal
 
         internal abstract string RoutingKey();
 
-        internal abstract ValueTask InitializeAsync(ILogger logger);
 
         public override IDictionary<string, object> DescribeProperties()
         {
@@ -129,8 +128,8 @@ namespace Wolverine.RabbitMQ.Internal
 
                 var replyAddress = new Lazy<string>(() =>
                 {
-                    var replyEndpoint = (RabbitMqEndpoint)_parent.ReplyEndpoint();
-                    return replyEndpoint.RoutingKey() ?? replyEndpoint.ExchangeName;
+                    var replyEndpoint = (RabbitMqEndpoint)_parent.ReplyEndpoint()!;
+                    return replyEndpoint.RoutingKey();
                 });
 
                 void WriteReplyToAddress(Envelope e, IBasicProperties props) => props.Headers["NServiceBus.ReplyToAddress"] = replyAddress.Value;

@@ -88,7 +88,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         
         _messageLogger.Sent(envelope);
 
-        _receiver.Enqueue(envelope);
+        _receiver!.Enqueue(envelope);
 
         return ValueTask.CompletedTask;
     }
@@ -149,7 +149,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public void Dispose()
     {
-        _receiver.Dispose();
+        _receiver?.SafeDispose();
         CircuitBreaker?.SafeDispose();
         _receiver?.SafeDispose();
     }

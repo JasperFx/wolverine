@@ -1,5 +1,6 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 using Wolverine.AmazonSqs.Internal;
@@ -7,47 +8,47 @@ using Wolverine.Configuration;
 
 namespace Wolverine.AmazonSqs.Tests.Internal;
 
-public class AmazonSqsEndpointTests
+public class AmazonSqsQueueTests
 {
     [Fact]
     public void default_mode_is_buffered()
     {
-        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo",new AmazonSqsTransport())
             .Mode.ShouldBe(EndpointMode.BufferedInMemory);
     }
 
     [Fact]
     public void uri()
     {
-        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo",new AmazonSqsTransport())
             .Uri.ShouldBe(new Uri("sqs://foo"));
     }
 
     [Fact]
     public void default_visibility_timeout_is_2_minutes()
     {
-        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo",new AmazonSqsTransport())
             .VisibilityTimeout.ShouldBe(120);
     }
 
     [Fact]
     public void default_wait_time_is_5()
     {
-        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo",new AmazonSqsTransport())
             .WaitTimeSeconds.ShouldBe(5);
     }
 
     [Fact]
     public void max_number_of_messages_by_default_is_10()
     {
-        new AmazonSqsEndpoint("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo",new AmazonSqsTransport())
             .MaxNumberOfMessages.ShouldBe(10);
     }
 
     [Fact]
     public void configure_request()
     {
-        var endpoint = new AmazonSqsEndpoint("foo", new AmazonSqsTransport())
+        var endpoint = new AmazonSqsQueue("foo", new AmazonSqsTransport())
         {
             MaxNumberOfMessages = 8,
             VisibilityTimeout = 3,
@@ -68,12 +69,12 @@ public class when_initializing_the_endpoint
 {
     private readonly IAmazonSQS theClient = Substitute.For<IAmazonSQS>();
     private readonly AmazonSqsTransport theTransport;
-    private readonly AmazonSqsEndpoint theEndpoint;
+    private readonly AmazonSqsQueue theQueue;
 
     public when_initializing_the_endpoint()
     {   
         theTransport = new AmazonSqsTransport(theClient);
-        theEndpoint = new AmazonSqsEndpoint("foo", theTransport);
+        theQueue = new AmazonSqsQueue("foo", theTransport);
     }
 
     [Fact]
@@ -83,16 +84,16 @@ public class when_initializing_the_endpoint
 
         var theSqsQueueUrl = "https://someserver.com/foo";
 
-        theClient.GetQueueUrlAsync(theEndpoint.QueueName).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
 
-        await theEndpoint.InitializeAsync();
+        await theQueue.InitializeAsync(NullLogger.Instance);
 
-        theEndpoint.QueueUrl.ShouldBe(theSqsQueueUrl);
+        theQueue.QueueUrl.ShouldBe(theSqsQueueUrl);
 
-        await theClient.DidNotReceiveWithAnyArgs().CreateQueueAsync(theEndpoint.QueueName);
+        await theClient.DidNotReceiveWithAnyArgs().CreateQueueAsync(theQueue.QueueName);
     }
 
     [Fact]
@@ -102,15 +103,15 @@ public class when_initializing_the_endpoint
         
         var theSqsQueueUrl = "https://someserver.com/foo";
 
-        theClient.CreateQueueAsync(theEndpoint.QueueName)
+        theClient.CreateQueueAsync(theQueue.QueueName)
             .Returns(new CreateQueueResponse
             {
                 QueueUrl = theSqsQueueUrl
             });
         
-        await theEndpoint.InitializeAsync();
+        await theQueue.InitializeAsync(NullLogger.Instance);
 
-        theEndpoint.QueueUrl.ShouldBe(theSqsQueueUrl);
+        theQueue.QueueUrl.ShouldBe(theSqsQueueUrl);
     }
 
     [Fact]
@@ -121,12 +122,12 @@ public class when_initializing_the_endpoint
 
         // Gotta set this up to make the test work
         var theSqsQueueUrl = "https://someserver.com/foo";
-        theClient.GetQueueUrlAsync(theEndpoint.QueueName).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
 
-        await theEndpoint.InitializeAsync();
+        await theQueue.InitializeAsync(NullLogger.Instance);
 
         await theClient.DidNotReceiveWithAnyArgs().PurgeQueueAsync(theSqsQueueUrl);
     }
@@ -139,12 +140,12 @@ public class when_initializing_the_endpoint
 
         // Gotta set this up to make the test work
         var theSqsQueueUrl = "https://someserver.com/foo";
-        theClient.GetQueueUrlAsync(theEndpoint.QueueName).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
 
-        await theEndpoint.InitializeAsync();
+        await theQueue.InitializeAsync(NullLogger.Instance);
 
         await theClient.Received().PurgeQueueAsync(theSqsQueueUrl);
     }

@@ -31,14 +31,19 @@ namespace Wolverine.RabbitMQ.Internal
         {
             throw new NotSupportedException();
         }
+
+        private bool _initialized;
         
-        internal override ValueTask InitializeAsync(ILogger logger)
+        public override ValueTask InitializeAsync(ILogger logger)
         {
+            if (_initialized) return ValueTask.CompletedTask;
             if (_parent.AutoProvision)
             {
                 using var model = _parent.ListeningConnection.CreateModel();
                 Declare(model, logger);
             }
+
+            _initialized = true;
             
             return ValueTask.CompletedTask;
         }
