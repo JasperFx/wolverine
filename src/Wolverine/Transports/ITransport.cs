@@ -10,19 +10,19 @@ namespace Wolverine.Transports;
 
 public interface ITransport
 {
-    string Protocol { get; }
+    public string Protocol { get; }
 
     /// <summary>
     ///     Strictly a diagnostic name for this transport type
     /// </summary>
-    string Name { get; }
+    public string Name { get; }
 
     Endpoint? ReplyEndpoint();
 
     Endpoint GetOrCreateEndpoint(Uri uri);
     Endpoint? TryGetEndpoint(Uri uri);
 
-    IEnumerable<Endpoint> Endpoints();
+    public IEnumerable<Endpoint> Endpoints();
     
     ValueTask InitializeAsync(IWolverineRuntime runtime);
 
