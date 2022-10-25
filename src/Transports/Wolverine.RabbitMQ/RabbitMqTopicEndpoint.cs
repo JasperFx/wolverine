@@ -38,8 +38,8 @@ internal class RabbitMqTopicEndpoint : RabbitMqEndpoint
 
     internal override string RoutingKey() => _topicName;
 
-    internal override void Initialize(IModel channel, ILogger logger)
+    internal override ValueTask InitializeAsync(ILogger logger)
     {
-        _exchange.Initialize(channel, logger);
+        return _exchange.InitializeAsync(logger);
     }
 }

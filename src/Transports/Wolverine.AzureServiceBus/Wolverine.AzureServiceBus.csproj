@@ -12,6 +12,7 @@
 
     <ItemGroup>
       <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.11.0" />
+
     </ItemGroup>
 
 </Project>

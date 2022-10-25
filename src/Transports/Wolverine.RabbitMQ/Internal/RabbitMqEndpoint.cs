@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Baseline;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -30,7 +31,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         internal abstract string RoutingKey();
 
-        internal abstract void Initialize(IModel channel, ILogger logger);
+        internal abstract ValueTask InitializeAsync(ILogger logger);
 
         public override IDictionary<string, object> DescribeProperties()
         {

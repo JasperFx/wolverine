@@ -1,4 +1,6 @@
+using System.Threading.Tasks;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Transports;
 
@@ -23,4 +25,11 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint> wher
     /// messages
     /// </summary>
     public bool AutoPurgeAllQueues { get; set; }
+
+
+    //public abstract ValueTask ConnectAsync();
+    protected virtual void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
+    {
+        
+    }
 }

@@ -32,12 +32,15 @@ namespace Wolverine.RabbitMQ.Internal
             throw new NotSupportedException();
         }
         
-        internal override void Initialize(IModel channel, ILogger logger)
+        internal override ValueTask InitializeAsync(ILogger logger)
         {
             if (_parent.AutoProvision)
             {
-                Declare(channel, logger);
+                using var model = _parent.ListeningConnection.CreateModel();
+                Declare(model, logger);
             }
+            
+            return ValueTask.CompletedTask;
         }
 
         internal override string RoutingKey()

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Baseline.Dates;
 using Baseline.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,7 +19,13 @@ namespace Wolverine.RabbitMQ.Tests.Internals
             
         };
         private readonly IModel theChannel = Substitute.For<IModel>();
-        
+        private readonly IConnection theConnection = Substitute.For<IConnection>();
+
+        public RabbitMqQueueTests()
+        {
+            theConnection.CreateModel().Returns(theChannel);
+        }
+
         [Fact]
         public void defaults()
         {
@@ -95,7 +102,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals
         }
 
         [Fact]
-        public void initialize_with_no_auto_provision_or_auto_purge()
+        public async Task initialize_with_no_auto_provision_or_auto_purge()
         {
             theTransport.AutoProvision = false;
             theTransport.AutoPurgeAllQueues = false;
@@ -103,7 +110,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals
 
             theTransport.Queues["foo"].PurgeOnStartup = false;
             
-            queue.Initialize(theChannel, NullLogger.Instance);
+            await queue.InitializeAsync(theConnection, NullLogger.Instance);
             
             theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
             theChannel.DidNotReceiveWithAnyArgs().QueuePurge("foo");
@@ -111,7 +118,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals
 
 
         [Fact]
-        public void initialize_with_no_auto_provision_but_auto_purge_on_endpoint_only()
+        public async Task initialize_with_no_auto_provision_but_auto_purge_on_endpoint_only()
         {
             theTransport.AutoProvision = false;
             theTransport.AutoPurgeAllQueues = false;
@@ -119,14 +126,14 @@ namespace Wolverine.RabbitMQ.Tests.Internals
             var endpoint = theTransport.Queues["foo"];
             endpoint.PurgeOnStartup = true;
 
-            endpoint.Initialize(theChannel, NullLogger.Instance);
+            await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
 
             theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
             theChannel.Received().QueuePurge("foo");
         }
 
         [Fact]
-        public void initialize_with_no_auto_provision_but_global_auto_purge()
+        public async Task initialize_with_no_auto_provision_but_global_auto_purge()
         {
             theTransport.AutoProvision = false;
             theTransport.AutoPurgeAllQueues = true;
@@ -135,14 +142,14 @@ namespace Wolverine.RabbitMQ.Tests.Internals
 
             theTransport.Queues["foo"].PurgeOnStartup = false;
 
-            endpoint.Initialize(theChannel, NullLogger.Instance);
+            await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
 
             theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
             theChannel.Received().QueuePurge("foo");
         }
 
         [Fact]
-        public void initialize_with_auto_provision_and_global_auto_purge()
+        public async Task initialize_with_auto_provision_and_global_auto_purge()
         {
             theTransport.AutoProvision = true;
             theTransport.AutoPurgeAllQueues = true;
@@ -151,14 +158,14 @@ namespace Wolverine.RabbitMQ.Tests.Internals
 
             theTransport.Queues["foo"].PurgeOnStartup = false;
 
-            endpoint.Initialize(theChannel, NullLogger.Instance);
+            await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
 
             theChannel.Received().QueueDeclare("foo", true, false, false, endpoint.Arguments);
             theChannel.Received().QueuePurge("foo");
         }
 
         [Fact]
-        public void initialize_with_auto_provision_and_local_auto_purge()
+        public async Task initialize_with_auto_provision_and_local_auto_purge()
         {
             theTransport.AutoProvision = true;
             theTransport.AutoPurgeAllQueues = false;
@@ -166,7 +173,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals
             var endpoint = theTransport.Queues["foo"];
             endpoint.PurgeOnStartup = true;
 
-            endpoint.Initialize(theChannel, NullLogger.Instance);
+            await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
 
             theChannel.Received().QueueDeclare("foo", true, false, false, endpoint.Arguments);
             theChannel.Received().QueuePurge("foo");

@@ -52,7 +52,7 @@ namespace Wolverine.RabbitMQ.Internal
 
                 startNewChannel();
                 
-                _endpoint.Initialize(_channel!, _logger);
+                _endpoint.InitializeAsync(_logger);
 
                 State = AgentState.Connected;
             }

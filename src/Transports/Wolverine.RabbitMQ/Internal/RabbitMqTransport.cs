@@ -27,6 +27,14 @@ namespace Wolverine.RabbitMQ.Internal
             Exchanges = new(name => new RabbitMqExchange(name, this));
         }
 
+        public ValueTask ConnectAsync()
+        {
+            _listenerConnection ??= BuildConnection();
+            _sendingConnection ??= BuildConnection();
+            
+            return ValueTask.CompletedTask;
+        }
+
         internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
         internal IConnection SendingConnection => _sendingConnection ??= BuildConnection();
 
@@ -92,7 +100,7 @@ namespace Wolverine.RabbitMQ.Internal
             return ValueTask.CompletedTask;
         }
 
-        private void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
+        protected override void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
         {
             var queueName = $"wolverine.response.{runtime.Advanced.UniqueNodeId}";
 

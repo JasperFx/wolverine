@@ -1,5 +1,6 @@
 using Azure.Messaging.ServiceBus;
 using Baseline;
+using Oakton.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -26,7 +27,7 @@ public static class AzureServiceBusTransportExtensions
         string connectionString, Action<ServiceBusClientOptions>? configure = null)
     {
         var transport = endpoints.AzureServiceBusTransport();
-        transport.ConnectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString);
+        transport.ConnectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         ServiceBusClientOptions options = new ServiceBusClientOptions();
         configure?.Invoke(transport.ClientOptions);
 
@@ -53,12 +54,12 @@ internal class AzureServiceBusConfiguration : IAzureServiceBusConfiguration
 
 }
 
-internal class AzureServiceBusTransport : TransportBase<AzureServiceBusEndpoint>
+internal class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 {
     public const string ProtocolName = "asb";
     
     public LightweightCache<string, AzureServiceBusQueue> Queues { get; }
-    public string ConnectionString { get; set; }
+    public string? ConnectionString { get; set; }
 
     public AzureServiceBusTransport() : base(ProtocolName, "Azure Service Bus")
     {
@@ -79,6 +80,16 @@ internal class AzureServiceBusTransport : TransportBase<AzureServiceBusEndpoint>
     {
         TransportType = ServiceBusTransportType.AmqpTcp
     };
+
+    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
+    {
+        return base.InitializeAsync(runtime);
+    }
+
+    public override bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
+    {
+        return base.TryBuildStatefulResource(runtime, out resource);
+    }
 }
 
 internal abstract class AzureServiceBusEndpoint : Endpoint
@@ -97,7 +108,7 @@ internal class AzureServiceBusQueue : AzureServiceBusEndpoint
     {
     }
 
-    public override IListener BuildListener(IWolverineRuntime runtime, IReceiver receiver)
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         throw new NotImplementedException();
     }

@@ -47,25 +47,38 @@ namespace Wolverine.RabbitMQ.Internal
         /// </summary>
         public bool PurgeOnStartup { get; set; }
 
-        internal override void Initialize(IModel channel, ILogger logger)
+        internal override ValueTask InitializeAsync(ILogger logger)
+        {
+            var connection = _parent.ListeningConnection;
+
+            return InitializeAsync(connection, logger);
+        }
+
+        internal ValueTask InitializeAsync(IConnection connection, ILogger logger)
         {
             // This is a reply uri owned by another node, so get out of here
             if (QueueName.StartsWith("wolverine.") && Role == EndpointRole.Application)
             {
-                return;
-            }
-            
-            if (_parent.AutoProvision || Role == EndpointRole.System)
-            {
-                Declare(channel, logger);
+                return ValueTask.CompletedTask;
             }
 
-            if (Role == EndpointRole.System && AutoDelete) return;
-
-            if (_parent.AutoPurgeAllQueues || PurgeOnStartup)
+            if (_parent.AutoProvision || _parent.AutoPurgeAllQueues || PurgeOnStartup)
             {
-                Purge(channel);
+                using var channel = connection.CreateModel();
+                if (_parent.AutoProvision)
+                {
+                    Declare(channel, logger);
+                }
+
+                if (!IsDurable || IsExclusive || AutoDelete) return ValueTask.CompletedTask;
+
+                if (PurgeOnStartup || _parent.AutoPurgeAllQueues)
+                {
+                    channel.QueuePurge(QueueName);
+                }
             }
+
+            return ValueTask.CompletedTask;
         }
 
         internal override string RoutingKey()
@@ -114,15 +127,7 @@ namespace Wolverine.RabbitMQ.Internal
             }
         }
 
-        internal void Initialize(IModel channel, ILogger logger, bool autoPurgeAllQueues)
-        {
-            Declare(channel, logger);
-            if (!IsDurable || IsExclusive || AutoDelete) return;
-            if (PurgeOnStartup || autoPurgeAllQueues)
-            {
-                channel.QueuePurge(QueueName);
-            }
-        }
+
         
         public override IDictionary<string, object> DescribeProperties()
         {
