@@ -14,7 +14,7 @@ using Wolverine.Util;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public abstract class RabbitMqEndpoint : Endpoint, IMassTransitInteropEndpoint
+    public abstract class RabbitMqEndpoint : Endpoint, IMassTransitInteropEndpoint, IBrokerEndpoint
     {
         public const string QueueSegment = "queue";
         public const string ExchangeSegment = "exchange";
@@ -26,6 +26,10 @@ namespace Wolverine.RabbitMQ.Internal
 
             Mode = EndpointMode.Inline;
         }
+
+        public abstract ValueTask<bool> CheckAsync();
+        public abstract ValueTask TeardownAsync(ILogger logger);
+        public abstract ValueTask SetupAsync(ILogger logger);
 
         public string ExchangeName { get; protected set; } = string.Empty;
 

@@ -2,8 +2,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Baseline;
 using Baseline.Dates;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Oakton.Resources;
 using Wolverine.RabbitMQ.Internal;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests
@@ -11,6 +14,7 @@ namespace Wolverine.RabbitMQ.Tests
     public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
     {
         private readonly RabbitMqTransport theTransport = new RabbitMqTransport();
+        private readonly IStatefulResource theResource;
 
         public exchange_queue_binding_model_setup_and_teardown_smoke_tests()
         {
@@ -39,26 +43,32 @@ namespace Wolverine.RabbitMQ.Tests
             expression
                 .BindExchange("fan1")
                 .ToQueue("xqueue2", "key2");
+
+            var wolverineRuntime = Substitute.For<IWolverineRuntime>();
+            wolverineRuntime.Logger.Returns(NullLogger.Instance);
+            theTransport.TryBuildStatefulResource(wolverineRuntime, out var resource);
+
+            theResource = resource;
         }
 
         [Fact]
         public async Task resource_setup()
         {
-            await theTransport.As<IStatefulResource>().Setup(CancellationToken.None);
+            await theResource.Setup(CancellationToken.None);
         }
 
         [Fact]
         public async Task clear_state_as_resource()
         {
-            await theTransport.As<IStatefulResource>().Setup(CancellationToken.None);
-            await theTransport.As<IStatefulResource>().ClearState(CancellationToken.None);
+            await theResource.Setup(CancellationToken.None);
+            await theResource.ClearState(CancellationToken.None);
         }
 
         [Fact]
         public async Task delete_all()
         {
-            await theTransport.As<IStatefulResource>().Setup(CancellationToken.None);
-            await theTransport.As<IStatefulResource>().Teardown(CancellationToken.None);
+            await theResource.Setup(CancellationToken.None);
+            await theResource.Teardown(CancellationToken.None);
         }
     }
 }

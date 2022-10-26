@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Baseline;
-using Oakton.Resources;
 using RabbitMQ.Client;
+using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -54,12 +54,6 @@ namespace Wolverine.RabbitMQ.Internal
 
             _sendingConnection?.Close();
             _sendingConnection?.SafeDispose();
-        }
-        
-        public override bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
-        {
-            resource = new RabbitMqStatefulResource(this, runtime);
-            return true;
         }
 
         protected override IEnumerable<RabbitMqEndpoint> endpoints()
@@ -135,6 +129,12 @@ namespace Wolverine.RabbitMQ.Internal
         public IEnumerable<RabbitMqBinding> Bindings()
         {
             return Exchanges.SelectMany(x => x.Bindings());
+        }
+
+        public override IEnumerable<PropertyColumn> DiagnosticColumns()
+        {
+            yield return new PropertyColumn("Queue Name", "name");
+            yield return new PropertyColumn("Message Count", "count", Justify.Right);
         }
     }
 }

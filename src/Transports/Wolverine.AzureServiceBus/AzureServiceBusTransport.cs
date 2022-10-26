@@ -1,5 +1,6 @@
 using Azure.Messaging.ServiceBus;
 using Baseline;
+using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -85,15 +86,35 @@ internal class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoin
     {
         throw new NotImplementedException();
     }
+
+    public override IEnumerable<PropertyColumn> DiagnosticColumns()
+    {
+        throw new NotImplementedException();
+    }
 }
 
-internal abstract class AzureServiceBusEndpoint : Endpoint
+internal abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint
 {
     public AzureServiceBusTransport Parent { get; }
 
     public AzureServiceBusEndpoint(AzureServiceBusTransport parent, Uri uri, EndpointRole role) : base(uri, role)
     {
         Parent = parent;
+    }
+
+    public ValueTask<bool> CheckAsync()
+    {
+        throw new NotImplementedException();
+    }
+
+    public ValueTask TeardownAsync(ILogger logger)
+    {
+        throw new NotImplementedException();
+    }
+
+    public ValueTask SetupAsync(ILogger logger)
+    {
+        throw new NotImplementedException();
     }
 }
 

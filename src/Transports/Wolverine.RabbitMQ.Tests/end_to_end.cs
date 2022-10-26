@@ -14,6 +14,7 @@ using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Tracking;
+using Wolverine.Transports;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests
@@ -58,7 +59,7 @@ namespace Wolverine.RabbitMQ.Tests
             });
 
             publisher.Services.GetServices<IStatefulResourceSource>().SelectMany(x => x.FindResources())
-                .OfType<RabbitMqTransport>().Any().ShouldBeTrue();
+                .OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeTrue();
         }
 
 

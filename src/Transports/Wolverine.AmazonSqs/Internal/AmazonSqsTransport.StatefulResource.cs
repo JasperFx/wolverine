@@ -8,6 +8,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
+[Obsolete]
 internal class AmazonSqsTransportStatefulResource : IStatefulResource
 {
     private readonly AmazonSqsTransport _transport;
@@ -75,7 +76,7 @@ internal class AmazonSqsTransportStatefulResource : IStatefulResource
         {
             Alignment = Justify.Left
         };
-        
+ 
         table.AddColumn("Queue");
         table.AddColumn("QueueUrl");
         

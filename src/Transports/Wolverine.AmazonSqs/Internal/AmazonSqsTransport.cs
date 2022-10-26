@@ -1,9 +1,6 @@
 using Amazon.Runtime;
 using Amazon.SQS;
-using Amazon.SQS.Model;
 using Baseline;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -14,7 +11,7 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 {
     public AmazonSqsTransport() : base("sqs", "Amazon SQS")
     {
-        Queues = new(name => new AmazonSqsQueue(name, this));
+        Queues = new LightweightCache<string, AmazonSqsQueue>(name => new AmazonSqsQueue(name, this));
     }
 
     internal AmazonSqsTransport(IAmazonSQS client) : this()
@@ -28,6 +25,13 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public AmazonSQSConfig Config { get; } = new();
 
+    internal IAmazonSQS? Client { get; private set; }
+
+
+    public int LocalStackPort { get; set; }
+
+    public bool UseLocalStackInDevelopment { get; set; }
+
     protected override IEnumerable<AmazonSqsQueue> endpoints()
     {
         return Queues;
@@ -35,7 +39,10 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     protected override AmazonSqsQueue findEndpointByUri(Uri uri)
     {
-        if (uri.Scheme != Protocol) throw new ArgumentOutOfRangeException(nameof(uri));
+        if (uri.Scheme != Protocol)
+        {
+            throw new ArgumentOutOfRangeException(nameof(uri));
+        }
 
         return Queues[uri.Host];
     }
@@ -44,6 +51,11 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     {
         Client ??= BuildClient(runtime);
         return ValueTask.CompletedTask;
+    }
+
+    public override IEnumerable<PropertyColumn> DiagnosticColumns()
+    {
+        throw new NotImplementedException();
     }
 
     public IAmazonSQS BuildClient(IWolverineRuntime runtime)
@@ -60,19 +72,6 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     internal AmazonSqsQueue EndpointForQueue(string queueName)
     {
         return Queues[queueName];
-    }
-
-    internal IAmazonSQS? Client { get; private set; }
-    
-
-    public int LocalStackPort { get; set; }
-
-    public bool UseLocalStackInDevelopment { get; set; }
-
-    public override bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
-    {
-        resource = new AmazonSqsTransportStatefulResource(this, runtime);
-        return true;
     }
 
     internal void ConnectToLocalStack(int port = 4566)

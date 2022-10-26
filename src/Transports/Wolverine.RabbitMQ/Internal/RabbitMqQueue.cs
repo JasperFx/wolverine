@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class RabbitMqQueue : RabbitMqEndpoint
+    public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue
     {
         private readonly RabbitMqTransport _parent;
 
@@ -68,7 +68,7 @@ namespace Wolverine.RabbitMQ.Internal
         internal ValueTask InitializeAsync(IConnection connection, ILogger logger)
         {
             // This is a reply uri owned by another node, so get out of here
-            if (QueueName.StartsWith("wolverine.") && Role == EndpointRole.Application)
+            if (isSystemQueue())
             {
                 return ValueTask.CompletedTask;
             }
@@ -90,6 +90,11 @@ namespace Wolverine.RabbitMQ.Internal
             }
 
             return ValueTask.CompletedTask;
+        }
+
+        private bool isSystemQueue()
+        {
+            return QueueName.StartsWith("wolverine.") && Role == EndpointRole.Application;
         }
 
         internal override string RoutingKey()
@@ -120,6 +125,76 @@ namespace Wolverine.RabbitMQ.Internal
             HasDeclared = true;
         }
 
+        public override ValueTask<bool> CheckAsync()
+        {
+            if (isSystemQueue())
+            {
+                return ValueTask.FromResult<bool>(true);
+            }
+
+            try
+            {
+                using var channel = _parent.ListeningConnection.CreateModel();
+                channel.QueueDeclarePassive(QueueName);
+                return ValueTask.FromResult(true);
+            }
+            catch (Exception)
+            {
+                return ValueTask.FromResult(false);
+            }
+        }
+
+        public override ValueTask TeardownAsync(ILogger logger)
+        {
+            // This is a reply uri owned by another node, so get out of here
+            if (isSystemQueue() || AutoDelete)
+            {
+                return ValueTask.CompletedTask;
+            }
+            
+            using var channel = _parent.ListeningConnection.CreateModel();
+            channel.QueueDeleteNoWait(QueueName);
+            
+            return ValueTask.CompletedTask;
+        }
+
+        public override ValueTask SetupAsync(ILogger logger)
+        {
+            if (isSystemQueue())
+            {
+                return ValueTask.CompletedTask;
+            }
+            
+            using var channel = _parent.ListeningConnection.CreateModel();
+            Declare(channel, logger);
+            
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask PurgeAsync(ILogger logger)
+        {
+            if (isSystemQueue())
+            {
+                return ValueTask.CompletedTask;
+            }
+            
+            using var channel = _parent.ListeningConnection.CreateModel();
+            channel.QueuePurge(QueueName);
+            
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<Dictionary<string, object>> GetAttributesAsync()
+        {
+            using var channel = _parent.ListeningConnection.CreateModel();
+            var count = channel.MessageCount(QueueName);
+
+            var dict = new Dictionary<string, object> { { "name", QueueName }, { "count", count } };
+            
+            return ValueTask.FromResult(dict);
+        }
+
+        [Obsolete]
         internal void Teardown(IModel channel)
         {
             channel.QueueDeleteNoWait(EndpointName);

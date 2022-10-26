@@ -10,7 +10,7 @@ using Wolverine.Util;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint
+public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueue
 {
     private readonly AmazonSqsTransport _parent;
     public string QueueName { get; private set; }
@@ -48,7 +48,6 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint
 
     private bool _initialized;
     
-    // TODO -- put the if/then logic outside of this!
     public override async ValueTask InitializeAsync(ILogger logger)
     {
         // TODO -- do some logging here?
@@ -97,6 +96,42 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint
         }
         
         await client.PurgeQueueAsync(QueueUrl);
+    }
+
+    public async ValueTask<bool> CheckAsync()
+    {
+        var response = await _parent.Client!.GetQueueUrlAsync(QueueName);
+        return response.QueueUrl.IsNotEmpty();
+    }
+
+    public async ValueTask TeardownAsync(ILogger logger)
+    {
+        var client = _parent.Client!;
+        
+        if (QueueUrl.IsEmpty())
+        {
+            var response = await client.GetQueueUrlAsync(QueueName);
+            QueueUrl = response.QueueUrl;
+        }
+
+        if (QueueUrl.IsEmpty()) return;
+
+        await client.DeleteQueueAsync(new DeleteQueueRequest(QueueUrl));
+    }
+
+    public async ValueTask SetupAsync(ILogger logger)
+    {
+        await SetupAsync(_parent.Client!);
+    }
+
+    public async ValueTask PurgeAsync(ILogger logger)
+    {
+        await PurgeAsync(_parent.Client!);
+    }
+
+    public ValueTask<Dictionary<string, object>> GetAttributesAsync()
+    {
+        throw new NotImplementedException();
     }
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)

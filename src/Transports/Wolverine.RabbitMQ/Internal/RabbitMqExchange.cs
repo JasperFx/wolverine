@@ -90,21 +90,49 @@ namespace Wolverine.RabbitMQ.Internal
             HasDeclared = true;
         }
 
-
-        public void Teardown(IModel channel)
+        public override ValueTask<bool> CheckAsync()
         {
+            using var channel = _parent.ListeningConnection.CreateModel();
+            var exchangeTypeName = ExchangeType.ToString().ToLower();
+            try
+            {
+                channel.ExchangeDeclarePassive(exchangeTypeName);
+                return ValueTask.FromResult<bool>(true);
+            }
+            catch (Exception)
+            {
+                return ValueTask.FromResult<bool>(false);
+            }
+        }
+
+        public override ValueTask TeardownAsync(ILogger logger)
+        {
+            using var channel = _parent.ListeningConnection.CreateModel();
             if (DeclaredName == string.Empty)
             {
-                return;
             }
-
-            foreach (var binding in _bindings.Values)
+            else
             {
-                binding.Teardown(channel);
+                foreach (var binding in _bindings.Values)
+                {
+                    logger.LogInformation("Removing binding {Key} from exchange {Exchange} to queue {Queue}", binding.BindingKey, binding.ExchangeName, binding.Queue);
+                    binding.Teardown(channel);
+                }
+
+                channel.ExchangeDelete(DeclaredName);
             }
 
-            channel.ExchangeDelete(DeclaredName);
+            return ValueTask.CompletedTask;
         }
+
+        public override ValueTask SetupAsync(ILogger logger)
+        {
+            using var channel = _parent.ListeningConnection.CreateModel();
+            Declare(channel, logger);
+            
+            return ValueTask.CompletedTask;
+        }
+
 
         private readonly Dictionary<string, RabbitMqBinding> _bindings = new();
 

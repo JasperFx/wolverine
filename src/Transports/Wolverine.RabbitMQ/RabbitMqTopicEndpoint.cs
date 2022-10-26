@@ -23,6 +23,21 @@ internal class RabbitMqTopicEndpoint : RabbitMqEndpoint
         ExchangeName = _exchange.Name;
     }
 
+    public override ValueTask<bool> CheckAsync()
+    {
+        return _exchange.CheckAsync();
+    }
+
+    public override ValueTask TeardownAsync(ILogger logger)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    public override ValueTask SetupAsync(ILogger logger)
+    {
+        return _exchange.SetupAsync(logger);
+    }
+
     public override IDictionary<string, object> DescribeProperties()
     {
         var dict = base.DescribeProperties();
