@@ -43,7 +43,7 @@ namespace Wolverine.RabbitMQ.Internal
         {
             if (_latched || _cancellation.IsCancellationRequested)
             {
-                _listener.Channel.BasicReject(deliveryTag, true);
+                _listener.Channel!.BasicReject(deliveryTag, true);
                 return;
             }
 

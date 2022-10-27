@@ -27,7 +27,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         public RabbitMqSender(RabbitMqEndpoint queue, RabbitMqTransport transport,
             RoutingMode routingType, IWolverineRuntime runtime) : base(
-            transport.SendingConnection, queue, runtime.Logger)
+            transport.SendingConnection, runtime.Logger)
         {
             Destination = queue.Uri;
 
@@ -49,7 +49,9 @@ namespace Wolverine.RabbitMQ.Internal
 
         public async ValueTask SendAsync(Envelope envelope)
         {
-            await _queue.InitializeAsync(_logger);
+            if (Channel == null) throw new InvalidOperationException("Channel has not been started for this sender");
+            
+            await _queue.InitializeAsync(Logger);
 
             if (State == AgentState.Disconnected)
             {
@@ -77,7 +79,7 @@ namespace Wolverine.RabbitMQ.Internal
 
                 startNewChannel();
 
-                if (Channel.IsOpen)
+                if (Channel!.IsOpen)
                 {
                     return Task.FromResult(true);
                 }

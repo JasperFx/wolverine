@@ -12,7 +12,6 @@ namespace Wolverine.RabbitMQ.Internal
 {
     internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
     {
-        private readonly ILogger _logger;
         private readonly string _routingKey;
         private readonly RabbitMqSender _sender;
         private IReceiver _receiver;
@@ -20,9 +19,8 @@ namespace Wolverine.RabbitMQ.Internal
         private WorkerQueueMessageConsumer? _consumer;
 
         public RabbitMqListener(IWolverineRuntime runtime,
-            RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection, queue, runtime.Logger)
+            RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection, runtime.Logger)
         {
-            _logger = runtime.Logger;
             Queue = queue;
             Address = queue.Uri;
 
@@ -36,16 +34,16 @@ namespace Wolverine.RabbitMQ.Internal
 
             if (queue.AutoDelete || transport.AutoProvision)
             {
-                queue.Declare(Channel, runtime.Logger);
+                queue.Declare(Channel!, runtime.Logger);
             }
 
             var mapper = queue.BuildMapper(runtime);
             
             _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
-            _consumer = new WorkerQueueMessageConsumer(receiver, _logger, this, mapper, Address,
+            _consumer = new WorkerQueueMessageConsumer(receiver, Logger, this, mapper, Address,
                 _cancellation);
 
-            Channel.BasicQos(Queue.PreFetchSize, Queue.PreFetchCount, false);
+            Channel!.BasicQos(Queue.PreFetchSize, Queue.PreFetchCount, false);
 
             Channel.BasicConsume(_consumer, _routingKey);
         }
@@ -55,7 +53,7 @@ namespace Wolverine.RabbitMQ.Internal
             if (_consumer == null) return;
             foreach (var consumerTag in _consumer.ConsumerTags)
             {
-                Channel.BasicCancelNoWait(consumerTag);
+                Channel!.BasicCancelNoWait(consumerTag);
             }
         }
 
@@ -107,7 +105,7 @@ namespace Wolverine.RabbitMQ.Internal
         {
             if (!envelope.Acknowledged)
             {
-                Channel.BasicNack(envelope.DeliveryTag, false, false);
+                Channel!.BasicNack(envelope.DeliveryTag, false, false);
             }
 
             return _sender.SendAsync(envelope);
@@ -115,7 +113,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         public void Complete(ulong deliveryTag)
         {
-            Channel.BasicAck(deliveryTag, true);
+            Channel!.BasicAck(deliveryTag, true);
         }
     }
 }

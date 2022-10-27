@@ -7,21 +7,20 @@ namespace Wolverine.RabbitMQ.Internal
     internal abstract class RabbitMqConnectionAgent : IDisposable
     {
         private readonly IConnection _connection;
-        private readonly RabbitMqEndpoint _queue;
-        protected readonly ILogger _logger;
         protected readonly object Locker = new();
 
         protected RabbitMqConnectionAgent(IConnection connection,
-            RabbitMqEndpoint queue, ILogger logger)
+            ILogger logger)
         {
             _connection = connection;
-            _queue = queue;
-            _logger = logger;
+            Logger = logger;
         }
+
+        public ILogger Logger { get; }
 
         internal AgentState State { get; private set; } = AgentState.Disconnected;
 
-        internal IModel Channel { get; set; }
+        internal IModel? Channel { get; set; }
 
         public virtual void Dispose()
         {
@@ -30,6 +29,11 @@ namespace Wolverine.RabbitMQ.Internal
 
         internal void EnsureConnected()
         {
+            if (State == AgentState.Connected)
+            {
+                return;
+            }
+            
             lock (Locker)
             {
                 if (State == AgentState.Connected)
