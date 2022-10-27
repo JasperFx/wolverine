@@ -42,6 +42,19 @@ public class StatefulResourceSmokeTests
             .RunOaktonCommands(new[] { "resources", "setup" });
         result.ShouldBe(0);
     }
+    
+    
+    [Fact]
+    public async Task statistics()
+    {
+        (await ConfigureBuilder(false)
+            .RunOaktonCommands(new[] { "resources", "setup" })).ShouldBe(0);
+        
+        var result = await ConfigureBuilder(false)
+            .RunOaktonCommands(new[] { "resources", "statistics" });
+        
+        result.ShouldBe(0);
+    }
 
     [Fact]
     public async Task check_positive()

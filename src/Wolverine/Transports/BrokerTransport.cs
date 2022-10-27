@@ -48,18 +48,18 @@ public interface IBrokerEndpoint
 public interface IBrokerQueue : IBrokerEndpoint
 {
     ValueTask PurgeAsync(ILogger logger);
-    ValueTask<Dictionary<string, object>> GetAttributesAsync();
+    ValueTask<Dictionary<string, string>> GetAttributesAsync();
 }
 
 public record PropertyColumn(string Header, string AttributeName, Justify Alignment = Justify.Left)
 {
-    public IRenderable BuildCell(Dictionary<string,object?> dict)
+    public IRenderable BuildCell(Dictionary<string, string> dict)
     {
         if (dict.TryGetValue(AttributeName, out var value))
         {
             if (value != null)
             {
-                return new Markup(value.ToString()!);
+                return new Markup(value);
             }
         }
         

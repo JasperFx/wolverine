@@ -129,9 +129,22 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
         await PurgeAsync(_parent.Client!);
     }
 
-    public ValueTask<Dictionary<string, object>> GetAttributesAsync()
+    public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        throw new NotImplementedException();
+        var client = _parent.Client!;
+        
+        if (QueueUrl.IsEmpty())
+        {
+            var response = await client.GetQueueUrlAsync(QueueName);
+            QueueUrl = response.QueueUrl;
+        }
+
+        var atts = await  _parent.Client.GetQueueAttributesAsync(new GetQueueAttributesRequest
+        {
+            QueueUrl = QueueUrl
+        });
+
+        return atts.Attributes;
     }
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)

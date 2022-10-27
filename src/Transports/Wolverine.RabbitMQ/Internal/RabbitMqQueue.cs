@@ -184,7 +184,7 @@ namespace Wolverine.RabbitMQ.Internal
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<Dictionary<string, object>> GetAttributesAsync()
+        public ValueTask<Dictionary<string, string>> GetAttributesAsync()
         {
             using var channel = _parent.ListeningConnection.CreateModel();
             var count = channel.MessageCount(QueueName);

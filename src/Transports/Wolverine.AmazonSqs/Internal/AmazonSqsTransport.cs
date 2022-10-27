@@ -55,7 +55,7 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
-        throw new NotImplementedException();
+        yield return new PropertyColumn("Something", "Something");
     }
 
     public IAmazonSQS BuildClient(IWolverineRuntime runtime)
