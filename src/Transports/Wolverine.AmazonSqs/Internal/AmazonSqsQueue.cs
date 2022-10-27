@@ -139,7 +139,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
             QueueUrl = response.QueueUrl;
         }
 
-        var atts = await  _parent.Client.GetQueueAttributesAsync(new GetQueueAttributesRequest
+        var atts = await  client.GetQueueAttributesAsync(new GetQueueAttributesRequest
         {
             QueueUrl = QueueUrl
         });
