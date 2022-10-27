@@ -53,6 +53,10 @@ public interface IBrokerQueue : IBrokerEndpoint
 
 public record PropertyColumn(string Header, string AttributeName, Justify Alignment = Justify.Left)
 {
+    public PropertyColumn(string Header, Justify Alignment = Justify.Left) : this(Header, Header, Alignment)
+    {
+    }
+
     public IRenderable BuildCell(Dictionary<string, string> dict)
     {
         if (dict.TryGetValue(AttributeName, out var value))

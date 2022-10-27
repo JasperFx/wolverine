@@ -1,7 +1,9 @@
 using Amazon.Runtime;
 using Amazon.SQS;
+using Amazon.SQS.Model;
 using Baseline;
 using Oakton.Resources;
+using Spectre.Console;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -55,7 +57,12 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
-        yield return new PropertyColumn("Something", "Something");
+        yield return new PropertyColumn("Queue Name", "name");
+        yield return new PropertyColumn("Messages",nameof(GetQueueAttributesResponse.ApproximateNumberOfMessages), Justify.Right);
+        yield return new PropertyColumn("Delayed", nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesDelayed), Justify.Right);
+        yield return new PropertyColumn("Not Visible", nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesNotVisible), Justify.Right);
+        
+        
     }
 
     public IAmazonSQS BuildClient(IWolverineRuntime runtime)

@@ -144,7 +144,13 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
             QueueUrl = QueueUrl
         });
 
-        return atts.Attributes;
+        return new Dictionary<string, string>
+        {
+            {"name", QueueName},
+            {nameof(GetQueueAttributesResponse.ApproximateNumberOfMessages), atts.ApproximateNumberOfMessages.ToString()},
+            {nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesDelayed), atts.ApproximateNumberOfMessagesDelayed.ToString()},
+            {nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesNotVisible), atts.ApproximateNumberOfMessagesNotVisible.ToString()},
+        };
     }
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
