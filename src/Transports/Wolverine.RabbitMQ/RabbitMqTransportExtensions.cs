@@ -6,81 +6,6 @@ using Wolverine.RabbitMQ.Internal;
 
 namespace Wolverine.RabbitMQ
 {
-    public interface IRabbitMqTransportExpression
-    {
-        /// <summary>
-        /// Opt into using conventional Rabbit MQ routing
-        /// </summary>
-        /// <param name="configure"></param>
-        /// <returns></returns>
-        IRabbitMqTransportExpression UseConventionalRouting(Action<RabbitMqMessageRoutingConvention>? configure = null);
-
-        // TODO -- both options with environment = Development
-
-        /// <summary>
-        /// All Rabbit MQ exchanges, queues, and bindings should be declared at runtime by Wolverine.
-        /// </summary>
-        /// <returns></returns>
-        IRabbitMqTransportExpression AutoProvision();
-
-        /// <summary>
-        /// All queues should be purged of existing messages on first usage
-        /// </summary>
-        /// <returns></returns>
-        IRabbitMqTransportExpression AutoPurgeOnStartup();
-
-        /// <summary>
-        ///     Declare a binding from a Rabbit Mq exchange to a Rabbit MQ queue
-        /// </summary>
-        /// <param name="exchangeName"></param>
-        /// <param name="configure">Optional configuration of the Rabbit MQ exchange</param>
-        /// <returns></returns>
-        IBindingExpression BindExchange(string exchangeName, Action<RabbitMqExchange>? configure = null);
-
-        /// <summary>
-        ///     Declare a binding from a Rabbit Mq exchange to a Rabbit MQ queue
-        /// </summary>
-        /// <param name="exchangeName"></param>
-        /// <returns></returns>
-        IBindingExpression BindExchange(string exchangeName, ExchangeType exchangeType);
-
-
-        /// <summary>
-        ///     Declare that a queue should be created with the supplied name and optional configuration
-        /// </summary>
-        /// <param name="queueName"></param>
-        /// <param name="configure"></param>
-        IRabbitMqTransportExpression DeclareQueue(string queueName, Action<RabbitMqQueue>? configure = null);
-
-        /// <summary>
-        ///     Declare a new exchange. The default exchange type is "fan out"
-        /// </summary>
-        /// <param name="exchangeName"></param>
-        /// <param name="configure"></param>
-        IRabbitMqTransportExpression DeclareExchange(string exchangeName, Action<RabbitMqExchange>? configure = null);
-
-        /// <summary>
-        ///     Declare a new exchange with the specified exchange type
-        /// </summary>
-        /// <param name="exchangeName"></param>
-        /// <param name="configure"></param>
-        IRabbitMqTransportExpression DeclareExchange(string exchangeName, ExchangeType exchangeType,
-            bool isDurable = true, bool autoDelete = false);
-
-        /// <summary>
-        /// Apply a policy to all Rabbit MQ listening endpoints
-        /// </summary>
-        /// <param name="configure"></param>
-        /// <returns></returns>
-        IRabbitMqTransportExpression ConfigureListeners(Action<RabbitMqListenerConfiguration> configure);
-        
-        /// <summary>
-        /// Apply a policy to all Rabbit MQ listening endpoints
-        /// </summary>
-        /// <param name="configure"></param>
-        /// <returns></returns>
-        IRabbitMqTransportExpression ConfigureSenders(Action<RabbitMqSubscriberConfiguration> configure);
-    }
 
     public static class RabbitMqTransportExtensions
     {
@@ -103,7 +28,7 @@ namespace Wolverine.RabbitMQ
         /// </summary>
         /// <param name="options"></param>
         /// <param name="configure"></param>
-        public static IRabbitMqTransportExpression UseRabbitMq(this WolverineOptions options,
+        public static RabbitMqTransportExpression UseRabbitMq(this WolverineOptions options,
             Action<ConnectionFactory> configure)
         {
             var transport = options.RabbitMqTransport();
@@ -121,7 +46,7 @@ namespace Wolverine.RabbitMQ
         ///     Rabbit MQ Uri that designates the connection information. See
         ///     https://www.rabbitmq.com/uri-spec.html
         /// </param>
-        public static IRabbitMqTransportExpression UseRabbitMq(this WolverineOptions options, Uri rabbitMqUri)
+        public static RabbitMqTransportExpression UseRabbitMq(this WolverineOptions options, Uri rabbitMqUri)
         {
             return options.UseRabbitMq(factory => factory.Uri = rabbitMqUri);
         }
@@ -131,7 +56,7 @@ namespace Wolverine.RabbitMQ
         ///     Rabbit MQ client options
         /// </summary>
         /// <param name="options"></param>
-        public static IRabbitMqTransportExpression UseRabbitMq(this WolverineOptions options)
+        public static RabbitMqTransportExpression UseRabbitMq(this WolverineOptions options)
         {
             return options.UseRabbitMq(_ => { });
         }

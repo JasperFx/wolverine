@@ -3,28 +3,36 @@ using System.Collections.Generic;
 using System.Linq;
 using Baseline;
 using Wolverine.Configuration;
+using Wolverine.Transports;
 using Wolverine.Transports.Local;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    internal class RabbitMqTransportExpression : IRabbitMqTransportExpression
+    public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, RabbitMqQueue, RabbitMqEndpoint, RabbitMqListenerConfiguration, RabbitMqSubscriberConfiguration, RabbitMqTransportExpression>
     {
-        private readonly RabbitMqTransport _transport;
-        private readonly WolverineOptions _options;
 
-        public RabbitMqTransportExpression(RabbitMqTransport transport, WolverineOptions options)
+        public RabbitMqTransportExpression(RabbitMqTransport transport, WolverineOptions options) : base(transport, options)
         {
-            _transport = transport;
-            _options = options;
+
         }
 
-        public IBindingExpression BindExchange(string exchangeName, Action<RabbitMqExchange>? configure = null)
+        protected override RabbitMqListenerConfiguration createListenerExpression(RabbitMqQueue listenerEndpoint)
+        {
+            return new RabbitMqListenerConfiguration(listenerEndpoint);
+        }
+
+        protected override RabbitMqSubscriberConfiguration createSubscriberExpression(RabbitMqEndpoint subscriberEndpoint)
+        {
+            return new RabbitMqSubscriberConfiguration(subscriberEndpoint);
+        }
+
+        public BindingExpression BindExchange(string exchangeName, Action<RabbitMqExchange>? configure = null)
         {
             DeclareExchange(exchangeName, configure);
             return new BindingExpression(exchangeName, this);
         }
 
-        internal class BindingExpression : IBindingExpression
+        public class BindingExpression 
         {
             private readonly string _exchangeName;
             private readonly RabbitMqTransportExpression _parent;
@@ -35,7 +43,14 @@ namespace Wolverine.RabbitMQ.Internal
                 _parent = parent;
             }
 
-            public IRabbitMqTransportExpression ToQueue(string queueName, Action<RabbitMqQueue>? configure = null,
+            /// <summary>
+            ///     Bind the named exchange to a queue. The routing key will be
+            ///     [exchange name]_[queue name]
+            /// </summary>
+            /// <param name="queueName"></param>
+            /// <param name="configure">Optional configuration of the Rabbit MQ queue</param>
+            /// <param name="arguments">Optional configuration for arguments to the Rabbit MQ binding</param>
+            public RabbitMqTransportExpression ToQueue(string queueName, Action<RabbitMqQueue>? configure = null,
                 Dictionary<string, object>? arguments = null)
             {
                 _parent.DeclareQueue(queueName, configure);
@@ -44,12 +59,19 @@ namespace Wolverine.RabbitMQ.Internal
                 return _parent;
             }
 
-            public IRabbitMqTransportExpression ToQueue(string queueName, string bindingKey,
+            /// <summary>
+            ///     Bind the named exchange to a queue with a user supplied binding key
+            /// </summary>
+            /// <param name="queueName"></param>
+            /// <param name="bindingKey"></param>
+            /// <param name="configure">Optional configuration of the Rabbit MQ queue</param>
+            /// <param name="arguments">Optional configuration for arguments to the Rabbit MQ binding</param>
+            public RabbitMqTransportExpression ToQueue(string queueName, string bindingKey,
                 Action<RabbitMqQueue>? configure = null, Dictionary<string, object>? arguments = null)
             {
                 _parent.DeclareQueue(queueName, configure);
 
-                var binding = _parent._transport.Exchanges[_exchangeName].BindQueue(queueName, bindingKey);
+                var binding = _parent.Transport.Exchanges[_exchangeName].BindQueue(queueName, bindingKey);
 
                 if (arguments != null)
                 {
@@ -64,52 +86,63 @@ namespace Wolverine.RabbitMQ.Internal
         }
 
 
-
-        public IRabbitMqTransportExpression UseConventionalRouting(Action<RabbitMqMessageRoutingConvention>? configure = null)
+        /// <summary>
+        /// Opt into using conventional Rabbit MQ routing based on the message types
+        /// </summary>
+        /// <param name="configure"></param>
+        /// <returns></returns>
+        public RabbitMqTransportExpression UseConventionalRouting(Action<RabbitMqMessageRoutingConvention>? configure = null)
         {
             var convention = new RabbitMqMessageRoutingConvention();
             configure?.Invoke(convention);
-            _options.RoutingConventions.Add(convention);
+            Options.RoutingConventions.Add(convention);
 
             return this;
         }
-
-        IRabbitMqTransportExpression IRabbitMqTransportExpression.AutoProvision()
-        {
-            _transport.AutoProvision = true;
-            return this;
-        }
-
-        IRabbitMqTransportExpression IRabbitMqTransportExpression.AutoPurgeOnStartup()
-        {
-            _transport.AutoPurgeAllQueues = true;
-            return this;
-        }
-
-
-        public IRabbitMqTransportExpression DeclareExchange(string exchangeName,
+        
+        /// <summary>
+        ///     Declare a new exchange. The default exchange type is "fan out"
+        /// </summary>
+        /// <param name="exchangeName"></param>
+        /// <param name="configure"></param>
+        public RabbitMqTransportExpression DeclareExchange(string exchangeName,
             Action<RabbitMqExchange>? configure = null)
         {
-            var exchange = _transport.Exchanges[exchangeName];
+            var exchange = Transport.Exchanges[exchangeName];
             configure?.Invoke(exchange);
 
             return this;
         }
 
-        public IBindingExpression BindExchange(string exchangeName, ExchangeType exchangeType)
+        /// <summary>
+        ///     Declare a binding from a Rabbit Mq exchange to a Rabbit MQ queue
+        /// </summary>
+        /// <param name="exchangeName"></param>
+        /// <returns></returns>
+        public BindingExpression BindExchange(string exchangeName, ExchangeType exchangeType)
         {
             return BindExchange(exchangeName, e => e.ExchangeType = exchangeType);
         }
 
-        public IRabbitMqTransportExpression DeclareQueue(string queueName, Action<RabbitMqQueue>? configure = null)
+        /// <summary>
+        ///     Declare that a queue should be created with the supplied name and optional configuration
+        /// </summary>
+        /// <param name="queueName"></param>
+        /// <param name="configure"></param>
+        public RabbitMqTransportExpression DeclareQueue(string queueName, Action<RabbitMqQueue>? configure = null)
         {
-            var queue = _transport.Queues[queueName];
+            var queue = Transport.Queues[queueName];
             configure?.Invoke(queue);
 
             return this;
         }
 
-        public IRabbitMqTransportExpression DeclareExchange(string exchangeName, ExchangeType exchangeType,
+        /// <summary>
+        ///     Declare a new exchange with the specified exchange type
+        /// </summary>
+        /// <param name="exchangeName"></param>
+        /// <param name="configure"></param>
+        public RabbitMqTransportExpression DeclareExchange(string exchangeName, ExchangeType exchangeType,
             bool isDurable = true, bool autoDelete = false)
         {
             return DeclareExchange(exchangeName, e =>
@@ -120,40 +153,5 @@ namespace Wolverine.RabbitMQ.Internal
             });
         }
 
-        public IRabbitMqTransportExpression ConfigureListeners(Action<RabbitMqListenerConfiguration> configure)
-        {
-            var policy = new LambdaEndpointPolicy<RabbitMqQueue>((e, runtime) =>
-            {
-                if (e.Role == EndpointRole.System) return;
-                if (!e.IsListener) return;
-
-                var configuration = new RabbitMqListenerConfiguration(e);
-                configure(configuration);
-
-                configuration.As<IDelayedEndpointConfiguration>().Apply();
-            });
-        
-            _options.Policies.Add(policy);
-
-            return this;
-        }
-
-        public IRabbitMqTransportExpression ConfigureSenders(Action<RabbitMqSubscriberConfiguration> configure)
-        {
-            var policy = new LambdaEndpointPolicy<RabbitMqEndpoint>((e, runtime) =>
-            {
-                if (e.Role == EndpointRole.System) return;
-                if (!e.Subscriptions.Any()) return;
-
-                var configuration = new RabbitMqSubscriberConfiguration(e);
-                configure(configuration);
-
-                configuration.As<IDelayedEndpointConfiguration>().Apply();
-            });
-        
-            _options.Policies.Add(policy);
-
-            return this;
-        }
     }
 }
