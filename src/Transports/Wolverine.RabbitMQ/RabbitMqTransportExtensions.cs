@@ -73,7 +73,9 @@ namespace Wolverine.RabbitMQ
             Action<IRabbitMqQueue>? configure = null)
         {
             var transport = endpoints.RabbitMqTransport();
-            var queue = transport.Queues[queueName];
+            var corrected = transport.MaybeCorrectName(queueName);
+            var queue = transport.Queues[corrected];
+            queue.EndpointName = queueName;
             configure?.Invoke(queue);
 
             var endpoint = transport.EndpointForQueue(queueName);
@@ -123,7 +125,10 @@ namespace Wolverine.RabbitMQ
             var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
 
-            var queue = transport.Queues[queueName];
+            var corrected = transport.MaybeCorrectName(queueName);
+            var queue = transport.Queues[corrected];
+            queue.EndpointName = queueName;
+            
             configure?.Invoke(queue);
 
             var endpoint = transport.EndpointForQueue(queueName);
@@ -148,7 +153,9 @@ namespace Wolverine.RabbitMQ
             var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
 
-            var exchange = transport.Exchanges[exchangeName];
+            var corrected = transport.MaybeCorrectName(exchangeName);
+            var exchange = transport.Exchanges[corrected];
+            exchange.EndpointName = exchangeName;
             configure?.Invoke(exchange);
 
             var endpoint = transport.EndpointForExchange(exchangeName);
