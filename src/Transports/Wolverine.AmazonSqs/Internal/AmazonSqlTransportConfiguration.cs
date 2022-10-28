@@ -1,94 +1,74 @@
 using Amazon.Runtime;
-using Baseline;
-using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class AmazonSqlTransportConfiguration : IAmazonSqsTransportConfiguration
+public class AmazonSqlTransportConfiguration : BrokerExpression<AmazonSqsTransport, AmazonSqsQueue, AmazonSqsQueue, AmazonSqsListenerConfiguration, AmazonSqsSubscriberConfiguration, AmazonSqlTransportConfiguration>
 {
-    private readonly AmazonSqsTransport _transport;
-    private readonly WolverineOptions _options;
 
-    public AmazonSqlTransportConfiguration(AmazonSqsTransport transport, WolverineOptions options)
+
+    public AmazonSqlTransportConfiguration(AmazonSqsTransport transport, WolverineOptions options) : base(transport, options)
     {
-        _transport = transport;
-        _options = options;
+
     }
 
-    public IAmazonSqsTransportConfiguration Credentials(AWSCredentials credentials)
+    protected override AmazonSqsListenerConfiguration createListenerExpression(AmazonSqsQueue listenerEndpoint)
     {
-        _transport.CredentialSource = r => credentials;
+        return new AmazonSqsListenerConfiguration(listenerEndpoint);
+    }
+
+    protected override AmazonSqsSubscriberConfiguration createSubscriberExpression(AmazonSqsQueue subscriberEndpoint)
+    {
+        return new AmazonSqsSubscriberConfiguration(subscriberEndpoint);
+    }
+
+    /// <summary>
+    /// Add credentials for the connection to AWS SQS
+    /// </summary>
+    /// <param name="credentials"></param>
+    /// <returns></returns>
+    public AmazonSqlTransportConfiguration Credentials(AWSCredentials credentials)
+    {
+        Transport.CredentialSource = r => credentials;
         return this;
     }
 
-    public IAmazonSqsTransportConfiguration Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
+    /// <summary>
+    /// Add a credential source for the connection to AWS SQS
+    /// </summary>
+    /// <param name="credentialSource"></param>
+    /// <returns></returns>
+    public AmazonSqlTransportConfiguration Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
     {
-        _transport.CredentialSource = credentialSource;
+        Transport.CredentialSource = credentialSource;
+        return this;
+    }
+    
+    /// <summary>
+    /// Direct this application to use a LocalStack connection when
+    /// the system is detected to be running with EnvironmentName == "Development"
+    /// </summary>
+    /// <param name="port">Port to connect to LocalStack. Default is 4566</param>
+    /// <returns></returns>
+    public AmazonSqlTransportConfiguration UseLocalStackIfDevelopment(int port = 4566)
+    {
+        Transport.LocalStackPort = port;
+        Transport.UseLocalStackInDevelopment = true;
         return this;
     }
 
-    public IAmazonSqsTransportConfiguration AutoProvision()
-    {
-        _transport.AutoProvision = true;
-        return this;
-    }
-
-    public IAmazonSqsTransportConfiguration AutoPurgeOnStartup()
-    {
-        _transport.AutoPurgeAllQueues = true;
-        return this;
-    }
-
-    public IAmazonSqsTransportConfiguration UseLocalStackIfDevelopment(int port = 4566)
-    {
-        _transport.LocalStackPort = port;
-        _transport.UseLocalStackInDevelopment = true;
-        return this;
-    }
-
-    public IAmazonSqsTransportConfiguration ConfigureListeners(Action<AmazonSqsListenerConfiguration> configure)
-    {
-        var policy = new LambdaEndpointPolicy<AmazonSqsQueue>((e, runtime) =>
-        {
-            if (e.Role == EndpointRole.System) return;
-            if (!e.IsListener) return;
-
-            var configuration = new AmazonSqsListenerConfiguration(e);
-            configure(configuration);
-
-            configuration.As<IDelayedEndpointConfiguration>().Apply();
-        });
-        
-        _options.Policies.Add(policy);
-
-        return this;
-    }
-
-    public IAmazonSqsTransportConfiguration ConfigureSenders(Action<AmazonSqsSubscriberConfiguration> configure)
-    {
-        var policy = new LambdaEndpointPolicy<AmazonSqsQueue>((e, runtime) =>
-        {
-            if (e.Role == EndpointRole.System) return;
-            if (!e.Subscriptions.Any()) return;
-
-            var configuration = new AmazonSqsSubscriberConfiguration(e);
-            configure(configuration);
-
-            configuration.As<IDelayedEndpointConfiguration>().Apply();
-        });
-        
-        _options.Policies.Add(policy);
-
-        return this;
-    }
-
-    public IAmazonSqsTransportConfiguration UseConventionalRouting(Action<AmazonSqsMessageRoutingConvention>? configure = null)
+    /// <summary>
+    /// Apply a conventional routing topology based on message types
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AmazonSqlTransportConfiguration UseConventionalRouting(Action<AmazonSqsMessageRoutingConvention>? configure = null)
     {
         var routing = new AmazonSqsMessageRoutingConvention();
         configure?.Invoke(routing);
         
-        _options.RouteWith(routing);
+        Options.RouteWith(routing);
         
         return this;
     }

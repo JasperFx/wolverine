@@ -1,7 +1,6 @@
 using Amazon.Runtime;
 using Amazon.SQS;
 using Baseline;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 
@@ -22,7 +21,7 @@ public static class AmazonSqsTransportExtensions
         return transports.GetOrCreate<AmazonSqsTransport>();
     }
 
-    public static IAmazonSqsTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options, Action<AmazonSQSConfig> configuration)
+    public static AmazonSqlTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options, Action<AmazonSQSConfig> configuration)
     {
         var transport = options.AmazonSqsTransport();
         configuration(transport.Config);
@@ -36,7 +35,7 @@ public static class AmazonSqsTransportExtensions
     /// </summary>
     /// <param name="port">Port for SQS. Default is 4566</param>
     /// <returns></returns>
-    public static IAmazonSqsTransportConfiguration UseAmazonSqsTransportLocally(this WolverineOptions options, int port = 4566)
+    public static AmazonSqlTransportConfiguration UseAmazonSqsTransportLocally(this WolverineOptions options, int port = 4566)
     {
         var transport = options.AmazonSqsTransport();
         transport.ConnectToLocalStack(port);
