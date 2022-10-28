@@ -18,6 +18,12 @@ public interface IBrokerTransport : ITransport
     /// </summary>
     bool AutoPurgeAllQueues { get; set; }
 
+    /// <summary>
+    /// Optional prefix to append to all messaging object identifiers to make them unique when multiple developers
+    /// need to develop against a common message broker. I.e., sigh, you have to be using a cloud only tool.
+    /// </summary>
+    string? IdentifierPrefix { get; set; }
+
     ValueTask ConnectAsync(IWolverineRuntime logger);
 
     /// <summary>

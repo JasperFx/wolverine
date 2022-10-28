@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Baseline;
 using Oakton.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -14,6 +16,24 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 {
     protected BrokerTransport(string protocol, string name) : base(protocol, name)
     {
+    }
+
+    /// <summary>
+    /// Optional prefix to append to all messaging object identifiers to make them unique when multiple developers
+    /// need to develop against a common message broker. I.e., sigh, you have to be using a cloud only tool.
+    /// </summary>
+    public string? IdentifierPrefix { get; set; }
+    
+    /// <summary>
+    /// Used as a separator for prefixed identifiers
+    /// </summary>
+    protected string IdentifierDelimiter { get; set; } = "-";
+
+    public string MaybeCorrectName(string identifier)
+    {
+        if (IdentifierPrefix.IsEmpty()) return SanitizeIdentifier(identifier);
+
+        return SanitizeIdentifier($"{IdentifierPrefix}{IdentifierDelimiter}{identifier}");
     }
 
     /// <summary>

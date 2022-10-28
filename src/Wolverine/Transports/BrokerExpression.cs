@@ -24,6 +24,28 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     // TODO -- both options with environment = Development
 
     /// <summary>
+    /// Use the current machine name as the broker object identifier prefix
+    /// Note, this might use illegal characters for some brokers :(
+    /// </summary>
+    /// <returns></returns>
+    public TSelf PrefixIdentifiersWithMachineName()
+    {
+        return PrefixIdentifiers(Environment.MachineName);
+    }
+
+    /// <summary>
+    /// To make broker identifiers unique in cases of shared brokers, this will apply a naming
+    /// prefix to every broker object (queue, exchange, topic in some cases)
+    /// </summary>
+    /// <param name="prefix"></param>
+    /// <returns></returns>
+    public TSelf PrefixIdentifiers(string prefix)
+    {
+        Transport.IdentifierPrefix = prefix;
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
     /// All Rabbit MQ exchanges, queues, and bindings should be declared at runtime by Wolverine.
     /// </summary>
     /// <returns></returns>
