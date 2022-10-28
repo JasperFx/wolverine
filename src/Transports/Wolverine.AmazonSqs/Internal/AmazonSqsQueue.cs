@@ -173,7 +173,10 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
             runtime.Logger);
     }
 
-
+    protected override bool supportsMode(EndpointMode mode)
+    {
+        return mode != EndpointMode.Inline;
+    }
 
     internal void ConfigureRequest(ReceiveMessageRequest request)
     {
