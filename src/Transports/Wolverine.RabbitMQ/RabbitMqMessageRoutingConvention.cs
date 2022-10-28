@@ -20,9 +20,9 @@ public class RabbitMqMessageRoutingConvention : MessageRoutingConvention<RabbitM
     }
 
     protected override (RabbitMqExchangeConfiguration, Endpoint) findOrCreateSubscriber(string identifier,
-        RabbitMqTransport brokerTransport)
+        RabbitMqTransport transport)
     {
-        var exchange = brokerTransport.Exchanges[identifier];
+        var exchange = transport.Exchanges[identifier];
         exchange.BindQueue(identifier, identifier);
         return (new RabbitMqExchangeConfiguration(exchange), exchange);
     }

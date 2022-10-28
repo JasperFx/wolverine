@@ -9,7 +9,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
+public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 {
     public AmazonSqsTransport() : base("sqs", "Amazon SQS")
     {

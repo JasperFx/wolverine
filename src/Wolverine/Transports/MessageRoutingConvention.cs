@@ -71,7 +71,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         }
     }
 
-    protected abstract (TSubscriber, Endpoint) findOrCreateSubscriber(string identifier, TTransport brokerTransport);
+    protected abstract (TSubscriber, Endpoint) findOrCreateSubscriber(string identifier, TTransport transport);
 
     IEnumerable<Endpoint> IMessageRoutingConvention.DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
