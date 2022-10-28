@@ -14,6 +14,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     public AmazonSqsTransport() : base("sqs", "Amazon SQS")
     {
         Queues = new LightweightCache<string, AmazonSqsQueue>(name => new AmazonSqsQueue(name, this));
+        IdentifierDelimiter = "-";
     }
 
     internal AmazonSqsTransport(IAmazonSQS client) : this()

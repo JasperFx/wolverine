@@ -36,10 +36,7 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
         {
             get
             {
-                if (_host == null)
-                {
-                    _host = WolverineHost.For(opts => opts.UseAmazonSqsTransportLocally().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
-                }
+                _host ??= WolverineHost.For(opts => opts.UseAmazonSqsTransportLocally().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
 
                 return _host.Services.GetRequiredService<IWolverineRuntime>();
             }

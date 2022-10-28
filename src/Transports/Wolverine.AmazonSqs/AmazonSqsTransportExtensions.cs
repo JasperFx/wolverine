@@ -55,7 +55,9 @@ public static class AmazonSqsTransportExtensions
     {
         var transport = endpoints.AmazonSqsTransport();
 
-        var endpoint = transport.EndpointForQueue(queueName);
+        var corrected = transport.MaybeCorrectName(queueName);
+        var endpoint = transport.EndpointForQueue(corrected);
+        endpoint.EndpointName = queueName;
         endpoint.IsListener = true;
         
         configure?.Invoke(endpoint);
@@ -67,8 +69,11 @@ public static class AmazonSqsTransportExtensions
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<AmazonSqsTransport>();
+        
+        var corrected = transport.MaybeCorrectName(queueName);
 
-        var endpoint = transport.EndpointForQueue(queueName);
+        var endpoint = transport.EndpointForQueue(corrected);
+        endpoint.EndpointName = queueName;
         
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(endpoint.Uri);

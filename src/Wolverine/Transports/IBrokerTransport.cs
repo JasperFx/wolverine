@@ -38,4 +38,6 @@ public interface IBrokerTransport : ITransport
     /// <param name="identifier"></param>
     /// <returns></returns>
     string SanitizeIdentifier(string identifier);
+
+    string MaybeCorrectName(string identifier);
 }

@@ -57,10 +57,11 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
             var queueName = _queueNameForListener(messageType);
             if (queueName.IsEmpty()) return;
 
-            queueName = transport.SanitizeIdentifier(queueName);
+            var corrected = transport.MaybeCorrectName(queueName);
 
-            var (configuration, endpoint) = findOrCreateListenerForIdentifier(queueName, transport);
-
+            var (configuration, endpoint) = findOrCreateListenerForIdentifier(corrected, transport);
+            endpoint.EndpointName = queueName;
+            
             endpoint.IsListener = true;
 
             var context = new MessageRoutingContext(messageType, runtime);
@@ -79,12 +80,14 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
         var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
 
-        var queueName = _identifierForSender(messageType);
-        if (queueName.IsEmpty()) yield break;
-        queueName = transport.SanitizeIdentifier(queueName);
+        var destinationName = _identifierForSender(messageType);
+        if (destinationName.IsEmpty()) yield break;
 
-        var (configuration, endpoint) = findOrCreateSubscriber(queueName, transport);
-
+        var corrected = transport.MaybeCorrectName(destinationName);
+        
+        var (configuration, endpoint) = findOrCreateSubscriber(corrected, transport);
+        endpoint.EndpointName = destinationName;
+        
         _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
 
         configuration.As<IDelayedEndpointConfiguration>().Apply();
