@@ -25,4 +25,11 @@ public interface IBrokerTransport : ITransport
     /// </summary>
     /// <returns></returns>
     IEnumerable<PropertyColumn> DiagnosticColumns();
+
+    /// <summary>
+    /// Use to sanitize names for illegal characters
+    /// </summary>
+    /// <param name="identifier"></param>
+    /// <returns></returns>
+    string SanitizeIdentifier(string identifier);
 }

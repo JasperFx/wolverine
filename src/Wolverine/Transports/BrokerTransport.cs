@@ -15,6 +15,16 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     protected BrokerTransport(string protocol, string name) : base(protocol, name)
     {
     }
+
+    /// <summary>
+    /// Use to sanitize names for illegal characters
+    /// </summary>
+    /// <param name="identifier"></param>
+    /// <returns></returns>
+    public virtual string SanitizeIdentifier(string identifier)
+    {
+        return identifier;
+    }
     
     /// <summary>
     /// Should Wolverine attempt to auto-provision all declared or discovered objects?

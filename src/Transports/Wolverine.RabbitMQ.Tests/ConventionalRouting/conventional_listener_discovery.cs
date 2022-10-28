@@ -73,7 +73,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         [Fact]
         public void configure_sender_overrides()
         {
-            ConfigureConventions(c => c.ConfigureSending((c, _, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
+            ConfigureConventions(c => c.ConfigureSending((c, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
 
             var route = PublishingRoutesFor<PublishedMessage>().Single().Sender.Endpoint
                 .ShouldBeOfType<RabbitMqExchange>();
@@ -102,7 +102,7 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         [Fact]
         public void configure_listener()
         {
-            ConfigureConventions(c => c.ConfigureListeners((x, _, _) =>
+            ConfigureConventions(c => c.ConfigureListeners((x, _) =>
             {
                 x.ListenerCount(6);
             }));
@@ -112,33 +112,6 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
 
             endpoint.ListenerCount.ShouldBe(6);
         }
-
-        [Fact]
-        public void override_mode_to_durable()
-        {
-            ConfigureConventions(c => c.InboxedListenersAndOutboxedSenders());
-
-            var listeners = theRuntime.Endpoints.ActiveListeners().Where(x => x.Uri.Scheme == RabbitMqTransport.ProtocolName);
-            listeners.Any().ShouldBeTrue();
-            foreach (var listener in listeners.Where(x => x.Endpoint.Role == EndpointRole.Application))
-            {
-                listener.Endpoint.Mode.ShouldBe(EndpointMode.Durable);
-            }
-        }
-
-        [Fact]
-        public void override_mode_to_inline()
-        {
-            ConfigureConventions(c => c.InlineListenersAndSenders());
-
-            var listeners = theRuntime.Endpoints.ActiveListeners().Where(x => x.Uri.Scheme == RabbitMqTransport.ProtocolName);
-            listeners.Any().ShouldBeTrue();
-            foreach (var listener in listeners)
-            {
-                listener.Endpoint.Mode.ShouldBe(EndpointMode.Inline);
-            }
-        }
-
 
 
     }

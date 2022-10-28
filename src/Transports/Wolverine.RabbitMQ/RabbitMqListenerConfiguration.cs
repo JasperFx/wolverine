@@ -116,5 +116,14 @@ namespace Wolverine.RabbitMQ
             add(e => e.UseNServiceBusInterop());
             return this;
         }
+
+        /// <summary>
+        /// Create a "time to live" limit for messages in this queue. Sets the Rabbit MQ x-message-ttl argument on a queue
+        /// </summary>
+        public RabbitMqListenerConfiguration TimeToLive(TimeSpan time)
+        {
+            add(e => e.TimeToLive(time));
+            return this;
+        }
     }
 }

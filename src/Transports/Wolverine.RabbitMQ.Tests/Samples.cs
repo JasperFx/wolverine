@@ -231,16 +231,6 @@ public class Samples
                     // Opt into conventional Rabbit MQ routing
                     .UseConventionalRouting(x =>
                     {
-                        // Make every endpoint use durable inbox or outbox
-                        // mechanics
-                        x.Mode = EndpointMode.Durable;
-
-                        // Or do this instead
-                        x.InboxedListenersAndOutboxedSenders();
-
-                        // Or instead declare all endpoints as buffered
-                        x.BufferedListenersAndSenders();
-
                         // Customize the naming convention for the outgoing exchanges
                         x.ExchangeNameForSending(type => type.Name + "Exchange");
 
@@ -248,7 +238,7 @@ public class Samples
                         x.QueueNameForListener(type => type.FullName.Replace('.', '-'));
 
                         // Or maybe you want to conditionally configure listening endpoints
-                        x.ConfigureListeners((listener, queue, context) =>
+                        x.ConfigureListeners((listener, context) =>
                         {
                             if (context.MessageType.IsInNamespace("MyApp.Messages.Important"))
                             {
@@ -258,14 +248,14 @@ public class Samples
                             {
                                 // If not important, let's make the queue be
                                 // volatile and purge older messages automatically
-                                queue.TimeToLive(2.Minutes());
+                                listener.TimeToLive(2.Minutes());
                             }
 
                         })
                         // Or maybe you want to conditionally configure the outgoing exchange
-                        .ConfigureSending((_, ex, _) =>
+                        .ConfigureSending((ex, _) =>
                         {
-                            ex.ExchangeType = ExchangeType.Direct;
+                            ex.ExchangeType(ExchangeType.Direct);
                         });
                     });
             }).StartAsync();

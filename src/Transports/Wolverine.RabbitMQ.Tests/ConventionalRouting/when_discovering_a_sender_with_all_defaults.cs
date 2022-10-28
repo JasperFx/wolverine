@@ -33,10 +33,10 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
         }
 
         [Fact]
-        public void endpoint_mode_is_buffered_by_default()
+        public void endpoint_mode_is_inline_by_default()
         {
             var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
-            endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+            endpoint.Mode.ShouldBe(EndpointMode.Inline);
         }
 
         [Fact]

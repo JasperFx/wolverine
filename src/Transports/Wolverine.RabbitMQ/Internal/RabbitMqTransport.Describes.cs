@@ -6,7 +6,7 @@ using Spectre.Console;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    internal partial class RabbitMqTransport : ITreeDescriber
+    public partial class RabbitMqTransport : ITreeDescriber
     {
         void ITreeDescriber.Describe(TreeNode parentNode)
         {

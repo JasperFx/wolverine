@@ -11,7 +11,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    internal partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDisposable
+    public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDisposable
     {
         public const string ProtocolName = "rabbitmq";
         public const string ResponseEndpointName = "RabbitMqResponses";

@@ -21,6 +21,11 @@ internal class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         Client = client;
     }
 
+    public override string SanitizeIdentifier(string identifier)
+    {
+        return identifier.Replace('.', '-');
+    }
+
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
 
     public LightweightCache<string, AmazonSqsQueue> Queues { get; }
