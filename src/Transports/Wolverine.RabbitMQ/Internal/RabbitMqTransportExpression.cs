@@ -26,7 +26,7 @@ namespace Wolverine.RabbitMQ.Internal
             return new RabbitMqSubscriberConfiguration(subscriberEndpoint);
         }
 
-        public BindingExpression BindExchange(string exchangeName, Action<RabbitMqExchange>? configure = null)
+        public BindingExpression BindExchange(string exchangeName, Action<IRabbitMqExchange>? configure = null)
         {
             DeclareExchange(exchangeName, configure);
             return new BindingExpression(exchangeName, this);
@@ -50,7 +50,7 @@ namespace Wolverine.RabbitMQ.Internal
             /// <param name="queueName"></param>
             /// <param name="configure">Optional configuration of the Rabbit MQ queue</param>
             /// <param name="arguments">Optional configuration for arguments to the Rabbit MQ binding</param>
-            public RabbitMqTransportExpression ToQueue(string queueName, Action<RabbitMqQueue>? configure = null,
+            public RabbitMqTransportExpression ToQueue(string queueName, Action<IRabbitMqQueue>? configure = null,
                 Dictionary<string, object>? arguments = null)
             {
                 _parent.DeclareQueue(queueName, configure);
@@ -67,7 +67,7 @@ namespace Wolverine.RabbitMQ.Internal
             /// <param name="configure">Optional configuration of the Rabbit MQ queue</param>
             /// <param name="arguments">Optional configuration for arguments to the Rabbit MQ binding</param>
             public RabbitMqTransportExpression ToQueue(string queueName, string bindingKey,
-                Action<RabbitMqQueue>? configure = null, Dictionary<string, object>? arguments = null)
+                Action<IRabbitMqQueue>? configure = null, Dictionary<string, object>? arguments = null)
             {
                 _parent.DeclareQueue(queueName, configure);
 
@@ -106,7 +106,7 @@ namespace Wolverine.RabbitMQ.Internal
         /// <param name="exchangeName"></param>
         /// <param name="configure"></param>
         public RabbitMqTransportExpression DeclareExchange(string exchangeName,
-            Action<RabbitMqExchange>? configure = null)
+            Action<IRabbitMqExchange>? configure = null)
         {
             var exchange = Transport.Exchanges[exchangeName];
             configure?.Invoke(exchange);
@@ -129,7 +129,7 @@ namespace Wolverine.RabbitMQ.Internal
         /// </summary>
         /// <param name="queueName"></param>
         /// <param name="configure"></param>
-        public RabbitMqTransportExpression DeclareQueue(string queueName, Action<RabbitMqQueue>? configure = null)
+        public RabbitMqTransportExpression DeclareQueue(string queueName, Action<IRabbitMqQueue>? configure = null)
         {
             var queue = Transport.Queues[queueName];
             configure?.Invoke(queue);
@@ -137,21 +137,6 @@ namespace Wolverine.RabbitMQ.Internal
             return this;
         }
 
-        /// <summary>
-        ///     Declare a new exchange with the specified exchange type
-        /// </summary>
-        /// <param name="exchangeName"></param>
-        /// <param name="configure"></param>
-        public RabbitMqTransportExpression DeclareExchange(string exchangeName, ExchangeType exchangeType,
-            bool isDurable = true, bool autoDelete = false)
-        {
-            return DeclareExchange(exchangeName, e =>
-            {
-                e.ExchangeType = exchangeType;
-                e.IsDurable = isDurable;
-                e.AutoDelete = autoDelete;
-            });
-        }
 
     }
 }

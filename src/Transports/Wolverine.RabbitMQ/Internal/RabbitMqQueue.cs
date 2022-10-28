@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue
+    public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     {
         private readonly RabbitMqTransport _parent;
 
@@ -23,12 +23,25 @@ namespace Wolverine.RabbitMQ.Internal
         
         public string QueueName { get; }
 
+        /// <summary>
+        /// If true, this queue will be deleted when the connection is closed. This is mostly useful
+        /// for temporary, response queues
+        /// </summary>
         public bool AutoDelete { get; set; }
 
+        /// <summary>
+        /// If true, this queue can only be used by a single connection
+        /// </summary>
         public bool IsExclusive { get; set; }
 
+        /// <summary>
+        /// The default is true. Governs whether queue messages 
+        /// </summary>
         public bool IsDurable { get; set; } = true;
 
+        /// <summary>
+        /// Arguments for Rabbit MQ queue declarations. See the Rabbit MQ .NET client documentation at https://www.rabbitmq.com/dotnet.html
+        /// </summary>
         public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
         internal bool HasDeclared { get; private set; }
 

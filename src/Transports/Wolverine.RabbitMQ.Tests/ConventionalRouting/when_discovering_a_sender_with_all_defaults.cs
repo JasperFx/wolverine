@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Baseline;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
@@ -60,8 +61,8 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
             var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
             var theExchange = theTransport.Exchanges[endpoint.ExchangeName];
             var binding = theExchange.Bindings().Single().ShouldNotBeNull();
-            binding.Queue.EndpointName.ShouldBe(theExchange.Name);
-            binding.Queue.HasDeclared.ShouldBeTrue();
+            binding.Queue.As<RabbitMqQueue>().EndpointName.ShouldBe(theExchange.Name);
+            binding.Queue.As<RabbitMqQueue>().HasDeclared.ShouldBeTrue();
             binding.HasDeclared.ShouldBeTrue();
         }
 

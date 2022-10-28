@@ -70,7 +70,7 @@ namespace Wolverine.RabbitMQ
         ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
         ///     <returns></returns>
         public static RabbitMqListenerConfiguration ListenToRabbitQueue(this WolverineOptions endpoints, string queueName,
-            Action<RabbitMqQueue>? configure = null)
+            Action<IRabbitMqQueue>? configure = null)
         {
             var transport = endpoints.RabbitMqTransport();
             var queue = transport.Queues[queueName];
@@ -118,7 +118,7 @@ namespace Wolverine.RabbitMQ
         /// </param>
         /// <returns></returns>
         public static RabbitMqSubscriberConfiguration ToRabbitQueue(this IPublishToExpression publishing,
-            string queueName, Action<RabbitMqQueue>? configure = null)
+            string queueName, Action<IRabbitMqQueue>? configure = null)
         {
             var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
@@ -143,7 +143,7 @@ namespace Wolverine.RabbitMQ
         /// <param name="configure">Optional configuration of this exchange if Wolverine is doing the initialization in Rabbit MQ</param>
         /// <returns></returns>
         public static RabbitMqSubscriberConfiguration ToRabbitExchange(this IPublishToExpression publishing,
-            string exchangeName, Action<RabbitMqExchange>? configure = null)
+            string exchangeName, Action<IRabbitMqExchange>? configure = null)
         {
             var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
@@ -169,7 +169,7 @@ namespace Wolverine.RabbitMQ
         /// <param name="configure">Optional configuration of this exchange if Wolverine is doing the initialization in Rabbit MQ</param>
         /// <returns></returns>
         public static RabbitMqSubscriberConfiguration ToRabbitTopics(this IPublishToExpression publishing,
-            string exchangeName, Action<RabbitMqExchange>? configure = null)
+            string exchangeName, Action<IRabbitMqExchange>? configure = null)
         {
             var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();

@@ -21,7 +21,7 @@ namespace Wolverine.RabbitMQ.Tests
             var binding = theTransport.Bindings().Single();
             binding.BindingKey.ShouldBe("key3");
             binding.ExchangeName.ShouldBe("exchange3");
-            binding.Queue.EndpointName.ShouldBe("queue3");
+            binding.Queue.QueueName.ShouldBe("queue3");
         }
 
         [Fact]

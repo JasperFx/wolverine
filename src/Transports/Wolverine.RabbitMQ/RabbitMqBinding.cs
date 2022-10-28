@@ -8,15 +8,17 @@ namespace Wolverine.RabbitMQ
 {
     public class RabbitMqBinding
     {
+        private readonly RabbitMqQueue _queue;
+
         public RabbitMqBinding(string exchangeName, RabbitMqQueue queue, string? bindingKey = null)
         {
             ExchangeName = exchangeName ?? throw new ArgumentNullException(nameof(exchangeName));
-            Queue = queue ?? throw new ArgumentNullException(nameof(queue));
-            BindingKey = bindingKey ?? $"{ExchangeName}_{Queue.EndpointName}";
+            _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+            BindingKey = bindingKey ?? $"{ExchangeName}_{_queue.EndpointName}";
         }
 
         public string BindingKey { get; }
-        public RabbitMqQueue Queue { get; }
+        public IRabbitMqQueue Queue => _queue;
         public string ExchangeName { get; }
 
         public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
@@ -25,16 +27,16 @@ namespace Wolverine.RabbitMQ
         internal void Declare(IModel channel, ILogger logger)
         {
             if (HasDeclared) return;
-            Queue.Declare(channel, logger);
-            channel.QueueBind(Queue.EndpointName, ExchangeName, BindingKey, Arguments);
-            logger.LogInformation("Declared a Rabbit Mq binding '{Key}' from exchange {Exchange} to {Queue}", BindingKey, ExchangeName, Queue.EndpointName);
+            _queue.Declare(channel, logger);
+            channel.QueueBind(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
+            logger.LogInformation("Declared a Rabbit Mq binding '{Key}' from exchange {Exchange} to {Queue}", BindingKey, ExchangeName, _queue.EndpointName);
 
             HasDeclared = true;
         }
 
         public void Teardown(IModel channel)
         {
-            channel.QueueUnbind(Queue.EndpointName, ExchangeName, BindingKey, Arguments);
+            channel.QueueUnbind(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
         }
 
         protected bool Equals(RabbitMqBinding other)

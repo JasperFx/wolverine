@@ -125,5 +125,17 @@ namespace Wolverine.RabbitMQ
             add(e => e.TimeToLive(time));
             return this;
         }
+
+        /// <summary>
+        /// Make any customizations to the underlying Rabbit MQ Queue when Wolverine is building the
+        /// queues
+        /// </summary>
+        /// <param name="configure"></param>
+        /// <returns></returns>
+        public RabbitMqListenerConfiguration ConfigureQueue(Action<IRabbitMqQueue> configure)
+        {
+            add(e => configure(e));
+            return this;
+        }
     }
 }

@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class RabbitMqExchange : RabbitMqEndpoint
+    public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     {
         private readonly RabbitMqTransport _parent;
         
@@ -83,7 +83,6 @@ namespace Wolverine.RabbitMQ.Internal
 
             foreach (var binding in _bindings.Values)
             {
-                binding.Queue.Declare(channel, logger);
                 binding.Declare(channel, logger);
             }
 
@@ -169,28 +168,28 @@ namespace Wolverine.RabbitMQ.Internal
         {
             return new TopicBinding(this, topicPattern);
         }
+    }
 
-        public class TopicBinding
+    public class TopicBinding
+    {
+        private readonly RabbitMqExchange _exchange;
+        private readonly string _topicPattern;
+
+        public TopicBinding(RabbitMqExchange exchange, string topicPattern)
         {
-            private readonly RabbitMqExchange _exchange;
-            private readonly string _topicPattern;
+            _exchange = exchange;
+            _topicPattern = topicPattern;
+        }
 
-            public TopicBinding(RabbitMqExchange exchange, string topicPattern)
-            {
-                _exchange = exchange;
-                _topicPattern = topicPattern;
-            }
-
-            /// <summary>
-            /// Create a binding of the topic pattern previously specified to a Rabbit Mq queue
-            /// </summary>
-            /// <param name="queueName">The name of the Rabbit Mq queue</param>
-            /// <param name="configureQueue">Optionally configure </param>
-            public void ToQueue(string queueName, Action<RabbitMqQueue>? configureQueue = null)
-            {
-                var binding = _exchange.BindQueue(queueName, _topicPattern);
-                configureQueue?.Invoke(binding.Queue);
-            }
+        /// <summary>
+        /// Create a binding of the topic pattern previously specified to a Rabbit Mq queue
+        /// </summary>
+        /// <param name="queueName">The name of the Rabbit Mq queue</param>
+        /// <param name="configureQueue">Optionally configure </param>
+        public void ToQueue(string queueName, Action<IRabbitMqQueue>? configureQueue = null)
+        {
+            var binding = _exchange.BindQueue(queueName, _topicPattern);
+            configureQueue?.Invoke(binding.Queue);
         }
     }
 }

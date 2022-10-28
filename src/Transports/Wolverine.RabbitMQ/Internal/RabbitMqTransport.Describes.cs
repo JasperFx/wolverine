@@ -39,7 +39,7 @@ namespace Wolverine.RabbitMQ.Internal
 
                         foreach (var binding in exchange.Bindings())
                         {
-                            bindingTable.AddRow(binding.BindingKey ?? string.Empty, binding.Queue.EndpointName ?? string.Empty,
+                            bindingTable.AddRow(binding.BindingKey ?? string.Empty, binding.Queue.As<RabbitMqQueue>().EndpointName ?? string.Empty,
                                 binding.Arguments.Select(pair => $"{pair.Key}={pair.Value}").Join(", "));
                         }
 
