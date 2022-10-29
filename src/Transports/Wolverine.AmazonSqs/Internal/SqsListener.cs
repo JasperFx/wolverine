@@ -12,7 +12,7 @@ internal class SqsListener : IListener
     private readonly ILogger _logger;
     private readonly AmazonSqsQueue _queue;
     private readonly AmazonSqsTransport _transport;
-    private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
+    private readonly CancellationTokenSource _cancellation = new();
     private readonly Task _task;
     private readonly AmazonSqsMapper _mapper;
 
@@ -61,7 +61,7 @@ internal class SqsListener : IListener
 
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
-        var envelope = new AmazonSqsEnvelope(this, message);
+        var envelope = new AmazonSqsEnvelope(message);
         _mapper.MapIncomingToEnvelope(envelope, message);
         envelope.Data = Encoding.Default.GetBytes(message.Body);
         return envelope;

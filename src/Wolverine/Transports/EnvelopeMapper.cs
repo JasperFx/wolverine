@@ -12,11 +12,21 @@ using Wolverine.Util;
 
 namespace Wolverine.Transports;
 
-public interface IEnvelopeMapper<TIncoming, TOutgoing>
+public interface IOutgoingMapper<TOutgoing>
+{
+    void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing);
+}
+
+public interface IIncomingMapper<TIncoming>
+{
+    void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
+}
+
+public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>
 {
     IEnumerable<string> AllHeaders();
-    void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
-    void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing);
+    
+    
 }
 
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>

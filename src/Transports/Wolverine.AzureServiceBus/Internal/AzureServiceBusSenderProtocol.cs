@@ -1,0 +1,45 @@
+using Azure.Messaging.ServiceBus;
+using Wolverine.Runtime;
+using Wolverine.Transports;
+using Wolverine.Transports.Sending;
+
+namespace Wolverine.AzureServiceBus.Internal;
+
+public class AzureServiceBusSenderProtocol : ISenderProtocol
+{
+    private readonly IWolverineRuntime _runtime;
+    private readonly AzureServiceBusEndpoint _endpoint;
+    private readonly IOutgoingMapper<ServiceBusMessage> _mapper;
+    private readonly ServiceBusSender _sender;
+
+    public AzureServiceBusSenderProtocol(IWolverineRuntime runtime, AzureServiceBusEndpoint endpoint, IOutgoingMapper<ServiceBusMessage> mapper, ServiceBusSender sender)
+    {
+        _runtime = runtime;
+        _endpoint = endpoint;
+        _mapper = mapper;
+        _sender = sender;
+    }
+
+    public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
+    {
+        await _endpoint.InitializeAsync(_runtime.Logger);
+        
+        var outgoing = batch.Messages.Select(env =>
+        {
+            var message = new ServiceBusMessage();
+            _mapper.MapEnvelopeToOutgoing(env, message);
+
+            return message;
+        });
+
+        try
+        {
+            await _sender.SendMessagesAsync(outgoing, _runtime.Cancellation);
+            await callback.MarkSuccessfulAsync(batch);
+        }
+        catch (Exception e)
+        {
+            await callback.MarkProcessingFailureAsync(batch, e);
+        }
+    }
+}

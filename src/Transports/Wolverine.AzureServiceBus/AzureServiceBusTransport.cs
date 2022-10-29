@@ -1,80 +1,83 @@
 using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
 using Baseline;
-using Microsoft.Extensions.Logging;
-using Oakton.Resources;
-using Wolverine.Configuration;
+using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus;
 
-public static class AzureServiceBusTransportExtensions
-{
-    /// <summary>
-    ///     Quick access to the Rabbit MQ Transport within this application.
-    ///     This is for advanced usage
-    /// </summary>
-    /// <param name="endpoints"></param>
-    /// <returns></returns>
-    internal static AzureServiceBusTransport AzureServiceBusTransport(this WolverineOptions endpoints)
-    {
-        var transports = endpoints.As<WolverineOptions>().Transports;
-
-        return transports.GetOrCreate<AzureServiceBusTransport>();
-    }
-
-    public static IAzureServiceBusConfiguration UseAzureServiceBus(this WolverineOptions endpoints,
-        string connectionString, Action<ServiceBusClientOptions>? configure = null)
-    {
-        var transport = endpoints.AzureServiceBusTransport();
-        transport.ConnectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-        ServiceBusClientOptions options = new ServiceBusClientOptions();
-        configure?.Invoke(transport.ClientOptions);
-
-        return new AzureServiceBusConfiguration(transport, endpoints);
-    }
-}
-
-public interface IAzureServiceBusConfiguration
-{
-    
-}
-
-internal class AzureServiceBusConfiguration : IAzureServiceBusConfiguration
-{
-    private readonly AzureServiceBusTransport _transport;
-    private readonly WolverineOptions _options;
-
-    public AzureServiceBusConfiguration(AzureServiceBusTransport transport, WolverineOptions options)
-    {
-        _transport = transport;
-        _options = options;
-    }
-
-
-}
-
-internal class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
+public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "asb";
     
     public LightweightCache<string, AzureServiceBusQueue> Queues { get; }
+    public LightweightCache<string, AzureServiceBusTopic> Topics { get; }
+
+    public readonly List<AzureServiceBusSubscription> Subscriptions = new();
+    private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
+    private readonly Lazy<ServiceBusClient> _busClient;
+
     public string? ConnectionString { get; set; }
 
     public AzureServiceBusTransport() : base(ProtocolName, "Azure Service Bus")
     {
-        Queues = new(name => new AzureServiceBusQueue(this, name, EndpointRole.Application));
+        Queues = new(name => new AzureServiceBusQueue(this, name));
+        Topics = new(name => new AzureServiceBusTopic(this, name));
+
+        _managementClient = new Lazy<ServiceBusAdministrationClient>(() => new ServiceBusAdministrationClient(ConnectionString));
+        _busClient = new Lazy<ServiceBusClient>(() => new ServiceBusClient(ConnectionString, ClientOptions));
+
+        IdentifierDelimiter = ".";
     }
 
     protected override IEnumerable<AzureServiceBusEndpoint> endpoints()
     {
-        throw new NotImplementedException();
+        foreach (var queue in Queues)
+        {
+            yield return queue;
+        }
+
+        foreach (var topic in Topics)
+        {
+            yield return topic;
+        }
+
+        foreach (var subscription in Subscriptions)
+        {
+            yield return subscription;
+        }
     }
 
     protected override AzureServiceBusEndpoint findEndpointByUri(Uri uri)
     {
-        throw new NotImplementedException();
+        switch (uri.Host)
+        {
+            case "queue":
+                return Queues[uri.Segments[1]];
+            
+            case "topic":
+                var topicName = uri.Segments[1].TrimEnd('/');
+                if (uri.Segments.Length == 3)
+                {
+                    var subscription = Subscriptions.FirstOrDefault(x => x.Uri == uri);
+                    if (subscription != null) return subscription;
+                    
+                    var subscriptionName = uri.Segments.Last().TrimEnd('/');
+                    var topic = Topics[topicName];
+                    subscription = new AzureServiceBusSubscription(this, topic, subscriptionName);
+                    Subscriptions.Add(subscription);
+
+                    return subscription;
+                }
+                else
+                {
+                    return Topics[topicName];
+                }
+
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(uri));
     }
     
     public ServiceBusClientOptions ClientOptions { get; } = new()
@@ -82,55 +85,27 @@ internal class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoin
         TransportType = ServiceBusTransportType.AmqpTcp
     };
 
+    public ServiceBusAdministrationClient ManagementClient => _managementClient.Value;
+
+    public ServiceBusClient BusClient => _busClient.Value;
+
     public override ValueTask ConnectAsync(IWolverineRuntime logger)
     {
-        throw new NotImplementedException();
+        // we're going to use a client per endpoint
+        return ValueTask.CompletedTask;
     }
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
-        throw new NotImplementedException();
-    }
-}
-
-internal abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint
-{
-    public AzureServiceBusTransport Parent { get; }
-
-    public AzureServiceBusEndpoint(AzureServiceBusTransport parent, Uri uri, EndpointRole role) : base(uri, role)
-    {
-        Parent = parent;
+        yield return new PropertyColumn("Queue", "Name");
+        yield return new PropertyColumn(nameof(QueueProperties.Status));
     }
 
-    public ValueTask<bool> CheckAsync()
+    public async ValueTask DisposeAsync()
     {
-        throw new NotImplementedException();
-    }
-
-    public ValueTask TeardownAsync(ILogger logger)
-    {
-        throw new NotImplementedException();
-    }
-
-    public ValueTask SetupAsync(ILogger logger)
-    {
-        throw new NotImplementedException();
-    }
-}
-
-internal class AzureServiceBusQueue : AzureServiceBusEndpoint
-{
-    public AzureServiceBusQueue(AzureServiceBusTransport parent, string queueName, EndpointRole role) : base(parent, new Uri($"{AzureServiceBusTransport.ProtocolName}://queue/{queueName}"), role)
-    {
-    }
-
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
-    {
-        throw new NotImplementedException();
-    }
-
-    protected override ISender CreateSender(IWolverineRuntime runtime)
-    {
-        throw new NotImplementedException();
+        if (_busClient.IsValueCreated)
+        {
+            await _busClient.Value.DisposeAsync();
+        }
     }
 }

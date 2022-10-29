@@ -235,3 +235,5 @@ src/ConsoleApp/Generated/
 docs/.vitepress/dist
 JasperSamples
 /volume
+
+/src/Transports/Wolverine.AzureServiceBus.Tests/connection.txt
