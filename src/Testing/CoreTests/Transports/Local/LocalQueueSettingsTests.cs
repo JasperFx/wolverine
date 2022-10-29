@@ -26,6 +26,16 @@ public class LocalQueueSettingsTests
         
         endpoint.ShouldEnforceBackPressure().ShouldBeFalse();
     }
+
+    [Fact]
+    public void should_use_the_queue_name_as_endpoint_name()
+    {
+        var endpoint = new LocalQueueSettings("foo")
+        {
+        };
+        
+        endpoint.EndpointName.ShouldBe("foo");
+    }
     
     [Fact]
     public void should_set_the_Uri_in_constructor()

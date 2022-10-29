@@ -3,12 +3,11 @@ using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.RabbitMQ;
 using Wolverine.Runtime;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
+namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
 public class discover_with_naming_prefix : IDisposable
 {
@@ -37,8 +36,6 @@ public class discover_with_naming_prefix : IDisposable
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
         var uris = runtime.Endpoints.ActiveListeners().Select(x => x.Uri).ToArray();
-        uris.ShouldContain(new Uri("sqs://zztop-orderextension-createorder/"));
-        uris.ShouldContain(new Uri("sqs://zztop-orderextension-shiporder/"));
-        uris.ShouldContain(new Uri("sqs://zztop-routed/"));
+        uris.ShouldContain(new Uri("rabbitmq://queue/zztop-routed"));
     }
 }

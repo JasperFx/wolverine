@@ -38,6 +38,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals
             queue.Arguments.Any().ShouldBeFalse();
         }
 
+
         [Fact]
         public void set_time_to_live()
         {

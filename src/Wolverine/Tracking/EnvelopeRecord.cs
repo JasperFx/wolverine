@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using LamarCodeGeneration;
 
 namespace Wolverine.Tracking;
 
@@ -48,8 +49,41 @@ public class EnvelopeRecord
 
     public override string ToString()
     {
+        var prefix = $"{ServiceName} ({UniqueNodeId}) @{SessionTime}ms: ";
+        var message = $"{Message?.GetType().FullNameInCode()} ({Envelope.Id})";
+        
+        switch (EventType)
+        {
+            case EventType.Sent:
+                return $"{prefix}Sent {message} to {Envelope.Destination}";
+            
+            case EventType.Received:
+                return $"{prefix}Received {message} at {Envelope.Destination}";
+            
+            case EventType.ExecutionStarted:
+                return $"{prefix}Started execution of {message}";
+
+            case EventType.ExecutionFinished:
+                return $"{prefix}Finished execution of {message}";
+            
+            case EventType.MessageFailed:
+                return $"{prefix}{message} was marked as failed!";
+            
+            case EventType.MessageSucceeded:
+                return $"{prefix}{message} was marked as successful.";
+            
+            case EventType.NoHandlers:
+                return $"{prefix}{message} had no known handlers and was discarded";
+            
+            case EventType.NoRoutes:
+                return $"{prefix}Attempted to publish {message}, but there were no subscribers";
+            
+            case EventType.MovedToErrorQueue:
+                return $"{prefix}{message} was moved to the dead letter queue";
+        }
+        
         var icon = IsComplete ? "+" : "-";
         return
-            $"{icon} Service: {ServiceName}, Id: {Envelope.Id}, {nameof(SessionTime)}: {SessionTime}, {nameof(EventType)}: {EventType}, MessageType: {Envelope.MessageType} at node #{UniqueNodeId} --> {IsComplete}";
+            $"{icon} Service: {ServiceName}, Id: {Envelope.Id}, {nameof(SessionTime)}: {SessionTime}, {nameof(EventType)}: {EventType}, MessageType: {Envelope.MessageType} at node #{UniqueNodeId}";
     }
 }

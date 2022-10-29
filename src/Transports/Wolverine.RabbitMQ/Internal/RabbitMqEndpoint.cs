@@ -18,6 +18,7 @@ namespace Wolverine.RabbitMQ.Internal
     {
         public const string QueueSegment = "queue";
         public const string ExchangeSegment = "exchange";
+        public const string TopicSegment = "topic";
         private readonly RabbitMqTransport _parent;
 
         internal RabbitMqEndpoint(Uri uri, EndpointRole role, RabbitMqTransport parent) : base(uri, role)

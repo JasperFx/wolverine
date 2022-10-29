@@ -10,22 +10,24 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ;
 
-internal class RabbitMqTopicEndpoint : RabbitMqEndpoint
+public class RabbitMqTopicEndpoint : RabbitMqEndpoint
 {
-    private readonly string _topicName;
-    private readonly RabbitMqExchange _exchange;
-
-    public RabbitMqTopicEndpoint(string topicName, RabbitMqExchange exchange, RabbitMqTransport parent) : base(new Uri($"rabbitmq://{exchange.Name}/{topicName}"), EndpointRole.Application, parent)
+    public RabbitMqTopicEndpoint(string topicName, RabbitMqExchange exchange, RabbitMqTransport parent) : base(new Uri($"rabbitmq://topic/{exchange.Name}/{topicName}"), EndpointRole.Application, parent)
     {
-        _topicName = topicName;
-        _exchange = exchange;
+        EndpointName = TopicName = topicName;
+        Exchange = exchange;
 
-        ExchangeName = _exchange.Name;
+        ExchangeName = Exchange.Name;
+        
     }
+
+    public RabbitMqExchange Exchange { get; }
+
+    public string TopicName { get; }
 
     public override ValueTask<bool> CheckAsync()
     {
-        return _exchange.CheckAsync();
+        return Exchange.CheckAsync();
     }
 
     public override ValueTask TeardownAsync(ILogger logger)
@@ -35,13 +37,13 @@ internal class RabbitMqTopicEndpoint : RabbitMqEndpoint
 
     public override ValueTask SetupAsync(ILogger logger)
     {
-        return _exchange.SetupAsync(logger);
+        return Exchange.SetupAsync(logger);
     }
 
     public override IDictionary<string, object> DescribeProperties()
     {
         var dict = base.DescribeProperties();
-        dict.Add("Topic", _topicName);
+        dict.Add("Topic", TopicName);
 
         return dict;
     }
@@ -51,10 +53,10 @@ internal class RabbitMqTopicEndpoint : RabbitMqEndpoint
         throw new NotSupportedException();
     }
 
-    internal override string RoutingKey() => _topicName;
+    internal override string RoutingKey() => TopicName;
 
     public override ValueTask InitializeAsync(ILogger logger)
     {
-        return _exchange.InitializeAsync(logger);
+        return Exchange.InitializeAsync(logger);
     }
 }

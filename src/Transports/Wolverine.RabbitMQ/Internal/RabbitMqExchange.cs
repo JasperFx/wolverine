@@ -24,6 +24,8 @@ namespace Wolverine.RabbitMQ.Internal
             DeclaredName = name == TransportConstants.Default ? "" : Name;
             ExchangeName = name;
 
+            EndpointName = name;
+
             Topics = new(topic => new RabbitMqTopicEndpoint(topic, this, _parent));
         }
 

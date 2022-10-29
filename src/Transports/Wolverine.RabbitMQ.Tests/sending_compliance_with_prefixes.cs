@@ -11,7 +11,7 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public PrefixedComplianceFixture() : base(new Uri("sqs://foo-buffered-receiver"), 120)
+    public PrefixedComplianceFixture() : base(new Uri("rabbitmq://queue/foo-buffered-receiver"), 120)
     {
     }
 

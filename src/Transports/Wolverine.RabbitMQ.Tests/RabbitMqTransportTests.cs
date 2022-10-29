@@ -47,6 +47,20 @@ namespace Wolverine.RabbitMQ.Tests
             
             queue.QueueName.ShouldBe("foo");
         }
+        
+        [Fact]
+        public void find_by_topic()
+        {
+            var endpoint = theTransport.GetOrCreateEndpoint("rabbitmq://topic/color/blue".ToUri());
+
+            var topic = endpoint.ShouldBeOfType<RabbitMqTopicEndpoint>();
+            topic.TopicName.ShouldBe("blue");
+            topic.ExchangeName.ShouldBe("color");
+            
+            topic.Exchange.Name.ShouldBe("color");
+            topic.Exchange.ExchangeType.ShouldBe(ExchangeType.Topic);
+            
+        }
 
     }
 

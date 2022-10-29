@@ -5,12 +5,10 @@ using Baseline.Dates;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
-using Wolverine.RabbitMQ;
-using Wolverine.RabbitMQ.Tests.ConventionalRouting;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
+namespace Wolverine.RabbitMQ.Tests.ConventionalRouting
 {
     public class end_to_end_with_conventional_routing_with_prefix : IDisposable
     {
@@ -61,7 +59,7 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
                 .ServiceName.ShouldBe("Receiver");
             
             received.Envelope.Destination
-                .ShouldBe(new Uri("rabbitmq://queue/shazaam-routed/"));
+                .ShouldBe(new Uri("rabbitmq://queue/shazaam-routed"));
 
         }
     }

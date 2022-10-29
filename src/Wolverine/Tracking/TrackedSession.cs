@@ -97,12 +97,13 @@ internal class TrackedSession : ITrackedSession
             .Where(x => x != null)
             .OfType<T>()
             .Distinct().ToArray();
+        
 
         return messages.Length switch
         {
-            0 => throw new InvalidOperationException($"No message of type {typeof(T).FullNameInCode()} was detected"),
+            0 => throw new InvalidOperationException(BuildActivityMessage($"No message of type {typeof(T).FullNameInCode()} was detected")),
             > 1 => throw new InvalidOperationException(
-                $"Expected one message of type {typeof(T).FullNameInCode()}, but detected {messages.Length}: {messages.Select(x => x!.ToString())!.Join(", ")}"),
+                BuildActivityMessage($"Expected one message of type {typeof(T).FullNameInCode()}, but detected {messages.Length}: {messages.Select(x => x!.ToString())!.Join(", ")}")),
             _ => messages.Single()
         };
     }
@@ -191,6 +192,17 @@ internal class TrackedSession : ITrackedSession
             writer.WriteLine();
             writer.WriteLine("Conditions:");
             foreach (var condition in _conditions) writer.WriteLine($"{condition} ({condition.IsCompleted()})");
+        }
+
+        if (_exceptions.Any())
+        {
+            writer.WriteLine();
+            writer.WriteLine("Exceptions detected: ");
+            foreach (var exception in _exceptions)
+            {
+                writer.WriteLine(exception.ToString());
+                writer.WriteLine();
+            }
         }
 
         return writer.ToString();

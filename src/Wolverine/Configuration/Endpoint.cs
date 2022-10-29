@@ -69,6 +69,7 @@ public abstract class Endpoint :  ICircuitParameters, IDescribesProperties
     {
         Role = role;
         Uri = uri;
+        EndpointName = uri.ToString();
     }
     
     /// <summary>

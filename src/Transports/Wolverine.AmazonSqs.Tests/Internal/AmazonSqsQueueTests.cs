@@ -18,6 +18,13 @@ public class AmazonSqsQueueTests
     }
 
     [Fact]
+    public void default_endpoint_name_is_queue_name()
+    {
+        new AmazonSqsQueue("foo",new AmazonSqsTransport())
+            .EndpointName.ShouldBe("foo");
+    }
+
+    [Fact]
     public void uri()
     {
         new AmazonSqsQueue("foo",new AmazonSqsTransport())

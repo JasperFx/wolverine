@@ -76,12 +76,11 @@ namespace Wolverine.RabbitMQ
             var corrected = transport.MaybeCorrectName(queueName);
             var queue = transport.Queues[corrected];
             queue.EndpointName = queueName;
+            queue.IsListener = true;
+            
             configure?.Invoke(queue);
 
-            var endpoint = transport.EndpointForQueue(queueName);
-            endpoint.IsListener = true;
-
-            return new RabbitMqListenerConfiguration(endpoint);
+            return new RabbitMqListenerConfiguration(queue);
         }
 
         /// <summary>
@@ -99,7 +98,9 @@ namespace Wolverine.RabbitMQ
         {
             var transports = publishing.As<PublishingExpression>().Parent.Transports;
             var transport = transports.GetOrCreate<RabbitMqTransport>();
-            var exchange = transport.EndpointForExchange(exchangeName);
+            var corrected = transport.MaybeCorrectName(exchangeName);
+            var exchange = transport.EndpointForExchange(corrected);
+            exchange.EndpointName = exchangeName;
             exchange.ExchangeType = ExchangeType.Topic;
             
             var topicEndpoint = exchange.Topics[topicName];
@@ -131,12 +132,10 @@ namespace Wolverine.RabbitMQ
             
             configure?.Invoke(queue);
 
-            var endpoint = transport.EndpointForQueue(queueName);
-
             // This is necessary unfortunately to hook up the subscription rules
-            publishing.To(endpoint.Uri);
+            publishing.To(queue.Uri);
 
-            return new RabbitMqSubscriberConfiguration(endpoint);
+            return new RabbitMqSubscriberConfiguration(queue);
         }
 
         /// <summary>

@@ -19,6 +19,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
     {
         _parent = parent;
         QueueName = queueName;
+        EndpointName = queueName;
     }
     
     /// <summary>

@@ -25,6 +25,15 @@ namespace Wolverine.RabbitMQ.Internal
             Queues = new(name => new RabbitMqQueue(name, this));
 
             Exchanges = new(name => new RabbitMqExchange(name, this));
+
+            Topics = new(uri =>
+            {
+                if (uri.Host != RabbitMqEndpoint.TopicSegment) throw new ArgumentOutOfRangeException(nameof(uri));
+                var exchangeName = uri.Segments[1].TrimEnd('/');
+                var exchange = Exchanges[exchangeName];
+                exchange.ExchangeType = ExchangeType.Topic;
+                return new RabbitMqTopicEndpoint(uri.Segments.Last(), exchange, this);
+            });
         }
 
         public override ValueTask ConnectAsync(IWolverineRuntime logger)
@@ -43,6 +52,7 @@ namespace Wolverine.RabbitMQ.Internal
 
         public IList<AmqpTcpEndpoint> AmqpTcpEndpoints { get; } = new List<AmqpTcpEndpoint>();
 
+        public LightweightCache<Uri, RabbitMqTopicEndpoint> Topics { get; }
         public LightweightCache<string, RabbitMqExchange> Exchanges { get; }
 
         public LightweightCache<string, RabbitMqQueue> Queues { get; }
@@ -86,6 +96,9 @@ namespace Wolverine.RabbitMQ.Internal
                 
                 case RabbitMqEndpoint.ExchangeSegment:
                     return Exchanges[name];
+                
+                case RabbitMqEndpoint.TopicSegment:
+                    return Topics[uri];
                 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(uri), $"Invalid Rabbit MQ object type '{type}'");

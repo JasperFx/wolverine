@@ -6,7 +6,6 @@ using RabbitMQ.Client;
 using Shouldly;
 using Wolverine.RabbitMQ.Internal;
 using Xunit;
-using ExchangeType = Wolverine.RabbitMQ.ExchangeType;
 
 namespace Wolverine.RabbitMQ.Tests.Internals
 {
@@ -28,6 +27,13 @@ namespace Wolverine.RabbitMQ.Tests.Internals
             exchange.IsDurable.ShouldBeTrue();
         }
 
+        [Fact]
+        public void default_endpoint_name_is_exchange_name()
+        {
+            var exchange = new RabbitMqExchange("foo", new RabbitMqTransport());
+            exchange.EndpointName.ShouldBe(exchange.ExchangeName);
+        }
+        
         [Fact]
         public void uri_construction()
         {
