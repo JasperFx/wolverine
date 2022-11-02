@@ -17,12 +17,14 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v1
         with:
-          node-version: 15.x
+          node-version: 16.x
 
       - name: Build & Deploy docs
+        run: ./build.sh --no-color publish-docs
+        if: ${{ github.ref == 'refs/heads/master' }}
         env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        run: ./build.sh --no-color publish-docs-gh-actions
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
       - name: Generate Algolia DocSearch index
         uses: darrenjennings/algolia-docsearch-action@master

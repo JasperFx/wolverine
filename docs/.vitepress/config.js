@@ -26,8 +26,8 @@ export default withMermaid({
         ],
 
         algolia: {
-            appId: '2V5OM390DF',
-            apiKey: '674cd4f3e6b6ebe232a980c7cc5a0270',
+            appId: 'IS2ZRHIXW9',
+            apiKey: 'c8a9f5cb4e0f80733d0dadb4ae8d06ad',
             indexName: 'wolverine_index'
         },
 

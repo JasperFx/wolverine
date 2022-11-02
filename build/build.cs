@@ -95,8 +95,11 @@ namespace build
 
             Target("docs-build", DependsOn("install", "install-mdsnippets"), () => {
                 // Run docs site
-                RunNpm("run docs-build");
+                RunNpm("run docs:build");
             });
+
+            Target("publish-docs", DependsOn("docs-build"), () =>
+                Run("npm", "run docs:publish"));
 
             Target("clear-inline-samples", () => {
                 var files = Directory.GetFiles("./docs", "*.md", SearchOption.AllDirectories);
@@ -114,32 +117,6 @@ namespace build
                     var updatedContent = Regex.Replace(content, pattern, replacePattern);
                     File.WriteAllText(file, updatedContent);
                 }
-            });
-
-            Target("publish-docs", DependsOn("docs-build"), () =>
-            {
-                var docTargetDir = "doc-target";
-                var branchName = "master";
-                Run("git", $"clone -b {branchName} {GITHUB_REPO} {InitializeDirectory(docTargetDir)}");
-                // if you are not using git --global config, un-comment the block below, update and use it
-                // Run("git", "config user.email user_email", docTargetDir);
-                // Run("git", "config user.name user_name", docTargetDir);
-
-                // Clean off all the files in the doc-target directory
-                foreach (var file in Directory.EnumerateFiles(docTargetDir))
-                {
-                    if (Path.GetFileName(file) == ".nojekyll") continue;
-
-                    File.Delete(file);
-                }
-
-                var buildDir = Path.Combine(Environment.CurrentDirectory, "docs", ".vitepress", "dist");
-
-                CopyFilesRecursively(buildDir, docTargetDir);
-
-                Run("git", "add --all", docTargetDir);
-                Run("git", $"commit -a -m \"Documentation Update for {BUILD_VERSION}\" --allow-empty", docTargetDir);
-                Run("git", $"push origin {branchName}", docTargetDir);
             });
             
 
