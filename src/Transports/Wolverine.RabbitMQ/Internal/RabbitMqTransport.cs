@@ -36,14 +36,18 @@ namespace Wolverine.RabbitMQ.Internal
             });
         }
 
-        public override ValueTask ConnectAsync(IWolverineRuntime logger)
+        public override ValueTask ConnectAsync(IWolverineRuntime runtime)
         {
+            Callback = new RabbitMqChannelCallback(runtime.Logger, runtime.Advanced.Cancellation);
+            
             // TODO -- log the connection
             _listenerConnection ??= BuildConnection();
             _sendingConnection ??= BuildConnection();
             
             return ValueTask.CompletedTask;
         }
+
+        internal RabbitMqChannelCallback Callback { get; private set; }
 
         internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
         internal IConnection SendingConnection => _sendingConnection ??= BuildConnection();
@@ -64,6 +68,8 @@ namespace Wolverine.RabbitMQ.Internal
 
             _sendingConnection?.Close();
             _sendingConnection?.SafeDispose();
+            
+            Callback?.SafeDispose();
         }
 
         protected override IEnumerable<RabbitMqEndpoint> endpoints()

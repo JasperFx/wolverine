@@ -39,7 +39,10 @@ internal class BufferedSendingAgent : SendingAgent
         var toRetry = _queued.Where(x => !x.IsExpired()).ToArray();
         _queued.Clear();
 
-        foreach (var envelope in toRetry) await _senderDelegate(envelope);
+        foreach (var envelope in toRetry)
+        {
+            await _sending.PostAsync(envelope);
+        }
     }
 
     public override Task MarkSuccessfulAsync(OutgoingMessageBatch outgoing)
@@ -57,7 +60,7 @@ internal class BufferedSendingAgent : SendingAgent
         using var activity = WolverineTracing.StartSending(envelope);
         try
         {
-            await _senderDelegate(envelope);
+            await _sending.PostAsync(envelope);
         }
         finally
         {

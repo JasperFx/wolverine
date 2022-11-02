@@ -1,21 +1,33 @@
+using System;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Wolverine.Transports;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RabbitMQ.Internal
 {
-    public class RabbitMqChannelCallback : IChannelCallback
+    internal class RabbitMqChannelCallback : IChannelCallback, IDisposable
     {
-        public static readonly RabbitMqChannelCallback Instance = new();
+        private readonly RetryBlock<RabbitMqEnvelope> _complete;
+        private readonly RetryBlock<RabbitMqEnvelope> _defer;
 
-        private RabbitMqChannelCallback()
+        internal RabbitMqChannelCallback(ILogger logger, CancellationToken cancellationToken)
         {
+            _complete = new RetryBlock<RabbitMqEnvelope>((e, _) =>
+            {
+                e.Complete();
+                return Task.CompletedTask;
+            }, logger, cancellationToken);
+
+            _defer = new RetryBlock<RabbitMqEnvelope>((e, _) => e.DeferAsync().AsTask(), logger, cancellationToken);
         }
 
         public ValueTask CompleteAsync(Envelope envelope)
         {
             if (envelope is RabbitMqEnvelope e)
             {
-                e.Complete();
+                return new ValueTask(_complete.PostAsync(e));
             }
 
             return ValueTask.CompletedTask;
@@ -25,10 +37,16 @@ namespace Wolverine.RabbitMQ.Internal
         {
             if (envelope is RabbitMqEnvelope e)
             {
-                return e.DeferAsync();
+                return new ValueTask(_defer.PostAsync(e));
             }
 
             return ValueTask.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            _complete.Dispose();
+            _defer.Dispose();
         }
     }
 }

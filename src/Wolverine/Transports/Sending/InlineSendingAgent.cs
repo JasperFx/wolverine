@@ -1,44 +1,59 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
-internal class InlineSendingAgent : ISendingAgent
+internal class InlineSendingAgent : ISendingAgent, IDisposable
 {
-    private readonly IMessageLogger _logger;
     private readonly ISender _sender;
     private readonly AdvancedSettings _settings;
+    private readonly RetryBlock<Envelope> _sending;
 
-    public InlineSendingAgent(ISender sender, Endpoint endpoint, IMessageLogger logger, AdvancedSettings settings)
+    public InlineSendingAgent(ILogger logger, ISender sender, Endpoint endpoint, IMessageLogger messageLogger,
+        AdvancedSettings settings)
     {
         _sender = sender;
-        _logger = logger;
         _settings = settings;
         Endpoint = endpoint;
+
+        _sending = new RetryBlock<Envelope>(async (e, _) =>
+        {
+            using var activity = WolverineTracing.StartSending(e);
+            try
+            {
+                await _sender.SendAsync(e);
+                messageLogger.Sent(e);
+            }
+            finally
+            {
+                activity?.Stop();
+            }
+        }, logger, _settings.Cancellation);
+    }
+
+    public void Dispose()
+    {
+        _sending.Dispose();
     }
 
     public Uri Destination => _sender.Destination;
     public Uri? ReplyUri { get; set; }
-    public bool Latched { get; } = false;
-    public bool IsDurable { get; } = false;
+    public bool Latched => false;
+    public bool IsDurable => false;
     public bool SupportsNativeScheduledSend => _sender.SupportsNativeScheduledSend;
 
     public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
         setDefaults(envelope);
 
-        using var activity = WolverineTracing.StartSending(envelope);
-
-        // TODO -- need to harden this for ephemeral failures
-        await _sender.SendAsync(envelope);
-        _logger.Sent(envelope);
-
-        activity?.Stop();
+        await _sending.PostAsync(envelope);
     }
-
+    
     public ValueTask StoreAndForwardAsync(Envelope envelope)
     {
         return EnqueueOutgoingAsync(envelope);

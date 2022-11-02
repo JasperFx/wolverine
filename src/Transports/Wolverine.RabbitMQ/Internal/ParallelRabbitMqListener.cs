@@ -12,6 +12,7 @@ namespace Wolverine.RabbitMQ.Internal
     internal class ParallelRabbitMqListener : IListener, IDisposable
     {
         private readonly IList<RabbitMqListener> _listeners = new List<RabbitMqListener>();
+        private readonly RabbitMqChannelCallback _callback;
 
         public ParallelRabbitMqListener(IWolverineRuntime logger,
             RabbitMqQueue endpoint, RabbitMqTransport transport, IReceiver receiver)
@@ -22,6 +23,8 @@ namespace Wolverine.RabbitMQ.Internal
                 var listener = new RabbitMqListener(logger, endpoint, transport, receiver);
                 _listeners.Add(listener);
             }
+
+            _callback = transport.Callback;
         }
 
         public void Dispose()
@@ -54,12 +57,12 @@ namespace Wolverine.RabbitMQ.Internal
 
         public ValueTask CompleteAsync(Envelope envelope)
         {
-            return RabbitMqChannelCallback.Instance.CompleteAsync(envelope);
+            return _callback.CompleteAsync(envelope);
         }
 
         public ValueTask DeferAsync(Envelope envelope)
         {
-            return RabbitMqChannelCallback.Instance.DeferAsync(envelope);
+            return _callback.DeferAsync(envelope);
         }
     }
 }

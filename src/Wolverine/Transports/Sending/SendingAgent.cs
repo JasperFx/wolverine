@@ -7,6 +7,7 @@ using Baseline;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
@@ -15,10 +16,8 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
     private readonly ILogger _logger;
     private readonly IMessageLogger _messageLogger;
     protected readonly ISender _sender;
-
-    protected readonly Func<Envelope, Task> _senderDelegate;
-
-    private readonly ActionBlock<Envelope> _sending;
+    
+    protected readonly RetryBlock<Envelope> _sending;
     protected readonly AdvancedSettings _settings;
     private CircuitWatcher? _circuitWatcher;
     private int _failureCount;
@@ -33,14 +32,11 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
         _settings = settings;
         Endpoint = endpoint;
 
-        _senderDelegate = sendWithExplicitHandlingAsync;
-        if (_sender is ISenderRequiresCallback)
-        {
-            _senderDelegate = sendWithCallbackHandlingAsync;
-        }
+        Func<Envelope, CancellationToken, Task> senderDelegate = _sender is ISenderRequiresCallback
+            ? sendWithCallbackHandlingAsync
+            : sendWithExplicitHandlingAsync;
 
-
-        _sending = new ActionBlock<Envelope>(_senderDelegate, Endpoint.ExecutionOptions);
+        _sending = new RetryBlock<Envelope>(senderDelegate, logger, _settings.Cancellation, Endpoint.ExecutionOptions);
     }
 
     public Task<bool> TryToResumeAsync(CancellationToken cancellationToken)
@@ -50,16 +46,35 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
     TimeSpan ISenderCircuit.RetryInterval => Endpoint.PingIntervalForCircuitResume;
 
-    Task ISenderCircuit.ResumeAsync(CancellationToken cancellationToken)
+    async Task ISenderCircuit.ResumeAsync(CancellationToken cancellationToken)
     {
         _circuitWatcher?.SafeDispose();
         _circuitWatcher = null;
 
         Unlatch();
 
-        return afterRestartingAsync(_sender);
+        await executeWithRetriesAsync(() => afterRestartingAsync(_sender));
     }
-
+    
+    protected async Task executeWithRetriesAsync(Func<Task> action)
+    {
+        var i = 0;
+        while (true)
+        {
+            try
+            {
+                await action().ConfigureAwait(false);
+                return;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unexpected failure");
+                i++;
+                await Task.Delay(i * 100).ConfigureAwait(false);
+            }
+        }
+    }
+    
 
     Task ISenderCallback.MarkTimedOutAsync(OutgoingMessageBatch outgoing)
     {
@@ -115,13 +130,11 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
     public bool Latched { get; private set; }
     public abstract bool IsDurable { get; }
 
-    public ValueTask EnqueueOutgoingAsync(Envelope envelope)
+    public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
         setDefaults(envelope);
-        _sending.Post(envelope);
+        await _sending.PostAsync(envelope);
         _messageLogger.Sent(envelope);
-
-        return ValueTask.CompletedTask;
     }
 
     public async ValueTask StoreAndForwardAsync(Envelope envelope)
@@ -148,16 +161,25 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
     public abstract Task MarkSuccessfulAsync(Envelope outgoing);
 
-    public Task LatchAndDrainAsync()
+    public async Task LatchAndDrainAsync()
     {
         Latched = true;
 
-        _sending.Complete();
+        try
+        {
+            await drainOtherAsync();
+            await _sending.DrainAsync();
+            
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error while trying to drain the outgoing sender for {Uri}", Destination);
+        }
 
         _logger.CircuitBroken(Destination);
-
-        return Task.CompletedTask;
     }
+
+    protected virtual Task drainOtherAsync() => Task.CompletedTask;
 
     public void Unlatch()
     {
@@ -166,7 +188,7 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
         Latched = false;
     }
 
-    private async Task sendWithCallbackHandlingAsync(Envelope envelope)
+    private async Task sendWithCallbackHandlingAsync(Envelope envelope, CancellationToken token)
     {
         try
         {
@@ -185,7 +207,7 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
         }
     }
 
-    private async Task sendWithExplicitHandlingAsync(Envelope envelope)
+    private async Task sendWithExplicitHandlingAsync(Envelope envelope, CancellationToken token)
     {
         try
         {
@@ -228,9 +250,7 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
         {
             foreach (var envelope in batch.Messages)
             {
-#pragma warning disable 4014
-                _senderDelegate(envelope);
-#pragma warning restore 4014
+                await _sending.PostAsync(envelope);
             }
         }
     }
@@ -261,11 +281,13 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
         return markFailedAsync(batch);
     }
 
-    public ValueTask DisposeAsync()
+    public virtual ValueTask DisposeAsync()
     {
         if (_sender is IAsyncDisposable ad) return ad.DisposeAsync();
 
         if (_sender is IDisposable d) d.SafeDispose();
+
+        _sending.Dispose();
 
         return ValueTask.CompletedTask;
     }

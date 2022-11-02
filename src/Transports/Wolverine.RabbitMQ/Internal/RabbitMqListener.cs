@@ -17,6 +17,7 @@ namespace Wolverine.RabbitMQ.Internal
         private IReceiver _receiver;
         private CancellationToken _cancellation = CancellationToken.None;
         private WorkerQueueMessageConsumer? _consumer;
+        private readonly RabbitMqChannelCallback _callback;
 
         public RabbitMqListener(IWolverineRuntime runtime,
             RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection, runtime.Logger)
@@ -46,6 +47,8 @@ namespace Wolverine.RabbitMQ.Internal
             Channel!.BasicQos(Queue.PreFetchSize, Queue.PreFetchCount, false);
 
             Channel.BasicConsume(_consumer, _routingKey);
+
+            _callback = transport.Callback;
         }
 
         public void Stop()
@@ -93,14 +96,15 @@ namespace Wolverine.RabbitMQ.Internal
 
         public ValueTask CompleteAsync(Envelope envelope)
         {
-            return RabbitMqChannelCallback.Instance.CompleteAsync(envelope);
+            return _callback.CompleteAsync(envelope);
         }
 
         public ValueTask DeferAsync(Envelope envelope)
         {
-            return RabbitMqChannelCallback.Instance.DeferAsync(envelope);
+            return _callback.DeferAsync(envelope);
         }
 
+        // TODO -- need to put a retry on this!!!!
         public ValueTask RequeueAsync(RabbitMqEnvelope envelope)
         {
             if (!envelope.Acknowledged)

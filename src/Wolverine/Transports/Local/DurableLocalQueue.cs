@@ -11,6 +11,7 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports.Sending;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Local;
 
@@ -24,6 +25,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     private readonly ILogger _logger;
     private Restarter? _restarter;
     private readonly WolverineRuntime _runtime;
+    private readonly RetryBlock<Envelope> _storeAndEnqueue;
 
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -53,6 +55,8 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         }
 
         _receiver = new DurableReceiver(endpoint, runtime, Pipeline);
+
+        _storeAndEnqueue = new RetryBlock<Envelope>((e, _) => storeAndEnqueueAsync(e), _logger, _runtime.Cancellation);
     }
 
     public IHandlerPipeline Pipeline { get; }
@@ -95,10 +99,12 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public async ValueTask StoreAndForwardAsync(Envelope envelope)
     {
-        _messageLogger.Sent(envelope);
+        // Try this first, let everything fail if it fails, don't want to log
         writeMessageData(envelope);
+        
+        _messageLogger.Sent(envelope);
 
-        // TODO -- have to watch this one
+        // TODO -- have to watch this one. Law of demeter violation
         envelope.Status = envelope.IsScheduledForLater(DateTimeOffset.UtcNow)
             ? EnvelopeStatus.Scheduled
             : EnvelopeStatus.Incoming;
@@ -112,6 +118,11 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             envelope.OwnerId = TransportConstants.AnyNode;
         }
 
+        await _storeAndEnqueue.PostAsync(envelope);
+    }
+
+    private async Task storeAndEnqueueAsync(Envelope envelope)
+    {
         try
         {
             await _persistence.StoreIncomingAsync(envelope);
@@ -119,7 +130,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         catch (DuplicateIncomingEnvelopeException e)
         {
             _logger.LogError(e, "Duplicate incoming envelope detected");
-            return; // Duplicate envelope, get out of here.
+            return;
         }
 
         if (Latched) return;
@@ -130,7 +141,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         }
     }
 
-    public bool SupportsNativeScheduledSend { get; } = true;
+    public bool SupportsNativeScheduledSend => true;
 
 
     private void writeMessageData(Envelope envelope)
@@ -152,6 +163,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _receiver?.SafeDispose();
         CircuitBreaker?.SafeDispose();
         _receiver?.SafeDispose();
+        _storeAndEnqueue.SafeDispose();
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
@@ -160,7 +172,14 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         if (_receiver != null)
         {
-            await _receiver.DrainAsync();
+            try
+            {
+                await _receiver.DrainAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to drain in flight messages for {Uri}", Destination);
+            }
         }
 
         _receiver = null;
@@ -197,9 +216,10 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         return _receiver!.ReceivedAsync(listener, envelope);
     }
 
-    ValueTask IReceiver.DrainAsync()
+    async ValueTask IReceiver.DrainAsync()
     {
-        return _receiver!.DrainAsync();
+        await _storeAndEnqueue.DrainAsync();
+        await _receiver!.DrainAsync();
     }
 
     void ILocalQueue.Enqueue(Envelope envelope)

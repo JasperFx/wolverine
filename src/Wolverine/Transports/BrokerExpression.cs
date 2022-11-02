@@ -82,7 +82,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
             var configuration = createListenerExpression(e);
             configure(configuration);
 
-            configuration.As<IDelayedEndpointConfiguration>().Apply();
+            configuration!.As<IDelayedEndpointConfiguration>().Apply();
         });
         
         Options.Policies.Add(policy);
@@ -107,7 +107,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
             var configuration = createSubscriberExpression(e);
             configure(configuration);
 
-            configuration.As<IDelayedEndpointConfiguration>().Apply();
+            configuration!.As<IDelayedEndpointConfiguration>().Apply();
         });
         
         Options.Policies.Add(policy);

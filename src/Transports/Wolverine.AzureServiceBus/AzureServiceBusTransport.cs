@@ -89,7 +89,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
     public ServiceBusClient BusClient => _busClient.Value;
 
-    public override ValueTask ConnectAsync(IWolverineRuntime logger)
+    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         // we're going to use a client per endpoint
         return ValueTask.CompletedTask;

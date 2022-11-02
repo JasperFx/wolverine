@@ -1,4 +1,5 @@
 using Azure.Messaging.ServiceBus;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -23,18 +24,27 @@ public class AzureServiceBusSenderProtocol : ISenderProtocol
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
         await _endpoint.InitializeAsync(_runtime.Logger);
-        
-        var outgoing = batch.Messages.Select(env =>
-        {
-            var message = new ServiceBusMessage();
-            _mapper.MapEnvelopeToOutgoing(env, message);
 
-            return message;
-        });
+        var messages = new List<ServiceBusMessage>();
+
+        foreach (var envelope in batch.Messages)
+        {
+            try
+            {
+                var message = new ServiceBusMessage();
+                _mapper.MapEnvelopeToOutgoing(envelope, message);
+
+                messages.Add(message);
+            }
+            catch (Exception e)
+            {
+                _runtime.Logger.LogError(e, "Error trying to translate envelope {Envelope} to a ServiceBusMessage object. Message will be discarded.", envelope);
+            }
+        }
 
         try
         {
-            await _sender.SendMessagesAsync(outgoing, _runtime.Cancellation);
+            await _sender.SendMessagesAsync(messages, _runtime.Cancellation);
             await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception e)

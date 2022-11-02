@@ -71,7 +71,7 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
         return true;
     }
 
-    public abstract ValueTask ConnectAsync(IWolverineRuntime logger);
+    public abstract ValueTask ConnectAsync(IWolverineRuntime runtime);
     public abstract IEnumerable<PropertyColumn> DiagnosticColumns();
 
     public sealed override async ValueTask InitializeAsync(IWolverineRuntime runtime)

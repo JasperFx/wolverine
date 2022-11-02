@@ -7,6 +7,7 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
@@ -20,6 +21,11 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
     // These members are for draining
     private bool _latched;
+    private readonly RetryBlock<Envelope> _markAsHandled;
+    private readonly RetryBlock<Envelope> _incrementAttempts;
+    private readonly RetryBlock<ErrorReport> _moveToErrors;
+    private readonly RetryBlock<Envelope> _scheduleExecution;
+    private readonly RetryBlock<Envelope> _receivingOne;
 
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
@@ -52,6 +58,15 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
                 _logger.LogError(e, "Unexpected pipeline invocation error");
             }
         }, endpoint.ExecutionOptions);
+
+        _markAsHandled = new RetryBlock<Envelope>((e, _) => _persistence.MarkIncomingEnvelopeAsHandledAsync(e), _logger, _settings.Cancellation);
+        _incrementAttempts = new RetryBlock<Envelope>((e, _) => _persistence.IncrementIncomingEnvelopeAttemptsAsync(e), _logger, _settings.Cancellation);
+        _scheduleExecution = new RetryBlock<Envelope>((e, _) => _persistence.ScheduleExecutionAsync(new []{e}), _logger, _settings.Cancellation);
+        _moveToErrors = new RetryBlock<ErrorReport>(
+            (report, _) => _persistence.MoveToDeadLetterStorageAsync(new[] { report }), _logger,
+            _settings.Cancellation);
+
+        _receivingOne = new RetryBlock<Envelope>((e, _) => receiveOneAsync(e), _logger, _settings.Cancellation);
     }
 
     public Uri Uri { get; }
@@ -60,20 +75,29 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     {
         _receiver.Complete();
         await _receiver.Completion;
+        
+        _incrementAttempts.Dispose();
+        _scheduleExecution.Dispose();
+        _markAsHandled.Dispose();
+        _moveToErrors.Dispose();
+        _receivingOne.Dispose();
     }
 
-    public async ValueTask CompleteAsync(Envelope envelope)
+
+
+    public ValueTask CompleteAsync(Envelope envelope)
     {
-        await executeWithRetriesAsync(() => _persistence.MarkIncomingEnvelopeAsHandledAsync(envelope));
+        return new ValueTask(_markAsHandled.PostAsync(envelope));
+        
     }
 
-    public async ValueTask DeferAsync(Envelope envelope)
+    public ValueTask DeferAsync(Envelope envelope)
     {
         envelope.Attempts++;
 
         Enqueue(envelope);
 
-        await executeWithRetriesAsync(() => _persistence.IncrementIncomingEnvelopeAttemptsAsync(envelope));
+        return new ValueTask(_incrementAttempts.PostAsync(envelope));
     }
 
     public int QueueCount => _receiver.InputCount;
@@ -109,26 +133,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             var now = DateTimeOffset.UtcNow;
             envelope.MarkReceived(listener, now, _settings);
 
-            try
-            {
-                await _persistence.StoreIncomingAsync(envelope);
-            }
-            catch (DuplicateIncomingEnvelopeException e)
-            {
-                _logger.LogError(e, "Duplicate incoming envelope detected");
-
-                await listener.CompleteAsync(envelope);
-                return; // Duplicate envelope, get out of here.
-            }
-
-            if (envelope.Status == EnvelopeStatus.Incoming)
-            {
-                Enqueue(envelope);
-            }
-
-            await listener.CompleteAsync(envelope);
-
-            _logger.IncomingReceived(envelope, Uri);
+            await _receivingOne.PostAsync(envelope);
         }
         finally
         {
@@ -136,11 +141,39 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         }
     }
 
+    private async Task receiveOneAsync(Envelope envelope)
+    {
+        try
+        {
+            await _persistence.StoreIncomingAsync(envelope);
+        }
+        catch (DuplicateIncomingEnvelopeException e)
+        {
+            _logger.LogError(e, "Duplicate incoming envelope detected");
+
+            await envelope.Listener!.CompleteAsync(envelope);
+        }
+
+        if (envelope.Status == EnvelopeStatus.Incoming)
+        {
+            Enqueue(envelope);
+        }
+
+        _logger.IncomingReceived(envelope, Uri);
+        await envelope.Listener!.CompleteAsync(envelope);
+    }
+
     public async ValueTask DrainAsync()
     {
         _latched = true;
         _receiver.Complete();
         await _receiver.Completion;
+
+        await _incrementAttempts.DrainAsync();
+        await _scheduleExecution.DrainAsync();
+        await _markAsHandled.DrainAsync();
+        await _moveToErrors.DrainAsync();
+        await _receivingOne.DrainAsync();
 
         await executeWithRetriesAsync(async () =>
         {
@@ -153,13 +186,14 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     {
         // Might need to drain the block
         _receiver.Complete();
+        
     }
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         var errorReport = new ErrorReport(envelope, exception);
 
-        return executeWithRetriesAsync(() => _persistence.MoveToDeadLetterStorageAsync(new[] { errorReport }));
+        return _moveToErrors.PostAsync(errorReport);
     }
 
     public Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
@@ -168,9 +202,9 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         envelope.ScheduledTime = time;
         envelope.Status = EnvelopeStatus.Scheduled;
 
-        return executeWithRetriesAsync(() => _persistence.ScheduleExecutionAsync(new[] { envelope }));
+        return _scheduleExecution.PostAsync(envelope);
     }
-
+    
     private async Task executeWithRetriesAsync(Func<Task> action)
     {
         var i = 0;
@@ -198,15 +232,38 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             throw new OperationCanceledException();
         }
 
-        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings);
-
-        await _persistence.StoreIncomingAsync(envelopes);
-
-        foreach (var message in envelopes)
+        foreach (var envelope in envelopes)
         {
-            Enqueue(message);
-            await listener.CompleteAsync(message);
+            envelope.MarkReceived(listener, now, _settings);
         }
+
+        bool batchSucceeded = false;
+        try
+        {
+            await _persistence.StoreIncomingAsync(envelopes);
+            batchSucceeded = true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to persist incoming envelopes at {Uri}", Uri);
+            
+            // Use finer grained retries on one envelope at a time, and this will also deal with
+            // duplicate detection
+            foreach (var envelope in envelopes)
+            {
+                await _receivingOne.PostAsync(envelope);
+            }
+        }
+
+        if (batchSucceeded)
+        {
+            foreach (var message in envelopes)
+            {
+                Enqueue(message);
+                await listener.CompleteAsync(message);
+            }
+        }
+
 
         _logger.IncomingBatchReceived(Uri, envelopes);
     }

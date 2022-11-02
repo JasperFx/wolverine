@@ -128,13 +128,6 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         return Task.CompletedTask;
     }
 
-    public void Unlatch()
-    {
-        _logger.CircuitResumed(Destination);
-
-        Latched = false;
-    }
-
     public async Task SendBatchAsync(OutgoingMessageBatch batch)
     {
         if (_cancellation.IsCancellationRequested)

@@ -101,11 +101,18 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         if (Status == ListeningStatus.Stopped) return;
         if (_listener == null) return;
 
-        await _listener.StopAsync();
-        await _receiver!.DrainAsync();
+        try
+        {
+            await _listener.StopAsync();
+            await _receiver!.DrainAsync();
 
-        await _listener.DisposeAsync();
-        _receiver?.Dispose();
+            await _listener.DisposeAsync();
+            _receiver?.Dispose();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to stop and drain the listener for {Uri}", Uri);
+        }
 
         _listener = null;
         _receiver = null;
@@ -133,7 +140,14 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
     {
-        await StopAndDrainAsync();
+        try
+        {
+            await StopAndDrainAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to drain outstanding messages in the listener for {Uri}", Uri);
+        }
 
         _circuitBreaker?.Reset();
 
@@ -146,8 +160,15 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     public async ValueTask MarkAsTooBusyAndStopReceivingAsync()
     {
         if (Status != ListeningStatus.Accepting || _listener == null) return;
-        await _listener.StopAsync();
-        await _listener.DisposeAsync();
+        try
+        {
+            await _listener.StopAsync();
+            await _listener.DisposeAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to cleanly stop the listener for {Uri}", Uri);
+        }
         _listener = null;
         
         Status = ListeningStatus.TooBusy;

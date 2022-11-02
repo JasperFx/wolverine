@@ -41,7 +41,7 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
     /// with an empty list of messages. Default is 5 seconds.
     /// </summary>
     public TimeSpan MaximumWaitTime { get; set; } = 5.Seconds();
-
+    
 
     public AzureServiceBusEndpoint(AzureServiceBusTransport parent, Uri uri, EndpointRole role) : base(uri, role)
     {

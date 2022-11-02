@@ -61,7 +61,7 @@ public class FakeTransport : BrokerTransport<FakeEndpoint>
         throw new NotImplementedException();
     }
 
-    public override ValueTask ConnectAsync(IWolverineRuntime logger)
+    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         throw new NotImplementedException();
     }

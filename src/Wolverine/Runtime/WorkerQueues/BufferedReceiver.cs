@@ -20,7 +20,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
-        Address = endpoint.Uri;
+        Uri = endpoint.Uri;
         _logger = runtime.Logger;
         _settings = runtime.Advanced;
         Pipeline = pipeline;
@@ -65,7 +65,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public IHandlerPipeline Pipeline { get; }
 
-    public Uri Address { get; }
+    public Uri Uri { get; }
 
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
@@ -80,11 +80,20 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             return;
         }
 
-        var nativelyRequeued = await envelope.Listener.TryRequeueAsync(envelope);
-        if (!nativelyRequeued)
+        try
         {
+            var nativelyRequeued = await envelope.Listener.TryRequeueAsync(envelope);
+            if (!nativelyRequeued)
+            {
+                Enqueue(envelope);
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to use native dead letter queue for {Uri}", Uri);
             Enqueue(envelope);
         }
+
     }
 
     Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
@@ -134,7 +143,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             await listener.CompleteAsync(envelope);
         }
 
-        _logger.IncomingBatchReceived(Address, messages);
+        _logger.IncomingBatchReceived(Uri, messages);
     }
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
@@ -158,7 +167,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         await listener.CompleteAsync(envelope);
 
-        _logger.IncomingReceived(envelope, Address);
+        _logger.IncomingReceived(envelope, Uri);
     }
 
     public void Dispose()

@@ -151,7 +151,7 @@ public class EndpointCollection : IEndpointCollection
                 return new BufferedSendingAgent(_runtime.Logger, _runtime.MessageLogger, sender, _runtime.Advanced, endpoint);
 
             case EndpointMode.Inline:
-                return new InlineSendingAgent(sender, endpoint, _runtime.MessageLogger, _runtime.Advanced);
+                return new InlineSendingAgent(_runtime.Logger, sender, endpoint, _runtime.MessageLogger, _runtime.Advanced);
         }
 
         throw new InvalidOperationException();
@@ -239,7 +239,14 @@ public class EndpointCollection : IEndpointCollection
 
         foreach (var queue in _localSenders.Enumerate().Select(x => x.Value).OfType<ILocalQueue>())
         {
-            await queue.DrainAsync();
+            try
+            {
+                await queue.DrainAsync();
+            }
+            catch (Exception e)
+            {
+                _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in local sender {Queue}", queue);
+            }
         }
     }
 }

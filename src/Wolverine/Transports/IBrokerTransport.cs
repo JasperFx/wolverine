@@ -24,7 +24,7 @@ public interface IBrokerTransport : ITransport
     /// </summary>
     string? IdentifierPrefix { get; set; }
 
-    ValueTask ConnectAsync(IWolverineRuntime logger);
+    ValueTask ConnectAsync(IWolverineRuntime runtime);
 
     /// <summary>
     /// This helps to create a diagnostic table of broker state

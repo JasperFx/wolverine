@@ -73,7 +73,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
     {
         var messageReceiver = Parent.BusClient.CreateReceiver(QueueName);
         var mapper = BuildMapper(runtime);
-        var listener = new BatchedAzureServiceBusListener(this, receiver, messageReceiver, mapper);
+        var listener = new BatchedAzureServiceBusListener(this, runtime.Logger, receiver, messageReceiver, mapper);
         
         return ValueTask.FromResult<IListener>(listener);
     }

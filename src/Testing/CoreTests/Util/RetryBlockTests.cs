@@ -1,0 +1,159 @@
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Baseline;
+using Baseline.Dates;
+using Microsoft.Extensions.Logging;
+using Wolverine.Persistence.Durability;
+using Wolverine.Util.Dataflow;
+using Xunit;
+
+namespace CoreTests.Util;
+
+public class RetryBlockTests
+{
+    private readonly SpyLogger theLogger = new SpyLogger();
+    private SometimesFailingMessageHandler theHandler;
+    private readonly RetryBlock<SometimesFailingMessage> theBlock;
+
+    public RetryBlockTests()
+    {
+        theHandler = new SometimesFailingMessageHandler();
+        theBlock = new RetryBlock<SometimesFailingMessage>(theHandler, theLogger,
+            CancellationToken.None);
+
+        theBlock.Pauses = new[] { 1.Seconds(), 3.Seconds(), 5.Seconds() };
+    }
+
+    [Fact]
+    public void get_pause()
+    {
+        theBlock.DeterminePauseTime(1).ShouldBe(1.Seconds());
+        theBlock.DeterminePauseTime(2).ShouldBe(3.Seconds());
+        theBlock.DeterminePauseTime(3).ShouldBe(5.Seconds());
+        theBlock.DeterminePauseTime(4).ShouldBe(5.Seconds());
+        theBlock.DeterminePauseTime(5).ShouldBe(5.Seconds());
+    }
+
+    [Fact]
+    public async Task run_successfully()
+    {
+        theBlock.Post(new SometimesFailingMessage(0, "Aubrey"));
+
+        await theBlock.DrainAsync();
+        
+        theLogger.Messages[LogLevel.Debug].Single()
+            .ShouldBe("Completed Name: Aubrey");
+    }
+
+    [Fact]
+    public async Task retry_within_threshold()
+    {
+        var theMessage = new SometimesFailingMessage(2, "Aubrey");
+        theBlock.Post(theMessage);
+        await theMessage.Completion;
+        
+        theLogger.Exceptions.Count.ShouldBe(2);
+        theLogger.Messages[LogLevel.Error].Count.ShouldBe(2);
+        
+        theLogger.Messages[LogLevel.Debug].Single()
+            .ShouldBe("Completed Name: Aubrey");
+    }
+
+    [Fact]
+    public async Task disregard_after_too_many_failures()
+    {
+        var theMessage = new SometimesFailingMessage(5, "Aubrey");
+        theBlock.Post(theMessage);
+
+        theBlock.Pauses = new[] { 0.Milliseconds(), 50.Milliseconds() };
+
+        int tries = 0;
+        while (tries < 10 && !theLogger.Messages[LogLevel.Information].Any())
+        {
+            tries++;
+            await Task.Delay(100.Milliseconds());
+        }
+
+        theLogger.Messages[LogLevel.Information].Single()
+            .ShouldBe("Discarding message Name: Aubrey after 3 attempts");
+    }
+}
+
+public class SometimesFailingMessageHandler : IItemHandler<SometimesFailingMessage>
+{
+
+    public Task ExecuteAsync(SometimesFailingMessage message, CancellationToken cancellation)
+    {
+        message.Attempts++;
+        if (message.Attempts <= message.Fails)
+        {
+            throw new InvalidOperationException("You cannot pass!");
+        }
+        
+        message.Complete();
+
+        return Task.CompletedTask;
+    }
+}
+
+
+public class SometimesFailingMessage
+{
+    private TaskCompletionSource<SometimesFailingMessage> _completion = new();
+
+    public SometimesFailingMessage(int fails, string name)
+    {
+        Fails = fails;
+        Name = name;
+    }
+
+    public int Fails { get; }
+    public string Name { get; }
+    public int Attempts { get; set; }
+
+    public void Complete()
+    {
+        _completion.SetResult(this);
+    }
+
+    public Task Completion => _completion.Task;
+
+    public override string ToString()
+    {
+        return $"{nameof(Name)}: {Name}";
+    }
+}
+
+public class SpyLogger : ILogger, IDisposable
+{
+    public readonly LightweightCache<LogLevel, List<string>> Messages = new(_ => new());
+    public readonly List<Exception> Exceptions = new();
+
+    public SpyLogger()
+    {
+    }
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        Messages[logLevel].Add(formatter(state, exception));
+        if (exception != null) Exceptions.Add(exception);
+    }
+
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        return true;
+    }
+
+    public IDisposable BeginScope<TState>(TState state)
+    {
+        return this;
+    }
+
+    public void Dispose()
+    {
+    }
+}

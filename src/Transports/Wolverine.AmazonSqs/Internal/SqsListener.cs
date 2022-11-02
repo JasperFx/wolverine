@@ -1,6 +1,8 @@
 using System.Text;
+using Amazon.SQS;
 using Amazon.SQS.Model;
 using Baseline;
+using Baseline.Dates;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -28,35 +30,73 @@ internal class SqsListener : IListener
 
         var headers = _mapper.AllHeaders().ToList();
 
+        int failedCount = 0;
+        
         _task = Task.Run(async () =>
         {
             while (!_cancellation.Token.IsCancellationRequested)
             {
-                // TODO -- harden like crazy
 
-                var request = new ReceiveMessageRequest(_queue.QueueUrl)
+                try
                 {
-                    MessageAttributeNames = headers,
-                };
+                    var request = new ReceiveMessageRequest(_queue.QueueUrl)
+                    {
+                        MessageAttributeNames = headers,
+                    };
 
-                _queue.ConfigureRequest(request);
+                    _queue.ConfigureRequest(request);
                 
-                var results = await _transport.Client.ReceiveMessageAsync(request, _cancellation.Token);
+                    var results = await _transport.Client.ReceiveMessageAsync(request, _cancellation.Token);
+                
+                    failedCount = 0;
 
-                if (results.Messages.Any())
-                {
-                    var envelopes = results.Messages.Select(buildEnvelope)
-                        .ToArray();
+                    if (results.Messages.Any())
+                    {
+                        var envelopes = new List<Envelope>();
+                        foreach (var message in results.Messages)
+                        {
+                            try
+                            {
+                                var envelope = buildEnvelope(message);
+                                _mapper.MapIncomingToEnvelope(envelope, message);
 
-                    // ReSharper disable once CoVariantArrayConversion
-                    await receiver.ReceivedAsync(this, envelopes);
+                                envelopes.Add(envelope);
+                            }
+                            catch (Exception e)
+                            {
+                                await tryMoveToDeadLetterQueue(_transport.Client, message);
+                                _logger.LogError(e, "Error while reading message {Id} from {Uri}", message.MessageId, _queue.Uri);
+                            }
+                        }
+
+                        // ReSharper disable once CoVariantArrayConversion
+                        if (envelopes.Any())
+                        {
+                            await receiver.ReceivedAsync(this, envelopes.ToArray());
+                        }
+                    }
+                    else
+                    {
+                        // Slow down if this is a periodically used queue
+                        await Task.Delay(250.Milliseconds());
+                    }
                 }
+                catch (Exception e)
+                {
+                    failedCount++;
+                    var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds(); 
                 
-                // TODO -- harden all of this
-                // TODO -- put a cooldown here? 
-
+                    _logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}", queue.Uri);
+                    await Task.Delay(pauseTime);
+                }
             }
         }, _cancellation.Token);
+    }
+
+    private Task tryMoveToDeadLetterQueue(IAmazonSQS client, Message message)
+    {
+        // TODO -- figure out how to do this
+        return Task.CompletedTask;
     }
 
     private AmazonSqsEnvelope buildEnvelope(Message message)

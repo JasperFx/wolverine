@@ -26,17 +26,14 @@ internal class SqsSenderProtocol : ISenderProtocol
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
         await _queue.InitializeAsync(_logger);
-        
-        var entries = batch.Messages.Select(CreateOutgoingEntry).ToList();
 
-        var request = new SendMessageBatchRequest(_queue.QueueUrl, entries);
+        var sqsBatch = new OutgoingSqsBatch(_queue, _logger, batch.Messages, _mapper);
 
         try
         {
-            var response = await _sqs.SendMessageBatchAsync(request);
-            
-            // TODO -- going to have to check the response!!!
-            await callback.MarkSuccessfulAsync(batch);
+            var response = await _sqs.SendMessageBatchAsync(sqsBatch.Request);
+
+            await sqsBatch.ProcessSuccessAsync(callback, response, batch);
         }
         catch (Exception e)
         {
@@ -44,11 +41,71 @@ internal class SqsSenderProtocol : ISenderProtocol
         }
     }
 
-    private SendMessageBatchRequestEntry CreateOutgoingEntry(Envelope x)
-    {
-        var entry = new SendMessageBatchRequestEntry(x.Id.ToString(), Encoding.Default.GetString(x.Data!));
-        _mapper.MapEnvelopeToOutgoing(x, entry);
 
-        return entry;
+}
+
+internal class OutgoingSqsBatch
+{
+    private readonly Dictionary<string, Envelope> _envelopes = new();
+    private readonly List<Envelope> _mappingFailures = new();
+    
+    public OutgoingSqsBatch(AmazonSqsQueue queue, ILogger logger, IEnumerable<Envelope> envelopes, AmazonSqsMapper mapper)
+    {
+        var entries = new List<SendMessageBatchRequestEntry>();
+        foreach (var envelope in envelopes)
+        {
+            try
+            {
+                var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(), Encoding.Default.GetString(envelope.Data!));
+                mapper.MapEnvelopeToOutgoing(envelope, entry);
+                entries.Add(entry);
+                _envelopes.Add(entry.Id, envelope);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Error while mapping envelope {Envelope} to an SQS SendMessageBatchRequestEntry", envelope);
+                _mappingFailures.Add(envelope);
+            }
+        }
+        
+        Request = new SendMessageBatchRequest(queue.QueueUrl, entries);
+    }
+
+    public SendMessageBatchRequest Request { get; }
+
+
+    public async Task ProcessSuccessAsync(ISenderCallback callback, SendMessageBatchResponse response, OutgoingMessageBatch batch)
+    {
+        if (!response.Failed.Any())
+        {
+            await callback.MarkSuccessfulAsync(batch);
+        }
+        else
+        {
+            var fails = response.Failed.Select(x =>
+            {
+                if (_envelopes.TryGetValue(x.Id, out var env))
+                {
+                    return env;
+                }
+
+                return null;
+            }).Where(x => x != null).ToArray();
+            
+            var successes = response.Successful.Select(x =>
+            {
+                if (_envelopes.TryGetValue(x.Id, out var env))
+                {
+                    return env;
+                }
+
+                return null;
+            }).Where(x => x != null).ToArray();
+
+            await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination,
+                successes.Concat(_mappingFailures).ToList()));
+
+            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, fails));
+        }
     }
 }

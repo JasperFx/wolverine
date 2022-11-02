@@ -46,6 +46,7 @@ namespace Wolverine.RabbitMQ.Tests
 
             var wolverineRuntime = Substitute.For<IWolverineRuntime>();
             wolverineRuntime.Logger.Returns(NullLogger.Instance);
+            wolverineRuntime.Advanced.Returns(new AdvancedSettings(null));
             theTransport.TryBuildStatefulResource(wolverineRuntime, out var resource);
 
             theResource = resource;
