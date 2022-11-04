@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Baseline;
 using Baseline.Reflection;
+using FastExpressionCompiler;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Util;
@@ -192,8 +193,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
         var lambda = Expression.Lambda<Action<Envelope, TIncoming>>(block, envelope, incoming);
 
-        // TODO -- add FastExpressionCompiler!!!
-        return lambda.Compile();
+        return lambda.CompileFast();
     }
 
     private Action<Envelope, TOutgoing> compileOutgoing()
@@ -275,8 +275,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
         var lambda = Expression.Lambda<Action<Envelope, TOutgoing>>(block, envelope, outgoing);
 
-        // TODO -- add FastExpressionCompiler!!!
-        return lambda.Compile();
+        return lambda.CompileFast();
     }
 
 

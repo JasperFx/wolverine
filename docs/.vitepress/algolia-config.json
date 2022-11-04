@@ -1,8 +1,7 @@
 {
   "index_name": "wolverine_index",
   "start_urls": [
-    "https://wolverinefx.github.io/wolverine/guide",
-    "https://wolverinefx.github.io/wolverine/scenarios"
+    "https://wolverine.netlify.app/guide"
   ],
   "selectors": {
     "lvl0": {
