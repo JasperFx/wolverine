@@ -12,8 +12,6 @@ var connectionString = builder.Configuration.GetConnectionString("SqlServer");
 
 builder.Host.UseWolverine(opts =>
 {
-    // TODO -- use single helper that can read the connection string
-    // from the DbContext
     opts.PersistMessagesWithSqlServer(connectionString);
     opts.UseEntityFrameworkCorePersistence();
 });
@@ -22,7 +20,7 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddDbContext<ItemsDbContext>(
     x => x.UseSqlServer(connectionString),
 
-    // This is important! Using Singleton scoping
+    // This is weirdly important! Using Singleton scoping
     // of the options allows Wolverine + Lamar to significantly
     // optimize the runtime pipeline of the handlers that
     // use this DbContext type
