@@ -3,21 +3,21 @@ using Wolverine.Transports;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTransport, AzureServiceBusEndpoint, AzureServiceBusEndpoint, AzureServiceBusListenerConfiguration, AzureServiceBusSubscriberConfiguration, AzureServiceBusConfiguration>
+public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTransport, AzureServiceBusQueue, AzureServiceBusQueue, AzureServiceBusQueueListenerConfiguration, AzureServiceBusQueueSubscriberConfiguration, AzureServiceBusConfiguration>
 {
     public AzureServiceBusConfiguration(AzureServiceBusTransport transport, WolverineOptions options) : base(transport, options)
     {
 
     }
 
-    protected override AzureServiceBusListenerConfiguration createListenerExpression(AzureServiceBusEndpoint listenerEndpoint)
+    protected override AzureServiceBusQueueListenerConfiguration createListenerExpression(AzureServiceBusQueue listenerEndpoint)
     {
-        return new AzureServiceBusListenerConfiguration(listenerEndpoint);
+        return new AzureServiceBusQueueListenerConfiguration(listenerEndpoint);
     }
 
-    protected override AzureServiceBusSubscriberConfiguration createSubscriberExpression(AzureServiceBusEndpoint subscriberEndpoint)
+    protected override AzureServiceBusQueueSubscriberConfiguration createSubscriberExpression(AzureServiceBusQueue subscriberEndpoint)
     {
-        return new AzureServiceBusSubscriberConfiguration(subscriberEndpoint);
+        return new AzureServiceBusQueueSubscriberConfiguration(subscriberEndpoint);
     }
 
     public AzureServiceBusConfiguration UseConventionalRouting(

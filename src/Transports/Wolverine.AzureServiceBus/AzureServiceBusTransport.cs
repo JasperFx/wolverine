@@ -14,7 +14,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
     public LightweightCache<string, AzureServiceBusQueue> Queues { get; }
     public LightweightCache<string, AzureServiceBusTopic> Topics { get; }
 
-    public readonly List<AzureServiceBusSubscription> Subscriptions = new();
+    public readonly List<AzureServiceBusQueueSubscription> Subscriptions = new();
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
     private readonly Lazy<ServiceBusClient> _busClient;
 
@@ -65,7 +65,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
                     
                     var subscriptionName = uri.Segments.Last().TrimEnd('/');
                     var topic = Topics[topicName];
-                    subscription = new AzureServiceBusSubscription(this, topic, subscriptionName);
+                    subscription = new AzureServiceBusQueueSubscription(this, topic, subscriptionName);
                     Subscriptions.Add(subscription);
 
                     return subscription;

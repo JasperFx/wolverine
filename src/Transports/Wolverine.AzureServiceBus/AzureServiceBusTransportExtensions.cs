@@ -38,7 +38,7 @@ public static class AzureServiceBusTransportExtensions
     /// <param name="configure">
     ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
     ///     <returns></returns>
-    public static AzureServiceBusListenerConfiguration ListenToAzureServiceBusQueue(this WolverineOptions endpoints, string queueName, Action<IAzureServiceBusListeningEndpoint>? configure = null )
+    public static AzureServiceBusQueueListenerConfiguration ListenToAzureServiceBusQueue(this WolverineOptions endpoints, string queueName, Action<IAzureServiceBusListeningEndpoint>? configure = null )
     {
         var transport = endpoints.AzureServiceBusTransport();
 
@@ -49,10 +49,10 @@ public static class AzureServiceBusTransportExtensions
         
         configure?.Invoke(endpoint);
 
-        return new AzureServiceBusListenerConfiguration(endpoint);
+        return new AzureServiceBusQueueListenerConfiguration(endpoint);
     }
 
-    public static AzureServiceBusSubscriberConfiguration ToAzureServiceBusQueue(this IPublishToExpression publishing, string queueName)
+    public static AzureServiceBusQueueSubscriberConfiguration ToAzureServiceBusQueue(this IPublishToExpression publishing, string queueName)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<AzureServiceBusTransport>();
@@ -65,6 +65,6 @@ public static class AzureServiceBusTransportExtensions
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(endpoint.Uri);
 
-        return new AzureServiceBusSubscriberConfiguration(endpoint);
+        return new AzureServiceBusQueueSubscriberConfiguration(endpoint);
     }
 }

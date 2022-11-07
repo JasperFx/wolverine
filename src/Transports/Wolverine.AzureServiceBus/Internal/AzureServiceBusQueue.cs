@@ -19,7 +19,10 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         }
 
         QueueName = EndpointName = queueName ?? throw new ArgumentNullException(nameof(queueName));
+        Options = new CreateQueueOptions(QueueName);
     }
+    
+    public CreateQueueOptions Options { get; }
 
     public string QueueName { get; }
 
@@ -62,10 +65,9 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         var exists = await client.QueueExistsAsync(QueueName);
         if (!exists)
         {
-            await client.CreateQueueAsync(new CreateQueueOptions(QueueName)
-            {
-                // TODO -- allow users to get a lot fancier here
-            });
+            Options.Name = QueueName;
+            
+            await client.CreateQueueAsync(Options);
         }
     }
 

@@ -32,7 +32,7 @@ public class AzureServiceBusTransportTests
     {
         var transport = new AzureServiceBusTransport();
         var subscription = transport.GetOrCreateEndpoint(new Uri("asb://topic/one/red"))
-            .ShouldBeOfType<AzureServiceBusSubscription>();
+            .ShouldBeOfType<AzureServiceBusQueueSubscription>();
         
         subscription.SubscriptionName.ShouldBe("red");
     }

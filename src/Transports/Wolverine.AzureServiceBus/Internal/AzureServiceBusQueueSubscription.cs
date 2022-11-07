@@ -6,11 +6,11 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class AzureServiceBusSubscription : AzureServiceBusEndpoint
+public class AzureServiceBusQueueSubscription : AzureServiceBusEndpoint
 {
     public string SubscriptionName { get; }
 
-    public AzureServiceBusSubscription(AzureServiceBusTransport parent, AzureServiceBusTopic topic, string subscriptionName) : base(parent, new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topic.TopicName}/{subscriptionName}"), EndpointRole.Application)
+    public AzureServiceBusQueueSubscription(AzureServiceBusTransport parent, AzureServiceBusTopic topic, string subscriptionName) : base(parent, new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topic.TopicName}/{subscriptionName}"), EndpointRole.Application)
     {
         if (parent == null)
         {

@@ -11,7 +11,7 @@ public class AzureServiceSubscriptionTests
     public void create_uri()
     {
         var topic = new AzureServiceBusTopic(new AzureServiceBusTransport(), "incoming");
-        var subscription = new AzureServiceBusSubscription(new AzureServiceBusTransport(), topic, "sub1");
+        var subscription = new AzureServiceBusQueueSubscription(new AzureServiceBusTransport(), topic, "sub1");
         subscription.Uri.ShouldBe(new Uri("asb://topic/incoming/sub1"));
     }
 
@@ -19,7 +19,7 @@ public class AzureServiceSubscriptionTests
     public void endpoint_name_should_be_subscription_name()
     {
         var topic = new AzureServiceBusTopic(new AzureServiceBusTransport(), "incoming");
-        var subscription = new AzureServiceBusSubscription(new AzureServiceBusTransport(), topic, "sub1");
+        var subscription = new AzureServiceBusQueueSubscription(new AzureServiceBusTransport(), topic, "sub1");
         
         subscription.EndpointName.ShouldBe("sub1");
     }

@@ -4,20 +4,20 @@ using Wolverine.Transports;
 namespace Wolverine.AzureServiceBus;
 
 public class AzureServiceBusMessageRoutingConvention 
-    : MessageRoutingConvention<AzureServiceBusTransport, AzureServiceBusListenerConfiguration, AzureServiceBusSubscriberConfiguration, AzureServiceBusMessageRoutingConvention>
+    : MessageRoutingConvention<AzureServiceBusTransport, AzureServiceBusQueueListenerConfiguration, AzureServiceBusQueueSubscriberConfiguration, AzureServiceBusMessageRoutingConvention>
 {
-    protected override (AzureServiceBusListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(string identifier,
+    protected override (AzureServiceBusQueueListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(string identifier,
         AzureServiceBusTransport transport)
     {
         var queue = transport.Queues[identifier];
-        return (new AzureServiceBusListenerConfiguration(queue), queue);
+        return (new AzureServiceBusQueueListenerConfiguration(queue), queue);
     }
 
-    protected override (AzureServiceBusSubscriberConfiguration, Endpoint) findOrCreateSubscriber(string identifier,
+    protected override (AzureServiceBusQueueSubscriberConfiguration, Endpoint) findOrCreateSubscriber(string identifier,
         AzureServiceBusTransport transport)
     {
         var queue = transport.Queues[identifier];
-        return (new AzureServiceBusSubscriberConfiguration(queue), queue);
+        return (new AzureServiceBusQueueSubscriberConfiguration(queue), queue);
     }
 
     /// <summary>
