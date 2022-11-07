@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Baseline.Dates;
 using CoreTests.Messaging;
 using NSubstitute;
 using Shouldly;
@@ -370,6 +371,54 @@ public class EnvelopeTests
         }
 
 
+    }
+
+    [Fact]
+    public void prepare_for_persistence_when_not_scheduled()
+    {
+        var envelope = new Envelope
+        {
+            ScheduledTime = null
+        };
+
+        var settings = new AdvancedSettings(null);
+        
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
+        
+        envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
+        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
+    }
+
+    [Fact]
+    public void prepare_for_persistence_when_scheduled_in_the_future()
+    {
+        var envelope = new Envelope
+        {
+            ScheduleDelay = 1.Days()
+        };
+        
+        var settings = new AdvancedSettings(null);
+        
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
+
+        envelope.Status.ShouldBe(EnvelopeStatus.Scheduled);
+        envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
+    }
+    
+    [Fact]
+    public void prepare_for_persistence_when_scheduled_in_the_past()
+    {
+        var envelope = new Envelope
+        {
+            ScheduledTime = DateTimeOffset.UtcNow.AddDays(-1)
+        };
+        
+        var settings = new AdvancedSettings(null);
+        
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
+
+        envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
+        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
     }
     
 }

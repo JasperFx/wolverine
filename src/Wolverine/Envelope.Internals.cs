@@ -153,7 +153,7 @@ public partial class Envelope
             SagaId = SagaId
         };
     }
-
+    
     internal async ValueTask StoreAndForwardAsync()
     {
         if (_enqueued)
@@ -169,6 +169,17 @@ public partial class Envelope
         _enqueued = true;
 
         await Sender.StoreAndForwardAsync(this);
+    }
+
+    internal void PrepareForIncomingPersistence(DateTimeOffset now, AdvancedSettings settings)
+    {
+        Status = IsScheduledForLater(now)
+            ? EnvelopeStatus.Scheduled
+            : EnvelopeStatus.Incoming;
+
+        OwnerId = Status == EnvelopeStatus.Incoming
+            ? settings.UniqueNodeId
+            : TransportConstants.AnyNode;
     }
 
     internal ValueTask QuickSendAsync()

@@ -104,14 +104,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         
         _messageLogger.Sent(envelope);
 
-        // TODO -- have to watch this one. Law of demeter violation
-        envelope.Status = envelope.IsScheduledForLater(DateTimeOffset.UtcNow)
-            ? EnvelopeStatus.Scheduled
-            : EnvelopeStatus.Incoming;
-
-        envelope.OwnerId = envelope.Status == EnvelopeStatus.Incoming
-            ? _settings.UniqueNodeId
-            : TransportConstants.AnyNode;
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, _settings);
 
         if (Latched)
         {
