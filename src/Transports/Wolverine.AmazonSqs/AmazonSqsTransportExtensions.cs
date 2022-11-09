@@ -21,6 +21,12 @@ public static class AmazonSqsTransportExtensions
         return transports.GetOrCreate<AmazonSqsTransport>();
     }
 
+    public static AmazonSqlTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options)
+    {
+        var transport = options.AmazonSqsTransport();
+        return new AmazonSqlTransportConfiguration(transport, options);
+    }
+    
     public static AmazonSqlTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options, Action<AmazonSQSConfig> configuration)
     {
         var transport = options.AmazonSqsTransport();

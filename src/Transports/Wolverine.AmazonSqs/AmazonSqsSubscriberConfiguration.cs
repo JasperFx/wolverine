@@ -1,3 +1,4 @@
+using Amazon.SQS.Model;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 
@@ -7,5 +8,16 @@ public class AmazonSqsSubscriberConfiguration : SubscriberConfiguration<AmazonSq
 {
     internal AmazonSqsSubscriberConfiguration(AmazonSqsQueue queue) : base(queue)
     {
+    }
+
+    /// <summary>
+    /// Configure how the queue should be created within SQS
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AmazonSqsSubscriberConfiguration ConfigureQueueCreation(Action<CreateQueueRequest> configure)
+    {
+        add(e => configure(e.Configuration));
+        return this;
     }
 }

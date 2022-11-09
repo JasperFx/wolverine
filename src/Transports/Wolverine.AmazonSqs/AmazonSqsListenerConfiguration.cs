@@ -1,3 +1,4 @@
+using Amazon.SQS.Model;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -23,6 +24,17 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
             configure?.Invoke(e.CircuitBreakerOptions);
         });
 
+        return this;
+    }
+    
+    /// <summary>
+    /// Configure how the queue should be created within SQS
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AmazonSqsListenerConfiguration ConfigureQueueCreation(Action<CreateQueueRequest> configure)
+    {
+        add(e => configure(e.Configuration));
         return this;
     }
     

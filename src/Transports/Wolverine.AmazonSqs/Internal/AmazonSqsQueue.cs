@@ -20,6 +20,8 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
         _parent = parent;
         QueueName = queueName;
         EndpointName = queueName;
+
+        Configuration = new CreateQueueRequest(QueueName);
     }
     
     /// <summary>
@@ -79,11 +81,16 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
         _initialized = true;
     }
+    
+    /// <summary>
+    /// Additional configuration for how an SQS queue should be created
+    /// </summary>
+    public CreateQueueRequest Configuration { get; }
 
     internal async Task SetupAsync(IAmazonSQS client)
     {
-        // TODO -- use the configuration here for FIFO or Standard
-        var response = await client.CreateQueueAsync(QueueName);
+        Configuration.QueueName = QueueName;
+        var response = await client.CreateQueueAsync(Configuration);
 
         QueueUrl = response.QueueUrl;
     }

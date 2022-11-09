@@ -1,3 +1,5 @@
+using Amazon.SQS.Model;
+
 namespace Wolverine.AmazonSqs.Internal;
 
 public interface IAmazonSqsListeningEndpoint
@@ -23,4 +25,9 @@ public interface IAmazonSqsListeningEndpoint
     /// 10.
     /// </summary>
     int MaxNumberOfMessages { get; set; }
+
+    /// <summary>
+    /// Additional configuration for how an SQS queue should be created
+    /// </summary>
+    CreateQueueRequest Configuration { get; }
 }
