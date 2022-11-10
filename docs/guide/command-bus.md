@@ -1,19 +1,26 @@
 # Wolverine as Command Bus
 
 ::: tip
-The in memory queueing feature is automatically enabled for all known message types within all Wolverine applications.
+Both `IMessagePublisher` and `IMessageContext` also implement `ICommandBus` to enable users
+to use a mix of local and remote message handling at one time.
 :::
 
-Wolverine can be used as an in-memory, command bus where messages can be processed either immediately or through
-in memory queues within your application. The queueing is all based around the [TPL Dataflow library](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/how-to-perform-action-when-a-dataflow-block-receives-data) objects from the [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) library.
-As such, you have a fair amount of control over parallelization and even some back pressure. These local queues can be used directly, or as a transport to accept messages sent through
-`IMessagePublisher.SendAsync()` or `IMessagePublisher.PublishAsync()`. using the application's [message routing rules](/guide/messaging/#routing-rules).
+Using the `Wolverine.ICommandBus` service that is automatically registered in your system through 
+the `IHostBuilder.UseWolverine()` extensions, you can either invoke message handlers inline, enqueue 
+messages to local, in process queues, or schedule message execution within the system. All known message
+handlers within a Wolverine application can be used from `ICommandBus` without any additional
+configuration as some other tools require.
+
+## Invoking Message Handling
+
+To execute the message processing immediately, use this syntax:
+
+snippet: sample_invoke_locally
+
+Note that this feature does utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
+for potentially transient errors.
 
 ## Enqueueing Messages Locally
-
-::: tip warning
-The `IMessagePublisher` and `IMessageContext` interfaces both implement the `ICommandBus` interface as well.
-:::
 
 You can queue up messages to be executed locally and asynchronously in a background thread:
 
@@ -30,6 +37,10 @@ public static async Task enqueue_locally(ICommandBus bus)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L8-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enqueue_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+The queueing is all based around the [TPL Dataflow library](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/how-to-perform-action-when-a-dataflow-block-receives-data) objects from the [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) library.
+As such, you have a fair amount of control over parallelization and even some back pressure. These local queues can be used directly, or as a transport to accept messages sent through
+`IMessagePublisher.SendAsync()` or `IMessagePublisher.PublishAsync()`. using the application's [message routing rules](/guide/messaging/#routing-rules).
+
 This feature is useful for asynchronous processing in web applications or really any kind of application where you need some parallelization or concurrency.
 
 Some things to know about the local queues:
@@ -43,6 +54,59 @@ Some things to know about the local queues:
 * The local queues can be used like any other message transport and be the target of routing rules
 
 
+## Explicitly Enqueue to a Specific Local Queue
+
+If you want to enqueue a message locally to a specific worker queue, you can use this syntax:
+
+<!-- snippet: sample_IServiceBus.Enqueue_to_specific_worker_queue -->
+<a id='snippet-sample_iservicebus.enqueue_to_specific_worker_queue'></a>
+```cs
+public ValueTask EnqueueToQueue(IMessageContext bus)
+{
+    var @event = new InvoiceCreated
+    {
+        Time = DateTimeOffset.Now,
+        Purchaser = "Guy Fieri",
+        Amount = 112.34,
+        Item = "Cookbook"
+    };
+
+    // Put this message in a local worker
+    // queue named 'highpriority'
+    return bus.EnqueueAsync(@event, "highpriority");
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L106-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iservicebus.enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Scheduling Local Execution
+
+:::tip
+If you need the command scheduling to be persistent or be persisted across service restarts, you'll need to enable the [message persistence](/guide/persistence/) within Wolverine.
+:::
+
+The "scheduled execution" feature can be used with local execution within the same application. See [Scheduled Messages](/guide/scheduled) for more information. Use the `ICommandBus.ScheduleAsync()` methods like this:
+
+<!-- snippet: sample_schedule_job_locally -->
+<a id='snippet-sample_schedule_job_locally'></a>
+```cs
+public async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
+{
+    var message = new ValidateInvoiceIsNotLate
+    {
+        InvoiceId = invoiceId
+    };
+
+    // Schedule the message to be processed in a certain amount
+    // of time
+    await bus.ScheduleAsync(message, 30.Days());
+
+    // Schedule the message to be processed at a certain time
+    await bus.ScheduleAsync(message, DateTimeOffset.Now.AddDays(30));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L140-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedule_job_locally' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ## The Default Queue
@@ -63,7 +127,7 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ConfigureDurableLocalQueueApp.cs#L28-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuredefaultqueue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-## Local Message Routing
+## Explicit Local Message Routing
 
 In the absence of any kind of routing rules, any message enqueued with `ICommandBus.Enqueue()` will just be handled by the
 *default* local queue. To override that choice on a message type by message type basis, you can use the `[LocalQueue]` attribute
@@ -102,6 +166,19 @@ The routing rules and/or `[LocalQueue]` routing is also honored for cascading me
 
 See [message routing rules](/guide/messaging/#routing-rules) for more information.
 
+## Conventional Local Messaging
+
+You can apply a conventional routing for message types to local queues using this syntax:
+
+snippet: sample_local_queue_conventions
+
+## Configuring Local Queues
+
+You can configure durability or parallelization rules on single queues or conventional
+configuration for queues with this usage:
+
+snippet: sample_configuring_local_queues
+
 ## Durable Local Messages
 
 The local worker queues can optionally be designated as "durable," meaning that local messages would be persisted until they can be successfully processed to provide a guarantee that the message will be successfully processed in the case of the running application faulting or having been shut down prematurely (assuming that other nodes are running or it's restarted later of course).
@@ -127,36 +204,6 @@ using var host = await Host.CreateDefaultBuilder()
 
 
 See [Persistent Messaging](http://localhost:5050/guide/persistence/) for more information.
-
-
-## Scheduling Local Execution
-
-:::tip
-If you need the command scheduling to be persistent or be persisted across service restarts, you'll need to enable the [message persistence](/guide/persistence/) within Wolverine.
-:::
-
-The "scheduled execution" feature can be used with local execution within the same application. See [Scheduled Messages](/guide/scheduled) for more information. Use the `ICommandBus.ScheduleAsync()` methods like this:
-
-<!-- snippet: sample_schedule_job_locally -->
-<a id='snippet-sample_schedule_job_locally'></a>
-```cs
-public async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
-{
-    var message = new ValidateInvoiceIsNotLate
-    {
-        InvoiceId = invoiceId
-    };
-
-    // Schedule the message to be processed in a certain amount
-    // of time
-    await bus.ScheduleAsync(message, 30.Days());
-
-    // Schedule the message to be processed at a certain time
-    await bus.ScheduleAsync(message, DateTimeOffset.Now.AddDays(30));
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L140-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedule_job_locally' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 
 ## Configuring Parallelization and Execution Properties
@@ -202,34 +249,7 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 
-## Explicitly Enqueue to a Specific Local Queue
-
-If you want to enqueue a message locally to a specific worker queue, you can use this syntax:
-
-<!-- snippet: sample_IServiceBus.Enqueue_to_specific_worker_queue -->
-<a id='snippet-sample_iservicebus.enqueue_to_specific_worker_queue'></a>
-```cs
-public ValueTask EnqueueToQueue(IMessageContext bus)
-{
-    var @event = new InvoiceCreated
-    {
-        Time = DateTimeOffset.Now,
-        Purchaser = "Guy Fieri",
-        Amount = 112.34,
-        Item = "Cookbook"
-    };
-
-    // Put this message in a local worker
-    // queue named 'highpriority'
-    return bus.EnqueueAsync(@event, "highpriority");
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L106-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iservicebus.enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-
 ## Local Queues as a Messaging Transport
-
 
 ::: tip warning
 The local transport is used underneath the covers by Wolverine for retrying

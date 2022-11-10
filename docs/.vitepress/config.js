@@ -22,6 +22,7 @@ export default withMermaid({
 
         nav: [
             { text: 'Guide', link: '/guide/' },
+            { text: 'Tutorials', link: '/tutorials/' },
             { text: 'Gitter | Join Chat', link: 'https://gitter.im/JasperFx/wolverine?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge' }
         ],
 
@@ -44,19 +45,18 @@ export default withMermaid({
         sidebar: {
           '/': [
             {
-              text: 'Introduction',
+              text: 'Tutorials',
               collapsible: true,
-              items: [ {text: 'What is Wolverine?', link: '/guide/'} ]
-            },
-            {
-              text: 'Mediator',
-              collapsible: true,
-              items: [ {text: 'Use as Mediator', link: '/guide/mediator'} ]
+              items: [
+                  {text: 'Getting Started', link: '/tutorials/getting-started'},     
+                  {text: 'Wolverine as Mediator', link: '/tutorials/mediator'},
+                  {text: 'Best Practices', link: '/tutorials/best-practices'},
+              ]
             },
             {
               text: 'Command Bus',
               collapsible: true,
-              items: [ {text: 'Use as Command Bus', link: '/guide/in-memory-bus'} ]
+              items: [ {text: 'Use as Command Bus', link: '/guide/command-bus'} ]
             },
             {
               text: 'Messaging Bus',
@@ -104,7 +104,7 @@ export default withMermaid({
                 {text: 'Instrumentation, Diagnostics, and Logging', link: '/guide/logging'},
                 {text: 'Test Automation Support', link: '/guide/testing'},
                 {text: 'Command Line Integration', link: '/guide/command-line'},
-                {text: 'Best Practices', link: '/guide/best-practices'},
+                
                 {text: 'Extensions', link: '/guide/extensions'}
                 // {text: 'Alba Setup', link: '/guide/hosting'},
                 // {text: 'Integrating with xUnit.Net', link: '/guide/xunit'},

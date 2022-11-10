@@ -224,7 +224,7 @@ Then register your custom `IHandlerPolicy` with a Wolverine application like thi
 <a id='snippet-sample_appwithhandlerpolicy'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts => { opts.Handlers.GlobalPolicy<WrapWithSimple>(); }).StartAsync();
+    .UseWolverine(opts => { opts.Handlers.AddPolicy<WrapWithSimple>(); }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L15-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appwithhandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

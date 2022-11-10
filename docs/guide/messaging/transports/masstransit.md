@@ -21,6 +21,8 @@ The configuration to do this is shown below:
 ```cs
 Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
 {
+    opts.ApplicationAssembly = GetType().Assembly;
+    
     opts.UseRabbitMq()
         .AutoProvision().AutoPurgeOnStartup()
         .BindExchange("wolverine").ToQueue("wolverine")
@@ -43,7 +45,7 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
 
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Interoperability/InteroperabilityTests/MassTransit/MassTransitSpecs.cs#L24-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransit_interoperability' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Interop/MassTransit/MassTransitSpecs.cs#L22-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransit_interoperability' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

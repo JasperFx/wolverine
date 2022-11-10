@@ -67,7 +67,7 @@ possible usage:
 <!-- snippet: sample_activating_rabbit_mq_conventional_routing -->
 <a id='snippet-sample_activating_rabbit_mq_conventional_routing'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseRabbitMq()
@@ -75,7 +75,7 @@ using var host = Host.CreateDefaultBuilder()
             .UseConventionalRouting();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L211-L221' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L210-L220' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With the defaults from above, for each message that the application can handle
@@ -96,23 +96,13 @@ Rabbit MQ routing conventions as shown below:
 <!-- snippet: sample_activating_rabbit_mq_conventional_routing_customized -->
 <a id='snippet-sample_activating_rabbit_mq_conventional_routing_customized'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseRabbitMq()
             // Opt into conventional Rabbit MQ routing
             .UseConventionalRouting(x =>
             {
-                // Make every endpoint use durable inbox or outbox
-                // mechanics
-                x.Mode = EndpointMode.Durable;
-
-                // Or do this instead
-                x.InboxedListenersAndOutboxedSenders();
-
-                // Or instead declare all endpoints as buffered
-                x.BufferedListenersAndSenders();
-
                 // Customize the naming convention for the outgoing exchanges
                 x.ExchangeNameForSending(type => type.Name + "Exchange");
 
@@ -120,7 +110,7 @@ using var host = Host.CreateDefaultBuilder()
                 x.QueueNameForListener(type => type.FullName.Replace('.', '-'));
 
                 // Or maybe you want to conditionally configure listening endpoints
-                x.ConfigureListener((listener, queue, context) =>
+                x.ConfigureListeners((listener, context) =>
                 {
                     if (context.MessageType.IsInNamespace("MyApp.Messages.Important"))
                     {
@@ -130,19 +120,19 @@ using var host = Host.CreateDefaultBuilder()
                     {
                         // If not important, let's make the queue be
                         // volatile and purge older messages automatically
-                        queue.TimeToLive(2.Minutes());
+                        listener.TimeToLive(2.Minutes());
                     }
 
                 })
                 // Or maybe you want to conditionally configure the outgoing exchange
-                .ConfigureSending((_, ex, _) =>
+                .ConfigureSending((ex, _) =>
                 {
-                    ex.ExchangeType = ExchangeType.Direct;
+                    ex.ExchangeType(ExchangeType.Direct);
                 });
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L226-L274' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L225-L263' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -275,7 +265,7 @@ exchange, queue, and binding objects, use this syntax:
 <!-- snippet: sample_publish_to_rabbitmq_exchange -->
 <a id='snippet-sample_publish_to_rabbitmq_exchange'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // Connect to an unsecured, local Rabbit MQ broker
@@ -308,7 +298,7 @@ names as well just to be confusing here), use this syntax:
 <!-- snippet: sample_publish_to_rabbitmq_routing_key -->
 <a id='snippet-sample_publish_to_rabbitmq_routing_key'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseRabbitMq(rabbit =>
@@ -329,11 +319,11 @@ using var host = Host.CreateDefaultBuilder()
             // start up time
             .AutoProvision();
 
-        opts.PublishAllMessages().ToRabbit("key1");
+        opts.PublishAllMessages().ToRabbitExchange("exchange1");
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L148-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L148-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Working with Topics
@@ -455,7 +445,7 @@ declared in the application configuration at application bootstrapping time.
 <!-- snippet: sample_publish_to_rabbitmq_routing_key -->
 <a id='snippet-sample_publish_to_rabbitmq_routing_key'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseRabbitMq(rabbit =>
@@ -476,11 +466,11 @@ using var host = Host.CreateDefaultBuilder()
             // start up time
             .AutoProvision();
 
-        opts.PublishAllMessages().ToRabbit("key1");
+        opts.PublishAllMessages().ToRabbitExchange("exchange1");
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L148-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L148-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At development time -- or occasionally in production systems -- you may want to have the messaging
@@ -490,14 +480,14 @@ Rabbit MQ using the `AutoPurgeOnStartup()` declaration:
 <!-- snippet: sample_autopurge_rabbitmq -->
 <a id='snippet-sample_autopurge_rabbitmq'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseRabbitMq()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L181-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L180-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or you can be more selective and only have certain queues of volatile messages purged
@@ -506,7 +496,7 @@ at startup as shown below:
 <!-- snippet: sample_autopurge_selective_queues -->
 <a id='snippet-sample_autopurge_selective_queues'></a>
 ```cs
-using var host = Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseRabbitMq()
@@ -514,7 +504,7 @@ using var host = Host.CreateDefaultBuilder()
             .DeclareQueue("queue2", q => q.PurgeOnStartup = true);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L196-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L195-L205' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://wolverinefx.github.io/oakton/guide/host/resources.html) model,

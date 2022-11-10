@@ -298,7 +298,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // And actually use the policy
-        opts.Handlers.GlobalPolicy<CommandsAreTransactional>();
+        opts.Handlers.AddPolicy<CommandsAreTransactional>();
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L47-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>

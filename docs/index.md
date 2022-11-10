@@ -15,7 +15,7 @@ hero:
   actions:
     - theme: brand
       text: Get Started
-      link: /guide/
+      link: /tutorials/getting-started
 
 features:
 - title: 💪 Command Execution

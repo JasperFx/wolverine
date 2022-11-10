@@ -124,7 +124,7 @@ return new JsonSerializerSettings
     PreserveReferencesHandling = PreserveReferencesHandling.Objects
 };
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Serialization/NewtonsoftSerializer.cs#L20-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_default_newtonsoft_settings' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Serialization/NewtonsoftSerializer.cs#L21-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_default_newtonsoft_settings' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To customize the Newtonsoft.Json serialization, use this option:
@@ -155,7 +155,7 @@ opts.UseSystemTextJsonForSerialization(stj =>
     stj.UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L23-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L30-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
