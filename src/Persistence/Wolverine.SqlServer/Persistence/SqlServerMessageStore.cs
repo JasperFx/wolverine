@@ -15,15 +15,15 @@ using Wolverine.SqlServer.Schema;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerEnvelopePersistence : DatabaseBackedEnvelopePersistence<SqlConnection>
+public class SqlServerMessageStore : DatabaseBackedMessageStore<SqlConnection>
 {
     private readonly SqlServerSettings _databaseSettings;
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _moveToDeadLetterStorageSql;
 
 
-    public SqlServerEnvelopePersistence(SqlServerSettings databaseSettings, AdvancedSettings settings,
-        ILogger<SqlServerEnvelopePersistence> logger)
+    public SqlServerMessageStore(SqlServerSettings databaseSettings, AdvancedSettings settings,
+        ILogger<SqlServerMessageStore> logger)
         : base(databaseSettings, settings, logger)
     {
         _databaseSettings = databaseSettings;

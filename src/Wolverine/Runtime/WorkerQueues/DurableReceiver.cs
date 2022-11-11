@@ -15,7 +15,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     IAsyncDisposable
 {
     protected readonly ILogger _logger;
-    private readonly IEnvelopePersistence _persistence;
+    private readonly IMessageStore _persistence;
     private readonly ActionBlock<Envelope> _receiver;
     private readonly AdvancedSettings _settings;
 
@@ -30,7 +30,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _settings = runtime.Advanced;
-        _persistence = runtime.Persistence;
+        _persistence = runtime.Storage;
         _logger = runtime.Logger;
 
         Uri = endpoint.Uri;

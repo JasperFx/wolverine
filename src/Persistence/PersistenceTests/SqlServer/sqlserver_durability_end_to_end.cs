@@ -39,16 +39,16 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
     {
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");
 
-        await new SqlServerEnvelopePersistence(
+        await new SqlServerMessageStore(
                 new SqlServerSettings
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = ReceiverSchemaName },
-                new AdvancedSettings(null), new NullLogger<SqlServerEnvelopePersistence>())
+                new AdvancedSettings(null), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
-        await new SqlServerEnvelopePersistence(
+        await new SqlServerMessageStore(
                 new SqlServerSettings
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
-                new AdvancedSettings(null), new NullLogger<SqlServerEnvelopePersistence>())
+                new AdvancedSettings(null), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
         await buildTraceDocTable();

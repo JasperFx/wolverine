@@ -18,7 +18,7 @@ namespace Wolverine.Transports.Local;
 internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 {
     private readonly IMessageLogger _messageLogger;
-    private readonly IEnvelopePersistence _persistence;
+    private readonly IMessageStore _persistence;
     private readonly IMessageSerializer _serializer;
     private readonly AdvancedSettings _settings;
     private DurableReceiver? _receiver;
@@ -30,7 +30,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
         _settings = runtime.Advanced;
-        _persistence = runtime.Persistence;
+        _persistence = runtime.Storage;
         _messageLogger = runtime.MessageLogger;
         _serializer = endpoint.DefaultSerializer ??
                       throw new ArgumentOutOfRangeException(nameof(endpoint),

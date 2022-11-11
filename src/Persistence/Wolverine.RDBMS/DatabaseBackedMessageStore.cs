@@ -14,15 +14,15 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class DatabaseBackedEnvelopePersistence<T> : DatabaseBase<T>,
-    IDatabaseBackedEnvelopePersistence, IEnvelopeStorageAdmin where T : DbConnection, new()
+public abstract partial class DatabaseBackedMessageStore<T> : DatabaseBase<T>,
+    IDatabaseBackedMessageStore, IMessageStoreAdmin where T : DbConnection, new()
 {
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
     private readonly string _deleteExpiredHandledEnvelopes;
     private readonly string _findAtLargeIncomingEnvelopeCountsSql;
 
-    protected DatabaseBackedEnvelopePersistence(DatabaseSettings databaseSettings, AdvancedSettings settings,
+    protected DatabaseBackedMessageStore(DatabaseSettings databaseSettings, AdvancedSettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
         "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
     {
@@ -56,7 +56,7 @@ public abstract partial class DatabaseBackedEnvelopePersistence<T> : DatabaseBas
 
     public DatabaseSettings DatabaseSettings { get; }
 
-    public IEnvelopeStorageAdmin Admin => this;
+    public IMessageStoreAdmin Admin => this;
 
     public IDurableStorageSession Session { get; }
 

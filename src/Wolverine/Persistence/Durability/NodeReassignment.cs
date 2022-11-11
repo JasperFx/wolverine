@@ -16,7 +16,7 @@ internal class NodeReassignment : IMessagingAction
 
     public string Description { get; } = "Dormant node reassignment";
 
-    public async Task ExecuteAsync(IEnvelopePersistence storage, IDurabilityAgent agent)
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
     {
         await storage.Session.BeginAsync();
 

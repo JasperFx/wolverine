@@ -57,7 +57,7 @@ public class MockWolverineRuntime : IWolverineRuntime
 
     public CancellationToken Cancellation { get; } = default;
 
-    public IEnvelopePersistence Persistence { get; } = Substitute.For<IEnvelopePersistence>();
+    public IMessageStore Storage { get; } = Substitute.For<IMessageStore>();
     public ILogger Logger { get; } = Substitute.For<ILogger>();
 
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)

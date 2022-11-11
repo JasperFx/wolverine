@@ -77,7 +77,7 @@ public class sql_server_scheduled_jobs : IAsyncLifetime
 
     protected async Task<int> PersistedScheduledCount()
     {
-        var counts = await theHost.Services.GetRequiredService<IEnvelopePersistence>().Admin.FetchCountsAsync();
+        var counts = await theHost.Services.GetRequiredService<IMessageStore>().Admin.FetchCountsAsync();
         return counts.Scheduled;
     }
 

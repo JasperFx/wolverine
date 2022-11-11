@@ -10,12 +10,12 @@ namespace Wolverine.RDBMS;
 
 public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
 {
-    private readonly IDatabaseBackedEnvelopePersistence _persistence;
+    private readonly IDatabaseBackedMessageStore _persistence;
     private readonly DbTransaction _tx;
 
     public DatabaseEnvelopeTransaction(MessageContext context, DbTransaction tx)
     {
-        _persistence = context.Persistence as IDatabaseBackedEnvelopePersistence ??
+        _persistence = context.Storage as IDatabaseBackedMessageStore ??
                        throw new InvalidOperationException(
                            "This message context is not using Database-backed messaging persistence");
         _tx = tx;

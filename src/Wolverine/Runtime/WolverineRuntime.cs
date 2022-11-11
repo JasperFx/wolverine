@@ -21,7 +21,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 {
     private readonly IContainer _container;
 
-    private readonly Lazy<IEnvelopePersistence> _persistence;
+    private readonly Lazy<IMessageStore> _persistence;
     private bool _hasStopped;
 
     private readonly string _serviceName;
@@ -49,7 +49,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         Pipeline = new HandlerPipeline(this, this);
 
-        _persistence = new Lazy<IEnvelopePersistence>(container.GetInstance<IEnvelopePersistence>);
+        _persistence = new Lazy<IMessageStore>(container.GetInstance<IMessageStore>);
 
         _container = container;
 
@@ -126,5 +126,5 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     public IMessageLogger MessageLogger => this;
 
 
-    public IEnvelopePersistence Persistence => _persistence.Value;
+    public IMessageStore Storage => _persistence.Value;
 }

@@ -36,7 +36,7 @@ public class configuration_extension_methods : SqlServerContext
             .ConnectionString.ShouldBe(Servers.SqlServerConnectionString);
 
         var databases = host.Services.GetServices<IDatabase>();
-        databases.OfType<SqlServerEnvelopePersistence>()
+        databases.OfType<SqlServerMessageStore>()
             .Count().ShouldBe(1);
     }
 

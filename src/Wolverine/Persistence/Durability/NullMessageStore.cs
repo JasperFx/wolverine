@@ -9,10 +9,10 @@ using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Persistence.Durability;
 
-internal class NullEnvelopePersistence : IEnvelopePersistence, IEnvelopeStorageAdmin
+internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
 {
     public IScheduledJobProcessor? ScheduledJobs { get; set; }
-    public IEnvelopeStorageAdmin Admin => this;
+    public IMessageStoreAdmin Admin => this;
 
     public Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
     {

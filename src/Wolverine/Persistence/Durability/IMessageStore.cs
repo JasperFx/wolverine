@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 
 namespace Wolverine.Persistence.Durability;
 
-public interface IEnvelopePersistence : IDisposable
+public interface IMessageStore : IDisposable
 {
-    IEnvelopeStorageAdmin Admin { get; }
+    IMessageStoreAdmin Admin { get; }
 
     IDurableStorageSession Session { get; }
 

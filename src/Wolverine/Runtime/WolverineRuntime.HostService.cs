@@ -22,9 +22,9 @@ public partial class WolverineRuntime
             // Build up the message handlers
             await Handlers.CompileAsync(Options, _container);
 
-            if (Options.AutoBuildEnvelopeStorageOnStartup && Persistence is not NullEnvelopePersistence)
+            if (Options.AutoBuildEnvelopeStorageOnStartup && Storage is not NullMessageStore)
             {
-                await Persistence.Admin.MigrateAsync();
+                await Storage.Admin.MigrateAsync();
             }
             
             await startMessagingTransportsAsync();
@@ -69,7 +69,7 @@ public partial class WolverineRuntime
             new InMemoryScheduledJobProcessor((ILocalQueue)Endpoints.AgentForLocalQueue(TransportConstants.Replies));
 
         // Bit of a hack, but it's necessary. Came up in compliance tests
-        if (Persistence is NullEnvelopePersistence p)
+        if (Storage is NullMessageStore p)
         {
             p.ScheduledJobs = ScheduledJobs;
         }
@@ -106,7 +106,7 @@ public partial class WolverineRuntime
     private async Task startDurabilityAgentAsync()
     {
         // HOKEY, BUT IT WORKS
-        if (_container.Model.DefaultTypeFor<IEnvelopePersistence>() != typeof(NullEnvelopePersistence) &&
+        if (_container.Model.DefaultTypeFor<IMessageStore>() != typeof(NullMessageStore) &&
             Options.Advanced.DurabilityAgentEnabled)
         {
             var durabilityLogger = _container.GetInstance<ILogger<DurabilityAgent>>();
@@ -114,7 +114,7 @@ public partial class WolverineRuntime
             // TODO -- use the worker queue for Retries?
             var worker = new DurableReceiver(new LocalQueueSettings("scheduled"), this, Pipeline);
 
-            Durability = new DurabilityAgent(this, Logger, durabilityLogger, worker, Persistence,
+            Durability = new DurabilityAgent(this, Logger, durabilityLogger, worker, Storage,
                 Options.Advanced);
 
             await Durability.StartAsync(Options.Advanced.Cancellation);

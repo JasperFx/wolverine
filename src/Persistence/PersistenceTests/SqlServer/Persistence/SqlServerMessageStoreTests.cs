@@ -23,7 +23,7 @@ using Xunit;
 
 namespace PersistenceTests.SqlServer.Persistence;
 
-public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext, IDisposable
+public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDisposable
 {
     public IHost theHost = WolverineHost.For(opts =>
     {
@@ -33,7 +33,7 @@ public class SqlServerEnveloperPersistorTests : SqlServerBackedListenerContext, 
     protected override Task initialize()
     {
         
-        thePersistence = theHost.Services.GetRequiredService<IEnvelopePersistence>();
+        thePersistence = theHost.Services.GetRequiredService<IMessageStore>();
         return thePersistence.Admin.ClearAllAsync();
     }
 

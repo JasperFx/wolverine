@@ -8,9 +8,9 @@ namespace Wolverine.Persistence.Durability;
 
 internal class EnvelopeStorageResource : IStatefulResource
 {
-    private readonly IEnvelopePersistence _persistence;
+    private readonly IMessageStore _persistence;
 
-    public EnvelopeStorageResource(IEnvelopePersistence persistence)
+    public EnvelopeStorageResource(IMessageStore persistence)
     {
         _persistence = persistence;
     }

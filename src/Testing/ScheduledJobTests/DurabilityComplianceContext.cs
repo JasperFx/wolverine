@@ -171,11 +171,11 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
     private async Task<PersistedCounts> assertNoPersistedOutgoingEnvelopes()
     {
-        var senderCounts = await theSender.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+        var senderCounts = await theSender.Get<IMessageStore>().Admin.FetchCountsAsync();
         if (senderCounts.Outgoing > 0)
         {
             await Task.Delay(500.Milliseconds());
-            senderCounts = await theSender.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+            senderCounts = await theSender.Get<IMessageStore>().Admin.FetchCountsAsync();
         }
 
         return senderCounts;
@@ -197,11 +197,11 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
     private async Task assertIncomingEnvelopesIsZero()
     {
-        var receiverCounts = await theReceiver.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+        var receiverCounts = await theReceiver.Get<IMessageStore>().Admin.FetchCountsAsync();
         if (receiverCounts.Incoming > 0)
         {
             await Task.Delay(500.Milliseconds());
-            receiverCounts = await theReceiver.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+            receiverCounts = await theReceiver.Get<IMessageStore>().Admin.FetchCountsAsync();
         }
 
         receiverCounts.Incoming.ShouldBe(0);
@@ -223,7 +223,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
             await c.ScheduleAsync(item, 1.Hours());
         });
 
-        var persistence = theSender.Get<IEnvelopePersistence>();
+        var persistence = theSender.Get<IMessageStore>();
         var counts = await persistence.Admin.FetchCountsAsync();
         counts.Scheduled.ShouldBe(1);
 

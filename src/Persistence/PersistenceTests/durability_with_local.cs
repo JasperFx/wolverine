@@ -27,7 +27,7 @@ public class durability_with_local : PostgresqlContext
         {
             await host1.SendAsync(new ReceivedMessage());
 
-            var counts = await host1.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+            var counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
 
             await host1.StopAsync();
 
@@ -38,13 +38,13 @@ public class durability_with_local : PostgresqlContext
         using (var host1 = Host.CreateDefaultBuilder().UseWolverine(opts => opts.ConfigureDurableSender(true, false))
                    .Start())
         {
-            var counts = await host1.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+            var counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
 
             var i = 0;
             while (counts.Incoming != 1 && i < 10)
             {
                 await Task.Delay(100.Milliseconds());
-                counts = await host1.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+                counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
                 i++;
             }
 

@@ -32,7 +32,7 @@ public class configuration_extension_methods : PostgresqlContext
         host.Services.GetRequiredService<PostgresqlSettings>()
             .ConnectionString.ShouldBe(Servers.PostgresConnectionString);
 
-        host.Services.GetServices<IDatabase>().OfType<PostgresqlEnvelopePersistence>()
+        host.Services.GetServices<IDatabase>().OfType<PostgresqlMessageStore>()
             .Count().ShouldBe(1);
     }
 

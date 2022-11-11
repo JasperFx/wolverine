@@ -15,7 +15,7 @@ namespace Wolverine.Persistence.Durability;
 internal class DurableSendingAgent : SendingAgent
 {
     private readonly ILogger _logger;
-    private readonly IEnvelopePersistence _persistence;
+    private readonly IMessageStore _persistence;
 
     private IList<Envelope> _queued = new List<Envelope>();
     private readonly RetryBlock<Envelope> _deleteOutgoingOne;
@@ -25,7 +25,7 @@ internal class DurableSendingAgent : SendingAgent
 
     public DurableSendingAgent(ISender sender, AdvancedSettings settings, ILogger logger,
         IMessageLogger messageLogger,
-        IEnvelopePersistence persistence, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
+        IMessageStore persistence, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
     {
         _logger = logger;
 

@@ -20,7 +20,7 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
     private readonly IMessagingAction _scheduledJobs;
     private readonly AdvancedSettings _settings;
 
-    private readonly IEnvelopePersistence _storage;
+    private readonly IMessageStore _storage;
     private readonly ILogger<DurabilityAgent> _trace;
 
     private readonly ActionBlock<IMessagingAction> _worker;
@@ -36,10 +36,10 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
 #pragma warning restore CS8618
         ILogger<DurabilityAgent> trace,
         ILocalQueue locals,
-        IEnvelopePersistence storage,
+        IMessageStore storage,
         AdvancedSettings settings)
     {
-        if (storage is NullEnvelopePersistence)
+        if (storage is NullMessageStore)
         {
             _disabled = true;
             return;

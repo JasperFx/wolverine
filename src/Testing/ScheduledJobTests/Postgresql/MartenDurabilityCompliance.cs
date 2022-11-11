@@ -54,7 +54,7 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
 
     protected override IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender)
     {
-        var admin = sender.Get<IEnvelopePersistence>().Admin;
+        var admin = sender.Get<IMessageStore>().Admin;
 
         return admin.AllOutgoingAsync().GetAwaiter().GetResult();
     }

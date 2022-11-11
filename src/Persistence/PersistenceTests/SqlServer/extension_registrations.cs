@@ -27,7 +27,7 @@ public class extension_registrations : SqlServerContext
         container.Model.For<SqlConnection>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
 
 
-        container.Model.HasRegistrationFor<IEnvelopePersistence>().ShouldBeTrue();
+        container.Model.HasRegistrationFor<IMessageStore>().ShouldBeTrue();
 
 
         runtime.Get<SqlConnection>().ConnectionString.ShouldBe(Servers.SqlServerConnectionString);

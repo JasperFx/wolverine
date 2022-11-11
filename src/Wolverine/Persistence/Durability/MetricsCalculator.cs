@@ -18,7 +18,7 @@ internal class MetricsCalculator : IMessagingAction
     }
     
     public string Description { get; } = "Metrics collection of inbox and outbox";
-    public async Task ExecuteAsync(IEnvelopePersistence storage, IDurabilityAgent agent)
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
     {
         var counts = await storage.Admin.FetchCountsAsync();
         Counts = counts;

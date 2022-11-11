@@ -145,7 +145,7 @@ public class EndpointCollection : IEndpointCollection
         {
             case EndpointMode.Durable:
                 return new DurableSendingAgent(sender, _options.Advanced, _runtime.Logger, _runtime.MessageLogger,
-                    _runtime.Persistence, endpoint);
+                    _runtime.Storage, endpoint);
 
             case EndpointMode.BufferedInMemory:
                 return new BufferedSendingAgent(_runtime.Logger, _runtime.MessageLogger, sender, _runtime.Advanced, endpoint);

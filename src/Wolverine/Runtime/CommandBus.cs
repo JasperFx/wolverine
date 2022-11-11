@@ -26,14 +26,14 @@ public class CommandBus : ICommandBus
     internal CommandBus(IWolverineRuntime runtime, string? correlationId)
     {
         Runtime = runtime;
-        Persistence = runtime.Persistence;
+        Storage = runtime.Storage;
         CorrelationId = correlationId;
     }
 
     public string? CorrelationId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
-    public IEnvelopePersistence Persistence { get; }
+    public IMessageStore Storage { get; }
 
 
     public IEnumerable<Envelope> Outstanding => _outstanding;
@@ -168,13 +168,13 @@ public class CommandBus : ICommandBus
             return Transaction.ScheduleJobAsync(envelope);
         }
 
-        if (Persistence is NullEnvelopePersistence)
+        if (Storage is NullMessageStore)
         {
             Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime.Value, envelope);
             return Task.CompletedTask;
         }
 
-        return Persistence.ScheduleJobAsync(envelope);
+        return Storage.ScheduleJobAsync(envelope);
     }
 
     internal async ValueTask PersistOrSendAsync(Envelope envelope)

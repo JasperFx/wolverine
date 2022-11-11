@@ -19,7 +19,7 @@ internal class RunScheduledJobs : IMessagingAction
         _logger = logger;
     }
 
-    public Task ExecuteAsync(IEnvelopePersistence storage, IDurabilityAgent agent)
+    public Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
     {
         var utcNow = DateTimeOffset.UtcNow;
         return ExecuteAtTimeAsync(storage, agent, utcNow);
@@ -27,7 +27,7 @@ internal class RunScheduledJobs : IMessagingAction
 
     public string Description { get; } = "Run Scheduled Messages";
 
-    public async Task ExecuteAtTimeAsync(IEnvelopePersistence storage, IDurabilityAgent agent,
+    public async Task ExecuteAtTimeAsync(IMessageStore storage, IDurabilityAgent agent,
         DateTimeOffset utcNow)
     {
         await storage.Session.BeginAsync();

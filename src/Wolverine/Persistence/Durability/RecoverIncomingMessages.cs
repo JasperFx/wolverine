@@ -22,7 +22,7 @@ internal class RecoverIncomingMessages : IMessagingAction
         _endpoints = endpoints;
     }
 
-    public async Task ExecuteAsync(IEnvelopePersistence storage, IDurabilityAgent agent)
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
     {
         // We don't need this to be transactional
         var gotLock = await storage.Session.TryGetGlobalLockAsync(TransportConstants.IncomingMessageLockId);
@@ -75,7 +75,7 @@ internal class RecoverIncomingMessages : IMessagingAction
         return pageSize;
     }
 
-    internal async Task<bool> TryRecoverIncomingMessagesAsync(IEnvelopePersistence storage, IncomingCount count)
+    internal async Task<bool> TryRecoverIncomingMessagesAsync(IMessageStore storage, IncomingCount count)
     {
         var listener = findListenerCircuit(count);
 
@@ -104,7 +104,7 @@ internal class RecoverIncomingMessages : IMessagingAction
         return listener!;
     }
 
-    public virtual async Task RecoverMessagesAsync(IEnvelopePersistence storage, IncomingCount count, int pageSize,
+    public virtual async Task RecoverMessagesAsync(IMessageStore storage, IncomingCount count, int pageSize,
         IListenerCircuit listener)
     {
         await storage.Session.BeginAsync();

@@ -33,7 +33,7 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
     public override async Task<bool> Execute(StorageInput input)
     {
         using var host = input.BuildHost();
-        var persistence = host.Services.GetRequiredService<IEnvelopePersistence>();
+        var persistence = host.Services.GetRequiredService<IMessageStore>();
 
         persistence.Describe(Console.Out);
 

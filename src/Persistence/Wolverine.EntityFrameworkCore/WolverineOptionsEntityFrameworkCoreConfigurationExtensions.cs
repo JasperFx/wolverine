@@ -7,7 +7,7 @@ public static class WolverineOptionsEntityFrameworkCoreConfigurationExtensions
     ///     middleware
     /// </summary>
     /// <param name="options"></param>
-    public static void UseEntityFrameworkCorePersistence(this WolverineOptions options)
+    public static void UseEntityFrameworkCoreTransactions(this WolverineOptions options)
     {
         options.Include<EntityFrameworkCoreBackedPersistence>();
     }

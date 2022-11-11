@@ -59,13 +59,13 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
         var advanced = new AdvancedSettings(null);
 
-        var logger = new NullLogger<PostgresqlEnvelopePersistence>();
-        await new PostgresqlEnvelopePersistence(new PostgresqlSettings
+        var logger = new NullLogger<PostgresqlMessageStore>();
+        await new PostgresqlMessageStore(new PostgresqlSettings
                     { ConnectionString = Servers.PostgresConnectionString, SchemaName = ReceiverSchemaName }, advanced,
                 logger)
             .RebuildAsync();
 
-        await new PostgresqlEnvelopePersistence(new PostgresqlSettings
+        await new PostgresqlMessageStore(new PostgresqlSettings
                     { ConnectionString = Servers.PostgresConnectionString, SchemaName = SenderSchemaName }, advanced,
                 logger)
             .RebuildAsync();

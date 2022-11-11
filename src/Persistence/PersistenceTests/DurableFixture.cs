@@ -152,11 +152,11 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
     private async Task<PersistedCounts> assertNoPersistedOutgoingEnvelopes()
     {
-        var senderCounts = await theSender.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+        var senderCounts = await theSender.Get<IMessageStore>().Admin.FetchCountsAsync();
         if (senderCounts.Outgoing > 0)
         {
             await Task.Delay(500.Milliseconds());
-            senderCounts = await theSender.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+            senderCounts = await theSender.Get<IMessageStore>().Admin.FetchCountsAsync();
         }
 
         return senderCounts;
@@ -177,11 +177,11 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
     private async Task assertIncomingEnvelopesIsZero()
     {
-        var receiverCounts = await theReceiver.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+        var receiverCounts = await theReceiver.Get<IMessageStore>().Admin.FetchCountsAsync();
         if (receiverCounts.Incoming > 0)
         {
             await Task.Delay(500.Milliseconds());
-            receiverCounts = await theReceiver.Get<IEnvelopePersistence>().Admin.FetchCountsAsync();
+            receiverCounts = await theReceiver.Get<IMessageStore>().Admin.FetchCountsAsync();
         }
 
         receiverCounts.Incoming.ShouldBe(0, "There are still persisted, incoming messages");
@@ -200,7 +200,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
         await send(async c => { await c.ScheduleAsync(item, 1.Hours()); });
 
-        var persistor = theSender.Get<IEnvelopePersistence>();
+        var persistor = theSender.Get<IMessageStore>();
         var counts = await persistor.Admin.FetchCountsAsync();
 
         counts.Scheduled.ShouldBe(1, $"counts.Scheduled = {counts.Scheduled}, should be 1");

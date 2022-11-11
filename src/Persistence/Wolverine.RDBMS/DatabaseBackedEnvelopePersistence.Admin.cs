@@ -9,10 +9,10 @@ using Weasel.Core;
 namespace Wolverine.RDBMS;
 
 /// <summary>
-/// Base class for relational database backed envelope persistence
+/// Base class for relational database backed message storage
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public abstract partial class DatabaseBackedEnvelopePersistence<T>
+public abstract partial class DatabaseBackedMessageStore<T>
 {
     public async Task ClearAllAsync()
     {

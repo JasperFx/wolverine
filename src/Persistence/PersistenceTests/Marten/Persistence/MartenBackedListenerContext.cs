@@ -49,10 +49,10 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
 
 public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyncLifetime
 {
-    protected readonly IEnvelopeStorageAdmin EnvelopeStorageAdmin =
-        new PostgresqlEnvelopePersistence(new PostgresqlSettings
+    protected readonly IMessageStoreAdmin MessageStoreAdmin =
+        new PostgresqlMessageStore(new PostgresqlSettings
                 { ConnectionString = Servers.PostgresConnectionString }, new AdvancedSettings(null),
-            new NullLogger<PostgresqlEnvelopePersistence>());
+            new NullLogger<PostgresqlMessageStore>());
 
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
@@ -72,15 +72,15 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
         theSettings = new AdvancedSettings(null);
 
 
-        await EnvelopeStorageAdmin.RebuildAsync();
+        await MessageStoreAdmin.RebuildAsync();
 
         var persistence =
-            new PostgresqlEnvelopePersistence(
+            new PostgresqlMessageStore(
                 new PostgresqlSettings { ConnectionString = Servers.PostgresConnectionString }, theSettings,
-                new NullLogger<PostgresqlEnvelopePersistence>());
+                new NullLogger<PostgresqlMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
-        runtime.Persistence.Returns(persistence);
+        runtime.Storage.Returns(persistence);
         runtime.Pipeline.Returns(thePipeline);
         runtime.Advanced.Returns(theSettings);
 
@@ -149,7 +149,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
         listener.Address.Returns(theUri);
         await theReceiver.ProcessReceivedMessagesAsync(DateTimeOffset.Now, listener, theEnvelopes.ToArray());
 
-        return await EnvelopeStorageAdmin.AllIncomingAsync();
+        return await MessageStoreAdmin.AllIncomingAsync();
     }
 
     protected void assertEnvelopeWasEnqueued(Envelope envelope)

@@ -6,7 +6,7 @@ using Weasel.Core;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class DatabaseBackedEnvelopePersistence<T>
+public abstract partial class DatabaseBackedMessageStore<T>
 {
     public Task ScheduleExecutionAsync(Envelope[] envelopes)
     {

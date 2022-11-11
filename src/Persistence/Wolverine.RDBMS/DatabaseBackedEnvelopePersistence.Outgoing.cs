@@ -10,7 +10,7 @@ using Weasel.Core;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class DatabaseBackedEnvelopePersistence<T>
+public abstract partial class DatabaseBackedMessageStore<T>
 {
     public abstract Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
     public abstract Task DeleteOutgoingAsync(Envelope[] envelopes);

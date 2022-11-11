@@ -5,9 +5,9 @@ namespace DocumentationSamples
     public class DeadLetterQueue
     {
         #region sample_FetchErrorReport
-        public async Task load_error_report(IEnvelopePersistence persistence, Guid envelopeId)
+        public async Task load_error_report(IMessageStore messageStore, Guid envelopeId)
         {
-            var report = await persistence.LoadDeadLetterEnvelopeAsync(envelopeId);
+            var report = await messageStore.LoadDeadLetterEnvelopeAsync(envelopeId);
 
             // The Id
             Console.WriteLine(report.Id);

@@ -21,8 +21,8 @@ internal class SqlServerBackedPersistence : IWolverineExtension
     {
         options.Services.AddSingleton(Settings);
 
-        options.Services.AddTransient<IEnvelopePersistence, SqlServerEnvelopePersistence>();
-        options.Services.AddSingleton(s => (IDatabase)s.GetRequiredService<IEnvelopePersistence>());
+        options.Services.AddTransient<IMessageStore, SqlServerMessageStore>();
+        options.Services.AddSingleton(s => (IDatabase)s.GetRequiredService<IMessageStore>());
 
         options.Advanced.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 

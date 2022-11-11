@@ -93,7 +93,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
 
         await theSender.Get<IMessagePublisher>().ScheduleAsync(item, 1.Days());
 
-        var persistor = theSender.Get<IEnvelopePersistence>();
+        var persistor = theSender.Get<IMessageStore>();
 
         var counts = await persistor.Admin.FetchCountsAsync();
 
@@ -130,7 +130,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
             item2.Name.ShouldBe("Shoe");
         }
 
-        var incoming = await theReceiver.Get<IEnvelopePersistence>().Admin.AllIncomingAsync();
+        var incoming = await theReceiver.Get<IMessageStore>().Admin.AllIncomingAsync();
         incoming.Any().ShouldBeFalse();
     }
 }

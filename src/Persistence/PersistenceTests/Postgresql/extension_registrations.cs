@@ -28,7 +28,7 @@ public class extension_registrations : PostgresqlContext
         container.Model.For<NpgsqlConnection>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
 
 
-        container.Model.HasRegistrationFor<IEnvelopePersistence>().ShouldBeTrue();
+        container.Model.HasRegistrationFor<IMessageStore>().ShouldBeTrue();
 
 
         runtime.Get<NpgsqlConnection>().ConnectionString.ShouldBe(Servers.PostgresConnectionString);

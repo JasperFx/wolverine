@@ -80,7 +80,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Persistence.Received().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Received().ScheduleJobAsync(theEnvelope);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Persistence.DidNotReceive().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.DidNotReceive().ScheduleJobAsync(theEnvelope);
         await callback.As<ISupportNativeScheduling>().Received()
             .MoveToScheduledUntilAsync(theEnvelope, scheduledTime);
     }
@@ -111,7 +111,7 @@ public class MessageContextTests
 
         await theContext.MoveToDeadLetterQueueAsync(exception);
 
-        await theRuntime.Persistence.Received()
+        await theRuntime.Storage.Received()
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
 
@@ -119,7 +119,7 @@ public class MessageContextTests
     public async Task move_to_dead_letter_queue_with_native_dead_letter()
     {
         var callback = Substitute.For<IChannelCallback, ISupportDeadLetterQueue>();
-
+        
         theContext.ReadEnvelope(theEnvelope, callback);
 
         var exception = new Exception();
@@ -129,7 +129,7 @@ public class MessageContextTests
         await callback.As<ISupportDeadLetterQueue>().Received()
             .MoveToErrorsAsync(theEnvelope, exception);
 
-        await theRuntime.Persistence.DidNotReceive()
+        await theRuntime.Storage.DidNotReceive()
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
 

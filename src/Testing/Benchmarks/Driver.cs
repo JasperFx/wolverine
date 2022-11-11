@@ -30,7 +30,7 @@ namespace Benchmarks
 
         public IMessagePublisher Publisher { get; private set; }
 
-        public IEnvelopePersistence Persistence { get; private set; }
+        public IMessageStore Persistence { get; private set; }
 
         public void Dispose()
         {
@@ -54,7 +54,7 @@ namespace Benchmarks
                 })
                 .StartAsync();
 
-            Persistence = Host.Services.GetRequiredService<IEnvelopePersistence>();
+            Persistence = Host.Services.GetRequiredService<IMessageStore>();
             Publisher = Host.Services.GetRequiredService<IMessagePublisher>();
 
             await Host.ResetResourceState();

@@ -23,7 +23,7 @@ public class Message1
     public Guid Id = Guid.NewGuid();
 }
 
-public class SqlServerBackedMessagePersistenceTests : SqlServerContext, IAsyncLifetime
+public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
 {
     private Envelope persisted;
     private Envelope theEnvelope;
@@ -48,9 +48,9 @@ public class SqlServerBackedMessagePersistenceTests : SqlServerContext, IAsyncLi
         theEnvelope.ConversationId = Guid.NewGuid();
         theEnvelope.ParentId = Guid.NewGuid().ToString();
 
-        theHost.Get<IEnvelopePersistence>().ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
+        theHost.Get<IMessageStore>().ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
 
-        var persistor = theHost.Get<SqlServerEnvelopePersistence>();
+        var persistor = theHost.Get<SqlServerMessageStore>();
 
         persisted = (await persistor.Admin.AllIncomingAsync())
             .FirstOrDefault(x => x.Id == theEnvelope.Id);

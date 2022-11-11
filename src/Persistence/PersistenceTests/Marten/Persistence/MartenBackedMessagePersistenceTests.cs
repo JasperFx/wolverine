@@ -48,7 +48,7 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
 
     public async Task InitializeAsync()
     {
-        var persistence = theHost.Get<IEnvelopePersistence>();
+        var persistence = theHost.Get<IMessageStore>();
 
         await persistence.Admin.RebuildAsync();
 

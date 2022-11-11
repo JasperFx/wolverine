@@ -21,13 +21,13 @@ namespace EFPlusSqlServerConsole
                     // application configuration
                     var connectionString = "Server=localhost,1435;User Id=sa;Password=P@55w0rd;Timeout=5;Encrypt=false";
 
-                    // Setting up Sql Server-backed message persistence
+                    // Setting up Sql Server-backed message storage
                     // This requires a reference to Wolverine.SqlServer
                     opts.PersistMessagesWithSqlServer(connectionString);
 
                     // Set up Entity Framework Core as the support
                     // for Wolverine's transactional middleware
-                    opts.UseEntityFrameworkCorePersistence();
+                    opts.UseEntityFrameworkCoreTransactions();
 
                     // Register the EF Core DbContext
                     opts.Services.AddDbContext<ItemsDbContext>(

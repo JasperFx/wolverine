@@ -70,7 +70,7 @@ public class RecoverIncomingMessagesTests
 
         action.DeterminePageSize(theAgent, count).Returns(0);
 
-        var persistence = Substitute.For<IEnvelopePersistence>();
+        var persistence = Substitute.For<IMessageStore>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
@@ -90,7 +90,7 @@ public class RecoverIncomingMessagesTests
 
         action.DeterminePageSize(theAgent, count).Returns(11);
 
-        var persistence = Substitute.For<IEnvelopePersistence>();
+        var persistence = Substitute.For<IMessageStore>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
@@ -111,7 +111,7 @@ public class RecoverIncomingMessagesTests
 
         action.DeterminePageSize(theAgent, count).Returns(11);
 
-        var persistence = Substitute.For<IEnvelopePersistence>();
+        var persistence = Substitute.For<IMessageStore>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);

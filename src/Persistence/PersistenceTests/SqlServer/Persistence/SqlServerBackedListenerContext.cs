@@ -24,7 +24,7 @@ public class SqlServerBackedListenerContext : SqlServerContext
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
     protected SqlServerSettings mssqlSettings;
-    protected IEnvelopePersistence thePersistence;
+    protected IMessageStore thePersistence;
     internal DurableReceiver theReceiver;
     protected AdvancedSettings theSettings;
 
@@ -39,11 +39,11 @@ public class SqlServerBackedListenerContext : SqlServerContext
         };
 
         thePersistence =
-            new SqlServerEnvelopePersistence(mssqlSettings, theSettings,
-                new NullLogger<SqlServerEnvelopePersistence>());
+            new SqlServerMessageStore(mssqlSettings, theSettings,
+                new NullLogger<SqlServerMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
-        runtime.Persistence.Returns(thePersistence);
+        runtime.Storage.Returns(thePersistence);
         runtime.Pipeline.Returns(thePipeline);
         runtime.Advanced.Returns(theSettings);
 

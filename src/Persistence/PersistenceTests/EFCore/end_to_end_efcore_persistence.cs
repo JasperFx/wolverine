@@ -39,7 +39,7 @@ public class EFCorePersistenceContext : BaseContext
                 options.Services.AddSingleton<PassRecorder>();
                 options.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-                options.UseEntityFrameworkCorePersistence();
+                options.UseEntityFrameworkCoreTransactions();
 
                 options.Policies.UseConventionalLocalRouting()
                     .CustomizeQueues((_, q) => q.UseDurableInbox());
@@ -142,7 +142,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         
 
 
-        var persisted = await Host.Services.GetRequiredService<IEnvelopePersistence>()
+        var persisted = await Host.Services.GetRequiredService<IMessageStore>()
             .Admin.AllOutgoingAsync();
 
         var loadedEnvelope = persisted.Single();
@@ -272,7 +272,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             await messaging.SaveChangesAndFlushMessagesAsync();
         }
 
-        var persisted = await Host.Services.GetRequiredService<IEnvelopePersistence>()
+        var persisted = await Host.Services.GetRequiredService<IMessageStore>()
             .Admin.AllIncomingAsync();
 
         var loadedEnvelope = persisted.Single();

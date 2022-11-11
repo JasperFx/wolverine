@@ -31,7 +31,7 @@ public interface IWolverineRuntime
     IMessageLogger MessageLogger { get; }
     WolverineOptions Options { get; }
 
-    IEnvelopePersistence Persistence { get; }
+    IMessageStore Storage { get; }
     ILogger Logger { get; }
     AdvancedSettings Advanced { get; }
     CancellationToken Cancellation { get; }

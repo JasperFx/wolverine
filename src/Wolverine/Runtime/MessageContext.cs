@@ -218,7 +218,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
         }
         else
         {
-            await Persistence.ScheduleJobAsync(Envelope);
+            await Storage.ScheduleJobAsync(Envelope);
         }
     }
 
@@ -236,7 +236,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
         else
         {
             // If persistable, persist
-            await Persistence.MoveToDeadLetterStorageAsync(Envelope, exception);
+            await Storage.MoveToDeadLetterStorageAsync(Envelope, exception);
         }
     }
 
@@ -280,13 +280,13 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
     private async Task flushScheduledMessagesAsync()
     {
-        if (Persistence is NullEnvelopePersistence)
+        if (Storage is NullMessageStore)
         {
             foreach (var envelope in Scheduled) Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
         }
         else
         {
-            foreach (var envelope in Scheduled) await Persistence.ScheduleJobAsync(envelope);
+            foreach (var envelope in Scheduled) await Storage.ScheduleJobAsync(envelope);
         }
 
         Scheduled.Clear();

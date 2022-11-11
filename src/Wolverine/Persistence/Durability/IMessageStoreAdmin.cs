@@ -5,7 +5,7 @@ using Wolverine.Logging;
 
 namespace Wolverine.Persistence.Durability;
 
-public interface IEnvelopeStorageAdmin
+public interface IMessageStoreAdmin
 {
     /// <summary>
     ///     Clears out all persisted envelopes

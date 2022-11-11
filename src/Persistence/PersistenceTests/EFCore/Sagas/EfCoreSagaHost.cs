@@ -30,7 +30,7 @@ public class EfCoreSagaHost : ISagaHost
 
             opts.Services.AddDbContext<SagaDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
 
-            opts.UseEntityFrameworkCorePersistence();
+            opts.UseEntityFrameworkCoreTransactions();
 
             opts.PublishAllMessages().Locally();
         });

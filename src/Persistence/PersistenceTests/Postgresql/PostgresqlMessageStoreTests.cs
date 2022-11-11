@@ -24,7 +24,7 @@ using Xunit;
 
 namespace PersistenceTests.Postgresql;
 
-public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable, IAsyncLifetime
+public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyncLifetime
 {
     public IHost theHost = WolverineHost.For(opts =>
     {
@@ -37,7 +37,7 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
         opts.ListenAtPort(2345).UseDurableInbox();
     });
 
-    private IEnvelopePersistence thePersistence;
+    private IMessageStore thePersistence;
 
     public async Task InitializeAsync()
     {
@@ -45,7 +45,7 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
         await store.Advanced.Clean.CompletelyRemoveAllAsync();
         await theHost.ResetResourceState();
 
-        thePersistence = theHost.Services.GetRequiredService<IEnvelopePersistence>();
+        thePersistence = theHost.Services.GetRequiredService<IMessageStore>();
     }
 
     public Task DisposeAsync()
@@ -62,7 +62,7 @@ public class PostgresqlEnvelopePersistenceTests : PostgresqlContext, IDisposable
     [Fact]
     public async Task get_counts()
     {
-        var thePersistor = theHost.Get<IEnvelopePersistence>();
+        var thePersistor = theHost.Get<IMessageStore>();
 
         var list = new List<Envelope>();
 

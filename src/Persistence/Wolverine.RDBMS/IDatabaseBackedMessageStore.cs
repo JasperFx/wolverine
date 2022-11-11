@@ -4,7 +4,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
 
-public interface IDatabaseBackedEnvelopePersistence : IEnvelopePersistence
+public interface IDatabaseBackedMessageStore : IMessageStore
 {
     public AdvancedSettings Settings { get; }
 

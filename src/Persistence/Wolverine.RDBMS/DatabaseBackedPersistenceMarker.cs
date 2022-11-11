@@ -12,6 +12,6 @@ public class DatabaseBackedPersistenceMarker : IVariableSource
 
     public Variable Create(Type type)
     {
-        return Variable.For<IDatabaseBackedEnvelopePersistence>();
+        return Variable.For<IDatabaseBackedMessageStore>();
     }
 }

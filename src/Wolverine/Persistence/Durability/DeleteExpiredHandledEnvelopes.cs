@@ -6,7 +6,7 @@ namespace Wolverine.Persistence.Durability;
 public class DeleteExpiredHandledEnvelopes : IMessagingAction
 {
     public string Description { get; } = "Deleting Expired, Handled Envelopes";
-    public async Task ExecuteAsync(IEnvelopePersistence storage, IDurabilityAgent agent)
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
     {
         await storage.Session.BeginAsync();
 

@@ -19,8 +19,8 @@ internal class PostgresqlBackedPersistence : IWolverineExtension
     {
         options.Services.AddSingleton(Settings);
 
-        options.Services.AddTransient<IEnvelopePersistence, PostgresqlEnvelopePersistence>();
-        options.Services.AddSingleton(s => (IDatabase)s.GetRequiredService<IEnvelopePersistence>());
+        options.Services.AddTransient<IMessageStore, PostgresqlMessageStore>();
+        options.Services.AddSingleton(s => (IDatabase)s.GetRequiredService<IMessageStore>());
         options.Advanced.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
         options.Services.For<NpgsqlConnection>().Use<NpgsqlConnection>();
