@@ -8,13 +8,13 @@ Wolverine is a toolset for command execution and message handling within .NET Co
 The killer feature of Wolverine (we think) is its very efficient command execution pipeline that
 can be used as:
 
-1. An inline "mediator" pipeline for executing commands
-2. An in memory messaging bus and command executor within .NET applications
-3. When used in conjunction with low level messaging infrastructure tools like RabbitMQ, a full fledged asynchronous messaging platform for robust communication and interaction between services
+1. An [inline "mediator" pipeline](/tutorials/mediator) for executing commands
+2. An [in memory command executor and message bus](/guide/command-bus) within .NET applications
+3. A full fledged [asynchronous messaging framework](/guide/messaging/) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ, 
 
 Wolverine tries very hard to be a good citizen within the .NET ecosystem and even when used in
-"headless" services, uses many elements of ASP.NET Core (logging, configuration, bootstrapping, hosted services)
-rather than try to reinvent something new. Wolverine utilizes the new .NET Generic Host for bootstrapping and application teardown.
+"headless" services, uses the idiomatic elements of .NET (logging, configuration, bootstrapping, hosted services)
+rather than try to reinvent something new. Wolverine utilizes the .NET Generic Host for bootstrapping and application teardown.
 This makes Wolverine relatively easy to use in combination with many of the most popular .NET tools.
 
 ## Your First Wolverine Application
