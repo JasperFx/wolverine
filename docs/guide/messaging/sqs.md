@@ -1,4 +1,4 @@
-# Amazon SQS
+# Using Amazon SQS
 
 ::: tip
 Wolverine is only supporting SQS queues for right now, but support for publishing or subscribing through [Amazon SNS](https://aws.amazon.com/sns/) will

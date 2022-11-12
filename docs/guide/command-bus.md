@@ -15,7 +15,18 @@ configuration as some other tools require.
 
 To execute the message processing immediately, use this syntax:
 
-snippet: sample_invoke_locally
+<!-- snippet: sample_invoke_locally -->
+<a id='snippet-sample_invoke_locally'></a>
+```cs
+public static async Task invoke_locally(ICommandBus bus)
+{
+    // Execute the message inline
+    await bus.InvokeAsync(new Message1());
+
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L20-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Note that this feature does utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
 for potentially transient errors.
@@ -34,7 +45,7 @@ public static async Task enqueue_locally(ICommandBus bus)
 
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L8-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enqueue_locally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L10-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enqueue_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The queueing is all based around the [TPL Dataflow library](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/how-to-perform-action-when-a-dataflow-block-receives-data) objects from the [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) library.
@@ -170,14 +181,64 @@ See [message routing rules](/guide/messaging/#routing-rules) for more informatio
 
 You can apply a conventional routing for message types to local queues using this syntax:
 
-snippet: sample_local_queue_conventions
+<!-- snippet: sample_local_queue_conventions -->
+<a id='snippet-sample_local_queue_conventions'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Out of the box, this uses a separate local queue
+        // for each message based on the message type name
+        opts.Policies.UseConventionalLocalRouting()
+
+            // Or you can customize the usage of queues
+            // per message type
+            .Named(type => type.Namespace)
+
+            // Create an optional deny list of types to fall under
+            // this convention
+            .ExcludeTypes(type => type.IsInNamespace("MyApp.NotHere"))
+
+            // Create an optional allow list of message types
+            // to fall under this routing convention
+            .IncludeTypes(type => type.IsInNamespace("MyApp.Here"))
+
+            // Optionally configure the local queues
+            .CustomizeQueues((type, listener) =>
+            {
+                listener.Sequential();
+            });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L55-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_conventions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Configuring Local Queues
 
 You can configure durability or parallelization rules on single queues or conventional
 configuration for queues with this usage:
 
-snippet: sample_configuring_local_queues
+<!-- snippet: sample_configuring_local_queues -->
+<a id='snippet-sample_configuring_local_queues'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Explicit configuration
+        opts.LocalQueue("one")
+            .Sequential();
+
+        opts.LocalQueue("two")
+            .MaximumParallelMessages(10)
+            .UseDurableInbox();
+        
+        // Apply configuration options to all local queues,
+        // but explicit changes to specific local queues take precedence
+        opts.Policies.AllLocalQueues(x => x.UseDurableInbox());
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L32-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_local_queues' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Durable Local Messages
 

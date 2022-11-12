@@ -37,7 +37,7 @@ var connectionString = builder.Configuration.GetConnectionString("SqlServer");
 builder.Host.UseWolverine(opts =>
 {
     opts.PersistMessagesWithSqlServer(connectionString);
-    opts.UseEntityFrameworkCorePersistence();
+    opts.UseEntityFrameworkCoreTransactions();
 });
 
 // Register the EF Core DbContext

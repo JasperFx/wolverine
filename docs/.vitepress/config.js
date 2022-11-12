@@ -51,6 +51,7 @@ export default withMermaid({
                   {text: 'Getting Started', link: '/tutorials/getting-started'},     
                   {text: 'Wolverine as Mediator', link: '/tutorials/mediator'},
                   {text: 'Best Practices', link: '/tutorials/best-practices'},
+                  {text: 'Ping/Pong Messaging', link: '/tutorials/ping-pong'},
               ]
             },
             {
@@ -63,17 +64,21 @@ export default withMermaid({
               collapsible: true,
               items: [ 
                 {text: 'Use as Messaging Bus', link: '/guide/messaging/'},
+                {text: 'With Rabbit MQ', link: '/guide/messaging/rabbitmq'},
+                {text: 'With Azure Service Bus', link: '/guide/messaging/azure-service-bus'},
+                {text: 'With Amazon SQS', link: '/guide/messaging/sqs'},
+                {text: 'With TCP', link: '/guide/messaging/tcp'},
+                {text: 'With Pulsar', link: '/guide/messaging/pulsar'},
                 {text: 'Configuring Messaging', link: '/guide/messaging/configuration'},
                 {text: 'Message Routing', link: '/guide/messaging/routing'},
                 {text: 'Publishing and Sending', link: '/guide/messaging/pubsub'},
                 {text: 'Message Expiration', link: '/guide/messaging/expiration'},
-                {text: 'Transports', link: '/guide/messaging/transports/'},
-                {text: 'Rabbit MQ Transport', link: '/guide/messaging/transports/rabbitmq'},
-                {text: 'Pulsar Transport', link: '/guide/messaging/transports/pulsar'},
-                {text: 'TCP Transport', link: '/guide/messaging/transports/tcp'},
+                
+
                 {text: 'MassTransit Interop', link: '/guide/messaging/transports/masstransit'},
                 {text: 'Scheduled Delivery', link: '/guide/messaging/scheduled'},
-                {text: 'Message Correlation', link: '/guide/messaging/correlation'}
+                {text: 'Message Correlation', link: '/guide/messaging/correlation'},
+                {text: 'Transports', link: '/guide/messaging/building-transport/'},
               ]
             },
             {

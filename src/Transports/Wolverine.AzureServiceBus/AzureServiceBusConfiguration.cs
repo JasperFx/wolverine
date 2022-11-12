@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus.Administration;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Transports;
 
@@ -18,6 +19,26 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     protected override AzureServiceBusQueueSubscriberConfiguration createSubscriberExpression(AzureServiceBusQueue subscriberEndpoint)
     {
         return new AzureServiceBusQueueSubscriberConfiguration(subscriberEndpoint);
+    }
+
+    /// <summary>
+    /// Add explicit configuration to an AzureServiceBus queue that is being created by
+    /// this application
+    /// </summary>
+    /// <param name="queueName"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration ConfigureQueue(string queueName, Action<CreateQueueOptions> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        var queue = Transport.Queues[queueName];
+        configure(queue.Options);
+
+        return this;
     }
 
     public AzureServiceBusConfiguration UseConventionalRouting(
