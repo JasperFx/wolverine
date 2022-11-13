@@ -1,4 +1,4 @@
-# Stateful Sagas
+# Sagas
 
 As is so common in these docs, I would direct you to this from the old "EIP" book: [Process Manager](http://www.enterpriseintegrationpatterns.com/patterns/messaging/ProcessManager.html). A stateful saga in Wolverine is used
 to coordinate long running workflows or to break large, logical transactions into a series of smaller steps. A stateful saga

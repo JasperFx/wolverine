@@ -2,6 +2,19 @@
 
 [Publish/Subscribe](https://docs.microsoft.com/en-us/azure/architecture/patterns/publisher-subscriber) is a messaging pattern where the senders of messages do not need to specifically know what the specific subscribers are for a given message. In this case, some kind of middleware or infrastructure is responsible for either allowing subscribers to express interest in what messages they need to receive or apply routing rules to send the published messages to the right places. Wolverine's messaging support was largely built to support the publish/subscibe messaging patterm.
 
+```mermaid
+classDiagram
+    
+class ICommandBus
+class IMessagePublisher
+class IMessageContext
+
+IMessageContext ..> IMessagePublisher
+IMessagePublisher ..> ICommandBus
+IMessageContext --> Envelope : Current Message
+    
+```
+
 To send a message with Wolverine, use the `IMessagePublisher` interface or the bigger `IMessageContext` interface that
 are registered in your application's IoC container. The sample below shows the most common usage:
 
@@ -122,6 +135,11 @@ await publisher.SendToTopicAsync("color.purple", new Message1());
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L72-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+
+## Scheduling Message Delivery
+
+TODO -- write stuff here
 
 ## Customizing Message Delivery
 

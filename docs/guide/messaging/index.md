@@ -1,4 +1,4 @@
-# Wolverine as Messaging Bus
+# Getting Started with Wolverine as Message Bus
 
 ::: tip
 While today it is perfectly possible to use multiple transport types in a single Wolverine application, each
@@ -20,21 +20,55 @@ To put this into perspective, here's how a Wolverine application could be connec
 The diagram above should just say "Message Handler" as Wolverine makes no structural differentiation between commands or events, but Jeremy is being too lazy to fix the diagram.
 :::
 
-Before going into any kind of detail about how to use Wolverine messaging, let's talk about some terminology:
+## Configuring Messaging
 
-* *Transport* -- This refers to the support within Wolverine for external messaging infrastructure tools like Rabbit MQ or Pulsar
-* *Endpoint* -- A Wolverine connection to some sort of external resource like a Rabbit MQ exchange or an Amazon SQS queue. The [Async API](https://www.asyncapi.com/) specification refers to this as a *channel*, and Wolverine may very well change its nomenclature in the future to be consistent with Async API
-* *Sending Agent* -- You won't use this directly in your own code, but Wolverine's internal adapters to publish outgoing messages to transport endpoints
-* *Listening Agent* -- Again, an internal detail of Wolverine that receives messages from external transport endpoints, and mediates between the transports and executing the message handlers
-* *Message Store* -- Database storage for Wolverine's [inbox/outbox persistent messaging](/guide/persistence/)
-* *Durability Agent* -- An internal subsystem in Wolverine that runs in a background service to interact with the message store for Wolverine's [transactional inbox/outbox](https://microservices.io/patterns/data/transactional-outbox.html) functionality
-* *Message* -- Typically just a .NET class or C# record that can be easily serialized. See [messages and serialization](/guide/messages) for more information
-* *Message Handler* -- A method or function that "knows" how to process an incoming message. See [Message Handlers](/guide/handlers/) for more information
+There's a couple moving parts to using Wolverine as a messaging bus. You'll need to configure connectivity to external infrastructure like
+Rabbit MQ brokers, set up listening endpoints, and create routing rules to teach Wolverine where and how to send your messages.
 
-To get started with messaging, first add a transport (or use the built in TCP transport):
+The [TCP transport](/guide/messaging/transports/tcp) is built in, and the ["local" in memory queues](/guide/in-memory-bus) can be used like a transport, but you'll need to configure connectivity for
+every other type of messaging transport adapter to external infrastructure. In all cases so far, the connectivity to external transports is done through
+an extension method on `WolverineOptions` using the `Use[ToolName]()` idiom that is now common across .NET tools.
 
-* Rabbit MQ
-* AWS SQS
-* Azure Service Bus
-* TCP Sockets
-* Pulsar (experimental)
+For an example, here's connecting to a Rabbit MQ broker:
+
+<!-- snippet: sample_configuring_connection_to_rabbit_mq -->
+<a id='snippet-sample_configuring_connection_to_rabbit_mq'></a>
+```cs
+using Wolverine;
+using Wolverine.RabbitMQ;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseWolverine(opts =>
+{
+    // Using the Rabbit MQ URI specification: https://www.rabbitmq.com/uri-spec.html
+    opts.UseRabbitMq(new Uri(builder.Configuration["rabbitmq"]));
+
+    // Or connect locally as you might for development purposes
+    opts.UseRabbitMq();
+
+    // Or do it more programmatically:
+    opts.UseRabbitMq(rabbit =>
+    {
+        rabbit.HostName = builder.Configuration["rabbitmq_host"];
+        rabbit.VirtualHost = builder.Configuration["rabbitmq_virtual_host"];
+        rabbit.UserName = builder.Configuration["rabbitmq_username"];
+
+        // and you get the point, you get full control over the Rabbit MQ
+        // connection here for the times you need that
+    });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/RabbitMqBootstrapping/Program.cs#L1-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_connection_to_rabbit_mq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Listening Endpoint Configuration
+
+
+## Sending Endpoint Configuration
+
+
+
+
+
+

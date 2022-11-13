@@ -1,4 +1,4 @@
-# With Marten
+# Marten Integration
 
 [Marten](https://martendb.io) and Wolverine are sibling projects under the [JasperFx organization](https://github.com/wolverinefx), and as such, have quite a bit of synergy when
 used together. At this point, adding the *Wolverine.Persistence.Marten* Nuget dependency to your application adds the capability to combine Marten and Wolverine to:

@@ -31,3 +31,11 @@ builder.Services.AddOpenTelemetryTracing(x =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L37-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Message Correlation
+
+TODO
+
+## Metrics
+
+TODO
