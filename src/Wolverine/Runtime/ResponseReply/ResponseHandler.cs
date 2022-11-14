@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Baseline;
-using Baseline.ImTools;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.ResponseReply;

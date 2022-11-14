@@ -152,6 +152,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             _logger.LogError(e, "Duplicate incoming envelope detected");
 
             await envelope.Listener!.CompleteAsync(envelope);
+            return;
         }
 
         if (envelope.Status == EnvelopeStatus.Incoming)
