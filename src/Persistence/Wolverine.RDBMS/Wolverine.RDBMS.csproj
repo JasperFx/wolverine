@@ -20,8 +20,8 @@
 
   <ItemGroup>
     <PackageReference Include="System.Data.Common" Version="4.3.0" />
-    <PackageReference Include="Weasel.CommandLine" Version="5.4.0" />
-    <PackageReference Include="Weasel.Core" Version="5.5.0" />
+    <PackageReference Include="Weasel.CommandLine" Version="6.0.0-alpha.2" />
+    <PackageReference Include="Weasel.Core" Version="6.0.0-alpha.2" />
   </ItemGroup>
 
   <Import Project="../../../Analysis.Build.props" />

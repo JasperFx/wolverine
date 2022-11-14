@@ -2,7 +2,6 @@ using Wolverine.Marten;
 using Marten;
 using Marten.AspNetCore;
 using Oakton;
-using Spectre.Console.Cli;
 using WebApiWithMarten;
 using Wolverine;
 

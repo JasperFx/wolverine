@@ -18,7 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="LamarCodeGeneration.Commands" Version="6.1.6" />
+      <PackageReference Include="LamarCodeGeneration.Commands" Version="6.2.0" />
     </ItemGroup>
 
 </Project>

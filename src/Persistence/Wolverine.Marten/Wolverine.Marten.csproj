@@ -17,7 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
-    <PackageReference Include="Marten.CommandLine" Version="5.8.0" />
+    <PackageReference Include="Marten.CommandLine" Version="6.0.0-alpha.2" />
   </ItemGroup>
 
   <Import Project="../../../Analysis.Build.props" />

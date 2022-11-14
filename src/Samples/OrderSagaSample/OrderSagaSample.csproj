@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-    <PackageReference Include="LamarCodeGeneration.Commands" Version="6.1.6" />
+    <PackageReference Include="LamarCodeGeneration.Commands" Version="6.2.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
   </ItemGroup>
 
