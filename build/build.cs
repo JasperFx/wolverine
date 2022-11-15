@@ -128,7 +128,18 @@ namespace build
 
             });
 
-            Target("pack", DependsOn("compile"), ForEach("./src/Wolverine", "./src/Transports/Wolverine.RabbitMQ", "./src/Persistence/Wolverine.RDBMS", "./src/Persistence/Wolverine.Postgresql", "./src/Persistence/Wolverine.Marten"), project =>
+            var nugetProjects = new string[]{
+                "./src/Wolverine", 
+                "./src/Transports/Wolverine.RabbitMQ", 
+                "./src/Transports/Wolverine.AzureServiceBus", 
+                "./src/Transports/Wolverine.AmazonSqs", 
+                "./src/Persistence/Wolverine.RDBMS", 
+                "./src/Persistence/Wolverine.Postgresql", 
+                "./src/Persistence/Wolverine.EntityFrameworkCore", 
+                "./src/Persistence/Wolverine.Marten"
+            };
+
+            Target("pack", DependsOn("compile"), ForEach(nugetProjects), project =>
                 Run("dotnet", $"pack {project} -o ./artifacts --configuration Release"));
 
 

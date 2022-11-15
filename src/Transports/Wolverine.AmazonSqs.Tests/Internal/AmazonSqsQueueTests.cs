@@ -2,6 +2,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using NSubstitute.Core.Arguments;
 using Shouldly;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
@@ -110,7 +111,7 @@ public class when_initializing_the_endpoint
         
         var theSqsQueueUrl = "https://someserver.com/foo";
 
-        theClient.CreateQueueAsync(theQueue.QueueName)
+        theClient.CreateQueueAsync(Arg.Any<CreateQueueRequest>())
             .Returns(new CreateQueueResponse
             {
                 QueueUrl = theSqsQueueUrl

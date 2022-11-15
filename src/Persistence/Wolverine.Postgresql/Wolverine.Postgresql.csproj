@@ -3,7 +3,6 @@
   <PropertyGroup>
     <Description>Postgresql Saga, Message, and Outbox storage for Wolverine applications</Description>
     <Authors>Jeremy D. Miller</Authors>
-    <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
     <AssemblyName>Wolverine.Postgresql</AssemblyName>
     <PackageId>WolverineFx.Postgresql</PackageId>

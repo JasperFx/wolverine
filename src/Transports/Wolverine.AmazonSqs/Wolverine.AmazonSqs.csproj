@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <PackageId>WolverineFx.AmazonSqs</PackageId>
+        <Description>Amazon SQS transport for Wolverine applications</Description>
     </PropertyGroup>
 
     <ItemGroup>

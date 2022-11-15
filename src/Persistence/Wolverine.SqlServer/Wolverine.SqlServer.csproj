@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>Sql Server-backed Persistence for Wolverine Applications</Description>
-    <TargetFramework>net6.0</TargetFramework>
     <DebugType>portable</DebugType>
     <PackageId>WolverineFx.SqlServer</PackageId>
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
