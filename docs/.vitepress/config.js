@@ -21,7 +21,7 @@ export default withMermaid({
         logo: '/logo.png',
 
         nav: [
-            {text: 'Guide', link: '/guide/'},
+            {text: 'Guide', link: '/guide/concepts'},
             {text: 'Tutorials', link: '/tutorials/'},
             {
                 text: 'Gitter | Join Chat',

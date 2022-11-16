@@ -1,7 +1,3 @@
-# Wolverine Guidess
+# Wolverine Guides
 
-Hey, what is this?
-
-
-## More
-## More
+Welcome to the Wolverine documentation website! See the content in the left hand pane.
