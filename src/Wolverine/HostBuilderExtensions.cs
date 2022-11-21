@@ -157,6 +157,10 @@ public static class HostBuilderExtensions
             options.Services.InsertRange(0, services);
 
             ExtensionLoader.ApplyExtensions(options);
+            if (options.ApplicationAssembly != null)
+            {
+                options.HandlerGraph.Source.Assemblies.Fill(options.ApplicationAssembly);
+            }
 
             customization?.Invoke(context, options);
 

@@ -163,6 +163,12 @@ public sealed partial class WolverineOptions
     public bool AutoBuildEnvelopeStorageOnStartup { get; set; }
 
     internal TypeLoadMode ProductionTypeLoadMode { get; set; }
+    
+    /// <summary>
+    /// All of the assemblies that Wolverine is searching for message handlers and
+    /// other Wolverine items
+    /// </summary>
+    public IEnumerable<Assembly> Assemblies => HandlerGraph.Source.Assemblies;
 
 
     /// <summary>

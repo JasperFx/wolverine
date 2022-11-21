@@ -15,7 +15,6 @@ namespace Wolverine.Configuration;
 
 public sealed class HandlerSource
 {
-    private readonly IList<Assembly> _assemblies = new List<Assembly>();
     private readonly IList<Type> _explicitTypes = new List<Type>();
 
     private readonly ActionMethodFilter _methodFilters;
@@ -41,6 +40,8 @@ public sealed class HandlerSource
         _typeFilters.Excludes += t => t.HasAttribute<WolverineIgnoreAttribute>();
     }
 
+    internal IList<Assembly> Assemblies { get; } = new List<Assembly>();
+
     /// <summary>
     ///     Disable all conventional discovery of message handlers
     /// </summary>
@@ -62,10 +63,10 @@ public sealed class HandlerSource
             return Array.Empty<HandlerCall>();
         }
 
-        _assemblies.Add(options.ApplicationAssembly);
+        Assemblies.Fill(options.ApplicationAssembly);
 
 
-        var types = await TypeRepository.FindTypes(_assemblies,
+        var types = await TypeRepository.FindTypes(Assemblies,
                 TypeClassification.Concretes | TypeClassification.Closed, type => _typeFilters.Matches(type))
             .ConfigureAwait(false);
 
@@ -99,7 +100,7 @@ public sealed class HandlerSource
     /// <param name="assembly"></param>
     public void IncludeAssembly(Assembly assembly)
     {
-        _assemblies.Add(assembly);
+        Assemblies.Add(assembly);
     }
 
     /// <summary>

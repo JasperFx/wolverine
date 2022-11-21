@@ -83,7 +83,8 @@ export default withMermaid({
                                 {text: 'Error Handling', link: '/guide/handlers/error-handling'},
                                 {text: 'Cascading Messages', link: '/guide/handlers/cascading'},
                                 {text: 'Middleware', link: '/guide/handlers/middleware'},
-                                {text: 'Execution Timeouts', link: '/guide/handlers/timeout'}
+                                {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
+                                {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'}
                             ]
                         },
                     ]

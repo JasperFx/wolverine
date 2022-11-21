@@ -136,7 +136,8 @@ namespace build
                 "./src/Persistence/Wolverine.RDBMS", 
                 "./src/Persistence/Wolverine.Postgresql", 
                 "./src/Persistence/Wolverine.EntityFrameworkCore", 
-                "./src/Persistence/Wolverine.Marten"
+                "./src/Persistence/Wolverine.Marten",
+                "./src/Extensions/Wolverine.FluentValidation"
             };
 
             Target("pack", DependsOn("compile"), ForEach(nugetProjects), project =>

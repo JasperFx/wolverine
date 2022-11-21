@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Baseline;
 using ImTools;
@@ -309,4 +310,6 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         var application = policy.AddType(middlewareType);
         application.MatchByMessageType = true;
     }
+
+    public IEnumerable<Assembly> ExtensionAssemblies => Source.Assemblies;
 }

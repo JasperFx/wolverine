@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Reflection;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
 
@@ -64,4 +66,5 @@ public interface IHandlerConfiguration : IWithFailurePolicies
     /// </summary>
     /// <param name="middlewareType"></param>
     void AddMiddlewareByMessageType(Type middlewareType);
+
 }
