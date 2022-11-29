@@ -219,6 +219,12 @@ public partial class Envelope
     /// </summary>
     public string? TopicName { get; set; }
 
+    /// <summary>
+    /// Purely informational in testing scenarios to record the endpoint
+    /// this envelope was published to
+    /// </summary>
+    public string? EndpointName { get; set; }
+
 
     public override string ToString()
     {
