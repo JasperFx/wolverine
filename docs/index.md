@@ -19,7 +19,7 @@ hero:
 
 features:
 - title: 💪 Command Execution
-  details: Wolverine has a unique approach to command processing that delivers fast performance while still providing and effective middleware strategy and mostly keeping out of your application code
+  details: Wolverine has a unique approach to command processing that delivers fast performance while still providing an effective middleware strategy and mostly keeping out of your application code
 - title: 📚 Asynchronous Processing
   details: Use Wolverine as an in memory command bus to easily leverage asynchronous and parallel processing within a single process
 - title: ⚡️ Messaging
