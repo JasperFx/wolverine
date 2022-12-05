@@ -4,10 +4,10 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 public class AzureServiceBusEnvelope : Envelope
 {
-    public ServiceBusReceivedMessage AzureMessage { get; }
-
     public AzureServiceBusEnvelope(ServiceBusReceivedMessage message)
     {
         AzureMessage = message;
     }
+
+    public ServiceBusReceivedMessage AzureMessage { get; }
 }

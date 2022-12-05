@@ -22,12 +22,12 @@ public class AmazonSqsMessageRoutingConvention : MessageRoutingConvention<Amazon
     }
 
     /// <summary>
-    /// Alternative syntax to specify the name for the queue that each message type will be sent
+    ///     Alternative syntax to specify the name for the queue that each message type will be sent
     /// </summary>
     /// <param name="namingRule"></param>
     /// <returns></returns>
     public AmazonSqsMessageRoutingConvention QueueNameForSender(Func<Type, string> namingRule)
     {
-        return this.IdentifierForSender(namingRule);
+        return IdentifierForSender(namingRule);
     }
 }

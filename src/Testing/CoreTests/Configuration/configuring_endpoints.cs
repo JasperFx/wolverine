@@ -1,8 +1,6 @@
 using System;
 using System.Linq;
 using Microsoft.Extensions.Hosting;
-using Shouldly;
-using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -17,8 +15,8 @@ namespace CoreTests.Configuration;
 public class configuring_endpoints : IDisposable
 {
     private readonly IHost _host;
-    private WolverineOptions theOptions;
     private readonly IWolverineRuntime theRuntime;
+    private readonly WolverineOptions theOptions;
 
     public configuring_endpoints()
     {
@@ -43,10 +41,7 @@ public class configuring_endpoints : IDisposable
         get
         {
             var transport = theOptions.Transports.GetOrCreate<StubTransport>();
-            foreach (var endpoint in transport.Endpoints)
-            {
-                endpoint.Compile(theRuntime);
-            }
+            foreach (var endpoint in transport.Endpoints) endpoint.Compile(theRuntime);
 
             return transport;
         }
@@ -61,7 +56,7 @@ public class configuring_endpoints : IDisposable
     {
         var settings = theOptions.Transports.GetOrCreate<LocalTransport>()
             .QueueFor(queueName);
-        
+
         settings.Compile(theRuntime);
 
         return settings;
@@ -71,7 +66,7 @@ public class configuring_endpoints : IDisposable
     {
         var endpoint = theOptions.Transports
             .TryGetEndpoint(uri.ToUri());
-        
+
         endpoint.Compile(theRuntime);
 
         return endpoint;
@@ -92,7 +87,7 @@ public class configuring_endpoints : IDisposable
         queue.BufferingLimits.Maximum.ShouldBe(250);
         queue.BufferingLimits.Restart.ShouldBe(100);
     }
-    
+
     [Fact]
     public void override_buffering_limits_on_durable()
     {

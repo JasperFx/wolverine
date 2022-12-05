@@ -1,6 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine.Transports;

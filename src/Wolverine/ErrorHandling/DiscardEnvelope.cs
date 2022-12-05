@@ -29,6 +29,7 @@ public class DiscardEnvelope : IContinuation, IContinuationSource
     }
 
     public string Description => "Discard the message";
+
     public IContinuation Build(Exception ex, Envelope envelope)
     {
         return this;

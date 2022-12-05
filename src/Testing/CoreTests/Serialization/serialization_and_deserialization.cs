@@ -1,7 +1,5 @@
 ﻿using System;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 using Xunit;
@@ -65,7 +63,7 @@ public class serialization_and_deserialization_of_single_message
         outgoing.IsResponse = true;
         incoming.IsResponse.ShouldBeTrue();
     }
-    
+
     [Fact]
     public void is_response_negative()
     {

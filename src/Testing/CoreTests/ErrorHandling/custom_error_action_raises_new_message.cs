@@ -1,9 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Tracking;

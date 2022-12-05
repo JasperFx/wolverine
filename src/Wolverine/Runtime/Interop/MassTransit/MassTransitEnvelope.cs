@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 
@@ -45,18 +45,16 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
         }
     }
 
-    public object? Body => Message;
-
     public string? MessageId { get; set; }
     public string? RequestId { get; set; }
     public string? CorrelationId { get; set; }
     public string? ConversationId { get; set; }
     public string? InitiatorId { get; set; }
-    public string? SourceAddress { get; set; }
+
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public string? DestinationAddress { get; set; }
-    public string? ResponseAddress { get; set; }
     public string? FaultAddress { get; set; }
+
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public string[]? MessageType { get; set; }
 
@@ -67,6 +65,14 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
     public DateTime? SentTime { get; set; }
 
     public Dictionary<string, object?> Headers { get; set; } = new();
+
+    // Wolverine doesn't care about this, so don't bother deserializing it
+    // ReSharper disable once UnusedMember.Global
+    public BusHostInfo Host => BusHostInfo.Instance;
+
+    public object? Body => Message;
+    public string? SourceAddress { get; set; }
+    public string? ResponseAddress { get; set; }
 
     public void TransferData(Envelope envelope)
     {
@@ -82,10 +88,7 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
             envelope.ConversationId = cid;
         }
 
-        foreach (var header in Headers)
-        {
-            envelope.Headers[header.Key] = header.Value?.ToString();
-        }
+        foreach (var header in Headers) envelope.Headers[header.Key] = header.Value?.ToString();
 
         if (ExpirationTime.HasValue)
         {
@@ -97,10 +100,6 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
             envelope.SentAt = SentTime.Value.ToUniversalTime();
         }
     }
-
-    // Wolverine doesn't care about this, so don't bother deserializing it
-    // ReSharper disable once UnusedMember.Global
-    public BusHostInfo Host => BusHostInfo.Instance;
 }
 
 [Serializable]

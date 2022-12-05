@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using CoreTests.Acceptance;
-using LamarCodeGeneration.Frames;
+using JasperFx.CodeGeneration.Frames;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Middleware;
 using Wolverine.Runtime.Handlers;
@@ -27,10 +27,7 @@ public class configuring_middleware
     protected async Task applyMiddleware<T>(Action<HandlerChain> assertions)
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Handlers.AddMiddleware<T>();
-            }).StartAsync();
+            .UseWolverine(opts => { opts.Handlers.AddMiddleware<T>(); }).StartAsync();
 
         var chain = host.GetRuntime().Handlers.ChainFor<MiddlewareMessage>();
 
@@ -38,9 +35,6 @@ public class configuring_middleware
     }
 
 
-    
-    
-    
     [Fact]
     public async Task simple_before_and_after_with_instance_methods()
     {
@@ -48,14 +42,14 @@ public class configuring_middleware
         {
             chain.Middleware.FirstOrDefault()
                 .ShouldBeOfType<ConstructorFrame>().Variable.VariableType.ShouldBe(typeof(SimpleBeforeAndAfter));
-            
+
             chain.Middleware[1].ShouldBeCallTo<SimpleBeforeAndAfter>("Before");
-        
+
             chain.Postprocessors.Last()
                 .ShouldBeCallTo<SimpleBeforeAndAfter>("After");
         });
     }
-    
+
     [Fact]
     public async Task simple_before_and_after_async()
     {
@@ -63,27 +57,24 @@ public class configuring_middleware
         {
             chain.Middleware.FirstOrDefault()
                 .ShouldBeOfType<ConstructorFrame>().Variable.VariableType.ShouldBe(typeof(SimpleBeforeAndAfterAsync));
-            
+
             chain.Middleware[1].ShouldBeCallTo<SimpleBeforeAndAfterAsync>("BeforeAsync");
-        
+
             chain.Postprocessors.Last()
                 .ShouldBeCallTo<SimpleBeforeAndAfterAsync>("AfterAsync");
         });
-        
-
     }
 
     [Fact]
     public async Task find_message_type_of_middleware()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Handlers.AddMiddlewareByMessageType(typeof(MiddlewareWithMessage));
-            }).StartAsync();
+            .UseWolverine(opts => { opts.Handlers.AddMiddlewareByMessageType(typeof(MiddlewareWithMessage)); })
+            .StartAsync();
 
         var chain = host.GetRuntime().Handlers.ChainFor<MiddlewareMessage>();
-        chain.Middleware[0].ShouldBeOfType<ConstructorFrame>().Variable.VariableType.ShouldBe(typeof(MiddlewareWithMessage));
+        chain.Middleware[0].ShouldBeOfType<ConstructorFrame>().Variable.VariableType
+            .ShouldBe(typeof(MiddlewareWithMessage));
         chain.Middleware[1].ShouldBeCallWithMessageTo(typeof(MiddlewareWithMessage), "Before");
 
         chain.Postprocessors.Last()
@@ -100,12 +91,10 @@ public class MiddlewareWithMessage
 {
     public void Before(SomeBaseMessage message, Recorder recorder)
     {
-        
     }
 
     public void After(SomeBaseMessage message)
     {
-        
     }
 }
 
@@ -115,24 +104,24 @@ internal static class FrameAssertions
     {
         frame.ShouldBeCallTo(typeof(T), methodName);
     }
-    
+
     public static void ShouldBeCallTo(this Frame frame, Type middlewareType, string methodName)
     {
         var call = frame.ShouldBeOfType<MethodCall>();
-        
+
         call.HandlerType.ShouldBe(middlewareType);
         call.Method.Name.ShouldBe(methodName);
     }
-    
+
     public static void ShouldBeCallWithMessageTo<T>(this Frame frame, string methodName)
     {
         frame.ShouldBeCallWithMessageTo(typeof(T), methodName);
     }
-    
+
     public static void ShouldBeCallWithMessageTo(this Frame frame, Type middlewareType, string methodName)
     {
         var call = frame.ShouldBeOfType<MethodCallAgainstMessage>();
-        
+
         call.HandlerType.ShouldBe(middlewareType);
         call.Method.Name.ShouldBe(methodName);
     }
@@ -140,42 +129,57 @@ internal static class FrameAssertions
 
 public class MiddlewareMessage : SomeBaseMessage
 {
-    
 }
 
 public class MiddlewareMessageHandler
 {
     public void Handle(MiddlewareMessage message)
     {
-        
     }
 }
 
 public class SimpleBeforeAndAfter
 {
-    public void Before(){}
-    
-    public void After(){}
+    public void Before()
+    {
+    }
+
+    public void After()
+    {
+    }
 }
 
 public class SimpleBeforeAndAfterAsync
 {
-    public Task BeforeAsync() => Task.CompletedTask;
+    public Task BeforeAsync()
+    {
+        return Task.CompletedTask;
+    }
 
-    public Task AfterAsync() => Task.CompletedTask;
+    public Task AfterAsync()
+    {
+        return Task.CompletedTask;
+    }
 }
 
 internal class InvalidBecauseInternal
 {
-    public void Before(){}
-    
-    public void After(){}
+    public void Before()
+    {
+    }
+
+    public void After()
+    {
+    }
 }
 
 public class InvalidWithNoMatchingMethods
 {
-    public void BeforeWrong(){}
-    
-    public void AfterDifferent(){}
-}
+    public void BeforeWrong()
+    {
+    }
 
+    public void AfterDifferent()
+    {
+    }
+}

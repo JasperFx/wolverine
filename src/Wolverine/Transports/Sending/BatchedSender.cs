@@ -2,8 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Wolverine.Logging;
 using Microsoft.Extensions.Logging;
+using Wolverine.Logging;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;

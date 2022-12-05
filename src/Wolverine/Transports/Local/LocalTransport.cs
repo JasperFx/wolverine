@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 
@@ -11,7 +11,7 @@ namespace Wolverine.Transports.Local;
 internal class LocalTransport : TransportBase<LocalQueueSettings>
 {
     private readonly Cache<string, LocalQueueSettings> _queues;
-    
+
     public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)")
     {
         _queues = new(name => new LocalQueueSettings(name));
@@ -50,7 +50,7 @@ internal class LocalTransport : TransportBase<LocalQueueSettings>
     {
         return _queues;
     }
-    
+
     /// <summary>
     ///     Retrieves a local queue by name
     /// </summary>
@@ -97,5 +97,4 @@ internal class LocalTransport : TransportBase<LocalQueueSettings>
 
         return new Uri(uri, queueName);
     }
-
 }

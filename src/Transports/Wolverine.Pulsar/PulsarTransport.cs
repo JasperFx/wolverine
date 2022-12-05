@@ -1,61 +1,63 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Baseline;
 using DotPulsar;
 using DotPulsar.Abstractions;
+using JasperFx.Core;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
-namespace Wolverine.Pulsar
+namespace Wolverine.Pulsar;
+
+public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 {
-    public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
+    public const string ProtocolName = "pulsar";
+
+    private readonly LightweightCache<Uri, PulsarEndpoint> _endpoints;
+
+    public PulsarTransport() : base(ProtocolName, "Pulsar")
     {
-        public const string ProtocolName = "pulsar";
+        Builder = PulsarClient.Builder();
 
-        private readonly LightweightCache<Uri, PulsarEndpoint> _endpoints;
+        _endpoints =
+            new LightweightCache<Uri, PulsarEndpoint>(uri => new PulsarEndpoint(uri, this));
+    }
 
-        public PulsarTransport() : base(ProtocolName, "Pulsar")
+    public PulsarEndpoint this[Uri uri] => _endpoints[uri];
+
+    public IPulsarClientBuilder Builder { get; }
+
+    internal IPulsarClient? Client { get; private set; }
+
+    public ValueTask DisposeAsync()
+    {
+        if (Client != null)
         {
-            Builder = PulsarClient.Builder();
-
-            _endpoints =
-                new LightweightCache<Uri, PulsarEndpoint>(uri => new PulsarEndpoint(uri, this));
+            return Client.DisposeAsync();
         }
 
-        public PulsarEndpoint this[Uri uri] => _endpoints[uri];
+        return ValueTask.CompletedTask;
+    }
 
-        public IPulsarClientBuilder Builder { get; }
+    protected override IEnumerable<PulsarEndpoint> endpoints()
+    {
+        return _endpoints;
+    }
 
-        protected override IEnumerable<PulsarEndpoint> endpoints()
-        {
-            return _endpoints;
-        }
+    protected override PulsarEndpoint findEndpointByUri(Uri uri)
+    {
+        return _endpoints[uri];
+    }
 
-        protected override PulsarEndpoint findEndpointByUri(Uri uri)
-        {
-            return _endpoints[uri];
-        }
+    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
+    {
+        Client = Builder.Build();
+        return ValueTask.CompletedTask;
+    }
 
-        public override ValueTask InitializeAsync(IWolverineRuntime runtime)
-        {
-            Client = Builder.Build();
-            return ValueTask.CompletedTask;
-        }
-
-        internal IPulsarClient? Client { get; private set; }
-
-        public ValueTask DisposeAsync()
-        {
-            if (Client != null) return Client.DisposeAsync();
-
-            return ValueTask.CompletedTask;
-        }
-
-        public PulsarEndpoint EndpointFor(string topicPath)
-        {
-            var uri = PulsarEndpoint.UriFor(topicPath);
-            return this[uri];
-        }
+    public PulsarEndpoint EndpointFor(string topicPath)
+    {
+        var uri = PulsarEndpoint.UriFor(topicPath);
+        return this[uri];
     }
 }

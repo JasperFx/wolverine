@@ -1,6 +1,6 @@
 using System.IO;
 using System.Reflection;
-using Baseline;
+using JasperFx.Core;
 using Weasel.Core;
 using Weasel.SqlServer.Procedures;
 using Wolverine.RDBMS;

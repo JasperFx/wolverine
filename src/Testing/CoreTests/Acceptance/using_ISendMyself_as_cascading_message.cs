@@ -1,11 +1,8 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline.Dates;
-using Shouldly;
+using JasperFx.Core;
 using TestingSupport;
-using TestingSupport.Compliance;
-using Wolverine;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Xunit;
@@ -70,7 +67,7 @@ public class using_ISendMyself_as_cascading_message : IntegrationContext
         var envelope = session.Received.SingleEnvelope<TriggeredResponse>();
         envelope.Message.ShouldBeOfType<TriggeredResponse>()
             .Number.ShouldBe(58);
-        
+
         envelope.Source.ShouldBe("Receiver");
         envelope.Destination.Port.ShouldBe(senderPort);
     }
@@ -80,15 +77,13 @@ public record RequestTrigger(int Number);
 
 public record TriggeredResponse(int Number);
 
-
-
 public class TriggerHandler
 {
     public static object Handle(RequestTrigger trigger)
     {
         return Respond.ToSender(new TriggeredResponse(trigger.Number));
-    }    
-    
+    }
+
     public SelfSender Handle(TriggerMessage message)
     {
         return new SelfSender(message.Id);
@@ -96,7 +91,6 @@ public class TriggerHandler
 
     public void Handle(TriggeredResponse response)
     {
-        
     }
 
     public void Handle(Cascaded cascaded)

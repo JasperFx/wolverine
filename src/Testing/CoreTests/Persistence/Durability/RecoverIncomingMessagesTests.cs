@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
-using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Xunit;
@@ -15,15 +14,16 @@ public class RecoverIncomingMessagesTests
 {
     public const int theRecoveryBatchSize = 100;
     public const int theBufferedLimit = 500;
-    
-    private readonly IListeningAgent theAgent = Substitute.For<IListeningAgent, IListenerCircuit>(); 
-    private readonly AdvancedSettings theSettings = new AdvancedSettings(null)
+    private readonly RecoverIncomingMessages theAction;
+
+    private readonly IListeningAgent theAgent = Substitute.For<IListeningAgent, IListenerCircuit>();
+
+    private readonly IEndpointCollection theEndpoints = Substitute.For<IEndpointCollection>();
+
+    private readonly AdvancedSettings theSettings = new(null)
     {
         RecoveryBatchSize = theRecoveryBatchSize
     };
-
-    private readonly IEndpointCollection theEndpoints = Substitute.For<IEndpointCollection>();
-    private readonly RecoverIncomingMessages theAction;
 
     public RecoverIncomingMessagesTests()
     {
@@ -57,7 +57,7 @@ public class RecoverIncomingMessagesTests
     {
         theAgent.QueueCount.Returns(queueLimit);
         theAgent.Status.Returns(ListeningStatus.Accepting);
-        
+
         theAction.DeterminePageSize(theAgent, new IncomingCount(TransportConstants.LocalUri, serverCount))
             .ShouldBe(expected);
     }
@@ -74,12 +74,11 @@ public class RecoverIncomingMessagesTests
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
-        
+
         var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count);
         shouldFetchMore.ShouldBeFalse();
 
         await action.DidNotReceive().RecoverMessagesAsync(persistence, count, Arg.Any<int>(), theAgent);
-        
     }
 
     [Fact]
@@ -94,15 +93,14 @@ public class RecoverIncomingMessagesTests
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
-        
+
         var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count);
         shouldFetchMore.ShouldBeFalse();
 
         await action.Received().RecoverMessagesAsync(persistence, count, 11, theAgent);
-
     }
-    
-    
+
+
     [Fact]
     public async Task recover_messages_when_page_size_is_non_zero_and_not_all_on_server_were_were_recovered()
     {
@@ -115,11 +113,10 @@ public class RecoverIncomingMessagesTests
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
-        
+
         var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count);
         shouldFetchMore.ShouldBeTrue();
 
         await action.Received().RecoverMessagesAsync(persistence, count, 11, theAgent);
-
     }
 }

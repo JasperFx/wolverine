@@ -1,9 +1,8 @@
-namespace Wolverine.RabbitMQ
+namespace Wolverine.RabbitMQ;
+
+public enum ExchangeType
 {
-    public enum ExchangeType
-    {
-        Direct,
-        Fanout,
-        Topic
-    }
+    Direct,
+    Fanout,
+    Topic
 }

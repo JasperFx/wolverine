@@ -1,4 +1,4 @@
-using Baseline.Dates;
+using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
@@ -17,7 +17,6 @@ public record CreateOrder(string Description);
 
 public record OrderCreated(Guid Id);
 
-
 #region sample_CreateOrderController
 
 public class CreateOrderController : ControllerBase
@@ -30,7 +29,7 @@ public class CreateOrderController : ControllerBase
     {
         var order = new Order
         {
-            Description = command.Description,
+            Description = command.Description
         };
 
         // Register the new document with Marten
@@ -70,8 +69,6 @@ public class OrderHandler
     }
 
     #endregion
-
-
 }
 
 public class OrderHandler2
@@ -96,7 +93,7 @@ public class OrderHandler2
         // to have this message sent through Wolverine
         return publisher.SendAsync(
             new OrderCreated(order.Id),
-            new DeliveryOptions{DeliverWithin = 5.Minutes()});
+            new DeliveryOptions { DeliverWithin = 5.Minutes() });
     }
 
     #endregion
@@ -114,7 +111,7 @@ public class LonghandOrderHandler
     {
         var order = new Order
         {
-            Description = command.Description,
+            Description = command.Description
         };
 
         // Register the new document with Marten

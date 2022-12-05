@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Baseline;
+using JasperFx.Core;
 using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime.Routing;
@@ -13,10 +13,7 @@ public class MessageRouter<T> : MessageRouterBase<T>
         Routes = routes.ToArray();
 
         foreach (var route in Routes.Where(x => x.Sender.Endpoint is LocalQueueSettings))
-        {
             route.Rules.Fill(HandlerRules);
-        }
-
     }
 
     public MessageRoute[] Routes { get; }
@@ -39,7 +36,7 @@ public class MessageRouter<T> : MessageRouterBase<T>
         }
 
         var envelopes = new Envelope[Routes.Length];
-        for (int i = 0; i < envelopes.Length; i++)
+        for (var i = 0; i < envelopes.Length; i++)
         {
             envelopes[i] = Routes[i].CreateForSending(message, options, LocalDurableQueue, Runtime);
         }

@@ -3,8 +3,8 @@ using System;
 namespace Wolverine;
 
 /// <summary>
-/// Intercepts outgoing messages and alters the parameters or
-/// metadata of the message before sending to the outgoing brokers
+///     Intercepts outgoing messages and alters the parameters or
+///     metadata of the message before sending to the outgoing brokers
 /// </summary>
 public interface IEnvelopeRule
 {

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -39,10 +38,7 @@ internal class BufferedSendingAgent : SendingAgent
         var toRetry = _queued.Where(x => !x.IsExpired()).ToArray();
         _queued.Clear();
 
-        foreach (var envelope in toRetry)
-        {
-            await _sending.PostAsync(envelope);
-        }
+        foreach (var envelope in toRetry) await _sending.PostAsync(envelope);
     }
 
     public override Task MarkSuccessfulAsync(OutgoingMessageBatch outgoing)
@@ -66,6 +62,5 @@ internal class BufferedSendingAgent : SendingAgent
         {
             activity?.Stop();
         }
-
     }
 }

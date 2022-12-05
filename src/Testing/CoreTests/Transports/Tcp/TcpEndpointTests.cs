@@ -1,9 +1,7 @@
 using System;
-using Shouldly;
 using TestingSupport;
 using Wolverine.Configuration;
 using Wolverine.Transports.Tcp;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Transports.Tcp;
@@ -41,6 +39,4 @@ public class TcpEndpointTests
         endpoint.Mode = mode;
         endpoint.ShouldEnforceBackPressure().ShouldBe(shouldEnforce);
     }
-
-
 }

@@ -6,9 +6,9 @@ namespace Wolverine.Util.Dataflow;
 
 internal abstract class ConditionalWaiter<T> : IObserver<T>
 {
-    private readonly IDisposable _unsubscribe;
     private readonly TaskCompletionSource<T> _completion;
-    
+    private readonly IDisposable _unsubscribe;
+
     public ConditionalWaiter(IObservable<T> parent, TimeSpan timeout)
     {
         _completion = new TaskCompletionSource<T>();
@@ -23,9 +23,7 @@ internal abstract class ConditionalWaiter<T> : IObserver<T>
 
         _unsubscribe = parent.Subscribe(this);
     }
-    
-    protected abstract bool hasCompleted(T state);
-    
+
     public Task Completion => _completion.Task;
 
     public void OnCompleted()
@@ -48,4 +46,6 @@ internal abstract class ConditionalWaiter<T> : IObserver<T>
         _completion.SetResult(value);
         _unsubscribe.Dispose();
     }
+
+    protected abstract bool hasCompleted(T state);
 }

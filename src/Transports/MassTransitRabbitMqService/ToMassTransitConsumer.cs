@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 using MassTransit;
 using MassTransit.Internals;
@@ -10,12 +9,7 @@ public class ToMassTransitConsumer : IConsumer<ToExternal>
 {
     public static List<ToExternal> Received = new();
 
-    private static TaskCompletionSource<ToExternal> _completion = new();
-
-    public static Task WaitForReceipt()
-    {
-        return _completion.Task.OrTimeout(60000);
-    }
+    private static readonly TaskCompletionSource<ToExternal> _completion = new();
 
     public Task Consume(ConsumeContext<ToExternal> context)
     {
@@ -23,5 +17,10 @@ public class ToMassTransitConsumer : IConsumer<ToExternal>
 
         _completion.SetResult(context.Message);
         return Task.CompletedTask;
+    }
+
+    public static Task WaitForReceipt()
+    {
+        return _completion.Task.OrTimeout(60000);
     }
 }

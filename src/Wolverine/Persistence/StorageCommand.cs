@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
+using Spectre.Console;
 using Wolverine.Persistence.Durability;
 
 namespace Wolverine.Persistence;
@@ -53,12 +54,12 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
 
             case StorageAction.clear:
                 await persistence.Admin.ClearAllAsync();
-                ConsoleWriter.Write(ConsoleColor.Green, "Successfully deleted all persisted envelopes");
+                AnsiConsole.Write("[green]Successfully deleted all persisted envelopes[/]");
                 break;
 
             case StorageAction.rebuild:
                 await persistence.Admin.RebuildAsync();
-                ConsoleWriter.Write(ConsoleColor.Green, "Successfully rebuilt the envelope storage");
+                AnsiConsole.Write("[green]Successfully rebuilt the envelope storage[/]");
                 break;
 
             case StorageAction.release:

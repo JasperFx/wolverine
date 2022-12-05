@@ -1,4 +1,4 @@
-﻿using LamarCodeGeneration.Model;
+﻿using JasperFx.CodeGeneration.Model;
 
 namespace Wolverine.Runtime.Handlers;
 

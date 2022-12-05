@@ -7,11 +7,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="LamarCodeGeneration.Commands" Version="6.2.0" />
+        <PackageReference Include="LamarCodeGeneration.Commands" Version="6.2.0"/>
     </ItemGroup>
 
 </Project>

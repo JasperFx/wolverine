@@ -16,9 +16,10 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
         MapProperty(x => x.ContentType!, (e, p) => e.ContentType = p.ContentType,
             (e, p) => p.ContentType = e.ContentType);
 
-        MapProperty(x => x.Id, (e, props) => e.Id = Guid.Parse(props.MessageId), (e, props) => props.MessageId = e.Id.ToString());
-            
-        MapProperty(x => x.DeliverBy!, (_, _) => {}, (e, props) =>
+        MapProperty(x => x.Id, (e, props) => e.Id = Guid.Parse(props.MessageId),
+            (e, props) => props.MessageId = e.Id.ToString());
+
+        MapProperty(x => x.DeliverBy!, (_, _) => { }, (e, props) =>
         {
             if (e.DeliverBy.HasValue)
             {
@@ -26,9 +27,9 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
                 props.Expiration = ttl.ToString();
             }
         });
-            
-        MapProperty(x => x.MessageType!, (e, props) => e.MessageType = props.Type, (e, props) => props.Type = e.MessageType);
 
+        MapProperty(x => x.MessageType!, (e, props) => e.MessageType = props.Type,
+            (e, props) => props.Type = e.MessageType);
     }
 
     protected override void writeOutgoingHeader(IBasicProperties outgoing, string key, string value)
@@ -47,11 +48,13 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
         value = null;
         return false;
     }
-    
+
     protected override void writeIncomingHeaders(IBasicProperties incoming, Envelope envelope)
     {
         foreach (var pair in incoming.Headers)
+        {
             envelope.Headers[pair.Key] =
                 pair.Value is byte[] b ? Encoding.Default.GetString(b) : pair.Value?.ToString();
+        }
     }
 }

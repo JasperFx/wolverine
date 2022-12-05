@@ -27,7 +27,9 @@ internal class CompositeContinuation : IContinuation
             }
             catch (Exception e)
             {
-                runtime.Logger.LogError(e, "Failed while attempting to apply continuation {Continuation} on Envelope {Envelope}", continuation, lifecycle.Envelope);
+                runtime.Logger.LogError(e,
+                    "Failed while attempting to apply continuation {Continuation} on Envelope {Envelope}", continuation,
+                    lifecycle.Envelope);
             }
         }
     }

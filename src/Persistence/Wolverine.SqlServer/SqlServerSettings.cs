@@ -3,11 +3,10 @@ using System.Data;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
-using Wolverine.RDBMS;
 using Microsoft.Data.SqlClient;
 using Weasel.Core;
 using Weasel.SqlServer;
+using Wolverine.RDBMS;
 
 namespace Wolverine.SqlServer;
 

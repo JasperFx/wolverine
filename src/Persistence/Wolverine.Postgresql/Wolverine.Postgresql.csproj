@@ -1,27 +1,27 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <Description>Postgresql Saga, Message, and Outbox storage for Wolverine applications</Description>
-    <Authors>Jeremy D. Miller</Authors>
-    <DebugType>portable</DebugType>
-    <AssemblyName>Wolverine.Postgresql</AssemblyName>
-    <PackageId>WolverineFx.Postgresql</PackageId>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
-    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-    <LangVersion>10</LangVersion>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+    <PropertyGroup>
+        <Description>Postgresql Saga, Message, and Outbox storage for Wolverine applications</Description>
+        <Authors>Jeremy D. Miller</Authors>
+        <DebugType>portable</DebugType>
+        <AssemblyName>Wolverine.Postgresql</AssemblyName>
+        <PackageId>WolverineFx.Postgresql</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <LangVersion>10</LangVersion>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Weasel.Postgresql" Version="6.0.0-alpha.2" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Weasel.Postgresql" Version="6.0.0-alpha.5" />
+    </ItemGroup>
 
-  <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../Analysis.Build.props" />
 </Project>

@@ -1,5 +1,3 @@
-using Amazon.Runtime;
-using Amazon.SQS;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -13,14 +11,11 @@ public class bootstrapping
     public async Task create_an_open_client()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseAmazonSqsTransportLocally();
-            }).StartAsync();
+            .UseWolverine(opts => { opts.UseAmazonSqsTransportLocally(); }).StartAsync();
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSqsTransport();
-        
+
         // Just a smoke test on configuration here
         var queueNames = await transport.Client.ListQueuesAsync("wolverine");
     }
@@ -28,8 +23,8 @@ public class bootstrapping
     [Fact]
     public async Task create_new_queue_on_startup()
     {
-        var queueName = "wolverine-" + Guid.NewGuid().ToString();
-        
+        var queueName = "wolverine-" + Guid.NewGuid();
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -40,7 +35,7 @@ public class bootstrapping
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSqsTransport();
-        
+
         // Just a smoke test on configuration here
         var queueNames = await transport.Client.ListQueuesAsync("wolverine");
         var queueUrl = queueNames.QueueUrls.FirstOrDefault(x => x.Contains(queueName));
@@ -48,13 +43,13 @@ public class bootstrapping
 
         await transport.Client.DeleteQueueAsync(queueUrl);
     }
-    
+
     [Fact]
     public async Task auto_purge_queue_on_startup_smoke_test()
     {
-        var queueName = "wolverine-" + Guid.NewGuid().ToString();
+        var queueName = "wolverine-" + Guid.NewGuid();
 
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -76,8 +71,8 @@ public class bootstrapping
     [Fact]
     public async Task configure_listening()
     {
-        var queueName = "wolverine-" + Guid.NewGuid().ToString();
-        
+        var queueName = "wolverine-" + Guid.NewGuid();
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -90,16 +85,14 @@ public class bootstrapping
                     e.WaitTimeSeconds = 6;
                 });
             }).StartAsync();
-        
+
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
         var endpoint = options.Transports.GetOrCreateEndpoint(new Uri($"sqs://{queueName}"))
             .ShouldBeOfType<AmazonSqsQueue>();
-        
+
         endpoint.VisibilityTimeout.ShouldBe(4);
         endpoint.MaxNumberOfMessages.ShouldBe(5);
         endpoint.WaitTimeSeconds.ShouldBe(6);
-        
-        
     }
 }

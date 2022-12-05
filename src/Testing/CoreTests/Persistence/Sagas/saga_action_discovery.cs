@@ -1,6 +1,4 @@
 ﻿using System;
-using Shouldly;
-using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Xunit;
@@ -10,8 +8,8 @@ namespace CoreTests.Persistence.Sagas;
 
 public class saga_action_discovery : IntegrationContext
 {
-    private readonly ITestOutputHelper _output;
     private readonly DefaultApp _fixture;
+    private readonly ITestOutputHelper _output;
 
     public saga_action_discovery(DefaultApp @default, ITestOutputHelper output) : base(@default)
     {

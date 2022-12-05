@@ -3,184 +3,178 @@ using System.Threading.Tasks;
 using Wolverine;
 using Wolverine.Attributes;
 
-namespace TestingSupport.Compliance
+namespace TestingSupport.Compliance;
+
+public class NewUser
 {
-    public class NewUser
+    public string UserId { get; set; }
+}
+
+public class EditUser
+{
+}
+
+public class DeleteUser
+{
+    public int Number1;
+    public int Number2;
+    public int Number3;
+}
+
+#region sample_PingAndPongMessage
+
+public class PingMessage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; }
+}
+
+public class PongMessage
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; }
+}
+
+#endregion
+
+public class ImplicitPing
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; }
+}
+
+public class ImplicitPong
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; }
+}
+
+public class PingHandler
+{
+    public ValueTask Handle(PingMessage message, IMessageContext context)
     {
-        public string UserId { get; set; }
+        var pong = new PongMessage { Id = message.Id };
+
+        return context.RespondToSenderAsync(pong);
     }
 
-    public class EditUser
+    public ImplicitPong Handle(ImplicitPing ping)
     {
-    }
-
-    public class DeleteUser
-    {
-        public int Number1;
-        public int Number2;
-        public int Number3;
-    }
-
-    #region sample_PingAndPongMessage
-    public class PingMessage
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-        public string Name { get; set; }
-    }
-
-    public class PongMessage
-    {
-        public Guid Id { get; set; }
-        public string Name { get; set; }
-    }
-    #endregion
-
-    public class ImplicitPing
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-        public string Name { get; set; }
-    }
-
-    public class ImplicitPong
-    {
-        public Guid Id { get; set; }
-        public string Name { get; set; }
-    }
-
-    public class PingHandler
-    {
-        public ValueTask Handle(PingMessage message, IMessageContext context)
+        return new ImplicitPong
         {
-            var pong = new PongMessage{Id = message.Id};
-
-            return context.RespondToSenderAsync(pong);
-        }
-
-        public ImplicitPong Handle(ImplicitPing ping)
-        {
-            return new ImplicitPong
-            {
-                Id = ping.Id
-            };
-
-        }
+            Id = ping.Id
+        };
     }
+}
 
-    public class PongHandler
-    {
-        public void Handle(PongMessage message)
-        {
-
-        }
-
-        public void Handle(ImplicitPong message)
-        {
-
-        }
-    }
-
-
-
-    public class UserCreated
-    {
-        public Guid Id { get; set; }
-        public string UserId { get; set; }
-    }
-
-    public class UserDeleted
-    {
-        public Guid Id { get; set; }
-        public string UserId { get; set; }
-    }
-
-    public class SentTrack
-    {
-        public Guid Id { get; set; }
-        public string MessageType { get; set; }
-    }
-
-    public class ReceivedTrack
-    {
-        public Guid Id { get; set; }
-        public string MessageType { get; set; }
-    }
-
-
-
-    public class TimeoutsMessage
+public class PongHandler
+{
+    public void Handle(PongMessage message)
     {
     }
 
-    public class ExecutedMessage
+    public void Handle(ImplicitPong message)
     {
     }
+}
 
-    public class ExecutedMessageGuy
-    {
-        public static void Handle(ExecutedMessage message)
-        {
-        }
-    }
+public class UserCreated
+{
+    public Guid Id { get; set; }
+    public string UserId { get; set; }
+}
 
-    public class ColorHandler
-    {
-        public void Handle(ColorChosen message, ColorHistory history, Envelope envelope)
-        {
-            history.Name = message.Name;
-            history.Envelope = envelope;
-        }
-    }
+public class UserDeleted
+{
+    public Guid Id { get; set; }
+    public string UserId { get; set; }
+}
 
-    public class ColorHistory
-    {
-        public string Name { get; set; }
-        public Envelope Envelope { get; set; }
-    }
+public class SentTrack
+{
+    public Guid Id { get; set; }
+    public string MessageType { get; set; }
+}
 
-    public class ColorChosen
-    {
-        public string Name { get; set; }
-    }
+public class ReceivedTrack
+{
+    public Guid Id { get; set; }
+    public string MessageType { get; set; }
+}
 
-    public class TracksMessage<T>
-    {
-        public void Handle(T message)
-        {
-        }
-    }
+public class TimeoutsMessage
+{
+}
 
-    [MessageIdentity("A")]
-    public class TopicA
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-    }
+public class ExecutedMessage
+{
+}
 
-    [MessageIdentity("B")]
-    public class TopicB
+public class ExecutedMessageGuy
+{
+    public static void Handle(ExecutedMessage message)
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
     }
+}
 
-    [MessageIdentity("C")]
-    public class TopicC
+public class ColorHandler
+{
+    public void Handle(ColorChosen message, ColorHistory history, Envelope envelope)
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
+        history.Name = message.Name;
+        history.Envelope = envelope;
     }
+}
 
-    public class SpecialTopic
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-    }
+public class ColorHistory
+{
+    public string Name { get; set; }
+    public Envelope Envelope { get; set; }
+}
 
-    [MessageIdentity("Structural.Typed.Message")]
-    public class BlueMessage
-    {
-        public string Name { get; set; }
-    }
+public class ColorChosen
+{
+    public string Name { get; set; }
+}
 
-    [MessageIdentity("Structural.Typed.Message")]
-    public class GreenMessage
+public class TracksMessage<T>
+{
+    public void Handle(T message)
     {
-        public string Name { get; set; }
     }
+}
+
+[MessageIdentity("A")]
+public class TopicA
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+
+[MessageIdentity("B")]
+public class TopicB
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+
+[MessageIdentity("C")]
+public class TopicC
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+
+public class SpecialTopic
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+
+[MessageIdentity("Structural.Typed.Message")]
+public class BlueMessage
+{
+    public string Name { get; set; }
+}
+
+[MessageIdentity("Structural.Typed.Message")]
+public class GreenMessage
+{
+    public string Name { get; set; }
 }

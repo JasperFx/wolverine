@@ -4,7 +4,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Wolverine.Util;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 

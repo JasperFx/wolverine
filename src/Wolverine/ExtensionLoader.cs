@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using Baseline;
-using Baseline.Reflection;
-using BaselineTypeDiscovery;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using JasperFx.TypeDiscovery;
 using Wolverine.Attributes;
 
 namespace Wolverine;
@@ -20,7 +20,7 @@ internal static class ExtensionLoader
         }
 
         _extensions = AssemblyFinder
-            .FindAssemblies(a => a.HasAttribute<WolverineModuleAttribute>(), _ => { })
+            .FindAssemblies(msg => Console.WriteLine(msg),a => a.HasAttribute<WolverineModuleAttribute>(), false)
             .Concat(AppDomain.CurrentDomain.GetAssemblies())
             .Distinct()
             .Where(a => a.HasAttribute<WolverineModuleAttribute>())

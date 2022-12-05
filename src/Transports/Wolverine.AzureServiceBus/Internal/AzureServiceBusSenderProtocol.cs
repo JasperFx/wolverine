@@ -8,12 +8,13 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 public class AzureServiceBusSenderProtocol : ISenderProtocol
 {
-    private readonly IWolverineRuntime _runtime;
     private readonly AzureServiceBusEndpoint _endpoint;
     private readonly IOutgoingMapper<ServiceBusMessage> _mapper;
+    private readonly IWolverineRuntime _runtime;
     private readonly ServiceBusSender _sender;
 
-    public AzureServiceBusSenderProtocol(IWolverineRuntime runtime, AzureServiceBusEndpoint endpoint, IOutgoingMapper<ServiceBusMessage> mapper, ServiceBusSender sender)
+    public AzureServiceBusSenderProtocol(IWolverineRuntime runtime, AzureServiceBusEndpoint endpoint,
+        IOutgoingMapper<ServiceBusMessage> mapper, ServiceBusSender sender)
     {
         _runtime = runtime;
         _endpoint = endpoint;
@@ -38,7 +39,9 @@ public class AzureServiceBusSenderProtocol : ISenderProtocol
             }
             catch (Exception e)
             {
-                _runtime.Logger.LogError(e, "Error trying to translate envelope {Envelope} to a ServiceBusMessage object. Message will be discarded.", envelope);
+                _runtime.Logger.LogError(e,
+                    "Error trying to translate envelope {Envelope} to a ServiceBusMessage object. Message will be discarded.",
+                    envelope);
             }
         }
 

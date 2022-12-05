@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Baseline.Reflection;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Marten.Events;
 using Oakton.Parsing;
 
@@ -31,12 +31,7 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
             Arguments[1] = new MemberAccessVariable(_command, _att.VersionMember);
         }
 
-        foreach (var variable in base.FindVariables(chain))
-        {
-            yield return variable;
-        }
-
-
+        foreach (var variable in base.FindVariables(chain)) yield return variable;
     }
 
     internal static MethodInfo FindMethod(MartenCommandWorkflowAttribute att)
@@ -58,7 +53,7 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
         }
 
         return isGuidIdentified
-            ? ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForWriting<T>(Guid.Empty, Int64.MaxValue, default))
-            : ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForWriting<T>(string.Empty, Int64.MaxValue, default));
+            ? ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForWriting<T>(Guid.Empty, long.MaxValue, default))
+            : ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForWriting<T>(string.Empty, long.MaxValue, default));
     }
 }

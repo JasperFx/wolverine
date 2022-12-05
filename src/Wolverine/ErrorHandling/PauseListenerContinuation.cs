@@ -26,13 +26,14 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
 #pragma warning restore VSTHRD110
             {
                 await agent.PauseAsync(PauseTime);
-            },CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
+            }, CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
         }
 
         return ValueTask.CompletedTask;
     }
 
     public string Description => "Pause all message processing on this listener for " + PauseTime;
+
     public IContinuation Build(Exception ex, Envelope envelope)
     {
         return this;

@@ -1,4 +1,4 @@
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Configuration;

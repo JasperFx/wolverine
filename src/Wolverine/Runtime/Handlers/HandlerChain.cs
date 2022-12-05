@@ -5,13 +5,12 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
-using Baseline.Reflection;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -61,9 +60,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         foreach (var handler in Handlers)
         foreach (var create in handler.Creates)
-        {
             i = DisambiguateOutgoingVariableName(create, i);
-        }
     }
 
     /// <summary>
@@ -87,6 +84,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public int? ExecutionTimeoutInSeconds { get; set; }
 
     internal string? SourceCode => _generatedType?.SourceCode;
+
+    string ICodeFile.FileName => TypeName + ".cs";
+
+    /// <summary>
+    ///     Configure the retry policies and error handling for this chain
+    /// </summary>
+    public FailureRuleCollection Failures { get; } = new();
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
@@ -132,13 +136,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         return true;
     }
-
-    string ICodeFile.FileName => TypeName + ".cs";
-
-    /// <summary>
-    ///     Configure the retry policies and error handling for this chain
-    /// </summary>
-    public FailureRuleCollection Failures { get; } = new();
 
     public static HandlerChain For<T>(Expression<Action<T>> expression, HandlerGraph parent)
     {
@@ -253,7 +250,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     {
         return Handlers.ToArray();
     }
-    
+
     public override string ToString()
     {
         return

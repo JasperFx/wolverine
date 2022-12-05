@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -17,15 +17,15 @@ namespace Wolverine.Transports.Local;
 
 internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 {
+    private readonly ILogger _logger;
     private readonly IMessageLogger _messageLogger;
     private readonly IMessageStore _persistence;
+    private readonly WolverineRuntime _runtime;
     private readonly IMessageSerializer _serializer;
     private readonly AdvancedSettings _settings;
-    private DurableReceiver? _receiver;
-    private readonly ILogger _logger;
-    private Restarter? _restarter;
-    private readonly WolverineRuntime _runtime;
     private readonly RetryBlock<Envelope> _storeAndEnqueue;
+    private DurableReceiver? _receiver;
+    private Restarter? _restarter;
 
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -63,100 +63,16 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public CircuitBreaker? CircuitBreaker { get; }
 
-    public Uri Destination { get; }
-
-    public Endpoint Endpoint { get; }
-
     int IListenerCircuit.QueueCount => _receiver?.QueueCount ?? 0;
 
     void IListenerCircuit.EnqueueDirectly(IEnumerable<Envelope> envelopes)
     {
-        if (_receiver == null) return;
-        
-        foreach (var envelope in envelopes)
+        if (_receiver == null)
         {
-            _receiver.Enqueue(envelope);
-        }
-    }
-
-    public Uri? ReplyUri { get; set; }
-
-    public bool Latched { get; private set; }
-
-    public bool IsDurable => true;
-
-    public ValueTask EnqueueOutgoingAsync(Envelope envelope)
-    {
-        // The envelope would be persisted regardless
-        if (Latched) return ValueTask.CompletedTask;
-        
-        _messageLogger.Sent(envelope);
-
-        _receiver!.Enqueue(envelope);
-
-        return ValueTask.CompletedTask;
-    }
-
-    public async ValueTask StoreAndForwardAsync(Envelope envelope)
-    {
-        // Try this first, let everything fail if it fails, don't want to log
-        writeMessageData(envelope);
-        
-        _messageLogger.Sent(envelope);
-
-        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, _settings);
-
-        if (Latched)
-        {
-            envelope.OwnerId = TransportConstants.AnyNode;
-        }
-
-        await _storeAndEnqueue.PostAsync(envelope);
-    }
-
-    private async Task storeAndEnqueueAsync(Envelope envelope)
-    {
-        try
-        {
-            await _persistence.StoreIncomingAsync(envelope);
-        }
-        catch (DuplicateIncomingEnvelopeException e)
-        {
-            _logger.LogError(e, "Duplicate incoming envelope detected");
             return;
         }
 
-        if (Latched) return;
-
-        if (envelope.Status == EnvelopeStatus.Incoming)
-        {
-            _receiver!.Enqueue(envelope);
-        }
-    }
-
-    public bool SupportsNativeScheduledSend => true;
-
-
-    private void writeMessageData(Envelope envelope)
-    {
-        if (envelope.Message is null)
-        {
-            throw new ArgumentOutOfRangeException(nameof(envelope), "Envelope.Message is null");
-        }
-
-        if (envelope.Data == null || envelope.Data.Length == 0)
-        {
-            _serializer.Write(envelope);
-            envelope.ContentType = _serializer.ContentType;
-        }
-    }
-
-    public void Dispose()
-    {
-        _receiver?.SafeDispose();
-        CircuitBreaker?.SafeDispose();
-        _receiver?.SafeDispose();
-        _storeAndEnqueue.SafeDispose();
+        foreach (var envelope in envelopes) _receiver.Enqueue(envelope);
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
@@ -178,26 +94,35 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _receiver = null;
 
         CircuitBreaker?.Reset();
-        
-        _runtime.ListenerTracker.Publish(new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
+
+        _runtime.ListenerTracker.Publish(
+            new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
 
         _logger.LogInformation("Pausing message listening at {Uri}", Endpoint.Uri);
 
         _restarter = new Restarter(this, pauseTime);
-
     }
 
     public ValueTask StartAsync()
     {
         _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline);
         Latched = false;
-        _runtime.ListenerTracker.Publish(new ListenerState(_receiver.Uri, Endpoint.EndpointName, ListeningStatus.Accepting));
+        _runtime.ListenerTracker.Publish(new ListenerState(_receiver.Uri, Endpoint.EndpointName,
+            ListeningStatus.Accepting));
         _restarter?.Dispose();
         _restarter = null;
         return ValueTask.CompletedTask;
     }
 
     ListeningStatus IListenerCircuit.Status => Latched ? ListeningStatus.TooBusy : ListeningStatus.Accepting;
+
+    public void Dispose()
+    {
+        _receiver?.SafeDispose();
+        CircuitBreaker?.SafeDispose();
+        _receiver?.SafeDispose();
+        _storeAndEnqueue.SafeDispose();
+    }
 
     ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
     {
@@ -221,4 +146,86 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     }
 
     int ILocalQueue.QueueCount => _receiver?.QueueCount ?? 0;
+
+    public Uri Destination { get; }
+
+    public Endpoint Endpoint { get; }
+
+    public Uri? ReplyUri { get; set; }
+
+    public bool Latched { get; private set; }
+
+    public bool IsDurable => true;
+
+    public ValueTask EnqueueOutgoingAsync(Envelope envelope)
+    {
+        // The envelope would be persisted regardless
+        if (Latched)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        _messageLogger.Sent(envelope);
+
+        _receiver!.Enqueue(envelope);
+
+        return ValueTask.CompletedTask;
+    }
+
+    public async ValueTask StoreAndForwardAsync(Envelope envelope)
+    {
+        // Try this first, let everything fail if it fails, don't want to log
+        writeMessageData(envelope);
+
+        _messageLogger.Sent(envelope);
+
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, _settings);
+
+        if (Latched)
+        {
+            envelope.OwnerId = TransportConstants.AnyNode;
+        }
+
+        await _storeAndEnqueue.PostAsync(envelope);
+    }
+
+    public bool SupportsNativeScheduledSend => true;
+
+    private async Task storeAndEnqueueAsync(Envelope envelope)
+    {
+        try
+        {
+            await _persistence.StoreIncomingAsync(envelope);
+        }
+        catch (DuplicateIncomingEnvelopeException e)
+        {
+            _logger.LogError(e, "Duplicate incoming envelope detected");
+            return;
+        }
+
+        if (Latched)
+        {
+            return;
+        }
+
+        if (envelope.Status == EnvelopeStatus.Incoming)
+        {
+            _receiver!.Enqueue(envelope);
+        }
+    }
+
+
+    private void writeMessageData(Envelope envelope)
+    {
+        if (envelope.Message is null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(envelope), "Envelope.Message is null");
+        }
+
+        if (envelope.Data == null || envelope.Data.Length == 0)
+        {
+            _serializer.Write(envelope);
+            envelope.ContentType = _serializer.ContentType;
+        }
+    }
 }

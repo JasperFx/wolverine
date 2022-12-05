@@ -11,7 +11,7 @@ internal class InnerMatch : IExceptionMatch
         _inner = inner;
     }
 
-    public string Description => $"Inner: " + _inner.Description;
+    public string Description => "Inner: " + _inner.Description;
 
     public bool Matches(Exception ex)
     {

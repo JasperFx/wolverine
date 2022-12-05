@@ -1,7 +1,5 @@
 ﻿using System.Threading.Tasks;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;

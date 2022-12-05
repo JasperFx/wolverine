@@ -1,5 +1,4 @@
 ﻿using System.Threading.Tasks;
-using Shouldly;
 using Xunit;
 
 namespace CoreTests.Transports.Tcp.Protocol;

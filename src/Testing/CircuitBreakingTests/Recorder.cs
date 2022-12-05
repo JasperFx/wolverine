@@ -1,11 +1,10 @@
-using Microsoft.CodeAnalysis.Differencing;
 using Xunit.Abstractions;
 
 namespace CircuitBreakingTests;
 
 public static class Recorder
 {
-    public static int Received = 0;
+    public static int Received;
     private static TaskCompletionSource<int> _completion;
     private static int _expected;
     private static ITestOutputHelper _output;
@@ -42,6 +41,5 @@ public static class Recorder
         {
             _completion.SetResult(Received);
         }
-
     }
 }

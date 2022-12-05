@@ -3,7 +3,6 @@ using CoreTests.Messaging;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Shouldly;
 using Wolverine.Tracking;
 using Xunit;
 

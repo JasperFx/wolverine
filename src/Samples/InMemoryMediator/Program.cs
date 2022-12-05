@@ -1,8 +1,8 @@
 using InMemoryMediator;
+using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.SqlServer;
-using Microsoft.EntityFrameworkCore;
 
 #region sample_InMediatorProgram
 

@@ -14,9 +14,10 @@ public static class FluentValidationExecutor
             failureAction.Throw(message, result.Errors);
         }
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ExecuteMany<T>(IReadOnlyList<IValidator<T>> validators, IFailureAction<T> failureAction, T message)
+    public static void ExecuteMany<T>(IReadOnlyList<IValidator<T>> validators, IFailureAction<T> failureAction,
+        T message)
     {
         var validationFailures = validators
             .Select(validator => validator.Validate(message))
@@ -28,6 +29,5 @@ public static class FluentValidationExecutor
         {
             failureAction.Throw(message, validationFailures);
         }
-        
     }
 }

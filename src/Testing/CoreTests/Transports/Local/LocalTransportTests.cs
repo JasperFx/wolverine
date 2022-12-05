@@ -1,5 +1,4 @@
 ﻿using System.Linq;
-using Shouldly;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Util;
@@ -67,7 +66,6 @@ public class LocalTransportTests
     {
         LocalTransport.QueueName("tcp://localhost:2222".ToUri()).ShouldBe(TransportConstants.Default);
     }
-
 
 
     [Fact]

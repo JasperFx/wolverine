@@ -1,9 +1,9 @@
-using Wolverine;
 using Oakton;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OtelMessages;
 using Subscriber1;
+using Wolverine;
 using Wolverine.RabbitMQ;
 
 return await Host.CreateDefaultBuilder(args)

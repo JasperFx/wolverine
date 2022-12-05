@@ -1,12 +1,17 @@
 using System;
 using System.Linq;
-using Baseline;
+using JasperFx.Core;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
 public partial class WolverineRuntime
 {
+    public void RegisterMessageType(Type messageType)
+    {
+        Handlers.RegisterMessageType(messageType);
+    }
+
     public bool TryFindMessageType(string messageTypeName, out Type messageType)
     {
         return Handlers.TryFindMessageType(messageTypeName, out messageType);
@@ -31,10 +36,5 @@ public partial class WolverineRuntime
         }
 
         return envelope.Message.GetType();
-    }
-
-    public void RegisterMessageType(Type messageType)
-    {
-        Handlers.RegisterMessageType(messageType);
     }
 }

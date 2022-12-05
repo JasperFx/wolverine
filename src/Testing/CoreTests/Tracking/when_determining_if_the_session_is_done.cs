@@ -1,11 +1,9 @@
 using System;
 using System.Threading.Tasks;
-using Baseline.Dates;
 using CoreTests.Messaging;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Util;

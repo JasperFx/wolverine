@@ -1,11 +1,11 @@
 using IntegrationTests;
-using Wolverine;
-using Wolverine.Marten;
 using Marten;
 using MartenAndRabbitIssueService;
 using MartenAndRabbitMessages;
 using Oakton;
 using Oakton.Resources;
+using Wolverine;
+using Wolverine.Marten;
 using Wolverine.RabbitMQ;
 
 #region sample_kitchen_sink_bootstrapping
@@ -66,6 +66,5 @@ app.MapGet("/", () => "Hello World!");
 
 // Actually important to return the exit code here!
 return await app.RunOaktonCommands(args);
-
 
 #endregion

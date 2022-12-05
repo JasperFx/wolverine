@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 using CoreTests.Messaging;
 using NSubstitute;
@@ -8,18 +7,17 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Stub;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Runtime.WorkerQueues;
 
 public class when_durable_receiver_detects_duplicate_incoming_envelope : IAsyncLifetime
 {
-    private readonly MockWolverineRuntime theRuntime;
-    private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
-    private readonly DurableReceiver theReceiver;
     private readonly Envelope theEnvelope = ObjectMother.Envelope();
     private readonly IListener theListener = Substitute.For<IListener>();
+    private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
+    private readonly DurableReceiver theReceiver;
+    private readonly MockWolverineRuntime theRuntime;
 
     public when_durable_receiver_detects_duplicate_incoming_envelope()
     {
@@ -31,8 +29,6 @@ public class when_durable_receiver_detects_duplicate_incoming_envelope : IAsyncL
 
         theRuntime.Storage.StoreIncomingAsync(theEnvelope)
             .Throws(new DuplicateIncomingEnvelopeException(theEnvelope.Id));
-        
-        
     }
 
     public async Task InitializeAsync()

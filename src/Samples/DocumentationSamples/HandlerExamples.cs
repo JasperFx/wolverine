@@ -1,13 +1,14 @@
-using Wolverine;
-using Wolverine.Attributes;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using TestMessages;
+using Wolverine;
+using Wolverine.Attributes;
 
 namespace DocumentationSamples
 {
     #region sample_ValidMessageHandlers
+
     public class ValidMessageHandlers
     {
         // There's only one argument, so we'll assume that
@@ -63,6 +64,7 @@ namespace DocumentationSamples
             Guid Id { get; }
         }
     }
+
     #endregion
 
 
@@ -72,6 +74,7 @@ namespace DocumentationSamples
 
 
     #region sample_simplest_possible_handler
+
     public class MyMessageHandler
     {
         public void Handle(MyMessage message)
@@ -79,6 +82,7 @@ namespace DocumentationSamples
             Console.WriteLine("I got a message!");
         }
     }
+
     #endregion
 
     public class CallingMyMessageHandler
@@ -97,6 +101,7 @@ namespace DocumentationSamples
     namespace One
     {
         #region sample_ExampleHandlerByInstance
+
         public class ExampleHandler
         {
             public void Handle(Message1 message)
@@ -117,6 +122,7 @@ namespace DocumentationSamples
     namespace Two
     {
         #region sample_ExampleHandlerByStaticMethods
+
         public static class ExampleHandler
         {
             public static void Handle(Message1 message)
@@ -136,8 +142,10 @@ namespace DocumentationSamples
 
     namespace Sample2
     {
-         [WolverineIgnore]
+        [WolverineIgnore]
+
         #region sample_HandlerBuiltByConstructorInjection
+
         public class ServiceUsingHandler
         {
             private readonly IDocumentSession _session;
@@ -149,24 +157,27 @@ namespace DocumentationSamples
 
             public Task Handle(InvoiceCreated created)
             {
-                var invoice = new Invoice {Id = created.InvoiceId};
+                var invoice = new Invoice { Id = created.InvoiceId };
                 _session.Store(invoice);
 
                 return _session.SaveChangesAsync();
             }
         }
+
         #endregion
     }
 
     namespace Three
     {
         [WolverineIgnore]
+
         #region sample_HandlerUsingMethodInjection
+
         public static class MethodInjectionHandler
         {
             public static Task Handle(InvoiceCreated message, IDocumentSession session)
             {
-                var invoice = new Invoice {Id = message.InvoiceId};
+                var invoice = new Invoice { Id = message.InvoiceId };
                 session.Store(invoice);
 
                 return session.SaveChangesAsync();
@@ -177,6 +188,7 @@ namespace DocumentationSamples
     }
 
     #region sample_HandlerUsingEnvelope
+
     public class EnvelopeUsingHandler
     {
         public void Handle(InvoiceCreated message, Envelope envelope)
@@ -185,6 +197,7 @@ namespace DocumentationSamples
                 DateTimeOffset.Now.Subtract(envelope.SentAt);
         }
     }
+
     #endregion
 
 
@@ -209,5 +222,4 @@ namespace DocumentationSamples
             #endregion
         }
     }
-
 }

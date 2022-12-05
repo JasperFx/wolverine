@@ -3,7 +3,7 @@ using System;
 namespace Wolverine.Runtime.Serialization;
 
 /// <summary>
-/// Wolverine's primary interface for message serialization
+///     Wolverine's primary interface for message serialization
 /// </summary>
 public interface IMessageSerializer
 {
@@ -19,4 +19,3 @@ public interface IMessageSerializer
 
     byte[] WriteMessage(object message);
 }
-

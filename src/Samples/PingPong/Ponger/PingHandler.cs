@@ -1,8 +1,8 @@
 #region sample_PingHandler
 
-using Wolverine;
 using Messages;
 using Microsoft.Extensions.Logging;
+using Wolverine;
 
 namespace Ponger;
 
@@ -14,6 +14,5 @@ public class PingHandler
         return context.RespondToSenderAsync(new Pong { Number = ping.Number });
     }
 }
-
 
 #endregion

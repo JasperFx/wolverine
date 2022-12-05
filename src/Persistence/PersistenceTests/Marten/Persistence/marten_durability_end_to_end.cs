@@ -1,9 +1,8 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
 using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

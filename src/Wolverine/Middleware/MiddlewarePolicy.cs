@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Baseline;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Util;
@@ -14,11 +15,11 @@ namespace Wolverine.Middleware;
 
 internal class MiddlewarePolicy : IHandlerPolicy
 {
-    public static readonly string[] BeforeMethodNames = new[] { "Before", "BeforeAsync" };
-    public static readonly string[] AfterMethodNames = new[] { "After", "AfterAsync"};
+    public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync" };
+    public static readonly string[] AfterMethodNames = { "After", "AfterAsync" };
 
     private readonly List<Application> _applications = new();
-    
+
     public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
     {
         foreach (var chain in graph.Chains)
@@ -46,16 +47,16 @@ internal class MiddlewarePolicy : IHandlerPolicy
 
     public class Application
     {
-        private readonly MethodInfo[] _befores;
         private readonly MethodInfo[] _afters;
+        private readonly MethodInfo[] _befores;
         private readonly ConstructorInfo? _constructor;
-
-        public Type MiddlewareType { get; }
-        public Func<HandlerChain, bool> Filter { get; private set; }
 
         public Application(Type middlewareType, Func<HandlerChain, bool> filter)
         {
-            if (!middlewareType.IsPublic) throw new InvalidWolverineMiddlewareException(middlewareType);
+            if (!middlewareType.IsPublic)
+            {
+                throw new InvalidWolverineMiddlewareException(middlewareType);
+            }
 
             if (!middlewareType.IsStatic())
             {
@@ -67,19 +68,27 @@ internal class MiddlewarePolicy : IHandlerPolicy
 
                 _constructor = constructors.Single();
             }
-            
+
             MiddlewareType = middlewareType;
             Filter = filter;
 
             var methods = middlewareType.GetMethods().ToArray();
 
-            _befores = methods.Where(x => MiddlewarePolicy.BeforeMethodNames.Contains(x.Name)).ToArray();
-            _afters = methods.Where(x => MiddlewarePolicy.AfterMethodNames.Contains(x.Name)).ToArray();
+            _befores = methods.Where(x => BeforeMethodNames.Contains(x.Name)).ToArray();
+            _afters = methods.Where(x => AfterMethodNames.Contains(x.Name)).ToArray();
 
-            if (!_befores.Any() && !_afters.Any()) throw new InvalidWolverineMiddlewareException(middlewareType);
-
+            if (!_befores.Any() && !_afters.Any())
+            {
+                throw new InvalidWolverineMiddlewareException(middlewareType);
+            }
         }
-        
+
+        public Type MiddlewareType { get; }
+        public Func<HandlerChain, bool> Filter { get; }
+
+
+        public bool MatchByMessageType { get; set; }
+
         public IEnumerable<Frame> BuildBefore(HandlerChain chain)
         {
             var frames = buildBefores(chain).ToArray();
@@ -90,16 +99,11 @@ internal class MiddlewarePolicy : IHandlerPolicy
                 {
                     constructorFrame.Mode = ConstructorCallMode.UsingNestedVariable;
                 }
-                    
+
                 yield return constructorFrame;
             }
 
-            foreach (var frame in frames)
-            {
-                yield return frame;
-            }
-            
-
+            foreach (var frame in frames) yield return frame;
         }
 
         private IEnumerable<Frame> buildBefores(HandlerChain chain)
@@ -129,7 +133,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
                 {
                     var call = new MethodCall(MiddlewareType, before);
                     yield return call;
-                        
+
                     if (call.ReturnType == typeof(HandlerContinuation))
                     {
                         yield return new HandlerContinuationFrame(call);
@@ -150,11 +154,9 @@ internal class MiddlewarePolicy : IHandlerPolicy
                 }
             }
 
-            foreach (var after in afters)
-            {
-                yield return after;
-            }
+            foreach (var after in afters) yield return after;
         }
+
         private IEnumerable<Frame> buildAfters(HandlerChain chain)
         {
             if (Filter(chain))
@@ -176,11 +178,5 @@ internal class MiddlewarePolicy : IHandlerPolicy
                 }
             }
         }
-        
-
-        public bool MatchByMessageType { get; set; }
-
     }
-
-
 }

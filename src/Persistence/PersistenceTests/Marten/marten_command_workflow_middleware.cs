@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using IntegrationTests;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 using Marten;
 using Marten.Events;
 using Marten.Events.Projections;

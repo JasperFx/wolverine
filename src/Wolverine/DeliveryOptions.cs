@@ -5,12 +5,12 @@ using Wolverine.Util;
 namespace Wolverine;
 
 /// <summary>
-/// Optional customizations and metadata for how a message should be delivered
+///     Optional customizations and metadata for how a message should be delivered
 /// </summary>
 public class DeliveryOptions
 {
     /// <summary>
-    /// Optional metadata about this message
+    ///     Optional metadata about this message
     /// </summary>
     public Dictionary<string, string?> Headers { get; internal set; } = new();
 
@@ -42,19 +42,35 @@ public class DeliveryOptions
     }
 
     /// <summary>
-    /// Set the ScheduleTime to now plus the value of the supplied TimeSpan
+    ///     Set the ScheduleTime to now plus the value of the supplied TimeSpan
     /// </summary>
     public TimeSpan ScheduleDelay
     {
         set => ScheduledTime = DateTimeOffset.Now.Add(value);
     }
 
+    /// <summary>
+    ///     Declare that this application is interested in receiving
+    ///     a response of this message type upon message receipt
+    /// </summary>
+    public Type? ResponseType { get; set; }
+
+    /// <summary>
+    ///     If this message is part of a stateful saga, this property identifies
+    ///     the underlying saga state object
+    /// </summary>
+    public string? SagaId { get; internal set; }
+
+    /// <summary>
+    ///     Mimetype of the serialized data
+    /// </summary>
+    public string? ContentType { get; set; }
+
+    internal bool IsResponse { get; set; }
+
     internal void Override(Envelope envelope)
     {
-        foreach (var header in Headers)
-        {
-            envelope.Headers[header.Key] = header.Value;
-        }
+        foreach (var header in Headers) envelope.Headers[header.Key] = header.Value;
 
         // The status should be a state machine set by the deliver by or scheduled time setters
         if (DeliverBy.HasValue)
@@ -68,16 +84,35 @@ public class DeliveryOptions
             envelope.ScheduledTime = ScheduledTime;
             envelope.Status = EnvelopeStatus.Scheduled;
         }
-        if (AckRequested.HasValue) envelope.AckRequested = AckRequested.Value;
-        if (ResponseType != null) envelope.ReplyRequested = ResponseType.ToMessageTypeName();
-        if (SagaId != null) envelope.SagaId = SagaId;
-        if (ContentType != null) envelope.ContentType = ContentType;
 
-        if (IsResponse) envelope.IsResponse = true;
+        if (AckRequested.HasValue)
+        {
+            envelope.AckRequested = AckRequested.Value;
+        }
+
+        if (ResponseType != null)
+        {
+            envelope.ReplyRequested = ResponseType.ToMessageTypeName();
+        }
+
+        if (SagaId != null)
+        {
+            envelope.SagaId = SagaId;
+        }
+
+        if (ContentType != null)
+        {
+            envelope.ContentType = ContentType;
+        }
+
+        if (IsResponse)
+        {
+            envelope.IsResponse = true;
+        }
     }
 
     /// <summary>
-    /// Add a header key/value pair to the outgoing message
+    ///     Add a header key/value pair to the outgoing message
     /// </summary>
     /// <param name="key"></param>
     /// <param name="headerValue"></param>
@@ -89,7 +124,7 @@ public class DeliveryOptions
     }
 
     /// <summary>
-    /// Shortcut to build DeliveryOptions requiring the specified response type
+    ///     Shortcut to build DeliveryOptions requiring the specified response type
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
@@ -100,23 +135,4 @@ public class DeliveryOptions
             ResponseType = typeof(T)
         };
     }
-
-    /// <summary>
-    /// Declare that this application is interested in receiving
-    /// a response of this message type upon message receipt
-    /// </summary>
-    public Type? ResponseType { get; set; }
-
-    /// <summary>
-    /// If this message is part of a stateful saga, this property identifies
-    /// the underlying saga state object
-    /// </summary>
-    public string? SagaId { get; internal set; }
-
-    /// <summary>
-    ///     Mimetype of the serialized data
-    /// </summary>
-    public string? ContentType { get; set; }
-
-    internal bool IsResponse { get; set; }
 }

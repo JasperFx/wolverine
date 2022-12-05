@@ -12,4 +12,3 @@ public interface IMessageRouter
     Envelope RouteLocal(object message, DeliveryOptions? options);
     Envelope RouteLocal(object message, string workerQueue, DeliveryOptions? options);
 }
-

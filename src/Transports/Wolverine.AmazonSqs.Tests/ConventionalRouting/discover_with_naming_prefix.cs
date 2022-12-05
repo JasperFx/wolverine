@@ -8,8 +8,8 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
 public class discover_with_naming_prefix : IDisposable
 {
-    private readonly ITestOutputHelper _output;
     private readonly IHost _host;
+    private readonly ITestOutputHelper _output;
 
     public discover_with_naming_prefix(ITestOutputHelper output)
     {

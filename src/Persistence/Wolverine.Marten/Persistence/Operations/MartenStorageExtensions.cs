@@ -1,5 +1,5 @@
-﻿using Wolverine.Postgresql;
-using Marten;
+﻿using Marten;
+using Wolverine.Postgresql;
 
 namespace Wolverine.Marten.Persistence.Operations;
 

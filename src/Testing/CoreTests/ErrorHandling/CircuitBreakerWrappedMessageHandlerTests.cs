@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using CoreTests.Runtime;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Shouldly;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -33,7 +32,7 @@ public class CircuitBreakerWrappedMessageHandlerTests
         await theHandler.HandleAsync(context, token);
 
         await theInnerHandler.Received().HandleAsync(context, token);
-        await theTracker.Received<IMessageSuccessTracker>().TagSuccessAsync();
+        await theTracker.Received().TagSuccessAsync();
     }
 
     [Fact]

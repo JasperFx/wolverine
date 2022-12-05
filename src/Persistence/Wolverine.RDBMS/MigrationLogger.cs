@@ -21,6 +21,7 @@ internal class MigrationLogger : IMigrationLogger
 
     public void OnFailure(DbCommand command, Exception ex)
     {
-        _logger.LogError(ex, "Error executing Wolverine Envelope Storage database migration: {Sql}", command.CommandText);
+        _logger.LogError(ex, "Error executing Wolverine Envelope Storage database migration: {Sql}",
+            command.CommandText);
     }
 }

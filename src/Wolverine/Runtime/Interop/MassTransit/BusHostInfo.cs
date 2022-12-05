@@ -8,13 +8,14 @@ namespace Wolverine.Runtime.Interop.MassTransit;
 [Serializable]
 internal class BusHostInfo
 {
-    public static readonly BusHostInfo Instance = new BusHostInfo();
+    public static readonly BusHostInfo Instance = new();
 
     public BusHostInfo()
     {
         FrameworkVersion = Environment.Version.ToString();
         OperatingSystemVersion = Environment.OSVersion.ToString();
-        var entryAssembly = System.Reflection.Assembly.GetEntryAssembly() ?? System.Reflection.Assembly.GetCallingAssembly();
+        var entryAssembly = System.Reflection.Assembly.GetEntryAssembly() ??
+                            System.Reflection.Assembly.GetCallingAssembly();
         MachineName = Environment.MachineName;
         MassTransitVersion = typeof(BusHostInfo).GetTypeInfo().Assembly.GetName().Version?.ToString();
 
@@ -24,7 +25,9 @@ internal class BusHostInfo
             ProcessId = currentProcess.Id;
             ProcessName = currentProcess.ProcessName;
             if ("dotnet".Equals(ProcessName, StringComparison.OrdinalIgnoreCase))
+            {
                 ProcessName = GetUsefulProcessName(ProcessName);
+            }
         }
         catch (PlatformNotSupportedException)
         {
@@ -46,25 +49,29 @@ internal class BusHostInfo
     public string? MassTransitVersion { get; set; }
     public string? OperatingSystemVersion { get; set; }
 
-    static string GetAssemblyFileVersion(Assembly assembly)
+    private static string GetAssemblyFileVersion(Assembly assembly)
     {
         var attribute = assembly.GetCustomAttribute<AssemblyFileVersionAttribute>();
         if (attribute != null)
+        {
             return attribute.Version;
+        }
 
         return FileVersionInfo.GetVersionInfo(assembly.Location).FileVersion ?? "Unknown";
     }
 
-    static string GetAssemblyInformationalVersion(Assembly assembly)
+    private static string GetAssemblyInformationalVersion(Assembly assembly)
     {
         var attribute = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
         if (attribute != null)
+        {
             return attribute.InformationalVersion;
+        }
 
         return GetAssemblyFileVersion(assembly);
     }
 
-    static string GetUsefulProcessName(string defaultProcessName)
+    private static string GetUsefulProcessName(string defaultProcessName)
     {
         var entryAssemblyLocation = System.Reflection.Assembly.GetEntryAssembly()?.Location;
 

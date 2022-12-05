@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 using IntegrationTests;
 using Marten;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
@@ -23,7 +22,7 @@ public class Marten_StorageCommand_Smoke_Tests : PostgresqlContext
 
         var exitCode = await Host.CreateDefaultBuilder().UseWolverine(registry =>
         {
-            MartenServiceCollectionExtensions.AddMarten((IServiceCollection)registry.Services, Servers.PostgresConnectionString)
+            registry.Services.AddMarten(Servers.PostgresConnectionString)
                 .IntegrateWithWolverine();
         }).RunWolverineAsync(args);
 

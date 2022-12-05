@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Threading.Tasks;
-using Baseline;
-using Wolverine.Logging;
-using Wolverine.RDBMS;
-using Wolverine.SqlServer.Util;
-using Wolverine.Transports;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
+using Wolverine.Logging;
+using Wolverine.RDBMS;
 using Wolverine.SqlServer.Schema;
+using Wolverine.SqlServer.Util;
+using Wolverine.Transports;
 
 namespace Wolverine.SqlServer.Persistence;
 
@@ -54,7 +55,7 @@ public class SqlServerMessageStore : DatabaseBackedMessageStore<SqlConnection>
 
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
     {
-        return (ex is SqlException sqlEx && sqlEx.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint"));
+        return ex is SqlException sqlEx && sqlEx.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint");
     }
 
     public override async Task<PersistedCounts> FetchCountsAsync()
@@ -80,11 +81,11 @@ public class SqlServerMessageStore : DatabaseBackedMessageStore<SqlConnection>
                 case EnvelopeStatus.Incoming:
                     counts.Incoming = count;
                     break;
-                
+
                 case EnvelopeStatus.Handled:
                     counts.Handled = count;
                     break;
-                
+
                 case EnvelopeStatus.Scheduled:
                     counts.Scheduled = count;
                     break;

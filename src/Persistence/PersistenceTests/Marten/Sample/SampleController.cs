@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
-using Wolverine;
 using Wolverine.Marten;
 
 namespace PersistenceTests.Marten.Sample;
@@ -12,7 +11,7 @@ public class SampleController : ControllerBase
 
     public async Task<IActionResult> PostCreateUser(
         [FromBody] CreateUser user,
-        
+
         // This service is a specialized IMessagePublisher
         [FromServices] IMartenOutbox outbox,
         [FromServices] IDocumentSession session)

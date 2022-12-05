@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 
 namespace Wolverine.Tracking;
 
@@ -22,11 +22,12 @@ public class RecordCollection
         switch (records.Length)
         {
             case 0:
-                throw new Exception(_parent.BuildActivityMessage($"No messages of type {typeof(T).FullNameInCode()} were received"));
+                throw new Exception(
+                    _parent.BuildActivityMessage($"No messages of type {typeof(T).FullNameInCode()} were received"));
 
             case 1:
                 return (T)records.Single().Message!;
-            
+
             default:
                 throw new Exception(_parent.BuildActivityMessage(
                     $"Received {records.Length} messages of type {typeof(T).FullNameInCode()}"));
@@ -34,7 +35,7 @@ public class RecordCollection
     }
 
     /// <summary>
-    /// Find the expected single envelope where the message type is T
+    ///     Find the expected single envelope where the message type is T
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
@@ -45,11 +46,12 @@ public class RecordCollection
         switch (records.Length)
         {
             case 0:
-                throw new Exception(_parent.BuildActivityMessage($"No messages of type {typeof(T).FullNameInCode()} were received"));
-            
+                throw new Exception(
+                    _parent.BuildActivityMessage($"No messages of type {typeof(T).FullNameInCode()} were received"));
+
             case 1:
                 return records.Single().Envelope;
-            
+
             default:
                 throw new Exception(_parent.BuildActivityMessage(
                     $"Received {records.Length} messages of type {typeof(T).FullNameInCode()}"));

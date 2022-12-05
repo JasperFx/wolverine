@@ -4,11 +4,10 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using Baseline;
-using Baseline.Dates;
-using BaselineTypeDiscovery;
+using JasperFx.CodeGeneration;
+using JasperFx.Core;
+using JasperFx.TypeDiscovery;
 using Lamar;
-using LamarCodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
@@ -65,12 +64,11 @@ public sealed partial class WolverineOptions
     }
 
     /// <summary>
-    /// Options for applying conventional configuration to all or a subset of messaging endpoints
+    ///     Options for applying conventional configuration to all or a subset of messaging endpoints
     /// </summary>
     public IEndpointPolicies Policies => new EndpointPolicies(Transports, this);
 
     /// <summary>
-    /// 
     /// </summary>
     public TransportCollection Transports { get; }
 
@@ -88,14 +86,16 @@ public sealed partial class WolverineOptions
 
 
     /// <summary>
-    /// Register additional services to the underlying IoC container with either .NET standard IServiceCollection extension methods or Lamar's registry DSL syntax . This usage will have access to the application's
-    /// full ServiceCollection *at the time of this call*
+    ///     Register additional services to the underlying IoC container with either .NET standard IServiceCollection extension
+    ///     methods or Lamar's registry DSL syntax . This usage will have access to the application's
+    ///     full ServiceCollection *at the time of this call*
     /// </summary>
     public ServiceRegistry Services { get; } = new();
 
     /// <summary>
-    /// The main application assembly for this Wolverine system. You may need or want to explicitly set this in automated test harness
-    /// scenarios. Defaults to the application entry assembly
+    ///     The main application assembly for this Wolverine system. You may need or want to explicitly set this in automated
+    ///     test harness
+    ///     scenarios. Defaults to the application entry assembly
     /// </summary>
     public Assembly? ApplicationAssembly
     {
@@ -131,7 +131,7 @@ public sealed partial class WolverineOptions
     }
 
     /// <summary>
-    /// Override or get the default message serializer for the application. The default is based around Newtonsoft.Json
+    ///     Override or get the default message serializer for the application. The default is based around Newtonsoft.Json
     /// </summary>
     /// <exception cref="InvalidOperationException"></exception>
     public IMessageSerializer DefaultSerializer
@@ -163,10 +163,10 @@ public sealed partial class WolverineOptions
     public bool AutoBuildEnvelopeStorageOnStartup { get; set; }
 
     internal TypeLoadMode ProductionTypeLoadMode { get; set; }
-    
+
     /// <summary>
-    /// All of the assemblies that Wolverine is searching for message handlers and
-    /// other Wolverine items
+    ///     All of the assemblies that Wolverine is searching for message handlers and
+    ///     other Wolverine items
     /// </summary>
     public IEnumerable<Assembly> Assemblies => HandlerGraph.Source.Assemblies;
 

@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Wolverine.Logging;
 using Microsoft.Extensions.Logging;
+using Wolverine.Logging;
 using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Durability;
@@ -68,10 +68,7 @@ internal class RunScheduledJobs : IMessagingAction
 
             _logger.ScheduledJobsQueuedForExecution(readyToExecute);
 
-            foreach (var envelope in readyToExecute)
-            {
-                agent.EnqueueLocally(envelope);
-            }
+            foreach (var envelope in readyToExecute) agent.EnqueueLocally(envelope);
         }
         finally
         {

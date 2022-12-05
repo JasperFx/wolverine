@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
-using ImTools;
+using JasperFx.Core;
 using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -20,12 +20,15 @@ namespace Wolverine.Runtime;
 public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 {
     private readonly IContainer _container;
+    private readonly EndpointCollection _endpoints;
 
     private readonly Lazy<IMessageStore> _persistence;
-    private bool _hasStopped;
 
     private readonly string _serviceName;
     private readonly int _uniqueNodeId;
+
+    private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
+    private bool _hasStopped;
 
 
     public WolverineRuntime(WolverineOptions options,
@@ -38,9 +41,9 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         Environment = environment;
 
         Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
-        
+
         Logger = logger;
-        
+
         _uniqueNodeId = options.Advanced.UniqueNodeId;
         _serviceName = options.ServiceName ?? "WolverineService";
 
@@ -63,27 +66,21 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
         Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies));
 
-        _sentCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSent, MetricsConstants.Messages, "Number of messages sent");
-        _executionCounter = Meter.CreateHistogram<long>(MetricsConstants.ExecutionTime, MetricsConstants.Milliseconds, "Execution time in seconds");
-        _successCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSucceeded, MetricsConstants.Messages, "Number of messages successfully processed");
-        _deadLetterQueueCounter = Meter.CreateCounter<int>(MetricsConstants.DeadLetterQueue, MetricsConstants.Messages, "Number of messages moved to dead letter queues");
+        _sentCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSent, MetricsConstants.Messages,
+            "Number of messages sent");
+        _executionCounter = Meter.CreateHistogram<long>(MetricsConstants.ExecutionTime, MetricsConstants.Milliseconds,
+            "Execution time in seconds");
+        _successCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSucceeded, MetricsConstants.Messages,
+            "Number of messages successfully processed");
+        _deadLetterQueueCounter = Meter.CreateCounter<int>(MetricsConstants.DeadLetterQueue, MetricsConstants.Messages,
+            "Number of messages moved to dead letter queues");
 
-        _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime, MetricsConstants.Milliseconds,
+        _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime,
+            MetricsConstants.Milliseconds,
             "Effective time between a message being sent and being completely handled");
     }
-    
+
     internal Meter Meter { get; }
-
-    public IReplyTracker Replies { get; }
-
-    public IEndpointCollection Endpoints => _endpoints;
-
-    public ListenerTracker ListenerTracker { get; }
-
-    internal IReadOnlyList<IMissingHandler> MissingHandlers()
-    {
-        return _container.GetAllInstances<IMissingHandler>();
-    }
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
 
@@ -91,14 +88,22 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     internal HandlerGraph Handlers { get; }
 
-    public CancellationToken Cancellation { get; }
+    internal IScheduledJobProcessor ScheduledJobs { get; private set; } = null!;
 
-    private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
-    private readonly EndpointCollection _endpoints;
+    public IReplyTracker Replies { get; }
+
+    public IEndpointCollection Endpoints => _endpoints;
+
+    public ListenerTracker ListenerTracker { get; }
+
+    public CancellationToken Cancellation { get; }
 
     public T? TryFindExtension<T>() where T : class
     {
-        if (_extensions.TryFind(typeof(T), out var raw)) return raw as T;
+        if (_extensions.TryFind(typeof(T), out var raw))
+        {
+            return raw as T;
+        }
 
         var extension = Options.AppliedExtensions.OfType<T>().FirstOrDefault();
         _extensions = _extensions.AddOrUpdate(typeof(T), extension);
@@ -109,8 +114,6 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     public AdvancedSettings Advanced { get; }
 
     public ILogger Logger { get; }
-
-    internal IScheduledJobProcessor ScheduledJobs { get; private set; } = null!;
 
     public WolverineOptions Options { get; }
 
@@ -127,4 +130,9 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
 
     public IMessageStore Storage => _persistence.Value;
+
+    internal IReadOnlyList<IMissingHandler> MissingHandlers()
+    {
+        return _container.GetAllInstances<IMissingHandler>();
+    }
 }

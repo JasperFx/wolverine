@@ -5,9 +5,8 @@ namespace Wolverine.Runtime.Interop.MassTransit;
 
 public class NServiceBusXmlSerializer : IMessageSerializer
 {
-    
-    
     public string ContentType { get; } = "text/xml";
+
     public byte[] Write(Envelope envelope)
     {
         throw new NotImplementedException();

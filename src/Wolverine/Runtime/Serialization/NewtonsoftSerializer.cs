@@ -16,19 +16,6 @@ internal class NewtonsoftSerializer : IMessageSerializer
     private readonly JsonSerializer _serializer;
     private int _bufferSize = 1024;
 
-    public static JsonSerializerSettings DefaultSettings()
-    {
-        #region sample_default_newtonsoft_settings
-
-        return new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.Auto,
-            PreserveReferencesHandling = PreserveReferencesHandling.Objects
-        };
-
-        #endregion
-    }
-
     public NewtonsoftSerializer(JsonSerializerSettings settings)
     {
         _serializer = JsonSerializer.Create(settings);
@@ -84,7 +71,9 @@ internal class NewtonsoftSerializer : IMessageSerializer
         var message = _serializer.Deserialize(jsonReader)!;
 
         if (message is JObject)
+        {
             throw new InvalidOperationException("Unable to determine the message type in deserialization");
+        }
 
         return message;
     }
@@ -136,6 +125,19 @@ internal class NewtonsoftSerializer : IMessageSerializer
         {
             _bytePool.Return(bytes);
         }
+    }
+
+    public static JsonSerializerSettings DefaultSettings()
+    {
+        #region sample_default_newtonsoft_settings
+
+        return new JsonSerializerSettings
+        {
+            TypeNameHandling = TypeNameHandling.Auto,
+            PreserveReferencesHandling = PreserveReferencesHandling.Objects
+        };
+
+        #endregion
     }
 
     private byte[] writeWithNoBuffer(object? model, JsonSerializer serializer)

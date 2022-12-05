@@ -1,31 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <Description>EF Core-backed Persistence for Wolverine Applications</Description>
-    <Authors>Jeremy D. Miller, Mark Warpool</Authors>
-    <DebugType>portable</DebugType>
-    <PackageId>WolverineFx.EntityFrameworkCore</PackageId>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
-    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-    <LangVersion>10</LangVersion>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+    <PropertyGroup>
+        <Description>EF Core-backed Persistence for Wolverine Applications</Description>
+        <Authors>Jeremy D. Miller, Mark Warpool</Authors>
+        <DebugType>portable</DebugType>
+        <PackageId>WolverineFx.EntityFrameworkCore</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <LangVersion>10</LangVersion>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="6.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.0" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="6.0.0"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.0"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="obj\Debug\netstandard2.1" />
-  </ItemGroup>
+    <ItemGroup>
+        <Folder Include="obj\Debug\netstandard2.1"/>
+    </ItemGroup>
 
-  <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../Analysis.Build.props"/>
 </Project>

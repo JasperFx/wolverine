@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
@@ -47,17 +47,27 @@ internal class EndpointPolicies : IEndpointPolicies
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
-            if (e.Role == EndpointRole.System) return;
-            if (e is LocalQueueSettings) return;
+            if (e.Role == EndpointRole.System)
+            {
+                return;
+            }
 
-            if (!e.IsListener) return;
+            if (e is LocalQueueSettings)
+            {
+                return;
+            }
+
+            if (!e.IsListener)
+            {
+                return;
+            }
 
             var configuration = new ListenerConfiguration(e);
             configure(configuration);
 
             configuration.As<IDelayedEndpointConfiguration>().Apply();
         });
-        
+
         _endpoints.AddPolicy(policy);
     }
 
@@ -65,17 +75,27 @@ internal class EndpointPolicies : IEndpointPolicies
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
-            if (e is LocalQueueSettings) return;
-            if (e.Role == EndpointRole.System) return;
+            if (e is LocalQueueSettings)
+            {
+                return;
+            }
 
-            if (!e.Subscriptions.Any()) return;
+            if (e.Role == EndpointRole.System)
+            {
+                return;
+            }
+
+            if (!e.Subscriptions.Any())
+            {
+                return;
+            }
 
             var configuration = new SubscriberConfiguration(e);
             configure(configuration);
 
             configuration.As<IDelayedEndpointConfiguration>().Apply();
         });
-        
+
         _endpoints.AddPolicy(policy);
     }
 
@@ -85,14 +105,18 @@ internal class EndpointPolicies : IEndpointPolicies
         {
             if (e is LocalQueueSettings local)
             {
-                if (e.Role == EndpointRole.System) return;
+                if (e.Role == EndpointRole.System)
+                {
+                    return;
+                }
+
                 var configuration = new ListenerConfiguration(local);
                 configure(configuration);
 
                 configuration.As<IDelayedEndpointConfiguration>().Apply();
             }
         });
-        
+
         _endpoints.AddPolicy(policy);
     }
 

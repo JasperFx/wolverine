@@ -1,40 +1,39 @@
 ﻿using System;
 using Wolverine.Configuration;
 
-namespace TestingSupport
+namespace TestingSupport;
+
+public static class HandlerConfigurationExtensions
 {
-    public static class HandlerConfigurationExtensions
+    public static IHandlerConfiguration DisableConventionalDiscovery(this IHandlerConfiguration handlers)
     {
-        public static IHandlerConfiguration DisableConventionalDiscovery(this IHandlerConfiguration handlers)
+        handlers.Discovery(x => x.DisableConventionalDiscovery());
+
+        return handlers;
+    }
+
+    public static IHandlerConfiguration OnlyType<T>(this IHandlerConfiguration handlers)
+    {
+        handlers.Discovery(x =>
         {
-            handlers.Discovery(x => x.DisableConventionalDiscovery());
+            x.DisableConventionalDiscovery();
+            x.IncludeType<T>();
+        });
 
-            return handlers;
-        }
+        return handlers;
+    }
 
-        public static IHandlerConfiguration OnlyType<T>(this IHandlerConfiguration handlers)
-        {
-            handlers.Discovery(x =>
-            {
-                x.DisableConventionalDiscovery();
-                x.IncludeType<T>();
-            });
+    public static IHandlerConfiguration IncludeType<T>(this IHandlerConfiguration handlers)
+    {
+        handlers.Discovery(x => x.IncludeType<T>());
 
-            return handlers;
-        }
+        return handlers;
+    }
 
-        public static IHandlerConfiguration IncludeType<T>(this IHandlerConfiguration handlers)
-        {
-            handlers.Discovery(x => x.IncludeType<T>());
+    public static IHandlerConfiguration IncludeType(this IHandlerConfiguration handlers, Type handlerType)
+    {
+        handlers.Discovery(x => x.IncludeType(handlerType));
 
-            return handlers;
-        }
-
-        public static IHandlerConfiguration IncludeType(this IHandlerConfiguration handlers, Type handlerType)
-        {
-            handlers.Discovery(x => x.IncludeType(handlerType));
-
-            return handlers;
-        }
+        return handlers;
     }
 }

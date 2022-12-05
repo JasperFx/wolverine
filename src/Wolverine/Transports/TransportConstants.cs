@@ -12,6 +12,8 @@ public static class TransportConstants
 
     public const string Default = "default";
     public const string Replies = "replies";
+
+    public const string WolverineTransport = "WolverineTransport";
     internal static readonly int ScheduledJobLockId = "scheduled-jobs".GetDeterministicHashCode();
     internal static readonly int IncomingMessageLockId = "recover-incoming-messages".GetDeterministicHashCode();
     internal static readonly int OutgoingMessageLockId = "recover-outgoing-messages".GetDeterministicHashCode();
@@ -26,6 +28,4 @@ public static class TransportConstants
     public static readonly Uri LocalUri = "local://".ToUri();
 
     public static readonly int AnyNode = 0;
-
-    public const string WolverineTransport = "WolverineTransport";
 }

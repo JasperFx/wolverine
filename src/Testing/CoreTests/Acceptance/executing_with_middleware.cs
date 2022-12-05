@@ -187,8 +187,8 @@ public class executing_with_middleware
             "RunsScoredMessage: George Brett"
         );
     }
-    
-    
+
+
     [Fact]
     public async Task conditional_filter_stop_sync()
     {
@@ -199,7 +199,7 @@ public class executing_with_middleware
             "Evaluated Number"
         );
     }
-    
+
     [Fact]
     public async Task conditional_filter_continue_async()
     {
@@ -211,8 +211,8 @@ public class executing_with_middleware
             "RunsScoredMessage: George Brett"
         );
     }
-    
-    
+
+
     [Fact]
     public async Task conditional_filter_stop_async()
     {

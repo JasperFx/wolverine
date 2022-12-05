@@ -8,9 +8,10 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 public class AzureServiceBusQueueSubscription : AzureServiceBusEndpoint
 {
-    public string SubscriptionName { get; }
-
-    public AzureServiceBusQueueSubscription(AzureServiceBusTransport parent, AzureServiceBusTopic topic, string subscriptionName) : base(parent, new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topic.TopicName}/{subscriptionName}"), EndpointRole.Application)
+    public AzureServiceBusQueueSubscription(AzureServiceBusTransport parent, AzureServiceBusTopic topic,
+        string subscriptionName) : base(parent,
+        new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topic.TopicName}/{subscriptionName}"),
+        EndpointRole.Application)
     {
         if (parent == null)
         {
@@ -20,6 +21,8 @@ public class AzureServiceBusQueueSubscription : AzureServiceBusEndpoint
         SubscriptionName = EndpointName = subscriptionName;
         Topic = topic ?? throw new ArgumentNullException(nameof(topic));
     }
+
+    public string SubscriptionName { get; }
 
     public AzureServiceBusTopic Topic { get; }
 

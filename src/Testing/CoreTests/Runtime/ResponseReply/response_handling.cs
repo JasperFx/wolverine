@@ -1,8 +1,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline.Dates;
 using CoreTests.Messaging;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using TestMessages;
 using Wolverine.Runtime;
@@ -13,7 +13,7 @@ namespace CoreTests.Runtime.ResponseReply;
 
 public class response_handling : IDisposable
 {
-    private readonly ReplyTracker _theListener = new ReplyTracker(NullLogger<WolverineRuntime>.Instance);
+    private readonly ReplyTracker _theListener = new(NullLogger<WolverineRuntime>.Instance);
 
     public void Dispose()
     {
@@ -26,7 +26,7 @@ public class response_handling : IDisposable
         var envelope = ObjectMother.Envelope();
 
         var waiter = _theListener.RegisterListener<Message1>(envelope, CancellationToken.None, 5.Seconds());
-        
+
         _theListener.HasListener(envelope.Id).ShouldBeTrue();
     }
 
@@ -36,7 +36,7 @@ public class response_handling : IDisposable
         var envelope = ObjectMother.Envelope();
 
         var waiter = _theListener.RegisterListener<Message1>(envelope, CancellationToken.None, 5.Seconds());
-        
+
         waiter.Status.ShouldBe(TaskStatus.WaitingForActivation);
 
         var theMessage = new Message1();
@@ -50,20 +50,20 @@ public class response_handling : IDisposable
 
 
         (await waiter).ShouldBe(theMessage);
-        
+
         _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }
-    
+
     [Fact]
     public async Task wait_failure()
     {
         var envelope = ObjectMother.Envelope();
 
         var waiter = _theListener.RegisterListener<Message1>(envelope, CancellationToken.None, 5.Seconds());
-        
+
         waiter.Status.ShouldBe(TaskStatus.WaitingForActivation);
 
-        var ack = new FailureAcknowledgement{Message = "Bad!"};
+        var ack = new FailureAcknowledgement { Message = "Bad!" };
         var response = new Envelope
         {
             ConversationId = envelope.Id,
@@ -72,29 +72,23 @@ public class response_handling : IDisposable
 
         _theListener.Complete(response);
 
-        await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
-        {
-            await waiter;
-        });
-        
+        await Should.ThrowAsync<WolverineRequestReplyException>(async () => { await waiter; });
+
         _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }
-    
-        
+
+
     [Fact]
     public async Task timeout_failure()
     {
         var envelope = ObjectMother.Envelope();
 
         var waiter = _theListener.RegisterListener<Message1>(envelope, CancellationToken.None, 250.Milliseconds());
-        
+
         waiter.Status.ShouldBe(TaskStatus.WaitingForActivation);
-        
-        await Should.ThrowAsync<TimeoutException>(async () =>
-        {
-            await waiter;
-        });
-        
+
+        await Should.ThrowAsync<TimeoutException>(async () => { await waiter; });
+
         _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }
 }

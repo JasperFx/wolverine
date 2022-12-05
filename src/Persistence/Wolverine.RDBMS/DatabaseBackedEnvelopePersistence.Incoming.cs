@@ -71,7 +71,6 @@ public abstract partial class DatabaseBackedMessageStore<T>
         }
     }
 
-    protected abstract bool isExceptionFromDuplicateEnvelope(Exception ex);
     public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
         var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, DatabaseSettings);
@@ -144,4 +143,6 @@ public abstract partial class DatabaseBackedMessageStore<T>
             .With("time", utcNow)
             .ExecuteNonQueryAsync(_cancellation);
     }
+
+    protected abstract bool isExceptionFromDuplicateEnvelope(Exception ex);
 }

@@ -1,19 +1,18 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Benchmarks;
+using TestMessages;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
-namespace Benchmarks_Generated
+namespace Benchmarks_Generated;
+
+public class TestMessages_Target : MessageHandler
 {
-    public class TestMessages_Target : Wolverine.Runtime.Handlers.MessageHandler
+    public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
-
-
-        public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
-        {
-            var target = (TestMessages.Target)context.Envelope.Message;
-            Benchmarks.TargetHandler.Handle(target);
-            return System.Threading.Tasks.Task.CompletedTask;
-        }
-
+        var target = (Target)context.Envelope.Message;
+        TargetHandler.Handle(target);
+        return Task.CompletedTask;
     }
 }

@@ -1,10 +1,10 @@
 ﻿using IntegrationTests;
-using Wolverine;
-using Wolverine.Attributes;
-using Wolverine.Persistence.Durability;
-using Wolverine.Marten;
 using Marten;
 using Microsoft.Extensions.Hosting;
+using Wolverine;
+using Wolverine.Attributes;
+using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 
 namespace ScheduledJobTests.Postgresql;
@@ -12,7 +12,6 @@ namespace ScheduledJobTests.Postgresql;
 [Collection("marten")]
 public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMessageReceiver, ItemCreatedHandler>
 {
-
     protected override void configureReceiver(WolverineOptions receiverOptions)
     {
         receiverOptions.Services.AddMarten(opts =>
@@ -20,7 +19,6 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
             opts.Connection(Servers.PostgresConnectionString);
             opts.DatabaseSchemaName = "outbox_receiver";
         }).IntegrateWithWolverine();
-
     }
 
     protected override void configureSender(WolverineOptions senderOptions)
@@ -30,7 +28,6 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
             opts.Connection(Servers.PostgresConnectionString);
             opts.DatabaseSchemaName = "outbox_sender";
         }).IntegrateWithWolverine();
-
     }
 
     protected override ItemCreated loadItem(IHost receiver, Guid id)

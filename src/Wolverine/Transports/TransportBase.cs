@@ -46,7 +46,10 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
     public Endpoint GetOrCreateEndpoint(Uri uri)
     {
         if (uri.Scheme != Protocol)
+        {
             throw new ArgumentOutOfRangeException($"Uri must have scheme '{Protocol}', but received {uri.Scheme}");
+        }
+
         return findEndpointByUri(uri);
     }
 
@@ -55,13 +58,13 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
         return findEndpointByUri(uri);
     }
 
-    protected abstract IEnumerable<TEndpoint> endpoints();
-
-    protected abstract TEndpoint findEndpointByUri(Uri uri);
-
     public virtual bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
     {
         resource = default;
         return false;
     }
+
+    protected abstract IEnumerable<TEndpoint> endpoints();
+
+    protected abstract TEndpoint findEndpointByUri(Uri uri);
 }

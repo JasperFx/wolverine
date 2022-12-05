@@ -1,22 +1,22 @@
 using System.Diagnostics;
-using Baseline.Dates;
 using IntegrationTests;
-using Wolverine;
-using Wolverine.Persistence.Durability;
-using Wolverine.Marten;
+using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using ScheduledJobTests.SqlServer;
 using Shouldly;
+using Wolverine;
+using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 
 namespace ScheduledJobTests.Postgresql;
 
 public class marten_scheduled_jobs : IAsyncLifetime
 {
-    private IHost theHost;
     private readonly ScheduledMessageReceiver theReceiver = new();
+    private IHost theHost;
 
     public async Task InitializeAsync()
     {
@@ -110,7 +110,6 @@ public class marten_scheduled_jobs : IAsyncLifetime
         await AfterReceivingMessages();
 
 
-
         TheIdOfTheOnlyReceivedMessageShouldBe().ShouldBe(2);
 
         while (await PersistedScheduledCount() != 2)
@@ -120,8 +119,6 @@ public class marten_scheduled_jobs : IAsyncLifetime
 
         (await PersistedScheduledCount()).ShouldBe(2);
     }
-
-
 }
 
 public class ScheduledMessageReceiver

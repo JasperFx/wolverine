@@ -8,7 +8,9 @@ namespace Wolverine.RabbitMQ.Tests.Interop.NServiceBus;
 
 public class NServiceBusFixture : IAsyncLifetime
 {
-    private IHost _nServiceBus;
+    public IHost NServiceBus { get; private set; }
+
+    public IHost Wolverine { get; private set; }
 
     public async Task InitializeAsync()
     {
@@ -31,23 +33,17 @@ public class NServiceBusFixture : IAsyncLifetime
             opts.ListenToRabbitQueue("wolverine")
                 .UseNServiceBusInterop()
                 .DefaultIncomingMessage<ResponseMessage>().UseForReplies();
-
         }).StartAsync();
 
         #endregion
 
-        _nServiceBus = await Program.CreateHostBuilder(Array.Empty<string>())
+        NServiceBus = await Program.CreateHostBuilder(Array.Empty<string>())
             .StartAsync();
     }
-
-    public IHost NServiceBus => _nServiceBus;
-
-    public IHost Wolverine { get; private set; }
 
     public async Task DisposeAsync()
     {
         await Wolverine.StopAsync();
-        await _nServiceBus.StopAsync();
-
+        await NServiceBus.StopAsync();
     }
 }

@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using CoreTests.Transports.Tcp.Protocol;
 using Microsoft.Extensions.Logging.Abstractions;
-using Shouldly;
 using TestingSupport;
 using Wolverine.Transports.Sending;
 using Wolverine.Transports.Tcp;

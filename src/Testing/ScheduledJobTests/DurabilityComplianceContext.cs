@@ -1,15 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
-using Wolverine;
-using Wolverine.Logging;
-using Wolverine.Persistence.Durability;
-using Wolverine.Tracking;
-using Wolverine.Transports.Tcp;
-using Wolverine.Util;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,8 +7,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
+using Wolverine;
+using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
-using Xunit;
+using Wolverine.Tracking;
+using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 
 namespace ScheduledJobTests;
 
@@ -87,12 +82,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await buildAdditionalObjects();
     }
 
-    protected virtual Task buildAdditionalObjects() => Task.CompletedTask;
-
-    protected abstract void configureReceiver(WolverineOptions receiverRegistry);
-
-    protected abstract void configureSender(WolverineOptions senderRegistry);
-
 
     public async Task DisposeAsync()
     {
@@ -106,6 +95,15 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
             await theSender.StopAsync();
         }
     }
+
+    protected virtual Task buildAdditionalObjects()
+    {
+        return Task.CompletedTask;
+    }
+
+    protected abstract void configureReceiver(WolverineOptions receiverRegistry);
+
+    protected abstract void configureSender(WolverineOptions senderRegistry);
 
     [Fact]
     public async Task<bool> CanSendMessageEndToEnd()
@@ -192,7 +190,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         received = loadItem(theReceiver, item.Id);
 
         received.Name.ShouldBe(item.Name);
-
     }
 
     private async Task assertIncomingEnvelopesIsZero()
@@ -218,10 +215,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
             Id = Guid.NewGuid()
         };
 
-        await send(async c =>
-        {
-            await c.ScheduleAsync(item, 1.Hours());
-        });
+        await send(async c => { await c.ScheduleAsync(item, 1.Hours()); });
 
         var persistence = theSender.Get<IMessageStore>();
         var counts = await persistence.Admin.FetchCountsAsync();

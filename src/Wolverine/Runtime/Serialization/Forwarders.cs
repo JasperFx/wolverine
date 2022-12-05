@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using Baseline;
-using BaselineTypeDiscovery;
+using JasperFx.Core.Reflection;
+using JasperFx.TypeDiscovery;
 
 namespace Wolverine.Runtime.Serialization;
 

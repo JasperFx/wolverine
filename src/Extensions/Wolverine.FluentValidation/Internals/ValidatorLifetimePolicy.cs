@@ -1,7 +1,7 @@
 using FluentValidation;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Lamar.IoC.Instances;
-using LamarCodeGeneration.Util;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Wolverine.FluentValidation.Internals;

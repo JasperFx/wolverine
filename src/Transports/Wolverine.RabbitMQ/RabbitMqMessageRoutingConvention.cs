@@ -28,7 +28,7 @@ public class RabbitMqMessageRoutingConvention : MessageRoutingConvention<RabbitM
     }
 
     /// <summary>
-    /// Conventional name for the exchange .Same as IdentifierForSender
+    ///     Conventional name for the exchange .Same as IdentifierForSender
     /// </summary>
     /// <param name="nameForExchange"></param>
     /// <returns></returns>

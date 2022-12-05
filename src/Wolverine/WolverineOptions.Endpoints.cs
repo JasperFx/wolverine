@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -14,12 +14,12 @@ public partial class WolverineOptions : IAsyncDisposable
     internal IList<IMessageRoutingConvention> RoutingConventions { get; } = new List<IMessageRoutingConvention>();
 
     /// <summary>
-    /// Configure the properties of the default, local queue
+    ///     Configure the properties of the default, local queue
     /// </summary>
     public LocalQueueConfiguration DefaultLocalQueue => LocalQueue(TransportConstants.Default);
-    
+
     /// <summary>
-    /// Configure the properties of the default, durable local queue 
+    ///     Configure the properties of the default, durable local queue
     /// </summary>
     public LocalQueueConfiguration DurableScheduledMessagesLocalQueue => LocalQueue(TransportConstants.Durable);
 
@@ -73,8 +73,8 @@ public partial class WolverineOptions : IAsyncDisposable
     }
 
     /// <summary>
-    /// Configure a potentially complex publishing/routing/subscription rule
-    /// to one or more messaging endpoints
+    ///     Configure a potentially complex publishing/routing/subscription rule
+    ///     to one or more messaging endpoints
     /// </summary>
     /// <param name="configuration"></param>
     public void Publish(Action<PublishingExpression> configuration)
@@ -112,7 +112,7 @@ public partial class WolverineOptions : IAsyncDisposable
     }
 
     /// <summary>
-    /// Start a publishing rule for all possible messages
+    ///     Start a publishing rule for all possible messages
     /// </summary>
     /// <returns></returns>
     public IPublishToExpression PublishAllMessages()
@@ -127,7 +127,7 @@ public partial class WolverineOptions : IAsyncDisposable
     }
 
     /// <summary>
-    /// Configure a local queue by name. The local queue will be created if it does not already exist
+    ///     Configure a local queue by name. The local queue will be created if it does not already exist
     /// </summary>
     /// <param name="queueName"></param>
     /// <returns></returns>
@@ -138,12 +138,10 @@ public partial class WolverineOptions : IAsyncDisposable
     }
 
     /// <summary>
-    /// For testing mode, this directs Wolverine to stub out all outbound message sending
+    ///     For testing mode, this directs Wolverine to stub out all outbound message sending
     /// </summary>
     public void StubAllExternallyOutgoingEndpoints()
     {
         Advanced.StubAllOutgoingExternalSenders = true;
     }
-
-
 }

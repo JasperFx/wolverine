@@ -1,7 +1,6 @@
 ﻿using System;
 using CoreTests.Messaging;
 using NSubstitute;
-using Wolverine;
 using Wolverine.Runtime;
 using Xunit;
 
@@ -9,8 +8,8 @@ namespace CoreTests.Runtime;
 
 public class MessageSucceededContinuationTester
 {
-    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
     private readonly Envelope theEnvelope = ObjectMother.Envelope();
+    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
 
     private readonly MockWolverineRuntime theRuntime = new();
 
@@ -40,10 +39,9 @@ public class MessageSucceededContinuationTester
 
 public class MessageSucceededContinuation_failure_handling_Tester
 {
-    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
-
     private readonly Envelope theEnvelope = ObjectMother.Envelope();
     private readonly Exception theException = new DivideByZeroException();
+    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
     private readonly MockWolverineRuntime theRuntime = new();
 
     public MessageSucceededContinuation_failure_handling_Tester()

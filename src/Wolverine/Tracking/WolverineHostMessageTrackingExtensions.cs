@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 
@@ -27,7 +27,7 @@ public static class WolverineHostMessageTrackingExtensions
     }
 
     /// <summary>
-    /// Start a new tracked session with an explicit timeout
+    ///     Start a new tracked session with an explicit timeout
     /// </summary>
     /// <param name="host"></param>
     /// <param name="trackingTimeout"></param>
@@ -47,7 +47,8 @@ public static class WolverineHostMessageTrackingExtensions
     /// <param name="message"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static Task<ITrackedSession> SendMessageAndWaitAsync<T>(this IHost host, T? message, DeliveryOptions? options = null,
+    public static Task<ITrackedSession> SendMessageAndWaitAsync<T>(this IHost host, T? message,
+        DeliveryOptions? options = null,
         int timeoutInMilliseconds = 5000)
     {
         return host.ExecuteAndWaitValueTaskAsync(c => c.SendAsync(message, options), timeoutInMilliseconds);

@@ -1,12 +1,11 @@
 using System;
 
-namespace EFPlusSqlServerConsole.Items
+namespace EFPlusSqlServerConsole.Items;
+
+public class ItemCreatedHandler
 {
-    public class ItemCreatedHandler
+    public void Handle(ItemCreated @event)
     {
-        public void Handle(ItemCreated @event)
-        {
-            Console.WriteLine("You created a new item with id " + @event.Id);
-        }
+        Console.WriteLine("You created a new item with id " + @event.Id);
     }
 }

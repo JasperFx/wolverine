@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Lamar.IoC.Instances;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
@@ -153,7 +152,7 @@ public partial class Envelope
             SagaId = SagaId
         };
     }
-    
+
     internal async ValueTask StoreAndForwardAsync()
     {
         if (_enqueued)
@@ -195,9 +194,9 @@ public partial class Envelope
         }
 
         _enqueued = true;
-        
-        return Sender.Latched 
-            ? ValueTask.CompletedTask 
+
+        return Sender.Latched
+            ? ValueTask.CompletedTask
             : Sender.EnqueueOutgoingAsync(this);
     }
 
@@ -242,7 +241,7 @@ public partial class Envelope
             {
                 OwnerId = TransportConstants.AnyNode;
             }
-            
+
             await transaction.PersistAsync(this);
         }
     }

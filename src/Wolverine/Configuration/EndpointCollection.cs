@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using ImTools;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -30,7 +29,15 @@ public interface IEndpointCollection : IAsyncDisposable
 
 public class EndpointCollection : IEndpointCollection
 {
+    private readonly object _channelLock = new();
+
+    private readonly Dictionary<Uri, ListeningAgent> _listeners = new();
+    private readonly WolverineOptions _options;
     private readonly WolverineRuntime _runtime;
+
+    private ImHashMap<string, ISendingAgent> _localSenders = ImHashMap<string, ISendingAgent>.Empty;
+
+    private ImHashMap<Uri, ISendingAgent> _senders = ImHashMap<Uri, ISendingAgent>.Empty!;
 
     internal EndpointCollection(WolverineRuntime runtime)
     {
@@ -53,17 +60,8 @@ public class EndpointCollection : IEndpointCollection
             }
         }
 
-        foreach (var value in _listeners.Values)
-        {
-            await value.DisposeAsync();
-        }
+        foreach (var value in _listeners.Values) await value.DisposeAsync();
     }
-
-    private readonly object _channelLock = new();
-
-    private ImHashMap<string, ISendingAgent> _localSenders = ImHashMap<string, ISendingAgent>.Empty;
-
-    private ImHashMap<Uri, ISendingAgent> _senders = ImHashMap<Uri, ISendingAgent>.Empty!;
 
     public ISendingAgent CreateSendingAgent(Uri? replyUri, ISender sender, Endpoint endpoint)
     {
@@ -122,39 +120,12 @@ public class EndpointCollection : IEndpointCollection
         }
     }
 
-    private readonly Dictionary<Uri, ListeningAgent> _listeners = new();
-    private readonly WolverineOptions _options;
-
     public Endpoint? EndpointFor(Uri uri)
     {
         var endpoint = _options.Transports.SelectMany(x => x.Endpoints()).FirstOrDefault(x => x.Uri == uri);
         endpoint?.Compile(_runtime);
 
         return endpoint;
-    }
-
-    private ISendingAgent buildSendingAgent(ISender sender, Endpoint endpoint)
-    {
-        // This is for the stub transport in the Storyteller specs
-        if (sender is ISendingAgent a)
-        {
-            return a;
-        }
-
-        switch (endpoint.Mode)
-        {
-            case EndpointMode.Durable:
-                return new DurableSendingAgent(sender, _options.Advanced, _runtime.Logger, _runtime.MessageLogger,
-                    _runtime.Storage, endpoint);
-
-            case EndpointMode.BufferedInMemory:
-                return new BufferedSendingAgent(_runtime.Logger, _runtime.MessageLogger, sender, _runtime.Advanced, endpoint);
-
-            case EndpointMode.Inline:
-                return new InlineSendingAgent(_runtime.Logger, sender, endpoint, _runtime.MessageLogger, _runtime.Advanced);
-        }
-
-        throw new InvalidOperationException();
     }
 
     public ISendingAgent AgentForLocalQueue(string queueName)
@@ -168,24 +139,6 @@ public class EndpointCollection : IEndpointCollection
         _localSenders = _localSenders.AddOrUpdate(queueName, agent);
 
         return agent;
-    }
-
-    private ISendingAgent buildSendingAgent(Uri uri, Action<Endpoint>? configureNewEndpoint)
-    {
-        var transport = _options.Transports.ForScheme(uri.Scheme);
-        if (transport == null)
-        {
-            throw new UnknownTransportException(
-                $"There is no known transport type that can send to the Destination {uri}");
-        }
-
-        var endpoint = transport.GetOrCreateEndpoint(uri);
-        configureNewEndpoint?.Invoke(endpoint);
-        
-        endpoint.Compile(_runtime);
-
-        endpoint.Runtime ??= _runtime; // This is important for serialization
-        return endpoint.StartSending(_runtime, transport.ReplyEndpoint()?.Uri);
     }
 
     public Endpoint? EndpointByName(string endpointName)
@@ -222,6 +175,50 @@ public class EndpointCollection : IEndpointCollection
         }
     }
 
+    private ISendingAgent buildSendingAgent(ISender sender, Endpoint endpoint)
+    {
+        // This is for the stub transport in the Storyteller specs
+        if (sender is ISendingAgent a)
+        {
+            return a;
+        }
+
+        switch (endpoint.Mode)
+        {
+            case EndpointMode.Durable:
+                return new DurableSendingAgent(sender, _options.Advanced, _runtime.Logger, _runtime.MessageLogger,
+                    _runtime.Storage, endpoint);
+
+            case EndpointMode.BufferedInMemory:
+                return new BufferedSendingAgent(_runtime.Logger, _runtime.MessageLogger, sender, _runtime.Advanced,
+                    endpoint);
+
+            case EndpointMode.Inline:
+                return new InlineSendingAgent(_runtime.Logger, sender, endpoint, _runtime.MessageLogger,
+                    _runtime.Advanced);
+        }
+
+        throw new InvalidOperationException();
+    }
+
+    private ISendingAgent buildSendingAgent(Uri uri, Action<Endpoint>? configureNewEndpoint)
+    {
+        var transport = _options.Transports.ForScheme(uri.Scheme);
+        if (transport == null)
+        {
+            throw new UnknownTransportException(
+                $"There is no known transport type that can send to the Destination {uri}");
+        }
+
+        var endpoint = transport.GetOrCreateEndpoint(uri);
+        configureNewEndpoint?.Invoke(endpoint);
+
+        endpoint.Compile(_runtime);
+
+        endpoint.Runtime ??= _runtime; // This is important for serialization
+        return endpoint.StartSending(_runtime, transport.ReplyEndpoint()?.Uri);
+    }
+
     public async Task DrainAsync()
     {
         // Drain the listeners
@@ -250,4 +247,3 @@ public class EndpointCollection : IEndpointCollection
         }
     }
 }
-

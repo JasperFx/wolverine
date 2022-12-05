@@ -1,6 +1,6 @@
-using Baseline.Dates;
-using Wolverine;
+using JasperFx.Core;
 using OtelMessages;
+using Wolverine;
 
 namespace OtelWebApi;
 
@@ -18,8 +18,7 @@ public static class InitialCommandHandler
 
         await publisher.PublishAsync(new TcpMessage1(cmd.Name));
 
-        await publisher.PublishAsync(new RabbitMessage1{Name = cmd.Name});
-
+        await publisher.PublishAsync(new RabbitMessage1 { Name = cmd.Name });
     }
 
     public static Task Handle(LocalMessage1 message)

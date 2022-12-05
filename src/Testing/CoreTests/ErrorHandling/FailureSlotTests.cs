@@ -1,7 +1,6 @@
 using System;
 using CoreTests.Messaging;
 using NSubstitute;
-using Shouldly;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Xunit;

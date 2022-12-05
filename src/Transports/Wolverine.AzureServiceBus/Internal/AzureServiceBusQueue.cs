@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Azure.Messaging.ServiceBus.Administration;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -11,7 +11,11 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 {
-    public AzureServiceBusQueue(AzureServiceBusTransport parent, string queueName, EndpointRole role = EndpointRole.Application) : base(parent, new Uri($"{AzureServiceBusTransport.ProtocolName}://queue/{queueName}"), role)
+    private bool _hasInitialized;
+
+    public AzureServiceBusQueue(AzureServiceBusTransport parent, string queueName,
+        EndpointRole role = EndpointRole.Application) : base(parent,
+        new Uri($"{AzureServiceBusTransport.ProtocolName}://queue/{queueName}"), role)
     {
         if (parent == null)
         {
@@ -21,7 +25,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         QueueName = EndpointName = queueName ?? throw new ArgumentNullException(nameof(queueName));
         Options = new CreateQueueOptions(QueueName);
     }
-    
+
     public CreateQueueOptions Options { get; }
 
     public string QueueName { get; }
@@ -39,25 +43,6 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         return new ValueTask(task);
     }
 
-    private bool _hasInitialized;
-
-    public override async ValueTask InitializeAsync(ILogger logger)
-    {
-        if (_hasInitialized) return;
-        
-        if (Parent.AutoProvision)
-        {
-            await SetupAsync(logger);
-        }
-
-        if (Parent.AutoPurgeAllQueues)
-        {
-            await PurgeAsync(logger);
-        }
-
-        _hasInitialized = true;
-    }
-
     public override async ValueTask SetupAsync(ILogger logger)
     {
         var client = Parent.ManagementClient;
@@ -66,27 +51,9 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         if (!exists)
         {
             Options.Name = QueueName;
-            
+
             await client.CreateQueueAsync(Options);
         }
-    }
-
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
-    {
-        var messageReceiver = Parent.BusClient.CreateReceiver(QueueName);
-        var mapper = BuildMapper(runtime);
-        var listener = new BatchedAzureServiceBusListener(this, runtime.Logger, receiver, messageReceiver, mapper);
-        
-        return ValueTask.FromResult<IListener>(listener);
-    }
-
-    protected override ISender CreateSender(IWolverineRuntime runtime)
-    {
-        var mapper = BuildMapper(runtime);
-        var sender = Parent.BusClient.CreateSender(QueueName);
-        var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
-
-        return new BatchedSender(Uri, protocol, runtime.Advanced.Cancellation, runtime.Logger);
     }
 
     public async ValueTask PurgeAsync(ILogger logger)
@@ -102,12 +69,12 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
             while (stopwatch.ElapsedMilliseconds < 2000)
             {
                 var messages = await receiver.ReceiveMessagesAsync(25, 1.Seconds());
-                if (!messages.Any()) return;
-
-                foreach (var message in messages)
+                if (!messages.Any())
                 {
-                    await receiver.CompleteMessageAsync(message);
+                    return;
                 }
+
+                foreach (var message in messages) await receiver.CompleteMessageAsync(message);
             }
         }
         catch (Exception e)
@@ -123,7 +90,45 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         return new Dictionary<string, string>
         {
             { "Name", QueueName },
-            {nameof(QueueProperties.Status), props.Status.ToString()}
+            { nameof(QueueProperties.Status), props.Status.ToString() }
         };
+    }
+
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        if (_hasInitialized)
+        {
+            return;
+        }
+
+        if (Parent.AutoProvision)
+        {
+            await SetupAsync(logger);
+        }
+
+        if (Parent.AutoPurgeAllQueues)
+        {
+            await PurgeAsync(logger);
+        }
+
+        _hasInitialized = true;
+    }
+
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
+        var messageReceiver = Parent.BusClient.CreateReceiver(QueueName);
+        var mapper = BuildMapper(runtime);
+        var listener = new BatchedAzureServiceBusListener(this, runtime.Logger, receiver, messageReceiver, mapper);
+
+        return ValueTask.FromResult<IListener>(listener);
+    }
+
+    protected override ISender CreateSender(IWolverineRuntime runtime)
+    {
+        var mapper = BuildMapper(runtime);
+        var sender = Parent.BusClient.CreateSender(QueueName);
+        var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
+
+        return new BatchedSender(Uri, protocol, runtime.Advanced.Cancellation, runtime.Logger);
     }
 }

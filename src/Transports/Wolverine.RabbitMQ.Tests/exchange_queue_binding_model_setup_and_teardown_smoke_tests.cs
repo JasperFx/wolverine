@@ -1,7 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Oakton.Resources;
@@ -9,67 +8,63 @@ using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
 using Xunit;
 
-namespace Wolverine.RabbitMQ.Tests
+namespace Wolverine.RabbitMQ.Tests;
+
+public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
 {
-    public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
+    private readonly IStatefulResource theResource;
+    private readonly RabbitMqTransport theTransport = new();
+
+    public exchange_queue_binding_model_setup_and_teardown_smoke_tests()
     {
-        private readonly RabbitMqTransport theTransport = new RabbitMqTransport();
-        private readonly IStatefulResource theResource;
+        theTransport.ConnectionFactory.HostName = "localhost";
 
-        public exchange_queue_binding_model_setup_and_teardown_smoke_tests()
+        var expression = new RabbitMqTransportExpression(theTransport, new WolverineOptions());
+
+        expression.DeclareExchange("direct1", exchange =>
         {
-            theTransport.ConnectionFactory.HostName = "localhost";
+            exchange.IsDurable = true;
+            exchange.ExchangeType = ExchangeType.Direct;
+        });
 
-            var expression = new RabbitMqTransportExpression(theTransport, new WolverineOptions());
+        expression.DeclareExchange("fan1", exchange => { exchange.ExchangeType = ExchangeType.Fanout; });
 
-            expression.DeclareExchange("direct1", exchange =>
-            {
-                exchange.IsDurable = true;
-                exchange.ExchangeType = ExchangeType.Direct;
-            });
+        expression.DeclareQueue("xqueue1", q => q.TimeToLive(5.Minutes()));
+        expression.DeclareQueue("xqueue2");
 
-            expression.DeclareExchange("fan1", exchange =>
-            {
-                exchange.ExchangeType = ExchangeType.Fanout;
-            });
+        expression
+            .BindExchange("direct1")
+            .ToQueue("xqueue1", "key1");
 
-            expression.DeclareQueue("xqueue1", q => q.TimeToLive(5.Minutes()));
-            expression.DeclareQueue("xqueue2");
+        expression
+            .BindExchange("fan1")
+            .ToQueue("xqueue2", "key2");
 
-            expression
-                .BindExchange("direct1")
-                .ToQueue("xqueue1", "key1");
+        var wolverineRuntime = Substitute.For<IWolverineRuntime>();
+        wolverineRuntime.Logger.Returns(NullLogger.Instance);
+        wolverineRuntime.Advanced.Returns(new AdvancedSettings(null));
+        theTransport.TryBuildStatefulResource(wolverineRuntime, out var resource);
 
-            expression
-                .BindExchange("fan1")
-                .ToQueue("xqueue2", "key2");
+        theResource = resource;
+    }
 
-            var wolverineRuntime = Substitute.For<IWolverineRuntime>();
-            wolverineRuntime.Logger.Returns(NullLogger.Instance);
-            wolverineRuntime.Advanced.Returns(new AdvancedSettings(null));
-            theTransport.TryBuildStatefulResource(wolverineRuntime, out var resource);
+    [Fact]
+    public async Task resource_setup()
+    {
+        await theResource.Setup(CancellationToken.None);
+    }
 
-            theResource = resource;
-        }
+    [Fact]
+    public async Task clear_state_as_resource()
+    {
+        await theResource.Setup(CancellationToken.None);
+        await theResource.ClearState(CancellationToken.None);
+    }
 
-        [Fact]
-        public async Task resource_setup()
-        {
-            await theResource.Setup(CancellationToken.None);
-        }
-
-        [Fact]
-        public async Task clear_state_as_resource()
-        {
-            await theResource.Setup(CancellationToken.None);
-            await theResource.ClearState(CancellationToken.None);
-        }
-
-        [Fact]
-        public async Task delete_all()
-        {
-            await theResource.Setup(CancellationToken.None);
-            await theResource.Teardown(CancellationToken.None);
-        }
+    [Fact]
+    public async Task delete_all()
+    {
+        await theResource.Setup(CancellationToken.None);
+        await theResource.Teardown(CancellationToken.None);
     }
 }

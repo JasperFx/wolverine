@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using Wolverine.Util;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.ResponseReply;
 using Wolverine.Transports;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
@@ -18,149 +18,24 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
     public MessageContext(IWolverineRuntime runtime) : base(runtime)
     {
-
     }
 
     internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
 
-    /// <summary>
-    /// Discard all outstanding, cascaded messages and clear the transaction
-    /// </summary>
-    public async ValueTask ClearAllAsync()
-    {
-        Scheduled.Clear();
-        _outstanding.Clear();
-
-        if (Transaction != null)
-        {
-            await Transaction.RollbackAsync();
-        }
-
-        Transaction = null;
-    }
-
-    Task IEnvelopeTransaction.PersistAsync(Envelope envelope)
-    {
-        _outstanding.Fill(envelope);
-        return Task.CompletedTask;
-    }
-
-    Task IEnvelopeTransaction.PersistAsync(Envelope[] envelopes)
-    {
-        _outstanding.Fill(envelopes);
-        return Task.CompletedTask;
-    }
-
-    Task IEnvelopeTransaction.ScheduleJobAsync(Envelope envelope)
-    {
-        Scheduled.Fill(envelope);
-        return Task.CompletedTask;
-    }
-
-    async Task IEnvelopeTransaction.CopyToAsync(IEnvelopeTransaction other)
-    {
-        await other.PersistAsync(_outstanding.ToArray());
-
-        foreach (var envelope in Scheduled) await other.ScheduleJobAsync(envelope);
-    }
-
-    public ValueTask RollbackAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    internal ValueTask ForwardScheduledEnvelopeAsync(Envelope envelope)
-    {
-        if (envelope.Destination == null)
-            throw new InvalidOperationException($"{nameof(Envelope.Destination)} is missing");
-
-        if (envelope.ContentType == null)
-            throw new InvalidOperationException("${nameof(Envelope.ContentType} is missing");
-        
-        envelope.Sender = Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination);
-        envelope.Serializer = Runtime.Options.FindSerializer(envelope.ContentType);
-
-        if (envelope.Serializer == null) throw new InvalidOperationException($"Invalid content type '{envelope.ContentType}'");
-
-        return PersistOrSendAsync(envelope);
-    }
-
-    /// <summary>
-    ///     Send a response message back to the original sender of the message being handled.
-    ///     This can only be used from within a message handler
-    /// </summary>
-    /// <param name="response"></param>
-    /// <param name="context"></param>
-    /// <exception cref="ArgumentOutOfRangeException"></exception>
-    /// <returns></returns>
-    public ValueTask RespondToSenderAsync(object response)
-    {
-        if (Envelope == null)
-        {
-            throw new InvalidOperationException(
-                "This operation can only be performed while in the middle of handling an incoming message");
-        }
-
-        if (Envelope.ReplyUri == null)
-        {
-            throw new ArgumentOutOfRangeException(nameof(Envelope), $"There is no {nameof(Envelope.ReplyUri)}");
-        }
-
-        return SendAsync(Envelope.ReplyUri, response);
-    }
-
-
-    public async Task EnqueueCascadingAsync(object? message)
-    {
-        if (Envelope == null) throw new InvalidOperationException("No Envelope attached to this context");
-
-        if (Envelope.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
-                                              Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
-        {
-            Envelope.Response = message;
-            return;
-        }
-
-        switch (message)
-        {
-            case null:
-                return;
-
-            case ISendMyself sendsMyself:
-                await sendsMyself.ApplyAsync(this);
-                return;
-
-            case Envelope _:
-                throw new InvalidOperationException(
-                    "You cannot directly send an Envelope. You may want to use ISendMyself for cascading messages");
-
-            case IEnumerable<object> enumerable:
-                foreach (var o in enumerable) await EnqueueCascadingAsync(o);
-
-                return;
-        }
-
-        if (message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
-        {
-            await SendAsync(Envelope.ReplyUri!, message, new DeliveryOptions{IsResponse = true});
-            return;
-        }
-
-
-        await PublishAsync(message);
-    }
-
-    public Envelope? Envelope { get; protected set; }
-
 
     public async Task FlushOutgoingMessagesAsync()
     {
-        if (Envelope != null && Envelope.ReplyRequested.IsNotEmpty() && Outstanding.All(x => x.MessageType != Envelope.ReplyRequested))
+        if (Envelope != null && Envelope.ReplyRequested.IsNotEmpty() &&
+            Outstanding.All(x => x.MessageType != Envelope.ReplyRequested))
         {
-            await SendFailureAcknowledgementAsync($"No response was created for expected response '{Envelope.ReplyRequested}'");
+            await SendFailureAcknowledgementAsync(
+                $"No response was created for expected response '{Envelope.ReplyRequested}'");
         }
-        
-        if (!Outstanding.Any()) return;
+
+        if (!Outstanding.Any())
+        {
+            return;
+        }
 
         foreach (var envelope in Outstanding)
         {
@@ -250,62 +125,12 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
         return Runtime.Pipeline.InvokeAsync(Envelope, _channel!);
     }
 
-    internal void ClearState()
-    {
-        _outstanding.Clear();
-        Scheduled.Clear();
-        Envelope = null;
-        Transaction = null;
-        _sagaId = null;
-    }
-
-    internal void ReadEnvelope(Envelope? originalEnvelope, IChannelCallback channel)
-    {
-        Envelope = originalEnvelope ?? throw new ArgumentNullException(nameof(originalEnvelope));
-        CorrelationId = originalEnvelope.CorrelationId;
-        ConversationId = originalEnvelope.Id;
-        _channel = channel;
-        _sagaId = originalEnvelope.SagaId;
-
-        Transaction = this;
-
-        if (Envelope.AckRequested && Envelope.ReplyUri != null)
-        {
-            var ack = new Acknowledgement { RequestId = Envelope.Id };
-            var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement)).RouteToDestination(ack, Envelope.ReplyUri, null);
-            trackEnvelopeCorrelation(ackEnvelope);
-            _outstanding.Add(ackEnvelope);
-        }
-    }
-
-    private async Task flushScheduledMessagesAsync()
-    {
-        if (Storage is NullMessageStore)
-        {
-            foreach (var envelope in Scheduled) Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
-        }
-        else
-        {
-            foreach (var envelope in Scheduled) await Storage.ScheduleJobAsync(envelope);
-        }
-
-        Scheduled.Clear();
-    }
-
-    protected override void trackEnvelopeCorrelation(Envelope outbound)
-    {
-        base.trackEnvelopeCorrelation(outbound);
-        outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
-
-        if (Envelope != null)
-        {
-            outbound.ConversationId = Envelope.ConversationId == Guid.Empty ? Envelope.Id : Envelope.ConversationId;
-        }
-    }
-
     public async ValueTask SendAcknowledgementAsync()
     {
-        if (Envelope!.ReplyUri == null) return;
+        if (Envelope!.ReplyUri == null)
+        {
+            return;
+        }
 
         var acknowledgement = new Acknowledgement
         {
@@ -332,7 +157,10 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
 
     public async ValueTask SendFailureAcknowledgementAsync(string failureDescription)
     {
-        if (Envelope!.ReplyUri == null) return;
+        if (Envelope!.ReplyUri == null)
+        {
+            return;
+        }
 
         var acknowledgement = new FailureAcknowledgement
         {
@@ -354,7 +182,202 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
         catch (Exception e)
         {
             // TODO -- any kind of retry? Only an issue for inline senders anyway
-            Runtime.Logger.LogError(e, "Failure while sending a failure acknowledgement for envelope {Id}", envelope.Id);
+            Runtime.Logger.LogError(e, "Failure while sending a failure acknowledgement for envelope {Id}",
+                envelope.Id);
+        }
+    }
+
+    Task IEnvelopeTransaction.PersistAsync(Envelope envelope)
+    {
+        _outstanding.Fill(envelope);
+        return Task.CompletedTask;
+    }
+
+    Task IEnvelopeTransaction.PersistAsync(Envelope[] envelopes)
+    {
+        _outstanding.Fill(envelopes);
+        return Task.CompletedTask;
+    }
+
+    Task IEnvelopeTransaction.ScheduleJobAsync(Envelope envelope)
+    {
+        Scheduled.Fill(envelope);
+        return Task.CompletedTask;
+    }
+
+    async Task IEnvelopeTransaction.CopyToAsync(IEnvelopeTransaction other)
+    {
+        await other.PersistAsync(_outstanding.ToArray());
+
+        foreach (var envelope in Scheduled) await other.ScheduleJobAsync(envelope);
+    }
+
+    public ValueTask RollbackAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Send a response message back to the original sender of the message being handled.
+    ///     This can only be used from within a message handler
+    /// </summary>
+    /// <param name="response"></param>
+    /// <param name="context"></param>
+    /// <exception cref="ArgumentOutOfRangeException"></exception>
+    /// <returns></returns>
+    public ValueTask RespondToSenderAsync(object response)
+    {
+        if (Envelope == null)
+        {
+            throw new InvalidOperationException(
+                "This operation can only be performed while in the middle of handling an incoming message");
+        }
+
+        if (Envelope.ReplyUri == null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Envelope), $"There is no {nameof(Envelope.ReplyUri)}");
+        }
+
+        return SendAsync(Envelope.ReplyUri, response);
+    }
+
+    public Envelope? Envelope { get; protected set; }
+
+    /// <summary>
+    ///     Discard all outstanding, cascaded messages and clear the transaction
+    /// </summary>
+    public async ValueTask ClearAllAsync()
+    {
+        Scheduled.Clear();
+        _outstanding.Clear();
+
+        if (Transaction != null)
+        {
+            await Transaction.RollbackAsync();
+        }
+
+        Transaction = null;
+    }
+
+    internal ValueTask ForwardScheduledEnvelopeAsync(Envelope envelope)
+    {
+        if (envelope.Destination == null)
+        {
+            throw new InvalidOperationException($"{nameof(Envelope.Destination)} is missing");
+        }
+
+        if (envelope.ContentType == null)
+        {
+            throw new InvalidOperationException("${nameof(Envelope.ContentType} is missing");
+        }
+
+        envelope.Sender = Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination);
+        envelope.Serializer = Runtime.Options.FindSerializer(envelope.ContentType);
+
+        if (envelope.Serializer == null)
+        {
+            throw new InvalidOperationException($"Invalid content type '{envelope.ContentType}'");
+        }
+
+        return PersistOrSendAsync(envelope);
+    }
+
+
+    public async Task EnqueueCascadingAsync(object? message)
+    {
+        if (Envelope == null)
+        {
+            throw new InvalidOperationException("No Envelope attached to this context");
+        }
+
+        if (Envelope.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
+                                              Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
+        {
+            Envelope.Response = message;
+            return;
+        }
+
+        switch (message)
+        {
+            case null:
+                return;
+
+            case ISendMyself sendsMyself:
+                await sendsMyself.ApplyAsync(this);
+                return;
+
+            case Envelope _:
+                throw new InvalidOperationException(
+                    "You cannot directly send an Envelope. You may want to use ISendMyself for cascading messages");
+
+            case IEnumerable<object> enumerable:
+                foreach (var o in enumerable) await EnqueueCascadingAsync(o);
+
+                return;
+        }
+
+        if (message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
+        {
+            await SendAsync(Envelope.ReplyUri!, message, new DeliveryOptions { IsResponse = true });
+            return;
+        }
+
+
+        await PublishAsync(message);
+    }
+
+    internal void ClearState()
+    {
+        _outstanding.Clear();
+        Scheduled.Clear();
+        Envelope = null;
+        Transaction = null;
+        _sagaId = null;
+    }
+
+    internal void ReadEnvelope(Envelope? originalEnvelope, IChannelCallback channel)
+    {
+        Envelope = originalEnvelope ?? throw new ArgumentNullException(nameof(originalEnvelope));
+        CorrelationId = originalEnvelope.CorrelationId;
+        ConversationId = originalEnvelope.Id;
+        _channel = channel;
+        _sagaId = originalEnvelope.SagaId;
+
+        Transaction = this;
+
+        if (Envelope.AckRequested && Envelope.ReplyUri != null)
+        {
+            var ack = new Acknowledgement { RequestId = Envelope.Id };
+            var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
+                .RouteToDestination(ack, Envelope.ReplyUri, null);
+            trackEnvelopeCorrelation(ackEnvelope);
+            _outstanding.Add(ackEnvelope);
+        }
+    }
+
+    private async Task flushScheduledMessagesAsync()
+    {
+        if (Storage is NullMessageStore)
+        {
+            foreach (var envelope in Scheduled)
+                Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
+        }
+        else
+        {
+            foreach (var envelope in Scheduled) await Storage.ScheduleJobAsync(envelope);
+        }
+
+        Scheduled.Clear();
+    }
+
+    protected override void trackEnvelopeCorrelation(Envelope outbound)
+    {
+        base.trackEnvelopeCorrelation(outbound);
+        outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
+
+        if (Envelope != null)
+        {
+            outbound.ConversationId = Envelope.ConversationId == Guid.Empty ? Envelope.Id : Envelope.ConversationId;
         }
     }
 }

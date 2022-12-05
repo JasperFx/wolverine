@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Marten;
 
 namespace Wolverine.Marten.Persistence.Sagas;
@@ -11,8 +11,8 @@ namespace Wolverine.Marten.Persistence.Sagas;
 internal class LoadDocumentFrame : AsyncFrame
 {
     private readonly Variable _sagaId;
-    private Variable? _session;
     private Variable? _cancellation;
+    private Variable? _session;
 
     public LoadDocumentFrame(Type sagaType, Variable sagaId)
     {
@@ -34,9 +34,8 @@ internal class LoadDocumentFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Saga.Usage} = await {_session!.Usage}.LoadAsync<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {_cancellation!.Usage}).ConfigureAwait(false);");
+        writer.Write(
+            $"var {Saga.Usage} = await {_session!.Usage}.LoadAsync<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {_cancellation!.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
-
-
 }

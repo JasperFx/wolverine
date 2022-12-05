@@ -7,7 +7,6 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Transports;
 
-
 public interface ITransport
 {
     public string Protocol { get; }
@@ -23,7 +22,7 @@ public interface ITransport
     Endpoint? TryGetEndpoint(Uri uri);
 
     public IEnumerable<Endpoint> Endpoints();
-    
+
     ValueTask InitializeAsync(IWolverineRuntime runtime);
 
     bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource);

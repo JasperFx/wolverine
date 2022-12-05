@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using Shouldly;
 using Wolverine.ErrorHandling.Matches;
 using Xunit;
 
@@ -13,15 +12,15 @@ public class ComplexMatchTests
     [Fact]
     public void is_empty()
     {
-        ShouldBeBooleanExtensions.ShouldBeTrue(theMatch.IsEmpty());
+        theMatch.IsEmpty().ShouldBeTrue();
         theMatch.Includes.Add(new AlwaysMatches());
 
-        ShouldBeBooleanExtensions.ShouldBeFalse(theMatch.IsEmpty());
+        theMatch.IsEmpty().ShouldBeFalse();
 
         theMatch.Includes.Clear();
         theMatch.Excludes.Add(new AlwaysMatches());
 
-        ShouldBeBooleanExtensions.ShouldBeFalse(theMatch.IsEmpty());
+        theMatch.IsEmpty().ShouldBeFalse();
     }
 
     [Fact]

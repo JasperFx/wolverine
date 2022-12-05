@@ -14,7 +14,7 @@ public class RabbitMqTopicEndpointTests
         var exchange = new RabbitMqExchange("bar", transport);
 
         var endpoint = new RabbitMqTopicEndpoint("important", exchange, transport);
-        
+
         endpoint.EndpointName.ShouldBe(endpoint.TopicName);
     }
 

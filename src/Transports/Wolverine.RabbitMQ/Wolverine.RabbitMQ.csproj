@@ -1,22 +1,22 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <Description>RabbitMQ Transport for Wolverine Messaging Systems</Description>
-    <DebugType>portable</DebugType>
-    <PackageId>WolverineFx.RabbitMQ</PackageId>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
-    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-    <Nullable>enable</Nullable>
-    <RootNamespace>Wolverine.RabbitMQ</RootNamespace>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="RabbitMQ.Client" Version="6.4.0" />
-  </ItemGroup>
+    <PropertyGroup>
+        <Description>RabbitMQ Transport for Wolverine Messaging Systems</Description>
+        <DebugType>portable</DebugType>
+        <PackageId>WolverineFx.RabbitMQ</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Wolverine.RabbitMQ</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="RabbitMQ.Client" Version="6.4.0"/>
+    </ItemGroup>
 
-  <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../Analysis.Build.props"/>
 </Project>

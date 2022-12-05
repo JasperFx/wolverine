@@ -1,9 +1,9 @@
-using Baseline.Dates;
 using IntegrationTests;
+using JasperFx.Core;
+using Marten;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
-using Marten;
 using Wolverine.RabbitMQ;
 using Xunit.Abstractions;
 

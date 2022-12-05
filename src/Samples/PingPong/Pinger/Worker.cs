@@ -1,7 +1,7 @@
 #region sample_PingPong_Worker
 
-using Wolverine;
 using Messages;
+using Wolverine;
 
 namespace Pinger;
 
@@ -22,7 +22,6 @@ public class Worker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-
             await Task.Delay(1000, stoppingToken);
             _logger.LogInformation("Sending Ping #{Number}", pingNumber);
             await _publisher.PublishAsync(new Ping { Number = pingNumber });
@@ -30,6 +29,5 @@ public class Worker : BackgroundService
         }
     }
 }
-
 
 #endregion

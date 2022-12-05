@@ -1,7 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using Wolverine.Util;
-using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;

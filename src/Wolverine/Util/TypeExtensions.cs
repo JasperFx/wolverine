@@ -4,8 +4,8 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using Baseline;
-using ImTools;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 
 namespace Wolverine.Util;

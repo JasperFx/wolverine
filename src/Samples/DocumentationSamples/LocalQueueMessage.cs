@@ -1,13 +1,12 @@
 using Wolverine.Attributes;
 
-namespace DocumentationSamples
+namespace DocumentationSamples;
+
+#region sample_local_queue_routed_message
+
+[LocalQueue("important")]
+public class ImportanceMessage
 {
-    #region sample_local_queue_routed_message
-    [LocalQueue("important")]
-    public class ImportanceMessage
-    {
-
-    }
-
-    #endregion
 }
+
+#endregion

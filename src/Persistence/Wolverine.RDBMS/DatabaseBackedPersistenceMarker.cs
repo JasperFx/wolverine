@@ -1,5 +1,5 @@
 using System;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration.Model;
 
 namespace Wolverine.RDBMS;
 

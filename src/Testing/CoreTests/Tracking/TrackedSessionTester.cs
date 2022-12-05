@@ -2,9 +2,7 @@ using System;
 using System.Threading.Tasks;
 using CoreTests.Messaging;
 using Microsoft.Extensions.Hosting;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -42,7 +40,7 @@ public class TrackedSessionTester : IDisposable
     public async Task throw_if_any_exceptions_sad_path()
     {
         theSession.Record(EventType.ExecutionStarted, theEnvelope, "", 1);
-        theSession.Record(EventType.ExecutionFinished, theEnvelope, "", 1, ex: new DivideByZeroException());
+        theSession.Record(EventType.ExecutionFinished, theEnvelope, "", 1, new DivideByZeroException());
         await theSession.TrackAsync();
 
         Should.Throw<AggregateException>(() => theSession.AssertNoExceptionsWereThrown());
@@ -62,7 +60,7 @@ public class TrackedSessionTester : IDisposable
     public async Task throw_if_any_exceptions_and_completed_sad_path_with_exceptions()
     {
         theSession.Record(EventType.ExecutionStarted, theEnvelope, "", 1);
-        theSession.Record(EventType.ExecutionFinished, theEnvelope, "", 1, ex: new DivideByZeroException());
+        theSession.Record(EventType.ExecutionFinished, theEnvelope, "", 1, new DivideByZeroException());
         await theSession.TrackAsync();
 
         Should.Throw<AggregateException>(() =>

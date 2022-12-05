@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Marten;
 using Wolverine.Marten.Publishing;
 
@@ -10,8 +10,8 @@ namespace Wolverine.Marten.Codegen;
 
 internal class OpenMartenSessionFrame : AsyncFrame
 {
-    private Variable? _factory;
     private Variable? _context;
+    private Variable? _factory;
 
     public OpenMartenSessionFrame(Type sessionType)
     {

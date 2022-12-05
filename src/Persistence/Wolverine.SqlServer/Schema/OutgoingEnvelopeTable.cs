@@ -1,7 +1,7 @@
 ﻿using System;
-using Wolverine.RDBMS;
 using Weasel.Core;
 using Weasel.SqlServer.Tables;
+using Wolverine.RDBMS;
 
 namespace Wolverine.SqlServer.Schema;
 

@@ -3,21 +3,21 @@
 namespace Wolverine.Runtime.ResponseReply;
 
 /// <summary>
-/// Successful receipt of an outgoing message
+///     Successful receipt of an outgoing message
 /// </summary>
 public class Acknowledgement
 {
     /// <summary>
-    /// The message id of the original request
+    ///     The message id of the original request
     /// </summary>
     public Guid RequestId { get; set; }
-    
+
     /// <summary>
-    /// The time at which the acknowledgement was sent according to the sender
-    /// of the acknowledgement
+    ///     The time at which the acknowledgement was sent according to the sender
+    ///     of the acknowledgement
     /// </summary>
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
-    
+
     protected bool Equals(Acknowledgement other)
     {
         return Equals(RequestId, other.RequestId);

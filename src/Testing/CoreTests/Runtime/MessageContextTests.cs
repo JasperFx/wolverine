@@ -1,14 +1,12 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
 using CoreTests.Messaging;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using NSubstitute;
-using Shouldly;
 using TestingSupport;
 using TestMessages;
-using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -119,7 +117,7 @@ public class MessageContextTests
     public async Task move_to_dead_letter_queue_with_native_dead_letter()
     {
         var callback = Substitute.For<IChannelCallback, ISupportDeadLetterQueue>();
-        
+
         theContext.ReadEnvelope(theEnvelope, callback);
 
         var exception = new Exception();

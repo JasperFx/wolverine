@@ -1,5 +1,4 @@
 using System;
-using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 
 namespace Wolverine.Configuration;
@@ -35,5 +34,4 @@ public interface IPublishToExpression
     ///     local queue
     /// </summary>
     LocalQueueConfiguration Locally();
-
 }

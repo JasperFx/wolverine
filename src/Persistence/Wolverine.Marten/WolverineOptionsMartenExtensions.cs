@@ -1,9 +1,8 @@
-﻿using System;
-using System.Linq;
-using Wolverine.Persistence.Durability;
+﻿using System.Linq;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Marten.Publishing;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 
 namespace Wolverine.Marten;
@@ -55,11 +54,13 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    /// Enable publishing of events to Wolverine message routing when captured in Marten sessions that are enrolled in a Wolverine outbox
+    ///     Enable publishing of events to Wolverine message routing when captured in Marten sessions that are enrolled in a
+    ///     Wolverine outbox
     /// </summary>
     /// <param name="expression"></param>
     /// <returns></returns>
-    public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(this MartenServiceCollectionExtensions.MartenConfigurationExpression expression)
+    public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression)
     {
         var integration = expression.Services.FindMartenIntegration();
         if (integration == null)

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Marten;
 using Wolverine.Marten.Publishing;
 
@@ -80,9 +80,7 @@ internal class TransactionalFrame : Frame
 
 
         foreach (var saved in _saved)
-        {
             writer.Write($"{Session!.Usage}.{nameof(IDocumentSession.Store)}({saved.Usage});");
-        }
 
         writer.BlankLine();
         writer.WriteComment("Commit the unit of work");

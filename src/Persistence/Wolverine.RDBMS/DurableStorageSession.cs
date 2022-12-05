@@ -3,8 +3,8 @@ using System.Data;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Wolverine.Persistence.Durability;
 using Microsoft.Extensions.Logging;
+using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
 

@@ -7,6 +7,7 @@ namespace Wolverine.ErrorHandling;
 internal class MoveToErrorQueueSource : IContinuationSource
 {
     public string Description => "Move to error queue";
+
     public IContinuation Build(Exception ex, Envelope envelope)
     {
         return new MoveToErrorQueue(ex);
@@ -26,7 +27,8 @@ internal class MoveToErrorQueue : IContinuation
         IWolverineRuntime runtime,
         DateTimeOffset now)
     {
-        await lifecycle.SendFailureAcknowledgementAsync($"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{_exception}");
+        await lifecycle.SendFailureAcknowledgementAsync(
+            $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{_exception}");
 
         await lifecycle.MoveToDeadLetterQueueAsync(_exception);
 

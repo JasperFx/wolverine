@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using Wolverine.Postgresql.Schema;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
+using Wolverine.Postgresql.Schema;
 
 namespace Wolverine.Marten;
 

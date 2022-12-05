@@ -1,21 +1,20 @@
 using System.Threading.Tasks;
-using Wolverine;
 using TestingSupport.Compliance;
+using Wolverine;
 
-namespace MyApp
+namespace MyApp;
+
+public class PingHandler
 {
-    public class PingHandler
+    public void Ping(Envelope envelope, PingMessage message)
     {
-        public void Ping(Envelope envelope, PingMessage message)
-        {
-        }
     }
+}
 
-    public class PongHandler
+public class PongHandler
+{
+    public Task Handle(PongMessage message)
     {
-        public Task Handle(PongMessage message)
-        {
-            return Task.CompletedTask;
-        }
+        return Task.CompletedTask;
     }
 }

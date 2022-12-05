@@ -7,24 +7,24 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
-      <PackageReference Include="OpenTelemetry" Version="1.3.0" />
-      <PackageReference Include="OpenTelemetry.Api" Version="1.3.0" />
-      <PackageReference Include="OpenTelemetry.Exporter.Jaeger" Version="1.3.0" />
-      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.0.0-rc8" />
-      <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.0.0-rc8" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3"/>
+        <PackageReference Include="OpenTelemetry" Version="1.3.0"/>
+        <PackageReference Include="OpenTelemetry.Api" Version="1.3.0"/>
+        <PackageReference Include="OpenTelemetry.Exporter.Jaeger" Version="1.3.0"/>
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.0.0-rc8"/>
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.0.0-rc8"/>
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-      <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
-      <ProjectReference Include="..\OtelMessages\OtelMessages.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\OtelMessages\OtelMessages.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Include="..\..\..\Servers.cs">
-        <Link>Servers.cs</Link>
-      </Compile>
+        <Compile Include="..\..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
     </ItemGroup>
 
 </Project>

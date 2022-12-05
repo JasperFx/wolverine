@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <LangVersion>10</LangVersion>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>10</LangVersion>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Marten" Version="5.8.0"/>
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Marten" Version="5.8.0"/>
+    </ItemGroup>
 </Project>

@@ -2,35 +2,34 @@ using System;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Reflection;
-using Wolverine.Attributes;
-using Wolverine.Configuration;
-using Wolverine.Runtime.Handlers;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
 using Marten.Schema;
+using Wolverine.Attributes;
+using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten;
 
 /// <summary>
-/// Applies middleware to Wolverine message actions to apply a workflow with concurrency protections for
-/// "command" messages that use a Marten projected aggregate to "decide" what
-/// on new events to persist to the aggregate stream.
+///     Applies middleware to Wolverine message actions to apply a workflow with concurrency protections for
+///     "command" messages that use a Marten projected aggregate to "decide" what
+///     on new events to persist to the aggregate stream.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class MartenCommandWorkflowAttribute : ModifyChainAttribute
 {
-    private static readonly Type _versioningBaseType = typeof(IAggregateVersioning).Assembly.DefinedTypes.Single(x => x.Name.StartsWith("AggregateVersioning"));
-
-    internal AggregateLoadStyle LoadStyle { get; }
+    private static readonly Type _versioningBaseType =
+        typeof(IAggregateVersioning).Assembly.DefinedTypes.Single(x => x.Name.StartsWith("AggregateVersioning"));
 
     public MartenCommandWorkflowAttribute(AggregateLoadStyle loadStyle)
     {
@@ -41,12 +40,17 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
     {
     }
 
+    internal AggregateLoadStyle LoadStyle { get; }
+
     /// <summary>
-    /// Override or "help" Wolverine to understand which type is the aggregate type
+    ///     Override or "help" Wolverine to understand which type is the aggregate type
     /// </summary>
     public Type? AggregateType { get; set; }
+
     internal MemberInfo? AggregateIdMember { get; set; }
     internal Type? CommandType { get; private set; }
+
+    public MemberInfo? VersionMember { get; private set; }
 
     public override void Modify(IChain chain, GenerationRules rules, IContainer container)
     {
@@ -64,7 +68,8 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         var loader = generateLoadAggregateCode(chain);
         if (AggregateType == firstCall.HandlerType)
         {
-            chain.Middleware.Add(new MissingAggregateCheckFrame(AggregateType, CommandType, AggregateIdMember, loader.ReturnVariable));
+            chain.Middleware.Add(new MissingAggregateCheckFrame(AggregateType, CommandType, AggregateIdMember,
+                loader.ReturnVariable));
         }
 
         // Use the active document session as an IQuerySession instead of creating a new one
@@ -83,7 +88,8 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         // Capture and events
         if (firstCall.ReturnVariable != null)
         {
-            var register = typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(firstCall.ReturnVariable, AggregateType!);
+            var register =
+                typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(firstCall.ReturnVariable, AggregateType!);
             var ifBlock = new IfBlock($"{firstCall.ReturnVariable.Usage} != null", register);
 
             chain.Postprocessors.Add(ifBlock);
@@ -129,23 +135,28 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         return loader;
     }
 
-    public MemberInfo? VersionMember { get; private set; }
-
     internal MemberInfo DetermineVersionMember(Type aggregateType)
     {
         // The first arg doesn't matter
-        var versioning = _versioningBaseType.CloseAndBuildAs<IAggregateVersioning>(AggregationScope.SingleStream ,aggregateType);
+        var versioning =
+            _versioningBaseType.CloseAndBuildAs<IAggregateVersioning>(AggregationScope.SingleStream, aggregateType);
         return versioning.VersionMember;
     }
 
     internal Type DetermineAggregateType(IChain chain)
     {
-        if (AggregateType != null) return AggregateType;
+        if (AggregateType != null)
+        {
+            return AggregateType;
+        }
 
         var firstCall = chain.HandlerCalls().First();
         var parameters = firstCall.Method.GetParameters();
         var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
-        if (stream != null) return stream.ParameterType.GetGenericArguments().Single();
+        if (stream != null)
+        {
+            return stream.ParameterType.GetGenericArguments().Single();
+        }
 
         if (parameters.Length >= 2 && parameters[1].ParameterType.IsConcrete())
         {
@@ -165,7 +176,8 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
     internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)
     {
         var conventionalMemberName = $"{aggregateType.Name}Id";
-        var member = commandType.GetMembers().FirstOrDefault(x => x.HasAttribute<IdentityAttribute>() || x.Name.EqualsIgnoreCase(conventionalMemberName));
+        var member = commandType.GetMembers().FirstOrDefault(x =>
+            x.HasAttribute<IdentityAttribute>() || x.Name.EqualsIgnoreCase(conventionalMemberName));
 
         if (member == null)
         {
@@ -175,5 +187,4 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
 
         return member;
     }
-
 }

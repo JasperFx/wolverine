@@ -1,17 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="DotPulsar" Version="2.2.0" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="DotPulsar" Version="2.2.0"/>
+    </ItemGroup>
 
-  <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../Analysis.Build.props"/>
 </Project>

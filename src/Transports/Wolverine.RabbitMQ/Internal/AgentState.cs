@@ -1,8 +1,7 @@
-namespace Wolverine.RabbitMQ.Internal
+namespace Wolverine.RabbitMQ.Internal;
+
+internal enum AgentState
 {
-    internal enum AgentState
-    {
-        Connected,
-        Disconnected
-    }
+    Connected,
+    Disconnected
 }

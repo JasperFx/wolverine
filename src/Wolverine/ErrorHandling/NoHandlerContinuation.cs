@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 
@@ -22,7 +22,10 @@ internal class NoHandlerContinuation : IContinuation
         IWolverineRuntime runtime,
         DateTimeOffset now)
     {
-        if (lifecycle.Envelope == null) throw new InvalidOperationException("Context does not have an Envelope");
+        if (lifecycle.Envelope == null)
+        {
+            throw new InvalidOperationException("Context does not have an Envelope");
+        }
 
         runtime.MessageLogger.NoHandlerFor(lifecycle.Envelope!);
 

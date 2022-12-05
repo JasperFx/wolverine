@@ -1,9 +1,9 @@
-using Wolverine.Marten;
 using Marten;
 using Marten.AspNetCore;
 using Oakton;
 using WebApiWithMarten;
 using Wolverine;
+using Wolverine.Marten;
 
 #region sample_integrating_wolverine_with_marten
 
@@ -23,10 +23,10 @@ builder.Services.AddMarten(opts =>
     // with Wolverine's outbox
     .IntegrateWithWolverine();
 
-    // You can also place the Wolverine database objects
-    // into a different database schema, in this case
-    // named "wolverine_messages"
-    //.IntegrateWithWolverine("wolverine_messages");
+// You can also place the Wolverine database objects
+// into a different database schema, in this case
+// named "wolverine_messages"
+//.IntegrateWithWolverine("wolverine_messages");
 
 builder.Host.UseWolverine(opts =>
 {
@@ -60,7 +60,7 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 {
     var order = new Order
     {
-        Description = command.Description,
+        Description = command.Description
     };
 
     // Register the new document with Marten

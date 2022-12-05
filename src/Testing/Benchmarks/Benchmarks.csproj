@@ -1,33 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
-    <Optimize>true</Optimize>
-    <LangVersion>10</LangVersion>
-  </PropertyGroup>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net6.0</TargetFramework>
+        <Optimize>true</Optimize>
+        <LangVersion>10</LangVersion>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-    <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
-    <ProjectReference Include="..\TestingSupport\TestingSupport.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
+        <ProjectReference Include="..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\TestingSupport\TestingSupport.csproj"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="BenchmarkDotNet" Version="0.13.1" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet" Version="0.13.1"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <None Update="targets.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+    <ItemGroup>
+        <None Update="targets.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
 
-  <ItemGroup>
-    <Compile Include="..\..\Servers.cs">
-      <Link>Servers.cs</Link>
-    </Compile>
-  </ItemGroup>
+    <ItemGroup>
+        <Compile Include="..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
+    </ItemGroup>
 
 </Project>

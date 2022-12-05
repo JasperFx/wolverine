@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Marten;
 using Marten.Events;
 
@@ -9,8 +9,8 @@ namespace Wolverine.Marten.Codegen;
 
 internal class EventStoreFrame : SyncFrame
 {
-    private Variable? _session;
     private readonly Variable _eventStore;
+    private Variable? _session;
 
     public EventStoreFrame()
     {
@@ -29,5 +29,3 @@ internal class EventStoreFrame : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 }
-
-

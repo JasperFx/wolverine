@@ -25,7 +25,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         var receiverPort = PortFinder.GetAvailablePort();
 
         theReceiver = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => TcpTransportConfigurationExtensions.ListenAtPort(opts, receiverPort))
+            .UseWolverine(opts => opts.ListenAtPort(receiverPort))
             .ConfigureServices(services =>
             {
                 services.AddMarten(Servers.PostgresConnectionString)

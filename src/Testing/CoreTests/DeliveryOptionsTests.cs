@@ -1,9 +1,9 @@
 using System;
-using Baseline.Dates;
 using CoreTests.Messaging;
 using CoreTests.Util;
 using Wolverine.Util;
 using Xunit;
+using JasperFx.Core;
 
 namespace CoreTests;
 
@@ -211,10 +211,10 @@ public class DeliveryOptionsTests
     public void override_is_response()
     {
         var options = new DeliveryOptions { IsResponse = true };
-        
+
         var envelope = ObjectMother.Envelope();
         envelope.IsResponse.ShouldBeFalse();
-        
+
         options.Override(envelope);
 
         envelope.IsResponse.ShouldBeTrue();

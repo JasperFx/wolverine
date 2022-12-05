@@ -1,4 +1,4 @@
-using Oakton;
+using Spectre.Console;
 
 namespace Pinger;
 
@@ -12,6 +12,6 @@ public static class PongHandler
     // method. Handler methods can be static or instance methods
     public static void Handle(PongMessage message)
     {
-        ConsoleWriter.Write(ConsoleColor.Blue, $"Got pong #{message.Number}");
+        AnsiConsole.Write($"[blue]Got pong #{message.Number}[/]");
     }
 }

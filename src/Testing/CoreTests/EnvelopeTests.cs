@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Baseline.Dates;
 using CoreTests.Messaging;
+using JasperFx.Core;
 using NSubstitute;
-using Shouldly;
 using TestMessages;
-using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
@@ -221,7 +219,7 @@ public class EnvelopeTests
         envelope.Status.ShouldBe(EnvelopeStatus.Scheduled);
         envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
     }
-    
+
     [Fact]
     public async Task should_persist_when_sender_is_durable()
     {
@@ -240,7 +238,7 @@ public class EnvelopeTests
         await transaction.Received().PersistAsync(envelope);
         envelope.OwnerId.ShouldBe(33333);
     }
-        
+
     [Fact]
     public async Task should_persist_when_sender_is_durable_but_set_owner_to_0_when_sender_is_latched()
     {
@@ -293,7 +291,7 @@ public class EnvelopeTests
 
         await sender.Received().EnqueueOutgoingAsync(envelope);
     }
-    
+
     [Fact]
     public async Task quick_send_when_sender_is_latched_should_not_send()
     {
@@ -311,11 +309,59 @@ public class EnvelopeTests
         await sender.DidNotReceive().EnqueueOutgoingAsync(envelope);
     }
 
+    [Fact]
+    public void prepare_for_persistence_when_not_scheduled()
+    {
+        var envelope = new Envelope
+        {
+            ScheduledTime = null
+        };
+
+        var settings = new AdvancedSettings(null);
+
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
+
+        envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
+        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
+    }
+
+    [Fact]
+    public void prepare_for_persistence_when_scheduled_in_the_future()
+    {
+        var envelope = new Envelope
+        {
+            ScheduleDelay = 1.Days()
+        };
+
+        var settings = new AdvancedSettings(null);
+
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
+
+        envelope.Status.ShouldBe(EnvelopeStatus.Scheduled);
+        envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
+    }
+
+    [Fact]
+    public void prepare_for_persistence_when_scheduled_in_the_past()
+    {
+        var envelope = new Envelope
+        {
+            ScheduledTime = DateTimeOffset.UtcNow.AddDays(-1)
+        };
+
+        var settings = new AdvancedSettings(null);
+
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
+
+        envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
+        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
+    }
+
     public class when_building_an_envelope_for_scheduled_send
     {
-        private Envelope theOriginal;
-        private Envelope theScheduledEnvelope;
         private readonly ISendingAgent theSubscriber;
+        private readonly Envelope theOriginal;
+        private readonly Envelope theScheduledEnvelope;
 
         public when_building_an_envelope_for_scheduled_send()
         {
@@ -369,56 +415,5 @@ public class EnvelopeTests
         {
             theScheduledEnvelope.ContentType.ShouldBe(TransportConstants.SerializedEnvelope);
         }
-
-
     }
-
-    [Fact]
-    public void prepare_for_persistence_when_not_scheduled()
-    {
-        var envelope = new Envelope
-        {
-            ScheduledTime = null
-        };
-
-        var settings = new AdvancedSettings(null);
-        
-        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
-        
-        envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
-    }
-
-    [Fact]
-    public void prepare_for_persistence_when_scheduled_in_the_future()
-    {
-        var envelope = new Envelope
-        {
-            ScheduleDelay = 1.Days()
-        };
-        
-        var settings = new AdvancedSettings(null);
-        
-        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
-
-        envelope.Status.ShouldBe(EnvelopeStatus.Scheduled);
-        envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
-    }
-    
-    [Fact]
-    public void prepare_for_persistence_when_scheduled_in_the_past()
-    {
-        var envelope = new Envelope
-        {
-            ScheduledTime = DateTimeOffset.UtcNow.AddDays(-1)
-        };
-        
-        var settings = new AdvancedSettings(null);
-        
-        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
-
-        envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
-    }
-    
 }

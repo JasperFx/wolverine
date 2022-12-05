@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Baseline;
+using JasperFx.Core;
 
 namespace Wolverine.Runtime;
 
@@ -16,7 +16,10 @@ internal static class WolverineTracing
     public const string MessagingDestination = "messaging.destination"; // Use the destination Uri
 
     // TODO -- transport specific tracing
-    public const string MessagingDestinationKind = "messaging.destination_kind"; // Not sure this is going to be helpful. queue or topic. Maybe port if TCP basically.
+    public const string
+        MessagingDestinationKind =
+            "messaging.destination_kind"; // Not sure this is going to be helpful. queue or topic. Maybe port if TCP basically.
+
     public const string MessagingTempDestination = "messaging.temp_destination"; // boolean if this is temporary
     public const string PayloadSizeBytes = "messaging.message_payload_size_bytes";
 
@@ -24,7 +27,6 @@ internal static class WolverineTracing
     // Transport specific things
     // messaging.consumer_id
     // messaging.rabbitmq.routing_key
-
 
 
     internal static ActivitySource ActivitySource { get; } = new(
@@ -43,7 +45,7 @@ internal static class WolverineTracing
 
     public static Activity? StartExecuting(Envelope envelope)
     {
-        return StartEnvelopeActivity("process", envelope, ActivityKind.Internal);
+        return StartEnvelopeActivity("process", envelope);
     }
 
 
@@ -52,9 +54,12 @@ internal static class WolverineTracing
     {
         var activity = envelope.ParentId.IsNotEmpty()
             ? ActivitySource.StartActivity(spanName, kind, envelope.ParentId)
-            :ActivitySource.StartActivity(spanName, kind);
+            : ActivitySource.StartActivity(spanName, kind);
 
-        if (activity == null) return null;
+        if (activity == null)
+        {
+            return null;
+        }
 
         envelope.WriteTags(activity);
 

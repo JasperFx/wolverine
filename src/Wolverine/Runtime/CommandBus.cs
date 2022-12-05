@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
-using Wolverine.Logging;
-using Wolverine.Util;
+using JasperFx.Core;
 using Lamar;
 using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
@@ -87,7 +86,8 @@ public class CommandBus : ICommandBus
             throw new ArgumentNullException(nameof(message));
         }
 
-        var envelope = Runtime.RoutingFor(message.GetType()).RouteLocal(message, null); // TODO -- propagate DeliveryOptions
+        var envelope =
+            Runtime.RoutingFor(message.GetType()).RouteLocal(message, null); // TODO -- propagate DeliveryOptions
         envelope.CorrelationId = CorrelationId;
         envelope.ConversationId = ConversationId;
         envelope.Source = Runtime.Advanced.ServiceName;
@@ -102,7 +102,9 @@ public class CommandBus : ICommandBus
             throw new ArgumentNullException(nameof(message));
         }
 
-        var envelope = Runtime.RoutingFor(message.GetType()).RouteLocal(message, workerQueueName, null); // TODO -- propagate DeliveryOptions
+        var envelope =
+            Runtime.RoutingFor(message.GetType())
+                .RouteLocal(message, workerQueueName, null); // TODO -- propagate DeliveryOptions
         envelope.CorrelationId = CorrelationId;
         envelope.ConversationId = ConversationId;
         envelope.Source = Runtime.Advanced.ServiceName;
@@ -189,7 +191,7 @@ public class CommandBus : ICommandBus
             _outstanding.Fill(envelope);
 
             await envelope.PersistAsync(Transaction);
-            
+
             return;
         }
 

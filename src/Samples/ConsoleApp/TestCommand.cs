@@ -1,19 +1,18 @@
 using System.Threading.Tasks;
-using Wolverine;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using TestingSupport.Compliance;
+using Wolverine;
 
-namespace MyApp
+namespace MyApp;
+
+public class TestCommand : OaktonAsyncCommand<NetCoreInput>
 {
-    public class TestCommand : OaktonAsyncCommand<NetCoreInput>
+    public override async Task<bool> Execute(NetCoreInput input)
     {
-        public override async Task<bool> Execute(NetCoreInput input)
-        {
-            using var host = input.BuildHost();
-            await host.Services.GetRequiredService<ICommandBus>().InvokeAsync(new PongMessage());
+        using var host = input.BuildHost();
+        await host.Services.GetRequiredService<ICommandBus>().InvokeAsync(new PongMessage());
 
-            return true;
-        }
+        return true;
     }
 }

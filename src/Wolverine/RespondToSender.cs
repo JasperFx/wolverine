@@ -5,7 +5,7 @@ namespace Wolverine;
 public static class Respond
 {
     /// <summary>
-    /// Send a message back to the original sender of the current message
+    ///     Send a message back to the original sender of the current message
     /// </summary>
     /// <param name="response"></param>
     /// <returns></returns>
@@ -13,15 +13,11 @@ public static class Respond
     {
         return new RespondToSender(response);
     }
-    
-    
 }
 
-
-
 /// <summary>
-/// Declares that the inner message should be sent
-/// to the original sender of a processed message
+///     Declares that the inner message should be sent
+///     to the original sender of a processed message
 /// </summary>
 public class RespondToSender : ISendMyself
 {
@@ -31,7 +27,7 @@ public class RespondToSender : ISendMyself
     }
 
     /// <summary>
-    /// Inner message
+    ///     Inner message
     /// </summary>
     public object Message { get; }
 
@@ -57,7 +53,7 @@ public class RespondToSender : ISendMyself
             return true;
         }
 
-        if (obj.GetType() != this.GetType())
+        if (obj.GetType() != GetType())
         {
             return false;
         }

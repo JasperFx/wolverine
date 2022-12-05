@@ -1,11 +1,11 @@
 using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.CodeGeneration;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Lamar.Microsoft.DependencyInjection;
-using LamarCodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -14,7 +14,6 @@ using Oakton;
 using Oakton.Descriptions;
 using Oakton.Resources;
 using Wolverine.Configuration;
-using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
@@ -98,7 +97,8 @@ public static class HostBuilderExtensions
                 }
 #endif
 
-                options.Advanced.CodeGeneration.GeneratedCodeOutputPath = directory!.AppendPath("Internal", "Generated");
+                options.Advanced.CodeGeneration.GeneratedCodeOutputPath =
+                    directory!.AppendPath("Internal", "Generated");
 
                 return options;
             });
@@ -170,7 +170,8 @@ public static class HostBuilderExtensions
         return builder;
     }
 
-    internal static void MessagingRootService<T>(this IServiceCollection services, Func<IWolverineRuntime, T> expression)
+    internal static void MessagingRootService<T>(this IServiceCollection services,
+        Func<IWolverineRuntime, T> expression)
         where T : class
     {
         services.AddSingleton(s => expression(s.GetRequiredService<IWolverineRuntime>()));
@@ -231,8 +232,8 @@ public static class HostBuilderExtensions
     }
 
     /// <summary>
-    /// Syntactical sugar to invoke a single message with the registered
-    /// Wolverine command bus for this host
+    ///     Syntactical sugar to invoke a single message with the registered
+    ///     Wolverine command bus for this host
     /// </summary>
     /// <param name="host"></param>
     /// <param name="command"></param>
@@ -242,5 +243,4 @@ public static class HostBuilderExtensions
     {
         return host.Get<ICommandBus>().InvokeAsync(command!);
     }
-
 }

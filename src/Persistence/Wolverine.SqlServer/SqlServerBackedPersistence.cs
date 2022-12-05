@@ -1,10 +1,10 @@
 ﻿using System.Data.Common;
-using Wolverine.RDBMS;
-using Wolverine.Persistence.Durability;
-using Wolverine.Persistence.Sagas;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Weasel.Core.Migrations;
+using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
+using Wolverine.RDBMS;
 using Wolverine.SqlServer.Persistence;
 using Wolverine.SqlServer.Util;
 

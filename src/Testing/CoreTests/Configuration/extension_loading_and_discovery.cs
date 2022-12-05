@@ -2,9 +2,7 @@ using System.Linq;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Runtime;
 using Xunit;
 

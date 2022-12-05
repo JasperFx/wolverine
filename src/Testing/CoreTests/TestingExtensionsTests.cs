@@ -18,7 +18,7 @@ public class TestingExtensionsTests
         {
             new object[] { "hello", "goodbye" }.ShouldHaveNoMessages();
         });
-        
+
         ex.Message.ShouldBe("Should be no messages, but was hello, goodbye");
     }
 
@@ -38,10 +38,11 @@ public class TestingExtensionsTests
             new object[] { new Message1(), new Envelope { Message = new Message3() } }
                 .ShouldHaveNoMessageOfType<Message1>();
         });
-        
-        ex.Message.ShouldBe("Should be no messages of type TestMessages.Message1, but the actual messages were TestMessages.Message1, TestMessages.Message3");
+
+        ex.Message.ShouldBe(
+            "Should be no messages of type TestMessages.Message1, but the actual messages were TestMessages.Message1, TestMessages.Message3");
     }
-    
+
     [Fact]
     public void should_be_no_message_of_type_T_sad_path_through_envelope()
     {
@@ -50,8 +51,9 @@ public class TestingExtensionsTests
             new object[] { new Message1(), new Envelope { Message = new Message3() } }
                 .ShouldHaveNoMessageOfType<Message3>();
         });
-        
-        ex.Message.ShouldBe("Should be no messages of type TestMessages.Message3, but the actual messages were TestMessages.Message1, TestMessages.Message3");
+
+        ex.Message.ShouldBe(
+            "Should be no messages of type TestMessages.Message3, but the actual messages were TestMessages.Message1, TestMessages.Message3");
     }
 
     [Fact]
@@ -62,12 +64,12 @@ public class TestingExtensionsTests
             .ShouldHaveMessageOfType<Message1>()
             .ShouldBeSameAs(message1);
     }
-    
+
     [Fact]
     public void should_be_message_of_type_happy_path_through_envelope()
     {
         var message1 = new Message1();
-        new object[] { new Envelope{Message = message1}, new Message2(), new Message3() }
+        new object[] { new Envelope { Message = message1 }, new Message2(), new Message3() }
             .ShouldHaveMessageOfType<Message1>()
             .ShouldBeSameAs(message1);
     }
@@ -80,19 +82,20 @@ public class TestingExtensionsTests
             new object[] { new Message1(), new Message2(), new Message3() }
                 .ShouldHaveMessageOfType<Message4>();
         });
-        
-        ex.Message.ShouldBe("Should be a message of type TestMessages.Message4, but actual messages were TestMessages.Message1, TestMessages.Message2, TestMessages.Message3");
+
+        ex.Message.ShouldBe(
+            "Should be a message of type TestMessages.Message4, but actual messages were TestMessages.Message1, TestMessages.Message2, TestMessages.Message3");
     }
-    
+
     [Fact]
     public void should_be_message_of_type_sad_path_no_messages()
     {
         var ex = Should.Throw<WolverineMessageExpectationException>(() =>
         {
-            new object[0] 
+            new object[0]
                 .ShouldHaveMessageOfType<Message4>();
         });
-        
+
         ex.Message.ShouldBe("Should be a message of type TestMessages.Message4, but there were no messages");
     }
 
@@ -102,7 +105,7 @@ public class TestingExtensionsTests
         var message1 = new Message1();
         var env = new object[] { new Envelope { Message = message1 }, new Message2(), new Message3() }
             .ShouldHaveEnvelopeForMessageType<Message1>();
-        
+
         env.Message.ShouldBeSameAs(message1);
     }
 
@@ -115,12 +118,4 @@ public class TestingExtensionsTests
                 .ShouldHaveEnvelopeForMessageType<Message1>();
         });
     }
-    
-    
-    
-    
-    
-    
-    
-    
 }

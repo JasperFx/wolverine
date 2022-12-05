@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Baseline;
+using JasperFx.Core;
 
 namespace Wolverine.ErrorHandling.Matches;
 
@@ -14,7 +14,7 @@ internal class OrMatch : IExceptionMatch
         Inners.AddRange(matches);
     }
 
-    public string Description => Inners.Select(x => ExceptionMatchExtensions.Formatted(x)).Join(" or ");
+    public string Description => Inners.Select(x => x.Formatted()).Join(" or ");
 
     public bool Matches(Exception ex)
     {

@@ -1,19 +1,14 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 
 namespace Wolverine.Runtime.ResponseReply;
 
 internal class ReplyListener<T> : IReplyListener where T : class
 {
-    private readonly TaskCompletionSource<T> _completion;
     private readonly CancellationTokenSource _cancellation;
-    public Guid RequestId { get; }
-    public ReplyTracker Parent { get; }
-
-    public TaskStatus Status { get; private set; } = TaskStatus.Running;
-    public Task<T> Task => _completion.Task;
+    private readonly TaskCompletionSource<T> _completion;
 
     public ReplyListener(Guid requestId, ReplyTracker parent, TimeSpan timeout, CancellationToken cancellationToken)
     {
@@ -25,6 +20,34 @@ internal class ReplyListener<T> : IReplyListener where T : class
         _cancellation = new CancellationTokenSource(timeout);
 
         _cancellation.Token.Register(onCancellation);
+    }
+
+    public ReplyTracker Parent { get; }
+
+    public TaskStatus Status { get; private set; } = TaskStatus.Running;
+    public Task<T> Task => _completion.Task;
+    public Guid RequestId { get; }
+
+    public void Complete(Envelope envelope)
+    {
+        if (envelope.Message is T message)
+        {
+            _completion.TrySetResult(message);
+            Status = TaskStatus.RanToCompletion;
+        }
+        else if (envelope.Message is FailureAcknowledgement ack)
+        {
+            _completion.TrySetException(new WolverineRequestReplyException(ack.Message));
+            Status = TaskStatus.Faulted;
+        }
+
+        Parent.Unregister(this);
+    }
+
+
+    public void Dispose()
+    {
+        _cancellation.Dispose();
     }
 
     private void onCancellation()
@@ -44,27 +67,5 @@ internal class ReplyListener<T> : IReplyListener where T : class
         Parent.Unregister(this);
 
         Status = TaskStatus.Faulted;
-    }
-
-    public void Complete(Envelope envelope)
-    {
-        if (envelope.Message is T message)
-        {
-            _completion.TrySetResult(message);
-            Status = TaskStatus.RanToCompletion;
-        }
-        else if (envelope.Message is FailureAcknowledgement ack)
-        {
-            _completion.TrySetException(new WolverineRequestReplyException(ack.Message));
-            Status = TaskStatus.Faulted;
-        }
-        
-        Parent.Unregister(this);
-    }
-
-
-    public void Dispose()
-    {
-        _cancellation.Dispose();
     }
 }

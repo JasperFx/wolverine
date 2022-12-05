@@ -1,9 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Shouldly;
 using TestingSupport.Sagas;
-using Wolverine;
 using Wolverine.Persistence.Sagas;
 using Xunit;
 using Xunit.Abstractions;

@@ -1,10 +1,10 @@
 using System;
 using System.Net;
 using System.Threading.Tasks;
-using Wolverine.Util;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Tcp;
 
@@ -18,7 +18,7 @@ public class TcpEndpoint : Endpoint
     {
     }
 
-    public TcpEndpoint(string hostName, int port) : base( ToUri(port, hostName), EndpointRole.Application)
+    public TcpEndpoint(string hostName, int port) : base(ToUri(port, hostName), EndpointRole.Application)
     {
         HostName = hostName;
         Port = port;
@@ -27,10 +27,10 @@ public class TcpEndpoint : Endpoint
         EndpointName = Uri.ToString();
     }
 
-    public string HostName { get; private set; }
+    public string HostName { get; }
 
-    public int Port { get; private set; }
-    
+    public int Port { get; }
+
 
     protected override bool supportsMode(EndpointMode mode)
     {
@@ -54,12 +54,13 @@ public class TcpEndpoint : Endpoint
             var listener = HostName == "localhost"
                 ? new SocketListener(this, receiver, runtime.Logger, IPAddress.Loopback, Port, cancellation)
                 : new SocketListener(this, receiver, runtime.Logger, IPAddress.Any, Port, cancellation);
-            
+
             return ValueTask.FromResult<IListener>(listener);
         }
 
         var ipaddr = IPAddress.Parse(HostName);
-        return ValueTask.FromResult<IListener>(new SocketListener(this, receiver, runtime.Logger, ipaddr, Port, cancellation));
+        return ValueTask.FromResult<IListener>(new SocketListener(this, receiver, runtime.Logger, ipaddr, Port,
+            cancellation));
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)

@@ -4,8 +4,8 @@ using FluentValidation.Results;
 namespace Wolverine.FluentValidation.Internals;
 
 /// <summary>
-/// Default "exception throwing" handler for the Fluent Validation middleware. Throws
-/// a ValidationException
+///     Default "exception throwing" handler for the Fluent Validation middleware. Throws
+///     a ValidationException
 /// </summary>
 /// <typeparam name="T"></typeparam>
 public class FailureAction<T> : IFailureAction<T>

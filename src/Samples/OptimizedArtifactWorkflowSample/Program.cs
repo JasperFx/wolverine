@@ -18,6 +18,6 @@ return await Host.CreateDefaultBuilder()
         opts.PublishMessage<TrackedMessage>()
             .ToLocalQueue("tracked")
             .UseDurableInbox();
-        
+
         opts.OptimizeArtifactWorkflow();
     }).RunWolverineAsync(args);

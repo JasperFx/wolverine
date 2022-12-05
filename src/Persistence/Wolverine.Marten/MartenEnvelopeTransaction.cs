@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Wolverine.Persistence.Durability;
-using Wolverine.Marten.Persistence.Operations;
-using Wolverine.Postgresql;
 using Marten;
+using Wolverine.Marten.Persistence.Operations;
+using Wolverine.Persistence.Durability;
+using Wolverine.Postgresql;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten;

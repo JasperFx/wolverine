@@ -3,10 +3,12 @@ using Wolverine.Transports;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusMessageRoutingConvention 
-    : MessageRoutingConvention<AzureServiceBusTransport, AzureServiceBusQueueListenerConfiguration, AzureServiceBusQueueSubscriberConfiguration, AzureServiceBusMessageRoutingConvention>
+public class AzureServiceBusMessageRoutingConvention
+    : MessageRoutingConvention<AzureServiceBusTransport, AzureServiceBusQueueListenerConfiguration,
+        AzureServiceBusQueueSubscriberConfiguration, AzureServiceBusMessageRoutingConvention>
 {
-    protected override (AzureServiceBusQueueListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(string identifier,
+    protected override (AzureServiceBusQueueListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(
+        string identifier,
         AzureServiceBusTransport transport)
     {
         var queue = transport.Queues[identifier];
@@ -21,11 +23,11 @@ public class AzureServiceBusMessageRoutingConvention
     }
 
     /// <summary>
-    /// Specify naming rules for the subscribing queue for message types
+    ///     Specify naming rules for the subscribing queue for message types
     /// </summary>
     /// <param name="namingRule"></param>
     /// <returns></returns>
-    public AzureServiceBusMessageRoutingConvention  QueueNameForSender(Func<Type, string?> namingRule)
+    public AzureServiceBusMessageRoutingConvention QueueNameForSender(Func<Type, string?> namingRule)
     {
         return IdentifierForSender(namingRule);
     }

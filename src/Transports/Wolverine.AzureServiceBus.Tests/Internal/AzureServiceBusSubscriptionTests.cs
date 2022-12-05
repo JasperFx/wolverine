@@ -20,7 +20,7 @@ public class AzureServiceSubscriptionTests
     {
         var topic = new AzureServiceBusTopic(new AzureServiceBusTransport(), "incoming");
         var subscription = new AzureServiceBusQueueSubscription(new AzureServiceBusTransport(), topic, "sub1");
-        
+
         subscription.EndpointName.ShouldBe("sub1");
     }
 }

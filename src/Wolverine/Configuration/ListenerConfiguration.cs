@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks.Dataflow;
-using LamarCodeGeneration.Util;
+using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
@@ -14,7 +14,8 @@ public class ListenerConfiguration : ListenerConfiguration<IListenerConfiguratio
     }
 }
 
-public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>, IListenerConfiguration<TSelf>
+public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>,
+    IListenerConfiguration<TSelf>
     where TSelf : IListenerConfiguration<TSelf> where TEndpoint : Endpoint
 {
     public ListenerConfiguration(TEndpoint queue) : base(queue)

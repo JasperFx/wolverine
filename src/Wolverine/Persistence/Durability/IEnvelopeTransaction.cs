@@ -2,7 +2,6 @@ using System.Threading.Tasks;
 
 namespace Wolverine.Persistence.Durability;
 
-
 // TODO -- should these all be ValueTask?
 public interface IEnvelopeTransaction
 {

@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline.Dates;
-using Shouldly;
-using Wolverine;
+using JasperFx.Core;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 

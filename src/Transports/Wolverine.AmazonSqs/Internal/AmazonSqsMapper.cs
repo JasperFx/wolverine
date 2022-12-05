@@ -10,10 +10,10 @@ internal class AmazonSqsMapper : EnvelopeMapper<Message, SendMessageBatchRequest
     public AmazonSqsMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime)
     {
     }
-    
+
     protected override void writeOutgoingHeader(SendMessageBatchRequestEntry outgoing, string key, string value)
     {
-        outgoing.MessageAttributes[key] = new MessageAttributeValue { StringValue = value, DataType = "String"};
+        outgoing.MessageAttributes[key] = new MessageAttributeValue { StringValue = value, DataType = "String" };
     }
 
     protected override bool tryReadIncomingHeader(Message incoming, string key, out string? value)

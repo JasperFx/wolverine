@@ -6,12 +6,12 @@ using Wolverine.Runtime.ResponseReply;
 namespace Wolverine;
 
 /// <summary>
-/// Entry point for sending or publishing messages
+///     Entry point for sending or publishing messages
 /// </summary>
 public interface IMessagePublisher : ICommandBus
 {
     /// <summary>
-    /// Sends a message to the expected, one subscriber. Will throw an exception if there are no known subscribers
+    ///     Sends a message to the expected, one subscriber. Will throw an exception if there are no known subscribers
     /// </summary>
     /// <param name="message"></param>
     /// <param name="options"></param>
@@ -39,7 +39,7 @@ public interface IMessagePublisher : ICommandBus
     ValueTask SendToTopicAsync(string topicName, object message, DeliveryOptions? options = null);
 
     /// <summary>
-    /// Send a message to a specific, named endpoint
+    ///     Send a message to a specific, named endpoint
     /// </summary>
     /// <param name="endpointName"></param>
     /// <param name="message"></param>
@@ -74,11 +74,21 @@ public interface IMessagePublisher : ICommandBus
     ValueTask SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null);
 
 
-    Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null);
-    Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message, CancellationToken cancellation = default, TimeSpan? timeout = null);
-    Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message, CancellationToken cancellation = default, TimeSpan? timeout = null);
+    Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = null);
 
-    Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class;
-    Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class;
-    Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class;
+    Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = null);
+
+    Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message,
+        CancellationToken cancellation = default, TimeSpan? timeout = null);
+
+    Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+        where T : class;
+
+    Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = null) where T : class;
+
+    Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = null) where T : class;
 }

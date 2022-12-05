@@ -28,7 +28,7 @@ internal class BackPressureAgent : IDisposable
         {
             AutoReset = true, Enabled = true, Interval = 2000
         };
-        
+
         _timer.Elapsed += TimerOnElapsed;
     }
 
@@ -53,7 +53,7 @@ internal class BackPressureAgent : IDisposable
                 }
 
                 break;
-            
+
             case ListeningStatus.TooBusy:
                 if (_agent.QueueCount <= _endpoint.BufferingLimits.Restart)
                 {

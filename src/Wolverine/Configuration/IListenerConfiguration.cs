@@ -27,7 +27,7 @@ public interface IListenerConfiguration<T>
     /// </summary>
     /// <returns></returns>
     T UseDurableInbox();
-    
+
     /// <summary>
     ///     Force any messages enqueued to this worker queue to be durable
     /// </summary>
@@ -40,7 +40,7 @@ public interface IListenerConfiguration<T>
     /// </summary>
     /// <returns></returns>
     T BufferedInMemory();
-    
+
     /// <summary>
     ///     Incoming messages are immediately moved into an in-memory queue
     ///     for parallel processing

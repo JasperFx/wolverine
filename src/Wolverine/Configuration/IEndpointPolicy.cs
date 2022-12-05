@@ -19,7 +19,9 @@ public class LambdaEndpointPolicy<T> : IEndpointPolicy where T : Endpoint
 
     public void Apply(Endpoint endpoint, IWolverineRuntime runtime)
     {
-        if (endpoint is T e) _configure(e, runtime);
+        if (endpoint is T e)
+        {
+            _configure(e, runtime);
+        }
     }
 }
-

@@ -1,8 +1,7 @@
 using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
-using Wolverine.Logging;
 using Microsoft.Extensions.Logging;
+using Wolverine.Logging;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime.WorkerQueues;

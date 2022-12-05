@@ -27,7 +27,7 @@ public class end_to_end
         var session = await host.InvokeMessageAndWaitAsync(command);
         session.Executed.SingleMessage<Command1>().ShouldBeSameAs(command);
     }
-    
+
     [Fact]
     public async Task invoke_sad_path_with_multiple_validators()
     {
@@ -47,7 +47,7 @@ public class end_to_end
 
         await Should.ThrowAsync<ValidationException>(() => host.InvokeAsync(command));
     }
-    
+
     [Fact]
     public async Task invoke_happy_path_with_single_validator()
     {
@@ -68,7 +68,7 @@ public class end_to_end
         var session = await host.InvokeMessageAndWaitAsync(command);
         session.Executed.SingleMessage<Command2>().ShouldBeSameAs(command);
     }
-    
+
     [Fact]
     public async Task invoke_sad_path_with_single_validator()
     {
@@ -88,5 +88,4 @@ public class end_to_end
 
         await Should.ThrowAsync<ValidationException>(() => host.InvokeAsync(command));
     }
-    
 }

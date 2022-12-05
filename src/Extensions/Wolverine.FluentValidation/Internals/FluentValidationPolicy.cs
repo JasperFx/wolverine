@@ -1,7 +1,7 @@
 using FluentValidation;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using Lamar;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 
@@ -11,10 +11,7 @@ internal class FluentValidationPolicy : IHandlerPolicy
 {
     public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
     {
-        foreach (var chain in graph.Chains)
-        {
-            Apply(chain, container);
-        }
+        foreach (var chain in graph.Chains) Apply(chain, container);
     }
 
     public void Apply(HandlerChain chain, IContainer container)
@@ -26,7 +23,7 @@ internal class FluentValidationPolicy : IHandlerPolicy
         {
             var method = typeof(FluentValidationExecutor).GetMethod(nameof(FluentValidationExecutor.ExecuteOne))
                 .MakeGenericMethod(chain.MessageType);
-            
+
             var methodCall = new MethodCall(typeof(FluentValidationExecutor), method);
             chain.Middleware.Add(methodCall);
         }
@@ -34,7 +31,7 @@ internal class FluentValidationPolicy : IHandlerPolicy
         {
             var method = typeof(FluentValidationExecutor).GetMethod(nameof(FluentValidationExecutor.ExecuteMany))
                 .MakeGenericMethod(chain.MessageType);
-            
+
             var methodCall = new MethodCall(typeof(FluentValidationExecutor), method);
             chain.Middleware.Add(methodCall);
         }

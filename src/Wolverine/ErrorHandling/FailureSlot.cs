@@ -7,7 +7,6 @@ namespace Wolverine.ErrorHandling;
 
 internal class FailureSlot
 {
-    public int Attempt { get; }
     private readonly List<IContinuationSource> _sources = new();
 
     public FailureSlot(int attempt, IContinuationSource source)
@@ -20,6 +19,8 @@ internal class FailureSlot
         Attempt = attempt;
         _sources.Add(source);
     }
+
+    public int Attempt { get; }
 
     public void AddAdditionalSource(IContinuationSource source)
     {

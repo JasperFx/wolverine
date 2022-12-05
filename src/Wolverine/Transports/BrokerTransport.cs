@@ -1,7 +1,6 @@
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Oakton.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -9,35 +8,39 @@ using Wolverine.Runtime;
 namespace Wolverine.Transports;
 
 /// <summary>
-/// Abstract base class suitable for brokered messaging infrastructure
+///     Abstract base class suitable for brokered messaging infrastructure
 /// </summary>
 /// <typeparam name="TEndpoint"></typeparam>
-public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBrokerTransport where TEndpoint : Endpoint, IBrokerEndpoint
+public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBrokerTransport
+    where TEndpoint : Endpoint, IBrokerEndpoint
 {
     protected BrokerTransport(string protocol, string name) : base(protocol, name)
     {
     }
 
     /// <summary>
-    /// Optional prefix to append to all messaging object identifiers to make them unique when multiple developers
-    /// need to develop against a common message broker. I.e., sigh, you have to be using a cloud only tool.
-    /// </summary>
-    public string? IdentifierPrefix { get; set; }
-    
-    /// <summary>
-    /// Used as a separator for prefixed identifiers
+    ///     Used as a separator for prefixed identifiers
     /// </summary>
     protected string IdentifierDelimiter { get; set; } = "-";
 
+    /// <summary>
+    ///     Optional prefix to append to all messaging object identifiers to make them unique when multiple developers
+    ///     need to develop against a common message broker. I.e., sigh, you have to be using a cloud only tool.
+    /// </summary>
+    public string? IdentifierPrefix { get; set; }
+
     public string MaybeCorrectName(string identifier)
     {
-        if (IdentifierPrefix.IsEmpty()) return SanitizeIdentifier(identifier);
+        if (IdentifierPrefix.IsEmpty())
+        {
+            return SanitizeIdentifier(identifier);
+        }
 
         return SanitizeIdentifier($"{IdentifierPrefix}{IdentifierDelimiter}{identifier}");
     }
 
     /// <summary>
-    /// Use to sanitize names for illegal characters
+    ///     Use to sanitize names for illegal characters
     /// </summary>
     /// <param name="identifier"></param>
     /// <returns></returns>
@@ -45,26 +48,19 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     {
         return identifier;
     }
-    
+
     /// <summary>
-    /// Should Wolverine attempt to auto-provision all declared or discovered objects?
+    ///     Should Wolverine attempt to auto-provision all declared or discovered objects?
     /// </summary>
     public bool AutoProvision { get; set; }
 
     /// <summary>
-    /// Should Wolverine attempt to purge all messages out of existing or discovered queues
-    /// on application start up? This can be useful for testing, and occasionally for ephemeral
-    /// messages
+    ///     Should Wolverine attempt to purge all messages out of existing or discovered queues
+    ///     on application start up? This can be useful for testing, and occasionally for ephemeral
+    ///     messages
     /// </summary>
     public bool AutoPurgeAllQueues { get; set; }
 
-
-    //public abstract ValueTask ConnectAsync();
-    protected virtual void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
-    {
-        
-    }
-    
     public sealed override bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
     {
         resource = new BrokerResource(this, runtime);
@@ -80,9 +76,12 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
         await ConnectAsync(runtime);
 
-        foreach (var endpoint in endpoints())
-        {
-            await endpoint.InitializeAsync(runtime.Logger);
-        }
+        foreach (var endpoint in endpoints()) await endpoint.InitializeAsync(runtime.Logger);
+    }
+
+
+    //public abstract ValueTask ConnectAsync();
+    protected virtual void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
+    {
     }
 }

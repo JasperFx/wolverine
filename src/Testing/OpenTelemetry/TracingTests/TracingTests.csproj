@@ -9,10 +9,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Alba" Version="6.1.0" />
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
-        <PackageReference Include="Shouldly" Version="4.0.3" />
-        <PackageReference Include="xunit" Version="2.4.1" />
+        <PackageReference Include="Alba" Version="6.1.0"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0"/>
+        <PackageReference Include="Shouldly" Version="4.0.3"/>
+        <PackageReference Include="xunit" Version="2.4.1"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -24,18 +24,18 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-        <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
-      <ProjectReference Include="..\OtelMessages\OtelMessages.csproj" />
-      <ProjectReference Include="..\OtelWebApi\OtelWebApi.csproj" />
-      <ProjectReference Include="..\Subscriber1\Subscriber1.csproj" />
-      <ProjectReference Include="..\Subscriber2\Subscriber2.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\OtelMessages\OtelMessages.csproj"/>
+        <ProjectReference Include="..\OtelWebApi\OtelWebApi.csproj"/>
+        <ProjectReference Include="..\Subscriber1\Subscriber1.csproj"/>
+        <ProjectReference Include="..\Subscriber2\Subscriber2.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Include="..\..\..\Servers.cs">
-        <Link>Servers.cs</Link>
-      </Compile>
+        <Compile Include="..\..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
     </ItemGroup>
 
 </Project>

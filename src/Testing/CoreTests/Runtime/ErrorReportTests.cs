@@ -1,6 +1,4 @@
 ﻿using System;
-using Shouldly;
-using Wolverine;
 using Wolverine.Transports;
 using Xunit;
 

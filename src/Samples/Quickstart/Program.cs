@@ -1,7 +1,7 @@
 #region sample_Quickstart_Program
 
-using Wolverine;
 using Quickstart;
+using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -74,7 +74,7 @@ public class FailureRuleCollection
     internal static FailureRule BuildRequeueRuleForMaximumAttempts(int maximumAttempts)
     {
         var rule = new FailureRule(new AlwaysMatches());
-        for (int i = 0; i < maximumAttempts - 1; i++)
+        for (var i = 0; i < maximumAttempts - 1; i++)
         {
             rule.AddSlot(RequeueContinuation.Instance);
         }

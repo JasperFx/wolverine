@@ -1,12 +1,14 @@
 using System;
 using System.Linq;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 
 namespace Wolverine.Transports;
 
-public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscriberEndpoint, TListenerExpression, TSubscriber, TSelf> 
-    where TSelf : BrokerExpression<TTransport, TListenerEndpoint, TSubscriberEndpoint, TListenerExpression, TSubscriber, TSelf> 
+public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscriberEndpoint, TListenerExpression,
+    TSubscriber, TSelf>
+    where TSelf : BrokerExpression<TTransport, TListenerEndpoint, TSubscriberEndpoint, TListenerExpression, TSubscriber,
+        TSelf>
     where TTransport : IBrokerTransport
     where TListenerEndpoint : Endpoint
     where TSubscriberEndpoint : Endpoint
@@ -20,12 +22,12 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     protected internal TTransport Transport { get; }
 
     protected internal WolverineOptions Options { get; }
-    
+
     // TODO -- both options with environment = Development
 
     /// <summary>
-    /// Use the current machine name as the broker object identifier prefix
-    /// Note, this might use illegal characters for some brokers :(
+    ///     Use the current machine name as the broker object identifier prefix
+    ///     Note, this might use illegal characters for some brokers :(
     /// </summary>
     /// <returns></returns>
     public TSelf PrefixIdentifiersWithMachineName()
@@ -34,8 +36,8 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     }
 
     /// <summary>
-    /// To make broker identifiers unique in cases of shared brokers, this will apply a naming
-    /// prefix to every broker object (queue, exchange, topic in some cases)
+    ///     To make broker identifiers unique in cases of shared brokers, this will apply a naming
+    ///     prefix to every broker object (queue, exchange, topic in some cases)
     /// </summary>
     /// <param name="prefix"></param>
     /// <returns></returns>
@@ -46,7 +48,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     }
 
     /// <summary>
-    /// All Rabbit MQ exchanges, queues, and bindings should be declared at runtime by Wolverine.
+    ///     All Rabbit MQ exchanges, queues, and bindings should be declared at runtime by Wolverine.
     /// </summary>
     /// <returns></returns>
     public TSelf AutoProvision()
@@ -56,7 +58,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     }
 
     /// <summary>
-    /// All queues should be purged of existing messages on first usage
+    ///     All queues should be purged of existing messages on first usage
     /// </summary>
     /// <returns></returns>
     public TSelf AutoPurgeOnStartup()
@@ -64,11 +66,10 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
         Transport.AutoPurgeAllQueues = true;
         return this.As<TSelf>();
     }
-    
-    
+
 
     /// <summary>
-    /// Apply a policy to all Rabbit MQ listening endpoints
+    ///     Apply a policy to all Rabbit MQ listening endpoints
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -76,15 +77,22 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     {
         var policy = new LambdaEndpointPolicy<TListenerEndpoint>((e, runtime) =>
         {
-            if (e.Role == EndpointRole.System) return;
-            if (!e.IsListener) return;
+            if (e.Role == EndpointRole.System)
+            {
+                return;
+            }
+
+            if (!e.IsListener)
+            {
+                return;
+            }
 
             var configuration = createListenerExpression(e);
             configure(configuration);
 
             configuration!.As<IDelayedEndpointConfiguration>().Apply();
         });
-        
+
         Options.Policies.Add(policy);
 
         return this.As<TSelf>();
@@ -93,7 +101,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     protected abstract TListenerExpression createListenerExpression(TListenerEndpoint listenerEndpoint);
 
     /// <summary>
-    /// Apply a policy to all Rabbit MQ listening endpoints
+    ///     Apply a policy to all Rabbit MQ listening endpoints
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -101,15 +109,22 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     {
         var policy = new LambdaEndpointPolicy<TSubscriberEndpoint>((e, runtime) =>
         {
-            if (e.Role == EndpointRole.System) return;
-            if (!e.Subscriptions.Any()) return;
+            if (e.Role == EndpointRole.System)
+            {
+                return;
+            }
+
+            if (!e.Subscriptions.Any())
+            {
+                return;
+            }
 
             var configuration = createSubscriberExpression(e);
             configure(configuration);
 
             configuration!.As<IDelayedEndpointConfiguration>().Apply();
         });
-        
+
         Options.Policies.Add(policy);
 
         return this.As<TSelf>();

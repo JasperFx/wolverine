@@ -1,18 +1,18 @@
 using Baseline.Dates;
+using OtelMessages;
+using Shouldly;
+using TracingTests;
 using Wolverine;
 using Wolverine.Tracking;
-using OtelMessages;
-using TracingTests;
 using Xunit.Abstractions;
-using Shouldly;
 
 [Collection("otel")]
 public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
 {
     private readonly HostsFixture _fixture;
     private readonly ITestOutputHelper _output;
-    private ITrackedSession theSession;
     private Envelope theOriginalEnvelope;
+    private ITrackedSession theSession;
 
     public correlation_tracing(HostsFixture fixture, ITestOutputHelper output)
     {
@@ -35,10 +35,8 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
                 });
             });
 
-        foreach (var @record in theSession.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
-        {
-            _output.WriteLine(@record.ToString());
-        }
+        foreach (var record in theSession.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
+            _output.WriteLine(record.ToString());
 
         theOriginalEnvelope = theSession.Executed.SingleEnvelope<InitialCommand>();
     }
@@ -133,6 +131,5 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         rabbit2.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
         rabbit2.ConversationId.ShouldBe(atSubscriber2.Id);
         rabbit2.Source.ShouldBe("Subscriber1");
-
     }
 }

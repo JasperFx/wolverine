@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Wolverine.Logging;
 using Weasel.Core;
+using Wolverine.Logging;
 
 namespace Wolverine.RDBMS;
 
 /// <summary>
-/// Base class for relational database backed message storage
+///     Base class for relational database backed message storage
 /// </summary>
 /// <typeparam name="T"></typeparam>
 public abstract partial class DatabaseBackedMessageStore<T>
@@ -37,16 +37,6 @@ public abstract partial class DatabaseBackedMessageStore<T>
         await conn.OpenAsync(_cancellation);
 
         await migrateAsync(conn);
-    }
-
-    private async Task migrateAsync(DbConnection conn)
-    {
-        var migration = await SchemaMigration.Determine(conn, Objects);
-
-        if (migration.Difference != SchemaPatchDifference.None)
-        {
-            await Migrator.ApplyAll(conn, migration, AutoCreate.CreateOrUpdate);
-        }
     }
 
     public abstract Task<PersistedCounts> FetchCountsAsync();
@@ -88,6 +78,16 @@ public abstract partial class DatabaseBackedMessageStore<T>
         await using var conn = DatabaseSettings.CreateConnection();
         await conn.OpenAsync(token);
         await conn.CloseAsync();
+    }
+
+    private async Task migrateAsync(DbConnection conn)
+    {
+        var migration = await SchemaMigration.Determine(conn, Objects);
+
+        if (migration.Difference != SchemaPatchDifference.None)
+        {
+            await Migrator.ApplyAll(conn, migration, AutoCreate.CreateOrUpdate);
+        }
     }
 
     private async Task truncateEnvelopeDataAsync(DbConnection conn)

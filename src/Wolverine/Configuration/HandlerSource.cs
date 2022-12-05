@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Reflection;
-using BaselineTypeDiscovery;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using JasperFx.TypeDiscovery;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Handlers;
@@ -21,7 +21,11 @@ public sealed class HandlerSource
     private readonly CompositeFilter<Type> _typeFilters = new();
 
     private readonly string[] _validMethods =
-        { HandlerChain.Handle, HandlerChain.Handles, HandlerChain.Consume, HandlerChain.Consumes, SagaChain.Orchestrate, SagaChain.Orchestrates, SagaChain.Start, SagaChain.Starts, SagaChain.StartOrHandle, SagaChain.StartsOrHandles, SagaChain.NotFound };
+    {
+        HandlerChain.Handle, HandlerChain.Handles, HandlerChain.Consume, HandlerChain.Consumes, SagaChain.Orchestrate,
+        SagaChain.Orchestrates, SagaChain.Start, SagaChain.Starts, SagaChain.StartOrHandle, SagaChain.StartsOrHandles,
+        SagaChain.NotFound
+    };
 
     private bool _conventionalDiscoveryDisabled;
 

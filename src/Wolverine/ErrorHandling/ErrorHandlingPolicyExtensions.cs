@@ -1,5 +1,5 @@
 using System;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling.Matches;
 
 namespace Wolverine.ErrorHandling;
@@ -11,13 +11,14 @@ public static class ErrorHandlingPolicyExtensions
     /// </summary>
     /// <typeparam name="TException">The type of the exception to handle.</typeparam>
     /// <returns>The PolicyBuilder instance.</returns>
-    public static PolicyExpression OnException<TException>(this IWithFailurePolicies policies) where TException : Exception
+    public static PolicyExpression OnException<TException>(this IWithFailurePolicies policies)
+        where TException : Exception
     {
         return new PolicyExpression(policies.Failures, new TypeMatch<TException>());
     }
 
     /// <summary>
-    /// Apply this rule on all exceptions
+    ///     Apply this rule on all exceptions
     /// </summary>
     /// <param name="policies"></param>
     /// <returns></returns>
@@ -74,7 +75,8 @@ public static class ErrorHandlingPolicyExtensions
     /// </summary>
     /// <typeparam name="TException">The type of the exception to handle.</typeparam>
     /// <returns>The PolicyBuilder instance, for fluent chaining.</returns>
-    public static PolicyExpression OnInnerException<TException>(this IWithFailurePolicies policies) where TException : Exception
+    public static PolicyExpression OnInnerException<TException>(this IWithFailurePolicies policies)
+        where TException : Exception
     {
         return new PolicyExpression(policies.Failures, new InnerMatch(new TypeMatch<TException>()));
     }
@@ -91,6 +93,7 @@ public static class ErrorHandlingPolicyExtensions
         Func<TException, bool> exceptionPredicate, string description = "User supplied filter")
         where TException : Exception
     {
-        return new PolicyExpression(policies.Failures, new InnerMatch(new UserSupplied<TException>(exceptionPredicate, description)));
+        return new PolicyExpression(policies.Failures,
+            new InnerMatch(new UserSupplied<TException>(exceptionPredicate, description)));
     }
 }

@@ -1,21 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>CommandBusSamples</RootNamespace>
-    <LangVersion>10</LangVersion>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>CommandBusSamples</RootNamespace>
+        <LangVersion>10</LangVersion>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="LamarCodeGeneration.Commands" Version="6.2.0" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-    <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
 
 </Project>

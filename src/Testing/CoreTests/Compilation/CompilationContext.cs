@@ -1,9 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Xunit;
@@ -12,7 +10,7 @@ namespace CoreTests.Compilation;
 
 public abstract class CompilationContext : IDisposable
 {
-    public readonly WolverineOptions theOptions = new WolverineOptions();
+    public readonly WolverineOptions theOptions = new();
 
     private IHost _host;
 
@@ -31,10 +29,8 @@ public abstract class CompilationContext : IDisposable
 
     protected void AllHandlersCompileSuccessfully()
     {
-        using (var runtime = WolverineHost.For(theOptions))
-        {
-            runtime.Get<HandlerGraph>().Chains.Length.ShouldBeGreaterThan(0);
-        }
+        using var host = WolverineHost.For(theOptions);
+        host.Get<HandlerGraph>().Chains.Length.ShouldBeGreaterThan(0);
     }
 
     public MessageHandler HandlerFor<TMessage>()

@@ -1,18 +1,18 @@
-using Baseline;
 using IntegrationTests;
-using Wolverine;
-using Wolverine.Attributes;
-using Wolverine.Persistence.Durability;
-using Wolverine.SqlServer;
-using Wolverine.SqlServer.Persistence;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Weasel.Core;
 using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
-using Wolverine.Marten;
+using Wolverine;
+using Wolverine.Attributes;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
+using Wolverine.SqlServer;
+using Wolverine.SqlServer.Persistence;
 using CommandExtensions = Weasel.Core.CommandExtensions;
 
 namespace ScheduledJobTests.SqlServer;
@@ -42,7 +42,6 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         table.AddColumn<string>("name");
 
         await table.Create(conn);
-
     }
 
     protected override ItemCreated loadItem(IHost receiver, Guid id)
@@ -50,7 +49,8 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         conn.Open();
 
-        var name = (string)CommandExtensions.CreateCommand(conn, "select name from receiver.item_created where id = @id")
+        var name = (string)CommandExtensions
+            .CreateCommand(conn, "select name from receiver.item_created where id = @id")
             .With("id", id)
             .ExecuteScalar();
 

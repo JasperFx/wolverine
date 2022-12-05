@@ -1,6 +1,6 @@
 ﻿using System;
+using JasperFx.CodeGeneration;
 using Wolverine.ErrorHandling;
-using LamarCodeGeneration;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Attributes;

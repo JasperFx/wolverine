@@ -1,10 +1,10 @@
 #region sample_BootstrappingPinger
 
-using Wolverine;
-using Wolverine.Transports.Tcp;
 using Messages;
 using Oakton;
 using Pinger;
+using Wolverine;
+using Wolverine.Transports.Tcp;
 
 return await Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
@@ -24,4 +24,3 @@ return await Host.CreateDefaultBuilder(args)
     .RunOaktonCommands(args);
 
 #endregion
-

@@ -1,38 +1,36 @@
-using Wolverine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Wolverine;
 
-namespace DocumentationSamples
+namespace DocumentationSamples;
+
+public static class wolverine_app_services
 {
-    public static class wolverine_app_services
+    public static async Task WolverineAppWithServices()
     {
-        public static async Task WolverineAppWithServices()
-        {
-            #region sample_WolverineAppWithServices
+        #region sample_WolverineAppWithServices
 
-            using var host = Host.CreateDefaultBuilder()
-                .UseWolverine(opts =>
-                {
-                    // Add service registrations with the ASP.Net Core
-                    // DI abstractions
-                    opts.Services.AddLogging();
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Add service registrations with the ASP.Net Core
+                // DI abstractions
+                opts.Services.AddLogging();
 
-                    // or mix and match with StructureMap style
-                    // registrations
-                    opts.Services.For(typeof(ILogger)).Use(typeof(Logger<>));
-                }).StartAsync();
+                // or mix and match with StructureMap style
+                // registrations
+                opts.Services.For(typeof(ILogger)).Use(typeof(Logger<>));
+            }).StartAsync();
 
-            #endregion
-        }
+        #endregion
     }
+}
 
+public interface IThirdPartyService
+{
+}
 
-    public interface IThirdPartyService
-    {
-    }
-
-    public class StubThirdPartyService : IThirdPartyService
-    {
-    }
+public class StubThirdPartyService : IThirdPartyService
+{
 }

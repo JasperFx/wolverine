@@ -1,5 +1,4 @@
-﻿using Shouldly;
-using Wolverine.ErrorHandling;
+﻿using Wolverine.ErrorHandling;
 using Xunit;
 
 namespace CoreTests.ErrorHandling;

@@ -1,6 +1,6 @@
 using System;
+using JasperFx.CodeGeneration.Model;
 using Wolverine.Postgresql;
-using LamarCodeGeneration.Model;
 
 namespace Wolverine.Marten;
 

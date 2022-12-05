@@ -14,14 +14,14 @@ namespace Wolverine.Persistence.Durability;
 
 internal class DurableSendingAgent : SendingAgent
 {
+    private readonly RetryBlock<Envelope[]> _deleteOutgoingMany;
+    private readonly RetryBlock<Envelope> _deleteOutgoingOne;
+    private readonly RetryBlock<OutgoingMessageBatch> _enqueueForRetry;
     private readonly ILogger _logger;
     private readonly IMessageStore _persistence;
+    private readonly RetryBlock<Envelope> _storeAndForward;
 
     private IList<Envelope> _queued = new List<Envelope>();
-    private readonly RetryBlock<Envelope> _deleteOutgoingOne;
-    private readonly RetryBlock<Envelope[]> _deleteOutgoingMany;
-    private readonly RetryBlock<OutgoingMessageBatch> _enqueueForRetry;
-    private readonly RetryBlock<Envelope> _storeAndForward;
 
     public DurableSendingAgent(ISender sender, AdvancedSettings settings, ILogger logger,
         IMessageLogger messageLogger,
@@ -33,8 +33,9 @@ internal class DurableSendingAgent : SendingAgent
 
         _deleteOutgoingOne =
             new RetryBlock<Envelope>((e, _) => _persistence.DeleteOutgoingAsync(e), logger, settings.Cancellation);
-        
-        _deleteOutgoingMany = new RetryBlock<Envelope[]>((envelopes, _) => _persistence.DeleteOutgoingAsync(envelopes), logger, settings.Cancellation);
+
+        _deleteOutgoingMany = new RetryBlock<Envelope[]>((envelopes, _) => _persistence.DeleteOutgoingAsync(envelopes),
+            logger, settings.Cancellation);
 
         _enqueueForRetry = new RetryBlock<OutgoingMessageBatch>((batch, _) => enqueueForRetryAsync(batch), _logger,
             _settings.Cancellation);
@@ -46,6 +47,8 @@ internal class DurableSendingAgent : SendingAgent
             await _sending.PostAsync(e);
         }, _logger, settings.Cancellation);
     }
+
+    public override bool IsDurable { get; } = true;
 
     protected override async Task drainOtherAsync()
     {
@@ -63,8 +66,6 @@ internal class DurableSendingAgent : SendingAgent
         _enqueueForRetry.Dispose();
         _storeAndForward.Dispose();
     }
-
-    public override bool IsDurable { get; } = true;
 
     public override Task EnqueueForRetryAsync(OutgoingMessageBatch batch)
     {
@@ -100,7 +101,6 @@ internal class DurableSendingAgent : SendingAgent
 
         _queued = all.Take(Endpoint.MaximumEnvelopeRetryStorage).ToList();
     }
-    
 
 
     protected override async Task afterRestartingAsync(ISender sender)
@@ -114,10 +114,7 @@ internal class DurableSendingAgent : SendingAgent
         var toRetry = _queued.Where(x => !x.IsExpired()).ToArray();
         _queued = new List<Envelope>();
 
-        foreach (var envelope in toRetry)
-        {
-            await _sending.PostAsync(envelope);
-        }
+        foreach (var envelope in toRetry) await _sending.PostAsync(envelope);
     }
 
     public override Task MarkSuccessfulAsync(OutgoingMessageBatch outgoing)

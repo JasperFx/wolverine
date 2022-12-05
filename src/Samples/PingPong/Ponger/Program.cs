@@ -1,9 +1,9 @@
 ﻿#region sample_PongerBootstrapping
 
-using Wolverine;
-using Wolverine.Transports.Tcp;
 using Microsoft.Extensions.Hosting;
 using Oakton;
+using Wolverine;
+using Wolverine.Transports.Tcp;
 
 return await Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
@@ -12,6 +12,5 @@ return await Host.CreateDefaultBuilder(args)
         opts.ListenAtPort(5581);
     })
     .RunOaktonCommands(args);
-
 
 #endregion

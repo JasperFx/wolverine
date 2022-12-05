@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using CoreTests.Configuration;
+using JasperFx.CodeGeneration;
 using Lamar;
-using LamarCodeGeneration;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;

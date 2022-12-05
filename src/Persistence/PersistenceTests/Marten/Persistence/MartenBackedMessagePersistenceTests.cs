@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
 using IntegrationTests;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -75,16 +75,16 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
     public void marten_outbox_is_registered()
     {
         var container = (IContainer)theHost.Services;
-        
+
         container.Model.For<IMartenOutbox>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
 
         using var nested = container.GetNestedContainer();
 
         var outbox = nested.GetInstance<IMartenOutbox>();
         var session = nested.GetInstance<IDocumentSession>();
-        
+
         outbox.Session.ShouldBeSameAs(session);
-        
+
         outbox.As<MessageContext>().Transaction.ShouldBeOfType<MartenEnvelopeTransaction>()
             .Session.ShouldBeSameAs(session);
     }

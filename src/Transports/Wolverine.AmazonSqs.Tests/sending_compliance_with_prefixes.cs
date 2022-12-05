@@ -42,7 +42,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 }
 
 [Collection("acceptance")]
-public class PrefixedSendingAndReceivingCompliance: TransportCompliance<PrefixedComplianceFixture>
+public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture>
 {
     [Fact]
     public void prefix_was_applied_to_queues_for_the_receiver()
@@ -51,9 +51,8 @@ public class PrefixedSendingAndReceivingCompliance: TransportCompliance<Prefixed
         runtime.Endpoints.EndpointByName("buffered-receiver")
             .ShouldBeOfType<AmazonSqsQueue>()
             .QueueName.ShouldBe("foo-buffered-receiver");
-
     }
-    
+
     [Fact]
     public void prefix_was_applied_to_queues_for_the_sender()
     {

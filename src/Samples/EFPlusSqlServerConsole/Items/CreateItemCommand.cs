@@ -1,7 +1,6 @@
-namespace EFPlusSqlServerConsole.Items
+namespace EFPlusSqlServerConsole.Items;
+
+public class CreateItemCommand
 {
-    public class CreateItemCommand
-    {
-        public string Name { get; set; }
-    }
+    public string Name { get; set; }
 }

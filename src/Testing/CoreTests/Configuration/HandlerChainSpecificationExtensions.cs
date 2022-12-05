@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Linq;
 using System.Linq.Expressions;
-using Baseline.Reflection;
-using LamarCodeGeneration.Frames;
-using Shouldly;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Handlers;
 
 namespace CoreTests.Configuration;

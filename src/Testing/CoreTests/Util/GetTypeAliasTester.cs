@@ -1,5 +1,4 @@
-﻿using Shouldly;
-using Wolverine.Attributes;
+﻿using Wolverine.Attributes;
 using Wolverine.Util;
 using Xunit;
 

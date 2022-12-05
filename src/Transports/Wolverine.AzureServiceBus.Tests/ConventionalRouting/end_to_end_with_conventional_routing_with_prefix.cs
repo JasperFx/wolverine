@@ -1,66 +1,64 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
+
+public class end_to_end_with_conventional_routing_with_prefix : IDisposable
 {
-    public class end_to_end_with_conventional_routing_with_prefix : IDisposable
+    private readonly IHost _receiver;
+    private readonly IHost _sender;
+
+    public end_to_end_with_conventional_routing_with_prefix()
     {
-        private readonly IHost _sender;
-        private readonly IHost _receiver;
-
-        public end_to_end_with_conventional_routing_with_prefix()
+        _sender = WolverineHost.For(opts =>
         {
-            _sender = WolverineHost.For(opts =>
-            {
-                opts.UseAzureServiceBusTesting()
-                    .PrefixIdentifiers("shazaam")
-                    .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-                opts.Handlers.DisableConventionalDiscovery();
-                opts.ServiceName = "Sender";
-            });
+            opts.UseAzureServiceBusTesting()
+                .PrefixIdentifiers("shazaam")
+                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.Handlers.DisableConventionalDiscovery();
+            opts.ServiceName = "Sender";
+        });
 
-            _receiver = WolverineHost.For(opts =>
-            {
-                opts.UseAzureServiceBusTesting()
-                    .PrefixIdentifiers("shazaam")
-                    .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-                opts.ServiceName = "Receiver";
-            });
-        }
-
-        public void Dispose()
+        _receiver = WolverineHost.For(opts =>
         {
-            _sender?.Dispose();
-            _receiver?.Dispose();
-        }
+            opts.UseAzureServiceBusTesting()
+                .PrefixIdentifiers("shazaam")
+                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.ServiceName = "Receiver";
+        });
+    }
 
-        [Fact]
-        public async Task send_from_one_node_to_another_all_with_conventional_routing()
-        {
-            var session = await _sender.TrackActivity()
-                .AlsoTrack(_receiver)
-                .IncludeExternalTransports()
-                .Timeout(30.Seconds())
-                .SendMessageAndWaitAsync(new RoutedMessage());
+    public void Dispose()
+    {
+        _sender?.Dispose();
+        _receiver?.Dispose();
+    }
 
-            var received = session
-                .AllRecordsInOrder()
-                .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
-                .Single(x => x.EventType == EventType.Received);
+    [Fact]
+    public async Task send_from_one_node_to_another_all_with_conventional_routing()
+    {
+        var session = await _sender.TrackActivity()
+            .AlsoTrack(_receiver)
+            .IncludeExternalTransports()
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(new RoutedMessage());
 
-            received
-                .ServiceName.ShouldBe("Receiver");
-            
-            received.Envelope.Destination
-                .ShouldBe(new Uri("asb://queue/shazaam.routed"));
+        var received = session
+            .AllRecordsInOrder()
+            .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
+            .Single(x => x.EventType == EventType.Received);
 
-        }
+        received
+            .ServiceName.ShouldBe("Receiver");
+
+        received.Envelope.Destination
+            .ShouldBe(new Uri("asb://queue/shazaam.routed"));
     }
 }

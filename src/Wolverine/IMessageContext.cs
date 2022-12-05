@@ -1,8 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using Wolverine.Logging;
-using Wolverine.Runtime;
-using Wolverine.Persistence.Durability;
+﻿using System.Threading.Tasks;
 
 namespace Wolverine;
 
@@ -29,6 +25,4 @@ public interface IMessageContext : IMessagePublisher
     /// <param name="context"></param>
     /// <returns></returns>
     ValueTask RespondToSenderAsync(object response);
-
-
 }

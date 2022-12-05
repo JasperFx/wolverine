@@ -7,8 +7,8 @@ namespace Wolverine.Configuration;
 public interface ISubscriberConfiguration<T> where T : ISubscriberConfiguration<T>
 {
     /// <summary>
-    /// Force any messages enqueued to this worker queue to be durable by enrolling
-    /// outgoing messages in the active, durable envelope outbox
+    ///     Force any messages enqueued to this worker queue to be durable by enrolling
+    ///     outgoing messages in the active, durable envelope outbox
     /// </summary>
     /// <returns></returns>
     T UseDurableOutbox();

@@ -20,7 +20,7 @@ public class SqlServer_StorageCommand_Smoke_Tests : SqlServerContext
         var args = commandLine.Split(' ');
         (await Host.CreateDefaultBuilder().UseWolverine(registry =>
         {
-            SqlServerConfigurationExtensions.PersistMessagesWithSqlServer(registry, Servers.SqlServerConnectionString);
+            registry.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
         }).RunWolverineAsync(args)).ShouldBe(0);
     }
 }

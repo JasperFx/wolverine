@@ -19,7 +19,7 @@ public record PropertyColumn(string Header, string AttributeName, Justify Alignm
                 return new Markup(value);
             }
         }
-        
+
         return new Markup("-");
     }
 }

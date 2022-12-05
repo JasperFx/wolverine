@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Baseline;
+using JasperFx.Core;
 
 namespace Wolverine.ErrorHandling.Matches;
 
@@ -19,6 +19,5 @@ internal class AndMatch : IExceptionMatch
         return Inners.All(x => x.Matches(ex));
     }
 
-    public string Description => Inners.Select(x => ExceptionMatchExtensions.Formatted(x)).Join(" and ");
-
+    public string Description => Inners.Select(x => x.Formatted()).Join(" and ");
 }

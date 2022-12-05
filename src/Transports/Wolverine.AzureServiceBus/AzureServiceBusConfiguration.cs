@@ -4,26 +4,30 @@ using Wolverine.Transports;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTransport, AzureServiceBusQueue, AzureServiceBusQueue, AzureServiceBusQueueListenerConfiguration, AzureServiceBusQueueSubscriberConfiguration, AzureServiceBusConfiguration>
+public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTransport, AzureServiceBusQueue,
+    AzureServiceBusQueue, AzureServiceBusQueueListenerConfiguration, AzureServiceBusQueueSubscriberConfiguration,
+    AzureServiceBusConfiguration>
 {
-    public AzureServiceBusConfiguration(AzureServiceBusTransport transport, WolverineOptions options) : base(transport, options)
+    public AzureServiceBusConfiguration(AzureServiceBusTransport transport, WolverineOptions options) : base(transport,
+        options)
     {
-
     }
 
-    protected override AzureServiceBusQueueListenerConfiguration createListenerExpression(AzureServiceBusQueue listenerEndpoint)
+    protected override AzureServiceBusQueueListenerConfiguration createListenerExpression(
+        AzureServiceBusQueue listenerEndpoint)
     {
         return new AzureServiceBusQueueListenerConfiguration(listenerEndpoint);
     }
 
-    protected override AzureServiceBusQueueSubscriberConfiguration createSubscriberExpression(AzureServiceBusQueue subscriberEndpoint)
+    protected override AzureServiceBusQueueSubscriberConfiguration createSubscriberExpression(
+        AzureServiceBusQueue subscriberEndpoint)
     {
         return new AzureServiceBusQueueSubscriberConfiguration(subscriberEndpoint);
     }
 
     /// <summary>
-    /// Add explicit configuration to an AzureServiceBus queue that is being created by
-    /// this application
+    ///     Add explicit configuration to an AzureServiceBus queue that is being created by
+    ///     this application
     /// </summary>
     /// <param name="queueName"></param>
     /// <param name="configure"></param>
@@ -46,9 +50,9 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     {
         var routing = new AzureServiceBusMessageRoutingConvention();
         configure?.Invoke(routing);
-        
+
         Options.RouteWith(routing);
-        
+
         return this;
     }
 }

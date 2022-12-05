@@ -1,14 +1,14 @@
 ﻿using System;
 using Oakton;
+using Spectre.Console;
 
-namespace Module1
+namespace Module1;
+
+public class TalkCommand : OaktonCommand<NetCoreInput>
 {
-    public class TalkCommand : OaktonCommand<NetCoreInput>
+    public override bool Execute(NetCoreInput input)
     {
-        public override bool Execute(NetCoreInput input)
-        {
-            ConsoleWriter.Write(ConsoleColor.Magenta, "Hello!");
-            return true;
-        }
+        AnsiConsole.Write("[magenta]Hello![/]");
+        return true;
     }
 }

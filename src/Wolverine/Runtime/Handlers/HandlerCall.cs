@@ -2,10 +2,9 @@
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using Baseline;
-using Baseline.Reflection;
-using Wolverine.Util;
-using LamarCodeGeneration.Frames;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core.Reflection;
+using TypeExtensions = Wolverine.Util.TypeExtensions;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -49,7 +48,7 @@ public class HandlerCall : MethodCall
 
         var hasOutput = method.ReturnType != typeof(void);
 
-        if (method.ReturnType.IsValueTuple())
+        if (TypeExtensions.IsValueTuple(method.ReturnType))
         {
             return true;
         }
@@ -57,7 +56,7 @@ public class HandlerCall : MethodCall
         return !hasOutput || !method.ReturnType.IsPrimitive;
     }
 
-    public new static HandlerCall For<T>(Expression<Action<T>> method)
+    public static HandlerCall For<T>(Expression<Action<T>> method)
     {
         return new HandlerCall(typeof(T), ReflectionHelper.GetMethod(method));
     }

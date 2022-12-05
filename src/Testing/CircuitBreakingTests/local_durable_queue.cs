@@ -1,6 +1,5 @@
-using System.Threading.Tasks.Dataflow;
-using Baseline.Dates;
 using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Wolverine;
 using Wolverine.ErrorHandling;
@@ -28,8 +27,8 @@ public class local_durable_queue : CircuitBreakerIntegrationContext
             })
             ;
 
-        opts.Handlers.OnAnyException().Requeue(3);
-        
+        opts.Handlers.OnAnyException().Requeue();
+
         opts.Services.AddMarten(opts =>
         {
             opts.Connection(Servers.PostgresConnectionString);

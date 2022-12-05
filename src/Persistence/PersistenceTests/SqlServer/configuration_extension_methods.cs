@@ -27,7 +27,7 @@ public class configuration_extension_methods : SqlServerContext
             })
             .UseWolverine((context, options) =>
             {
-                SqlServerConfigurationExtensions.PersistMessagesWithSqlServer(options, context.Configuration["connection"]);
+                options.PersistMessagesWithSqlServer(context.Configuration["connection"]);
             });
 
 

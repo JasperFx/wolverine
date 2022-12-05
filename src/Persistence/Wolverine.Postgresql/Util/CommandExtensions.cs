@@ -1,6 +1,6 @@
 using System.Data.Common;
 using System.Linq;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -19,5 +19,4 @@ public static class CommandExtensions
 
         return command;
     }
-
 }

@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline.Dates;
+using JasperFx.Core;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 
@@ -40,11 +40,6 @@ internal class Executor : IExecutor
         _logger = logger;
         _rules = rules;
         _timeout = timeout;
-    }
-
-    internal Executor WrapWithMessageTracking(IMessageSuccessTracker tracker)
-    {
-        return new Executor(new CircuitBreakerWrappedMessageHandler(_handler, tracker), _logger, _rules, _timeout);
     }
 
     public async Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
@@ -101,6 +96,11 @@ internal class Executor : IExecutor
 
             return InvokeResult.TryAgain;
         }
+    }
+
+    internal Executor WrapWithMessageTracking(IMessageSuccessTracker tracker)
+    {
+        return new Executor(new CircuitBreakerWrappedMessageHandler(_handler, tracker), _logger, _rules, _timeout);
     }
 
     public static IExecutor Build(IWolverineRuntime runtime, HandlerGraph handlerGraph, Type messageType)

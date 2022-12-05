@@ -3,7 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Util.Dataflow;
@@ -30,18 +30,17 @@ public class LambdaItemHandler<T> : IItemHandler<T>
 
 public class RetryBlock<T> : IDisposable
 {
-    private readonly IItemHandler<T> _handler;
-    private readonly ILogger _logger;
     private readonly ActionBlock<Item> _block;
     private readonly CancellationToken _cancellationToken;
+    private readonly IItemHandler<T> _handler;
+    private readonly ILogger _logger;
 
     public RetryBlock(Func<T, CancellationToken, Task> handler, ILogger logger, CancellationToken cancellationToken,
         Action<ExecutionDataflowBlockOptions>? configure = null)
         : this(new LambdaItemHandler<T>(handler), logger, cancellationToken, configure)
     {
-        
     }
-    
+
     public RetryBlock(Func<T, CancellationToken, Task> handler, ILogger logger, CancellationToken cancellationToken,
         ExecutionDataflowBlockOptions options)
     {
@@ -50,13 +49,14 @@ public class RetryBlock<T> : IDisposable
 
         options.CancellationToken = cancellationToken;
         options.SingleProducerConstrained = true;
-        
+
         _cancellationToken = cancellationToken;
-        
+
         _block = new ActionBlock<Item>(executeAsync, options);
     }
 
-    public RetryBlock(IItemHandler<T> handler, ILogger logger, CancellationToken cancellationToken, Action<ExecutionDataflowBlockOptions>? configure = null)
+    public RetryBlock(IItemHandler<T> handler, ILogger logger, CancellationToken cancellationToken,
+        Action<ExecutionDataflowBlockOptions>? configure = null)
     {
         _handler = handler;
         _logger = logger;
@@ -65,12 +65,20 @@ public class RetryBlock<T> : IDisposable
             CancellationToken = cancellationToken,
             SingleProducerConstrained = true
         };
-        
+
         configure?.Invoke(options);
 
         _cancellationToken = cancellationToken;
-        
+
         _block = new ActionBlock<Item>(executeAsync, options);
+    }
+
+    public int MaximumAttempts { get; set; } = 3;
+    public TimeSpan[] Pauses { get; set; } = { 50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds() };
+
+    public void Dispose()
+    {
+        _block.Complete();
     }
 
     public void Post(T message)
@@ -89,7 +97,6 @@ public class RetryBlock<T> : IDisposable
         {
             Post(message);
             _logger.LogError(e, "Error while trying to retry {Item}", message);
-
         }
     }
 
@@ -113,7 +120,7 @@ public class RetryBlock<T> : IDisposable
             await Task.Delay(pause, _cancellationToken);
 
             await _handler.ExecuteAsync(item.Message, _cancellationToken);
-            
+
             _logger.LogDebug("Completed {Item}", item.Message);
         }
         catch (Exception e)
@@ -126,23 +133,16 @@ public class RetryBlock<T> : IDisposable
             }
             else
             {
-                _logger.LogInformation("Discarding message {Message} after {Attempts} attempts", item.Message, item.Attempts);
+                _logger.LogInformation("Discarding message {Message} after {Attempts} attempts", item.Message,
+                    item.Attempts);
             }
         }
     }
-
-    public int MaximumAttempts { get; set; } = 3;
-    public TimeSpan[] Pauses { get; set; } = new[] { 50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds() };
 
     public Task DrainAsync()
     {
         _block.Complete();
         return _block.Completion;
-    }
-    
-    public void Dispose()
-    {
-        _block.Complete();
     }
 
     public class Item

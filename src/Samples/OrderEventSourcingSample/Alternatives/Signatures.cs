@@ -1,10 +1,9 @@
-using Wolverine.Marten;
 using Marten.Events;
 using Marten.Schema;
 using Wolverine.Attributes;
+using Wolverine.Marten;
 
 namespace OrderEventSourcingSample.Alternatives;
-
 
 #region sample_MarkItemReady_with_explicit_identity
 
@@ -12,8 +11,7 @@ public class MarkItemReady
 {
     // This attribute tells Wolverine that this property will refer to the
     // Order aggregate
-    [Identity]
-    public Guid Id { get; init; }
+    [Identity] public Guid Id { get; init; }
 
     public string ItemName { get; init; }
 }
@@ -23,6 +21,7 @@ public class MarkItemReady
 public static class MarkItemReadyHandler
 {
     [WolverineIgnore] // just keeping this out of codegen and discovery
+
     #region sample_MarkItemReadyHandler_with_explicit_stream
 
     [MartenCommandWorkflow]
@@ -54,4 +53,3 @@ public static class MarkItemReadyHandler
 
     #endregion
 }
-

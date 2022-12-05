@@ -12,8 +12,8 @@ namespace Wolverine.RabbitMQ.Tests;
 public class response_queue_mechanics : IAsyncLifetime
 {
     private IHost _host;
-    private string theExpectedResponseQueueName;
     private RabbitMqQueue theEndpoint;
+    private string theExpectedResponseQueueName;
 
     public async Task InitializeAsync()
     {
@@ -26,10 +26,9 @@ public class response_queue_mechanics : IAsyncLifetime
 
         var options = _host.Services.GetRequiredService<WolverineOptions>();
         theExpectedResponseQueueName = $"myapp_response_{options.Advanced.UniqueNodeId}";
-        
+
         theEndpoint = _host.GetRuntime().Endpoints.EndpointByName(RabbitMqTransport.ResponseEndpointName)
             .ShouldBeOfType<RabbitMqQueue>();
-
     }
 
     public async Task DisposeAsync()
@@ -41,7 +40,7 @@ public class response_queue_mechanics : IAsyncLifetime
     public void should_be_the_reply_uri()
     {
         var transport = _host.Get<WolverineOptions>().RabbitMqTransport();
-        
+
         transport.ReplyEndpoint()
             .ShouldBeSameAs(theEndpoint);
     }
@@ -83,13 +82,9 @@ public class response_queue_mechanics : IAsyncLifetime
     {
         var transport = _host.Get<WolverineOptions>().RabbitMqTransport();
         var queue = transport.Queues[theEndpoint.QueueName];
-        
+
         queue.AutoDelete.ShouldBeTrue();
         queue.IsExclusive.ShouldBeFalse();
         queue.IsDurable.ShouldBeFalse();
-            
-            
     }
-    
-    
 }

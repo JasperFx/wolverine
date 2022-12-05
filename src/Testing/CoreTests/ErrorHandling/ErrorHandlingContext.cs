@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using TestingSupport;
 using TestingSupport.ErrorHandling;
-using Wolverine;
 using Wolverine.Runtime.ResponseReply;
 using Wolverine.Tracking;
 
@@ -14,7 +13,7 @@ public class ErrorHandlingContext
 {
     protected readonly ErrorCausingMessage theMessage = new();
 
-    protected readonly WolverineOptions theOptions = new WolverineOptions();
+    protected readonly WolverineOptions theOptions = new();
     private ITrackedSession _session;
 
     public ErrorHandlingContext()

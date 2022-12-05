@@ -1,8 +1,6 @@
 ﻿using System;
-using Baseline.Dates;
 using CoreTests.Messaging;
-using Shouldly;
-using Wolverine;
+using JasperFx.Core;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
 using Xunit;

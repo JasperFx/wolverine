@@ -1,8 +1,8 @@
 ﻿using System.Threading.Tasks;
-using Wolverine;
-using Wolverine.Transports.Tcp;
 using Microsoft.Extensions.Hosting;
 using Oakton;
+using Wolverine;
+using Wolverine.Transports.Tcp;
 
 namespace Publisher
 {
@@ -12,14 +12,8 @@ namespace Publisher
         {
             return Host
                 .CreateDefaultBuilder()
-                .UseWolverine(opts =>
-                {
-                    opts.ListenAtPort(2211);
-                })
+                .UseWolverine(opts => { opts.ListenAtPort(2211); })
                 .RunOaktonCommands(args);
         }
     }
-
-
-
 }

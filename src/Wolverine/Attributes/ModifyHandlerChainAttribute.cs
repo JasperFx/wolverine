@@ -1,5 +1,5 @@
 ﻿using System;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 

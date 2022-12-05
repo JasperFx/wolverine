@@ -1,90 +1,89 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
 using BenchmarkDotNet.Attributes;
+using JasperFx.Core;
 
-namespace Benchmarks
+namespace Benchmarks;
+
+[MemoryDiagnoser]
+public class InvokeRunner : IDisposable
 {
-    [MemoryDiagnoser]
-    public class InvokeRunner : IDisposable
+    private readonly Driver theDriver;
+
+    public InvokeRunner()
     {
-        private readonly Driver theDriver;
+        theDriver = new Driver();
+    }
 
-        public InvokeRunner()
+    public void Dispose()
+    {
+        theDriver.SafeDispose();
+    }
+
+    [IterationSetup]
+    public void BuildDatabase()
+    {
+        theDriver.Start(opts => { opts.Advanced.DurabilityAgentEnabled = false; }).GetAwaiter().GetResult();
+    }
+
+    [Benchmark]
+    public async Task Invoke()
+    {
+        for (var i = 0; i < 1000; i++)
         {
-            theDriver = new Driver();
+            foreach (var target in theDriver.Targets) await theDriver.Publisher.InvokeAsync(target);
         }
+    }
 
-        public void Dispose()
-        {
-            theDriver.SafeDispose();
-        }
 
-        [IterationSetup]
-        public void BuildDatabase()
-        {
-            theDriver.Start(opts => { opts.Advanced.DurabilityAgentEnabled = false; }).GetAwaiter().GetResult();
-        }
-
-        [Benchmark]
-        public async Task Invoke()
+    [Benchmark]
+    public async Task InvokeMultiThreaded()
+    {
+        var task1 = Task.Factory.StartNew(async () =>
         {
             for (var i = 0; i < 1000; i++)
             {
-                foreach (var target in theDriver.Targets) await theDriver.Publisher.InvokeAsync(target);
+                foreach (var target in theDriver.Targets.Take(200)) await theDriver.Publisher.InvokeAsync(target);
             }
-        }
+        });
 
-
-        [Benchmark]
-        public async Task InvokeMultiThreaded()
+        var task2 = Task.Factory.StartNew(async () =>
         {
-            var task1 = Task.Factory.StartNew(async () =>
+            for (var i = 0; i < 1000; i++)
             {
-                for (var i = 0; i < 1000; i++)
-                {
-                    foreach (var target in theDriver.Targets.Take(200)) await theDriver.Publisher.InvokeAsync(target);
-                }
-            });
+                foreach (var target in theDriver.Targets.Skip(200).Take(200))
+                    await theDriver.Publisher.InvokeAsync(target);
+            }
+        });
 
-            var task2 = Task.Factory.StartNew(async () =>
+        var task3 = Task.Factory.StartNew(async () =>
+        {
+            for (var i = 0; i < 1000; i++)
             {
-                for (var i = 0; i < 1000; i++)
-                {
-                    foreach (var target in theDriver.Targets.Skip(200).Take(200))
-                        await theDriver.Publisher.InvokeAsync(target);
-                }
-            });
+                foreach (var target in theDriver.Targets.Skip(400).Take(200))
+                    await theDriver.Publisher.InvokeAsync(target);
+            }
+        });
 
-            var task3 = Task.Factory.StartNew(async () =>
+        var task4 = Task.Factory.StartNew(async () =>
+        {
+            for (var i = 0; i < 1000; i++)
             {
-                for (var i = 0; i < 1000; i++)
-                {
-                    foreach (var target in theDriver.Targets.Skip(400).Take(200))
-                        await theDriver.Publisher.InvokeAsync(target);
-                }
-            });
+                foreach (var target in theDriver.Targets.Skip(600).Take(200))
+                    await theDriver.Publisher.InvokeAsync(target);
+            }
+        });
 
-            var task4 = Task.Factory.StartNew(async () =>
+        var task5 = Task.Factory.StartNew(async () =>
+        {
+            for (var i = 0; i < 1000; i++)
             {
-                for (var i = 0; i < 1000; i++)
-                {
-                    foreach (var target in theDriver.Targets.Skip(600).Take(200))
-                        await theDriver.Publisher.InvokeAsync(target);
-                }
-            });
-
-            var task5 = Task.Factory.StartNew(async () =>
-            {
-                for (var i = 0; i < 1000; i++)
-                {
-                    foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Publisher.InvokeAsync(target);
-                }
-            });
+                foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Publisher.InvokeAsync(target);
+            }
+        });
 
 
-            await Task.WhenAll(task1, task2, task3, task4, task5);
-        }
+        await Task.WhenAll(task1, task2, task3, task4, task5);
     }
 }

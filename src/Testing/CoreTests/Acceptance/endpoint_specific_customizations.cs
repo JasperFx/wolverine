@@ -1,8 +1,6 @@
 using System.Linq;
-using CoreTests.Compilation;
 using CoreTests.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Shouldly;
 using TestingSupport;
 using Wolverine.Runtime;
 using Xunit;

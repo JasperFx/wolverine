@@ -3,7 +3,6 @@ using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using TestingSupport.Compliance;
 using TestMessages;
-using Wolverine;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 

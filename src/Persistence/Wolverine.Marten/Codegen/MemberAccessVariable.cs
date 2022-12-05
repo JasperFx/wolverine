@@ -1,6 +1,6 @@
 using System;
 using System.Reflection;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration.Model;
 using Oakton.Parsing;
 
 namespace Wolverine.Marten.Codegen;
@@ -8,8 +8,8 @@ namespace Wolverine.Marten.Codegen;
 // TODO -- this should be in LamarCodeGeneration
 internal class MemberAccessVariable : Variable
 {
-    private readonly Variable _parent;
     private readonly MemberInfo _member;
+    private readonly Variable _parent;
 
     public MemberAccessVariable(Variable parent, MemberInfo member) : base(member.GetMemberType(), parent.Creator)
     {

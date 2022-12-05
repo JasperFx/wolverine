@@ -1,6 +1,6 @@
-using Baseline.Dates;
-using Wolverine;
+using JasperFx.Core;
 using OtelMessages;
+using Wolverine;
 
 namespace Subscriber1;
 
@@ -9,7 +9,7 @@ public class Subscriber2Handlers
     public static async Task<RabbitMessage3> Handle(RabbitMessage1 message)
     {
         await Task.Delay(50.Milliseconds());
-        return new RabbitMessage3{Name = message.Name};
+        return new RabbitMessage3 { Name = message.Name };
     }
 
     public static async Task Handle(RabbitMessage3 message, IMessagePublisher publisher)
@@ -33,6 +33,4 @@ public class Subscriber2Handlers
     {
         return Task.Delay(50.Milliseconds());
     }
-
-
 }

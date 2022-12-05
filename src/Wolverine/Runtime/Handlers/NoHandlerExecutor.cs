@@ -1,15 +1,15 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 using Wolverine.ErrorHandling;
 
 namespace Wolverine.Runtime.Handlers;
 
 internal class NoHandlerExecutor : IExecutor
 {
-    private readonly Type _messageType;
     private readonly IContinuation _continuation;
+    private readonly Type _messageType;
 
     public NoHandlerExecutor(Type messageType, WolverineRuntime runtime)
     {

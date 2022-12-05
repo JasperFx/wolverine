@@ -1,7 +1,6 @@
 ﻿using System.Threading.Tasks;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
-using Shouldly;
 using Wolverine.Logging;
 using Wolverine.Transports;
 using Xunit;

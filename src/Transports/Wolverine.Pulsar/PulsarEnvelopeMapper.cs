@@ -26,9 +26,6 @@ public class PulsarEnvelopeMapper : EnvelopeMapper<IMessage<ReadOnlySequence<byt
 
     protected override void writeIncomingHeaders(IMessage<ReadOnlySequence<byte>> incoming, Envelope envelope)
     {
-        foreach (var pair in incoming.Properties)
-        {
-            envelope.Headers[pair.Key] = pair.Value;
-        }
+        foreach (var pair in incoming.Properties) envelope.Headers[pair.Key] = pair.Value;
     }
 }

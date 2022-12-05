@@ -1,30 +1,29 @@
-using Baseline;
-using Baseline.Dates;
-using Wolverine;
-using Wolverine.Logging;
-using Wolverine.Persistence.Durability;
-using Wolverine.Runtime;
-using Wolverine.Transports;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Shouldly;
+using Wolverine;
+using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
+using Wolverine.Transports;
 using Xunit.Abstractions;
-
 
 namespace CircuitBreakingTests;
 
 [Collection("circuit_breaker")]
 public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<ListenerState>
 {
-    private readonly ITestOutputHelper _output;
     private readonly IHost _host;
-    private readonly WolverineRuntime _runtime;
-    private readonly Random _random = new Random();
-    private readonly List<Task> _tasks = new();
+    private readonly ITestOutputHelper _output;
+    private readonly Random _random = new();
 
     private readonly List<ListenerState> _recordedStates = new();
+    private readonly WolverineRuntime _runtime;
+    private readonly List<Task> _tasks = new();
 
     public CircuitBreakerIntegrationContext(ITestOutputHelper output)
     {
@@ -33,7 +32,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
             .UseWolverine(configureListener).UseResourceSetupOnStartup(StartupAction.ResetState)
             .ConfigureServices(services =>
             {
-                services.AddSingleton<ITestOutputHelper>(output);
+                services.AddSingleton(output);
                 //services.AddSingleton(typeof(ILogger<>), typeof(OutputLogger<>));
             })
             .Start();
@@ -42,7 +41,10 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         _runtime.ListenerTracker.Subscribe(this);
     }
 
-    protected abstract void configureListener(WolverineOptions opts);
+    public void Dispose()
+    {
+        _host.Dispose();
+    }
 
     void IObserver<ListenerState>.OnCompleted()
     {
@@ -58,10 +60,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         _recordedStates.Add(value);
     }
 
-    public void Dispose()
-    {
-        _host.Dispose();
-    }
+    protected abstract void configureListener(WolverineOptions opts);
 
     protected void assertTheCircuitBreakerNeverTripped()
     {
@@ -86,9 +85,9 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
 
         var messages = new SometimesFails[100];
 
-        for (int i = 0; i < messages.Length; i++)
+        for (var i = 0; i < messages.Length; i++)
         {
-            var shouldFail = (i > 0 && (i % everyOther) == 0);
+            var shouldFail = i > 0 && i % everyOther == 0;
 
             var message = new SometimesFails(i, shouldFail ? MessageResult.BadImage : MessageResult.Success,
                 MessageResult.Success, MessageResult.Success);
@@ -105,10 +104,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         var publisher = new MessagePublisher(_runtime);
         var task = Task.Factory.StartNew(async () =>
         {
-            foreach (var message in messages)
-            {
-                await publisher.PublishAsync(message);
-            }
+            foreach (var message in messages) await publisher.PublishAsync(message);
 
             _output.WriteLine($"Finished publishing a batch with {failures}% failures");
         });
@@ -124,10 +120,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         {
             await Task.Delay(delay);
             _output.WriteLine($"Starting to publish a batch with {failures}% failures");
-            foreach (var message in messages)
-            {
-                await publisher.PublishAsync(message);
-            }
+            foreach (var message in messages) await publisher.PublishAsync(message);
 
             _output.WriteLine($"Finished publishing a batch with {failures}% failures");
         });
@@ -220,7 +213,12 @@ public class OutputLogger<T> : ILogger<T>, IDisposable
         _output = output;
     }
 
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    public void Dispose()
+    {
+    }
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
     {
         _output.WriteLine(formatter(state, exception));
     }
@@ -233,9 +231,5 @@ public class OutputLogger<T> : ILogger<T>, IDisposable
     public IDisposable BeginScope<TState>(TState state)
     {
         return this;
-    }
-
-    public void Dispose()
-    {
     }
 }

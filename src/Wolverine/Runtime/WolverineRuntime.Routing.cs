@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
-using Baseline;
-using ImTools;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -12,35 +12,16 @@ namespace Wolverine.Runtime;
 
 public partial class WolverineRuntime
 {
-    internal ISendingAgent DetermineLocalSendingAgent(Type messageType)
-    {
-        if (messageType.HasAttribute<LocalQueueAttribute>())
-        {
-            var queueName = messageType.GetAttribute<LocalQueueAttribute>()!.QueueName;
-            return Endpoints.AgentForLocalQueue(queueName);
-        }
-        
-        var localQueues = Options.Transports.GetOrCreate<LocalTransport>().Endpoints().OfType<LocalQueueSettings>().ToArray();
-
-        var handled = localQueues.FirstOrDefault(x => x.HandledMessageTypes.Contains(messageType));
-        if (handled != null) return handled.Agent!;
-
-        var subscribers = localQueues.Where(x => x.ShouldSendMessage(messageType))
-            .Select(x => x.Agent)
-            .ToArray();
-
-        return subscribers.FirstOrDefault() ?? Endpoints.GetOrBuildSendingAgent(TransportConstants.LocalUri);
-    }
-
-
     private ImHashMap<Type, IMessageRouter> _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
 
 
     public IMessageRouter RoutingFor(Type messageType)
     {
         if (messageType == typeof(object))
+        {
             throw new ArgumentOutOfRangeException(nameof(messageType),
                 "System.Object has been erroneously passed in as the message type");
+        }
 
         if (_messageTypeRouting.TryFind(messageType, out var raw))
         {
@@ -70,5 +51,29 @@ public partial class WolverineRuntime
         _messageTypeRouting = _messageTypeRouting.AddOrUpdate(messageType, router);
 
         return router;
+    }
+
+    internal ISendingAgent DetermineLocalSendingAgent(Type messageType)
+    {
+        if (messageType.HasAttribute<LocalQueueAttribute>())
+        {
+            var queueName = messageType.GetAttribute<LocalQueueAttribute>()!.QueueName;
+            return Endpoints.AgentForLocalQueue(queueName);
+        }
+
+        var localQueues = Options.Transports.GetOrCreate<LocalTransport>().Endpoints().OfType<LocalQueueSettings>()
+            .ToArray();
+
+        var handled = localQueues.FirstOrDefault(x => x.HandledMessageTypes.Contains(messageType));
+        if (handled != null)
+        {
+            return handled.Agent!;
+        }
+
+        var subscribers = localQueues.Where(x => x.ShouldSendMessage(messageType))
+            .Select(x => x.Agent)
+            .ToArray();
+
+        return subscribers.FirstOrDefault() ?? Endpoints.GetOrBuildSendingAgent(TransportConstants.LocalUri);
     }
 }

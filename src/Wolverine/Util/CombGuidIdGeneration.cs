@@ -1,7 +1,7 @@
-﻿using System;
+﻿#nullable enable
+using System;
 using System.Buffers.Binary;
 
-#nullable enable
 namespace Wolverine.Util;
 
 /// <summary>

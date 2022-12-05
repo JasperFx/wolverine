@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Logging.Abstractions;
-using Wolverine;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
@@ -64,6 +63,16 @@ public class TestingListeningAgent : IDisposable, IListener
         return ValueTask.CompletedTask;
     }
 
+    ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
+    {
+        throw new NotImplementedException();
+    }
+
+    ValueTask IChannelCallback.DeferAsync(Envelope envelope)
+    {
+        throw new NotImplementedException();
+    }
+
     public void Start()
     {
         _listener.Start();
@@ -76,15 +85,5 @@ public class TestingListeningAgent : IDisposable, IListener
                 await _socketHandling.SendAsync(socket, _cancellationToken).ConfigureAwait(false);
             }
         }, _cancellationToken);
-    }
-
-    ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
-    {
-        throw new NotImplementedException();
-    }
-
-    ValueTask IChannelCallback.DeferAsync(Envelope envelope)
-    {
-        throw new NotImplementedException();
     }
 }

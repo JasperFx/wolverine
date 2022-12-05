@@ -1,9 +1,8 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline.Dates;
+using JasperFx.Core;
 using NSubstitute;
-using Shouldly;
 using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Transports;
@@ -70,7 +69,7 @@ public class CircuitBreakerTests
             options,
             Substitute.For<IListeningAgent>());
 
-        ShouldBeTestExtensions.ShouldBe(breaker.GenerationPeriod, 1.Minutes());
+        breaker.GenerationPeriod.ShouldBe(1.Minutes());
     }
 
     [Fact]
@@ -78,7 +77,7 @@ public class CircuitBreakerTests
     {
         theBreaker.DetermineGeneration(theStartingTime);
 
-        var generation = theBreaker.CurrentGenerations.Single<CircuitBreaker.Generation>();
+        var generation = theBreaker.CurrentGenerations.Single();
 
         generation.Start.ShouldBe(theStartingTime);
         generation.Expires.ShouldBe(theStartingTime.Add(theOptions.TrackingPeriod));

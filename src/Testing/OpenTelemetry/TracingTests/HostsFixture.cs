@@ -1,11 +1,11 @@
 using Alba;
-using Wolverine;
-using Wolverine.Transports.Tcp;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OtelMessages;
 using Subscriber1;
+using Wolverine;
 using Wolverine.RabbitMQ;
+using Wolverine.Transports.Tcp;
 
 namespace TracingTests;
 
@@ -17,7 +17,7 @@ public class HostsFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        WebApi = await AlbaHost.For<global::Program>(x => { });
+        WebApi = await AlbaHost.For<Program>(x => { });
 
         FirstSubscriber = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -50,7 +50,6 @@ public class HostsFixture : IAsyncLifetime
                         .AddJaegerExporter()
                         .AddSource("Wolverine");
                 });
-
             }).StartAsync();
 
         SecondSubscriber = await Host.CreateDefaultBuilder()

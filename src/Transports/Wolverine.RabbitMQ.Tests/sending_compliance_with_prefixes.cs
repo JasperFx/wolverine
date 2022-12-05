@@ -45,7 +45,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 }
 
 [Collection("acceptance")]
-public class PrefixedSendingAndReceivingCompliance: TransportCompliance<PrefixedComplianceFixture>
+public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture>
 {
     [Fact]
     public void prefix_was_applied_to_queues_for_the_receiver()
@@ -56,9 +56,8 @@ public class PrefixedSendingAndReceivingCompliance: TransportCompliance<Prefixed
         queue.EndpointName.ShouldBe("buffered-receiver");
         queue
             .QueueName.ShouldBe("foo-buffered-receiver");
-
     }
-    
+
     [Fact]
     public void prefix_was_applied_to_queues_for_the_sender()
     {
@@ -66,7 +65,7 @@ public class PrefixedSendingAndReceivingCompliance: TransportCompliance<Prefixed
 
         var queue = runtime.Endpoints.EndpointByName("buffered-sender")
             .ShouldBeOfType<RabbitMqQueue>();
-        
+
         queue.EndpointName.ShouldBe("buffered-sender");
         queue
             .QueueName.ShouldBe("foo-buffered-sender");

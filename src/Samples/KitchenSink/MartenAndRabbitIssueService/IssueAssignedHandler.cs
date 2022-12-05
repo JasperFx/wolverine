@@ -1,17 +1,16 @@
-using Baseline.Dates;
-using Wolverine;
+using JasperFx.Core;
 using MartenAndRabbitMessages;
+using Wolverine;
 
 namespace MartenAndRabbitIssueService;
 
 public class IssueAssignedHandler
 {
-    private readonly Random _random = new Random();
+    private readonly Random _random = new();
 
     public async Task Handle(IssueAssigned assigned)
     {
         await Task.Delay(_random.Next(100, 2000));
-
     }
 
     public void Handle(IssueTimeout timeout)
@@ -27,8 +26,8 @@ public class IssueAssignedHandler
 
 public class Worker : BackgroundService
 {
-    private readonly ILogger<Worker> _logger;
     private readonly ICommandBus _bus;
+    private readonly ILogger<Worker> _logger;
 
     public Worker(ILogger<Worker> logger, ICommandBus bus)
     {

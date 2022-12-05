@@ -1,26 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <DebugType>portable</DebugType>
-    <PackageId>WolverineFx.RDBMS</PackageId>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
-    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-    <LangVersion>10</LangVersion>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+    <PropertyGroup>
+        <DebugType>portable</DebugType>
+        <PackageId>WolverineFx.RDBMS</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <LangVersion>10</LangVersion>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Data.Common" Version="4.3.0" />
-    <PackageReference Include="Weasel.CommandLine" Version="6.0.0-alpha.2" />
-    <PackageReference Include="Weasel.Core" Version="6.0.0-alpha.2" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="System.Data.Common" Version="4.3.0" />
+        <PackageReference Include="Weasel.CommandLine" Version="6.0.0-alpha.5" />
+        <PackageReference Include="Weasel.Core" Version="6.0.0-alpha.5" />
+    </ItemGroup>
 
-  <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../Analysis.Build.props" />
 </Project>

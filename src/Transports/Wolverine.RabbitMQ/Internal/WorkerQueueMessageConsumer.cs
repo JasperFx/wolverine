@@ -1,83 +1,79 @@
 using System;
-using System.Diagnostics;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualBasic.CompilerServices;
 using RabbitMQ.Client;
 using Wolverine.Transports;
 
-namespace Wolverine.RabbitMQ.Internal
+namespace Wolverine.RabbitMQ.Internal;
+
+internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
 {
-    internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
+    private readonly Uri _address;
+    private readonly CancellationToken _cancellation;
+    private readonly RabbitMqListener _listener;
+    private readonly ILogger _logger;
+    private readonly IEnvelopeMapper<IBasicProperties, IBasicProperties> _mapper;
+    private readonly IReceiver _workerQueue;
+    private bool _latched;
+
+    public WorkerQueueMessageConsumer(IReceiver workerQueue, ILogger logger,
+        RabbitMqListener listener,
+        IEnvelopeMapper<IBasicProperties, IBasicProperties> mapper, Uri address, CancellationToken cancellation)
     {
-        private readonly Uri _address;
-        private readonly CancellationToken _cancellation;
-        private readonly IEnvelopeMapper<IBasicProperties, IBasicProperties> _mapper;
-        private readonly ILogger _logger;
-        private readonly IReceiver _workerQueue;
-        private readonly RabbitMqListener _listener;
-        private bool _latched;
+        _workerQueue = workerQueue;
+        _logger = logger;
+        _listener = listener;
+        _mapper = mapper;
+        _address = address;
+        _cancellation = cancellation;
+    }
 
-        public WorkerQueueMessageConsumer(IReceiver workerQueue, ILogger logger,
-            RabbitMqListener listener,
-            IEnvelopeMapper<IBasicProperties, IBasicProperties> mapper, Uri address, CancellationToken cancellation)
+    public void Dispose()
+    {
+        _latched = true;
+    }
+
+    public override void HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered,
+        string exchange, string routingKey,
+        IBasicProperties properties, ReadOnlyMemory<byte> body)
+    {
+        if (_latched || _cancellation.IsCancellationRequested)
         {
-            _workerQueue = workerQueue;
-            _logger = logger;
-            _listener = listener;
-            _mapper = mapper;
-            _address = address;
-            _cancellation = cancellation;
+            _listener.Channel!.BasicReject(deliveryTag, true);
+            return;
         }
 
-        public void Dispose()
+        var envelope = new RabbitMqEnvelope(_listener, deliveryTag);
+
+        try
         {
-            _latched = true;
+            envelope.Data = body.ToArray(); // TODO -- use byte sequence instead!
+            _mapper.MapIncomingToEnvelope(envelope, properties);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to map an incoming RabbitMQ message to an Envelope");
+            Model.BasicAck(envelope.DeliveryTag, false);
+
+            return;
         }
 
-        public override void HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered,
-            string exchange, string routingKey,
-            IBasicProperties properties, ReadOnlyMemory<byte> body)
+        if (envelope.IsPing())
         {
-            if (_latched || _cancellation.IsCancellationRequested)
-            {
-                _listener.Channel!.BasicReject(deliveryTag, true);
-                return;
-            }
-
-            var envelope = new RabbitMqEnvelope(_listener, deliveryTag);
-
-            try
-            {
-                envelope.Data = body.ToArray(); // TODO -- use byte sequence instead!
-                _mapper.MapIncomingToEnvelope(envelope, properties);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error trying to map an incoming RabbitMQ message to an Envelope");
-                Model.BasicAck(envelope.DeliveryTag, false);
-
-                return;
-            }
-
-            if (envelope.IsPing())
-            {
-                Model.BasicAck(deliveryTag, false);
-                return;
-            }
+            Model.BasicAck(deliveryTag, false);
+            return;
+        }
 
 #pragma warning disable VSTHRD110
-            _workerQueue.ReceivedAsync(_listener, envelope).AsTask().ContinueWith(t =>
+        _workerQueue.ReceivedAsync(_listener, envelope).AsTask().ContinueWith(t =>
 #pragma warning restore VSTHRD110
+        {
+            if (t.IsFaulted)
             {
-                if (t.IsFaulted)
-                {
-                    _logger.LogError(t.Exception, "Failure to receive an incoming message with {Id}", envelope.Id);
-                    Model.BasicNack(deliveryTag, false, true);
-                }
-            }, _cancellation, TaskContinuationOptions.None, TaskScheduler.Default);
-        }
+                _logger.LogError(t.Exception, "Failure to receive an incoming message with {Id}", envelope.Id);
+                Model.BasicNack(deliveryTag, false, true);
+            }
+        }, _cancellation, TaskContinuationOptions.None, TaskScheduler.Default);
     }
 }

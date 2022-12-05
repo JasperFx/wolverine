@@ -3,8 +3,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
-using Shouldly;
-using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;

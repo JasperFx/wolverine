@@ -1,7 +1,7 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Services;
 
@@ -23,10 +23,7 @@ internal class PublishIncomingEventsBeforeCommit : DocumentSessionListenerBase
 
         if (events.Any())
         {
-            foreach (var e in events)
-            {
-                await _bus.PublishAsync(e);
-            }
+            foreach (var e in events) await _bus.PublishAsync(e);
         }
     }
 }

@@ -1,17 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <DebugType>portable</DebugType>
-    <AssemblyName>Module1</AssemblyName>
-    <PackageId>Module1</PackageId>
-    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
-    <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
-    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
-    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-  </ItemGroup>
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <DebugType>portable</DebugType>
+        <AssemblyName>Module1</AssemblyName>
+        <PackageId>Module1</PackageId>
+        <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+        <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+        <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+        <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+    </ItemGroup>
 </Project>

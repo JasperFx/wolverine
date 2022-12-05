@@ -1,11 +1,11 @@
-using Wolverine;
-using Wolverine.Transports.Tcp;
 using Oakton;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OtelMessages;
 using Subscriber1;
+using Wolverine;
 using Wolverine.RabbitMQ;
+using Wolverine.Transports.Tcp;
 
 #region sample_bootstrapping_headless_service
 

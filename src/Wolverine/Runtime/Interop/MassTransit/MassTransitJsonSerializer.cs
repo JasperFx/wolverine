@@ -1,9 +1,9 @@
 using System;
 using System.Text.Json;
-using ImTools;
-using Wolverine.Util;
+using JasperFx.Core;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 
@@ -12,10 +12,10 @@ internal class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInter
     private readonly string? _destination;
     private readonly IMassTransitInteropEndpoint _endpoint;
 
+    private readonly Lazy<string> _reply;
+
     private IMessageSerializer
         _inner = new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions());
-
-    private readonly Lazy<string> _reply;
 
     private ImHashMap<string, Uri?> _uriMap = ImHashMap<string, Uri?>.Empty;
 

@@ -5,12 +5,11 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using Baseline;
-using ImTools;
-using Wolverine.Util;
+using JasperFx.CodeGeneration;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using JasperFx.RuntimeCompiler;
 using Lamar;
-using LamarCodeGeneration;
-using LamarCompiler;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Middleware;
@@ -19,6 +18,7 @@ using Wolverine.Runtime.ResponseReply;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -26,12 +26,12 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 {
     public static readonly string Context = "context";
     private readonly List<HandlerCall> _calls = new();
+    private readonly object _compilingLock = new();
 
     private readonly IList<Action> _configurations = new List<Action>();
-    private readonly IList<IHandlerPolicy> _policies = new List<IHandlerPolicy>();
 
     private readonly object _groupingLock = new();
-    private readonly object _compilingLock = new();
+    private readonly IList<IHandlerPolicy> _policies = new List<IHandlerPolicy>();
 
     internal readonly HandlerSource Source = new();
 
@@ -43,6 +43,8 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
     private ImHashMap<string, Type> _messageTypes = ImHashMap<string, Type>.Empty;
 
+    private ImmutableList<Type> _replyTypes = ImmutableList<Type>.Empty;
+
     public HandlerGraph()
     {
         // All of this is to seed the handler and its associated retry policies
@@ -50,19 +52,16 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         AddMessageHandler(typeof(Envelope), new ScheduledSendEnvelopeHandler(this));
 
         _messageTypes = _messageTypes.AddOrUpdate(TransportConstants.ScheduledEnvelope, typeof(Envelope));
-        
+
         RegisterMessageType(typeof(Acknowledgement));
         RegisterMessageType(typeof(FailureAcknowledgement));
     }
 
-    internal void AddMessageHandler(Type messageType, MessageHandler handler)
-    {
-        _handlers = _handlers.AddOrUpdate(messageType, handler);
-    }
-    
     internal IContainer? Container { get; set; }
 
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
+
+    public IEnumerable<Assembly> ExtensionAssemblies => Source.Assemblies;
 
     public FailureRuleCollection Failures { get; set; } = new();
 
@@ -76,18 +75,6 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         var policy = findOrCreateMiddlewarePolicy();
 
         policy.AddType(middlewareType, filter);
-    }
-
-    private MiddlewarePolicy findOrCreateMiddlewarePolicy()
-    {
-        var policy = _policies.OfType<MiddlewarePolicy>().FirstOrDefault();
-        if (policy == null)
-        {
-            policy = new MiddlewarePolicy();
-            _policies.Add(policy);
-        }
-
-        return policy;
     }
 
     public IHandlerConfiguration Discovery(Action<HandlerSource> configure)
@@ -129,6 +116,31 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
                 configure(chain);
             }
         });
+    }
+
+    public void AddMiddlewareByMessageType(Type middlewareType)
+    {
+        var policy = findOrCreateMiddlewarePolicy();
+
+        var application = policy.AddType(middlewareType);
+        application.MatchByMessageType = true;
+    }
+
+    internal void AddMessageHandler(Type messageType, MessageHandler handler)
+    {
+        _handlers = _handlers.AddOrUpdate(messageType, handler);
+    }
+
+    private MiddlewarePolicy findOrCreateMiddlewarePolicy()
+    {
+        var policy = _policies.OfType<MiddlewarePolicy>().FirstOrDefault();
+        if (policy == null)
+        {
+            policy = new MiddlewarePolicy();
+            _policies.Add(policy);
+        }
+
+        return policy;
     }
 
     private void assertNotGrouped()
@@ -189,6 +201,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
                     {
                         handler = chain.Handler;
                     }
+
                     Debug.WriteLine("Finished building the chain " + chain.MessageType.NameInCode());
                 }
             }
@@ -230,9 +243,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
             _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
 
         foreach (var chain in Chains)
-        {
             _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
-        }
     }
 
     public bool TryFindMessageType(string messageTypeName, out Type messageType)
@@ -259,16 +270,15 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         }
     }
 
-    private HandlerChain buildHandlerChain(IGrouping<Type, HandlerCall> @group)
+    private HandlerChain buildHandlerChain(IGrouping<Type, HandlerCall> group)
     {
-        if (@group.Any(x => x.HandlerType.CanBeCastTo<Saga>()))
+        if (group.Any(x => x.HandlerType.CanBeCastTo<Saga>()))
         {
-            return new SagaChain(@group, this);
+            return new SagaChain(group, this);
         }
 
-        return new HandlerChain(@group, this);
+        return new HandlerChain(group, this);
     }
-
 
 
     internal void AddForwarders(Forwarders forwarders)
@@ -293,23 +303,15 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     {
         return _chains.TryFind(messageType, out _);
     }
-    
-    private ImmutableList<Type> _replyTypes = ImmutableList<Type>.Empty;
 
     public void RegisterMessageType(Type messageType)
     {
-        if (_replyTypes.Contains(messageType)) return;
+        if (_replyTypes.Contains(messageType))
+        {
+            return;
+        }
+
         _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
         _replyTypes = _replyTypes.Add(messageType);
     }
-
-    public void AddMiddlewareByMessageType(Type middlewareType)
-    {
-        var policy = findOrCreateMiddlewarePolicy();
-
-        var application = policy.AddType(middlewareType);
-        application.MatchByMessageType = true;
-    }
-
-    public IEnumerable<Assembly> ExtensionAssemblies => Source.Assemblies;
 }

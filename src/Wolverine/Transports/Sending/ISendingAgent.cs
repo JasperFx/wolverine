@@ -17,14 +17,14 @@ public interface ISendingAgent
     Endpoint Endpoint { get; }
 
     /// <summary>
-    /// Attempt to start sending this envelope
+    ///     Attempt to start sending this envelope
     /// </summary>
     /// <param name="envelope"></param>
     /// <returns></returns>
     ValueTask EnqueueOutgoingAsync(Envelope envelope);
 
     /// <summary>
-    /// Without any external outbox, store and forward this envelope
+    ///     Without any external outbox, store and forward this envelope
     /// </summary>
     /// <param name="envelope"></param>
     /// <returns></returns>

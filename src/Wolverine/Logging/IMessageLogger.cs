@@ -5,7 +5,7 @@ namespace Wolverine.Logging;
 #region sample_IMessageLogger
 
 /// <summary>
-/// Abstraction for Wolverine's message tracking
+///     Abstraction for Wolverine's message tracking
 /// </summary>
 public interface IMessageLogger
 {

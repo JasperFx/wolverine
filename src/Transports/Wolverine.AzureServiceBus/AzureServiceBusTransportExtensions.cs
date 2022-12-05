@@ -1,5 +1,5 @@
 using Azure.Messaging.ServiceBus;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 
@@ -29,7 +29,7 @@ public static class AzureServiceBusTransportExtensions
 
         return new AzureServiceBusConfiguration(transport, endpoints);
     }
-    
+
     /// <summary>
     ///     Listen for incoming messages at the designated Rabbit MQ queue by name
     /// </summary>
@@ -38,7 +38,8 @@ public static class AzureServiceBusTransportExtensions
     /// <param name="configure">
     ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
     ///     <returns></returns>
-    public static AzureServiceBusQueueListenerConfiguration ListenToAzureServiceBusQueue(this WolverineOptions endpoints, string queueName, Action<IAzureServiceBusListeningEndpoint>? configure = null )
+    public static AzureServiceBusQueueListenerConfiguration ListenToAzureServiceBusQueue(
+        this WolverineOptions endpoints, string queueName, Action<IAzureServiceBusListeningEndpoint>? configure = null)
     {
         var transport = endpoints.AzureServiceBusTransport();
 
@@ -46,22 +47,23 @@ public static class AzureServiceBusTransportExtensions
         var endpoint = transport.Queues[corrected];
         endpoint.EndpointName = queueName;
         endpoint.IsListener = true;
-        
+
         configure?.Invoke(endpoint);
 
         return new AzureServiceBusQueueListenerConfiguration(endpoint);
     }
 
-    public static AzureServiceBusQueueSubscriberConfiguration ToAzureServiceBusQueue(this IPublishToExpression publishing, string queueName)
+    public static AzureServiceBusQueueSubscriberConfiguration ToAzureServiceBusQueue(
+        this IPublishToExpression publishing, string queueName)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<AzureServiceBusTransport>();
-        
+
         var corrected = transport.MaybeCorrectName(queueName);
 
         var endpoint = transport.Queues[corrected];
         endpoint.EndpointName = queueName;
-        
+
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(endpoint.Uri);
 

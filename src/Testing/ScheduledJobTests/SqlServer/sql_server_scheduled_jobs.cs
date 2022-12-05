@@ -1,21 +1,21 @@
 using System.Diagnostics;
-using Baseline.Dates;
 using IntegrationTests;
-using Wolverine;
-using Wolverine.Persistence.Durability;
-using Wolverine.SqlServer;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using ScheduledJobTests.Postgresql;
 using Shouldly;
+using Wolverine;
+using Wolverine.Persistence.Durability;
+using Wolverine.SqlServer;
 
 namespace ScheduledJobTests.SqlServer;
 
 public class sql_server_scheduled_jobs : IAsyncLifetime
 {
-    private IHost theHost;
     private readonly ScheduledMessageReceiver theReceiver = new();
+    private IHost theHost;
 
     public async Task InitializeAsync()
     {
@@ -117,8 +117,6 @@ public class sql_server_scheduled_jobs : IAsyncLifetime
         (await PersistedScheduledCount()).ShouldBe(2);
     }
 }
-
-
 
 public class ScheduledMessageCatcher
 {

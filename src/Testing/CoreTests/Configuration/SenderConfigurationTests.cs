@@ -1,6 +1,5 @@
 using CoreTests.Messaging;
 using CoreTests.Runtime;
-using Shouldly;
 using TestMessages;
 using Wolverine.Configuration;
 using Wolverine.Transports.Local;
@@ -14,7 +13,7 @@ public class SenderConfigurationTests
     public void durably()
     {
         var endpoint = new LocalQueueSettings("foo");
-        
+
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
 
         var expression = new SubscriberConfiguration(endpoint);
@@ -32,7 +31,7 @@ public class SenderConfigurationTests
 
         var expression = new SubscriberConfiguration(endpoint);
         expression.BufferedInMemory();
-        
+
         endpoint.Compile(new MockWolverineRuntime());
 
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
@@ -73,7 +72,7 @@ public class SenderConfigurationTests
         expression.CustomizeOutgoing(e => e.Headers.Add("a", "one"));
 
         var envelope = ObjectMother.Envelope();
-        
+
         endpoint.Compile(new MockWolverineRuntime());
 
         endpoint.ApplyEnvelopeRules(envelope);
@@ -90,7 +89,7 @@ public class SenderConfigurationTests
         expression.CustomizeOutgoingMessagesOfType<OtherMessage>(e => e.Headers.Add("g", "good"));
 
         endpoint.Compile(new MockWolverineRuntime());
-        
+
         // Negative Case
         var envelope1 = new Envelope(new Message1());
         endpoint.ApplyEnvelopeRules(envelope1);
@@ -114,7 +113,7 @@ public class SenderConfigurationTests
         expression.CustomizeOutgoingMessagesOfType<BaseMessage>(e => e.Headers.Add("g", "good"));
 
         endpoint.Compile(new MockWolverineRuntime());
-        
+
         // Negative Case
         var envelope1 = new Envelope(new Message1());
         endpoint.ApplyEnvelopeRules(envelope1);

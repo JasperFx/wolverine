@@ -9,18 +9,6 @@ namespace Wolverine.Runtime.Serialization;
 /// </summary>
 internal class SystemTextJsonSerializer : IMessageSerializer
 {
-    public static JsonSerializerOptions DefaultOptions()
-    {
-        return new JsonSerializerOptions
-        {
-            AllowTrailingCommas = true,
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        };
-    }
-
     private readonly JsonSerializerOptions _options;
 
     public SystemTextJsonSerializer(JsonSerializerOptions options)
@@ -48,5 +36,17 @@ internal class SystemTextJsonSerializer : IMessageSerializer
     public byte[] WriteMessage(object message)
     {
         return JsonSerializer.SerializeToUtf8Bytes(message, _options);
+    }
+
+    public static JsonSerializerOptions DefaultOptions()
+    {
+        return new JsonSerializerOptions
+        {
+            AllowTrailingCommas = true,
+            PropertyNameCaseInsensitive = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
     }
 }

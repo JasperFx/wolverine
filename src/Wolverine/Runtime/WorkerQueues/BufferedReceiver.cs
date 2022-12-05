@@ -1,10 +1,10 @@
 using System;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Baseline;
-using Wolverine.Logging;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.Logging;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
 
@@ -54,15 +54,6 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }, endpoint.ExecutionOptions);
     }
 
-    public int QueueCount => _receivingBlock.InputCount;
-
-    public async ValueTask DrainAsync()
-    {
-        _latched = true;
-        _receivingBlock.Complete();
-        await _receivingBlock.Completion;
-    }
-
     public IHandlerPipeline Pipeline { get; }
 
     public Uri Uri { get; }
@@ -93,15 +84,15 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             _logger.LogError(e, "Error trying to use native dead letter queue for {Uri}", Uri);
             Enqueue(envelope);
         }
-
     }
 
-    Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
-    {
-        envelope.ScheduledTime = time;
-        ScheduleExecution(envelope);
+    public int QueueCount => _receivingBlock.InputCount;
 
-        return Task.CompletedTask;
+    public async ValueTask DrainAsync()
+    {
+        _latched = true;
+        _receivingBlock.Complete();
+        await _receivingBlock.Completion;
     }
 
     public void Enqueue(Envelope envelope)
@@ -114,17 +105,6 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         var activity = WolverineTracing.StartReceiving(envelope);
         _receivingBlock.Post(envelope);
         activity?.Stop();
-    }
-
-    public void ScheduleExecution(Envelope envelope)
-    {
-        if (!envelope.ScheduledTime.HasValue)
-        {
-            throw new ArgumentOutOfRangeException(nameof(envelope),
-                $"There is no {nameof(Envelope.ScheduledTime)} value");
-        }
-
-        _scheduler.Enqueue(envelope.ScheduledTime.Value, envelope);
     }
 
     async ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
@@ -173,5 +153,24 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public void Dispose()
     {
         _receivingBlock.Complete();
+    }
+
+    Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
+    {
+        envelope.ScheduledTime = time;
+        ScheduleExecution(envelope);
+
+        return Task.CompletedTask;
+    }
+
+    public void ScheduleExecution(Envelope envelope)
+    {
+        if (!envelope.ScheduledTime.HasValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(envelope),
+                $"There is no {nameof(Envelope.ScheduledTime)} value");
+        }
+
+        _scheduler.Enqueue(envelope.ScheduledTime.Value, envelope);
     }
 }

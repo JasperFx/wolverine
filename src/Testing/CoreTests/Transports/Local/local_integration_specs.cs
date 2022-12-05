@@ -1,10 +1,6 @@
-﻿using System;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
-using Shouldly;
 using TestMessages;
-using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -55,22 +51,19 @@ public class local_integration_specs : IntegrationContext
     [Fact]
     public void no_circuit_breaker()
     {
-        with(opts =>
-        {
-            opts.LocalQueue("foo").UseDurableInbox();
-        });
+        with(opts => { opts.LocalQueue("foo").UseDurableInbox(); });
 
         var runtime = Host.GetRuntime();
         var agent = runtime
             .Endpoints.GetOrBuildSendingAgent("local://foo".ToUri())
             .ShouldBeOfType<DurableLocalQueue>();
-        
+
         agent.CircuitBreaker.ShouldBeNull();
-        
+
         agent
             .Pipeline.ShouldBeSameAs(runtime.Pipeline);
     }
-    
+
     [Fact]
     public void build_isolated_watched_handler_pipeline_when_durable_and_circuit_breaker()
     {
@@ -80,7 +73,7 @@ public class local_integration_specs : IntegrationContext
                 .UseDurableInbox()
                 .CircuitBreaker();
         });
-        
+
 
         var runtime = Host.GetRuntime();
         var agent = runtime
@@ -92,6 +85,5 @@ public class local_integration_specs : IntegrationContext
         var circuitBreaker = pipeline.ExecutorFactory
             .ShouldBeOfType<CircuitBreakerTrackedExecutorFactory>();
         agent.CircuitBreaker.ShouldNotBeNull();
-
     }
 }

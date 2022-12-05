@@ -2,7 +2,6 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using NSubstitute.Core.Arguments;
 using Shouldly;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
@@ -14,42 +13,42 @@ public class AmazonSqsQueueTests
     [Fact]
     public void default_mode_is_buffered()
     {
-        new AmazonSqsQueue("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo", new AmazonSqsTransport())
             .Mode.ShouldBe(EndpointMode.BufferedInMemory);
     }
 
     [Fact]
     public void default_endpoint_name_is_queue_name()
     {
-        new AmazonSqsQueue("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo", new AmazonSqsTransport())
             .EndpointName.ShouldBe("foo");
     }
 
     [Fact]
     public void uri()
     {
-        new AmazonSqsQueue("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo", new AmazonSqsTransport())
             .Uri.ShouldBe(new Uri("sqs://foo"));
     }
 
     [Fact]
     public void default_visibility_timeout_is_2_minutes()
     {
-        new AmazonSqsQueue("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo", new AmazonSqsTransport())
             .VisibilityTimeout.ShouldBe(120);
     }
 
     [Fact]
     public void default_wait_time_is_5()
     {
-        new AmazonSqsQueue("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo", new AmazonSqsTransport())
             .WaitTimeSeconds.ShouldBe(5);
     }
 
     [Fact]
     public void max_number_of_messages_by_default_is_10()
     {
-        new AmazonSqsQueue("foo",new AmazonSqsTransport())
+        new AmazonSqsQueue("foo", new AmazonSqsTransport())
             .MaxNumberOfMessages.ShouldBe(10);
     }
 
@@ -64,9 +63,9 @@ public class AmazonSqsQueueTests
         };
 
         var request = new ReceiveMessageRequest();
-        
+
         endpoint.ConfigureRequest(request);
-        
+
         request.VisibilityTimeout.ShouldBe(endpoint.VisibilityTimeout);
         request.MaxNumberOfMessages.ShouldBe(endpoint.MaxNumberOfMessages);
         request.WaitTimeSeconds.ShouldBe(endpoint.WaitTimeSeconds);
@@ -76,11 +75,11 @@ public class AmazonSqsQueueTests
 public class when_initializing_the_endpoint
 {
     private readonly IAmazonSQS theClient = Substitute.For<IAmazonSQS>();
-    private readonly AmazonSqsTransport theTransport;
     private readonly AmazonSqsQueue theQueue;
+    private readonly AmazonSqsTransport theTransport;
 
     public when_initializing_the_endpoint()
-    {   
+    {
         theTransport = new AmazonSqsTransport(theClient);
         theQueue = new AmazonSqsQueue("foo", theTransport);
     }
@@ -108,7 +107,7 @@ public class when_initializing_the_endpoint
     public async Task do_create_queue_if_parent_is_autoprovision()
     {
         theTransport.AutoProvision = true;
-        
+
         var theSqsQueueUrl = "https://someserver.com/foo";
 
         theClient.CreateQueueAsync(Arg.Any<CreateQueueRequest>())
@@ -116,7 +115,7 @@ public class when_initializing_the_endpoint
             {
                 QueueUrl = theSqsQueueUrl
             });
-        
+
         await theQueue.InitializeAsync(NullLogger.Instance);
 
         theQueue.QueueUrl.ShouldBe(theSqsQueueUrl);
@@ -157,5 +156,4 @@ public class when_initializing_the_endpoint
 
         await theClient.Received().PurgeQueueAsync(theSqsQueueUrl);
     }
-
 }

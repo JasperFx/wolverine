@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.Transports.Tcp;
 

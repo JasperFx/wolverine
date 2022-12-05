@@ -1,10 +1,11 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using Baseline;
-using Wolverine.Util;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Routing;
 
@@ -35,7 +36,7 @@ public class Subscription
     public string[] ContentTypes
     {
         get => _contentTypes;
-        set => _contentTypes = value.Distinct().ToArray() ;
+        set => _contentTypes = value.Distinct().ToArray();
     }
 
     /// <summary>

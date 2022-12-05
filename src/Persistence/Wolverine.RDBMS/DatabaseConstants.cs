@@ -34,6 +34,8 @@ public static class DatabaseConstants
     public const string ReceivedAt = "received_at"; // add to all
     public const string SentAt = "sent_at"; // add to all
 
+    public const string KeepUntil = "keep_until";
+
     public static readonly string IncomingFields =
         $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {ConversationId}, {CorrelationId}, {ParentId}, {SagaId}, {MessageType}, {ContentType}, {ReplyRequested}, {AckRequested}, {ReplyUri}, {ReceivedAt}, {SentAt}";
 
@@ -42,6 +44,4 @@ public static class DatabaseConstants
 
     public static readonly string DeadLetterFields =
         $"{Id}, {ExecutionTime}, {Attempts}, {Body}, {ConversationId}, {CorrelationId}, {ParentId}, {SagaId}, {MessageType}, {ContentType}, {ReplyRequested}, {AckRequested}, {ReplyUri}, {Source}, {Explanation}, {ExceptionText}, {ExceptionType}, {ExceptionMessage}, {SentAt}";
-
-    public const string KeepUntil = "keep_until";
 }

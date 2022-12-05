@@ -1,13 +1,10 @@
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Wolverine.Persistence.Durability;
 using Wolverine.Util.Dataflow;
 using Xunit;
 
@@ -15,9 +12,9 @@ namespace CoreTests.Util;
 
 public class RetryBlockTests
 {
-    private readonly SpyLogger theLogger = new SpyLogger();
-    private SometimesFailingMessageHandler theHandler;
     private readonly RetryBlock<SometimesFailingMessage> theBlock;
+    private readonly SpyLogger theLogger = new();
+    private readonly SometimesFailingMessageHandler theHandler;
 
     public RetryBlockTests()
     {
@@ -44,7 +41,7 @@ public class RetryBlockTests
         theBlock.Post(new SometimesFailingMessage(0, "Aubrey"));
 
         await theBlock.DrainAsync();
-        
+
         theLogger.Messages[LogLevel.Debug].Single()
             .ShouldBe("Completed Name: Aubrey");
     }
@@ -55,10 +52,10 @@ public class RetryBlockTests
         var theMessage = new SometimesFailingMessage(2, "Aubrey");
         theBlock.Post(theMessage);
         await theMessage.Completion;
-        
+
         theLogger.Exceptions.Count.ShouldBe(2);
         theLogger.Messages[LogLevel.Error].Count.ShouldBe(2);
-        
+
         theLogger.Messages[LogLevel.Debug].Single()
             .ShouldBe("Completed Name: Aubrey");
     }
@@ -71,7 +68,7 @@ public class RetryBlockTests
 
         theBlock.Pauses = new[] { 0.Milliseconds(), 50.Milliseconds() };
 
-        int tries = 0;
+        var tries = 0;
         while (tries < 10 && !theLogger.Messages[LogLevel.Information].Any())
         {
             tries++;
@@ -85,7 +82,6 @@ public class RetryBlockTests
 
 public class SometimesFailingMessageHandler : IItemHandler<SometimesFailingMessage>
 {
-
     public Task ExecuteAsync(SometimesFailingMessage message, CancellationToken cancellation)
     {
         message.Attempts++;
@@ -93,17 +89,16 @@ public class SometimesFailingMessageHandler : IItemHandler<SometimesFailingMessa
         {
             throw new InvalidOperationException("You cannot pass!");
         }
-        
+
         message.Complete();
 
         return Task.CompletedTask;
     }
 }
 
-
 public class SometimesFailingMessage
 {
-    private TaskCompletionSource<SometimesFailingMessage> _completion = new();
+    private readonly TaskCompletionSource<SometimesFailingMessage> _completion = new();
 
     public SometimesFailingMessage(int fails, string name)
     {
@@ -115,12 +110,12 @@ public class SometimesFailingMessage
     public string Name { get; }
     public int Attempts { get; set; }
 
+    public Task Completion => _completion.Task;
+
     public void Complete()
     {
         _completion.SetResult(this);
     }
-
-    public Task Completion => _completion.Task;
 
     public override string ToString()
     {
@@ -130,17 +125,21 @@ public class SometimesFailingMessage
 
 public class SpyLogger : ILogger, IDisposable
 {
-    public readonly LightweightCache<LogLevel, List<string>> Messages = new(_ => new());
     public readonly List<Exception> Exceptions = new();
+    public readonly LightweightCache<LogLevel, List<string>> Messages = new(_ => new());
 
-    public SpyLogger()
+    public void Dispose()
     {
     }
 
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
     {
         Messages[logLevel].Add(formatter(state, exception));
-        if (exception != null) Exceptions.Add(exception);
+        if (exception != null)
+        {
+            Exceptions.Add(exception);
+        }
     }
 
     public bool IsEnabled(LogLevel logLevel)
@@ -151,9 +150,5 @@ public class SpyLogger : ILogger, IDisposable
     public IDisposable BeginScope<TState>(TState state)
     {
         return this;
-    }
-
-    public void Dispose()
-    {
     }
 }

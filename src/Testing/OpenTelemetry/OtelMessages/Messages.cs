@@ -9,9 +9,7 @@ public static class MessagingConstants
     public const string Subscriber2Queue = "otel.subscriber.2";
 
     public const string OtelExchangeName = "otel.exchange";
-
 }
-
 
 // What's posted to the web api
 public class InitialPost
@@ -47,6 +45,7 @@ public class RabbitMessage2
 {
     public string Name { get; set; }
 }
+
 public class RabbitMessage3
 {
     public string Name { get; set; }

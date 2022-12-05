@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Reflection;
-using Baseline.Reflection;
-using Shouldly;
+using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 

@@ -1,9 +1,7 @@
 ﻿using System.Reflection;
 using System.Runtime.InteropServices;
-using Wolverine;
-using Wolverine.Attributes;
-using Wolverine.Configuration;
 using Module1;
+using Wolverine.Attributes;
 
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information

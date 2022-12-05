@@ -1,15 +1,13 @@
 using System;
 using System.Data.SqlClient;
 using System.Linq;
-using System.Net.Mime;
 using System.Threading.Tasks;
-using Baseline;
 using IntegrationTests;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NSubstitute.Extensions;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
@@ -48,7 +46,6 @@ public class EFCorePersistenceContext : BaseContext
         ItemsTable = new Table("items");
         ItemsTable.AddColumn<Guid>("Id").AsPrimaryKey();
         ItemsTable.AddColumn<string>("Name");
-
     }
 
     public Table ItemsTable { get; }
@@ -71,7 +68,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     public void service_registrations()
     {
         var container = (IContainer)Host.Services;
-        
+
         container.Model.For<IDbContextOutbox>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
         container.Model.For(typeof(IDbContextOutbox<>)).Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
@@ -84,13 +81,13 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var context = nested.GetInstance<SampleDbContext>();
         var outbox = nested.GetInstance<IDbContextOutbox<SampleDbContext>>();
-        
+
         outbox.DbContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox<SampleDbContext>>()
             .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
-    
+
     [Fact]
     public void outbox_for_db_context()
     {
@@ -99,15 +96,15 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var context = nested.GetInstance<SampleDbContext>();
         var outbox = nested.GetInstance<IDbContextOutbox>();
-        
+
         outbox.Enroll(context);
-        
+
         outbox.ActiveContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox>()
             .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
-    
+
     [Fact]
     public async Task persist_an_outgoing_envelope()
     {
@@ -131,15 +128,14 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         {
             var messaging = nested.GetInstance<IDbContextOutbox<SampleDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<SampleDbContext>>();
-            
+
             await messaging.DbContext.Database.EnsureCreatedAsync();
-            
+
             await messaging.Transaction.PersistAsync(envelope);
             messaging.DbContext.Items.Add(new Item { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString() });
 
             await messaging.SaveChangesAndFlushMessagesAsync();
         }
-        
 
 
         var persisted = await Host.Services.GetRequiredService<IMessageStore>()
@@ -174,72 +170,68 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     public async Task use_non_generic_outbox()
     {
         var id = Guid.NewGuid();
-        
+
         var container = (IContainer)Host.Services;
-        
+
         await withItemsTable();
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
-        
+
         using (var nested = container.GetNestedContainer())
         {
             var context = nested.GetInstance<SampleDbContext>();
             var messaging = nested.GetInstance<IDbContextOutbox>();
-        
+
             messaging.Enroll(context);
 
             context.Items.Add(new Item { Id = id, Name = "Bill" });
             await messaging.SendAsync(new OutboxedMessage { Id = id });
-            
+
             await messaging.SaveChangesAndFlushMessagesAsync();
         }
 
         var message = await waiter;
         message.Id.ShouldBe(id);
-        
+
         using (var nested = container.GetNestedContainer())
         {
             var context = nested.GetInstance<SampleDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
-        
-        
     }
 
     [Fact]
     public async Task use_generic_outbox()
     {
         var id = Guid.NewGuid();
-        
+
         var container = (IContainer)Host.Services;
-        
+
         await withItemsTable();
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
-        
+
         using (var nested = container.GetNestedContainer())
         {
             var outbox = nested.GetInstance<IDbContextOutbox<SampleDbContext>>();
 
             outbox.DbContext.Items.Add(new Item { Id = id, Name = "Bill" });
             await outbox.SendAsync(new OutboxedMessage { Id = id });
-            
+
             await outbox.SaveChangesAndFlushMessagesAsync();
         }
 
         var message = await waiter;
         message.Id.ShouldBe(id);
-        
+
         using (var nested = container.GetNestedContainer())
         {
             var context = nested.GetInstance<SampleDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
-        
-        
     }
 
-    
+
     [Fact]
     public async Task persist_an_incoming_envelope()
     {
@@ -258,14 +250,14 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         };
 
         var container = (IContainer)Host.Services;
-        
+
         await withItemsTable();
 
         using (var nested = container.GetNestedContainer())
         {
             var context = nested.GetInstance<SampleDbContext>();
             var messaging = nested.GetInstance<IDbContextOutbox>();
-        
+
             messaging.Enroll(context);
 
             await messaging.As<MessageContext>().Transaction.ScheduleJobAsync(envelope);

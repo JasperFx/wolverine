@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Baseline;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
@@ -12,9 +12,12 @@ namespace Wolverine.Persistence.Durability;
 
 internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposable
 {
+    private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
     private readonly bool _disabled;
     private readonly IMessagingAction _incomingMessages;
+    private readonly ILocalQueue _locals;
     private readonly ILogger _logger;
+    private readonly MetricsCalculator _metrics;
     private readonly IMessagingAction _nodeReassignment;
     private readonly IMessagingAction _outgoingMessages;
     private readonly IMessagingAction _scheduledJobs;
@@ -24,12 +27,9 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
     private readonly ILogger<DurabilityAgent> _trace;
 
     private readonly ActionBlock<IMessagingAction> _worker;
-    private readonly ILocalQueue _locals;
 
-    private Timer? _nodeReassignmentTimer;  
+    private Timer? _nodeReassignmentTimer;
     private Timer? _scheduledJobTimer;
-    private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
-    private readonly MetricsCalculator _metrics;
 
 #pragma warning disable CS8618
     internal DurabilityAgent(WolverineRuntime runtime, ILogger logger,
@@ -120,13 +120,9 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
             _worker.Post(_incomingMessages);
             _worker.Post(_outgoingMessages);
             _worker.Post(_metrics);
-
         }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
 
-        _nodeReassignmentTimer = new Timer(_ =>
-            {
-                _worker.Post(_nodeReassignment);
-            }, _settings,
+        _nodeReassignmentTimer = new Timer(_ => { _worker.Post(_nodeReassignment); }, _settings,
             _settings.FirstNodeReassignmentExecution, _settings.NodeReassignmentPollingTime);
     }
 

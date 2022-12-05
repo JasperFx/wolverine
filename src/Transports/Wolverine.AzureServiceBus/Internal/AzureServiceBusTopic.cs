@@ -8,9 +8,8 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 public class AzureServiceBusTopic : AzureServiceBusEndpoint
 {
-    public string TopicName { get; }
-
-    public AzureServiceBusTopic(AzureServiceBusTransport parent, string topicName) : base(parent, new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topicName}"), EndpointRole.Application)
+    public AzureServiceBusTopic(AzureServiceBusTransport parent, string topicName) : base(parent,
+        new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topicName}"), EndpointRole.Application)
     {
         if (parent == null)
         {
@@ -19,6 +18,8 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
 
         TopicName = EndpointName = topicName ?? throw new ArgumentNullException(nameof(topicName));
     }
+
+    public string TopicName { get; }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {

@@ -1,6 +1,5 @@
-using Amazon.Runtime;
 using Amazon.SQS;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 
@@ -26,8 +25,9 @@ public static class AmazonSqsTransportExtensions
         var transport = options.AmazonSqsTransport();
         return new AmazonSqlTransportConfiguration(transport, options);
     }
-    
-    public static AmazonSqlTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options, Action<AmazonSQSConfig> configuration)
+
+    public static AmazonSqlTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options,
+        Action<AmazonSQSConfig> configuration)
     {
         var transport = options.AmazonSqsTransport();
         configuration(transport.Config);
@@ -36,19 +36,20 @@ public static class AmazonSqsTransportExtensions
 
 
     /// <summary>
-    /// Sets up a connection to a locally running Amazon SQS LocalStack
-    /// broker for development or testing purposes
+    ///     Sets up a connection to a locally running Amazon SQS LocalStack
+    ///     broker for development or testing purposes
     /// </summary>
     /// <param name="port">Port for SQS. Default is 4566</param>
     /// <returns></returns>
-    public static AmazonSqlTransportConfiguration UseAmazonSqsTransportLocally(this WolverineOptions options, int port = 4566)
+    public static AmazonSqlTransportConfiguration UseAmazonSqsTransportLocally(this WolverineOptions options,
+        int port = 4566)
     {
         var transport = options.AmazonSqsTransport();
         transport.ConnectToLocalStack(port);
 
         return new AmazonSqlTransportConfiguration(transport, options);
     }
-    
+
     /// <summary>
     ///     Listen for incoming messages at the designated Rabbit MQ queue by name
     /// </summary>
@@ -57,7 +58,8 @@ public static class AmazonSqsTransportExtensions
     /// <param name="configure">
     ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
     ///     <returns></returns>
-    public static AmazonSqsListenerConfiguration ListenToSqsQueue(this WolverineOptions endpoints, string queueName, Action<IAmazonSqsListeningEndpoint>? configure = null )
+    public static AmazonSqsListenerConfiguration ListenToSqsQueue(this WolverineOptions endpoints, string queueName,
+        Action<IAmazonSqsListeningEndpoint>? configure = null)
     {
         var transport = endpoints.AmazonSqsTransport();
 
@@ -65,7 +67,7 @@ public static class AmazonSqsTransportExtensions
         var endpoint = transport.EndpointForQueue(corrected);
         endpoint.EndpointName = queueName;
         endpoint.IsListener = true;
-        
+
         configure?.Invoke(endpoint);
 
         return new AmazonSqsListenerConfiguration(endpoint);
@@ -75,16 +77,15 @@ public static class AmazonSqsTransportExtensions
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<AmazonSqsTransport>();
-        
+
         var corrected = transport.MaybeCorrectName(queueName);
 
         var endpoint = transport.EndpointForQueue(corrected);
         endpoint.EndpointName = queueName;
-        
+
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(endpoint.Uri);
 
         return new AmazonSqsSubscriberConfiguration(endpoint);
     }
-
 }

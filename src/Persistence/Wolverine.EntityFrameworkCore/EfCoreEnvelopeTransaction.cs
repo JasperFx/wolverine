@@ -1,10 +1,10 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Wolverine.RDBMS;
-using Wolverine.Persistence.Durability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore;

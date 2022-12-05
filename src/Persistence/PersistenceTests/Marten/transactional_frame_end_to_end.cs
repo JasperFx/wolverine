@@ -1,10 +1,10 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
 using IntegrationTests;
+using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using Lamar;
-using LamarCodeGeneration;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using Shouldly;

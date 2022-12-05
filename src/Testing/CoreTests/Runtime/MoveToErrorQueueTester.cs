@@ -2,7 +2,6 @@
 using System.Threading.Tasks;
 using CoreTests.Messaging;
 using NSubstitute;
-using Wolverine;
 using Wolverine.ErrorHandling;
 using Xunit;
 
@@ -10,11 +9,11 @@ namespace CoreTests.Runtime;
 
 public class MoveToErrorQueueTester
 {
-    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
     private readonly MoveToErrorQueue theContinuation;
     private readonly Envelope theEnvelope = ObjectMother.Envelope();
 
     private readonly Exception theException = new DivideByZeroException();
+    private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
     private readonly MockWolverineRuntime theRuntime = new();
 
     public MoveToErrorQueueTester()

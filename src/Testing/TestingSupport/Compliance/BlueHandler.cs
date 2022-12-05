@@ -1,12 +1,11 @@
 using System.Diagnostics;
 
-namespace TestingSupport.Compliance
+namespace TestingSupport.Compliance;
+
+public class BlueHandler
 {
-    public class BlueHandler
+    public static void Consume(BlueMessage message)
     {
-        public static void Consume(BlueMessage message)
-        {
-            Debug.WriteLine("Hey");
-        }
+        Debug.WriteLine("Hey");
     }
 }

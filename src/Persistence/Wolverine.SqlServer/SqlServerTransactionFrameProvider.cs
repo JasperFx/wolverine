@@ -1,8 +1,8 @@
-﻿using Wolverine.Configuration;
-using Wolverine.RDBMS;
-using Lamar;
+﻿using Lamar;
 using Microsoft.Data.SqlClient;
+using Wolverine.Configuration;
 using Wolverine.Persistence;
+using Wolverine.RDBMS;
 
 namespace Wolverine.SqlServer;
 

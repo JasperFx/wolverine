@@ -1,7 +1,7 @@
 ﻿using System;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Lamar;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
 using Oakton.Parsing;
 
 namespace Wolverine.Persistence.Sagas;
@@ -68,7 +68,4 @@ public class InMemorySagaPersistenceFrameProvider : ISagaPersistenceFrameProvide
 
         return call;
     }
-
-
-
 }

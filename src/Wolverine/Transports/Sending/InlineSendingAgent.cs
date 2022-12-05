@@ -11,8 +11,8 @@ namespace Wolverine.Transports.Sending;
 internal class InlineSendingAgent : ISendingAgent, IDisposable
 {
     private readonly ISender _sender;
-    private readonly AdvancedSettings _settings;
     private readonly RetryBlock<Envelope> _sending;
+    private readonly AdvancedSettings _settings;
 
     public InlineSendingAgent(ILogger logger, ISender sender, Endpoint endpoint, IMessageLogger messageLogger,
         AdvancedSettings settings)
@@ -53,7 +53,7 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
 
         await _sending.PostAsync(envelope);
     }
-    
+
     public ValueTask StoreAndForwardAsync(Envelope envelope)
     {
         return EnqueueOutgoingAsync(envelope);

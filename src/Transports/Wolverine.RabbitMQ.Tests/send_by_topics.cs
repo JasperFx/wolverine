@@ -10,185 +10,176 @@ using Wolverine.Attributes;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.RabbitMQ.Tests
+namespace Wolverine.RabbitMQ.Tests;
+
+public class send_by_topics : IDisposable
 {
-    public class send_by_topics : IDisposable
+    private readonly IHost theFirstReceiver;
+    private readonly IHost theSecondReceiver;
+    private readonly IHost theSender;
+    private readonly IHost theThirdReceiver;
+
+    public send_by_topics()
     {
-        private readonly IHost theSender;
-        private readonly IHost theFirstReceiver;
-        private readonly IHost theSecondReceiver;
-        private readonly IHost theThirdReceiver;
+        #region sample_binding_topics_and_topic_patterns_to_queues
 
-        public send_by_topics()
-        {
-            #region sample_binding_topics_and_topic_patterns_to_queues
-
-            theSender = Host.CreateDefaultBuilder()
-                .UseWolverine(opts =>
+        theSender = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq().AutoProvision();
+                opts.PublishAllMessages().ToRabbitTopics("wolverine.topics", exchange =>
                 {
-                    opts.UseRabbitMq().AutoProvision();
-                    opts.PublishAllMessages().ToRabbitTopics("wolverine.topics", exchange =>
-                    {
-                        exchange.BindTopic("color.green").ToQueue("green");
-                        exchange.BindTopic("color.blue").ToQueue("blue");
-                        exchange.BindTopic("color.*").ToQueue("all");
-                    });
-                }).Start();
+                    exchange.BindTopic("color.green").ToQueue("green");
+                    exchange.BindTopic("color.blue").ToQueue("blue");
+                    exchange.BindTopic("color.*").ToQueue("all");
+                });
+            }).Start();
 
-                #endregion
+        #endregion
 
-            theFirstReceiver = WolverineHost.For(opts =>
-            {
-                opts.ServiceName = "First";
-                opts.ListenToRabbitQueue("green" );
-                opts.UseRabbitMq();
-            });
-
-            theSecondReceiver = WolverineHost.For(opts =>
-            {
-                opts.ServiceName = "Second";
-                opts.ListenToRabbitQueue( "blue");
-                opts.UseRabbitMq();
-            });
-
-            theThirdReceiver = WolverineHost.For(opts =>
-            {
-                opts.ServiceName = "Third";
-                opts.ListenToRabbitQueue("all");
-                opts.UseRabbitMq();
-            });
-        }
-
-        public void Dispose()
+        theFirstReceiver = WolverineHost.For(opts =>
         {
-            theSender?.Dispose();
-            theFirstReceiver?.Dispose();
-            theSecondReceiver?.Dispose();
-            theThirdReceiver?.Dispose();
-        }
+            opts.ServiceName = "First";
+            opts.ListenToRabbitQueue("green");
+            opts.UseRabbitMq();
+        });
 
-        internal async Task send_by_topic_sample()
+        theSecondReceiver = WolverineHost.For(opts =>
         {
-            #region sample_send_to_topic
+            opts.ServiceName = "Second";
+            opts.ListenToRabbitQueue("blue");
+            opts.UseRabbitMq();
+        });
 
-            var publisher = theSender.Services
-                .GetRequiredService<IMessagePublisher>();
-
-            await publisher.SendToTopicAsync("color.purple", new Message1());
-
-            #endregion
-        }
-
-        [Fact]
-        public async Task send_by_message_topic()
+        theThirdReceiver = WolverineHost.For(opts =>
         {
-            var session = await theSender
-                .TrackActivity()
-                .IncludeExternalTransports()
-                .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
-                .SendMessageAndWaitAsync(new PurpleMessage());
-
-            session.FindEnvelopesWithMessageType<PurpleMessage>()
-                .Where(x => x.EventType == EventType.Received)
-                .Select(x => x.ServiceName)
-                .Single().ShouldBe("Third");
-
-        }
-
-        [Fact]
-        public async Task send_by_message_topic_to_multiple_listeners()
-        {
-            var session = await theSender
-                .TrackActivity()
-                .IncludeExternalTransports()
-                .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
-                .SendMessageAndWaitAsync(new FirstMessage());
-
-            session.FindEnvelopesWithMessageType<FirstMessage>()
-                .Where(x => x.EventType == EventType.Received)
-                .Select(x => x.ServiceName)
-                .OrderBy(x => x).ShouldHaveTheSameElementsAs("Second", "Third");
-
-        }
-
-        [Fact]
-        public async Task send_by_explicit_topic()
-        {
-            var session = await theSender
-                .TrackActivity()
-                .IncludeExternalTransports()
-                .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
-                .SendMessageToTopicAndWaitAsync("color.green", new PurpleMessage());
-
-            session.FindEnvelopesWithMessageType<PurpleMessage>()
-                .Where(x => x.EventType == EventType.Received)
-                .Select(x => x.ServiceName)
-                .OrderBy(x => x)
-                .ShouldHaveTheSameElementsAs("First", "Third");
-
-        }
-
-        [Fact] // this is occasionally failing with timeouts when running in combination with the entire suite
-        public async Task send_by_explicit_topic_2()
-        {
-            var session = await theSender
-                .TrackActivity()
-                .IncludeExternalTransports()
-                .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
-                .SendMessageToTopicAndWaitAsync("color.blue", new PurpleMessage());
-
-            session.FindEnvelopesWithMessageType<PurpleMessage>()
-                .Where(x => x.EventType == EventType.Received)
-                .Select(x => x.ServiceName)
-                .OrderBy(x => x)
-                .ShouldHaveTheSameElementsAs("Second", "Third");
-
-        }
+            opts.ServiceName = "Third";
+            opts.ListenToRabbitQueue("all");
+            opts.UseRabbitMq();
+        });
     }
 
-    [Topic("color.purple")]
-    public class PurpleMessage{}
-
-    #region sample_using_topic_attribute
-
-    [Topic("color.blue")]
-    public class FirstMessage
+    public void Dispose()
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
+        theSender?.Dispose();
+        theFirstReceiver?.Dispose();
+        theSecondReceiver?.Dispose();
+        theThirdReceiver?.Dispose();
     }
 
-    #endregion
-
-    public class SecondMessage : FirstMessage
+    internal async Task send_by_topic_sample()
     {
+        #region sample_send_to_topic
 
+        var publisher = theSender.Services
+            .GetRequiredService<IMessagePublisher>();
+
+        await publisher.SendToTopicAsync("color.purple", new Message1());
+
+        #endregion
     }
 
-    public class ThirdMessage : FirstMessage
+    [Fact]
+    public async Task send_by_message_topic()
     {
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .SendMessageAndWaitAsync(new PurpleMessage());
 
+        session.FindEnvelopesWithMessageType<PurpleMessage>()
+            .Where(x => x.EventType == EventType.Received)
+            .Select(x => x.ServiceName)
+            .Single().ShouldBe("Third");
     }
 
-    public class MessagesHandler
+    [Fact]
+    public async Task send_by_message_topic_to_multiple_listeners()
     {
-        public void Handle(FirstMessage message)
-        {
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .SendMessageAndWaitAsync(new FirstMessage());
 
-        }
+        session.FindEnvelopesWithMessageType<FirstMessage>()
+            .Where(x => x.EventType == EventType.Received)
+            .Select(x => x.ServiceName)
+            .OrderBy(x => x).ShouldHaveTheSameElementsAs("Second", "Third");
+    }
 
-        public void Handle(SecondMessage message)
-        {
+    [Fact]
+    public async Task send_by_explicit_topic()
+    {
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .SendMessageToTopicAndWaitAsync("color.green", new PurpleMessage());
 
-        }
+        session.FindEnvelopesWithMessageType<PurpleMessage>()
+            .Where(x => x.EventType == EventType.Received)
+            .Select(x => x.ServiceName)
+            .OrderBy(x => x)
+            .ShouldHaveTheSameElementsAs("First", "Third");
+    }
 
-        public void Handle(ThirdMessage message)
-        {
+    [Fact] // this is occasionally failing with timeouts when running in combination with the entire suite
+    public async Task send_by_explicit_topic_2()
+    {
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .SendMessageToTopicAndWaitAsync("color.blue", new PurpleMessage());
 
-        }
+        session.FindEnvelopesWithMessageType<PurpleMessage>()
+            .Where(x => x.EventType == EventType.Received)
+            .Select(x => x.ServiceName)
+            .OrderBy(x => x)
+            .ShouldHaveTheSameElementsAs("Second", "Third");
+    }
+}
 
-        public void Handle(PurpleMessage message)
-        {
+[Topic("color.purple")]
+public class PurpleMessage
+{
+}
 
-        }
+#region sample_using_topic_attribute
+
+[Topic("color.blue")]
+public class FirstMessage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+
+#endregion
+
+public class SecondMessage : FirstMessage
+{
+}
+
+public class ThirdMessage : FirstMessage
+{
+}
+
+public class MessagesHandler
+{
+    public void Handle(FirstMessage message)
+    {
+    }
+
+    public void Handle(SecondMessage message)
+    {
+    }
+
+    public void Handle(ThirdMessage message)
+    {
+    }
+
+    public void Handle(PurpleMessage message)
+    {
     }
 }

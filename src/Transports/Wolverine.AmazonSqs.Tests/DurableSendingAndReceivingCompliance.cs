@@ -37,7 +37,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .AutoPurgeOnStartup()
                 .ConfigureListeners(x => x.UseDurableInbox())
                 .ConfigureListeners(x => x.UseDurableInbox());
-            
+
             opts.Services.AddMarten(store =>
             {
                 store.Connection(Servers.PostgresConnectionString);
@@ -52,10 +52,9 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
     {
         return Task.CompletedTask;
     }
-    
+
     [Collection("acceptance")]
-    public class DurableSendingAndReceivingCompliance: TransportCompliance<DurableComplianceFixture>
+    public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture>
     {
-    
     }
 }

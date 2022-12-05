@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 
 namespace Wolverine.Transports.Sending;
 

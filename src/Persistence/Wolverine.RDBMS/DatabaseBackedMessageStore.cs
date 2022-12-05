@@ -1,15 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Wolverine.Persistence.Durability;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
+using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
@@ -18,9 +17,9 @@ public abstract partial class DatabaseBackedMessageStore<T> : DatabaseBase<T>,
     IDatabaseBackedMessageStore, IMessageStoreAdmin where T : DbConnection, new()
 {
     protected readonly CancellationToken _cancellation;
-    private readonly string _outgoingEnvelopeSql;
     private readonly string _deleteExpiredHandledEnvelopes;
     private readonly string _findAtLargeIncomingEnvelopeCountsSql;
+    private readonly string _outgoingEnvelopeSql;
 
     protected DatabaseBackedMessageStore(DatabaseSettings databaseSettings, AdvancedSettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
@@ -110,7 +109,6 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
                 $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner")
             .With("owner", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
-
     }
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
@@ -134,7 +132,7 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
             var count = await reader.GetFieldValueAsync<int>(1, _cancellation).ConfigureAwait(false);
 
             return new IncomingCount(address, count);
-        }, cancellation: _cancellation);
+        }, _cancellation);
     }
 
     public void Dispose()

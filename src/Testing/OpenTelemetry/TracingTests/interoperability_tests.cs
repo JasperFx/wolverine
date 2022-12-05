@@ -1,8 +1,6 @@
-using System.Linq;
-using System.Threading.Tasks;
 using Baseline.Dates;
-using Wolverine.Tracking;
 using OtelMessages;
+using Wolverine.Tracking;
 using Xunit.Abstractions;
 
 namespace TracingTests;
@@ -37,12 +35,8 @@ public class interoperability_tests : IClassFixture<HostsFixture>
             });
 
 
-        foreach (var @record in session.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
-        {
-            _output.WriteLine(@record.ToString());
-        }
-
-
+        foreach (var record in session.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
+            _output.WriteLine(record.ToString());
     }
 
     [Fact]
@@ -62,11 +56,7 @@ public class interoperability_tests : IClassFixture<HostsFixture>
             });
 
 
-        foreach (var @record in session.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
-        {
-            _output.WriteLine(@record.ToString());
-        }
-
-
+        foreach (var record in session.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
+            _output.WriteLine(record.ToString());
     }
 }

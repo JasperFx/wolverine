@@ -1,8 +1,7 @@
-namespace Quickstart
-{
-    #region sample_Quickstart_commands
+namespace Quickstart;
 
-    public record CreateIssue(Guid OriginatorId, string Title, string Description);
+#region sample_Quickstart_commands
 
-    #endregion
-}
+public record CreateIssue(Guid OriginatorId, string Title, string Description);
+
+#endregion

@@ -1,9 +1,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using OrderExtension;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Attributes;
 using Xunit;
 

@@ -21,14 +21,11 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
 
     void IDelayedEndpointConfiguration.Apply()
     {
-        foreach (var action in _configurations)
-        {
-            action(_queue);
-        }
+        foreach (var action in _configurations) action(_queue);
 
         _queue.DelayedConfiguration.Remove(this);
     }
-    
+
     protected void add(Action<TEndpoint> action)
     {
         _configurations.Add(action);

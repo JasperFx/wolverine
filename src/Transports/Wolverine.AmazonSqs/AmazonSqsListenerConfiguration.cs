@@ -10,9 +10,9 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     internal AmazonSqsListenerConfiguration(AmazonSqsQueue queue) : base(queue)
     {
     }
-    
+
     /// <summary>
-    /// Add circuit breaker exception handling to this listener
+    ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -26,9 +26,9 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
 
         return this;
     }
-    
+
     /// <summary>
-    /// Configure how the queue should be created within SQS
+    ///     Configure how the queue should be created within SQS
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -37,5 +37,4 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
         add(e => configure(e.Configuration));
         return this;
     }
-    
 }

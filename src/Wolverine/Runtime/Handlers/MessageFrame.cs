@@ -1,6 +1,6 @@
-﻿using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+﻿using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 
 namespace Wolverine.Runtime.Handlers;
 

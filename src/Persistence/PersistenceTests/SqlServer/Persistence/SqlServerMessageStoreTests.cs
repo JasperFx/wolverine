@@ -2,21 +2,17 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
-using Baseline.Reflection;
 using IntegrationTests;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
-using NSubstitute;
 using Shouldly;
 using TestingSupport;
 using Wolverine;
 using Wolverine.Persistence.Durability;
-using Wolverine.Runtime;
 using Wolverine.SqlServer;
-using Wolverine.SqlServer.Persistence;
 using Wolverine.Transports;
 using Wolverine.Util;
 using Xunit;
@@ -30,9 +26,13 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "receiver");
     });
 
+    public void Dispose()
+    {
+        theHost?.Dispose();
+    }
+
     protected override Task initialize()
     {
-        
         thePersistence = theHost.Services.GetRequiredService<IMessageStore>();
         return thePersistence.Admin.ClearAllAsync();
     }
@@ -101,13 +101,12 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
-        
+
         counts.Incoming.ShouldBe(0);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(1);
-
     }
-    
+
     [Fact]
     public async Task delete_expired_envelopes()
     {
@@ -120,9 +119,9 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         await thePersistence.Session.BeginAsync();
         await thePersistence.DeleteExpiredHandledEnvelopesAsync(DateTimeOffset.UtcNow.Add(1.Hours()));
         await thePersistence.Session.CommitAsync();
-        
+
         var counts = await thePersistence.Admin.FetchCountsAsync();
-        
+
         counts.Incoming.ShouldBe(0);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
@@ -361,7 +360,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     public async Task store_a_single_incoming_envelope()
     {
         var envelope = ObjectMother.Envelope();
-        envelope.SentAt = (DateTimeOffset)DateTime.Today.ToUniversalTime();
+        envelope.SentAt = DateTime.Today.ToUniversalTime();
         envelope.Status = EnvelopeStatus.Incoming;
 
         await thePersistence.StoreIncomingAsync(envelope);
@@ -371,7 +370,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         stored.Id.ShouldBe(envelope.Id);
         stored.OwnerId.ShouldBe(envelope.OwnerId);
         stored.Status.ShouldBe(envelope.Status);
-        
+
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
 
@@ -380,7 +379,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     {
         var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Outgoing;
-        envelope.SentAt = (DateTimeOffset)DateTime.Today.ToUniversalTime();
+        envelope.SentAt = DateTime.Today.ToUniversalTime();
 
         await thePersistence.StoreOutgoingAsync(envelope, 5890);
 
@@ -390,14 +389,14 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         stored.Id.ShouldBe(envelope.Id);
         stored.OwnerId.ShouldBe(5890);
         stored.Status.ShouldBe(envelope.Status);
-        
+
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
-    
+
     [Fact]
     public async Task store_a_single_incoming_envelope_that_is_a_duplicate()
     {
-        var envelope = SqlServer.ObjectMother.Envelope();
+        var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
 
         await thePersistence.StoreIncomingAsync(envelope);
@@ -433,7 +432,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     public async Task store_multiple_outgoing_envelopes()
     {
         await thePersistence.Admin.ClearAllAsync();
-        
+
         var list = new List<Envelope>();
 
         for (var i = 0; i < 10; i++)
@@ -453,18 +452,18 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         stored.Each(x => x.OwnerId.ShouldBe(111));
     }
-    
-    
+
+
     [Fact]
     public async Task load_incoming_counts()
     {
         var random = new Random();
-        
+
         var localOne = "local://one".ToUri();
         var localTwo = "local://two".ToUri();
-        
+
         var list = new List<Envelope>();
-        for (int i = 0; i < 100; i++)
+        for (var i = 0; i < 100; i++)
         {
             var envelope = ObjectMother.Envelope();
             list.Add(envelope);
@@ -505,24 +504,27 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
 
         counts[0].Destination.ShouldBe(localOne);
-        counts[0].Count.ShouldBe(list.Count(x => x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming && x.Destination == localOne));
+        counts[0].Count.ShouldBe(list.Count(x =>
+            x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
+            x.Destination == localOne));
 
         counts[1].Destination.ShouldBe(localTwo);
-        counts[1].Count.ShouldBe(list.Count(x => x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming && x.Destination == localTwo));
-
+        counts[1].Count.ShouldBe(list.Count(x =>
+            x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
+            x.Destination == localTwo));
     }
-    
-    
+
+
     [Fact]
     public async Task fetch_incoming_by_owner_and_address()
     {
         var random = new Random();
-        
+
         var localOne = "local://one".ToUri();
         var localTwo = "local://two".ToUri();
-        
+
         var list = new List<Envelope>();
-        for (int i = 0; i < 100; i++)
+        for (var i = 0; i < 100; i++)
         {
             var envelope = ObjectMother.Envelope();
             list.Add(envelope);
@@ -569,12 +571,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
             envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
         }
-        
-        one.Count.ShouldBe(limit);
-    }
 
-    public void Dispose()
-    {
-        theHost?.Dispose();
+        one.Count.ShouldBe(limit);
     }
 }

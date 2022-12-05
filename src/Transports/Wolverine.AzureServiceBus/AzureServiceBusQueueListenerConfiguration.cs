@@ -5,14 +5,16 @@ using Wolverine.ErrorHandling;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<AzureServiceBusQueueListenerConfiguration, AzureServiceBusQueue>
+public class
+    AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<AzureServiceBusQueueListenerConfiguration,
+        AzureServiceBusQueue>
 {
     public AzureServiceBusQueueListenerConfiguration(AzureServiceBusQueue queue) : base(queue)
     {
     }
-    
+
     /// <summary>
-    /// Add circuit breaker exception handling to this listener
+    ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -28,8 +30,8 @@ public class AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<A
     }
 
     /// <summary>
-    /// Configure the underlying Azure Service Bus queue. This is only applicable when
-    /// Wolverine is creating the queues
+    ///     Configure the underlying Azure Service Bus queue. This is only applicable when
+    ///     Wolverine is creating the queues
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -40,8 +42,8 @@ public class AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<A
     }
 
     /// <summary>
-    /// The maximum number of messages to receive in a single batch when listening
-    /// in either buffered or durable modes. The default is 20.
+    ///     The maximum number of messages to receive in a single batch when listening
+    ///     in either buffered or durable modes. The default is 20.
     /// </summary>
     public AzureServiceBusQueueListenerConfiguration MaximumMessagesToReceive(int maximum)
     {
@@ -50,16 +52,14 @@ public class AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<A
     }
 
     /// <summary>
-    /// The duration for which the listener waits for a message to arrive in the
-    /// queue before returning. If a message is available, the call returns sooner than this time.
-    /// If no messages are available and the wait time expires, the call returns successfully
-    /// with an empty list of messages. Default is 5 seconds.
+    ///     The duration for which the listener waits for a message to arrive in the
+    ///     queue before returning. If a message is available, the call returns sooner than this time.
+    ///     If no messages are available and the wait time expires, the call returns successfully
+    ///     with an empty list of messages. Default is 5 seconds.
     /// </summary>
     public AzureServiceBusQueueListenerConfiguration MaximumWaitTime(TimeSpan time)
     {
         add(e => e.MaximumWaitTime = time);
         return this;
     }
-    
-    
 }

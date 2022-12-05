@@ -1,5 +1,4 @@
 using System;
-using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Routing;
 using Xunit;
@@ -53,14 +52,12 @@ public class TopicRoutingTester
     [Fact]
     public void use_explicit_topic_on_envelope()
     {
-        ShouldBeStringTestExtensions.ShouldBe(
-            TopicRouting.DetermineTopicName(new Envelope(new M1()) { TopicName = "foo" }), "foo");
+        TopicRouting.DetermineTopicName(new Envelope(new M1()) { TopicName = "foo" }).ShouldBe("foo");
     }
 
     [Fact]
     public void use_message_type_topic_if_no_explicit_topic()
     {
-        ShouldBeStringTestExtensions.ShouldBe(TopicRouting.DetermineTopicName(new Envelope(new M1())),
-            TopicRouting.DetermineTopicName(typeof(M1)));
+        TopicRouting.DetermineTopicName(new Envelope(new M1())).ShouldBe(TopicRouting.DetermineTopicName(typeof(M1)));
     }
 }

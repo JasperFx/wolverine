@@ -19,13 +19,6 @@ internal class RetryInlineContinuation : IContinuation, IContinuationSource
         _delay = delay;
     }
 
-    public string Description => _delay == null ? "Retry inline with no delay" : "Retry inline with a delay of " + _delay;
-
-    IContinuation IContinuationSource.Build(Exception ex, Envelope envelope)
-    {
-        return this;
-    }
-
     public TimeSpan? Delay => _delay;
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
@@ -36,6 +29,14 @@ internal class RetryInlineContinuation : IContinuation, IContinuationSource
         }
 
         await lifecycle.RetryExecutionNowAsync().ConfigureAwait(false);
+    }
+
+    public string Description =>
+        _delay == null ? "Retry inline with no delay" : "Retry inline with a delay of " + _delay;
+
+    IContinuation IContinuationSource.Build(Exception ex, Envelope envelope)
+    {
+        return this;
     }
 
     public override string ToString()

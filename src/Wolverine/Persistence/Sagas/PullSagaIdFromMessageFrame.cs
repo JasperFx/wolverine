@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Baseline;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using Oakton.Parsing;
 
 namespace Wolverine.Persistence.Sagas;
@@ -14,9 +14,9 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
 {
     private readonly Type _messageType;
     private readonly MemberInfo _sagaIdMember;
+    private readonly Type? _sagaIdType;
     private Variable? _envelope;
     private Variable? _message;
-    private readonly Type? _sagaIdType;
 
     public PullSagaIdFromMessageFrame(Type messageType, MemberInfo sagaIdMember)
     {

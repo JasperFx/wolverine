@@ -1,19 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
-using Wolverine.Util;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Stub;
 
 internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 {
     private readonly StubTransport _stubTransport;
+
     // ReSharper disable once CollectionNeverQueried.Global
     public readonly IList<StubChannelCallback> Callbacks = new List<StubChannelCallback>();
 
@@ -22,16 +22,35 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     private IMessageLogger? _logger;
     private IHandlerPipeline? _pipeline;
 
-    public StubEndpoint(string queueName, StubTransport stubTransport) : base($"stub://{queueName}".ToUri(), EndpointRole.Application)
+    public StubEndpoint(string queueName, StubTransport stubTransport) : base($"stub://{queueName}".ToUri(),
+        EndpointRole.Application)
     {
         _stubTransport = stubTransport;
         Agent = this;
         EndpointName = queueName;
     }
+
     public ValueTask StopAsync()
     {
         return ValueTask.CompletedTask;
     }
+
+    public ValueTask DisposeAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask IChannelCallback.DeferAsync(Envelope envelope)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    Uri IListener.Address => Destination;
 
     public async ValueTask SendAsync(Envelope envelope)
     {
@@ -51,15 +70,6 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     public bool Latched => false;
 
     public bool IsDurable => Mode == EndpointMode.Durable;
-
-    public void Dispose()
-    {
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
 
     public Uri Destination => Uri;
 
@@ -93,6 +103,10 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 
     public bool SupportsNativeScheduledSend { get; } = true;
 
+    public void Dispose()
+    {
+    }
+
 
     public void Start(IHandlerPipeline pipeline, IMessageLogger logger)
     {
@@ -109,17 +123,4 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     {
         return this;
     }
-
-    ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    ValueTask IChannelCallback.DeferAsync(Envelope envelope)
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    Uri IListener.Address => Destination;
-
 }

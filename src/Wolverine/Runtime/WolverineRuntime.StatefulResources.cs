@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using Oakton.Resources;
 
 namespace Wolverine.Runtime;
@@ -17,8 +16,7 @@ public partial class WolverineRuntime : IStatefulResourceSource
                 list.Add(resource!);
             }
         }
-        
+
         return list;
     }
 }
-

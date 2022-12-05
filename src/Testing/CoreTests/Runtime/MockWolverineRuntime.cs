@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,10 +22,7 @@ namespace CoreTests.Runtime;
 
 public class MockWolverineRuntime : IWolverineRuntime
 {
-    public MockWolverineRuntime()
-    {
-        
-    }
+    public HandlerGraph Handlers { get; } = new();
 
     public IHostEnvironment Environment { get; } = Substitute.For<IHostEnvironment>();
 
@@ -37,8 +33,6 @@ public class MockWolverineRuntime : IWolverineRuntime
     public AdvancedSettings Advanced { get; } = new(null);
 
     public IReplyTracker Replies { get; } = Substitute.For<IReplyTracker>();
-
-    public HandlerGraph Handlers { get; } = new();
 
     public IHandlerPipeline Pipeline { get; } = Substitute.For<IHandlerPipeline>();
     public IMessageLogger MessageLogger { get; } = Substitute.For<IMessageLogger>();
@@ -65,6 +59,11 @@ public class MockWolverineRuntime : IWolverineRuntime
         throw new NotSupportedException();
     }
 
+    public void RegisterMessageType(Type messageType)
+    {
+        throw new NotImplementedException();
+    }
+
     public bool TryFindMessageType(string? messageTypeName, out Type messageType)
     {
         throw new NotSupportedException();
@@ -89,11 +88,6 @@ public class MockWolverineRuntime : IWolverineRuntime
         }
 
         return envelope.Message.GetType();
-    }
-
-    public void RegisterMessageType(Type messageType)
-    {
-        throw new NotImplementedException();
     }
 
     public ISendingAgent AddSubscriber(Uri? replyUri, ISender sender, Endpoint endpoint)

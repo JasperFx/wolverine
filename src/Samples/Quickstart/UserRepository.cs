@@ -2,7 +2,7 @@ namespace Quickstart;
 
 public class UserRepository
 {
-    private readonly Dictionary<Guid, User> _Users = new Dictionary<Guid, User>();
+    private readonly Dictionary<Guid, User> _Users = new();
 
     public void Store(User User)
     {

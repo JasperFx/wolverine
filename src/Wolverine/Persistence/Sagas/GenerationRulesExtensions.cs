@@ -1,5 +1,5 @@
+using JasperFx.CodeGeneration;
 using Lamar;
-using LamarCodeGeneration;
 using Wolverine.Configuration;
 
 namespace Wolverine.Persistence.Sagas;

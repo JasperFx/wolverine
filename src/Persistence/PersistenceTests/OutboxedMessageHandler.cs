@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Baseline.Dates;
+using JasperFx.Core;
 
 namespace PersistenceTests;
 
@@ -19,7 +19,7 @@ public class OutboxedMessageHandler
 
         return _source.Task.WaitAsync(15.Seconds());
     }
-    
+
     public void Handle(OutboxedMessage message)
     {
         _source?.TrySetResult(message);

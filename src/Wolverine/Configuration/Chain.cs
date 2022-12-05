@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Baseline;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core.Reflection;
 using Lamar;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
 using Wolverine.Attributes;
 
 namespace Wolverine.Configuration;

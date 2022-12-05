@@ -38,14 +38,14 @@ public interface IChannelCallback
 
 
     /// <summary>
-    /// Mark the incoming message as not processed
+    ///     Mark the incoming message as not processed
     /// </summary>
     /// <param name="envelope"></param>
     /// <returns></returns>
     ValueTask DeferAsync(Envelope envelope);
 
     /// <summary>
-    /// Attempt to place this message back at the end of the channel queue
+    ///     Attempt to place this message back at the end of the channel queue
     /// </summary>
     /// <param name="envelope"></param>
     /// <returns></returns>

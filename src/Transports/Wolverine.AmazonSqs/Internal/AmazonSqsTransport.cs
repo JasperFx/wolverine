@@ -1,8 +1,7 @@
 using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Baseline;
-using Oakton.Resources;
+using JasperFx.Core;
 using Spectre.Console;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -22,11 +21,6 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         Client = client;
     }
 
-    public override string SanitizeIdentifier(string identifier)
-    {
-        return identifier.Replace('.', '-');
-    }
-
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
 
     public LightweightCache<string, AmazonSqsQueue> Queues { get; }
@@ -39,6 +33,11 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }
+
+    public override string SanitizeIdentifier(string identifier)
+    {
+        return identifier.Replace('.', '-');
+    }
 
     protected override IEnumerable<AmazonSqsQueue> endpoints()
     {
@@ -64,11 +63,12 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield return new PropertyColumn("Queue Name", "name");
-        yield return new PropertyColumn("Messages",nameof(GetQueueAttributesResponse.ApproximateNumberOfMessages), Justify.Right);
-        yield return new PropertyColumn("Delayed", nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesDelayed), Justify.Right);
-        yield return new PropertyColumn("Not Visible", nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesNotVisible), Justify.Right);
-        
-        
+        yield return new PropertyColumn("Messages", nameof(GetQueueAttributesResponse.ApproximateNumberOfMessages),
+            Justify.Right);
+        yield return new PropertyColumn("Delayed",
+            nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesDelayed), Justify.Right);
+        yield return new PropertyColumn("Not Visible",
+            nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesNotVisible), Justify.Right);
     }
 
     public IAmazonSQS BuildClient(IWolverineRuntime runtime)

@@ -1,11 +1,9 @@
-using System;
-using System.Threading.Tasks;
-using Wolverine;
-using Wolverine.Attributes;
-using Wolverine.Runtime.Serialization;
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 using Shouldly;
+using Wolverine;
+using Wolverine.Attributes;
+using Wolverine.Runtime.Serialization;
 using Xunit;
 
 namespace DocumentationSamples
@@ -153,7 +151,7 @@ namespace DocumentationSamples
 
         public byte[] WriteMessage(object message)
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
     }
 

@@ -1,7 +1,6 @@
 using System.Linq;
 using Lamar;
 using NSubstitute;
-using Shouldly;
 using TestMessages;
 using Wolverine.Runtime.Handlers;
 using Xunit;

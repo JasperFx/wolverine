@@ -1,10 +1,10 @@
 using System.Runtime.CompilerServices;
-using Wolverine.Attributes;
 using Lamar;
 using Oakton;
+using Wolverine.Attributes;
 
 [assembly: IgnoreAssembly]
-[assembly: BaselineTypeDiscovery.IgnoreAssembly]
+[assembly: JasperFx.TypeDiscovery.IgnoreAssembly]
 [assembly: OaktonCommandAssembly]
 [assembly: WolverineFeature]
 

@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Linq.Expressions;
 using System.Reflection;
-using Baseline.Reflection;
-using Shouldly;
+using JasperFx.Core.Reflection;
 using TestMessages;
 using Wolverine.Runtime.Handlers;
 using Xunit;
@@ -36,7 +35,7 @@ public class MethodInfoExtensionsTester
         methodFor(x => x.Go2(null, null)).MessageType()
             .ShouldBe(typeof(Message1));
     }
-    
+
     [Fact]
     public void throw_exception_if_you_have_no_parameters()
     {

@@ -1,27 +1,19 @@
-using Wolverine;
-using Wolverine.Marten;
+using Marten;
+using Marten.Events;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Marten;
 
 namespace OrderEventSourcingSample;
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Marten;
-using Marten.Events;
-
 public record OrderShipped;
+
 public record OrderCreated(Item[] Items);
 
-public record OrderReady();
+public record OrderReady;
 
 public record ShipOrder(Guid OrderId);
 
-
 public record ItemReady(string Name);
-
-
 
 #region sample_Order_event_sourced_aggregate
 
@@ -33,6 +25,11 @@ public class Item
 
 public class Order
 {
+    public Order(OrderCreated created)
+    {
+        foreach (var item in created.Items) Items[item.Name] = item;
+    }
+
     // This would be the stream id
     public Guid Id { get; set; }
 
@@ -40,22 +37,21 @@ public class Order
     // be the
     public int Version { get; set; }
 
-    public Order(OrderCreated created)
-    {
-        foreach (var item in created.Items)
-        {
-            Items[item.Name] = item;
-        }
-    }
-
-    // These methods are used by Marten to update the aggregate
-    // from the raw events
-    public void Apply(IEvent<OrderShipped> shipped) => Shipped = shipped.Timestamp;
-    public void Apply(ItemReady ready) => Items[ready.Name].Ready = true;
-
     public DateTimeOffset? Shipped { get; private set; }
 
     public Dictionary<string, Item> Items { get; set; } = new();
+
+    // These methods are used by Marten to update the aggregate
+    // from the raw events
+    public void Apply(IEvent<OrderShipped> shipped)
+    {
+        Shipped = shipped.Timestamp;
+    }
+
+    public void Apply(ItemReady ready)
+    {
+        Items[ready.Name].Ready = true;
+    }
 
     public bool IsReadyToShip()
     {
@@ -124,7 +120,6 @@ public class MarkItemController : ControllerBase
 
     #endregion
 }
-
 
 public class ShipOrderHandler
 {
@@ -279,4 +274,3 @@ public static class MarkItemReadyHandler
 
     #endregion
 }
-

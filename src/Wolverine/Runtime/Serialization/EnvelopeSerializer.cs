@@ -44,6 +44,7 @@ internal static class EnvelopeSerializer
                     {
                         env.ConversationId = cid;
                     }
+
                     break;
 
                 case EnvelopeConstants.DestinationKey:
@@ -73,7 +74,7 @@ internal static class EnvelopeSerializer
                 case EnvelopeConstants.AckRequestedKey:
                     env.AckRequested = value.Equals("true", StringComparison.OrdinalIgnoreCase);
                     break;
-                
+
                 case EnvelopeConstants.IsResponseKey:
                     env.IsResponse = value.Equals("true", StringComparison.OrdinalIgnoreCase);
                     break;

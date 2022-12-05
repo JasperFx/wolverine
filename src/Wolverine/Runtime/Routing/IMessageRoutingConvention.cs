@@ -5,7 +5,7 @@ using Wolverine.Configuration;
 namespace Wolverine.Runtime.Routing;
 
 /// <summary>
-/// Plugin for doing any kind of conventional message routing
+///     Plugin for doing any kind of conventional message routing
 /// </summary>
 public interface IMessageRoutingConvention
 {

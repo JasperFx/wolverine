@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Spectre.Console;
@@ -14,8 +14,8 @@ namespace Wolverine.Transports;
 
 public class BrokerResource : IStatefulResource
 {
-    private readonly IBrokerTransport _transport;
     private readonly IWolverineRuntime _runtime;
+    private readonly IBrokerTransport _transport;
 
     public BrokerResource(IBrokerTransport transport, IWolverineRuntime runtime)
     {
@@ -40,11 +40,12 @@ public class BrokerResource : IStatefulResource
             }
             catch (Exception e)
             {
-                _runtime.Logger.LogError(e, "Error while checking the existence of required broker endpoint {Uri}", endpoint.Uri);
+                _runtime.Logger.LogError(e, "Error while checking the existence of required broker endpoint {Uri}",
+                    endpoint.Uri);
                 missing.Add(endpoint.Uri);
             }
         }
-        
+
         if (missing.Any())
         {
             throw new Exception($"Missing known broker resources: {missing.Select(x => x.ToString()).Join(", ")}");
@@ -54,10 +55,7 @@ public class BrokerResource : IStatefulResource
     public async Task ClearState(CancellationToken token)
     {
         await _transport.ConnectAsync(_runtime);
-        foreach (var queue in _transport.Endpoints().OfType<IBrokerQueue>())
-        {
-            await queue.PurgeAsync(_runtime.Logger);
-        }
+        foreach (var queue in _transport.Endpoints().OfType<IBrokerQueue>()) await queue.PurgeAsync(_runtime.Logger);
     }
 
     public async Task Teardown(CancellationToken token)
@@ -103,10 +101,8 @@ public class BrokerResource : IStatefulResource
 
         var columns = _transport.DiagnosticColumns().ToArray();
         foreach (var column in columns)
-        {
             table.AddColumn(new TableColumn(column.Header) { Alignment = column.Alignment });
-        }
-        
+
         await _transport.ConnectAsync(_runtime);
 
         foreach (var endpoint in _transport.Endpoints().OfType<IBrokerQueue>())
@@ -119,7 +115,8 @@ public class BrokerResource : IStatefulResource
             }
             catch (Exception e)
             {
-                _runtime.Logger.LogError(e, "Error while attempting to determine statist broker endpoint {Uri}", endpoint.Uri);
+                _runtime.Logger.LogError(e, "Error while attempting to determine statist broker endpoint {Uri}",
+                    endpoint.Uri);
             }
         }
 

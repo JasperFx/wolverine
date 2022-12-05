@@ -4,20 +4,20 @@ using Wolverine.Runtime;
 namespace Wolverine.Marten;
 
 /// <summary>
-/// Outbox-ed messaging sending with Marten
+///     Outbox-ed messaging sending with Marten
 /// </summary>
 public interface IMartenOutbox : IMessagePublisher
 {
     /// <summary>
-    /// Enroll a Marten document session into the outbox'd sender
+    ///     Current document session
+    /// </summary>
+    IDocumentSession? Session { get; }
+
+    /// <summary>
+    ///     Enroll a Marten document session into the outbox'd sender
     /// </summary>
     /// <param name="session"></param>
     void Enroll(IDocumentSession session);
-    
-    /// <summary>
-    /// Current document session
-    /// </summary>
-    IDocumentSession? Session { get; }
 }
 
 internal class MartenOutbox : MessageContext, IMartenOutbox
@@ -31,7 +31,7 @@ internal class MartenOutbox : MessageContext, IMartenOutbox
     {
         Session = session;
         Transaction = new MartenEnvelopeTransaction(session, this);
-        
+
         session.Listeners.Add(new FlushOutgoingMessagesOnCommit(this));
     }
 

@@ -4,7 +4,7 @@ namespace Quickstart;
 
 public class IssueRepository
 {
-    private readonly Dictionary<Guid, Issue> _issues = new Dictionary<Guid, Issue>();
+    private readonly Dictionary<Guid, Issue> _issues = new();
 
     public void Store(Issue issue)
     {

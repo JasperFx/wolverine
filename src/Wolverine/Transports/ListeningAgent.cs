@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -14,13 +14,12 @@ namespace Wolverine.Transports;
 
 public interface IListenerCircuit
 {
-    ValueTask PauseAsync(TimeSpan pauseTime);
-    ValueTask StartAsync();
-    
     ListeningStatus Status { get; }
     Endpoint Endpoint { get; }
     int QueueCount { get; }
-    
+    ValueTask PauseAsync(TimeSpan pauseTime);
+    ValueTask StartAsync();
+
     void EnqueueDirectly(IEnumerable<Envelope> envelopes);
 }
 
@@ -35,14 +34,14 @@ public interface IListeningAgent : IListenerCircuit
 
 internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 {
+    private readonly BackPressureAgent? _backPressureAgent;
+    private readonly CircuitBreaker? _circuitBreaker;
+    private readonly ILogger _logger;
+    private readonly HandlerPipeline _pipeline;
     private readonly IWolverineRuntime _runtime;
     private IListener? _listener;
     private IReceiver? _receiver;
     private Restarter? _restarter;
-    private readonly ILogger _logger;
-    private readonly HandlerPipeline _pipeline;
-    private readonly CircuitBreaker? _circuitBreaker;
-    private readonly BackPressureAgent? _backPressureAgent;
 
     public ListeningAgent(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -68,6 +67,31 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             _backPressureAgent = new BackPressureAgent(this, endpoint);
             _backPressureAgent.Start();
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _restarter?.SafeDispose();
+        _backPressureAgent?.SafeDispose();
+
+        if (_listener != null)
+        {
+            await _listener.DisposeAsync();
+        }
+
+        _receiver?.Dispose();
+
+        _circuitBreaker?.SafeDispose();
+
+        _listener = null;
+        _receiver = null;
+    }
+
+    public void Dispose()
+    {
+        _receiver?.Dispose();
+        _circuitBreaker?.SafeDispose();
+        _backPressureAgent?.SafeDispose();
     }
 
     public int QueueCount => _receiver is ILocalQueue q ? q.QueueCount : 0;
@@ -98,8 +122,15 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask StopAndDrainAsync()
     {
-        if (Status == ListeningStatus.Stopped) return;
-        if (_listener == null) return;
+        if (Status == ListeningStatus.Stopped)
+        {
+            return;
+        }
+
+        if (_listener == null)
+        {
+            return;
+        }
 
         try
         {
@@ -125,7 +156,10 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask StartAsync()
     {
-        if (Status == ListeningStatus.Accepting) return;
+        if (Status == ListeningStatus.Accepting)
+        {
+            return;
+        }
 
         _receiver ??= await buildReceiverAsync();
 
@@ -135,7 +169,6 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Started message listening at {Uri}", Uri);
-
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
@@ -154,12 +187,15 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _logger.LogInformation("Pausing message listening at {Uri}", Uri);
         // TODO -- publish through the ListenerTracker here
         _restarter = new Restarter(this, pauseTime);
-
     }
 
     public async ValueTask MarkAsTooBusyAndStopReceivingAsync()
     {
-        if (Status != ListeningStatus.Accepting || _listener == null) return;
+        if (Status != ListeningStatus.Accepting || _listener == null)
+        {
+            return;
+        }
+
         try
         {
             await _listener.StopAsync();
@@ -169,8 +205,9 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             _logger.LogError(e, "Unable to cleanly stop the listener for {Uri}", Uri);
         }
+
         _listener = null;
-        
+
         Status = ListeningStatus.TooBusy;
         _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
@@ -196,27 +233,6 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
                 throw new ArgumentOutOfRangeException();
         }
     }
-
-    public void Dispose()
-    {
-        _receiver?.Dispose();
-        _circuitBreaker?.SafeDispose();
-        _backPressureAgent?.SafeDispose();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _restarter?.SafeDispose();
-        _backPressureAgent?.SafeDispose();
-
-        if (_listener != null) await _listener.DisposeAsync();
-        _receiver?.Dispose();
-
-        _circuitBreaker?.SafeDispose();
-
-        _listener = null;
-        _receiver = null;
-    }
 }
 
 internal class Restarter : IDisposable
@@ -230,7 +246,11 @@ internal class Restarter : IDisposable
         _task = Task.Delay(timeSpan, _cancellation.Token)
             .ContinueWith(async _ =>
             {
-                if (_cancellation.IsCancellationRequested) return;
+                if (_cancellation.IsCancellationRequested)
+                {
+                    return;
+                }
+
                 await parent.StartAsync();
             }, TaskScheduler.Default);
     }

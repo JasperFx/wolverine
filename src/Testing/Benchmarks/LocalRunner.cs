@@ -1,103 +1,102 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
 using BenchmarkDotNet.Attributes;
 using IntegrationTests;
+using JasperFx.Core;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
 
-namespace Benchmarks
+namespace Benchmarks;
+
+[MemoryDiagnoser]
+public class LocalRunner : IDisposable
 {
-    [MemoryDiagnoser]
-    public class LocalRunner : IDisposable
+    private readonly Driver theDriver;
+
+    [Params("SqlServer", "Postgresql", "None")]
+    public string DatabaseEngine;
+
+    [Params(1, 5, 10)] public int NumberOfThreads;
+
+    public LocalRunner()
     {
-        private readonly Driver theDriver;
+        theDriver = new Driver();
+    }
 
-        [Params("SqlServer", "Postgresql", "None")]
-        public string DatabaseEngine;
+    public void Dispose()
+    {
+        theDriver.SafeDispose();
+    }
 
-        [Params(1, 5, 10)] public int NumberOfThreads;
-
-        public LocalRunner()
+    [IterationSetup]
+    public void BuildDatabase()
+    {
+        theDriver.Start(opts =>
         {
-            theDriver = new Driver();
-        }
+            opts.Advanced.DurabilityAgentEnabled = false;
+            switch (DatabaseEngine)
+            {
+                case "SqlServer":
+                    opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
+                    break;
 
-        public void Dispose()
+                case "Postgresql":
+                    opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
+                    break;
+            }
+
+            opts.DefaultLocalQueue
+                .MaximumParallelMessages(NumberOfThreads);
+        }).GetAwaiter().GetResult();
+    }
+
+    [IterationCleanup]
+    public void Teardown()
+    {
+        theDriver.Teardown().GetAwaiter().GetResult();
+    }
+
+    [Benchmark]
+    public async Task Enqueue()
+    {
+        foreach (var target in theDriver.Targets) await theDriver.Publisher.EnqueueAsync(target);
+
+        await theDriver.WaitForAllEnvelopesToBeProcessed();
+    }
+
+    [Benchmark]
+    public async Task EnqueueMultiThreaded()
+    {
+        var task1 = Task.Factory.StartNew(async () =>
         {
-            theDriver.SafeDispose();
-        }
+            foreach (var target in theDriver.Targets.Take(200)) await theDriver.Publisher.EnqueueAsync(target);
+        });
 
-        [IterationSetup]
-        public void BuildDatabase()
+        var task2 = Task.Factory.StartNew(async () =>
         {
-            theDriver.Start(opts =>
-            {
-                opts.Advanced.DurabilityAgentEnabled = false;
-                switch (DatabaseEngine)
-                {
-                    case "SqlServer":
-                        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
-                        break;
+            foreach (var target in theDriver.Targets.Skip(200).Take(200))
+                await theDriver.Publisher.EnqueueAsync(target);
+        });
 
-                    case "Postgresql":
-                        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
-                        break;
-                }
-
-                opts.DefaultLocalQueue
-                    .MaximumParallelMessages(NumberOfThreads);
-            }).GetAwaiter().GetResult();
-        }
-
-        [IterationCleanup]
-        public void Teardown()
+        var task3 = Task.Factory.StartNew(async () =>
         {
-            theDriver.Teardown().GetAwaiter().GetResult();
-        }
+            foreach (var target in theDriver.Targets.Skip(400).Take(200))
+                await theDriver.Publisher.EnqueueAsync(target);
+        });
 
-        [Benchmark]
-        public async Task Enqueue()
+        var task4 = Task.Factory.StartNew(async () =>
         {
-            foreach (var target in theDriver.Targets) await theDriver.Publisher.EnqueueAsync(target);
+            foreach (var target in theDriver.Targets.Skip(600).Take(200))
+                await theDriver.Publisher.EnqueueAsync(target);
+        });
 
-            await theDriver.WaitForAllEnvelopesToBeProcessed();
-        }
-
-        [Benchmark]
-        public async Task EnqueueMultiThreaded()
+        var task5 = Task.Factory.StartNew(async () =>
         {
-            var task1 = Task.Factory.StartNew(async () =>
-            {
-                foreach (var target in theDriver.Targets.Take(200)) await theDriver.Publisher.EnqueueAsync(target);
-            });
-
-            var task2 = Task.Factory.StartNew(async () =>
-            {
-                foreach (var target in theDriver.Targets.Skip(200).Take(200))
-                    await theDriver.Publisher.EnqueueAsync(target);
-            });
-
-            var task3 = Task.Factory.StartNew(async () =>
-            {
-                foreach (var target in theDriver.Targets.Skip(400).Take(200))
-                    await theDriver.Publisher.EnqueueAsync(target);
-            });
-
-            var task4 = Task.Factory.StartNew(async () =>
-            {
-                foreach (var target in theDriver.Targets.Skip(600).Take(200))
-                    await theDriver.Publisher.EnqueueAsync(target);
-            });
-
-            var task5 = Task.Factory.StartNew(async () =>
-            {
-                foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Publisher.EnqueueAsync(target);
-            });
+            foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Publisher.EnqueueAsync(target);
+        });
 
 
-            await theDriver.WaitForAllEnvelopesToBeProcessed();
-        }
+        await theDriver.WaitForAllEnvelopesToBeProcessed();
     }
 }

@@ -1,5 +1,5 @@
-﻿using Baseline;
-using CoreTests.Messaging;
+﻿using CoreTests.Messaging;
+using JasperFx.Core.Reflection;
 using Wolverine.Runtime;
 using Xunit;
 

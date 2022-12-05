@@ -2,9 +2,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Weasel.Core.Migrations;
-using Wolverine.RDBMS;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
+using Wolverine.RDBMS;
 
 namespace Wolverine.Postgresql;
 

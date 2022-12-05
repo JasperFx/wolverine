@@ -1,15 +1,15 @@
 using System.Collections.Generic;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Marten;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 
 internal class DocumentSessionOperationFrame : SyncFrame
 {
-    private readonly Variable _saga;
     private readonly string _methodName;
+    private readonly Variable _saga;
     private Variable? _session;
 
     public DocumentSessionOperationFrame(Variable saga, string methodName)

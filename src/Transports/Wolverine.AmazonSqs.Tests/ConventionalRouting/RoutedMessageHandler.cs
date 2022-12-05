@@ -1,7 +1,8 @@
-namespace Wolverine.AmazonSqs.Tests.ConventionalRouting
+namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
+
+public class RoutedMessageHandler
 {
-    public class RoutedMessageHandler
+    public void Handle(RoutedMessage message)
     {
-        public void Handle(RoutedMessage message){}
     }
 }

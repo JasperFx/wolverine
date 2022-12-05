@@ -1,4 +1,4 @@
-using Baseline;
+using JasperFx.Core;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
@@ -15,11 +15,11 @@ internal class NoNamedEndpointRoute : IMessageRoute
         _message = $"Endpoint name '{endpointName}' is invalid. Known endpoints are {nameList}";
     }
 
+    public string EndpointName { get; }
+
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime)
     {
         throw new UnknownEndpointException(_message);
     }
-
-    public string EndpointName { get; }
 }

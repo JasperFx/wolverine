@@ -1,24 +1,23 @@
 using Wolverine;
 
-namespace TestingSupport.ErrorHandling
+namespace TestingSupport.ErrorHandling;
+
+public class ErrorCausingMessageHandler
 {
-    public class ErrorCausingMessageHandler
+    public void Handle(ErrorCausingMessage message, Envelope envelope, AttemptTracker tracker)
     {
-        public void Handle(ErrorCausingMessage message, Envelope envelope, AttemptTracker tracker)
+        tracker.LastAttempt = envelope.Attempts;
+
+        if (!message.Errors.ContainsKey(envelope.Attempts))
         {
-            tracker.LastAttempt = envelope.Attempts;
+            message.WasProcessed = true;
 
-            if (!message.Errors.ContainsKey(envelope.Attempts))
-            {
-                message.WasProcessed = true;
+            return;
+        }
 
-                return;
-            }
-
-            if (message.Errors.TryGetValue(envelope.Attempts, out var ex))
-            {
-                throw ex;
-            }
+        if (message.Errors.TryGetValue(envelope.Attempts, out var ex))
+        {
+            throw ex;
         }
     }
 }

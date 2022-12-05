@@ -5,10 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
+using JasperFx.CodeGeneration;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
-using LamarCodeGeneration;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 
@@ -97,13 +97,15 @@ internal class TrackedSession : ITrackedSession
             .Where(x => x != null)
             .OfType<T>()
             .Distinct().ToArray();
-        
+
 
         return messages.Length switch
         {
-            0 => throw new InvalidOperationException(BuildActivityMessage($"No message of type {typeof(T).FullNameInCode()} was detected")),
+            0 => throw new InvalidOperationException(
+                BuildActivityMessage($"No message of type {typeof(T).FullNameInCode()} was detected")),
             > 1 => throw new InvalidOperationException(
-                BuildActivityMessage($"Expected one message of type {typeof(T).FullNameInCode()}, but detected {messages.Length}: {messages.Select(x => x!.ToString())!.Join(", ")}")),
+                BuildActivityMessage(
+                    $"Expected one message of type {typeof(T).FullNameInCode()}, but detected {messages.Length}: {messages.Select(x => x!.ToString())!.Join(", ")}")),
             _ => messages.Single()
         };
     }
@@ -129,7 +131,7 @@ internal class TrackedSession : ITrackedSession
     {
         return _envelopes.SelectMany(x => x.Records).OrderBy(x => x.SessionTime).ToArray();
     }
-    
+
     public EnvelopeRecord[] AllRecordsInOrder(EventType eventType)
     {
         return _envelopes
@@ -145,6 +147,12 @@ internal class TrackedSession : ITrackedSession
             .Select(x => x.Exception).Where(x => x != null)
             .Distinct().ToList()!;
     }
+
+    public RecordCollection Received => new(EventType.Received, this);
+    public RecordCollection Sent => new(EventType.Sent, this);
+
+
+    public RecordCollection Executed => new(EventType.ExecutionFinished, this);
 
     public void WatchOther(IHost host)
     {
@@ -229,7 +237,7 @@ internal class TrackedSession : ITrackedSession
         catch (TimeoutException)
         {
             cleanUp();
-            
+
             var message =
                 BuildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
 
@@ -292,7 +300,11 @@ internal class TrackedSession : ITrackedSession
     public void Record(EventType eventType, Envelope envelope, string? serviceName, int uniqueNodeId,
         Exception? ex = null)
     {
-        if (envelope.Message is ValueTask) throw new Exception("What you doing Willis?");
+        if (envelope.Message is ValueTask)
+        {
+            throw new Exception("What you doing Willis?");
+        }
+
         var history = _envelopes[envelope.Id];
 
         var record = new EnvelopeRecord(eventType, envelope, _stopwatch.ElapsedMilliseconds, ex)
@@ -353,10 +365,4 @@ internal class TrackedSession : ITrackedSession
 
         return $"{conditions}\n\n{activity}\\{exceptions}";
     }
-
-    public RecordCollection Received => new RecordCollection(EventType.Received, this);
-    public RecordCollection Sent => new RecordCollection(EventType.Sent, this);
-    
-
-    public RecordCollection Executed => new RecordCollection(EventType.ExecutionFinished, this);
 }

@@ -25,7 +25,7 @@ public class configuration_extension_methods : PostgresqlContext
                 config.AddInMemoryCollection(new Dictionary<string, string>
                     { { "connection", Servers.PostgresConnectionString } });
             })
-            .UseWolverine((context, x) => { PostgresqlConfigurationExtensions.PersistMessagesWithPostgresql(x, context.Configuration["connection"]); });
+            .UseWolverine((context, x) => { x.PersistMessagesWithPostgresql(context.Configuration["connection"]); });
 
 
         using var host = builder.Build();

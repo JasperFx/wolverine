@@ -1,9 +1,8 @@
 using System.Diagnostics;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
-using Wolverine.Transports;
 
 namespace ScheduledJobTests;
 
@@ -25,12 +24,12 @@ public class delayed_message_end_to_end
         await host.SendAsync(message);
 
         var envelope = await waiter;
-        
+
         stopwatch.Stop();
-        
+
         // should have been a 3 second delay, and it's not perfect. But at least 3 seconds
         stopwatch.Elapsed.ShouldBeGreaterThan(3.Seconds());
-        
+
         envelope.Message.ShouldBeOfType<EnforcedTimeout>()
             .Number.ShouldBe(23);
     }
@@ -49,7 +48,7 @@ public class TimeoutHandler
         _completion = new TaskCompletionSource<Envelope>();
         return _completion.Task.WaitAsync(timeout);
     }
-    
+
     public EnforcedTimeout Handle(KickOffMessage message)
     {
         return new EnforcedTimeout(message.Number);

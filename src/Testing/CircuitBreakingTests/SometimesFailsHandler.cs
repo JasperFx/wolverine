@@ -39,6 +39,4 @@ public class SometimesFailsHandler
                 return MessageResult.Success;
         }
     }
-
-
 }

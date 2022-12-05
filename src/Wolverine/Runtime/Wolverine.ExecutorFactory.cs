@@ -10,7 +10,7 @@ public partial class WolverineRuntime : IExecutorFactory
         var handler = Handlers.HandlerFor(messageType);
         var executor = handler == null
             ? new NoHandlerExecutor(messageType, this)
-            : (IExecutor)Executor.Build(this, Handlers, messageType);
+            : Executor.Build(this, Handlers, messageType);
 
         return executor!;
     }

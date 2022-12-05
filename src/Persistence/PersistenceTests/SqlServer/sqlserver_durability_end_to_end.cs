@@ -1,9 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
 using IntegrationTests;
+using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

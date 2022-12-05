@@ -1,23 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <Description>Marten-backed Persistence for Wolverine Applications</Description>
-    <DebugType>portable</DebugType>
-    <PackageId>WolverineFx.Marten</PackageId>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
-    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-    <LangVersion>10</LangVersion>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-  <ItemGroup>
+    <PropertyGroup>
+        <Description>Marten-backed Persistence for Wolverine Applications</Description>
+        <DebugType>portable</DebugType>
+        <PackageId>WolverineFx.Marten</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <LangVersion>10</LangVersion>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+    <ItemGroup>
 
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
-    <PackageReference Include="Marten.CommandLine" Version="6.0.0-alpha.2" />
-  </ItemGroup>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
+        <PackageReference Include="Marten.CommandLine" Version="6.0.0-alpha.5"/>
+    </ItemGroup>
 
-  <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../Analysis.Build.props"/>
 </Project>

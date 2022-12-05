@@ -16,6 +16,8 @@ internal class FailureRule
         _match = match;
     }
 
+    public FailureSlot this[int attempt] => _slots[attempt - 1];
+
     public bool TryCreateContinuation(Exception ex, Envelope env, out IContinuation continuation)
     {
         if (_match.Matches(ex))
@@ -33,8 +35,6 @@ internal class FailureRule
         continuation = NullContinuation.Instance;
         return false;
     }
-
-    public FailureSlot this[int attempt] => _slots[attempt - 1];
 
     public FailureSlot AddSlot(IContinuationSource source)
     {

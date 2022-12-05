@@ -1,8 +1,6 @@
 ﻿using System.Threading.Tasks;
-using Shouldly;
 using TestingSupport;
 using TestMessages;
-using Wolverine;
 using Xunit;
 
 namespace CoreTests.Compilation;

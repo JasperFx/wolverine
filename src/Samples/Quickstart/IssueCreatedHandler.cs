@@ -56,4 +56,3 @@ public static class UserAssignedHandler
         return new MailMessage();
     }
 }
-

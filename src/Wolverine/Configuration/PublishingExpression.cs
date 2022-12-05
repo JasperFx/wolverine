@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Baseline;
-using Wolverine.Util;
+using JasperFx.Core;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
+using Wolverine.Util;
 
 namespace Wolverine.Configuration;
 
@@ -38,16 +38,6 @@ public class PublishingExpression : IPublishToExpression
         AddSubscriber(endpoint);
 
         return new SubscriberConfiguration(endpoint);
-    }
-
-    public void AddSubscriber(Endpoint endpoint)
-    {
-        _endpoints.Add(endpoint);
-
-        if (AutoAddSubscriptions)
-        {
-            endpoint.Subscriptions.AddRange(_subscriptions);
-        }
     }
 
 
@@ -94,9 +84,19 @@ public class PublishingExpression : IPublishToExpression
         return new LocalQueueConfiguration(settings);
     }
 
+    public void AddSubscriber(Endpoint endpoint)
+    {
+        _endpoints.Add(endpoint);
+
+        if (AutoAddSubscriptions)
+        {
+            endpoint.Subscriptions.AddRange(_subscriptions);
+        }
+    }
+
 
     /// <summary>
-    /// Create a publishing rule for a single message type
+    ///     Create a publishing rule for a single message type
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
@@ -106,7 +106,7 @@ public class PublishingExpression : IPublishToExpression
     }
 
     /// <summary>
-    /// Create a publishing rule for a single message type
+    ///     Create a publishing rule for a single message type
     /// </summary>
     /// <param name="type"></param>
     /// <returns></returns>
@@ -117,8 +117,8 @@ public class PublishingExpression : IPublishToExpression
     }
 
     /// <summary>
-    /// Create a publishing rule for all message types from within the
-    /// specified namespace
+    ///     Create a publishing rule for all message types from within the
+    ///     specified namespace
     /// </summary>
     /// <param name="namespace"></param>
     /// <returns></returns>
@@ -134,8 +134,8 @@ public class PublishingExpression : IPublishToExpression
     }
 
     /// <summary>
-    /// Create a publishing rule for all message types from within the
-    /// specified namespace holding the marker type "T"
+    ///     Create a publishing rule for all message types from within the
+    ///     specified namespace holding the marker type "T"
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
@@ -145,7 +145,7 @@ public class PublishingExpression : IPublishToExpression
     }
 
     /// <summary>
-    /// Create a publishing rule for all messages from the given assembly
+    ///     Create a publishing rule for all messages from the given assembly
     /// </summary>
     /// <param name="assembly"></param>
     /// <returns></returns>
@@ -156,7 +156,7 @@ public class PublishingExpression : IPublishToExpression
     }
 
     /// <summary>
-    /// Create a publishing rule for all messages from the given assembly that contains the type T
+    ///     Create a publishing rule for all messages from the given assembly that contains the type T
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>

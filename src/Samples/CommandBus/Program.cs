@@ -1,12 +1,12 @@
-using Baseline.Dates;
 using CommandBusSamples;
-using Wolverine;
-using Wolverine.ErrorHandling;
-using Wolverine.Marten;
+using JasperFx.Core;
 using Marten;
 using Npgsql;
 using Oakton;
 using Oakton.Resources;
+using Wolverine;
+using Wolverine.ErrorHandling;
+using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,9 +16,9 @@ builder.Services.AddSingleton<IRestaurantProxy, RealRestaurantProxy>();
 
 // Normal Marten integration
 builder.Services.AddMarten(opts =>
-{
-    opts.Connection("Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres");
-})
+    {
+        opts.Connection("Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres");
+    })
     // NEW! Adding Wolverine outbox integration to Marten in the "messages"
     // database schema
     .IntegrateWithWolverine("messages");

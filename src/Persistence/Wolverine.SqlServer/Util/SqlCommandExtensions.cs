@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using Baseline;
-using Wolverine.RDBMS;
+using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
+using Wolverine.RDBMS;
 
 namespace Wolverine.SqlServer.Util;
 

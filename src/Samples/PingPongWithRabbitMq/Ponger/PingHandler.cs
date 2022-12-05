@@ -1,38 +1,35 @@
-using System;
-using System.Threading.Tasks;
+using Spectre.Console;
 using Wolverine;
-using Oakton;
 
-namespace Ponger
+namespace Ponger;
+
+#region sample_PingHandler
+
+public static class PingHandler
 {
-    #region sample_PingHandler
+    // Simple message handler for the PingMessage message type
+    public static ValueTask Handle(
+        // The first argument is assumed to be the message type
+        PingMessage message,
 
-    public static class PingHandler
+        // Wolverine supports method injection similar to ASP.Net Core MVC
+        // In this case though, IMessageContext is scoped to the message
+        // being handled
+        IMessageContext context)
     {
-        // Simple message handler for the PingMessage message type
-        public static ValueTask Handle(
-            // The first argument is assumed to be the message type
-            PingMessage message,
+        AnsiConsole.Write($"[blue]Got ping #{message.Number}[/]");
 
-            // Wolverine supports method injection similar to ASP.Net Core MVC
-            // In this case though, IMessageContext is scoped to the message
-            // being handled
-            IMessageContext context)
+        var response = new PongMessage
         {
-            ConsoleWriter.Write(ConsoleColor.Blue, $"Got ping #{message.Number}");
+            Number = message.Number
+        };
 
-            var response = new PongMessage
-            {
-                Number = message.Number
-            };
-
-            // This usage will send the response message
-            // back to the original sender. Wolverine uses message
-            // headers to embed the reply address for exactly
-            // this use case
-            return context.RespondToSenderAsync(response);
-        }
+        // This usage will send the response message
+        // back to the original sender. Wolverine uses message
+        // headers to embed the reply address for exactly
+        // this use case
+        return context.RespondToSenderAsync(response);
     }
-
-    #endregion
 }
+
+#endregion

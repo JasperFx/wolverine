@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -23,11 +23,6 @@ internal class MethodCallAgainstMessage : MethodCall
         var messageType = Method.MessageType();
         Arguments[0] = new Variable(messageType,
             $"({messageType.FullNameInCode()})context.{nameof(MessageContext.Envelope)}.{nameof(Envelope.Message)}");
-        foreach (var variable in base.FindVariables(chain))
-        {
-            yield return variable;
-        }
-
-        
+        foreach (var variable in base.FindVariables(chain)) yield return variable;
     }
 }

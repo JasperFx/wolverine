@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Baseline;
-using Baseline.Reflection;
-using ImTools;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Transports;
@@ -13,15 +12,13 @@ namespace Wolverine.Runtime.Routing;
 
 public abstract class MessageRouterBase<T> : IMessageRouter
 {
-    internal WolverineRuntime Runtime { get; }
+    private readonly MessageRoute _local;
 
-    private ImHashMap<Uri, MessageRoute> _specificRoutes = ImHashMap<Uri, MessageRoute>.Empty;
+    private readonly MessageRoute[] _topicRoutes;
     private ImHashMap<string, MessageRoute> _localRoutes = ImHashMap<string, MessageRoute>.Empty;
     private ImHashMap<string, IMessageRoute> _routeByName = ImHashMap<string, IMessageRoute>.Empty;
 
-    private readonly MessageRoute[] _topicRoutes;
-
-    private readonly MessageRoute _local;
+    private ImHashMap<Uri, MessageRoute> _specificRoutes = ImHashMap<Uri, MessageRoute>.Empty;
 
     protected MessageRouterBase(WolverineRuntime runtime)
     {
@@ -45,9 +42,46 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         Runtime = runtime;
     }
 
+    internal WolverineRuntime Runtime { get; }
+
     public ISendingAgent LocalDurableQueue { get; }
 
     public List<IEnvelopeRule> HandlerRules { get; } = new();
+
+    public Envelope[] RouteForSend(object message, DeliveryOptions? options)
+    {
+        return RouteForSend((T)message, options);
+    }
+
+    public Envelope[] RouteForPublish(object message, DeliveryOptions? options)
+    {
+        return RouteForPublish((T)message, options);
+    }
+
+    public Envelope RouteToDestination(object message, Uri uri, DeliveryOptions? options)
+    {
+        return RouteToDestination((T)message, uri, options);
+    }
+
+    public Envelope RouteToEndpointByName(object message, string endpointName, DeliveryOptions? options)
+    {
+        return RouteToEndpointByName((T)message, endpointName, options);
+    }
+
+    public Envelope[] RouteToTopic(object message, string topicName, DeliveryOptions? options)
+    {
+        return RouteToTopic((T)message, topicName, options);
+    }
+
+    public Envelope RouteLocal(object message, DeliveryOptions? options)
+    {
+        return RouteLocal((T)message, options);
+    }
+
+    public Envelope RouteLocal(object message, string workerQueue, DeliveryOptions? options)
+    {
+        return RouteLocal((T)message, workerQueue, options);
+    }
 
     public abstract Envelope[] RouteForSend(T message, DeliveryOptions? options);
     public abstract Envelope[] RouteForPublish(T message, DeliveryOptions? options);
@@ -85,7 +119,8 @@ public abstract class MessageRouterBase<T> : IMessageRouter
 
         var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
         route = endpoint == null
-            ? new NoNamedEndpointRoute(endpointName, Runtime.Options.Transports.AllEndpoints().Select(x => x.EndpointName).ToArray())
+            ? new NoNamedEndpointRoute(endpointName,
+                Runtime.Options.Transports.AllEndpoints().Select(x => x.EndpointName).ToArray())
             : new MessageRoute(typeof(T), Runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri).Endpoint);
 
         _routeByName = _routeByName.AddOrUpdate(endpointName, route);
@@ -110,9 +145,13 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             throw new ArgumentNullException(nameof(message));
         }
 
-        if (!_topicRoutes.Any()) throw new InvalidOperationException("There are no registered topic routed endpoints");
+        if (!_topicRoutes.Any())
+        {
+            throw new InvalidOperationException("There are no registered topic routed endpoints");
+        }
+
         var envelopes = new Envelope[_topicRoutes.Length];
-        for (int i = 0; i < envelopes.Length; i++)
+        for (var i = 0; i < envelopes.Length; i++)
         {
             envelopes[i] = _topicRoutes[i].CreateForSending(message, options, LocalDurableQueue, Runtime);
             envelopes[i].TopicName = topicName;
@@ -140,40 +179,5 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         _localRoutes = _localRoutes.AddOrUpdate(workerQueue, route);
 
         return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
-    }
-
-    public Envelope[] RouteForSend(object message, DeliveryOptions? options)
-    {
-        return RouteForSend((T)message, options);
-    }
-
-    public Envelope[] RouteForPublish(object message, DeliveryOptions? options)
-    {
-        return RouteForPublish((T)message, options);
-    }
-
-    public Envelope RouteToDestination(object message, Uri uri, DeliveryOptions? options)
-    {
-        return RouteToDestination((T)message, uri, options);
-    }
-
-    public Envelope RouteToEndpointByName(object message, string endpointName, DeliveryOptions? options)
-    {
-        return RouteToEndpointByName((T)message, endpointName, options);
-    }
-
-    public Envelope[] RouteToTopic(object message, string topicName, DeliveryOptions? options)
-    {
-        return RouteToTopic((T)message, topicName, options);
-    }
-
-    public Envelope RouteLocal(object message, DeliveryOptions? options)
-    {
-        return RouteLocal((T)message, options);
-    }
-
-    public Envelope RouteLocal(object message, string workerQueue, DeliveryOptions? options)
-    {
-        return RouteLocal((T)message, workerQueue, options);
     }
 }

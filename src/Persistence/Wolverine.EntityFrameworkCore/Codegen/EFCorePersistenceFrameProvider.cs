@@ -2,75 +2,24 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Baseline;
-using ImTools;
-using Wolverine.Configuration;
-using Wolverine.Persistence.Sagas;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
 using Microsoft.EntityFrameworkCore;
+using Wolverine.Configuration;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
-using TypeExtensions = Baseline.TypeExtensions;
 
 namespace Wolverine.EntityFrameworkCore.Codegen;
 
 // ReSharper disable once InconsistentNaming
 internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITransactionFrameProvider
 {
-    public void ApplyTransactionSupport(IChain chain, IContainer container)
-    {
-        var dbType = DetermineDbContextType(chain, container);
-
-        chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
-
-
-        var saveChangesAsync =
-            dbType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
-
-        var call = new MethodCall(dbType, saveChangesAsync)
-        {
-            CommentText = "Added by EF Core Transaction Middleware"
-        };
-
-        chain.Postprocessors.Add(call);
-
-        if (chain.ShouldFlushOutgoingMessages())
-        {
-#pragma warning disable CS4014
-            chain.Postprocessors.Add(MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync()));
-#pragma warning restore CS4014
-        }
-    }
-
     private ImHashMap<Type, Type> _dbContextTypes = ImHashMap<Type, Type>.Empty;
-
-    internal Type DetermineDbContextType(Type entityType, IContainer container)
-    {
-        if (_dbContextTypes.TryFind(entityType, out var dbContextType))
-        {
-            return dbContextType;
-        }
-
-        using var nested = container.GetNestedContainer();
-        var candidates = container.Model.ServiceTypes.Where(x => x.ServiceType.CanBeCastTo<DbContext>())
-            .Select(x => x.ServiceType).ToArray();
-
-        foreach (var candidate in candidates)
-        {
-            var dbContext = (DbContext)nested.GetInstance(candidate);
-            if (dbContext.Model.FindEntityType(entityType) != null)
-            {
-                _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
-                return candidate;
-            }
-        }
-
-        throw new ArgumentOutOfRangeException(nameof(entityType),
-            $"Cannot find a DbContext type that has a mapping for {entityType.FullNameInCode()}");
-    }
 
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
@@ -79,8 +28,10 @@ internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, I
         var context = (DbContext)nested.GetInstance(dbContextType);
         var config = context.Model.FindEntityType(sagaType);
         if (config == null)
+        {
             throw new InvalidOperationException(
                 $"Could not find entity configuration for {sagaType.FullNameInCode()} in DbContext {context}");
+        }
 
         return config.FindPrimaryKey()?.GetKeyType() ??
                throw new InvalidOperationException(
@@ -119,9 +70,59 @@ internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, I
         return new DbContextOperationFrame(dbContextType, saga, nameof(DbContext.Remove));
     }
 
+    public void ApplyTransactionSupport(IChain chain, IContainer container)
+    {
+        var dbType = DetermineDbContextType(chain, container);
+
+        chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
+
+
+        var saveChangesAsync =
+            dbType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
+
+        var call = new MethodCall(dbType, saveChangesAsync)
+        {
+            CommentText = "Added by EF Core Transaction Middleware"
+        };
+
+        chain.Postprocessors.Add(call);
+
+        if (chain.ShouldFlushOutgoingMessages())
+        {
+#pragma warning disable CS4014
+            chain.Postprocessors.Add(MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync()));
+#pragma warning restore CS4014
+        }
+    }
+
+    internal Type DetermineDbContextType(Type entityType, IContainer container)
+    {
+        if (_dbContextTypes.TryFind(entityType, out var dbContextType))
+        {
+            return dbContextType;
+        }
+
+        using var nested = container.GetNestedContainer();
+        var candidates = container.Model.ServiceTypes.Where(x => x.ServiceType.CanBeCastTo<DbContext>())
+            .Select(x => x.ServiceType).ToArray();
+
+        foreach (var candidate in candidates)
+        {
+            var dbContext = (DbContext)nested.GetInstance(candidate);
+            if (dbContext.Model.FindEntityType(entityType) != null)
+            {
+                _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
+                return candidate;
+            }
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(entityType),
+            $"Cannot find a DbContext type that has a mapping for {entityType.FullNameInCode()}");
+    }
+
     public static Type DetermineDbContextType(IChain chain, IContainer container)
     {
-        var contextTypes = chain.ServiceDependencies(container).Where(x => TypeExtensions.CanBeCastTo<DbContext>(x)).ToArray();
+        var contextTypes = chain.ServiceDependencies(container).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
 
         if (contextTypes.Length == 0)
         {
@@ -151,9 +152,11 @@ internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, I
 
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
-            writer.WriteComment("Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
-            writer.Write($"var envelopeTransaction = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext!.Usage}, {_context!.Usage});");
-            
+            writer.WriteComment(
+                "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
+            writer.Write(
+                $"var envelopeTransaction = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext!.Usage}, {_context!.Usage});");
+
             writer.Write(
                 $"await context.{nameof(MessageContext.EnlistInOutboxAsync)}(envelopeTransaction);");
 
@@ -174,8 +177,8 @@ internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, I
 internal class DbContextOperationFrame : SyncFrame
 {
     private readonly Type _dbContextType;
-    private readonly Variable _saga;
     private readonly string _methodName;
+    private readonly Variable _saga;
     private Variable? _context;
 
     public DbContextOperationFrame(Type dbContextType, Variable saga, string methodName)
@@ -202,8 +205,8 @@ internal class LoadEntityFrame : AsyncFrame
 {
     private readonly Type _dbContextType;
     private readonly Variable _sagaId;
-    private Variable? _context;
     private Variable? _cancellation;
+    private Variable? _context;
 
     public LoadEntityFrame(Type dbContextType, Type sagaType, Variable sagaId)
     {
@@ -226,9 +229,8 @@ internal class LoadEntityFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Saga.Usage} = await {_context!.Usage}.{nameof(DbContext.FindAsync)}<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}).ConfigureAwait(false);");
+        writer.Write(
+            $"var {Saga.Usage} = await {_context!.Usage}.{nameof(DbContext.FindAsync)}<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
-
-
 }

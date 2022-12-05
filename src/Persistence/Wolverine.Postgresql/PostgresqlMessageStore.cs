@@ -8,9 +8,9 @@ using Npgsql;
 using NpgsqlTypes;
 using Weasel.Core;
 using Wolverine.Logging;
-using Wolverine.RDBMS;
-using Wolverine.Postgresql.Util;
 using Wolverine.Postgresql.Schema;
+using Wolverine.Postgresql.Util;
+using Wolverine.RDBMS;
 using Wolverine.Transports;
 
 namespace Wolverine.Postgresql;
@@ -63,8 +63,8 @@ internal class PostgresqlMessageStore : DatabaseBackedMessageStore<NpgsqlConnect
     {
         if (ex is PostgresException postgresException)
         {
-            return 
-                postgresException.Message.Contains("duplicate key value violates unique constraint") ;
+            return
+                postgresException.Message.Contains("duplicate key value violates unique constraint");
         }
 
         return false;
@@ -166,7 +166,11 @@ internal class PostgresqlMessageStore : DatabaseBackedMessageStore<NpgsqlConnect
 
     public override Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
     {
-        if (Session.Transaction == null) throw new InvalidOperationException("No active transaction");
+        if (Session.Transaction == null)
+        {
+            throw new InvalidOperationException("No active transaction");
+        }
+
         return Session.Transaction.CreateCommand(_reassignOutgoingSql)
             .With("owner", ownerId)
             .WithEnvelopeIds("ids", outgoing)

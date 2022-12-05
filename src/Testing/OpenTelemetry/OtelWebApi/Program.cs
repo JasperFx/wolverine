@@ -1,10 +1,10 @@
-using Wolverine;
-using Wolverine.Transports.Tcp;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OtelMessages;
 using OtelWebApi;
+using Wolverine;
 using Wolverine.RabbitMQ;
+using Wolverine.Transports.Tcp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +29,6 @@ builder.Host.UseWolverine(opts =>
 
     opts.PublishMessage<RabbitMessage1>()
         .ToRabbitExchange(MessagingConstants.OtelExchangeName);
-
 });
 
 builder.Services.AddControllers();
@@ -42,7 +41,6 @@ builder.Services.AddOpenTelemetryTracing(x =>
     x.SetResourceBuilder(ResourceBuilder
             .CreateDefault()
             .AddService("OtelWebApi")) // <-- sets service name
-
         .AddJaegerExporter()
         .AddAspNetCoreInstrumentation()
 

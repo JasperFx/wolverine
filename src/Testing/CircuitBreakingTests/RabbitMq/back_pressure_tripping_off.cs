@@ -1,4 +1,4 @@
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
@@ -28,13 +28,12 @@ public class back_pressure_tripping_off
             .UseWolverine(opts =>
             {
                 opts.ListenToRabbitQueue("pressure").Named("incoming")
-                    
+
                     // Setting it so that the endpoint should trip off with back
                     // pressure pretty easily
                     .BufferedInMemory(new BufferingLimits(100, 50));
-
             })
-            
+
             // This builds any missing Rabbit MQ objects if they don't exist,
             // but purges existing queues so we start from a clean slate
             .UseResourceSetupOnStartup(StartupAction.ResetState)
@@ -46,7 +45,7 @@ public class back_pressure_tripping_off
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var statusRecorder = new StatusRecorder(_output);
         runtime.ListenerTracker.Subscribe(statusRecorder);
-        
+
         var waitForTooBusy =
             runtime.ListenerTracker.WaitForListenerStatusAsync("incoming", ListeningStatus.TooBusy, 1.Minutes());
 
@@ -56,7 +55,7 @@ public class back_pressure_tripping_off
         {
             var publisher = host.Services.GetRequiredService<IMessagePublisher>();
 
-            for (int i = 0; i < 1000; i++)
+            for (var i = 0; i < 1000; i++)
             {
                 await publisher.SendToEndpointAsync("incoming", new SometimesSlowMessage());
             }
@@ -71,9 +70,8 @@ public class back_pressure_tripping_off
 
         // Got all the messages in the end
         await completion;
-        
-        statusRecorder.StateChanges.ShouldContain(x => x.Status == ListeningStatus.TooBusy);
 
+        statusRecorder.StateChanges.ShouldContain(x => x.Status == ListeningStatus.TooBusy);
     }
 
     public class StatusRecorder : IObserver<ListenerState>
@@ -111,15 +109,15 @@ public class SometimesSlowMessage
 
 public class SometimesSlowMessageHandler
 {
-    public static bool RunSlow = false;
-    
+    public static bool RunSlow;
+
     public static async Task Handle(SometimesSlowMessage message)
     {
         if (RunSlow)
         {
             await Task.Delay(2.Seconds());
         }
-        
+
         Recorder.Increment();
     }
 }

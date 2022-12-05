@@ -1,12 +1,12 @@
 ﻿using System;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Lamar;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
 
 namespace Wolverine.Persistence.Sagas;
 
 /// <summary>
-/// This must be implemented for new types of saga storage
+///     This must be implemented for new types of saga storage
 /// </summary>
 public interface ISagaPersistenceFrameProvider
 {

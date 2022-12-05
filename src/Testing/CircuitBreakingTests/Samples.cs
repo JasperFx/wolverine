@@ -1,10 +1,9 @@
 using System.Data.SqlClient;
 using System.Net.Sockets;
-using Baseline;
-using Baseline.Dates;
+using JasperFx.Core;
+using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.ErrorHandling;
-using Microsoft.Extensions.Hosting;
 using Wolverine.RabbitMQ;
 
 namespace CircuitBreakingTests;

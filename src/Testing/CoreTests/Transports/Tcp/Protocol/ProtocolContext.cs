@@ -4,9 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Shouldly;
 using TestingSupport;
-using Wolverine;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Transports.Tcp;
@@ -99,12 +97,12 @@ public class StubReceiverCallback : IReceiver
     public Uri Address { get; }
     public ListeningStatus Status { get; set; }
 
+    public int QueueCount => 0;
+
     public ValueTask DrainAsync()
     {
         return ValueTask.CompletedTask;
     }
-
-    public int QueueCount => 0;
 
 
     public void Dispose()

@@ -7,7 +7,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Tracking;
 using Xunit;
 
 namespace PersistenceTests.Marten;
@@ -39,7 +38,7 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
     public async Task persist_and_send_message_one_tx()
     {
         var id = Guid.NewGuid();
-        
+
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
         var container = (IContainer)_host.Services;
@@ -49,7 +48,7 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
             var session = nested.GetInstance<IDocumentSession>();
             outbox.Enroll(session);
 
-            session.Store(new Item{Id = id});
+            session.Store(new Item { Id = id });
 
             await outbox.PublishAsync(new OutboxedMessage { Id = id });
 
@@ -58,13 +57,11 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
 
         var message = await waiter;
         message.Id.ShouldBe(id);
-        
+
         using var query = container.GetInstance<IDocumentStore>()
             .QuerySession();
         ;
         (await query.LoadAsync<Item>(id)).ShouldNotBeNull();
-        
-        
     }
 }
 
@@ -72,4 +69,3 @@ public class Item
 {
     public Guid Id { get; set; }
 }
-

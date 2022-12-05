@@ -1,26 +1,23 @@
 ﻿using Wolverine;
-using Wolverine.Configuration;
 
-namespace Module1
+namespace Module1;
+
+public class Module1Extension : IWolverineExtension
 {
-    public class Module1Extension : IWolverineExtension
+    public static WolverineOptions Options { get; set; }
+
+    public void Configure(WolverineOptions options)
     {
-        public static WolverineOptions Options { get; set; }
+        Options = options;
 
-        public void Configure(WolverineOptions options)
-        {
-            Options = options;
-
-            options.Services.For<IModuleService>().Use<ServiceFromModule>();
-        }
+        options.Services.For<IModuleService>().Use<ServiceFromModule>();
     }
+}
 
-    public interface IModuleService
-    {
-    }
+public interface IModuleService
+{
+}
 
-
-    public class ServiceFromModule : IModuleService
-    {
-    }
+public class ServiceFromModule : IModuleService
+{
 }

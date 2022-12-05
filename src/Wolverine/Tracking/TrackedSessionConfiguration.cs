@@ -72,7 +72,7 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
-    /// USE CAUTIOUSLY! This will disable all timeout conditions
+    ///     USE CAUTIOUSLY! This will disable all timeout conditions
     /// </summary>
     /// <returns></returns>
     public TrackedSessionConfiguration DoNotAssertTimeout()
@@ -82,7 +82,7 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
-    /// Continue tracking until an expected message is received at this host
+    ///     Continue tracking until an expected message is received at this host
     /// </summary>
     /// <param name="host"></param>
     /// <typeparam name="T"></typeparam>
@@ -124,7 +124,7 @@ public class TrackedSessionConfiguration
         await _session.ExecuteAndTrackAsync();
         return _session;
     }
-    
+
 
     /// <summary>
     ///     Invoke a message inline from the current Wolverine application
@@ -154,7 +154,8 @@ public class TrackedSessionConfiguration
     /// </summary>
     /// <param name="message"></param>
     /// <returns></returns>
-    public Task<ITrackedSession> SendMessageToTopicAndWaitAsync(string topicName, object message, DeliveryOptions? options = null)
+    public Task<ITrackedSession> SendMessageToTopicAndWaitAsync(string topicName, object message,
+        DeliveryOptions? options = null)
     {
         return ExecuteAndWaitAsync(c => c.SendToTopicAsync(topicName, message, options));
     }
@@ -197,19 +198,16 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
-    /// Execute a request with expected reply
+    ///     Execute a request with expected reply
     /// </summary>
     /// <param name="requestInvocation"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public async Task<(ITrackedSession, T?)> RequestAndWaitAsync<T>(Func<IMessageContext, Task<T>> requestInvocation) 
+    public async Task<(ITrackedSession, T?)> RequestAndWaitAsync<T>(Func<IMessageContext, Task<T>> requestInvocation)
     {
         T? response = default;
 
-        Func<IMessageContext, Task> invocation = async c =>
-        {
-            response = await requestInvocation(c);
-        };
+        Func<IMessageContext, Task> invocation = async c => { response = await requestInvocation(c); };
 
         var session = await ExecuteAndWaitAsync(invocation);
 
@@ -218,18 +216,16 @@ public class TrackedSessionConfiguration
 
 
     /// <summary>
-    /// Execute a send and wait operation
+    ///     Execute a send and wait operation
     /// </summary>
     /// <param name="sendAndWaitInvocation"></param>
     /// <returns></returns>
-    public async Task<(ITrackedSession, Acknowledgement?)> SendMessageAndWaitForAcknowledgementAsync(Func<IMessageContext, Task<Acknowledgement>> sendAndWaitInvocation)
+    public async Task<(ITrackedSession, Acknowledgement?)> SendMessageAndWaitForAcknowledgementAsync(
+        Func<IMessageContext, Task<Acknowledgement>> sendAndWaitInvocation)
     {
         Acknowledgement? response = default;
 
-        Func<IMessageContext, Task> invocation = async c =>
-        {
-            response = await sendAndWaitInvocation(c);
-        };
+        Func<IMessageContext, Task> invocation = async c => { response = await sendAndWaitInvocation(c); };
 
         var session = await ExecuteAndWaitAsync(invocation);
 

@@ -1,10 +1,16 @@
-namespace Benchmarks
-{
-    public static class RabbitTesting
-    {
-        public static int Number = 0;
+namespace Benchmarks;
 
-        public static string NextQueueName() => $"perf{++Number}";
-        public static string NextExchangeName() => $"perf{++Number}";
+public static class RabbitTesting
+{
+    public static int Number;
+
+    public static string NextQueueName()
+    {
+        return $"perf{++Number}";
+    }
+
+    public static string NextExchangeName()
+    {
+        return $"perf{++Number}";
     }
 }

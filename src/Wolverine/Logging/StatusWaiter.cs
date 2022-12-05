@@ -5,18 +5,17 @@ namespace Wolverine.Logging;
 
 internal class StatusWaiter : ConditionalWaiter<ListenerState>
 {
-
     private readonly ListenerState _expected;
 
-    public StatusWaiter(ListenerState expected, IObservable<ListenerState> parent, TimeSpan timeout) : base(parent, timeout)
+    public StatusWaiter(ListenerState expected, IObservable<ListenerState> parent, TimeSpan timeout) : base(parent,
+        timeout)
     {
         _expected = expected;
     }
 
     protected override bool hasCompleted(ListenerState state)
     {
-        return (state.EndpointName == _expected.EndpointName || state.Uri == _expected.Uri) && state.Status == _expected.Status;
+        return (state.EndpointName == _expected.EndpointName || state.Uri == _expected.Uri) &&
+               state.Status == _expected.Status;
     }
-
-
 }

@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Wolverine.Util;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Local;
 
@@ -14,10 +14,10 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
     public LocalQueueConfiguration(LocalQueueSettings endpoint) : base(endpoint)
     {
     }
-    
+
     /// <summary>
-    /// Add circuit breaker exception handling to this local queue. This will only
-    /// be applied if the local queue is marked as durable!!!
+    ///     Add circuit breaker exception handling to this local queue. This will only
+    ///     be applied if the local queue is marked as durable!!!
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -35,15 +35,22 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
 
 public class LocalQueueSettings : Endpoint
 {
-    public LocalQueueSettings(string name) : base($"local://{name}".ToUri() ,EndpointRole.Application)
+    public LocalQueueSettings(string name) : base($"local://{name}".ToUri(), EndpointRole.Application)
     {
         EndpointName = name.ToLowerInvariant();
     }
 
-    public override bool ShouldEnforceBackPressure() => false;
-
-    public override bool AutoStartSendingAgent() => true;
     internal List<Type> HandledMessageTypes { get; } = new();
+
+    public override bool ShouldEnforceBackPressure()
+    {
+        return false;
+    }
+
+    public override bool AutoStartSendingAgent()
+    {
+        return true;
+    }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
@@ -58,7 +65,7 @@ public class LocalQueueSettings : Endpoint
     protected internal override ISendingAgent StartSending(IWolverineRuntime runtime, Uri? replyUri)
     {
         Runtime = runtime;
-        
+
         Compile(runtime);
 
         Agent = BuildAgent(runtime);
@@ -78,7 +85,6 @@ public class LocalQueueSettings : Endpoint
             _ => throw new InvalidOperationException()
         };
     }
-
 
 
     public override string ToString()

@@ -10,7 +10,7 @@ var port1 = PortFinder.GetAvailablePort();
 var port2 = PortFinder.GetAvailablePort();
 var port3 = PortFinder.GetAvailablePort();
 
-IHost host = Host.CreateDefaultBuilder(args)
+var host = Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
     {
         opts.Services.AddHostedService<PublishingHostedService>();
@@ -35,10 +35,7 @@ IHost host = Host.CreateDefaultBuilder(args)
         opts.PublishMessage<Message5>().ToPort(port3).UseDurableOutbox();
     })
     .UseResourceSetupOnStartup()
-    .ConfigureServices(services =>
-    {
-        services.AddHostedService<PublishingHostedService>();
-    })
+    .ConfigureServices(services => { services.AddHostedService<PublishingHostedService>(); })
     .Build();
 
 await host.RunAsync();

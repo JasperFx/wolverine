@@ -9,7 +9,8 @@ internal class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceived
 {
     public AzureServiceBusEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime)
     {
-        MapProperty(x => x.ContentType!, (e, m) => e.ContentType = m.ContentType, (e, m) => m.ContentType = e.ContentType);
+        MapProperty(x => x.ContentType!, (e, m) => e.ContentType = m.ContentType,
+            (e, m) => m.ContentType = e.ContentType);
         MapProperty(x => x.Data!, (e, m) => e.Data = m.Body.ToArray(), (e, m) => m.Body = new BinaryData(e.Data!));
         MapProperty(x => x.Id, (e, m) =>
         {
@@ -18,8 +19,9 @@ internal class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceived
                 e.Id = id;
             }
         }, (e, m) => m.MessageId = e.Id.ToString());
-        
-        MapProperty(x => x.CorrelationId!, (e, m) => e.CorrelationId = m.CorrelationId, (e, m) => m.CorrelationId = e.CorrelationId);
+
+        MapProperty(x => x.CorrelationId!, (e, m) => e.CorrelationId = m.CorrelationId,
+            (e, m) => m.CorrelationId = e.CorrelationId);
         MapProperty(x => x.MessageType!, (e, m) => e.MessageType = m.Subject, (e, m) => m.Subject = e.MessageType);
         MapProperty(x => x.ScheduledTime!, (_, _) =>
         {

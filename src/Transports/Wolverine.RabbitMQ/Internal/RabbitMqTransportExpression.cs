@@ -44,7 +44,8 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
-    ///     Declare a new exchange without impacting message routing or listening. The default exchange type is "fan out". This does not respect identifier prefixes!
+    ///     Declare a new exchange without impacting message routing or listening. The default exchange type is "fan out". This
+    ///     does not respect identifier prefixes!
     /// </summary>
     /// <param name="exchangeName"></param>
     /// <param name="configure"></param>
@@ -68,7 +69,8 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
-    ///     Declare that a queue should be created with the supplied name and optional configuration. . This does not respect identifier prefixes!
+    ///     Declare that a queue should be created with the supplied name and optional configuration. . This does not respect
+    ///     identifier prefixes!
     /// </summary>
     /// <param name="queueName"></param>
     /// <param name="configure"></param>

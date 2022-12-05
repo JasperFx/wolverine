@@ -4,7 +4,6 @@ namespace Wolverine.AmazonSqs.Internal;
 
 internal class AmazonSqsEnvelope : Envelope
 {
-
     public AmazonSqsEnvelope(Message message)
     {
         SqsMessage = message;

@@ -6,12 +6,12 @@ namespace Wolverine.ErrorHandling;
 
 internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
 {
+    private readonly TimeSpan _delay;
+
     public ScheduledRetryContinuation(TimeSpan delay)
     {
         _delay = delay;
     }
-
-    private readonly TimeSpan _delay;
 
     public TimeSpan Delay => _delay;
 
@@ -20,6 +20,13 @@ internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
         var scheduledTime = now.Add(_delay);
 
         await lifecycle.ReScheduleAsync(scheduledTime);
+    }
+
+    public string Description => ToString();
+
+    public IContinuation Build(Exception ex, Envelope envelope)
+    {
+        return this;
     }
 
     public override string ToString()
@@ -55,11 +62,5 @@ internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
     public override int GetHashCode()
     {
         return _delay.GetHashCode();
-    }
-
-    public string Description => ToString();
-    public IContinuation Build(Exception ex, Envelope envelope)
-    {
-        return this;
     }
 }

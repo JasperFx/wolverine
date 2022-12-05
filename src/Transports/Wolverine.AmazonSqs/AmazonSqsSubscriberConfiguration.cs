@@ -4,14 +4,15 @@ using Wolverine.Configuration;
 
 namespace Wolverine.AmazonSqs;
 
-public class AmazonSqsSubscriberConfiguration : SubscriberConfiguration<AmazonSqsSubscriberConfiguration, AmazonSqsQueue>
+public class
+    AmazonSqsSubscriberConfiguration : SubscriberConfiguration<AmazonSqsSubscriberConfiguration, AmazonSqsQueue>
 {
     internal AmazonSqsSubscriberConfiguration(AmazonSqsQueue queue) : base(queue)
     {
     }
 
     /// <summary>
-    /// Configure how the queue should be created within SQS
+    ///     Configure how the queue should be created within SQS
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>

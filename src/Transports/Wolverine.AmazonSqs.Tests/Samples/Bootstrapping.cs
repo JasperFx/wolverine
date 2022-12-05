@@ -1,13 +1,12 @@
 using Amazon.Runtime;
 using Amazon.SQS;
-using Baseline.Dates;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.AmazonSqs.Tests.Samples;
 
 public class Bootstrapping
 {
-    
     public async Task for_local_development()
     {
         #region sample_connect_to_sqs_and_localstack
@@ -25,7 +24,6 @@ public class Bootstrapping
 
     public async Task connect_to_broker()
     {
-
         #region sample_simplistic_aws_sqs_setup
 
         var host = await Host.CreateDefaultBuilder()
@@ -52,7 +50,7 @@ public class Bootstrapping
             .UseWolverine((context, opts) =>
             {
                 var config = context.Configuration;
-                
+
                 opts.UseAmazonSqsTransport(sqsConfig =>
                     {
                         sqsConfig.ServiceURL = config["AwsUrl"];
@@ -77,14 +75,14 @@ public class Bootstrapping
             .UseWolverine((context, opts) =>
             {
                 var config = context.Configuration;
-                
+
                 opts.UseAmazonSqsTransport(sqsConfig =>
                     {
                         sqsConfig.ServiceURL = config["AwsUrl"];
                         // And any other elements of the SQS AmazonSQSConfig
                         // that you may need to configure
                     })
-                    
+
                     // And you can also add explicit AWS credentials 
                     .Credentials(new BasicAWSCredentials(config["AwsAccessKey"], config["AwsSecretKey"]))
 

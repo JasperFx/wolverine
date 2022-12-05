@@ -1,8 +1,8 @@
 using System;
-using Baseline.Reflection;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 
 namespace Wolverine.Persistence.Sagas;
 

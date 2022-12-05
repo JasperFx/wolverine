@@ -10,10 +10,10 @@ public partial class Envelope
 {
     public static readonly string PingMessageType = "wolverine-ping";
     private byte[]? _data;
+    private DateTimeOffset? _deliverBy;
 
     private object? _message;
     private DateTimeOffset? _scheduledTime;
-    private DateTimeOffset? _deliverBy;
 
     public Envelope()
     {
@@ -25,7 +25,7 @@ public partial class Envelope
     }
 
     /// <summary>
-    /// Optional metadata about this message
+    ///     Optional metadata about this message
     /// </summary>
     public Dictionary<string, string?> Headers { get; internal set; } = new();
 
@@ -65,35 +65,11 @@ public partial class Envelope
     }
 
     /// <summary>
-    /// Set the ScheduleTime to now plus the value of the supplied TimeSpan
+    ///     Set the ScheduleTime to now plus the value of the supplied TimeSpan
     /// </summary>
     public TimeSpan ScheduleDelay
     {
         set => ScheduledTime = DateTimeOffset.Now.Add(value);
-    }
-
-    /// <summary>
-    ///     Schedule this envelope to be sent or executed
-    ///     after a delay
-    /// </summary>
-    /// <param name="delay"></param>
-    /// <returns></returns>
-    public Envelope ScheduleDelayed(TimeSpan delay)
-    {
-        ScheduledTime = DateTimeOffset.Now.Add(delay);
-        return this;
-    }
-
-    /// <summary>
-    ///     Schedule this envelope to be sent or executed
-    ///     at a certain time
-    /// </summary>
-    /// <param name="time"></param>
-    /// <returns></returns>
-    public Envelope ScheduleAt(DateTimeOffset time)
-    {
-        ScheduledTime = time;
-        return this;
     }
 
     /// <summary>
@@ -193,15 +169,15 @@ public partial class Envelope
     public Uri? Destination { get; set; }
 
     /// <summary>
-    /// The open telemetry activity parent id. Wolverine uses this to correctly correlate connect
-    /// activity across services
+    ///     The open telemetry activity parent id. Wolverine uses this to correctly correlate connect
+    ///     activity across services
     /// </summary>
     public string? ParentId { get; internal set; }
 
     /// <summary>
     ///     Specifies the accepted content types for the requested reply
     /// </summary>
-    public string?[] AcceptedContentTypes { get; set; } = new string?[]{"application/json"};
+    public string?[] AcceptedContentTypes { get; set; } = { "application/json" };
 
     /// <summary>
     ///     Specific message id for this envelope
@@ -220,10 +196,34 @@ public partial class Envelope
     public string? TopicName { get; set; }
 
     /// <summary>
-    /// Purely informational in testing scenarios to record the endpoint
-    /// this envelope was published to
+    ///     Purely informational in testing scenarios to record the endpoint
+    ///     this envelope was published to
     /// </summary>
     public string? EndpointName { get; set; }
+
+    /// <summary>
+    ///     Schedule this envelope to be sent or executed
+    ///     after a delay
+    /// </summary>
+    /// <param name="delay"></param>
+    /// <returns></returns>
+    public Envelope ScheduleDelayed(TimeSpan delay)
+    {
+        ScheduledTime = DateTimeOffset.Now.Add(delay);
+        return this;
+    }
+
+    /// <summary>
+    ///     Schedule this envelope to be sent or executed
+    ///     at a certain time
+    /// </summary>
+    /// <param name="time"></param>
+    /// <returns></returns>
+    public Envelope ScheduleAt(DateTimeOffset time)
+    {
+        ScheduledTime = time;
+        return this;
+    }
 
 
     public override string ToString()

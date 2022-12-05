@@ -1,89 +1,89 @@
 create table %SCHEMA%.wolverine_outgoing_envelopes
 (
-  id
-  uniqueidentifier
-  not
-  null
-  primary
-  key,
-  owner_id
-  int
-  not
-  null,
-  destination
-  varchar
+    id
+    uniqueidentifier
+    not
+    null
+    primary
+    key,
+    owner_id
+    int
+    not
+    null,
+    destination
+    varchar
 (
-  250
+    250
 ) not null,
-  deliver_by datetimeoffset,
-  body varbinary
+    deliver_by datetimeoffset,
+    body varbinary
 (
-  max
+    max
 ) not null
-  );
+    );
 
 create table %SCHEMA%.wolverine_incoming_envelopes
 (
-  id
-  uniqueidentifier
-  not
-  null
-  primary
-  key,
-  status
-  varchar
+    id
+    uniqueidentifier
+    not
+    null
+    primary
+    key,
+    status
+    varchar
 (
-  25
+    25
 ) not null,
-  owner_id int not null,
-  execution_time datetimeoffset default NULL,
-  attempts int default 0 not null,
-  body varbinary
+    owner_id int not null,
+    execution_time datetimeoffset default NULL,
+    attempts int default 0 not null,
+    body varbinary
 (
-  max
+    max
 ) not null
-  );
+    );
 
 create table %SCHEMA%.wolverine_dead_letters
 (
-  id
-  uniqueidentifier
-  not
-  null
-  primary
-  key,
+    id
+    uniqueidentifier
+    not
+    null
+    primary
+    key,
 
-  source
-  VARCHAR
+    source
+    VARCHAR
 (
-  250
+    250
 ),
-  message_type VARCHAR
+    message_type VARCHAR
 (
-  250
+    250
 ),
-  explanation VARCHAR
+    explanation VARCHAR
 (
-  250
+    250
 ),
-  exception_text VARCHAR
+    exception_text VARCHAR
 (
-  MAX
+    MAX
 ),
-  exception_type VARCHAR
+    exception_type VARCHAR
 (
-  250
+    250
 ),
-  exception_message VARCHAR
+    exception_message VARCHAR
 (
-  MAX
+    MAX
 ),
 
-  body varbinary
+    body varbinary
 (
-  max
+    max
 ) not null
-  );
+    );
 
 IF
 NOT EXISTS(SELECT * FROM sys.table_types t INNER JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE t.name = 'EnvelopeIdList' AND s.name = '%SCHEMA%' )

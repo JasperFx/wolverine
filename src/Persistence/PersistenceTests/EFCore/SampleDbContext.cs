@@ -10,7 +10,7 @@ public class SampleDbContext : DbContext
     {
         _options = options;
     }
-    
+
     public DbSet<Item> Items { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -43,9 +43,12 @@ internal class RecoverOutgoingMessages : IMessagingAction
                 try
                 {
                     var sendingAgent = _runtime.Endpoints.GetOrBuildSendingAgent(destination);
-                    
-                    if (sendingAgent.Latched) break;
-                    
+
+                    if (sendingAgent.Latched)
+                    {
+                        break;
+                    }
+
                     var found = await recoverFromAsync(sendingAgent, storage);
 
                     count += found;
@@ -61,7 +64,6 @@ internal class RecoverOutgoingMessages : IMessagingAction
                     await storage.Session.CommitAsync();
                     break;
                 }
-
             }
 
             var wasMaxedOut = count >= _settings.RecoveryBatchSize;
@@ -113,7 +115,8 @@ internal class RecoverOutgoingMessages : IMessagingAction
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Error while trying to recover persisted, outgoing envelopes to {Uri}", sendingAgent.Destination);
+            _logger.LogError(e, "Error while trying to recover persisted, outgoing envelopes to {Uri}",
+                sendingAgent.Destination);
             await storage.Session.RollbackAsync();
             throw;
         }

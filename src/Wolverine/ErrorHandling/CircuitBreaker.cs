@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using Baseline.Dates;
+using JasperFx.Core;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -28,7 +28,10 @@ internal class CircuitBreakerTrackedExecutorFactory : IExecutorFactory
     public IExecutor BuildFor(Type messageType)
     {
         var executor = _innerFactory.BuildFor(messageType);
-        if (executor is Executor e) return e.WrapWithMessageTracking(Breaker);
+        if (executor is Executor e)
+        {
+            return e.WrapWithMessageTracking(Breaker);
+        }
 
         return executor;
     }
@@ -68,12 +71,12 @@ internal interface IMessageSuccessTracker
 
 internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 {
-    private readonly IExceptionMatch _match;
-    private readonly IListenerCircuit _circuit;
-    private readonly CancellationTokenSource _cancellation = new CancellationTokenSource();
-    private readonly ActionBlock<object[]> _processingBlock;
     private readonly BatchingBlock<object> _batching;
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly IListenerCircuit _circuit;
     private readonly List<Generation> _generations = new();
+    private readonly IExceptionMatch _match;
+    private readonly ActionBlock<object[]> _processingBlock;
     private readonly double _ratio;
 
     public CircuitBreaker(CircuitBreakerOptions options, IListenerCircuit circuit)
@@ -94,6 +97,15 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 
     public TimeSpan GenerationPeriod { get; set; }
 
+    public IReadOnlyList<Generation> CurrentGenerations => _generations;
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _processingBlock.Complete();
+        _batching.Dispose();
+    }
+
     public Task TagSuccessAsync()
     {
         return _batching.SendAsync(this);
@@ -110,9 +122,12 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
         var failures = _generations.Sum(x => x.Failures);
         var totals = _generations.Sum(x => x.Total);
 
-        if (totals < Options.MinimumThreshold) return false;
+        if (totals < Options.MinimumThreshold)
+        {
+            return false;
+        }
 
-        return (failures / ((double)totals) >= _ratio);
+        return failures / (double)totals >= _ratio;
     }
 
     private Task processExceptionsAsync(object[] tokens)
@@ -153,11 +168,28 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
         return _generations.Last();
     }
 
-    public IReadOnlyList<Generation> CurrentGenerations => _generations;
+    public void Reset()
+    {
+        _generations.Clear();
+    }
 
 
     internal class Generation
     {
+        public Generation(DateTimeOffset start, CircuitBreaker parent)
+        {
+            Start = start;
+            Expires = start.Add(parent.Options.TrackingPeriod);
+            End = start.Add(parent.GenerationPeriod);
+        }
+
+        public DateTimeOffset Start { get; }
+        public DateTimeOffset Expires { get; }
+
+        public int Failures { get; set; }
+        public int Total { get; set; }
+        public DateTimeOffset End { get; set; }
+
         public bool IsExpired(DateTimeOffset now)
         {
             return now > Expires;
@@ -168,35 +200,9 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
             return now >= Start && now < End;
         }
 
-        public DateTimeOffset Start { get; }
-        public DateTimeOffset Expires { get; }
-
-        public Generation(DateTimeOffset start, CircuitBreaker parent)
-        {
-            Start = start;
-            Expires = start.Add(parent.Options.TrackingPeriod);
-            End = start.Add(parent.GenerationPeriod);
-        }
-
-        public int Failures { get; set; }
-        public int Total { get; set; }
-        public DateTimeOffset End { get; set; }
-
         public override string ToString()
         {
             return $"{nameof(Start)}: {Start}, {nameof(Expires)}: {Expires}, {nameof(End)}: {End}";
         }
-    }
-
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _processingBlock.Complete();
-        _batching.Dispose();
-    }
-
-    public void Reset()
-    {
-        _generations.Clear();
     }
 }

@@ -1,11 +1,10 @@
 using System;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TestMessages;
-using Wolverine.Configuration;
 
 namespace Wolverine.RabbitMQ.Tests;
 
@@ -49,8 +48,6 @@ public class Samples
     }
 
 
-
-
     public static async Task listen_to_queue()
     {
         #region sample_listening_to_rabbitmq_queue
@@ -72,7 +69,6 @@ public class Samples
                         cb.PauseTime = 1.Minutes();
                         // 10% failures will cause the listener to pause
                         cb.FailurePercentageThreshold = 10;
-
                     })
                     .UseDurableInbox();
 
@@ -84,7 +80,6 @@ public class Samples
                     q.PurgeOnStartup = true;
                     q.TimeToLive(5.Minutes());
                 });
-
             }).StartAsync();
 
         #endregion
@@ -106,10 +101,7 @@ public class Samples
 
                 // fine-tune the queue characteristics if Wolverine
                 // will be governing the queue setup
-                opts.PublishAllMessages().ToRabbitQueue("special", queue =>
-                {
-                    queue.IsExclusive = true;
-                });
+                opts.PublishAllMessages().ToRabbitQueue("special", queue => { queue.IsExclusive = true; });
             }).StartAsync();
 
         #endregion
@@ -136,7 +128,7 @@ public class Samples
                     e.ExchangeType = ExchangeType.Direct;
 
                     // If you want, you can also create binding here too
-                    e.BindQueue("queue1", bindingKey: "exchange2ToQueue1");
+                    e.BindQueue("queue1", "exchange2ToQueue1");
                 });
             }).StartAsync();
 
@@ -150,18 +142,12 @@ public class Samples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRabbitMq(rabbit =>
-                {
-                    rabbit.HostName = "localhost";
-                })
+                opts.UseRabbitMq(rabbit => { rabbit.HostName = "localhost"; })
                     // I'm declaring an exchange, a queue, and the binding
                     // key that we're referencing below.
                     // This is NOT MANDATORY, but rather just allows Wolverine to
                     // control the Rabbit MQ object lifecycle
-                    .DeclareExchange("exchange1", ex =>
-                    {
-                        ex.BindQueue("queue1", "key1");
-                    })
+                    .DeclareExchange("exchange1", ex => { ex.BindQueue("queue1", "key1"); })
 
                     // This will direct Wolverine to create any missing Rabbit MQ exchanges,
                     // queues, or binding keys declared in the application at application
@@ -169,7 +155,6 @@ public class Samples
                     .AutoProvision();
 
                 opts.PublishAllMessages().ToRabbitExchange("exchange1");
-
             }).StartAsync();
 
         #endregion
@@ -239,24 +224,20 @@ public class Samples
 
                         // Or maybe you want to conditionally configure listening endpoints
                         x.ConfigureListeners((listener, context) =>
-                        {
-                            if (context.MessageType.IsInNamespace("MyApp.Messages.Important"))
                             {
-                                listener.UseDurableInbox().ListenerCount(5);
-                            }
-                            else
-                            {
-                                // If not important, let's make the queue be
-                                // volatile and purge older messages automatically
-                                listener.TimeToLive(2.Minutes());
-                            }
-
-                        })
-                        // Or maybe you want to conditionally configure the outgoing exchange
-                        .ConfigureSending((ex, _) =>
-                        {
-                            ex.ExchangeType(ExchangeType.Direct);
-                        });
+                                if (context.MessageType.IsInNamespace("MyApp.Messages.Important"))
+                                {
+                                    listener.UseDurableInbox().ListenerCount(5);
+                                }
+                                else
+                                {
+                                    // If not important, let's make the queue be
+                                    // volatile and purge older messages automatically
+                                    listener.TimeToLive(2.Minutes());
+                                }
+                            })
+                            // Or maybe you want to conditionally configure the outgoing exchange
+                            .ConfigureSending((ex, _) => { ex.ExchangeType(ExchangeType.Direct); });
                     });
             }).StartAsync();
 

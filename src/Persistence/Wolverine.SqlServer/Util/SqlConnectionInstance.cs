@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Lamar;
 using Lamar.IoC;
 using Lamar.IoC.Frames;
 using Lamar.IoC.Instances;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 

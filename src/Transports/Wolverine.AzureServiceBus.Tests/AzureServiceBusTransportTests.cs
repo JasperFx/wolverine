@@ -13,27 +13,27 @@ public class AzureServiceBusTransportTests
         var transport = new AzureServiceBusTransport();
         var queue = transport.GetOrCreateEndpoint(new Uri("asb://queue/one"))
             .ShouldBeOfType<AzureServiceBusQueue>();
-        
+
         queue.QueueName.ShouldBe("one");
     }
-    
+
     [Fact]
     public void find_topic_by_uri()
     {
         var transport = new AzureServiceBusTransport();
         var topic = transport.GetOrCreateEndpoint(new Uri("asb://topic/one"))
             .ShouldBeOfType<AzureServiceBusTopic>();
-        
+
         topic.TopicName.ShouldBe("one");
     }
-    
+
     [Fact]
     public void find_subscription_by_uri()
     {
         var transport = new AzureServiceBusTransport();
         var subscription = transport.GetOrCreateEndpoint(new Uri("asb://topic/one/red"))
             .ShouldBeOfType<AzureServiceBusQueueSubscription>();
-        
+
         subscription.SubscriptionName.ShouldBe("red");
     }
 }

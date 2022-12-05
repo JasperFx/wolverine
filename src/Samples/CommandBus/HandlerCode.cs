@@ -1,11 +1,14 @@
-using Wolverine.Attributes;
 using Marten;
+using Wolverine.Attributes;
 
 namespace CommandBusSamples;
 
 public record AddReservation(string RestaurantName, DateTime Time);
+
 public record ConfirmReservation(Guid ReservationId);
+
 public record ReservationAdded(Guid ReservationId);
+
 public record ReservationConfirmed(Guid ReservationId);
 
 public class Reservation
@@ -19,11 +22,12 @@ public class Reservation
 public static class AddReservationHandler
 {
     [Transactional]
-    public static  ReservationAdded Handle(AddReservation command, IDocumentSession session)
+    public static ReservationAdded Handle(AddReservation command, IDocumentSession session)
     {
-        var reservation = new Reservation{
+        var reservation = new Reservation
+        {
             Id = Guid.NewGuid(),
-            Time = DateTime.Today.AddHours(18).AddMinutes(30),  // command.Time,
+            Time = DateTime.Today.AddHours(18).AddMinutes(30), // command.Time,
             RestaurantName = command.RestaurantName,
             IsConfirmed = false
         };

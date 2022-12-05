@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Data.Common;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using Wolverine.Runtime;
 
 namespace Wolverine.RDBMS;
@@ -30,8 +30,9 @@ public class DbTransactionFrame<TTransaction, TConnection> : AsyncFrame
 
         if (_context != null && _isUsingPersistence)
         {
-            writer.Write($"var envelopeTransaction = new {typeof(DatabaseEnvelopeTransaction).FullNameInCode()}({_context.Usage}, {Transaction.Usage});");
-            
+            writer.Write(
+                $"var envelopeTransaction = new {typeof(DatabaseEnvelopeTransaction).FullNameInCode()}({_context.Usage}, {Transaction.Usage});");
+
             writer.Write(
                 $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}(envelopeTransaction);");
         }

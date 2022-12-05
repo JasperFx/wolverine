@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 
 namespace Wolverine.Middleware;
 
@@ -19,13 +19,15 @@ internal class HandlerContinuationFrame : SyncFrame
     {
         if (method.AsyncMode == AsyncMode.AsyncTask)
         {
-            writer.Write($"if ({_variable.Usage} == {typeof(HandlerContinuation).FullNameInCode()}.{nameof(HandlerContinuation.Stop)}) return;");
+            writer.Write(
+                $"if ({_variable.Usage} == {typeof(HandlerContinuation).FullNameInCode()}.{nameof(HandlerContinuation.Stop)}) return;");
         }
         else
         {
-            writer.Write($"if ({_variable.Usage} == {typeof(HandlerContinuation).FullNameInCode()}.{nameof(HandlerContinuation.Stop)}) return {typeof(Task).FullNameInCode()}.{nameof(Task.CompletedTask)};");
+            writer.Write(
+                $"if ({_variable.Usage} == {typeof(HandlerContinuation).FullNameInCode()}.{nameof(HandlerContinuation.Stop)}) return {typeof(Task).FullNameInCode()}.{nameof(Task.CompletedTask)};");
         }
-        
+
         Next?.GenerateCode(method, writer);
     }
 }

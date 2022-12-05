@@ -33,7 +33,7 @@ public class BrokerTransportTests
     {
         var transport = new FakeTransport();
         transport.IdentifierPrefix = "me";
-        
+
         transport.MaybeCorrectName("foo")
             .ShouldBe("me~foo");
     }
@@ -78,16 +78,6 @@ public class FakeEndpoint : Endpoint, IBrokerEndpoint
     {
     }
 
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
-    {
-        throw new NotImplementedException();
-    }
-
-    protected override ISender CreateSender(IWolverineRuntime runtime)
-    {
-        throw new NotImplementedException();
-    }
-
     public ValueTask<bool> CheckAsync()
     {
         throw new NotImplementedException();
@@ -99,6 +89,16 @@ public class FakeEndpoint : Endpoint, IBrokerEndpoint
     }
 
     public ValueTask SetupAsync(ILogger logger)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
+        throw new NotImplementedException();
+    }
+
+    protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         throw new NotImplementedException();
     }

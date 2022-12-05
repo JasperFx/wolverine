@@ -1,11 +1,11 @@
 #region sample_bootstrapping_order_saga_sample
 
-using Wolverine.Marten;
 using Marten;
 using Oakton;
 using Oakton.Resources;
 using OrderSagaSample;
 using Wolverine;
+using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,10 +49,5 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 return await app.RunOaktonCommands(args);
-
-
-
-
-
 
 #endregion

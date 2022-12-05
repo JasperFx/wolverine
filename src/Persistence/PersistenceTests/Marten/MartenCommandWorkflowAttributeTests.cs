@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
+using JasperFx.CodeGeneration;
 using Lamar;
-using LamarCodeGeneration;
 using Marten.Schema;
 using NSubstitute;
 using Shouldly;

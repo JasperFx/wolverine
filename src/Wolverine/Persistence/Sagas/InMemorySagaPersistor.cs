@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 
 namespace Wolverine.Persistence.Sagas;
 
@@ -30,7 +30,11 @@ public class InMemorySagaPersistor
 
     public void Store<T>(T document)
     {
-        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (document == null)
+        {
+            throw new ArgumentNullException(nameof(document));
+        }
+
         var id = typeof(T).GetProperty("Id")?.GetValue(document);
         if (id == null)
         {

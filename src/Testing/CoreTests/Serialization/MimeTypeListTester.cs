@@ -1,5 +1,4 @@
 ﻿using System.Linq;
-using Shouldly;
 using TestingSupport;
 using Wolverine.Runtime.Serialization;
 using Xunit;
@@ -12,11 +11,11 @@ public class MimeTypeListTester
     public void accepts_any()
     {
         // If empty, going to say it's true
-        ShouldBeBooleanExtensions.ShouldBeTrue(new MimeTypeList().AcceptsAny());
+        new MimeTypeList().AcceptsAny().ShouldBeTrue();
 
-        ShouldBeBooleanExtensions.ShouldBeTrue(new MimeTypeList("*/*").AcceptsAny());
-        ShouldBeBooleanExtensions.ShouldBeTrue(new MimeTypeList("application/json,*/*").AcceptsAny());
-        ShouldBeBooleanExtensions.ShouldBeFalse(new MimeTypeList("application/json,text/html").AcceptsAny());
+        new MimeTypeList("*/*").AcceptsAny().ShouldBeTrue();
+        new MimeTypeList("application/json,*/*").AcceptsAny().ShouldBeTrue();
+        new MimeTypeList("application/json,text/html").AcceptsAny().ShouldBeFalse();
     }
 
     [Fact]
@@ -33,7 +32,7 @@ public class MimeTypeListTester
             new MimeTypeList(
                 "application/xml,application/xhtml+xml,text/html;q=0.9, text/plain;q=0.8,image/png,*/*;q=0.5");
 
-        SpecificationExtensions.ShouldHaveTheSameElementsAs<string>(list, "application/xml", "application/xhtml+xml",
+        list.ShouldHaveTheSameElementsAs("application/xml", "application/xhtml+xml",
             "text/html", "text/plain",
             "image/png", "*/*");
     }
@@ -42,7 +41,7 @@ public class MimeTypeListTester
     public void build_with_multiple_mimetypes()
     {
         var list = new MimeTypeList("text/json,application/json");
-        SpecificationExtensions.ShouldHaveTheSameElementsAs<string>(list, "text/json",
+        list.ShouldHaveTheSameElementsAs("text/json",
             EnvelopeConstants.JsonContentType);
     }
 
@@ -50,30 +49,30 @@ public class MimeTypeListTester
     public void matches_negative()
     {
         var list = new MimeTypeList("text/json,application/json");
-        ShouldBeBooleanExtensions.ShouldBeFalse(list.Matches("weird"));
-        ShouldBeBooleanExtensions.ShouldBeFalse(list.Matches("weird", "wrong"));
+        list.Matches("weird").ShouldBeFalse();
+        list.Matches("weird", "wrong").ShouldBeFalse();
     }
 
     [Fact]
     public void matches_positive()
     {
         var list = new MimeTypeList("text/json,application/json");
-        ShouldBeBooleanExtensions.ShouldBeTrue(list.Matches("text/json"));
-        ShouldBeBooleanExtensions.ShouldBeTrue(list.Matches(EnvelopeConstants.JsonContentType));
-        ShouldBeBooleanExtensions.ShouldBeTrue(list.Matches("text/json", EnvelopeConstants.JsonContentType));
+        list.Matches("text/json").ShouldBeTrue();
+        list.Matches(EnvelopeConstants.JsonContentType).ShouldBeTrue();
+        list.Matches("text/json", EnvelopeConstants.JsonContentType).ShouldBeTrue();
     }
 
     [Fact]
     public void should_ignore_empty_string()
     {
         var list = new MimeTypeList(string.Empty);
-        Enumerable.Count<string>(list).ShouldBe(0);
+        list.Count().ShouldBe(0);
     }
 
     [Fact]
     public void should_ignore_whitespace_only_string()
     {
         var list = new MimeTypeList("    ");
-        Enumerable.Count<string>(list).ShouldBe(0);
+        list.Count().ShouldBe(0);
     }
 }

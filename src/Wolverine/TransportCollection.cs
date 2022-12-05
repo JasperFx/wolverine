@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
 using Wolverine.Configuration;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -14,19 +13,14 @@ namespace Wolverine;
 
 public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 {
-    private readonly Dictionary<string, ITransport> _transports = new();
     private readonly List<IEndpointPolicy> _policies = new();
+    private readonly Dictionary<string, ITransport> _transports = new();
 
     internal TransportCollection()
     {
         Add(new StubTransport());
         Add(new LocalTransport());
         Add(new TcpTransport());
-    }
-
-    internal void AddPolicy(IEndpointPolicy policy)
-    {
-        _policies.Add(policy);
     }
 
     internal IEnumerable<IEndpointPolicy> EndpointPolicies => _policies;
@@ -57,6 +51,11 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
         return GetEnumerator();
     }
 
+    internal void AddPolicy(IEndpointPolicy policy)
+    {
+        _policies.Add(policy);
+    }
+
     public ITransport? ForScheme(string scheme)
     {
         return _transports.TryGetValue(scheme.ToLowerInvariant(), out var transport)
@@ -66,7 +65,7 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 
     public void Add(ITransport transport)
     {
-        _transports.SmartAdd(transport.Protocol, transport);
+        _transports[transport.Protocol] = transport;
     }
 
     public T GetOrCreate<T>() where T : ITransport, new()
@@ -80,7 +79,7 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 
         return transport;
     }
-    
+
     internal ITransport Find(Uri uri)
     {
         var transport = ForScheme(uri.Scheme);
@@ -91,7 +90,7 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 
         return transport;
     }
-    
+
     public Endpoint? TryGetEndpoint(Uri uri)
     {
         return Find(uri).TryGetEndpoint(uri);
@@ -106,5 +105,4 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
     {
         return _transports.Values.SelectMany(x => x.Endpoints()).ToArray();
     }
-
 }

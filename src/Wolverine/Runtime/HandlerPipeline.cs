@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using ImTools;
+using JasperFx.Core;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
@@ -23,7 +23,7 @@ public class HandlerPipeline : IHandlerPipeline
     private readonly AdvancedSettings _settings;
 
     private ImHashMap<Type, IExecutor> _executors =
-        ImHashMap<Type,IExecutor>.Empty;
+        ImHashMap<Type, IExecutor>.Empty;
 
 
     internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory)
@@ -45,7 +45,11 @@ public class HandlerPipeline : IHandlerPipeline
 
     public Task InvokeAsync(Envelope envelope, IChannelCallback channel)
     {
-        if (_cancellation.IsCancellationRequested) return Task.CompletedTask;
+        if (_cancellation.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         using var activity = WolverineTracing.StartExecuting(envelope);
 
         return InvokeAsync(envelope, channel, activity);
@@ -53,8 +57,11 @@ public class HandlerPipeline : IHandlerPipeline
 
     public async Task InvokeAsync(Envelope envelope, IChannelCallback channel, Activity? activity)
     {
-        if (_cancellation.IsCancellationRequested) return;
-        
+        if (_cancellation.IsCancellationRequested)
+        {
+            return;
+        }
+
         try
         {
             var context = _contextPool.Get();
@@ -88,8 +95,11 @@ public class HandlerPipeline : IHandlerPipeline
 
     public async Task InvokeNowAsync(Envelope envelope, CancellationToken cancellation = default)
     {
-        if (_cancellation.IsCancellationRequested) return;
-        
+        if (_cancellation.IsCancellationRequested)
+        {
+            return;
+        }
+
         if (envelope.Message == null)
         {
             throw new ArgumentNullException(nameof(envelope.Message));
@@ -132,12 +142,16 @@ public class HandlerPipeline : IHandlerPipeline
             var serializer = envelope.Serializer ?? _runtime.Options.DetermineSerializer(envelope);
 
             if (envelope.Data == null)
+            {
                 throw new ArgumentOutOfRangeException(nameof(envelope),
                     "Envelope does not have a message or deserialized message data");
+            }
 
             if (envelope.MessageType == null)
+            {
                 throw new ArgumentOutOfRangeException(nameof(envelope),
                     "The envelope has no Message or MessageType name");
+            }
 
             if (_graph.TryFindMessageType(envelope.MessageType, out var messageType))
             {

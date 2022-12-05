@@ -2,33 +2,34 @@
 using Microsoft.Extensions.Hosting;
 using NServiceBus;
 
-namespace NServiceBusRabbitMqService
+namespace NServiceBusRabbitMqService;
+
+public class Program
 {
-    public class Program
+    public static void Main(string[] args)
     {
-        public static void Main(string[] args)
-        {
-            CreateHostBuilder(args).Build().Run();
-        }
+        CreateHostBuilder(args).Build().Run();
+    }
 
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .UseNServiceBus(_ =>
-                {
-                    var endpointConfiguration = new EndpointConfiguration("nsb");
-                    endpointConfiguration.UseSerialization<NServiceBus.NewtonsoftJsonSerializer>();
+    public static IHostBuilder CreateHostBuilder(string[] args)
+    {
+        return Host.CreateDefaultBuilder(args)
+            .UseNServiceBus(_ =>
+            {
+                var endpointConfiguration = new EndpointConfiguration("nsb");
+                endpointConfiguration.UseSerialization<NewtonsoftJsonSerializer>();
 
-                    var transport = endpointConfiguration.UseTransport<RabbitMQTransport>();
-                    
-                    transport.UseConventionalRoutingTopology(QueueType.Quorum);
-                    transport.ConnectionString("host=localhost");
-                    
-                    return endpointConfiguration;
-                })
-                .ConfigureWebHostDefaults(webBuilder =>
-                {
-                    webBuilder.UseUrls("http://localhost:5675");
-                    webBuilder.UseStartup<Startup>();
-                });
+                var transport = endpointConfiguration.UseTransport<RabbitMQTransport>();
+
+                transport.UseConventionalRoutingTopology(QueueType.Quorum);
+                transport.ConnectionString("host=localhost");
+
+                return endpointConfiguration;
+            })
+            .ConfigureWebHostDefaults(webBuilder =>
+            {
+                webBuilder.UseUrls("http://localhost:5675");
+                webBuilder.UseStartup<Startup>();
+            });
     }
 }

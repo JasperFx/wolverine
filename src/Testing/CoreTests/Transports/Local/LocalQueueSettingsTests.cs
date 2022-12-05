@@ -1,12 +1,8 @@
 using System;
-using Baseline.Dates;
 using CoreTests.Runtime;
-using Shouldly;
+using JasperFx.Core;
 using Wolverine.Configuration;
-using Wolverine.ErrorHandling;
-using Wolverine.Runtime;
 using Wolverine.Transports.Local;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Transports.Local;
@@ -23,20 +19,18 @@ public class LocalQueueSettingsTests
         {
             Mode = mode
         };
-        
+
         endpoint.ShouldEnforceBackPressure().ShouldBeFalse();
     }
 
     [Fact]
     public void should_use_the_queue_name_as_endpoint_name()
     {
-        var endpoint = new LocalQueueSettings("foo")
-        {
-        };
-        
+        var endpoint = new LocalQueueSettings("foo");
+
         endpoint.EndpointName.ShouldBe("foo");
     }
-    
+
     [Fact]
     public void should_set_the_Uri_in_constructor()
     {
@@ -66,27 +60,21 @@ public class LocalQueueSettingsTests
         var endpoint = new LocalQueueSettings("foo");
         new LocalQueueConfiguration(endpoint).CircuitBreaker();
         endpoint.Compile(new MockWolverineRuntime());
-        
+
         endpoint.CircuitBreakerOptions.ShouldNotBeNull();
     }
-    
-    
+
+
     [Fact]
     public void configure_circuit_breaker_options_with_explicit_config()
     {
         var endpoint = new LocalQueueSettings("Foo");
-        new LocalQueueConfiguration(endpoint).CircuitBreaker(cb =>
-        {
-            cb.PauseTime = 23.Minutes();
-        });
-        
+        new LocalQueueConfiguration(endpoint).CircuitBreaker(cb => { cb.PauseTime = 23.Minutes(); });
+
         endpoint.Compile(new MockWolverineRuntime());
-        
+
         endpoint.CircuitBreakerOptions.PauseTime.ShouldBe(23.Minutes());
 
         endpoint.CircuitBreakerOptions.ShouldNotBeNull();
     }
-
-
-
 }

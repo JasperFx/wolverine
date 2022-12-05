@@ -1,4 +1,3 @@
-using Baseline.Dates;
 using TestingSupport.Compliance;
 
 namespace Wolverine.AmazonSqs.Tests;
@@ -37,7 +36,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 }
 
 [Collection("acceptance")]
-public class BufferedSendingAndReceivingCompliance: TransportCompliance<BufferedComplianceFixture>
+public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
 {
-    
 }

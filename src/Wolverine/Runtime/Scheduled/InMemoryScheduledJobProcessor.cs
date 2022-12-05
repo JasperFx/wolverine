@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Runtime.Scheduled;
@@ -26,19 +26,13 @@ internal class InMemoryScheduledJobProcessor : IScheduledJobProcessor
     public void PlayAll()
     {
         var outstanding = _outstandingJobs.ToArray();
-        foreach (var job in outstanding)
-        {
-            job.Enqueue();
-        }
+        foreach (var job in outstanding) job.Enqueue();
     }
 
     public void Play(DateTime executionTime)
     {
         var outstanding = _outstandingJobs.Where(x => x.ExecutionTime <= executionTime).ToArray();
-        foreach (var job in outstanding)
-        {
-            job.Enqueue();
-        }
+        foreach (var job in outstanding) job.Enqueue();
     }
 
     public Task EmptyAllAsync()
@@ -72,7 +66,7 @@ internal class InMemoryScheduledJobProcessor : IScheduledJobProcessor
     {
         private readonly CancellationTokenSource _cancellation;
         private readonly InMemoryScheduledJobProcessor _parent;
-        private Task _task;
+        private readonly Task _task;
 
         public InMemoryScheduledJob(InMemoryScheduledJobProcessor parent, Envelope envelope,
             DateTimeOffset executionTime)
@@ -96,9 +90,17 @@ internal class InMemoryScheduledJobProcessor : IScheduledJobProcessor
 
         public Envelope Envelope { get; }
 
+        public void Dispose()
+        {
+            _task.Dispose();
+        }
+
         private void publish()
         {
-            if (!_cancellation.IsCancellationRequested) Enqueue();
+            if (!_cancellation.IsCancellationRequested)
+            {
+                Enqueue();
+            }
         }
 
         public void Cancel()
@@ -121,11 +123,6 @@ internal class InMemoryScheduledJobProcessor : IScheduledJobProcessor
         {
             _parent._queue.Enqueue(Envelope);
             Cancel();
-        }
-
-        public void Dispose()
-        {
-            _task.Dispose();
         }
     }
 }

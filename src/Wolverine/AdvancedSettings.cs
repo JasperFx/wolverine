@@ -1,10 +1,10 @@
 using System;
 using System.Reflection;
 using System.Threading;
-using Baseline.Dates;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using Wolverine.Util;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Model;
 
 namespace Wolverine;
 
@@ -19,6 +19,7 @@ public class AdvancedSettings
         _serviceName = applicationAssembly?.GetName().Name ?? "WolverineApplication";
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
+        //CodeGeneration.Sources.Add(new ContainerVariableSource());
 
         CodeGeneration.Assemblies.Add(GetType().GetTypeInfo().Assembly);
         CodeGeneration.Assemblies.Add(applicationAssembly);
@@ -35,9 +36,9 @@ public class AdvancedSettings
     /// </summary>
     public bool DurabilityAgentEnabled { get; set; } = true;
 
-    
+
     /// <summary>
-    /// How long should successfully handled messages be kept to use in idempotency checking
+    ///     How long should successfully handled messages be kept to use in idempotency checking
     /// </summary>
     public TimeSpan KeepAfterMessageHandling { get; set; } = 5.Minutes();
 
@@ -94,10 +95,7 @@ public class AdvancedSettings
     public string? ServiceName
     {
         get => _serviceName;
-        set
-        {
-            _serviceName = value ?? throw new InvalidOperationException("A non-null value is required");
-        }
+        set => _serviceName = value ?? throw new InvalidOperationException("A non-null value is required");
     }
 
 

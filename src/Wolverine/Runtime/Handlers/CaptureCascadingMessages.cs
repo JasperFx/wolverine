@@ -1,7 +1,7 @@
 ﻿using System.Reflection;
-using Baseline.Reflection;
-using LamarCodeGeneration.Frames;
-using LamarCodeGeneration.Model;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 
 namespace Wolverine.Runtime.Handlers;
 

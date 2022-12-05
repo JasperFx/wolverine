@@ -52,7 +52,7 @@ public interface IMessageStore : IDisposable
 
     Task DeleteOutgoingAsync(Envelope envelope);
 
-    
+
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
     // TODO -- call this in system drain?
@@ -66,7 +66,7 @@ public interface IMessageStore : IDisposable
     Task DeleteExpiredHandledEnvelopesAsync(DateTimeOffset utcNow);
 
     Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync();
-    
+
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 }
 

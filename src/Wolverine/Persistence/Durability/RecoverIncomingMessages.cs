@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -70,8 +69,11 @@ internal class RecoverIncomingMessages : IMessagingAction
             pageSize = listener.Endpoint.BufferingLimits.Maximum - listener.QueueCount - 1;
         }
 
-        if (pageSize < 0) return 0;
-        
+        if (pageSize < 0)
+        {
+            return 0;
+        }
+
         return pageSize;
     }
 
@@ -98,7 +100,7 @@ internal class RecoverIncomingMessages : IMessagingAction
         {
             return (IListenerCircuit)_endpoints.GetOrBuildSendingAgent(count.Destination);
         }
-        
+
         var listener = _endpoints.FindListeningAgent(count.Destination) ??
                        _endpoints.FindListeningAgent(TransportConstants.Durable);
         return listener!;

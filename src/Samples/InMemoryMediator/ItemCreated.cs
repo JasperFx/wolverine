@@ -1,7 +1,6 @@
-namespace InMemoryMediator
+namespace InMemoryMediator;
+
+public class ItemCreated
 {
-    public class ItemCreated
-    {
-        public Guid Id { get; set; }
-    }
+    public Guid Id { get; set; }
 }

@@ -1,7 +1,6 @@
-namespace TestingSupport.ErrorHandling
+namespace TestingSupport.ErrorHandling;
+
+public class AttemptTracker
 {
-    public class AttemptTracker
-    {
-        public int LastAttempt;
-    }
+    public int LastAttempt;
 }

@@ -1,4 +1,3 @@
-using System.Reflection;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.ErrorHandling;
@@ -9,12 +8,12 @@ namespace Wolverine.FluentValidation;
 public enum RegistrationBehavior
 {
     /// <summary>
-    /// Let Wolverine discover and register the Fluent Validation validators
+    ///     Let Wolverine discover and register the Fluent Validation validators
     /// </summary>
     DiscoverAndRegisterValidators,
-    
+
     /// <summary>
-    /// Assume that the validators are registered outside of Wolverine
+    ///     Assume that the validators are registered outside of Wolverine
     /// </summary>
     ExplicitRegistration
 }
@@ -22,12 +21,13 @@ public enum RegistrationBehavior
 public static class WolverineFluentValidationExtensions
 {
     /// <summary>
-    /// Apply FluentValidation middleware to message handlers that have known validators
-    /// in the underlying container
+    ///     Apply FluentValidation middleware to message handlers that have known validators
+    ///     in the underlying container
     /// </summary>
     /// <param name="options"></param>
     /// <returns></returns>
-    public static WolverineOptions UseFluentValidation(this WolverineOptions options, RegistrationBehavior? behavior = RegistrationBehavior.DiscoverAndRegisterValidators)
+    public static WolverineOptions UseFluentValidation(this WolverineOptions options,
+        RegistrationBehavior? behavior = RegistrationBehavior.DiscoverAndRegisterValidators)
     {
         options.Services.Policies.Add<ValidatorLifetimePolicy>();
         options.Services.AddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
@@ -36,10 +36,7 @@ public static class WolverineFluentValidationExtensions
         {
             options.Services.Scan(x =>
             {
-                foreach (var assembly in options.Assemblies)
-                {
-                    x.Assembly(assembly);
-                }
+                foreach (var assembly in options.Assemblies) x.Assembly(assembly);
 
                 x.ConnectImplementationsToTypesClosing(typeof(IValidator<>));
             });

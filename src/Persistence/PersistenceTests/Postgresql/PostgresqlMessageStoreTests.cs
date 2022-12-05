@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using Baseline.Dates;
 using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,7 +15,6 @@ using TestingSupport;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
-using Wolverine.Postgresql;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
@@ -109,7 +107,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         counts.Scheduled.ShouldBe(7);
         counts.Outgoing.ShouldBe(3);
     }
-    
+
     [Fact]
     public async Task store_a_single_incoming_envelope()
     {
@@ -124,10 +122,10 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         stored.Id.ShouldBe(envelope.Id);
         stored.OwnerId.ShouldBe(envelope.OwnerId);
         stored.Status.ShouldBe(envelope.Status);
-        
+
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
-    
+
     [Fact]
     public async Task store_a_single_incoming_envelope_that_is_a_duplicate()
     {
@@ -159,7 +157,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         stored.Status.ShouldBe(envelope.Status);
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
-    
+
 
     [Fact]
     public async Task mark_envelope_as_handled()
@@ -171,11 +169,10 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
-        
+
         counts.Incoming.ShouldBe(0);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(1);
-
     }
 
     [Fact]
@@ -190,9 +187,9 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         await thePersistence.Session.BeginAsync();
         await thePersistence.DeleteExpiredHandledEnvelopesAsync(DateTimeOffset.UtcNow.Add(1.Hours()));
         await thePersistence.Session.CommitAsync();
-        
+
         var counts = await thePersistence.Admin.FetchCountsAsync();
-        
+
         counts.Incoming.ShouldBe(0);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
@@ -202,12 +199,12 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
     public async Task load_incoming_counts()
     {
         var random = new Random();
-        
+
         var localOne = "local://one".ToUri();
         var localTwo = "local://two".ToUri();
-        
+
         var list = new List<Envelope>();
-        for (int i = 0; i < 100; i++)
+        for (var i = 0; i < 100; i++)
         {
             var envelope = ObjectMother.Envelope();
             list.Add(envelope);
@@ -247,23 +244,26 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
 
 
         counts[0].Destination.ShouldBe(localOne);
-        counts[0].Count.ShouldBe(list.Count(x => x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming && x.Destination == localOne));
+        counts[0].Count.ShouldBe(list.Count(x =>
+            x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
+            x.Destination == localOne));
 
         counts[1].Destination.ShouldBe(localTwo);
-        counts[1].Count.ShouldBe(list.Count(x => x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming && x.Destination == localTwo));
-
+        counts[1].Count.ShouldBe(list.Count(x =>
+            x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
+            x.Destination == localTwo));
     }
 
     [Fact]
     public async Task fetch_incoming_by_owner_and_address()
     {
         var random = new Random();
-        
+
         var localOne = "local://one".ToUri();
         var localTwo = "local://two".ToUri();
-        
+
         var list = new List<Envelope>();
-        for (int i = 0; i < 1000; i++)
+        for (var i = 0; i < 1000; i++)
         {
             var envelope = ObjectMother.Envelope();
             list.Add(envelope);
@@ -308,7 +308,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
             envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
             envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
         }
-        
+
         one.Count.ShouldBe(limit);
     }
 }

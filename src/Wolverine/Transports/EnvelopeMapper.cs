@@ -4,9 +4,9 @@ using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using Baseline;
-using Baseline.Reflection;
 using FastExpressionCompiler;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Util;
@@ -26,29 +26,27 @@ public interface IIncomingMapper<TIncoming>
 public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>
 {
     IEnumerable<string> AllHeaders();
-    
-    
 }
 
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>
 {
+    private const string datetimeoffset_format = "yyyy-MM-dd HH:mm:ss:ffffff Z";
     private readonly Endpoint _endpoint;
-    private readonly IWolverineRuntime _runtime;
-    const string datetimeoffset_format = "yyyy-MM-dd HH:mm:ss:ffffff Z";
-    
+
     private readonly Dictionary<PropertyInfo, string> _envelopeToHeader = new();
 
     private readonly Dictionary<PropertyInfo, Action<Envelope, TOutgoing>> _envelopeToOutgoing = new();
 
     private readonly Dictionary<PropertyInfo, Action<Envelope, TIncoming>> _incomingToEnvelope = new();
-    private Lazy<Action<Envelope, TIncoming>> _mapIncoming = null!;
-    private Lazy<Action<Envelope, TOutgoing>> _mapOutgoing = null!;
+    private readonly IWolverineRuntime _runtime;
+    private readonly Lazy<Action<Envelope, TIncoming>> _mapIncoming = null!;
+    private readonly Lazy<Action<Envelope, TOutgoing>> _mapOutgoing = null!;
 
     public EnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime)
     {
         _endpoint = endpoint;
         _runtime = runtime;
-        
+
         _mapIncoming = new Lazy<Action<Envelope, TIncoming>>(compileIncoming);
         _mapOutgoing = new Lazy<Action<Envelope, TOutgoing>>(compileOutgoing);
 
@@ -62,7 +60,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         MapPropertyToHeader(x => x.ReplyRequested!, EnvelopeConstants.ReplyRequestedKey);
         MapPropertyToHeader(x => x.ReplyUri!, EnvelopeConstants.ReplyUriKey);
         MapPropertyToHeader(x => x.ScheduledTime!, EnvelopeConstants.ExecutionTimeKey);
-        
+
         MapPropertyToHeader(x => x.SentAt, EnvelopeConstants.SentAtKey);
 
         MapPropertyToHeader(x => x.AckRequested, EnvelopeConstants.AckRequestedKey);
@@ -75,12 +73,26 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
         MapPropertyToHeader(x => x.Attempts, EnvelopeConstants.AttemptsKey);
     }
-    
+
     public IEnumerable<string> AllHeaders()
     {
         return _envelopeToHeader.Values;
     }
-    
+
+    public void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming)
+    {
+        _mapIncoming.Value(envelope, incoming);
+
+        var contentType = envelope.ContentType;
+        var serializer = _endpoint.TryFindSerializer(contentType) ?? _endpoint.DefaultSerializer;
+        envelope.Serializer = serializer;
+    }
+
+    public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing)
+    {
+        _mapOutgoing.Value(envelope, outgoing);
+    }
+
     /// <summary>
     ///     This endpoint will assume that any unidentified incoming message types
     ///     are the supplied message type. This is meant primarily for interaction
@@ -287,20 +299,6 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             writeOutgoingHeader(outgoing, header.Key, header.Value!);
     }
 
-    public void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming)
-    {
-        _mapIncoming.Value(envelope, incoming);
-
-        var contentType = envelope.ContentType;
-        var serializer = _endpoint.TryFindSerializer(contentType) ?? _endpoint.DefaultSerializer;
-        envelope.Serializer = serializer;
-    }
-
-    public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing)
-    {
-        _mapOutgoing.Value(envelope, outgoing);
-    }
-
     protected abstract void writeOutgoingHeader(TOutgoing outgoing, string key, string value);
     protected abstract bool tryReadIncomingHeader(TIncoming incoming, string key, out string? value);
 
@@ -432,7 +430,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
         return false;
     }
-    
+
     protected DateTimeOffset readDateTimeOffset(TIncoming incoming, string key)
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
@@ -450,7 +448,8 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
-            if (DateTimeOffset.TryParseExact(raw, datetimeoffset_format, null, DateTimeStyles.AssumeUniversal, out var flag))
+            if (DateTimeOffset.TryParseExact(raw, datetimeoffset_format, null, DateTimeStyles.AssumeUniversal,
+                    out var flag))
             {
                 return flag;
             }

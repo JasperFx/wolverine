@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
@@ -26,7 +26,7 @@ public partial class WolverineRuntime
             {
                 await Storage.Admin.MigrateAsync();
             }
-            
+
             await startMessagingTransportsAsync();
 
             startInMemoryScheduledJobs();
@@ -59,7 +59,7 @@ public partial class WolverineRuntime
 
 
         await _endpoints.DrainAsync();
- 
+
         Advanced.Cancel();
     }
 
@@ -89,15 +89,14 @@ public partial class WolverineRuntime
 
         // Let any registered routing conventions discover listener endpoints
         foreach (var routingConvention in Options.RoutingConventions)
-        {
             routingConvention.DiscoverListeners(this, Handlers.Chains.Select(x => x.MessageType).ToList());
-        }
 
         foreach (var transport in Options.Transports)
         {
             var replyUri = transport.ReplyEndpoint()?.Uri;
 
-            foreach (var endpoint in transport.Endpoints().Where(x => x.AutoStartSendingAgent())) endpoint.StartSending(this, replyUri);
+            foreach (var endpoint in transport.Endpoints().Where(x => x.AutoStartSendingAgent()))
+                endpoint.StartSending(this, replyUri);
         }
 
         await Endpoints.StartListenersAsync();

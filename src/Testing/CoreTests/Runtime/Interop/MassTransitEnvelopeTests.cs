@@ -6,10 +6,10 @@ namespace CoreTests.Runtime.Interop;
 
 public class MassTransitEnvelopeTests
 {
-    private readonly DateTimeOffset theSentTime = new DateTimeOffset(new DateTime(2022, 9, 13, 5, 0, 0));
-    private readonly DateTimeOffset theExpirationTime = new DateTimeOffset(new DateTime(2022, 9, 13, 5, 5, 0));
-    private readonly Envelope theEnvelope = new Envelope();
+    private readonly Envelope theEnvelope = new();
+    private readonly DateTimeOffset theExpirationTime = new(new DateTime(2022, 9, 13, 5, 5, 0));
     private readonly MassTransitEnvelope theMassTransitEnvelope;
+    private readonly DateTimeOffset theSentTime = new(new DateTime(2022, 9, 13, 5, 0, 0));
 
     public MassTransitEnvelopeTests()
     {
@@ -26,7 +26,6 @@ public class MassTransitEnvelopeTests
         theMassTransitEnvelope.Headers.Add("number", 1);
 
         theMassTransitEnvelope.TransferData(theEnvelope);
-
     }
 
     [Fact]
@@ -49,7 +48,6 @@ public class MassTransitEnvelopeTests
         mtEnvelope.SentTime.ShouldNotBeNull();
 
         mtEnvelope.ExpirationTime.Value.ShouldBe(envelope.DeliverBy.Value.DateTime);
-
     }
 
     [Fact]

@@ -1,7 +1,6 @@
 using System;
-using LamarCodeGeneration;
-using LamarCodeGeneration.Frames;
-using Shouldly;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using TestingSupport;
 using TestMessages;
 using Wolverine.Attributes;

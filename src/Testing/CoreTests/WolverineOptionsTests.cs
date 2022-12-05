@@ -8,10 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Oakton.Resources;
-using Shouldly;
 using TestingSupport;
 using TestingSupport.Fakes;
-using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -25,7 +23,7 @@ namespace CoreTests;
 
 public class WolverineOptionsTests
 {
-    private readonly WolverineOptions theSettings = new WolverineOptions();
+    private readonly WolverineOptions theSettings = new();
 
     [Fact]
     public void unique_node_id_is_really_unique()
@@ -64,7 +62,7 @@ public class WolverineOptionsTests
         using var runtime = await Host.CreateDefaultBuilder()
             .UseWolverine()
             .StartAsync();
-        
+
         runtime.Services.GetRequiredService<IWolverineRuntime>()
             .Endpoints.EndpointFor(TransportConstants.DurableLocalUri)
             .Mode.ShouldBe(EndpointMode.Durable);
@@ -218,16 +216,6 @@ public class WolverineOptionsTests
             throw new NotImplementedException();
         }
 
-        public Endpoint ListenTo(Uri uri)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void StartSenders(IWolverineRuntime root)
-        {
-            throw new NotImplementedException();
-        }
-
         public Endpoint GetOrCreateEndpoint(Uri uri)
         {
             throw new NotImplementedException();
@@ -252,6 +240,16 @@ public class WolverineOptionsTests
         {
             resource = null;
             return false;
+        }
+
+        public Endpoint ListenTo(Uri uri)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void StartSenders(IWolverineRuntime root)
+        {
+            throw new NotImplementedException();
         }
 
         public void Dispose()

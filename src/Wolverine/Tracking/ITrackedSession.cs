@@ -12,6 +12,24 @@ public interface ITrackedSession
     /// </summary>
     TrackingStatus Status { get; }
 
+
+    /// <summary>
+    ///     Records of all messages received during the tracked session
+    /// </summary>
+    RecordCollection Received { get; }
+
+    /// <summary>
+    ///     Records of all messages sent during the tracked session. This will include messages
+    ///     published to local queues
+    /// </summary>
+    RecordCollection Sent { get; }
+
+    /// <summary>
+    ///     Message processing records for messages that were executed. Note that this includes message
+    ///     executions that failed and additional attempts as a separate record in the case of retries
+    /// </summary>
+    RecordCollection Executed { get; }
+
     /// <summary>
     ///     Finds a message of type T that was either sent, received,
     ///     or executed during this session. This will throw an exception
@@ -66,24 +84,6 @@ public interface ITrackedSession
     /// </summary>
     /// <returns></returns>
     IReadOnlyList<Exception> AllExceptions();
-
-
-    /// <summary>
-    /// Records of all messages received during the tracked session
-    /// </summary>
-    RecordCollection Received { get; }
-    
-    /// <summary>
-    /// Records of all messages sent during the tracked session. This will include messages
-    /// published to local queues
-    /// </summary>
-    RecordCollection Sent { get; }
-    
-    /// <summary>
-    /// Message processing records for messages that were executed. Note that this includes message
-    /// executions that failed and additional attempts as a separate record in the case of retries
-    /// </summary>
-    RecordCollection Executed { get; }
 }
 
 #endregion

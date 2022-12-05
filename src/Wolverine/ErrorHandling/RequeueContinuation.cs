@@ -17,15 +17,15 @@ internal class RequeueContinuation : IContinuation, IContinuationSource
         return lifecycle.DeferAsync();
     }
 
-    public override string ToString()
-    {
-        return "Defer the message for later processing";
-    }
-
     public string Description { get; } = "Defer or Re-queue the message for later processing";
 
     public IContinuation Build(Exception ex, Envelope envelope)
     {
         return this;
+    }
+
+    public override string ToString()
+    {
+        return "Defer the message for later processing";
     }
 }

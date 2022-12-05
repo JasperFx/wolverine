@@ -1,6 +1,5 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
-using Shouldly;
 using TestingSupport;
 using TestMessages;
 using Wolverine.Runtime.Routing;
@@ -32,7 +31,7 @@ public class publish_versus_send_mechanics : IntegrationContext
     {
         var session = await Host.ExecuteAndWaitValueTaskAsync(x => x.PublishAsync(new Message3()));
 
-        session.AllRecordsInOrder().Any<EnvelopeRecord>(x => x.EventType != EventType.NoRoutes).ShouldBeFalse();
+        session.AllRecordsInOrder().Any(x => x.EventType != EventType.NoRoutes).ShouldBeFalse();
     }
 
     [Fact]

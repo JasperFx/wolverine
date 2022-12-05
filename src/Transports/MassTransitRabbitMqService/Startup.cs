@@ -6,58 +6,51 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 
-namespace MassTransitService
+namespace MassTransitService;
+
+public class Startup
 {
-    public class Startup
+    public Startup(IConfiguration configuration)
     {
-        public Startup(IConfiguration configuration)
-        {
-            Configuration = configuration;
-        }
+        Configuration = configuration;
+    }
 
-        public IConfiguration Configuration { get; }
+    public IConfiguration Configuration { get; }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
-        public void ConfigureServices(IServiceCollection services)
+    // This method gets called by the runtime. Use this method to add services to the container.
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddMassTransit(x =>
         {
-            services.AddMassTransit(x =>
+            x.UsingRabbitMq((context, cfg) =>
             {
-                x.UsingRabbitMq((context, cfg) =>
+                cfg.ReceiveEndpoint("masstransit", e =>
                 {
-                    cfg.ReceiveEndpoint("masstransit", e =>
-                    {
-                        e.Consumer<InitialMessageResponder>();
-                        e.Consumer<ToMassTransitConsumer>();
-                    });
+                    e.Consumer<InitialMessageResponder>();
+                    e.Consumer<ToMassTransitConsumer>();
                 });
             });
-            services.AddControllers();
-            services.AddSwaggerGen(c =>
-            {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "temp", Version = "v1" });
-            });
-        }
+        });
+        services.AddControllers();
+        services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new OpenApiInfo { Title = "temp", Version = "v1" }); });
+    }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+        if (env.IsDevelopment())
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-                app.UseSwagger();
-                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "temp v1"));
-            }
-
-            app.UseHttpsRedirection();
-
-            app.UseRouting();
-
-            app.UseAuthorization();
-
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapControllers();
-            });
+            app.UseDeveloperExceptionPage();
+            app.UseSwagger();
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "temp v1"));
         }
+
+        app.UseHttpsRedirection();
+
+        app.UseRouting();
+
+        app.UseAuthorization();
+
+        app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
     }
 }

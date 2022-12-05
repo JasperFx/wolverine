@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
 
 namespace Wolverine.Persistence.Sagas;
 

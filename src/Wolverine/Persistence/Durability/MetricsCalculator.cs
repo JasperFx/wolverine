@@ -12,17 +12,21 @@ internal class MetricsCalculator : IMessagingAction
 
     public MetricsCalculator(Meter meter)
     {
-        _incoming = meter.CreateObservableGauge<int>(MetricsConstants.InboxCount, () => Counts.Incoming, MetricsConstants.Messages, "Inbox messages");
-        _outgoing = meter.CreateObservableGauge<int>(MetricsConstants.OutboxCount, () => Counts.Outgoing, MetricsConstants.Messages, "Outbox messages");
-        _scheduled = meter.CreateObservableGauge<int>(MetricsConstants.ScheduledCount, () => Counts.Scheduled, MetricsConstants.Messages, "Scheduled messages");
+        _incoming = meter.CreateObservableGauge(MetricsConstants.InboxCount, () => Counts.Incoming,
+            MetricsConstants.Messages, "Inbox messages");
+        _outgoing = meter.CreateObservableGauge(MetricsConstants.OutboxCount, () => Counts.Outgoing,
+            MetricsConstants.Messages, "Outbox messages");
+        _scheduled = meter.CreateObservableGauge(MetricsConstants.ScheduledCount, () => Counts.Scheduled,
+            MetricsConstants.Messages, "Scheduled messages");
     }
-    
+
+    public PersistedCounts Counts { get; private set; } = new();
+
     public string Description { get; } = "Metrics collection of inbox and outbox";
+
     public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
     {
         var counts = await storage.Admin.FetchCountsAsync();
         Counts = counts;
     }
-
-    public PersistedCounts Counts { get; private set; } = new PersistedCounts();
 }

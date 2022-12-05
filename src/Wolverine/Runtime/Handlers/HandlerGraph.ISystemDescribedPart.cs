@@ -1,8 +1,8 @@
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Baseline;
-using LamarCodeGeneration;
+using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using Oakton.Descriptions;
 using Spectre.Console;
 

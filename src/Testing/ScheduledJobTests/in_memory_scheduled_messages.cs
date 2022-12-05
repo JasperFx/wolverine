@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Baseline.Dates;
+﻿using JasperFx.Core;
+using Shouldly;
 using Wolverine;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Util;
-using Shouldly;
-using Xunit;
 
 namespace ScheduledJobTests;
 
@@ -19,12 +14,7 @@ public class in_memory_scheduled_messages : ILocalQueue
         _callbacks = new();
 
     private readonly IList<Envelope> sent = new List<Envelope>();
-    private InMemoryScheduledJobProcessor theScheduledJobs;
-
-    public Uri Uri { get; }
-    public Uri ReplyUri { get; }
-    public Uri Destination { get; } = "local://delayed".ToUri();
-    public Uri Alias { get; }
+    private readonly InMemoryScheduledJobProcessor theScheduledJobs;
 
     public in_memory_scheduled_messages()
     {
@@ -32,6 +22,11 @@ public class in_memory_scheduled_messages : ILocalQueue
         sent.Clear();
         _callbacks.Clear();
     }
+
+    public Uri Uri { get; }
+    public Uri ReplyUri { get; }
+    public Uri Destination { get; } = "local://delayed".ToUri();
+    public Uri Alias { get; }
 
     public void Enqueue(Envelope envelope)
     {

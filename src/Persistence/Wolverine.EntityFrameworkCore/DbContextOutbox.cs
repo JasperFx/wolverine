@@ -16,6 +16,7 @@ internal class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T 
     }
 
     public T DbContext { get; }
+
     public async Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default)
     {
         await DbContext.SaveChangesAsync(token);
@@ -23,6 +24,7 @@ internal class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T 
         {
             await DbContext.Database.CommitTransactionAsync(token).ConfigureAwait(false);
         }
+
         await FlushOutgoingMessagesAsync();
     }
 }
@@ -44,7 +46,10 @@ internal class DbContextOutbox : MessageContext, IDbContextOutbox
 
     public async Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default)
     {
-        if (ActiveContext == null) throw new InvalidOperationException("No active DbContext. Call Enroll() first");
+        if (ActiveContext == null)
+        {
+            throw new InvalidOperationException("No active DbContext. Call Enroll() first");
+        }
 
         await ActiveContext.SaveChangesAsync(token);
 

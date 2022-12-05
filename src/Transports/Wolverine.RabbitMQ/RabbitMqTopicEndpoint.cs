@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
@@ -12,13 +11,13 @@ namespace Wolverine.RabbitMQ;
 
 public class RabbitMqTopicEndpoint : RabbitMqEndpoint
 {
-    public RabbitMqTopicEndpoint(string topicName, RabbitMqExchange exchange, RabbitMqTransport parent) : base(new Uri($"rabbitmq://topic/{exchange.Name}/{topicName}"), EndpointRole.Application, parent)
+    public RabbitMqTopicEndpoint(string topicName, RabbitMqExchange exchange, RabbitMqTransport parent) : base(
+        new Uri($"rabbitmq://topic/{exchange.Name}/{topicName}"), EndpointRole.Application, parent)
     {
         EndpointName = TopicName = topicName;
         Exchange = exchange;
 
         ExchangeName = Exchange.Name;
-        
     }
 
     public RabbitMqExchange Exchange { get; }
@@ -53,7 +52,10 @@ public class RabbitMqTopicEndpoint : RabbitMqEndpoint
         throw new NotSupportedException();
     }
 
-    internal override string RoutingKey() => TopicName;
+    internal override string RoutingKey()
+    {
+        return TopicName;
+    }
 
     public override ValueTask InitializeAsync(ILogger logger)
     {
