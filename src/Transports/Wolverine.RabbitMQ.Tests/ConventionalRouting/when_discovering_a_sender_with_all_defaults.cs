@@ -47,7 +47,7 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
         await new MessagePublisher(theRuntime).SendAsync(new PublishedMessage());
 
         var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
-        theTransport.Exchanges.Has(endpoint.ExchangeName).ShouldBeTrue();
+        theTransport.Exchanges.Contains(endpoint.ExchangeName).ShouldBeTrue();
         var theExchange = theTransport.Exchanges[endpoint.ExchangeName];
         theExchange.HasDeclared.ShouldBeTrue();
     }

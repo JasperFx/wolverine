@@ -46,7 +46,7 @@ public class when_discovering_a_listening_endpoint_with_all_defaults : Conventio
     [Fact]
     public void the_queue_was_declared()
     {
-        theTransport.Queues.Has("routed").ShouldBeTrue();
+        theTransport.Queues.Contains("routed").ShouldBeTrue();
         theTransport.Queues["routed"].HasDeclared.ShouldBeTrue();
     }
 }

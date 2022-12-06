@@ -29,52 +29,6 @@ public static class TypeExtensions
         typeof(ValueTuple<,,,,,,,>)
     };
 
-    // TODO -- move this to Baseline
-    public static bool IsStatic(this Type type)
-    {
-        return type.IsAbstract && type.IsSealed;
-    }
-
-    public static bool IsMessageTypeCandidate(this Type type)
-    {
-        if (!type.IsConcrete())
-        {
-            return false;
-        }
-
-        if (type.IsSimple())
-        {
-            return false;
-        }
-
-        if (type.IsDateTime())
-        {
-            return false;
-        }
-
-        if (type == typeof(DateTimeOffset))
-        {
-            return false;
-        }
-
-        if (type == typeof(Guid))
-        {
-            return false;
-        }
-
-        if (type.Name.EndsWith("Settings"))
-        {
-            return false;
-        }
-
-        if (type.GetTypeInfo().Assembly == typeof(TypeExtensions).GetTypeInfo().Assembly)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     public static string GetPrettyName(this Type t)
     {
         if (!t.GetTypeInfo().IsGenericType)
@@ -133,6 +87,7 @@ public static class TypeExtensions
         return string.Join("_", parts);
     }
 
+    [Obsolete("moved into Core")]
     public static bool IsValueTuple(this Type? type)
     {
         return type is { IsGenericType: true } && _tupleTypes.Contains(type.GetGenericTypeDefinition());

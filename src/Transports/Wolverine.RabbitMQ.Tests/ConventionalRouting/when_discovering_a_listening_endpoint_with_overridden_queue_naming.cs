@@ -41,7 +41,7 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
     [Fact]
     public void the_queue_was_declared()
     {
-        theTransport.Queues.Has("routed2").ShouldBeTrue();
+        theTransport.Queues.Contains("routed2").ShouldBeTrue();
         theTransport.Queues["routed2"].HasDeclared.ShouldBeTrue();
     }
 }

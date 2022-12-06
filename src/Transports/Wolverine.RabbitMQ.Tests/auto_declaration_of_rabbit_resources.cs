@@ -13,7 +13,7 @@ public class auto_declaration_of_rabbit_resources
 
         var transport = options.RabbitMqTransport();
 
-        transport.Queues.Has("queue1").ShouldBeTrue();
+        transport.Queues.Contains("queue1").ShouldBeTrue();
 
         // Defaults
         var queue = transport.Queues["queue1"];
@@ -29,7 +29,7 @@ public class auto_declaration_of_rabbit_resources
         options.PublishAllMessages().ToRabbitExchange("exchange1");
 
         var transport = options.RabbitMqTransport();
-        transport.Exchanges.Has("exchange1").ShouldBeTrue();
+        transport.Exchanges.Contains("exchange1").ShouldBeTrue();
 
         var exchange = transport.Exchanges["exchange1"];
         exchange.AutoDelete.ShouldBeFalse();

@@ -118,13 +118,13 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        foreach (var host in _receivers.GetAll()) await host.StopAsync();
+        foreach (var host in _receivers) await host.StopAsync();
 
-        _receivers.ClearAll();
+        _receivers.Clear();
 
         foreach (var host in _senders) await host.StopAsync();
 
-        _senders.ClearAll();
+        _senders.Clear();
 
         _receiverStore.Dispose();
         _receiverStore = null;

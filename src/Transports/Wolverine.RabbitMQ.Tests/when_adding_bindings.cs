@@ -36,12 +36,12 @@ public class when_adding_bindings
     [Fact]
     public void should_declare_the_exchange()
     {
-        theTransport.Exchanges.Has("exchange3").ShouldBeTrue();
+        theTransport.Exchanges.Contains("exchange3").ShouldBeTrue();
     }
 
     [Fact]
     public void should_declare_the_queue()
     {
-        theTransport.Queues.Has("queue3").ShouldBeTrue();
+        theTransport.Queues.Contains("queue3").ShouldBeTrue();
     }
 }

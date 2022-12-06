@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Wolverine.Util;
 
-public static class StreamExtensions
+internal static class StreamExtensions
 {
     public static async Task<byte[]> ReadBytesAsync(this Stream stream, long length)
     {

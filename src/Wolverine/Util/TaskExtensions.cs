@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace Wolverine.Util;
 
+[Obsolete("Moved to Core")]
 public static class TaskExtensions
 {
     public static Task TimeoutAfterAsync(this Task task, int millisecondsTimeout)

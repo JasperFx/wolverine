@@ -28,11 +28,6 @@ public static class StringExtensions
         return new Uri(uriString);
     }
 
-    public static bool IsIn(this string text, params string[] values)
-    {
-        return values.Contains(text);
-    }
-
     // Taken from https://andrewlock.net/why-is-string-gethashcode-different-each-time-i-run-my-program-in-net-core/#a-deterministic-gethashcode-implementation
     internal static int GetDeterministicHashCode(this string stringValue)
     {

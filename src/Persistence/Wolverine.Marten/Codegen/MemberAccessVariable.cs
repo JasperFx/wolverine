@@ -1,11 +1,12 @@
 using System;
 using System.Reflection;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Oakton.Parsing;
 
 namespace Wolverine.Marten.Codegen;
 
-// TODO -- this should be in LamarCodeGeneration
+// TODO -- this should be in JasperFx.CodeGeneration
 internal class MemberAccessVariable : Variable
 {
     private readonly MemberInfo _member;

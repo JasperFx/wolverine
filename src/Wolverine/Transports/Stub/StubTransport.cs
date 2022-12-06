@@ -18,7 +18,7 @@ internal class StubTransport : TransportBase<StubEndpoint>
 
     protected override IEnumerable<StubEndpoint> endpoints()
     {
-        return Endpoints.GetAll();
+        return Endpoints;
     }
 
     protected override StubEndpoint findEndpointByUri(Uri uri)

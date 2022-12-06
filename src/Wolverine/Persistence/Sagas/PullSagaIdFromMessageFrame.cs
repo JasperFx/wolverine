@@ -6,6 +6,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Oakton.Parsing;
 
 namespace Wolverine.Persistence.Sagas;

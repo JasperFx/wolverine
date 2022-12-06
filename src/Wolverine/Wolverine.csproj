@@ -7,26 +7,27 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="FastExpressionCompiler" Version="3.3.3"/>
-        <PackageReference Include="Lamar.Microsoft.DependencyInjection" Version="10.0.0-alpha-3"/>
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.1"/>
-        <PackageReference Include="Microsoft.Extensions.Configuration" Version="[6.0.0,8.0.0)"/>
+        <PackageReference Include="FastExpressionCompiler" Version="3.3.3" />
+        <PackageReference Include="Lamar.Microsoft.DependencyInjection" Version="10.0.0" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="[6.0.0,8.0.0)" />
 
-        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="[6.0.0,8.0.0)"/>
-        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="[6.0.0,8.0.0)"/>
-        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="[6.0.0,8.0.0)"/>
-        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="[6.0.0,8.0.0)"/>
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="[6.0.0,8.0.0)"/>
-        <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="[6.0.0,8.0.0)"/>
-        <PackageReference Include="Oakton" Version="6.0.0-alpha-2"/>
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="[6.0.0,8.0.0)" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="[6.0.0,8.0.0)" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="[6.0.0,8.0.0)" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="[6.0.0,8.0.0)" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="[6.0.0,8.0.0)" />
+        <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="[6.0.0,8.0.0)" />
+        <PackageReference Include="Oakton" Version="6.0.0" />
 
-        <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="[6.0.0,8.0.0)"/>
-        <PackageReference Include="System.Net.NameResolution" Version="4.3.0"/>
-        <PackageReference Include="System.Threading.Tasks.Dataflow" Version="7.0.0"/>
-        <PackageReference Include="System.ComponentModel" Version="4.3.0"/>
-        <PackageReference Include="JasperFx.CodeGeneration.Commands" Version="0.9.5"/>
-        <PackageReference Include="JasperFx.RuntimeCompiler" Version="0.9.5"/>
+        <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="[6.0.0,8.0.0)" />
+        <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
+        <PackageReference Include="System.Threading.Tasks.Dataflow" Version="7.0.0" />
+        <PackageReference Include="System.ComponentModel" Version="4.3.0" />
+        <PackageReference Include="JasperFx.CodeGeneration.Commands" Version="1.0.0" />
+        <PackageReference Include="JasperFx.RuntimeCompiler" Version="1.0.0" />
+        <PackageReference Include="JasperFx.Core" Version="1.1.0" />
     </ItemGroup>
 
-    <Import Project="../../Analysis.Build.props"/>
+    <Import Project="../../Analysis.Build.props" />
 </Project>

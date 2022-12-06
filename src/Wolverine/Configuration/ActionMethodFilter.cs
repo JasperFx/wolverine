@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Reflection;
+using JasperFx.Core;
 using Wolverine.Util;
 
 namespace Wolverine.Configuration;
