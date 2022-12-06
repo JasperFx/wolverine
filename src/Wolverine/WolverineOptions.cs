@@ -103,11 +103,17 @@ public sealed partial class WolverineOptions
         set
         {
             _applicationAssembly = value;
-            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-            if (Advanced != null)
+
+            if (value != null)
             {
-                Advanced.CodeGeneration.ApplicationAssembly = value;
-                Advanced.CodeGeneration.ReferenceAssembly(value);
+                HandlerGraph.Source.Assemblies.Add(value);
+
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                if (Advanced != null)
+                {
+                    Advanced.CodeGeneration.ApplicationAssembly = value;
+                    Advanced.CodeGeneration.ReferenceAssembly(value);
+                }
             }
         }
     }

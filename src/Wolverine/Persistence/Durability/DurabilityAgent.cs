@@ -157,7 +157,14 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Error while trying to stop DurabilityAgent");
+            try
+            {
+                _logger.LogError(e, "Error while trying to stop DurabilityAgent");
+            }
+            catch (Exception)
+            {
+                Console.WriteLine(e);
+            }
         }
     }
 

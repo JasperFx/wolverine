@@ -123,7 +123,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
                         var call = new MethodCallAgainstMessage(MiddlewareType, before, messageType);
                         yield return call;
 
-                        if (call.ReturnType == typeof(HandlerContinuation))
+                        if (call.ReturnType == typeof(HandlerContinuation) || call.Creates.Any(x => x.VariableType == typeof(HandlerContinuation)))
                         {
                             yield return new HandlerContinuationFrame(call);
                         }

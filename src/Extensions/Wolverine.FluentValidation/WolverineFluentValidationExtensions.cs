@@ -27,7 +27,7 @@ public static class WolverineFluentValidationExtensions
     /// <param name="options"></param>
     /// <returns></returns>
     public static WolverineOptions UseFluentValidation(this WolverineOptions options,
-        RegistrationBehavior? behavior = RegistrationBehavior.DiscoverAndRegisterValidators)
+        RegistrationBehavior behavior = RegistrationBehavior.DiscoverAndRegisterValidators)
     {
         options.Services.Policies.Add<ValidatorLifetimePolicy>();
         options.Services.AddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
