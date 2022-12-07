@@ -1,15 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using JasperFx.TypeDiscovery;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
@@ -55,7 +58,7 @@ public sealed partial class WolverineOptions
         UseNewtonsoftForSerialization();
 
         establishApplicationAssembly(assemblyName);
-
+        
         Advanced = new AdvancedSettings(ApplicationAssembly);
 
         deriveServiceName();
@@ -212,29 +215,54 @@ public sealed partial class WolverineOptions
         }
     }
 
+    private Assembly? determineCallingAssembly()
+    {
+        var stack = new StackTrace();
+        var frames = stack.GetFrames();
+        var wolverine = frames.LastOrDefault(x =>
+            x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly?.GetName().Name == GetType().Assembly.GetName().Name);
+
+        var index = frames.IndexOf(wolverine);
+        for (var i = index; i < frames.Length; i++)
+        {
+            var candidate = frames[i];
+            if (candidate.HasMethod())
+            {
+                var assembly = candidate.GetMethod().DeclaringType.Assembly;
+                if (assembly.HasAttribute<WolverineIgnoreAttribute>()) continue;
+
+                if (assembly.GetName().Name.StartsWith("System")) continue;
+
+                return assembly;
+            }
+        }
+
+        return Assembly.GetEntryAssembly();
+    }
+
     private void establishApplicationAssembly(string? assemblyName)
     {
         if (assemblyName.IsNotEmpty())
         {
             ApplicationAssembly ??= Assembly.Load(assemblyName);
         }
-        else if (GetType() == typeof(WolverineOptions) || GetType() == typeof(WolverineOptions))
+        else if (RememberedApplicationAssembly != null)
         {
-            if (RememberedApplicationAssembly == null)
-            {
-                RememberedApplicationAssembly = CallingAssembly.DetermineApplicationAssembly(this);
-            }
-
-            ApplicationAssembly ??= RememberedApplicationAssembly;
+            ApplicationAssembly = RememberedApplicationAssembly;
         }
         else
         {
-            ApplicationAssembly ??= CallingAssembly.DetermineApplicationAssembly(this);
+            RememberedApplicationAssembly = ApplicationAssembly = determineCallingAssembly();
         }
+        
 
         if (ApplicationAssembly == null)
         {
             throw new InvalidOperationException("Unable to determine an application assembly");
+        }
+        else
+        {
+            HandlerGraph.Source.Assemblies.Fill(ApplicationAssembly);
         }
     }
 

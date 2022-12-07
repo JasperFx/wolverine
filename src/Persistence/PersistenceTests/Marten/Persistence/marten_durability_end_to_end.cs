@@ -28,13 +28,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
     private DocumentStore _receiverStore;
     private LightweightCache<string, IHost> _senders;
     private DocumentStore _sendingStore;
-
-    public marten_durability_end_to_end()
-    {
-        // Stupid work around to way too clever code
-        WolverineOptions.RememberedApplicationAssembly = GetType().Assembly;
-    }
-
+    
     public async Task InitializeAsync()
     {
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");

@@ -17,10 +17,7 @@ builder.Services.AddMarten(opts =>
 builder.Host.UseWolverine(opts =>
 {
     opts.Handlers.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
-    
-    // This is a bug, Jeremy should fix ASAP
-    opts.ApplicationAssembly = typeof(Program).Assembly;
-    
+
     // This will register all the Fluent Validation validators, and
     // apply validation middleware where the command type has
     // a validator

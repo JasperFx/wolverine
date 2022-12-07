@@ -59,7 +59,7 @@ public static class HostBuilderExtensions
         {
             throw new ArgumentNullException(nameof(options));
         }
-
+        
         builder.UseLamar(r => r.Policies.Add(new HandlerScopingPolicy(options.HandlerGraph)));
 
         builder.ConfigureServices((context, services) =>

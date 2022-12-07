@@ -3,6 +3,7 @@ using Alba;
 using Lamar;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using Oakton;
 using Shouldly;
 using Wolverine;
 using Wolverine.Runtime;
@@ -16,7 +17,18 @@ public class try_out_the_middleware
 
     public try_out_the_middleware(ITestOutputHelper output)
     {
+        // Boo! I blame the AspNetCore team for this one though
+        OaktonEnvironment.AutoStartHost = true;
+        
         _output = output;
+    }
+
+    [Fact]
+    public async Task the_application_assembly_is_inferred_correctly()
+    {
+        await using var host = await AlbaHost.For<Program>();
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+        options.ApplicationAssembly.ShouldBe(typeof(Account).Assembly);
     }
 
     [Fact]

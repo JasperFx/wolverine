@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -11,7 +13,7 @@ internal class HandlerContinuationFrame : SyncFrame
 
     public HandlerContinuationFrame(MethodCall call)
     {
-        _variable = call.ReturnVariable;
+        _variable = call.Creates.FirstOrDefault(x => x.VariableType == typeof(HandlerContinuation)) ?? throw new ArgumentOutOfRangeException("Supplied call does not create a HandlerContinuation");
         uses.Add(_variable);
     }
 

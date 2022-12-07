@@ -22,11 +22,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
     private IHost theReceiver;
     private IHost theSender;
 
-    protected DurabilityComplianceContext()
-    {
-        WolverineOptions.RememberedApplicationAssembly = GetType().Assembly;
-    }
-
     public async Task InitializeAsync()
     {
         var receiverPort = PortFinder.GetAvailablePort();

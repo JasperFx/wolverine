@@ -94,12 +94,6 @@ public class WolverineOptionsTests
     }
 
     [Fact]
-    public void use_the_calling_assembly_name_if_it_is_a_basic_registry()
-    {
-        new WolverineOptions().ServiceName.ShouldBe("CoreTests");
-    }
-
-    [Fact]
     public void add_transport()
     {
         var transport = Substitute.For<ITransport>();
