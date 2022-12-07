@@ -12,10 +12,8 @@ namespace Wolverine.Runtime.Routing;
 
 public abstract class MessageRouterBase<T> : IMessageRouter
 {
-    private readonly MessageRoute _local;
-
     private readonly MessageRoute[] _topicRoutes;
-    private ImHashMap<string, MessageRoute> _localRoutes = ImHashMap<string, MessageRoute>.Empty;
+    
     private ImHashMap<string, IMessageRoute> _routeByName = ImHashMap<string, IMessageRoute>.Empty;
 
     private ImHashMap<Uri, MessageRoute> _specificRoutes = ImHashMap<Uri, MessageRoute>.Empty;
@@ -32,9 +30,6 @@ public abstract class MessageRouterBase<T> : IMessageRouter
                 .OfType<IEnvelopeRule>();
             HandlerRules.AddRange(handlerRules);
         }
-
-        _local = new MessageRoute(typeof(T), runtime.DetermineLocalSendingAgent(typeof(T)).Endpoint);
-        _local.Rules.AddRange(HandlerRules!);
 
         _topicRoutes = runtime.Options.Transports.AllEndpoints().Where(x => x.RoutingType == RoutingMode.ByTopic)
             .Select(endpoint => new MessageRoute(typeof(T), endpoint)).ToArray();
@@ -71,16 +66,6 @@ public abstract class MessageRouterBase<T> : IMessageRouter
     public Envelope[] RouteToTopic(object message, string topicName, DeliveryOptions? options)
     {
         return RouteToTopic((T)message, topicName, options);
-    }
-
-    public Envelope RouteLocal(object message, DeliveryOptions? options)
-    {
-        return RouteLocal((T)message, options);
-    }
-
-    public Envelope RouteLocal(object message, string workerQueue, DeliveryOptions? options)
-    {
-        return RouteLocal((T)message, workerQueue, options);
     }
 
     public abstract Envelope[] RouteForSend(T message, DeliveryOptions? options);
@@ -128,16 +113,6 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
     }
 
-    public Envelope RouteLocal(T message, DeliveryOptions? options)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        return _local.CreateForSending(message, options, LocalDurableQueue, Runtime);
-    }
-
     public Envelope[] RouteToTopic(T message, string topicName, DeliveryOptions? options)
     {
         if (message == null)
@@ -160,24 +135,4 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         return envelopes;
     }
 
-    public Envelope RouteLocal(T message, string workerQueue, DeliveryOptions? options)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        workerQueue = workerQueue.ToLowerInvariant();
-        if (_localRoutes.TryFind(workerQueue, out var route))
-        {
-            return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
-        }
-
-        var queue = Runtime.Endpoints.AgentForLocalQueue(workerQueue);
-        route = new MessageRoute(typeof(T), queue.Endpoint);
-        route.Rules.AddRange(HandlerRules);
-        _localRoutes = _localRoutes.AddOrUpdate(workerQueue, route);
-
-        return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
-    }
 }

@@ -15,13 +15,13 @@ public class Subscriber2Handlers
     public static async Task Handle(RabbitMessage3 message, IMessagePublisher publisher)
     {
         await Task.Delay(100.Milliseconds());
-        await publisher.EnqueueAsync(new LocalMessage3(message.Name));
+        await publisher.PublishAsync(new LocalMessage3(message.Name));
     }
 
     public async Task Handle(LocalMessage3 message, IMessagePublisher publisher)
     {
         await Task.Delay(75.Milliseconds());
-        await publisher.EnqueueAsync(new LocalMessage4(message.Name));
+        await publisher.PublishAsync(new LocalMessage4(message.Name));
     }
 
     public Task Handle(LocalMessage4 message)

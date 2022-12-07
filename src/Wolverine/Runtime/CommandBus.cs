@@ -79,39 +79,6 @@ public class CommandBus : ICommandBus
         return (T)envelope.Response;
     }
 
-    public ValueTask EnqueueAsync<T>(T message)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        var envelope =
-            Runtime.RoutingFor(message.GetType()).RouteLocal(message, null); // TODO -- propagate DeliveryOptions
-        envelope.CorrelationId = CorrelationId;
-        envelope.ConversationId = ConversationId;
-        envelope.Source = Runtime.Advanced.ServiceName;
-
-        return PersistOrSendAsync(envelope);
-    }
-
-    public ValueTask EnqueueAsync<T>(T message, string workerQueueName)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        var envelope =
-            Runtime.RoutingFor(message.GetType())
-                .RouteLocal(message, workerQueueName, null); // TODO -- propagate DeliveryOptions
-        envelope.CorrelationId = CorrelationId;
-        envelope.ConversationId = ConversationId;
-        envelope.Source = Runtime.Advanced.ServiceName;
-
-        return PersistOrSendAsync(envelope);
-    }
-
     public async Task<Guid> ScheduleAsync<T>(T message, DateTimeOffset executionTime)
     {
         if (message == null)

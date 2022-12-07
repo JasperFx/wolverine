@@ -7,15 +7,6 @@ namespace DocumentationSamples;
 
 public class EnqueueSamples
 {
-    #region sample_enqueue_locally
-
-    public static async Task enqueue_locally(ICommandBus bus)
-    {
-        // Enqueue a message to the local worker queues
-        await bus.EnqueueAsync(new Message1());
-    }
-
-    #endregion
 
     #region sample_invoke_locally
 
@@ -59,7 +50,7 @@ public class EnqueueSamples
             {
                 // Out of the box, this uses a separate local queue
                 // for each message based on the message type name
-                opts.Policies.UseConventionalLocalRouting()
+                opts.Policies.ConfigureConventionalLocalRouting()
 
                     // Or you can customize the usage of queues
                     // per message type

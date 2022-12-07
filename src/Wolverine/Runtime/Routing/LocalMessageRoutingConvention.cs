@@ -3,23 +3,26 @@ using System.Collections.Generic;
 using System.Linq;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Transports.Local;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.Routing;
 
-public class LocalMessageRoutingConvention : IMessageRoutingConvention
+public class LocalMessageRoutingConvention 
 {
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
-    private Func<Type, string> _determineName = t => t.ToMessageTypeName();
+    private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace("+", ".");
 
     /// <summary>
     ///     Optionally include (allow list) or exclude (deny list) types. By default, this will apply to all message types
     /// </summary>
     internal CompositeFilter<Type> TypeFilters { get; } = new();
 
-    void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
+    public Dictionary<Type, LocalQueueSettings> Assignments { get; } = new();
+
+    internal void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
         var matching = handledMessageTypes.Where(x => TypeFilters.Matches(x));
 
@@ -27,7 +30,10 @@ public class LocalMessageRoutingConvention : IMessageRoutingConvention
 
         foreach (var messageType in matching)
         {
-            var queueName = _determineName(messageType);
+            var queueName = messageType.HasAttribute<LocalQueueAttribute>() 
+                ? messageType.GetAttribute<LocalQueueAttribute>()!.QueueName 
+                : _determineName(messageType);
+            
             var queue = transport.AllQueues().FirstOrDefault(x => x.EndpointName == queueName);
 
             if (queue == null)
@@ -44,12 +50,18 @@ public class LocalMessageRoutingConvention : IMessageRoutingConvention
             }
 
             queue.HandledMessageTypes.Add(messageType);
+
+            Assignments[messageType] = queue;
+
         }
     }
 
-    IEnumerable<Endpoint> IMessageRoutingConvention.DiscoverSenders(Type messageType, IWolverineRuntime runtime)
+    internal IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
-        yield break;
+        if (Assignments.TryGetValue(messageType, out var queue))
+        {
+            yield return queue;
+        }
     }
 
     /// <summary>

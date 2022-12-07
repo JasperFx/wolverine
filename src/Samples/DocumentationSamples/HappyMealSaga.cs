@@ -174,7 +174,7 @@ public class HappyMealSagaAllLocal : Saga
 
         if (order.Drink == "Soda")
         {
-            await context.EnqueueAsync(new SodaRequested { OrderId = Id });
+            await context.PublishAsync(new SodaRequested { OrderId = Id });
         }
 
         // And other outgoing messages to coordinate gathering up the happy meal

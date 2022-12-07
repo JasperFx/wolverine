@@ -52,8 +52,8 @@ public interface IEndpointPolicies
     void AllLocalQueues(Action<IListenerConfiguration> configure);
 
     /// <summary>
-    ///     Apply conventional routing to local queues
+    /// Override the routing for locally handled messages
     /// </summary>
     /// <returns></returns>
-    LocalMessageRoutingConvention UseConventionalLocalRouting();
+    LocalMessageRoutingConvention ConfigureConventionalLocalRouting();
 }

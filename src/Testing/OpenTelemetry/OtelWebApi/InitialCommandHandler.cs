@@ -14,7 +14,7 @@ public static class InitialCommandHandler
 
         await Task.Delay(50.Milliseconds());
 
-        await publisher.EnqueueAsync(new LocalMessage2(cmd.Name));
+        await publisher.PublishAsync(new LocalMessage2(cmd.Name));
 
         await publisher.PublishAsync(new TcpMessage1(cmd.Name));
 

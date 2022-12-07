@@ -16,6 +16,7 @@ public class missing_handlers
     {
         using var host = WolverineHost.For(x =>
         {
+            x.PublishMessage<MessageWithNoHandler>().ToLocalQueue("foo");
             x.Services.AddSingleton<IMissingHandler, RecordingMissingHandler>();
             x.Services.AddSingleton<IMissingHandler, RecordingMissingHandler2>();
             x.Services.AddSingleton<IMissingHandler, RecordingMissingHandler3>();
@@ -24,7 +25,7 @@ public class missing_handlers
         var message = new MessageWithNoHandler();
 
 
-        await host.ExecuteAndWaitValueTaskAsync(x => x.EnqueueAsync(message));
+        await host.ExecuteAndWaitValueTaskAsync(x => x.PublishAsync(message));
 
         for (var i = 0; i < 4; i++)
         {

@@ -91,7 +91,7 @@ public class PublishingSamples
 
     #region sample_IServiceBus.Enqueue
 
-    public ValueTask Enqueue(IMessageContext bus)
+    public ValueTask Publish(IMessageContext bus)
     {
         var @event = new InvoiceCreated
         {
@@ -101,7 +101,7 @@ public class PublishingSamples
             Item = "Cookbook"
         };
 
-        return bus.EnqueueAsync(@event);
+        return bus.PublishAsync(@event);
     }
 
     #endregion
@@ -120,7 +120,7 @@ public class PublishingSamples
 
         // Put this message in a local worker
         // queue named 'highpriority'
-        return bus.EnqueueAsync(@event, "highpriority");
+        return bus.SendToEndpointAsync("highpriority", @event);
     }
 
     #endregion

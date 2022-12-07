@@ -187,17 +187,6 @@ public class TrackedSessionConfiguration
 
 
     /// <summary>
-    ///     Enqueue a message locally from the current Wolverine application and wait for
-    ///     all cascading activity to complete
-    /// </summary>
-    /// <param name="message"></param>
-    /// <returns></returns>
-    public Task<ITrackedSession> EnqueueMessageAndWaitAsync(object? message)
-    {
-        return ExecuteAndWaitAsync(c => c.EnqueueAsync(message));
-    }
-
-    /// <summary>
     ///     Execute a request with expected reply
     /// </summary>
     /// <param name="requestInvocation"></param>

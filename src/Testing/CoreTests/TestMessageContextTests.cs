@@ -32,26 +32,6 @@ public class TestMessageContextTests
     }
 
     [Fact]
-    public async Task queue_locally()
-    {
-        var message = new Message2();
-        await theContext.EnqueueAsync(message);
-
-        theSpy.Enqueued.ShouldHaveMessageOfType<Message2>()
-            .ShouldBeSameAs(message);
-    }
-
-    [Fact]
-    public async Task enqueue_to_specific_worker_queue_name()
-    {
-        var message = new Message2();
-        await theContext.EnqueueAsync(message, "queue1");
-
-        theSpy.Enqueued.ShouldHaveEnvelopeForMessageType<Message2>()
-            .Destination.ShouldBe(new Uri("local://queue1"));
-    }
-
-    [Fact]
     public async Task schedule_by_execution_time()
     {
         var message = new Message2();
@@ -59,7 +39,7 @@ public class TestMessageContextTests
 
         await theContext.ScheduleAsync(message, time);
 
-        theSpy.LocallyScheduledMessages.FindForMessageType<Message2>()
+        theSpy.ScheduledMessages().FindForMessageType<Message2>()
             .ScheduledTime.ShouldBe(time);
     }
 
@@ -70,7 +50,7 @@ public class TestMessageContextTests
 
         await theContext.ScheduleAsync(message, 1.Days());
 
-        theSpy.LocallyScheduledMessages.FindForMessageType<Message2>()
+        theSpy.ScheduledMessages().FindForMessageType<Message2>()
             .ScheduledTime.ShouldNotBeNull();
     }
 

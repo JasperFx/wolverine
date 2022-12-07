@@ -6,6 +6,7 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -87,9 +88,7 @@ public partial class WolverineRuntime
             }
         }
 
-        // Let any registered routing conventions discover listener endpoints
-        foreach (var routingConvention in Options.RoutingConventions)
-            routingConvention.DiscoverListeners(this, Handlers.Chains.Select(x => x.MessageType).ToList());
+        discoverListenersFromConventions();
 
         foreach (var transport in Options.Transports)
         {
@@ -100,6 +99,18 @@ public partial class WolverineRuntime
         }
 
         await Endpoints.StartListenersAsync();
+    }
+
+    private void discoverListenersFromConventions()
+    {
+        // Let any registered routing conventions discover listener endpoints
+        var handledMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
+        foreach (var routingConvention in Options.RoutingConventions)
+        {
+            routingConvention.DiscoverListeners(this, handledMessageTypes);
+        }
+
+        Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
     }
 
     private async Task startDurabilityAgentAsync()

@@ -15,9 +15,9 @@ public class MessageController : ControllerBase
     }
 
     [HttpPost("/enqueue")]
-    public async Task Enqueue([FromBody] InitialPost body, [FromServices] ICommandBus bus)
+    public async Task Enqueue([FromBody] InitialPost body, [FromServices] IMessagePublisher bus)
     {
         await Task.Delay(50.Milliseconds());
-        await bus.EnqueueAsync(new InitialCommand(body.Name));
+        await bus.PublishAsync(new InitialCommand(body.Name));
     }
 }

@@ -64,21 +64,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
 
 
     [Fact]
-    public async Task enqueue_locally()
-    {
-        var message = new Message1
-        {
-            Id = Guid.NewGuid()
-        };
-
-        var session = await Host.ExecuteAndWaitValueTaskAsync(c => c.EnqueueAsync(message));
-
-        var tracked = session.FindSingleTrackedMessageOfType<Message1>();
-
-        tracked.Id.ShouldBe(message.Id);
-    }
-
-    [Fact]
     public async Task exceptions_will_be_thrown_to_caller()
     {
         configure();

@@ -11,7 +11,9 @@ namespace Wolverine;
 
 public partial class WolverineOptions : IAsyncDisposable
 {
-    internal IList<IMessageRoutingConvention> RoutingConventions { get; } = new List<IMessageRoutingConvention>();
+    internal LocalMessageRoutingConvention LocalRouting { get; } = new();
+    
+    internal List<IMessageRoutingConvention> RoutingConventions { get; } = new();
 
     /// <summary>
     ///     Configure the properties of the default, local queue

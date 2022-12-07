@@ -89,9 +89,9 @@ namespace DocumentationSamples
     {
         #region sample_publish_MyMessage
 
-        public static async Task publish_command(ICommandBus bus)
+        public static async Task publish_command(IMessagePublisher bus)
         {
-            await bus.EnqueueAsync(new MyMessage());
+            await bus.PublishAsync(new MyMessage());
         }
 
         #endregion

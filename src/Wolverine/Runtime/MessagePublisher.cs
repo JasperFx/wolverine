@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,12 @@ public class MessagePublisher : CommandBus, IMessagePublisher
 
     public MessagePublisher(IWolverineRuntime runtime, string? correlationId) : base(runtime, correlationId)
     {
+    }
+
+    public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
+    {
+        return Runtime.RoutingFor(message.GetType()).RouteForSend(message, null);
+
     }
 
     public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)

@@ -41,7 +41,7 @@ public class message_timeout_mechanics
 
         using var host = WolverineHost.Basic();
 
-        await host.TrackActivity().EnqueueMessageAndWaitAsync(new DurationMessage { DurationInMilliseconds = 50 });
+        await host.TrackActivity().PublishMessageAndWaitAsync(new DurationMessage { DurationInMilliseconds = 50 });
 
         PotentiallySlowMessageHandler.DidTimeout.ShouldBeFalse();
     }
@@ -56,7 +56,7 @@ public class message_timeout_mechanics
         var session = await host
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
-            .EnqueueMessageAndWaitAsync(new DurationMessage { DurationInMilliseconds = 500 });
+            .PublishMessageAndWaitAsync(new DurationMessage { DurationInMilliseconds = 500 });
 
         var exceptions = session.AllExceptions();
         exceptions.Single().ShouldBeOfType<TaskCanceledException>();
@@ -72,7 +72,7 @@ public class message_timeout_mechanics
         var session = await host
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
-            .EnqueueMessageAndWaitAsync(new PotentiallySlowMessage { DurationInMilliseconds = 2500 });
+            .PublishMessageAndWaitAsync(new PotentiallySlowMessage { DurationInMilliseconds = 2500 });
 
         var exceptions = session.AllExceptions();
         exceptions.Single().ShouldBeOfType<TaskCanceledException>();

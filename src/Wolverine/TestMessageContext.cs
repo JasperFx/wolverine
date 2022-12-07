@@ -14,8 +14,6 @@ namespace Wolverine;
 /// </summary>
 public class TestMessageContext : IMessageContext
 {
-    private readonly List<object> _enqueued = new();
-
 
     private readonly List<object> _invoked = new();
 
@@ -40,11 +38,6 @@ public class TestMessageContext : IMessageContext
     public IReadOnlyList<object> Invoked => _invoked;
 
     /// <summary>
-    ///     All messages that were enqueued or scheduled locally through this context
-    /// </summary>
-    public IReadOnlyList<object> Enqueued => _enqueued;
-
-    /// <summary>
     ///     All messages "published" through this context. If in doubt use AllOutgoing instead.
     /// </summary>
     public IReadOnlyList<object> Published => _published;
@@ -60,14 +53,6 @@ public class TestMessageContext : IMessageContext
     ///     All outgoing messages sent or published or scheduled through this context
     /// </summary>
     public IReadOnlyList<object> AllOutgoing => _published.Concat(_sent).Concat(_responses).ToArray();
-
-    /// <summary>
-    /// </summary>
-    public IReadOnlyList<Envelope> LocallyScheduledMessages =>
-        Enqueued
-            .OfType<Envelope>()
-            .Where(x => x.Status == EnvelopeStatus.Scheduled)
-            .ToArray();
 
     /// <summary>
     ///     Messages that were specifically sent back to the original sender of the
@@ -89,21 +74,6 @@ public class TestMessageContext : IMessageContext
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
 
-    ValueTask ICommandBus.EnqueueAsync<T>(T message)
-    {
-        _enqueued.Add(message);
-        return new ValueTask();
-    }
-
-    ValueTask ICommandBus.EnqueueAsync<T>(T message, string workerQueueName)
-    {
-        var uri = new LocalQueueSettings(workerQueueName).Uri;
-        var envelope = new Envelope { Message = message, Destination = uri };
-        _enqueued.Add(envelope);
-
-        return new ValueTask();
-    }
-
     Task<Guid> ICommandBus.ScheduleAsync<T>(T message, DateTimeOffset executionTime)
     {
         var envelope = new Envelope
@@ -112,7 +82,7 @@ public class TestMessageContext : IMessageContext
             Status = EnvelopeStatus.Scheduled
         };
 
-        _enqueued.Add(envelope);
+        _published.Add(envelope);
 
         return Task.FromResult(envelope.Id);
     }
@@ -126,9 +96,14 @@ public class TestMessageContext : IMessageContext
             Status = EnvelopeStatus.Scheduled
         };
 
-        _enqueued.Add(envelope);
+        _published.Add(envelope);
 
         return Task.FromResult(envelope.Id);
+    }
+
+    public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
+    {
+        throw new NotSupportedException();
     }
 
     ValueTask IMessagePublisher.SendAsync<T>(T message, DeliveryOptions? options)
@@ -257,7 +232,7 @@ public class TestMessageContext : IMessageContext
     ///     All scheduled outgoing (to external message transports) messages
     /// </summary>
     /// <returns></returns>
-    public IReadOnlyList<Envelope> ScheduledOutgoingMessages()
+    public IReadOnlyList<Envelope> ScheduledMessages()
     {
         return AllOutgoing
             .OfType<Envelope>()

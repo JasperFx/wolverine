@@ -16,7 +16,7 @@ public class overriding_delivery_options_when_sending : SendingContext
     public void apply_message_type_rules_from_attributes()
     {
         var envelope = theSendingRuntime.RoutingFor(typeof(MessageWithSpecialAttribute))
-            .RouteLocal(new MessageWithSpecialAttribute(), null);
+            .RouteForPublish(new MessageWithSpecialAttribute(), null).Single();
 
         envelope.Headers["special"].ShouldBe("true");
     }
@@ -26,7 +26,7 @@ public class overriding_delivery_options_when_sending : SendingContext
     public void deliver_by_mechanics()
     {
         var envelope = theSendingRuntime.RoutingFor(typeof(MessageWithSpecialAttribute))
-            .RouteLocal(new MessageWithSpecialAttribute(), null);
+            .RouteForPublish(new MessageWithSpecialAttribute(), null).Single();
 
         envelope.DeliverBy.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
     }

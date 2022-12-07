@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Wolverine.Runtime.ResponseReply;
@@ -10,6 +11,13 @@ namespace Wolverine;
 /// </summary>
 public interface IMessagePublisher : ICommandBus
 {
+    /// <summary>
+    /// Preview how Wolverine where and how this message would be sent. Use this as a debugging tool.
+    /// </summary>
+    /// <param name="message"></param>
+    /// <returns></returns>
+    IReadOnlyList<Envelope> PreviewSubscriptions(object message);
+    
     /// <summary>
     ///     Sends a message to the expected, one subscriber. Will throw an exception if there are no known subscribers
     /// </summary>

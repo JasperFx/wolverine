@@ -119,12 +119,9 @@ internal class EndpointPolicies : IEndpointPolicies
 
         _endpoints.AddPolicy(policy);
     }
-
-    public LocalMessageRoutingConvention UseConventionalLocalRouting()
+    
+    public LocalMessageRoutingConvention ConfigureConventionalLocalRouting()
     {
-        var convention = new LocalMessageRoutingConvention();
-        _wolverineOptions.RoutingConventions.Add(convention);
-
-        return convention;
+        return _wolverineOptions.LocalRouting;
     }
 }

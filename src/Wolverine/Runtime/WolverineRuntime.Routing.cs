@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -14,6 +16,21 @@ public partial class WolverineRuntime
 {
     private ImHashMap<Type, IMessageRouter> _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
 
+    internal IEnumerable<Endpoint> findEndpoints(Type messageType)
+    {
+        // If there are explicit rules, that's where you go
+        var explicits = Options.Transports.AllEndpoints().Where(x => x.ShouldSendMessage(messageType)).ToArray();
+        if (explicits.Any()) return explicits;
+
+        if (Options.HandlerGraph.CanHandle(messageType))
+        {
+            var endpoints = Options.LocalRouting.DiscoverSenders(messageType, this).ToArray();
+            if (endpoints.Any()) return endpoints;
+        }
+
+        return Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, this));
+    }
+    
 
     public IMessageRouter RoutingFor(Type messageType)
     {
@@ -28,22 +45,9 @@ public partial class WolverineRuntime
             return raw;
         }
 
-        var matchingEndpoints = Options.Transports.AllEndpoints().Where(x => x.ShouldSendMessage(messageType));
-        var conventional = Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, this));
-
-        var routes = matchingEndpoints.Union(conventional)
-            .Select(x => new MessageRoute(messageType, x)).ToArray();
-
-        // If no routes here and this app has a handler for the message type,
-        // assume it's a local route
-        if (!routes.Any() && Options.HandlerGraph.CanHandle(messageType))
-        {
-            var localSendingAgentForMessageType = DetermineLocalSendingAgent(messageType);
-            var messageRoute = new MessageRoute(messageType, localSendingAgentForMessageType.Endpoint);
-
-            routes = new[] { messageRoute };
-        }
-
+        var routes = findEndpoints(messageType).Select(x => new MessageRoute(messageType, x))
+            .ToArray();
+        
         var router = routes.Any()
             ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
             : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
@@ -53,27 +57,13 @@ public partial class WolverineRuntime
         return router;
     }
 
-    internal ISendingAgent DetermineLocalSendingAgent(Type messageType)
+    internal ISendingAgent? DetermineLocalSendingAgent(Type messageType)
     {
-        if (messageType.HasAttribute<LocalQueueAttribute>())
+        if (Options.LocalRouting.Assignments.TryGetValue(messageType, out var endpoint))
         {
-            var queueName = messageType.GetAttribute<LocalQueueAttribute>()!.QueueName;
-            return Endpoints.AgentForLocalQueue(queueName);
+            return endpoint.Agent;
         }
 
-        var localQueues = Options.Transports.GetOrCreate<LocalTransport>().Endpoints().OfType<LocalQueueSettings>()
-            .ToArray();
-
-        var handled = localQueues.FirstOrDefault(x => x.HandledMessageTypes.Contains(messageType));
-        if (handled != null)
-        {
-            return handled.Agent!;
-        }
-
-        var subscribers = localQueues.Where(x => x.ShouldSendMessage(messageType))
-            .Select(x => x.Agent)
-            .ToArray();
-
-        return subscribers.FirstOrDefault() ?? Endpoints.GetOrBuildSendingAgent(TransportConstants.LocalUri);
+        return null;
     }
 }

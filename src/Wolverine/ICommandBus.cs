@@ -30,26 +30,6 @@ public interface ICommandBus
     Task<T?> InvokeAsync<T>(object message, CancellationToken cancellation = default);
 
     /// <summary>
-    ///     Enqueues the message locally. Uses the message type to worker queue routing to determine
-    ///     whether or not the message should be durable or fire and forget
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="workerQueue">Optionally designate the name of the local worker queue</param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    ValueTask EnqueueAsync<T>(T message);
-
-    /// <summary>
-    ///     Enqueues the message locally to a specific worker queue.
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="workerQueueName">Optionally designate the name of the local worker queue</param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    ValueTask EnqueueAsync<T>(T message, string workerQueueName);
-
-
-    /// <summary>
     ///     Schedule a message to be processed in this application at a specified time
     /// </summary>
     /// <param name="message"></param>

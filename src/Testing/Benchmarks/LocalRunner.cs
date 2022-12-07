@@ -58,42 +58,34 @@ public class LocalRunner : IDisposable
     }
 
     [Benchmark]
-    public async Task Enqueue()
-    {
-        foreach (var target in theDriver.Targets) await theDriver.Publisher.EnqueueAsync(target);
-
-        await theDriver.WaitForAllEnvelopesToBeProcessed();
-    }
-
-    [Benchmark]
     public async Task EnqueueMultiThreaded()
     {
         var task1 = Task.Factory.StartNew(async () =>
         {
-            foreach (var target in theDriver.Targets.Take(200)) await theDriver.Publisher.EnqueueAsync(target);
+            foreach (var target in theDriver.Targets.Take(200)) await theDriver.Publisher.PublishAsync(target);
         });
 
         var task2 = Task.Factory.StartNew(async () =>
         {
             foreach (var target in theDriver.Targets.Skip(200).Take(200))
-                await theDriver.Publisher.EnqueueAsync(target);
+                await theDriver.Publisher.PublishAsync(target);
         });
 
         var task3 = Task.Factory.StartNew(async () =>
         {
             foreach (var target in theDriver.Targets.Skip(400).Take(200))
-                await theDriver.Publisher.EnqueueAsync(target);
+                await theDriver.Publisher.PublishAsync(target);
         });
 
         var task4 = Task.Factory.StartNew(async () =>
         {
             foreach (var target in theDriver.Targets.Skip(600).Take(200))
-                await theDriver.Publisher.EnqueueAsync(target);
+                await theDriver.Publisher.PublishAsync(target);
         });
 
         var task5 = Task.Factory.StartNew(async () =>
         {
-            foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Publisher.EnqueueAsync(target);
+            foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Publisher.PublishAsync(target);
         });
 
 

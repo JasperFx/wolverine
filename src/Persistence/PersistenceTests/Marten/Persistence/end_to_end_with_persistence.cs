@@ -105,7 +105,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
     }
 
     [Fact]
-    public async Task enqueue_locally()
+    public async Task publish_locally()
     {
         var item = new ItemCreated
         {
@@ -113,7 +113,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
             Id = Guid.NewGuid()
         };
 
-        await theReceiver.ExecuteAndWaitValueTaskAsync(c => c.EnqueueAsync(item));
+        await theReceiver.ExecuteAndWaitValueTaskAsync(c => c.PublishAsync(item));
 
 
         var documentStore = theReceiver.Get<IDocumentStore>();

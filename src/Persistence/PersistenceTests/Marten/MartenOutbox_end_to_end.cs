@@ -24,7 +24,7 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
                     .IntegrateWithWolverine();
 
                 opts.Policies.UseDurableLocalQueues();
-                opts.Policies.UseConventionalLocalRouting()
+                opts.Policies.ConfigureConventionalLocalRouting()
                     .CustomizeQueues((_, q) => q.UseDurableInbox());
             }).StartAsync();
     }

@@ -39,7 +39,7 @@ public class EFCorePersistenceContext : BaseContext
                 options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                 options.UseEntityFrameworkCoreTransactions();
 
-                options.Policies.UseConventionalLocalRouting()
+                options.Policies.ConfigureConventionalLocalRouting()
                     .CustomizeQueues((_, q) => q.UseDurableInbox());
             });
 

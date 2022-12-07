@@ -212,7 +212,7 @@ public class endpoint_policy_configuration : IDisposable
     {
         var options = await UsingOptions(opts =>
         {
-            opts.Policies.UseConventionalLocalRouting()
+            opts.Policies.ConfigureConventionalLocalRouting()
                 .CustomizeQueues((type, listener) => { listener.UseDurableInbox(); });
         });
 
@@ -243,7 +243,7 @@ public class endpoint_policy_configuration : IDisposable
     {
         var options = await UsingOptions(opts =>
         {
-            opts.Policies.UseConventionalLocalRouting()
+            opts.Policies.ConfigureConventionalLocalRouting()
                 .ExcludeTypes(t => t == typeof(Message1))
                 .CustomizeQueues((type, listener) => { listener.UseDurableInbox(); });
         });
@@ -275,7 +275,7 @@ public class endpoint_policy_configuration : IDisposable
     {
         var options = await UsingOptions(opts =>
         {
-            opts.Policies.UseConventionalLocalRouting()
+            opts.Policies.ConfigureConventionalLocalRouting()
                 .IncludeTypes(t => t != typeof(Message1))
                 .CustomizeQueues((type, listener) => { listener.UseDurableInbox(); });
         });
@@ -307,7 +307,7 @@ public class endpoint_policy_configuration : IDisposable
     {
         var options = await UsingOptions(opts =>
         {
-            opts.Policies.UseConventionalLocalRouting()
+            opts.Policies.ConfigureConventionalLocalRouting()
                 .Named(t => t.ToMessageTypeName() + "_more")
                 .CustomizeQueues((type, listener) => { listener.UseDurableInbox(); });
         });
