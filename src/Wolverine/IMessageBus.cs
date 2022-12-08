@@ -7,48 +7,6 @@ using Wolverine.Runtime.ResponseReply;
 namespace Wolverine;
 
 /// <summary>
-/// Send or invoke messages to a specific endpoint
-/// </summary>
-public interface IDestinationEndpoint
-{
-    Uri Uri { get; }
-    string EndpointName { get; }
-    
-    /// <summary>
-    ///     Sends a message to this destination
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="options"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    ValueTask SendAsync<T>(T message, DeliveryOptions? options = null);
-    
-    /// <summary>
-    /// Execute the message at this destination
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="cancellation"></param>
-    /// <param name="timeout"></param>
-    /// <returns></returns>
-    Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null);
-    
-    /// <summary>
-    /// Execute the summary at this destination and retrieve the expected
-    /// response from the destination
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="cancellation"></param>
-    /// <param name="timeout"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
-        where T : class;
-}
-
-
-
-/// <summary>
 /// Entry point for processing or publishing messages with Wolverine
 /// </summary>
 public interface IMessageBus : ICommandBus
@@ -103,15 +61,6 @@ public interface IMessageBus : ICommandBus
     /// <param name="options"></param>
     /// <returns></returns>
     ValueTask SendToTopicAsync(string topicName, object message, DeliveryOptions? options = null);
-
-    /// <summary>
-    ///     Send a message to a specific, named endpoint
-    /// </summary>
-    /// <param name="endpointName"></param>
-    /// <param name="message"></param>
-    /// <param name="options"></param>
-    /// <returns></returns>
-    ValueTask SendToEndpointAsync(string endpointName, object message, DeliveryOptions? options = null);
 
     /// <summary>
     ///     Send a message that should be executed at the given time

@@ -9,6 +9,7 @@ using Lamar;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
 using Wolverine.Util;
@@ -24,6 +25,12 @@ internal class DestinationEndpoint : IDestinationEndpoint
     {
         _endpoint = endpoint;
         _parent = parent;
+
+        // Hokey, but guarantees that the sending agent is active
+        if (endpoint.Agent == null)
+        {
+            parent.Runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
+        }
     }
 
     public Uri Uri => _endpoint.Uri;
@@ -111,7 +118,7 @@ public class MessageBus : IMessageBus
 
         var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
         if (endpoint == null)
-            throw new ArgumentOutOfRangeException(nameof(endpointName), $"Unknown endpoint with name '{endpointName}'");
+            throw new UnknownEndpointException(endpointName);
 
         return new DestinationEndpoint(endpoint, this);
     }
@@ -329,24 +336,6 @@ public class MessageBus : IMessageBus
         }
 
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteToTopic(message, topicName, options);
-        return PersistOrSendAsync(outgoing);
-    }
-
-    public ValueTask SendToEndpointAsync(string endpointName, object message, DeliveryOptions? options = null)
-    {
-        if (endpointName == null)
-        {
-            throw new ArgumentNullException(nameof(endpointName));
-        }
-
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        var outgoing = Runtime.RoutingFor(message.GetType())
-            .RouteToEndpointByName(message, endpointName, options);
-
         return PersistOrSendAsync(outgoing);
     }
 

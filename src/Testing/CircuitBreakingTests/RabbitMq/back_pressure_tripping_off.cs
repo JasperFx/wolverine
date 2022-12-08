@@ -57,7 +57,7 @@ public class back_pressure_tripping_off
 
             for (var i = 0; i < 1000; i++)
             {
-                await publisher.SendToEndpointAsync("incoming", new SometimesSlowMessage());
+                await publisher.EndpointFor("incoming").SendAsync( new SometimesSlowMessage());
             }
         });
 

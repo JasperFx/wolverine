@@ -67,7 +67,7 @@ public class PublishingSamples
             .GetRequiredService<IMessageBus>();
 
         // Explicitly send a message to a named endpoint
-        await publisher.SendToEndpointAsync("One", new SomeMessage());
+        await publisher.EndpointFor("One").SendAsync( new SomeMessage());
 
         #endregion
     }
@@ -121,7 +121,7 @@ public class PublishingSamples
 
         // Put this message in a local worker
         // queue named 'highpriority'
-        return bus.SendToEndpointAsync("highpriority", @event);
+        return bus.EndpointFor("highpriority").SendAsync(@event);
     }
 
     #endregion

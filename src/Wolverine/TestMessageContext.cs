@@ -146,16 +146,6 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessageBus.SendToEndpointAsync(string endpointName, object message, DeliveryOptions? options)
-    {
-        var envelope = new Envelope { Message = message, EndpointName = endpointName };
-        options?.Override(envelope);
-
-        _published.Add(envelope);
-
-        return new ValueTask();
-    }
-
     ValueTask IMessageBus.SchedulePublishAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options)
     {
         var envelope = new Envelope

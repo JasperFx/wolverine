@@ -228,7 +228,7 @@ public static class HostBuilderExtensions
             throw new ArgumentNullException(nameof(message));
         }
 
-        return host.Get<IMessageBus>().SendToEndpointAsync(endpointName, message, options);
+        return host.Get<IMessageBus>().EndpointFor(endpointName).SendAsync(message, options);
     }
 
     /// <summary>

@@ -82,7 +82,7 @@ public class TestMessageContextTests
     {
         var message1 = new Message1();
 
-        await theContext.SendToEndpointAsync("endpoint1", message1, new DeliveryOptions().WithHeader("a", "1"));
+        await theContext.EndpointFor("endpoint1").SendAsync(message1, new DeliveryOptions().WithHeader("a", "1"));
 
         var envelope = theSpy.AllOutgoing.ShouldHaveEnvelopeForMessageType<Message1>();
         envelope

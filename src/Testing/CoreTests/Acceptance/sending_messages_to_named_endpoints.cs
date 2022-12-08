@@ -73,7 +73,7 @@ public class sending_messages_to_named_endpoints : IDisposable
         var session = await _sender.TrackActivity()
             .IncludeExternalTransports()
             .AlsoTrack(_receiver1, _receiver2, _receiver3)
-            .ExecuteAndWaitAsync(c => c.SendToEndpointAsync("two", new TrackedMessage()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor("two").SendAsync( new TrackedMessage()));
 
         session.FindEnvelopesWithMessageType<TrackedMessage>()
             .Single(x => x.EventType == EventType.Received)
