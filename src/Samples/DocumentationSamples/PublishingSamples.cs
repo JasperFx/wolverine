@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Transports.Tcp;
+using Uri = System.Uri;
 
 namespace DocumentationSamples;
 
@@ -227,7 +228,7 @@ public class PublishingSamples
             Item = "Cookbook"
         };
 
-        await bus.SendAsync(new Uri("tcp://server1:2222"), @event);
+        await bus.EndpointFor(new Uri("tcp://server1:2222")).SendAsync( @event);
     }
 
 

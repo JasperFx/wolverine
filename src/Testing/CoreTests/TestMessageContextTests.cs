@@ -109,7 +109,7 @@ public class TestMessageContextTests
         var uri = "something://one".ToUri();
         var message1 = new Message1();
 
-        await theContext.SendAsync(uri, message1, new DeliveryOptions().WithHeader("a", "1"));
+        await theContext.EndpointFor(uri).SendAsync(message1, new DeliveryOptions().WithHeader("a", "1"));
 
         var envelope = theSpy.AllOutgoing.ShouldHaveEnvelopeForMessageType<Message1>();
         envelope

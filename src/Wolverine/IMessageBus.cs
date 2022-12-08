@@ -68,9 +68,7 @@ public interface IMessageBus : ICommandBus
     /// <param name="uri"></param>
     /// <returns></returns>
     IDestinationEndpoint EndpointFor(Uri uri);
-    
-    
-    
+
     /// <summary>
     /// Preview how Wolverine where and how this message would be sent. Use this as a debugging tool.
     /// </summary>
@@ -114,14 +112,6 @@ public interface IMessageBus : ICommandBus
     /// <param name="options"></param>
     /// <returns></returns>
     ValueTask SendToEndpointAsync(string endpointName, object message, DeliveryOptions? options = null);
-
-    /// <summary>
-    ///     Send to a specific destination rather than running the routing rules
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="destination">The destination to send to</param>
-    /// <param name="message"></param>
-    ValueTask SendAsync<T>(Uri destination, T message, DeliveryOptions? options = null);
 
     /// <summary>
     ///     Send a message that should be executed at the given time

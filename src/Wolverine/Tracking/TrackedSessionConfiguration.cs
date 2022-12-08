@@ -171,7 +171,7 @@ public class TrackedSessionConfiguration
     public Task<ITrackedSession> SendMessageAndWaitAsync(Uri destination, object message,
         DeliveryOptions? options = null)
     {
-        return ExecuteAndWaitAsync(c => c.SendAsync(destination, message, options));
+        return ExecuteAndWaitAsync(c => c.EndpointFor(destination).SendAsync(message, options));
     }
 
     /// <summary>

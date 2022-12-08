@@ -156,16 +156,6 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessageBus.SendAsync<T>(Uri destination, T message, DeliveryOptions? options)
-    {
-        var envelope = new Envelope { Message = message, Destination = destination };
-        options?.Override(envelope);
-
-        _published.Add(envelope);
-
-        return new ValueTask();
-    }
-
     ValueTask IMessageBus.SchedulePublishAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options)
     {
         var envelope = new Envelope
@@ -214,6 +204,8 @@ public class TestMessageContext : IMessageContext
         public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
         {
             var envelope = new Envelope { Message = message, Destination = _destination, EndpointName = _endpointName};
+            options?.Override(envelope);
+            
             _parent._sent.Add(envelope);
             return new ValueTask();
         }

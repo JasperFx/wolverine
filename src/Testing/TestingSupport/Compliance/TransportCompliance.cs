@@ -184,7 +184,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
             .Timeout(15.Seconds())
-            .ExecuteAndWaitAsync(c => c.SendAsync(theOutboundAddress, new Message2()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message2()));
 
         session.FindSingleTrackedMessageOfType<Message2>(EventType.MessageSucceeded)
             .ShouldNotBeNull();
@@ -196,7 +196,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .ExecuteAndWaitAsync(c => c.SendAsync(theOutboundAddress, new Message1()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
 
 
         session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
@@ -228,7 +228,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .ExecuteAndWaitAsync(c => c.SendAsync(theOutboundAddress, new Message1()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
 
 
         session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
@@ -261,7 +261,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .ExecuteAndWaitAsync(c => c.SendAsync(theOutboundAddress, new Message1()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
 
 
         session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
@@ -316,7 +316,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .ExecuteAndWaitAsync(c => c.SendAsync(theOutboundAddress, new Message1()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
 
 
         var record = session.FindEnvelopesWithMessageType<Message1>(EventType.MessageSucceeded).Single();

@@ -9,6 +9,7 @@ using Lamar;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
 using Wolverine.Util;
 
@@ -30,7 +31,34 @@ internal class DestinationEndpoint : IDestinationEndpoint
 
     public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
     {
-        throw new NotImplementedException();
+        if (message == null || message.GetType() == typeof(Uri))
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var route = _endpoint.RouteFor(message.GetType(), _parent.Runtime);
+        var envelope = new Envelope(message, _endpoint.Agent!);
+        if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != envelope.ContentType)
+        {
+            envelope.Serializer = _parent.Runtime.Options.FindSerializer(options.ContentType);
+        }
+        
+        foreach (var rule in route.Rules) rule.Modify(envelope);
+
+        // Delivery options win
+        options?.Override(envelope);
+
+        // adjust for local, scheduled send
+        if (envelope.IsScheduledForLater(DateTimeOffset.Now) && !_endpoint.Agent!.SupportsNativeScheduledSend)
+        {
+            var localDurableQueue =
+                _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
+            envelope = envelope.ForScheduledSend(localDurableQueue);
+        }
+        
+        _parent.TrackEnvelopeCorrelation(envelope);
+
+        return _parent.PersistOrSendAsync(envelope);
     }
 
     public Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
@@ -76,6 +104,11 @@ public class MessageBus : IMessageBus
 
     public IDestinationEndpoint EndpointFor(string endpointName)
     {
+        if (endpointName == null)
+        {
+            throw new ArgumentNullException(nameof(endpointName));
+        }
+
         var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
         if (endpoint == null)
             throw new ArgumentOutOfRangeException(nameof(endpointName), $"Unknown endpoint with name '{endpointName}'");
@@ -85,6 +118,11 @@ public class MessageBus : IMessageBus
 
     public IDestinationEndpoint EndpointFor(Uri uri)
     {
+        if (uri == null)
+        {
+            throw new ArgumentNullException(nameof(uri));
+        }
+
         var sender = Runtime.Endpoints.GetOrBuildSendingAgent(uri).Endpoint;
         return new DestinationEndpoint(sender, this);
     }
@@ -310,32 +348,6 @@ public class MessageBus : IMessageBus
             .RouteToEndpointByName(message, endpointName, options);
 
         return PersistOrSendAsync(outgoing);
-    }
-
-    /// <summary>
-    ///     Send to a specific destination rather than running the routing rules
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="destination">The destination to send to</param>
-    /// <param name="message"></param>
-    public ValueTask SendAsync<T>(Uri destination, T message, DeliveryOptions? options = null)
-    {
-        if (destination == null)
-        {
-            throw new ArgumentNullException(nameof(destination));
-        }
-
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        var envelope = Runtime.RoutingFor(message.GetType())
-            .RouteToDestination(message, destination, options);
-
-        TrackEnvelopeCorrelation(envelope);
-
-        return PersistOrSendAsync(envelope);
     }
 
     /// <summary>

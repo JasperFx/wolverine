@@ -32,7 +32,7 @@ public class message_forwarding
         var session = await host
             .TrackActivity()
             .IncludeExternalTransports()
-            .ExecuteAndWaitAsync(c => c.SendAsync("tcp://localhost:2345".ToUri(), originalMessage));
+            .ExecuteAndWaitAsync(c => c.EndpointFor("tcp://localhost:2345".ToUri()).SendAsync( originalMessage));
 
 
         session.FindSingleTrackedMessageOfType<NewMessage>(EventType.MessageSucceeded)

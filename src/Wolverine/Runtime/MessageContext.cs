@@ -238,7 +238,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new ArgumentOutOfRangeException(nameof(Envelope), $"There is no {nameof(Envelope.ReplyUri)}");
         }
 
-        return SendAsync(Envelope.ReplyUri, response);
+        return EndpointFor(Envelope.ReplyUri).SendAsync(response);
     }
 
     public Envelope? Envelope { get; protected set; }
@@ -318,7 +318,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         if (message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
-            await SendAsync(Envelope.ReplyUri!, message, new DeliveryOptions { IsResponse = true });
+            await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
             return;
         }
 
