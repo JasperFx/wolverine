@@ -17,4 +17,9 @@ public class EmptyMessageRouter<T> : MessageRouterBase<T>
     {
         return Array.Empty<Envelope>();
     }
+
+    public override IMessageRoute FindSingleRouteForSending()
+    {
+        throw new NoRoutesException(typeof(T));
+    }
 }

@@ -12,4 +12,6 @@ public interface IMessageRouter
 
     IMessageRoute RouteForEndpoint(string endpointName);
     IMessageRoute RouteForUri(Uri destination);
+
+    IMessageRoute FindSingleRouteForSending();
 }

@@ -96,6 +96,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         return route;
     }
 
+    public abstract IMessageRoute FindSingleRouteForSending();
 
     public Envelope RouteToEndpointByName(T message, string endpointName, DeliveryOptions? options)
     {

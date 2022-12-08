@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Wolverine.Transports.Local;
 
@@ -42,5 +43,13 @@ public class MessageRouter<T> : MessageRouterBase<T>
         }
 
         return envelopes;
+    }
+
+    public override IMessageRoute FindSingleRouteForSending()
+    {
+        if (Routes.Length == 1) return Routes.Single();
+        
+        throw new InvalidOperationException(
+            $"There are multiple subscribing endpoints {Routes.Select(x => x.Sender.Destination!.ToString()).Join(", ")} for message {typeof(T).FullNameInCode()}");
     }
 }

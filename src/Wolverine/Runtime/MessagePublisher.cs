@@ -145,12 +145,17 @@ public class MessagePublisher : CommandBus, IMessagePublisher
     /// <typeparam name="T"></typeparam>
     public ValueTask SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null)
     {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
         options ??= new DeliveryOptions();
         options.ScheduleDelay = delay;
         return PublishAsync(message, options);
     }
 
-    public async Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default,
+    public Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default,
         TimeSpan? timeout = null)
     {
         if (message == null)
@@ -158,37 +163,18 @@ public class MessagePublisher : CommandBus, IMessagePublisher
             throw new ArgumentNullException(nameof(message));
         }
 
-        timeout ??= 5.Seconds();
-
-        var options = new DeliveryOptions
-        {
-            AckRequested = true,
-            DeliverWithin = timeout.Value
-        };
-
-        // Cannot trust the T here. Can be "object"
-        var candidates = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
-        if (candidates.Length > 1)
-        {
-            throw new InvalidOperationException(
-                $"There are multiple subscribing endpoints {candidates.Select(x => x.Destination!.ToString()).Join(", ")} for message {message.GetType().FullNameInCode()}");
-        }
-
-        var outgoing = candidates.Single();
-
-        TrackEnvelopeCorrelation(outgoing);
-        options.Override(outgoing);
-
-        var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
-
-        await PersistOrSendAsync(outgoing);
-
-        return await waiter;
+        return Runtime.RoutingFor(message.GetType()).FindSingleRouteForSending()
+            .InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
     }
 
     public Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message,
         CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
         var route = Runtime.RoutingFor(message.GetType());
         return route.RouteForUri(destination).InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
     }
@@ -196,47 +182,38 @@ public class MessagePublisher : CommandBus, IMessagePublisher
     public Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message,
         CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        var route = Runtime.RoutingFor(message.GetType());
-        return route.RouteForEndpoint(endpointName).InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
-    }
-
-    public async Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null) where T : class
-    {
-        // KEEP THIS IN MESSAGE PUBLISHER
-        Runtime.RegisterMessageType(typeof(T));
-        timeout ??= 5.Seconds();
-        var options = DeliveryOptions.RequireResponse<T>();
-        options.DeliverWithin = timeout ?? 5.Seconds();
-
         if (message == null)
         {
             throw new ArgumentNullException(nameof(message));
         }
 
-        // Cannot trust the T here. Can be "object"
-        var candidates = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
-        if (candidates.Length > 1)
+        var route = Runtime.RoutingFor(message.GetType());
+        return route.RouteForEndpoint(endpointName).InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
+    }
+
+    public Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = null) where T : class
+    {
+        if (message == null)
         {
-            throw new InvalidOperationException(
-                $"There are multiple subscribing endpoints {candidates.Select(x => x.Destination!.ToString()).Join(", ")} for message {message.GetType().FullNameInCode()}");
+            throw new ArgumentNullException(nameof(message));
         }
 
-        var outgoing = candidates.Single();
+        // KEEP THIS IN MESSAGE PUBLISHER
+        Runtime.RegisterMessageType(typeof(T));
 
-        TrackEnvelopeCorrelation(outgoing);
-        options.Override(outgoing);
-
-        var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
-
-        await PersistOrSendAsync(outgoing);
-
-        return await waiter;
+        return Runtime.RoutingFor(message.GetType()).FindSingleRouteForSending()
+            .InvokeAsync<T>(message, this, cancellation, timeout);
     }
 
     public Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class
     {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
         Runtime.RegisterMessageType(typeof(T));
         return Runtime.RoutingFor(message.GetType()).RouteForUri(destination)
             .InvokeAsync<T>(message, this, cancellation, timeout);
@@ -245,6 +222,11 @@ public class MessagePublisher : CommandBus, IMessagePublisher
     public Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class
     {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
         Runtime.RegisterMessageType(typeof(T));
         return Runtime.RoutingFor(message.GetType()).RouteForEndpoint(endpointName)
             .InvokeAsync<T>(message, this, cancellation, timeout);
