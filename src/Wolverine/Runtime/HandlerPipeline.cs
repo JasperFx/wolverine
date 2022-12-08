@@ -19,12 +19,7 @@ public class HandlerPipeline : IHandlerPipeline
 
     private readonly WolverineRuntime _runtime;
 
-
-    private readonly AdvancedSettings _settings;
-
-    private ImHashMap<Type, IExecutor> _executors =
-        ImHashMap<Type, IExecutor>.Empty;
-
+    private readonly LightweightCache<Type, IExecutor> _executors;
 
     internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory)
     {
@@ -36,7 +31,7 @@ public class HandlerPipeline : IHandlerPipeline
 
         Logger = runtime.MessageLogger;
 
-        _settings = runtime.Advanced;
+        _executors = new LightweightCache<Type, IExecutor>(executorFactory.BuildFor);
     }
 
     internal IExecutorFactory ExecutorFactory { get; }
@@ -95,43 +90,20 @@ public class HandlerPipeline : IHandlerPipeline
 
     public async Task InvokeNowAsync(Envelope envelope, CancellationToken cancellation = default)
     {
-        if (_cancellation.IsCancellationRequested)
+        // The static one is the application's, so put that check on the outside
+        if (_cancellation.IsCancellationRequested || cancellation.IsCancellationRequested)
         {
             return;
         }
 
+        // Do this check on the outside of invoker as well
         if (envelope.Message == null)
         {
             throw new ArgumentNullException(nameof(envelope.Message));
         }
 
-        var executor = ExecutorFor(envelope.Message.GetType());
-
-        using var activity = WolverineTracing.StartExecuting(envelope);
-
-        Logger.ExecutionStarted(envelope);
-
-        var context = _contextPool.Get();
-        context.ReadEnvelope(envelope, InvocationCallback.Instance);
-
-        envelope.Attempts = 1;
-
-        try
-        {
-            while (await executor.InvokeAsync(context, cancellation) == InvokeResult.TryAgain)
-            {
-                envelope.Attempts++;
-            }
-
-            // TODO -- Harden the inline sender. Feel good about buffered
-            await context.FlushOutgoingMessagesAsync();
-        }
-        finally
-        {
-            Logger.ExecutionFinished(envelope);
-            _contextPool.Return(context);
-            activity?.Stop();
-        }
+        var executor = _executors[envelope.Message.GetType()];
+        await executor.InvokeInlineAsync(envelope, cancellation);
     }
 
     private bool tryDeserializeEnvelope(Envelope envelope, out IContinuation continuation)
@@ -208,7 +180,7 @@ public class HandlerPipeline : IHandlerPipeline
             return MessageSucceededContinuation.Instance;
         }
 
-        var executor = ExecutorFor(envelope.Message!.GetType());
+        var executor =_executors[envelope.Message!.GetType()];
 
         var continuation = await executor.ExecuteAsync(context, _cancellation).ConfigureAwait(false);
         Logger.ExecutionFinished(envelope);
@@ -216,17 +188,5 @@ public class HandlerPipeline : IHandlerPipeline
         return continuation;
     }
 
-    internal IExecutor ExecutorFor(Type messageType)
-    {
-        if (_executors.TryFind(messageType, out var executor))
-        {
-            return executor;
-        }
 
-        executor = ExecutorFactory.BuildFor(messageType);
-
-        _executors = _executors.AddOrUpdate(messageType, executor);
-
-        return executor;
-    }
 }

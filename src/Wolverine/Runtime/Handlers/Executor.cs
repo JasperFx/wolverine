@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using Microsoft.Extensions.ObjectPool;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 
@@ -17,29 +19,62 @@ internal interface IExecutor
 {
     Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation);
     Task<InvokeResult> InvokeAsync(MessageContext context, CancellationToken cancellation);
+    Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation);
 }
 
 internal class Executor : IExecutor
 {
+    private readonly ObjectPool<MessageContext> _contextPool;
     private readonly IMessageHandler _handler;
     private readonly IMessageLogger _logger;
     private readonly FailureRuleCollection _rules;
     private readonly TimeSpan _timeout;
 
-    public Executor(IWolverineRuntime runtime, IMessageHandler handler, FailureRuleCollection rules, TimeSpan timeout)
+    public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler, FailureRuleCollection rules, TimeSpan timeout)
     {
         _handler = handler;
         _timeout = timeout;
         _rules = rules;
         _logger = runtime.MessageLogger;
+        _contextPool = contextPool;
     }
 
-    public Executor(IMessageHandler handler, IMessageLogger logger, FailureRuleCollection rules, TimeSpan timeout)
+    public Executor(ObjectPool<MessageContext> contextPool, IMessageHandler handler, IMessageLogger logger, FailureRuleCollection rules, TimeSpan timeout)
     {
+        _contextPool = contextPool;
         _handler = handler;
         _logger = logger;
         _rules = rules;
         _timeout = timeout;
+    }
+
+    public async Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        using var activity = WolverineTracing.StartExecuting(envelope);
+
+        _logger.ExecutionStarted(envelope);
+
+        var context = _contextPool.Get();
+        context.ReadEnvelope(envelope, InvocationCallback.Instance);
+
+        envelope.Attempts = 1;
+
+        try
+        {
+            while (await InvokeAsync(context, cancellation) == InvokeResult.TryAgain)
+            {
+                envelope.Attempts++;
+            }
+
+            // TODO -- Harden the inline sender. Feel good about buffered
+            await context.FlushOutgoingMessagesAsync();
+        }
+        finally
+        {
+            _logger.ExecutionFinished(envelope);
+            _contextPool.Return(context);
+            activity?.Stop();
+        }
     }
 
     public async Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
@@ -100,10 +135,10 @@ internal class Executor : IExecutor
 
     internal Executor WrapWithMessageTracking(IMessageSuccessTracker tracker)
     {
-        return new Executor(new CircuitBreakerWrappedMessageHandler(_handler, tracker), _logger, _rules, _timeout);
+        return new Executor(_contextPool, new CircuitBreakerWrappedMessageHandler(_handler, tracker), _logger, _rules, _timeout);
     }
 
-    public static IExecutor Build(IWolverineRuntime runtime, HandlerGraph handlerGraph, Type messageType)
+    public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool, HandlerGraph handlerGraph, Type messageType)
     {
         var handler = handlerGraph.HandlerFor(messageType);
         if (handler == null)
@@ -113,6 +148,6 @@ internal class Executor : IExecutor
 
         var timeoutSpan = handler.Chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
         var rules = handler.Chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
-        return new Executor(runtime, handler, rules, timeoutSpan);
+        return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
     }
 }

@@ -25,6 +25,12 @@ internal class NoHandlerExecutor : IExecutor
         return Task.FromResult(_continuation);
     }
 
+    // Should never happen
+    public Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        throw new NotSupportedException();
+    }
+
     public Task<InvokeResult> InvokeAsync(MessageContext context, CancellationToken cancellation)
     {
         var handlerAssemblies = context
