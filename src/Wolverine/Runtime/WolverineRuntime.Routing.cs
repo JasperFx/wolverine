@@ -45,7 +45,7 @@ public partial class WolverineRuntime
             return raw;
         }
 
-        var routes = findEndpoints(messageType).Select(x => new MessageRoute(messageType, x))
+        var routes = findEndpoints(messageType).Select(x => new MessageRoute(messageType, x, Replies))
             .ToArray();
         
         var router = routes.Any()

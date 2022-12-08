@@ -9,4 +9,7 @@ public interface IMessageRouter
     Envelope RouteToDestination(object message, Uri uri, DeliveryOptions? options);
     Envelope RouteToEndpointByName(object message, string endpointName, DeliveryOptions? options);
     Envelope[] RouteToTopic(object message, string topicName, DeliveryOptions? options);
+
+    IMessageRoute RouteForEndpoint(string endpointName);
+    IMessageRoute RouteForUri(Uri destination);
 }

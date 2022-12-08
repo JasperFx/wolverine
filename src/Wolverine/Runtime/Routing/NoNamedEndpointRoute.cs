@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using JasperFx.Core;
 using Wolverine.Transports.Sending;
 
@@ -21,5 +24,12 @@ internal class NoNamedEndpointRoute : IMessageRoute
         WolverineRuntime runtime)
     {
         throw new UnknownEndpointException(_message);
+    }
+
+    public Task<T> InvokeAsync<T>(object message, MessagePublisher publisher,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null) where T : class
+    {
+        throw new InvalidOperationException($"No endpoint with name '{EndpointName}'");
     }
 }

@@ -1,9 +1,17 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Wolverine.Runtime.ResponseReply;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
 
-internal interface IMessageRoute
+public interface IMessageRoute
 {
     Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime);
+
+    Task<T> InvokeAsync<T>(object message, MessagePublisher publisher,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null) where T : class;
 }

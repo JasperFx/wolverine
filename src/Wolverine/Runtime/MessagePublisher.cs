@@ -116,7 +116,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         var envelope = Runtime.RoutingFor(message.GetType())
             .RouteToDestination(message, destination, options);
 
-        trackEnvelopeCorrelation(envelope);
+        TrackEnvelopeCorrelation(envelope);
 
         return PersistOrSendAsync(envelope);
     }
@@ -176,7 +176,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
 
         var outgoing = candidates.Single();
 
-        trackEnvelopeCorrelation(outgoing);
+        TrackEnvelopeCorrelation(outgoing);
         options.Override(outgoing);
 
         var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
@@ -186,65 +186,24 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         return await waiter;
     }
 
-    public async Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message,
+    public Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message,
         CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        timeout ??= 5.Seconds();
-
-        var options = new DeliveryOptions
-        {
-            AckRequested = true,
-            DeliverWithin = timeout.Value
-        };
-
-        var outgoing = Runtime.RoutingFor(message.GetType()).RouteToDestination(message, destination, options);
-
-        trackEnvelopeCorrelation(outgoing);
-        options.Override(outgoing);
-
-        var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
-
-        await PersistOrSendAsync(outgoing);
-
-        return await waiter;
+        var route = Runtime.RoutingFor(message.GetType());
+        return route.RouteForUri(destination).InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
     }
 
-    public async Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message,
+    public Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message,
         CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        timeout ??= 5.Seconds();
-
-        var options = new DeliveryOptions
-        {
-            AckRequested = true,
-            DeliverWithin = timeout.Value
-        };
-
-        var outgoing = Runtime.RoutingFor(message.GetType()).RouteToEndpointByName(message, endpointName, options);
-
-        trackEnvelopeCorrelation(outgoing);
-        options.Override(outgoing);
-
-        var waiter = Runtime.Replies.RegisterListener<Acknowledgement>(outgoing, cancellation, timeout!.Value);
-
-        await PersistOrSendAsync(outgoing);
-
-        return await waiter;
+        var route = Runtime.RoutingFor(message.GetType());
+        return route.RouteForEndpoint(endpointName).InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
     }
 
     public async Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class
     {
+        // KEEP THIS IN MESSAGE PUBLISHER
         Runtime.RegisterMessageType(typeof(T));
         timeout ??= 5.Seconds();
         var options = DeliveryOptions.RequireResponse<T>();
@@ -265,7 +224,7 @@ public class MessagePublisher : CommandBus, IMessagePublisher
 
         var outgoing = candidates.Single();
 
-        trackEnvelopeCorrelation(outgoing);
+        TrackEnvelopeCorrelation(outgoing);
         options.Override(outgoing);
 
         var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
@@ -275,62 +234,28 @@ public class MessagePublisher : CommandBus, IMessagePublisher
         return await waiter;
     }
 
-    public async Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default,
+    public Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class
     {
         Runtime.RegisterMessageType(typeof(T));
-        timeout ??= 5.Seconds();
-        var options = DeliveryOptions.RequireResponse<T>();
-        options.DeliverWithin = timeout ?? 5.Seconds();
-
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        var outgoing = Runtime.RoutingFor(message.GetType()).RouteToDestination(message, destination, options);
-
-        trackEnvelopeCorrelation(outgoing);
-        options.Override(outgoing);
-
-        var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
-
-        await PersistOrSendAsync(outgoing);
-
-        return await waiter;
+        return Runtime.RoutingFor(message.GetType()).RouteForUri(destination)
+            .InvokeAsync<T>(message, this, cancellation, timeout);
     }
 
-    public async Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default,
+    public Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class
     {
         Runtime.RegisterMessageType(typeof(T));
-        timeout ??= 5.Seconds();
-        var options = DeliveryOptions.RequireResponse<T>();
-        options.DeliverWithin = timeout ?? 5.Seconds();
-
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        var outgoing = Runtime.RoutingFor(message.GetType()).RouteToEndpointByName(message, endpointName, options);
-
-        trackEnvelopeCorrelation(outgoing);
-        options.Override(outgoing);
-
-        var waiter = Runtime.Replies.RegisterListener<T>(outgoing, cancellation, timeout!.Value);
-
-        await PersistOrSendAsync(outgoing);
-
-        return await waiter;
+        return Runtime.RoutingFor(message.GetType()).RouteForEndpoint(endpointName)
+            .InvokeAsync<T>(message, this, cancellation, timeout);
     }
 
     private void trackEnvelopeCorrelation(Envelope[] outgoing)
     {
-        foreach (var outbound in outgoing) trackEnvelopeCorrelation(outbound);
+        foreach (var outbound in outgoing) TrackEnvelopeCorrelation(outbound);
     }
 
-    protected virtual void trackEnvelopeCorrelation(Envelope outbound)
+    internal virtual void TrackEnvelopeCorrelation(Envelope outbound)
     {
         outbound.Source = Runtime.Advanced.ServiceName;
         outbound.CorrelationId = CorrelationId;

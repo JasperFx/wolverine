@@ -16,7 +16,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
     
     private ImHashMap<string, IMessageRoute> _routeByName = ImHashMap<string, IMessageRoute>.Empty;
 
-    private ImHashMap<Uri, MessageRoute> _specificRoutes = ImHashMap<Uri, MessageRoute>.Empty;
+    private ImHashMap<Uri, IMessageRoute> _specificRoutes = ImHashMap<Uri, IMessageRoute>.Empty;
 
     protected MessageRouterBase(WolverineRuntime runtime)
     {
@@ -32,7 +32,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         }
 
         _topicRoutes = runtime.Options.Transports.AllEndpoints().Where(x => x.RoutingType == RoutingMode.ByTopic)
-            .Select(endpoint => new MessageRoute(typeof(T), endpoint)).ToArray();
+            .Select(endpoint => new MessageRoute(typeof(T), endpoint, runtime.Replies)).ToArray();
 
         Runtime = runtime;
     }
@@ -78,17 +78,24 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             throw new ArgumentNullException(nameof(message));
         }
 
-        if (_specificRoutes.TryFind(uri, out var route))
+        return RouteForUri(uri)
+            .CreateForSending(message, options, LocalDurableQueue, Runtime);
+    }
+
+    public IMessageRoute RouteForUri(Uri destination)
+    {
+        if (_specificRoutes.TryFind(destination, out var route))
         {
-            return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
+            return route;
         }
 
-        var agent = Runtime.Endpoints.GetOrBuildSendingAgent(uri);
-        route = new MessageRoute(message.GetType(), agent.Endpoint);
-        _specificRoutes = _specificRoutes.AddOrUpdate(uri, route);
+        var agent = Runtime.Endpoints.GetOrBuildSendingAgent(destination);
+        route = new MessageRoute(typeof(T), agent.Endpoint, Runtime.Replies);
+        _specificRoutes = _specificRoutes.AddOrUpdate(destination, route);
 
-        return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
+        return route;
     }
+
 
     public Envelope RouteToEndpointByName(T message, string endpointName, DeliveryOptions? options)
     {
@@ -97,20 +104,26 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             throw new ArgumentNullException(nameof(message));
         }
 
+        return RouteForEndpoint(endpointName)
+            .CreateForSending(message, options, LocalDurableQueue, Runtime);
+    }
+    
+    public IMessageRoute RouteForEndpoint(string endpointName)
+    {
         if (_routeByName.TryFind(endpointName, out var route))
         {
-            return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
+            return route;
         }
-
+        
         var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
         route = endpoint == null
             ? new NoNamedEndpointRoute(endpointName,
                 Runtime.Options.Transports.AllEndpoints().Select(x => x.EndpointName).ToArray())
-            : new MessageRoute(typeof(T), Runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri).Endpoint);
+            : new MessageRoute(typeof(T), Runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri).Endpoint, Runtime.Replies);
 
         _routeByName = _routeByName.AddOrUpdate(endpointName, route);
 
-        return route.CreateForSending(message, options, LocalDurableQueue, Runtime);
+        return route;
     }
 
     public Envelope[] RouteToTopic(T message, string topicName, DeliveryOptions? options)

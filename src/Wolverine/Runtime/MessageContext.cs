@@ -140,7 +140,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
         var envelope = Runtime.RoutingFor(typeof(Acknowledgement))
             .RouteToDestination(acknowledgement, Envelope.ReplyUri, null);
 
-        trackEnvelopeCorrelation(envelope);
+        TrackEnvelopeCorrelation(envelope);
         envelope.SagaId = Envelope.SagaId;
         // TODO -- reevaluate the metadata. Causation, Originator, all that
 
@@ -171,7 +171,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
         var envelope = Runtime.RoutingFor(typeof(FailureAcknowledgement))
             .RouteToDestination(acknowledgement, Envelope.ReplyUri, null);
 
-        trackEnvelopeCorrelation(envelope);
+        TrackEnvelopeCorrelation(envelope);
         envelope.SagaId = Envelope.SagaId;
         // TODO -- reevaluate the metadata. Causation, ORiginator, all that
 
@@ -350,7 +350,7 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
             var ack = new Acknowledgement { RequestId = Envelope.Id };
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
                 .RouteToDestination(ack, Envelope.ReplyUri, null);
-            trackEnvelopeCorrelation(ackEnvelope);
+            TrackEnvelopeCorrelation(ackEnvelope);
             _outstanding.Add(ackEnvelope);
         }
     }
@@ -370,9 +370,9 @@ public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransa
         Scheduled.Clear();
     }
 
-    protected override void trackEnvelopeCorrelation(Envelope outbound)
+    internal override void TrackEnvelopeCorrelation(Envelope outbound)
     {
-        base.trackEnvelopeCorrelation(outbound);
+        base.TrackEnvelopeCorrelation(outbound);
         outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
 
         if (Envelope != null)

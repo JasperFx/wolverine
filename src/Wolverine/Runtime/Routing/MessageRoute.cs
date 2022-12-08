@@ -1,28 +1,36 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Runtime.ResponseReply;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports.Sending;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Routing;
 
 public class MessageRoute : IMessageRoute
 {
+    private readonly IReplyTracker _replyTracker;
+
     private static ImHashMap<Type, IList<IEnvelopeRule>> _rulesByMessageType =
         ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 
-    public MessageRoute(Type messageType, Endpoint endpoint) : this(endpoint.DefaultSerializer!, endpoint.Agent!,
-        endpoint.OutgoingRules.Concat(RulesForMessageType(messageType)))
+    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies) : this(endpoint.DefaultSerializer!, endpoint.Agent!,
+        endpoint.OutgoingRules.Concat(RulesForMessageType(messageType)), replies)
     {
     }
 
-    public MessageRoute(IMessageSerializer serializer, ISendingAgent sender, IEnumerable<IEnvelopeRule> rules)
+    public MessageRoute(IMessageSerializer serializer, ISendingAgent sender, IEnumerable<IEnvelopeRule> rules,
+        IReplyTracker replyTracker)
     {
+        _replyTracker = replyTracker;
         Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         Sender = sender ?? throw new ArgumentNullException(nameof(sender));
         Rules.AddRange(rules);
@@ -68,4 +76,40 @@ public class MessageRoute : IMessageRoute
 
         return rules;
     }
+    
+    public async Task<T> InvokeAsync<T>(object message, MessagePublisher publisher,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null) where T : class
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+        
+        timeout ??= 5.Seconds();
+        
+
+        var envelope = new Envelope(message, Sender);
+        foreach (var rule in Rules) rule.Modify(envelope);
+        if (typeof(T) == typeof(Acknowledgement))
+        {
+            envelope.AckRequested = true;
+        }
+        else
+        {
+            envelope.ReplyRequested = typeof(T).ToMessageTypeName();
+        }
+        
+        envelope.DeliverWithin = timeout.Value;
+        envelope.Sender = Sender;
+
+        publisher.TrackEnvelopeCorrelation(envelope);
+
+        var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout!.Value);
+
+        await Sender.EnqueueOutgoingAsync(envelope);
+
+        return await waiter;
+    }
+
 }

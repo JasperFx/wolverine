@@ -46,7 +46,7 @@ public class message_timeout_mechanics
         PotentiallySlowMessageHandler.DidTimeout.ShouldBeFalse();
     }
 
-    [Fact]
+    [Fact] // This test blinks sometimes when running with other tests
     public async Task timeout_using_global_timeout()
     {
         PotentiallySlowMessageHandler.DidTimeout = false; // start clean
