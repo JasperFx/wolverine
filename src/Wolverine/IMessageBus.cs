@@ -7,10 +7,70 @@ using Wolverine.Runtime.ResponseReply;
 namespace Wolverine;
 
 /// <summary>
-///     Entry point for sending or publishing messages
+/// Send or invoke messages to a specific endpoint
+/// </summary>
+public interface IDestinationEndpoint
+{
+    Uri Uri { get; }
+    string EndpointName { get; }
+    
+    /// <summary>
+    ///     Sends a message to this destination
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    ValueTask SendAsync<T>(T message, DeliveryOptions? options = null);
+    
+    /// <summary>
+    /// Execute the message at this destination
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout"></param>
+    /// <returns></returns>
+    Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = null);
+    
+    /// <summary>
+    /// Execute the summary at this destination and retrieve the expected
+    /// response from the destination
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+        where T : class;
+}
+
+
+
+/// <summary>
+/// Entry point for processing or publishing messages with Wolverine
 /// </summary>
 public interface IMessageBus : ICommandBus
 {
+    /// <summary>
+    /// Publish or process messages at a specific endpoint by
+    /// endpoint name
+    /// </summary>
+    /// <param name="endpointName"></param>
+    /// <returns></returns>
+    IDestinationEndpoint EndpointFor(string endpointName);
+    
+    /// <summary>
+    /// Publish or process messages at a specific endpoint
+    /// by the endpoint's Uri
+    /// </summary>
+    /// <param name="uri"></param>
+    /// <returns></returns>
+    IDestinationEndpoint EndpointFor(Uri uri);
+    
+    
+    
     /// <summary>
     /// Preview how Wolverine where and how this message would be sent. Use this as a debugging tool.
     /// </summary>
@@ -70,6 +130,7 @@ public interface IMessageBus : ICommandBus
     /// <param name="time"></param>
     /// <param name="options"></param>
     /// <typeparam name="T"></typeparam>
+    [Obsolete]
     ValueTask SchedulePublishAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options = null);
 
     /// <summary>
@@ -79,24 +140,15 @@ public interface IMessageBus : ICommandBus
     /// <param name="delay"></param>
     /// <param name="options"></param>
     /// <typeparam name="T"></typeparam>
+    [Obsolete]
     ValueTask SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null);
 
-
+    [Obsolete]
     Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default,
         TimeSpan? timeout = null);
 
-    Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null);
-
-    Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message,
-        CancellationToken cancellation = default, TimeSpan? timeout = null);
-
+    [Obsolete]
     Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
         where T : class;
 
-    Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null) where T : class;
-
-    Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null) where T : class;
 }

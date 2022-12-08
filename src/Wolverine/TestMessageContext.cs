@@ -32,6 +32,16 @@ public class TestMessageContext : IMessageContext
     {
     }
 
+    public IDestinationEndpoint EndpointFor(string endpointName)
+    {
+        return new DestinationEndpoint(this, null, endpointName);
+    }
+
+    public IDestinationEndpoint EndpointFor(Uri uri)
+    {
+        return new DestinationEndpoint(this, uri, uri.ToString());
+    }
+
     /// <summary>
     ///     Messages that were executed inline from this context
     /// </summary>
@@ -186,37 +196,42 @@ public class TestMessageContext : IMessageContext
         return Task.FromResult(new Acknowledgement());
     }
 
-    Task<Acknowledgement> IMessageBus.SendAndWaitAsync(Uri destination, object message,
-        CancellationToken cancellation,
-        TimeSpan? timeout)
+    internal class DestinationEndpoint : IDestinationEndpoint
     {
-        var envelope = new Envelope { Message = message, Destination = destination };
-        _sent.Add(envelope);
-        return Task.FromResult(new Acknowledgement());
-    }
+        private readonly TestMessageContext _parent;
+        private readonly Uri? _destination;
+        private readonly string? _endpointName;
 
-    Task<Acknowledgement> IMessageBus.SendAndWaitAsync(string endpointName, object message,
-        CancellationToken cancellation,
-        TimeSpan? timeout)
-    {
-        var envelope = new Envelope { Message = message, EndpointName = endpointName };
-        _sent.Add(envelope);
-        return Task.FromResult(new Acknowledgement());
+        public DestinationEndpoint(TestMessageContext parent, Uri? destination, string? endpointName)
+        {
+            _parent = parent;
+            _destination = destination;
+            _endpointName = endpointName;
+        }
+
+        public Uri Uri => _destination!;
+        public string EndpointName => _endpointName!;
+        public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
+        {
+            var envelope = new Envelope { Message = message, Destination = _destination, EndpointName = _endpointName};
+            _parent._sent.Add(envelope);
+            return new ValueTask();
+        }
+
+        public Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+        {
+            var envelope = new Envelope { Message = message, Destination = _destination, EndpointName = _endpointName};
+            _parent._sent.Add(envelope);
+            return Task.FromResult(new Acknowledgement());
+        }
+
+        public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+        {
+            throw new NotSupportedException();
+        }
     }
 
     Task<T> IMessageBus.RequestAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout)
-    {
-        throw new NotSupportedException();
-    }
-
-    Task<T> IMessageBus.RequestAsync<T>(Uri destination, object message, CancellationToken cancellation,
-        TimeSpan? timeout)
-    {
-        throw new NotSupportedException();
-    }
-
-    Task<T> IMessageBus.RequestAsync<T>(string endpointName, object message, CancellationToken cancellation,
-        TimeSpan? timeout)
     {
         throw new NotSupportedException();
     }

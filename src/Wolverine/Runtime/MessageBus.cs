@@ -6,12 +6,57 @@ using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.Core;
 using Lamar;
+using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.ResponseReply;
 using Wolverine.Transports;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime;
+
+internal class DestinationEndpoint : IDestinationEndpoint
+{
+    private readonly Endpoint _endpoint;
+    private readonly MessageBus _parent;
+
+    public DestinationEndpoint(Endpoint endpoint, MessageBus parent)
+    {
+        _endpoint = endpoint;
+        _parent = parent;
+    }
+
+    public Uri Uri => _endpoint.Uri;
+    public string EndpointName => _endpoint.EndpointName;
+
+    public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var route = _endpoint.RouteFor(message.GetType(), _parent.Runtime);
+        return route.InvokeAsync<Acknowledgement>(message, _parent, cancellation, timeout);
+    }
+
+    public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+    {
+        _parent.Runtime.RegisterMessageType(typeof(T));
+        
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var route = _endpoint.RouteFor(message.GetType(), _parent.Runtime);
+        return route.InvokeAsync<T>(message, _parent, cancellation, timeout);
+    }
+}
 
 public class MessageBus : IMessageBus
 {
@@ -28,7 +73,22 @@ public class MessageBus : IMessageBus
         Storage = runtime.Storage;
         CorrelationId = correlationId;
     }
-    
+
+    public IDestinationEndpoint EndpointFor(string endpointName)
+    {
+        var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
+        if (endpoint == null)
+            throw new ArgumentOutOfRangeException(nameof(endpointName), $"Unknown endpoint with name '{endpointName}'");
+
+        return new DestinationEndpoint(endpoint, this);
+    }
+
+    public IDestinationEndpoint EndpointFor(Uri uri)
+    {
+        var sender = Runtime.Endpoints.GetOrBuildSendingAgent(uri).Endpoint;
+        return new DestinationEndpoint(sender, this);
+    }
+
     public string? CorrelationId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
@@ -324,30 +384,6 @@ public class MessageBus : IMessageBus
             .InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
     }
 
-    public Task<Acknowledgement> SendAndWaitAsync(Uri destination, object message,
-        CancellationToken cancellation = default, TimeSpan? timeout = null)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        var route = Runtime.RoutingFor(message.GetType());
-        return route.RouteForUri(destination).InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
-    }
-
-    public Task<Acknowledgement> SendAndWaitAsync(string endpointName, object message,
-        CancellationToken cancellation = default, TimeSpan? timeout = null)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        var route = Runtime.RoutingFor(message.GetType());
-        return route.RouteForEndpoint(endpointName).InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
-    }
-
     public Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class
     {
@@ -360,32 +396,6 @@ public class MessageBus : IMessageBus
         Runtime.RegisterMessageType(typeof(T));
 
         return Runtime.RoutingFor(message.GetType()).FindSingleRouteForSending()
-            .InvokeAsync<T>(message, this, cancellation, timeout);
-    }
-
-    public Task<T> RequestAsync<T>(Uri destination, object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null) where T : class
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        Runtime.RegisterMessageType(typeof(T));
-        return Runtime.RoutingFor(message.GetType()).RouteForUri(destination)
-            .InvokeAsync<T>(message, this, cancellation, timeout);
-    }
-
-    public Task<T> RequestAsync<T>(string endpointName, object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null) where T : class
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        Runtime.RegisterMessageType(typeof(T));
-        return Runtime.RoutingFor(message.GetType()).RouteForEndpoint(endpointName)
             .InvokeAsync<T>(message, this, cancellation, timeout);
     }
 

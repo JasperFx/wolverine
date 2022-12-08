@@ -142,7 +142,7 @@ public class TestMessageContextTests
         var uri = "something://one".ToUri();
         var message1 = new Message1();
 
-        await theContext.SendAndWaitAsync(uri, message1);
+        await theContext.EndpointFor(uri).InvokeAsync(message1);
 
         var env = theSpy.Sent.ShouldHaveEnvelopeForMessageType<Message1>();
         env.Destination.ShouldBe(uri);
@@ -153,7 +153,7 @@ public class TestMessageContextTests
     {
         var message1 = new Message1();
 
-        await theContext.SendAndWaitAsync("endpoint1", message1);
+        await theContext.EndpointFor("endpoint1").InvokeAsync(message1);
 
         var env = theSpy.Sent.ShouldHaveEnvelopeForMessageType<Message1>();
         env.EndpointName.ShouldBe("endpoint1");

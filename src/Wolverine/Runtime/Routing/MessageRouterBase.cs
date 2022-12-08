@@ -82,6 +82,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             .CreateForSending(message, options, LocalDurableQueue, Runtime);
     }
 
+    [Obsolete("Might be unnecessary soon")]
     public IMessageRoute RouteForUri(Uri destination)
     {
         if (_specificRoutes.TryFind(destination, out var route))
@@ -109,6 +110,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             .CreateForSending(message, options, LocalDurableQueue, Runtime);
     }
     
+    [Obsolete("Might be unnecessary soon")]
     public IMessageRoute RouteForEndpoint(string endpointName)
     {
         if (_routeByName.TryFind(endpointName, out var route))

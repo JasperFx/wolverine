@@ -141,7 +141,8 @@ public class request_reply : IAsyncLifetime
         var (session, response) = await _sender.TrackActivity()
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
-            .RequestAndWaitAsync(c => c.RequestAsync<Response1>("Receiver2", new Request1 { Name = "Croaker" }));
+            .RequestAndWaitAsync(c => c.EndpointFor("Receiver2").InvokeAsync<Response1>( new Request1 { Name = "Croaker" }));
+        
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.EventType == EventType.Sent);
@@ -164,7 +165,7 @@ public class request_reply : IAsyncLifetime
         var (session, response) = await _sender.TrackActivity()
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
-            .RequestAndWaitAsync(c => c.RequestAsync<Response1>(destination, new Request1 { Name = "Croaker" }));
+            .RequestAndWaitAsync(c => c.EndpointFor(destination).InvokeAsync<Response1>( new Request1 { Name = "Croaker" }));
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.EventType == EventType.Sent);
@@ -234,7 +235,7 @@ public class request_reply : IAsyncLifetime
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
             .SendMessageAndWaitForAcknowledgementAsync(c =>
-                c.SendAndWaitAsync("Receiver2", new Request2 { Name = "Croaker" }));
+                c.EndpointFor("Receiver2").InvokeAsync(new Request2 { Name = "Croaker" }));
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
             .Single(x => x.EventType == EventType.Sent);
@@ -254,7 +255,7 @@ public class request_reply : IAsyncLifetime
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
             .SendMessageAndWaitForAcknowledgementAsync(c =>
-                c.SendAndWaitAsync(destination, new Request2 { Name = "Croaker" }));
+                c.EndpointFor(destination).InvokeAsync( new Request2 { Name = "Croaker" }));
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
             .Single(x => x.EventType == EventType.Sent);
@@ -304,7 +305,7 @@ public class request_reply : IAsyncLifetime
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
-            await publisher.RequestAsync<Response1>("Receiver1", new RequestWithNoHandler());
+            await publisher.EndpointFor("Receiver1").InvokeAsync<Response1>(new RequestWithNoHandler());
         });
 
         ex.Message.ShouldContain(
@@ -319,7 +320,7 @@ public class request_reply : IAsyncLifetime
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
-            await publisher.SendAndWaitAsync("Receiver1", new RequestWithNoHandler());
+            await publisher.EndpointFor("Receiver1").InvokeAsync( new RequestWithNoHandler());
         });
 
         ex.Message.ShouldContain(

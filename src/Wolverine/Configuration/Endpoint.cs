@@ -9,6 +9,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Oakton.Descriptions;
 using Wolverine.ErrorHandling;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Serialization;
@@ -66,12 +67,25 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     private EndpointMode _mode = EndpointMode.BufferedInMemory;
     private string? _name;
     private ImHashMap<string, IMessageSerializer> _serializers = ImHashMap<string, IMessageSerializer>.Empty;
+    
+    internal ImHashMap<Type, MessageRoute> Routes = ImHashMap<Type, MessageRoute>.Empty;
 
     protected Endpoint(Uri uri, EndpointRole role)
     {
         Role = role;
         Uri = uri;
         EndpointName = uri.ToString();
+    }
+
+    internal MessageRoute RouteFor(Type messageType, IWolverineRuntime runtime)
+    {
+        if (Routes.TryFind(messageType, out var route)) return route;
+
+        route = new MessageRoute(messageType, this, runtime.Replies);
+
+        Routes = Routes.AddOrUpdate(messageType, route);
+
+        return route;
     }
 
     /// <summary>
