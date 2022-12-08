@@ -126,7 +126,7 @@ public static class HostBuilderExtensions
             services.AddOptions();
             services.AddLogging();
 
-            services.AddScoped<ICommandBus, CommandBus>();
+            services.AddScoped<ICommandBus, MessagePublisher>();
             services.AddScoped<IMessagePublisher, MessagePublisher>();
             services.AddScoped<IMessageContext, MessageContext>();
 
