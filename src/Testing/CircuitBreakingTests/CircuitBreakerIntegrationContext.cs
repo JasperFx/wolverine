@@ -101,7 +101,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
     protected void publishNow(int failures)
     {
         var messages = buildHundredMessages(failures);
-        var publisher = new MessagePublisher(_runtime);
+        var publisher = new MessageBus(_runtime);
         var task = Task.Factory.StartNew(async () =>
         {
             foreach (var message in messages) await publisher.PublishAsync(message);
@@ -115,7 +115,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
     protected void delayPublish(TimeSpan delay, int failures)
     {
         var messages = buildHundredMessages(failures);
-        var publisher = new MessagePublisher(_runtime);
+        var publisher = new MessageBus(_runtime);
         var task = Task.Factory.StartNew(async () =>
         {
             await Task.Delay(delay);

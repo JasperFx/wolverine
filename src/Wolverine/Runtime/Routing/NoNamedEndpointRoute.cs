@@ -26,7 +26,7 @@ internal class NoNamedEndpointRoute : IMessageRoute
         throw new UnknownEndpointException(_message);
     }
 
-    public Task<T> InvokeAsync<T>(object message, MessagePublisher publisher,
+    public Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class
     {

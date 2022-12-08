@@ -12,16 +12,16 @@ public class Subscriber2Handlers
         return new RabbitMessage3 { Name = message.Name };
     }
 
-    public static async Task Handle(RabbitMessage3 message, IMessagePublisher publisher)
+    public static async Task Handle(RabbitMessage3 message, IMessageBus bus)
     {
         await Task.Delay(100.Milliseconds());
-        await publisher.PublishAsync(new LocalMessage3(message.Name));
+        await bus.PublishAsync(new LocalMessage3(message.Name));
     }
 
-    public async Task Handle(LocalMessage3 message, IMessagePublisher publisher)
+    public async Task Handle(LocalMessage3 message, IMessageBus bus)
     {
         await Task.Delay(75.Milliseconds());
-        await publisher.PublishAsync(new LocalMessage4(message.Name));
+        await bus.PublishAsync(new LocalMessage4(message.Name));
     }
 
     public Task Handle(LocalMessage4 message)

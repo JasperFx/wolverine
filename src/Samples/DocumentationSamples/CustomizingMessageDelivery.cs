@@ -8,9 +8,9 @@ public class CustomizingMessageDelivery
 {
     #region sample_SendMessagesWithDeliveryOptions
 
-    public static async Task SendMessagesWithDeliveryOptions(IMessagePublisher publisher)
+    public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
     {
-        await publisher.PublishAsync(new Message1(), new DeliveryOptions
+        await bus.PublishAsync(new Message1(), new DeliveryOptions
             {
                 AckRequested = true,
                 ContentType = "text/xml", // you can do this, but I'm not sure why you'd want to override this

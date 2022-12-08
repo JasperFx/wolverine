@@ -63,7 +63,7 @@ public class PublishingSamples
             }).StartAsync();
 
         var publisher = host.Services
-            .GetRequiredService<IMessagePublisher>();
+            .GetRequiredService<IMessageBus>();
 
         // Explicitly send a message to a named endpoint
         await publisher.SendToEndpointAsync("One", new SomeMessage());

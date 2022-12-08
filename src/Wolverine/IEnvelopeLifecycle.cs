@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace Wolverine;
 
-public interface IEnvelopeLifecycle : IMessagePublisher
+public interface IEnvelopeLifecycle : IMessageBus
 {
     /// <summary>
     ///     The envelope being currently handled. This will only be non-null during

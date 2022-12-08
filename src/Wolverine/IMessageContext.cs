@@ -2,7 +2,7 @@
 
 namespace Wolverine;
 
-public interface IMessageContext : IMessagePublisher
+public interface IMessageContext : IMessageBus
 {
     /// <summary>
     ///     Correlating identifier for the logical workflow. All envelopes sent or executed

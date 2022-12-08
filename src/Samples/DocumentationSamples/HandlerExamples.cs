@@ -89,7 +89,7 @@ namespace DocumentationSamples
     {
         #region sample_publish_MyMessage
 
-        public static async Task publish_command(IMessagePublisher bus)
+        public static async Task publish_command(IMessageBus bus)
         {
             await bus.PublishAsync(new MyMessage());
         }

@@ -6,19 +6,19 @@ namespace OtelWebApi;
 
 public static class InitialCommandHandler
 {
-    public static async Task Handle(InitialCommand cmd, IMessagePublisher publisher)
+    public static async Task Handle(InitialCommand cmd, IMessageBus bus)
     {
         await Task.Delay(100.Milliseconds());
 
-        await publisher.InvokeAsync(new LocalMessage1(cmd.Name));
+        await bus.InvokeAsync(new LocalMessage1(cmd.Name));
 
         await Task.Delay(50.Milliseconds());
 
-        await publisher.PublishAsync(new LocalMessage2(cmd.Name));
+        await bus.PublishAsync(new LocalMessage2(cmd.Name));
 
-        await publisher.PublishAsync(new TcpMessage1(cmd.Name));
+        await bus.PublishAsync(new TcpMessage1(cmd.Name));
 
-        await publisher.PublishAsync(new RabbitMessage1 { Name = cmd.Name });
+        await bus.PublishAsync(new RabbitMessage1 { Name = cmd.Name });
     }
 
     public static Task Handle(LocalMessage1 message)

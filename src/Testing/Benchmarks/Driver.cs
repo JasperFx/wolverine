@@ -28,7 +28,7 @@ public class Driver : IDisposable
 
     public IHost Host { get; private set; }
 
-    public IMessagePublisher Publisher { get; private set; }
+    public IMessageBus Bus { get; private set; }
 
     public IMessageStore Persistence { get; private set; }
 
@@ -55,7 +55,7 @@ public class Driver : IDisposable
             .StartAsync();
 
         Persistence = Host.Services.GetRequiredService<IMessageStore>();
-        Publisher = Host.Services.GetRequiredService<IMessagePublisher>();
+        Bus = Host.Services.GetRequiredService<IMessageBus>();
 
         await Host.ResetResourceState();
 

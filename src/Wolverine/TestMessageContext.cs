@@ -106,7 +106,7 @@ public class TestMessageContext : IMessageContext
         throw new NotSupportedException();
     }
 
-    ValueTask IMessagePublisher.SendAsync<T>(T message, DeliveryOptions? options)
+    ValueTask IMessageBus.SendAsync<T>(T message, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message };
         options?.Override(envelope);
@@ -116,7 +116,7 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessagePublisher.PublishAsync<T>(T message, DeliveryOptions? options)
+    ValueTask IMessageBus.PublishAsync<T>(T message, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message };
         options?.Override(envelope);
@@ -126,7 +126,7 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessagePublisher.SendToTopicAsync(string topicName, object message, DeliveryOptions? options)
+    ValueTask IMessageBus.SendToTopicAsync(string topicName, object message, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message, TopicName = topicName };
         options?.Override(envelope);
@@ -136,7 +136,7 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessagePublisher.SendToEndpointAsync(string endpointName, object message, DeliveryOptions? options)
+    ValueTask IMessageBus.SendToEndpointAsync(string endpointName, object message, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message, EndpointName = endpointName };
         options?.Override(envelope);
@@ -146,7 +146,7 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessagePublisher.SendAsync<T>(Uri destination, T message, DeliveryOptions? options)
+    ValueTask IMessageBus.SendAsync<T>(Uri destination, T message, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message, Destination = destination };
         options?.Override(envelope);
@@ -156,7 +156,7 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessagePublisher.SchedulePublishAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options)
+    ValueTask IMessageBus.SchedulePublishAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options)
     {
         var envelope = new Envelope
         {
@@ -170,7 +170,7 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessagePublisher.SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options)
+    ValueTask IMessageBus.SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message, ScheduleDelay = delay, Status = EnvelopeStatus.Scheduled };
         options?.Override(envelope);
@@ -179,14 +179,14 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    Task<Acknowledgement> IMessagePublisher.SendAndWaitAsync(object message, CancellationToken cancellation,
+    Task<Acknowledgement> IMessageBus.SendAndWaitAsync(object message, CancellationToken cancellation,
         TimeSpan? timeout)
     {
         _sent.Add(message);
         return Task.FromResult(new Acknowledgement());
     }
 
-    Task<Acknowledgement> IMessagePublisher.SendAndWaitAsync(Uri destination, object message,
+    Task<Acknowledgement> IMessageBus.SendAndWaitAsync(Uri destination, object message,
         CancellationToken cancellation,
         TimeSpan? timeout)
     {
@@ -195,7 +195,7 @@ public class TestMessageContext : IMessageContext
         return Task.FromResult(new Acknowledgement());
     }
 
-    Task<Acknowledgement> IMessagePublisher.SendAndWaitAsync(string endpointName, object message,
+    Task<Acknowledgement> IMessageBus.SendAndWaitAsync(string endpointName, object message,
         CancellationToken cancellation,
         TimeSpan? timeout)
     {
@@ -204,18 +204,18 @@ public class TestMessageContext : IMessageContext
         return Task.FromResult(new Acknowledgement());
     }
 
-    Task<T> IMessagePublisher.RequestAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout)
+    Task<T> IMessageBus.RequestAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout)
     {
         throw new NotSupportedException();
     }
 
-    Task<T> IMessagePublisher.RequestAsync<T>(Uri destination, object message, CancellationToken cancellation,
+    Task<T> IMessageBus.RequestAsync<T>(Uri destination, object message, CancellationToken cancellation,
         TimeSpan? timeout)
     {
         throw new NotSupportedException();
     }
 
-    Task<T> IMessagePublisher.RequestAsync<T>(string endpointName, object message, CancellationToken cancellation,
+    Task<T> IMessageBus.RequestAsync<T>(string endpointName, object message, CancellationToken cancellation,
         TimeSpan? timeout)
     {
         throw new NotSupportedException();

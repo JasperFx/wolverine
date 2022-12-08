@@ -11,7 +11,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
-public class MessageContext : MessagePublisher, IMessageContext, IEnvelopeTransaction, IEnvelopeLifecycle
+public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction, IEnvelopeLifecycle
 {
     private IChannelCallback? _channel;
     private object? _sagaId;

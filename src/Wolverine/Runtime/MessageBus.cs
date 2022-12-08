@@ -13,16 +13,16 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
-public class MessagePublisher : IMessagePublisher
+public class MessageBus : IMessageBus
 {
     protected readonly List<Envelope> _outstanding = new();
     
     [DefaultConstructor]
-    public MessagePublisher(IWolverineRuntime runtime) : this(runtime, Activity.Current?.RootId ?? Guid.NewGuid().ToString())
+    public MessageBus(IWolverineRuntime runtime) : this(runtime, Activity.Current?.RootId ?? Guid.NewGuid().ToString())
     {
     }
 
-    public MessagePublisher(IWolverineRuntime runtime, string? correlationId)
+    public MessageBus(IWolverineRuntime runtime, string? correlationId)
     {
         Runtime = runtime;
         Storage = runtime.Storage;

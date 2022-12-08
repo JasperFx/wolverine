@@ -72,7 +72,7 @@ public class send_by_topics : IDisposable
         #region sample_send_to_topic
 
         var publisher = theSender.Services
-            .GetRequiredService<IMessagePublisher>();
+            .GetRequiredService<IMessageBus>();
 
         await publisher.SendToTopicAsync("color.purple", new Message1());
 

@@ -125,7 +125,7 @@ public class HappyMealSagaNoTuple : Saga
 
     public async Task Starts(
         HappyMealOrder order, // The first argument is assumed to be the message type
-        IMessagePublisher context) // Additional arguments are assumed to be services
+        IMessageBus context) // Additional arguments are assumed to be services
     {
         Order = order;
         Id = ++_orderIdSequence;
@@ -167,7 +167,7 @@ public class HappyMealSagaAllLocal : Saga
 
     public async Task Starts(
         HappyMealOrder order, // The first argument is assumed to be the message type
-        IMessagePublisher context) // Additional arguments are assumed to be services
+        IMessageBus context) // Additional arguments are assumed to be services
     {
         Order = order;
         Id = ++_orderIdSequence;
@@ -228,7 +228,7 @@ public class HappyMealSaga2 : Saga
     // is known to be the saga state document, so it'll be treated as
     // the state document, while the object[] will be treated as
     // cascading messages
-    public async Task Starts(HappyMealOrder order, IMessagePublisher publisher)
+    public async Task Starts(HappyMealOrder order, IMessageBus bus)
     {
         Order = order;
         Id = ++_orderIdSequence;
@@ -236,7 +236,7 @@ public class HappyMealSaga2 : Saga
         // You can explicitly call the IMessagePublisher or IMessageContext if you prefer
         if (order.Drink == "Soda")
         {
-            await publisher.SendAsync(new SodaRequested { OrderId = Id });
+            await bus.SendAsync(new SodaRequested { OrderId = Id });
         }
     }
 }

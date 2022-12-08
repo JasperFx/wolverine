@@ -62,30 +62,30 @@ public class LocalRunner : IDisposable
     {
         var task1 = Task.Factory.StartNew(async () =>
         {
-            foreach (var target in theDriver.Targets.Take(200)) await theDriver.Publisher.PublishAsync(target);
+            foreach (var target in theDriver.Targets.Take(200)) await theDriver.Bus.PublishAsync(target);
         });
 
         var task2 = Task.Factory.StartNew(async () =>
         {
             foreach (var target in theDriver.Targets.Skip(200).Take(200))
-                await theDriver.Publisher.PublishAsync(target);
+                await theDriver.Bus.PublishAsync(target);
         });
 
         var task3 = Task.Factory.StartNew(async () =>
         {
             foreach (var target in theDriver.Targets.Skip(400).Take(200))
-                await theDriver.Publisher.PublishAsync(target);
+                await theDriver.Bus.PublishAsync(target);
         });
 
         var task4 = Task.Factory.StartNew(async () =>
         {
             foreach (var target in theDriver.Targets.Skip(600).Take(200))
-                await theDriver.Publisher.PublishAsync(target);
+                await theDriver.Bus.PublishAsync(target);
         });
 
         var task5 = Task.Factory.StartNew(async () =>
         {
-            foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Publisher.PublishAsync(target);
+            foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Bus.PublishAsync(target);
         });
 
 

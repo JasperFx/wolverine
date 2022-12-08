@@ -91,7 +91,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
         };
 
 
-        await theSender.Get<IMessagePublisher>().ScheduleAsync(item, 1.Days());
+        await theSender.Get<IMessageBus>().ScheduleAsync(item, 1.Days());
 
         var persistor = theSender.Get<IMessageStore>();
 

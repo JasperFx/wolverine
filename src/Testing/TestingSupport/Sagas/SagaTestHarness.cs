@@ -42,7 +42,7 @@ public class SagaTestHarness<T> : IDisposable
             withApplication();
         }
 
-        await _host.Get<IMessagePublisher>().InvokeAsync(message);
+        await _host.Get<IMessageBus>().InvokeAsync(message);
     }
 
     protected async Task send<T>(T message)

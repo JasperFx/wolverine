@@ -44,7 +44,7 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
     public async Task has_declared_exchange()
     {
         // The rabbit object construction is lazy, so force it to happen
-        await new MessagePublisher(theRuntime).SendAsync(new PublishedMessage());
+        await new MessageBus(theRuntime).SendAsync(new PublishedMessage());
 
         var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
         theTransport.Exchanges.Contains(endpoint.ExchangeName).ShouldBeTrue();
@@ -56,7 +56,7 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
     public async Task has_bound_the_exchange_to_a_queue_of_the_same_name()
     {
         // The rabbit object construction is lazy, so force it to happen
-        await new MessagePublisher(theRuntime).SendAsync(new PublishedMessage());
+        await new MessageBus(theRuntime).SendAsync(new PublishedMessage());
 
         var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
         var theExchange = theTransport.Exchanges[endpoint.ExchangeName];

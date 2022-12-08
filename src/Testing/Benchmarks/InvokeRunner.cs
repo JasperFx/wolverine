@@ -32,7 +32,7 @@ public class InvokeRunner : IDisposable
     {
         for (var i = 0; i < 1000; i++)
         {
-            foreach (var target in theDriver.Targets) await theDriver.Publisher.InvokeAsync(target);
+            foreach (var target in theDriver.Targets) await theDriver.Bus.InvokeAsync(target);
         }
     }
 
@@ -44,7 +44,7 @@ public class InvokeRunner : IDisposable
         {
             for (var i = 0; i < 1000; i++)
             {
-                foreach (var target in theDriver.Targets.Take(200)) await theDriver.Publisher.InvokeAsync(target);
+                foreach (var target in theDriver.Targets.Take(200)) await theDriver.Bus.InvokeAsync(target);
             }
         });
 
@@ -53,7 +53,7 @@ public class InvokeRunner : IDisposable
             for (var i = 0; i < 1000; i++)
             {
                 foreach (var target in theDriver.Targets.Skip(200).Take(200))
-                    await theDriver.Publisher.InvokeAsync(target);
+                    await theDriver.Bus.InvokeAsync(target);
             }
         });
 
@@ -62,7 +62,7 @@ public class InvokeRunner : IDisposable
             for (var i = 0; i < 1000; i++)
             {
                 foreach (var target in theDriver.Targets.Skip(400).Take(200))
-                    await theDriver.Publisher.InvokeAsync(target);
+                    await theDriver.Bus.InvokeAsync(target);
             }
         });
 
@@ -71,7 +71,7 @@ public class InvokeRunner : IDisposable
             for (var i = 0; i < 1000; i++)
             {
                 foreach (var target in theDriver.Targets.Skip(600).Take(200))
-                    await theDriver.Publisher.InvokeAsync(target);
+                    await theDriver.Bus.InvokeAsync(target);
             }
         });
 
@@ -79,7 +79,7 @@ public class InvokeRunner : IDisposable
         {
             for (var i = 0; i < 1000; i++)
             {
-                foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Publisher.InvokeAsync(target);
+                foreach (var target in theDriver.Targets.Skip(800)) await theDriver.Bus.InvokeAsync(target);
             }
         });
 

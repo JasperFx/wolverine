@@ -35,7 +35,7 @@ public class Samples
 
         #region sample_sending_topic_routed_message
 
-        var publisher = host.Services.GetRequiredService<IMessagePublisher>();
+        var publisher = host.Services.GetRequiredService<IMessageBus>();
         await publisher.SendAsync(new Message1());
 
         #endregion

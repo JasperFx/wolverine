@@ -9,7 +9,7 @@ namespace Wolverine;
 /// <summary>
 ///     Entry point for sending or publishing messages
 /// </summary>
-public interface IMessagePublisher : ICommandBus
+public interface IMessageBus : ICommandBus
 {
     /// <summary>
     /// Preview how Wolverine where and how this message would be sent. Use this as a debugging tool.

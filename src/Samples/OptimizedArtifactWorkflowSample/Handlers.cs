@@ -5,11 +5,11 @@ using Wolverine;
 
 public class MessageSender : BackgroundService
 {
-    private readonly IMessagePublisher _publisher;
+    private readonly IMessageBus _bus;
 
-    public MessageSender(IMessagePublisher publisher)
+    public MessageSender(IMessageBus bus)
     {
-        _publisher = publisher;
+        _bus = bus;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -18,7 +18,7 @@ public class MessageSender : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(500.Milliseconds(), stoppingToken).ConfigureAwait(false);
-            await _publisher.PublishAsync(new TrackedMessage { Number = ++count }).ConfigureAwait(false);
+            await _bus.PublishAsync(new TrackedMessage { Number = ++count }).ConfigureAwait(false);
         }
     }
 }

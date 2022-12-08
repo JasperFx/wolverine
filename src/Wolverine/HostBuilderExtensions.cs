@@ -126,8 +126,8 @@ public static class HostBuilderExtensions
             services.AddOptions();
             services.AddLogging();
 
-            services.AddScoped<ICommandBus, MessagePublisher>();
-            services.AddScoped<IMessagePublisher, MessagePublisher>();
+            services.AddScoped<ICommandBus, MessageBus>();
+            services.AddScoped<IMessageBus, MessageBus>();
             services.AddScoped<IMessageContext, MessageContext>();
 
             services.AddSingleton<ObjectPoolProvider>(new DefaultObjectPoolProvider());
@@ -208,7 +208,7 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static ValueTask SendAsync<T>(this IHost host, T message, DeliveryOptions? options = null)
     {
-        return host.Get<IMessagePublisher>().SendAsync(message, options);
+        return host.Get<IMessageBus>().SendAsync(message, options);
     }
 
     /// <summary>
@@ -228,7 +228,7 @@ public static class HostBuilderExtensions
             throw new ArgumentNullException(nameof(message));
         }
 
-        return host.Get<IMessagePublisher>().SendToEndpointAsync(endpointName, message, options);
+        return host.Get<IMessageBus>().SendToEndpointAsync(endpointName, message, options);
     }
 
     /// <summary>

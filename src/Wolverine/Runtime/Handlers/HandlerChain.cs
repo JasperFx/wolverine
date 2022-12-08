@@ -107,7 +107,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         handleMethod.AsyncMode = AsyncMode.AsyncTask;
 
         handleMethod.DerivedVariables.Add(new Variable(typeof(IMessageContext), "context"));
-        handleMethod.DerivedVariables.Add(new Variable(typeof(IMessagePublisher), "context"));
+        handleMethod.DerivedVariables.Add(new Variable(typeof(IMessageBus), "context"));
         handleMethod.DerivedVariables.Add(new Variable(typeof(ICommandBus), "context"));
 
         handleMethod.DerivedVariables.Add(new Variable(typeof(Envelope),

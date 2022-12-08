@@ -78,7 +78,7 @@ public class request_reply : IAsyncLifetime
     public async Task request_reply_with_no_reply()
     {
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
-        var publisher = nested.GetInstance<IMessagePublisher>();
+        var publisher = nested.GetInstance<IMessageBus>();
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
@@ -93,7 +93,7 @@ public class request_reply : IAsyncLifetime
     public async Task send_and_wait_with_multiple_subscriptions()
     {
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
-        var publisher = nested.GetInstance<IMessagePublisher>();
+        var publisher = nested.GetInstance<IMessageBus>();
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
         {
@@ -127,7 +127,7 @@ public class request_reply : IAsyncLifetime
     public async Task sad_path_request_reply_no_subscriptions()
     {
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
-        var publisher = nested.GetInstance<IMessagePublisher>();
+        var publisher = nested.GetInstance<IMessageBus>();
 
         await Should.ThrowAsync<NoRoutesException>(async () =>
         {
@@ -200,7 +200,7 @@ public class request_reply : IAsyncLifetime
     public async Task timeout_with_auto_routing()
     {
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
-        var publisher = nested.GetInstance<IMessagePublisher>();
+        var publisher = nested.GetInstance<IMessageBus>();
 
         var ex = await Should.ThrowAsync<TimeoutException>(async () =>
         {
@@ -286,7 +286,7 @@ public class request_reply : IAsyncLifetime
     public async Task timeout_on_send_and_wait_with_auto_routing()
     {
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
-        var publisher = nested.GetInstance<IMessagePublisher>();
+        var publisher = nested.GetInstance<IMessageBus>();
 
         var ex = await Should.ThrowAsync<TimeoutException>(async () =>
         {
@@ -300,7 +300,7 @@ public class request_reply : IAsyncLifetime
     public async Task sad_path_request_and_reply_with_no_handler()
     {
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
-        var publisher = nested.GetInstance<IMessagePublisher>();
+        var publisher = nested.GetInstance<IMessageBus>();
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
@@ -315,7 +315,7 @@ public class request_reply : IAsyncLifetime
     public async Task sad_path_send_and_wait_with_no_handler()
     {
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
-        var publisher = nested.GetInstance<IMessagePublisher>();
+        var publisher = nested.GetInstance<IMessageBus>();
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
@@ -330,7 +330,7 @@ public class request_reply : IAsyncLifetime
     public async Task sad_path_send_and_wait_with_no_subscription()
     {
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
-        var publisher = nested.GetInstance<IMessagePublisher>();
+        var publisher = nested.GetInstance<IMessageBus>();
 
         await Should.ThrowAsync<NoRoutesException>(() => publisher.SendAndWaitAsync(new RequestWithNoHandler()));
     }

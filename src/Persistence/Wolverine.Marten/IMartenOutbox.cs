@@ -6,7 +6,7 @@ namespace Wolverine.Marten;
 /// <summary>
 ///     Outbox-ed messaging sending with Marten
 /// </summary>
-public interface IMartenOutbox : IMessagePublisher
+public interface IMartenOutbox : IMessageBus
 {
     /// <summary>
     ///     Current document session

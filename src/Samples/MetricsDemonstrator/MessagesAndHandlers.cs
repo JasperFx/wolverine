@@ -40,24 +40,24 @@ public class PortFinder
 public class PublishingHostedService : IHostedService
 {
     private readonly List<IDisposable> _disposables = new();
-    private readonly IMessagePublisher _publisher;
+    private readonly IMessageBus _bus;
 
-    public PublishingHostedService(IMessagePublisher publisher)
+    public PublishingHostedService(IMessageBus bus)
     {
-        _publisher = publisher;
+        _bus = bus;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _disposables.Add(new Publisher<Message1>(_publisher));
-        _disposables.Add(new Publisher<Message2>(_publisher));
-        _disposables.Add(new Publisher<Message3>(_publisher));
-        _disposables.Add(new Publisher<Message4>(_publisher));
-        _disposables.Add(new Publisher<Message5>(_publisher));
-        _disposables.Add(new Publisher<Message1>(_publisher));
-        _disposables.Add(new Publisher<Message2>(_publisher));
-        _disposables.Add(new Publisher<Message3>(_publisher));
-        _disposables.Add(new Publisher<Message4>(_publisher));
+        _disposables.Add(new Publisher<Message1>(_bus));
+        _disposables.Add(new Publisher<Message2>(_bus));
+        _disposables.Add(new Publisher<Message3>(_bus));
+        _disposables.Add(new Publisher<Message4>(_bus));
+        _disposables.Add(new Publisher<Message5>(_bus));
+        _disposables.Add(new Publisher<Message1>(_bus));
+        _disposables.Add(new Publisher<Message2>(_bus));
+        _disposables.Add(new Publisher<Message3>(_bus));
+        _disposables.Add(new Publisher<Message4>(_bus));
 
         return Task.CompletedTask;
     }
@@ -77,7 +77,7 @@ public class Publisher<T> : IDisposable where T : new()
     private readonly CancellationTokenSource _cancellation;
     private readonly Task _task;
 
-    public Publisher(IMessagePublisher publisher)
+    public Publisher(IMessageBus bus)
     {
         _cancellation = new CancellationTokenSource();
 
@@ -87,7 +87,7 @@ public class Publisher<T> : IDisposable where T : new()
             {
                 for (var i = 0; i < _random.Next(5, 20); i++)
                 {
-                    await publisher.PublishAsync(new T());
+                    await bus.PublishAsync(new T());
                 }
 
                 await Task.Delay(_random.Next(10, 250));

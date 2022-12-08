@@ -8,7 +8,7 @@ namespace Wolverine.EntityFrameworkCore;
 ///     A durable, outbox-ed message publisher using EF Core for persistence
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public interface IDbContextOutbox<T> : IMessagePublisher where T : DbContext
+public interface IDbContextOutbox<T> : IMessageBus where T : DbContext
 {
     /// <summary>
     ///     The current DbContext for this outbox
@@ -37,7 +37,7 @@ public interface IDbContextOutbox<T> : IMessagePublisher where T : DbContext
 /// <summary>
 ///     Wrapped messaging outbox for an EF Core DbContext
 /// </summary>
-public interface IDbContextOutbox : IMessagePublisher
+public interface IDbContextOutbox : IMessageBus
 {
     /// <summary>
     ///     The active DbContext

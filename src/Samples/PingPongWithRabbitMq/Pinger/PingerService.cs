@@ -9,11 +9,11 @@ public class PingerService : IHostedService
 {
     // IMessagePublisher is an interface you can use
     // strictly to publish messages through Wolverine
-    private readonly IMessagePublisher _publisher;
+    private readonly IMessageBus _bus;
 
-    public PingerService(IMessagePublisher publisher)
+    public PingerService(IMessageBus bus)
     {
-        _publisher = publisher;
+        _bus = bus;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -29,7 +29,7 @@ public class PingerService : IHostedService
                     Number = ++count
                 };
 
-                await _publisher.SendAsync(message);
+                await _bus.SendAsync(message);
 
                 await Task.Delay(1.Seconds(), cancellationToken);
             }

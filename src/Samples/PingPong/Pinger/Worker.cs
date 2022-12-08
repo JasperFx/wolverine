@@ -8,12 +8,12 @@ namespace Pinger;
 public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
-    private readonly IMessagePublisher _publisher;
+    private readonly IMessageBus _bus;
 
-    public Worker(ILogger<Worker> logger, IMessagePublisher publisher)
+    public Worker(ILogger<Worker> logger, IMessageBus bus)
     {
         _logger = logger;
-        _publisher = publisher;
+        _bus = bus;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -24,7 +24,7 @@ public class Worker : BackgroundService
         {
             await Task.Delay(1000, stoppingToken);
             _logger.LogInformation("Sending Ping #{Number}", pingNumber);
-            await _publisher.PublishAsync(new Ping { Number = pingNumber });
+            await _bus.PublishAsync(new Ping { Number = pingNumber });
             pingNumber++;
         }
     }

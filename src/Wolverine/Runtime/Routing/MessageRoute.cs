@@ -77,7 +77,7 @@ public class MessageRoute : IMessageRoute
         return rules;
     }
     
-    public async Task<T> InvokeAsync<T>(object message, MessagePublisher publisher,
+    public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class
     {
@@ -103,7 +103,7 @@ public class MessageRoute : IMessageRoute
         envelope.DeliverWithin = timeout.Value;
         envelope.Sender = Sender;
 
-        publisher.TrackEnvelopeCorrelation(envelope);
+        bus.TrackEnvelopeCorrelation(envelope);
 
         var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout!.Value);
 

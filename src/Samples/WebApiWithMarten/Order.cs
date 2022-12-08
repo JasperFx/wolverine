@@ -79,7 +79,7 @@ public class OrderHandler2
     public static ValueTask Handle(
         CreateOrder command,
         IDocumentSession session,
-        IMessagePublisher publisher)
+        IMessageBus bus)
     {
         var order = new Order
         {
@@ -91,7 +91,7 @@ public class OrderHandler2
 
         // Utilizing Wolverine's "cascading messages" functionality
         // to have this message sent through Wolverine
-        return publisher.SendAsync(
+        return bus.SendAsync(
             new OrderCreated(order.Id),
             new DeliveryOptions { DeliverWithin = 5.Minutes() });
     }

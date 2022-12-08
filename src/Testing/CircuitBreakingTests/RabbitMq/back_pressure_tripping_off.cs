@@ -53,7 +53,7 @@ public class back_pressure_tripping_off
 
         var publishing = Task.Factory.StartNew(async () =>
         {
-            var publisher = host.Services.GetRequiredService<IMessagePublisher>();
+            var publisher = host.Services.GetRequiredService<IMessageBus>();
 
             for (var i = 0; i < 1000; i++)
             {
