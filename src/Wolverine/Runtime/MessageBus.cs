@@ -137,40 +137,6 @@ public class MessageBus : IMessageBus
         return PersistOrSendAsync(outgoing);
     }
 
-    /// <summary>
-    ///     Send a message that should be executed at the given time
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="time"></param>
-    /// <param name="options"></param>
-    /// <typeparam name="T"></typeparam>
-    public ValueTask ScheduleAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options = null)
-    {
-        options ??= new DeliveryOptions();
-        options.ScheduledTime = time;
-
-        return PublishAsync(message, options);
-    }
-
-    /// <summary>
-    ///     Send a message that should be executed after the given delay
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="delay"></param>
-    /// <param name="options"></param>
-    /// <typeparam name="T"></typeparam>
-    public ValueTask ScheduleAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        options ??= new DeliveryOptions();
-        options.ScheduleDelay = delay;
-        return PublishAsync(message, options);
-    }
-
     internal async ValueTask PersistOrSendAsync(Envelope envelope)
     {
         if (envelope.Sender is null)

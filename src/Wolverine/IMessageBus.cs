@@ -5,6 +5,50 @@ using System.Threading.Tasks;
 
 namespace Wolverine;
 
+public static class MessageBusExtensions
+{
+    /// <summary>
+    /// Schedule the publishing or execution of a message until a later time
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="time"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    public static ValueTask ScheduleAsync<T>(this IMessageBus bus, T message, DateTimeOffset time,
+        DeliveryOptions? options = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        options ??= new DeliveryOptions();
+        options.ScheduledTime = time;
+
+        return bus.PublishAsync(message, options);
+    }
+
+    /// <summary>
+    /// Schedule the publishing or execution of a message until a later time
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="delay"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    public static ValueTask ScheduleAsync<T>(this IMessageBus bus, T message, TimeSpan delay,
+        DeliveryOptions? options = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        options ??= new DeliveryOptions();
+        options.ScheduleDelay = delay;
+        return bus.PublishAsync(message, options);
+    }
+}
+
 /// <summary>
 /// Entry point for processing or publishing messages with Wolverine
 /// </summary>
@@ -34,24 +78,6 @@ public interface IMessageBus
     /// <returns></returns>
     Task<T?> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
     
-    
-    /// <summary>
-    /// Schedule the publishing or execution of a message until a later time
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="time"></param>
-    /// <param name="options"></param>
-    /// <typeparam name="T"></typeparam>
-    ValueTask ScheduleAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options = null);
-
-    /// <summary>
-    /// Schedule the publishing or execution of a message until a later time
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="delay"></param>
-    /// <param name="options"></param>
-    /// <typeparam name="T"></typeparam>
-    ValueTask ScheduleAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null);
     
     /// <summary>
     /// Publish or process messages at a specific endpoint by

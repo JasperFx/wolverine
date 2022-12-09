@@ -81,34 +81,6 @@ public class TestMessageContext : IMessageContext
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
 
-    ValueTask IMessageBus.ScheduleAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options = null)
-    {
-        var envelope = new Envelope
-        {
-            Message = message, ScheduledTime = time,
-            Status = EnvelopeStatus.Scheduled
-        };
-
-        _published.Add(envelope);
-
-        return new ValueTask();
-    }
-
-    ValueTask IMessageBus.ScheduleAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null)
-    {
-        var envelope = new Envelope
-        {
-            Message = message, 
-            ScheduleDelay = delay,
-            Status = EnvelopeStatus.Scheduled
-        };
-
-        _published.Add(envelope);
-
-        return new ValueTask();
-    }
-
-
     IReadOnlyList<Envelope> IMessageBus.PreviewSubscriptions(object message)
     {
         throw new NotSupportedException();
