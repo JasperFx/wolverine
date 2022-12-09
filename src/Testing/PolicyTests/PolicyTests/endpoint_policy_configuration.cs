@@ -33,8 +33,8 @@ public class endpoint_policy_configuration : IDisposable
             .UseWolverine(opts =>
             {
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
-                    .IntegrateWithWolverine();
-
+                    .IntegrateWithWolverine().ApplyAllDatabaseChangesOnStartup();
+                
                 configure(opts);
             }).StartAsync();
 
@@ -146,9 +146,9 @@ public class endpoint_policy_configuration : IDisposable
                 return;
             }
 
-            if (e.IsListener)
+            if (e.IsListener && e.Role == EndpointRole.Application)
             {
-                e.Mode.ShouldBe(EndpointMode.Durable);
+                e.Mode.ShouldBe(EndpointMode.Durable, e.Uri.ToString());
             }
             else
             {
