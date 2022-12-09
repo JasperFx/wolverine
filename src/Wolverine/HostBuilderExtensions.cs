@@ -126,7 +126,6 @@ public static class HostBuilderExtensions
             services.AddOptions();
             services.AddLogging();
 
-            services.AddScoped<ICommandBus, MessageBus>();
             services.AddScoped<IMessageBus, MessageBus>();
             services.AddScoped<IMessageContext, MessageContext>();
 
@@ -241,6 +240,6 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static Task InvokeAsync<T>(this IHost host, T command)
     {
-        return host.Get<ICommandBus>().InvokeAsync(command!);
+        return host.Get<IMessageBus>().InvokeAsync(command!);
     }
 }

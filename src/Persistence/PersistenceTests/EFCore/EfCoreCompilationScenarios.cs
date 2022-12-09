@@ -19,7 +19,7 @@ public class EfCoreCompilationScenarios
             opts.Services.AddDbContext<SampleDbContext>();
         });
 
-        await host.Services.GetRequiredService<ICommandBus>().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.Services.GetRequiredService<IMessageBus>().InvokeAsync(new CreateItem { Name = "foo" });
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class EfCoreCompilationScenarios
             opts.Services.AddDbContext<SampleDbContext>(optionsLifetime: ServiceLifetime.Singleton);
         });
 
-        await host.Services.GetRequiredService<ICommandBus>().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.Services.GetRequiredService<IMessageBus>().InvokeAsync(new CreateItem { Name = "foo" });
     }
 
 
@@ -44,7 +44,7 @@ public class EfCoreCompilationScenarios
             opts.Services.AddDbContext<SampleDbContext>(ServiceLifetime.Singleton, ServiceLifetime.Singleton);
         });
 
-        await host.Services.GetRequiredService<ICommandBus>().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.Services.GetRequiredService<IMessageBus>().InvokeAsync(new CreateItem { Name = "foo" });
     }
 }
 

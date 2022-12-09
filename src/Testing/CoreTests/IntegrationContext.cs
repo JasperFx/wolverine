@@ -56,7 +56,7 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
     public IHost Host { get; private set; }
 
     public IMessageContext Publisher => Host.Get<IMessageContext>();
-    public ICommandBus Bus => Host.Get<ICommandBus>();
+    public IMessageBus Bus => Host.Get<IMessageBus>();
 
     public HandlerGraph Handlers => Host.Get<HandlerGraph>();
 

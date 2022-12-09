@@ -48,7 +48,7 @@ app.MapGet("/orders", (IQuerySession session, HttpContext context)
 #region sample_delegate_to_command_bus_from_minimal_api
 
 // Delegate directly to Wolverine commands -- More efficient recipe coming later...
-app.MapPost("/orders/create2", (CreateOrder command, ICommandBus bus)
+app.MapPost("/orders/create2", (CreateOrder command, IMessageBus bus)
     => bus.InvokeAsync(command));
 
 #endregion

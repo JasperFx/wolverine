@@ -26,10 +26,10 @@ public class IssueAssignedHandler
 
 public class Worker : BackgroundService
 {
-    private readonly ICommandBus _bus;
+    private readonly IMessageBus _bus;
     private readonly ILogger<Worker> _logger;
 
-    public Worker(ILogger<Worker> logger, ICommandBus bus)
+    public Worker(ILogger<Worker> logger, IMessageBus bus)
     {
         _logger = logger;
         _bus = bus;

@@ -8,7 +8,7 @@ namespace IntegrationTests;
 public class MessageController : ControllerBase
 {
     [HttpPost("/invoke")]
-    public async Task Invoke([FromBody] InitialPost body, [FromServices] ICommandBus bus)
+    public async Task Invoke([FromBody] InitialPost body, [FromServices] IMessageBus bus)
     {
         await Task.Delay(50.Milliseconds());
         await bus.InvokeAsync(new InitialCommand(body.Name));

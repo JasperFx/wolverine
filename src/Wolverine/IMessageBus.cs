@@ -2,15 +2,57 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Wolverine.Runtime.ResponseReply;
 
 namespace Wolverine;
 
 /// <summary>
 /// Entry point for processing or publishing messages with Wolverine
 /// </summary>
-public interface IMessageBus : ICommandBus
+public interface IMessageBus 
 {
+    /// <summary>
+    /// Execute the message handling for this message *right now* and wait for the completion.
+    /// If the message is handled locally, this delegates immediately
+    /// If the message is handled remotely, the message is sent and the method waits for the response
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout">Optional timeout</param>
+    /// <returns></returns>
+    Task InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
+
+
+    /// <summary>
+    /// Execute the message handling for this message *right now* and wait for the completion and the designated response type T.
+    /// If the message is handled locally, this delegates immediately
+    /// If the message is handled remotely, the message is sent and the method waits for the response
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout">Optional timeout</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    Task<T?> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
+    
+    
+    /// <summary>
+    /// Schedule the publishing or execution of a message until a later time
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="time"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    ValueTask ScheduleAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options = null);
+
+    /// <summary>
+    /// Schedule the publishing or execution of a message until a later time
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="delay"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    ValueTask ScheduleAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null);
+    
     /// <summary>
     /// Publish or process messages at a specific endpoint by
     /// endpoint name

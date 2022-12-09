@@ -38,6 +38,6 @@ builder.Host.UseWolverine(opts =>
 
 var app = builder.Build();
 
-app.MapPost("/items/ready", (MarkItemReady command, ICommandBus bus) => bus.InvokeAsync(command));
+app.MapPost("/items/ready", (MarkItemReady command, IMessageBus bus) => bus.InvokeAsync(command));
 
 return await app.RunOaktonCommands(args);

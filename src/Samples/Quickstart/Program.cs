@@ -20,10 +20,10 @@ builder.Services.AddSingleton<IssueRepository>();
 var app = builder.Build();
 
 // An endpoint to create a new issue
-app.MapPost("/issues/create", (CreateIssue body, ICommandBus bus) => bus.InvokeAsync(body));
+app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
 // An endpoint to assign an issue to an existing user
-app.MapPost("/issues/assign", (AssignIssue body, ICommandBus bus) => bus.InvokeAsync(body));
+app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
 app.Run();
 

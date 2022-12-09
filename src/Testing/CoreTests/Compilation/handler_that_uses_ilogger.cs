@@ -14,7 +14,7 @@ public class handler_that_uses_ilogger
     {
         using var host = WolverineHost.Basic();
 
-        var bus = host.Services.GetRequiredService<ICommandBus>();
+        var bus = host.Services.GetRequiredService<IMessageBus>();
         await bus.InvokeAsync(new ItemCreated());
     }
 }

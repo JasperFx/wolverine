@@ -10,7 +10,7 @@ public class EnqueueSamples
 
     #region sample_invoke_locally
 
-    public static async Task invoke_locally(ICommandBus bus)
+    public static async Task invoke_locally(IMessageBus bus)
     {
         // Execute the message inline
         await bus.InvokeAsync(new Message1());

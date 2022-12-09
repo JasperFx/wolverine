@@ -36,8 +36,8 @@ builder.Host.UseWolverine();
 var app = builder.Build();
 
 // Just delegating to Wolverine's local command bus for all
-app.MapPost("/start", (StartOrder start, ICommandBus bus) => bus.InvokeAsync(start));
-app.MapPost("/complete", (CompleteOrder start, ICommandBus bus) => bus.InvokeAsync(start));
+app.MapPost("/start", (StartOrder start, IMessageBus bus) => bus.InvokeAsync(start));
+app.MapPost("/complete", (CompleteOrder start, IMessageBus bus) => bus.InvokeAsync(start));
 app.MapGet("/all", (IQuerySession session) => session.Query<Order>().ToListAsync());
 app.MapGet("/", (HttpResponse response) =>
 {

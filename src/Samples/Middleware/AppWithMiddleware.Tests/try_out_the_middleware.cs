@@ -46,7 +46,7 @@ public class try_out_the_middleware
         session.Store(account);
         await session.SaveChangesAsync();
 
-        var bus = host.Services.GetRequiredService<ICommandBus>();
+        var bus = host.Services.GetRequiredService<IMessageBus>();
         await bus.InvokeAsync(new DebitAccount(account.Id, 100));
 
         var account2 = await session.LoadAsync<Account>(account.Id);
@@ -70,7 +70,7 @@ public class try_out_the_middleware
         session.Store(account);
         await session.SaveChangesAsync();
 
-        var bus = host.Services.GetRequiredService<ICommandBus>();
+        var bus = host.Services.GetRequiredService<IMessageBus>();
 
         await Should.ThrowAsync<Exception>(async () =>
         {

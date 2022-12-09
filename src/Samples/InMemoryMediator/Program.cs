@@ -43,13 +43,13 @@ if (app.Environment.IsDevelopment())
 
 #region sample_InMemoryMediator_UseWolverineAsMediatorController
 
-app.MapPost("/items/create", (CreateItemCommand cmd, ICommandBus bus) => bus.InvokeAsync(cmd));
+app.MapPost("/items/create", (CreateItemCommand cmd, IMessageBus bus) => bus.InvokeAsync(cmd));
 
 #endregion
 
 #region sample_InMemoryMediator_WithResponseController
 
-app.MapPost("/items/create2", (CreateItemCommand cmd, ICommandBus bus) => bus.InvokeAsync<ItemCreated>(cmd));
+app.MapPost("/items/create2", (CreateItemCommand cmd, IMessageBus bus) => bus.InvokeAsync<ItemCreated>(cmd));
 
 #endregion
 

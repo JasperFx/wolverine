@@ -93,7 +93,7 @@ public class BootstrappingTests : IntegrationContext
     }
 
     [Theory]
-    [InlineData(typeof(ICommandBus))]
+    [InlineData(typeof(IMessageBus))]
     [InlineData(typeof(IMessageContext))]
     [InlineData(typeof(IMessageBus))]
     public void can_build_services(Type serviceType)
