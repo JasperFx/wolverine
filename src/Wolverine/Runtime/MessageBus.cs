@@ -144,7 +144,7 @@ public class MessageBus : IMessageBus
 
         if (Transaction != null)
         {
-            return Transaction.ScheduleJobAsync(envelope);
+            return Transaction.PersistIncomingAsync(envelope);
         }
 
         if (Storage is NullMessageStore)
@@ -217,9 +217,6 @@ public class MessageBus : IMessageBus
             throw new ArgumentNullException(nameof(message));
         }
 
-        // TODO -- eliminate this. Only happening for logging at this point. Check same in Send.
-        var envelope = new Envelope(message);
-
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
         trackEnvelopeCorrelation(outgoing);
@@ -229,7 +226,7 @@ public class MessageBus : IMessageBus
             return PersistOrSendAsync(outgoing);
         }
 
-        Runtime.MessageLogger.NoRoutesFor(envelope);
+        Runtime.MessageLogger.NoRoutesFor(new Envelope(message));
         return ValueTask.CompletedTask;
     }
 
@@ -297,9 +294,11 @@ public class MessageBus : IMessageBus
             // This filtering is done to only persist envelopes where 
             // the sender is currently latched
             var envelopes = outgoing.Where(isDurable).ToArray();
-            foreach (var envelope in envelopes.Where(x => x.Sender is { Latched: true }))
+            foreach (var envelope in envelopes.Where(x => x.Sender is { Latched: true } && x.Status == EnvelopeStatus.Outgoing))
+            {
                 envelope.OwnerId = TransportConstants.AnyNode;
-
+            }
+            
             await Transaction.PersistAsync(envelopes);
 
             _outstanding.Fill(outgoing);

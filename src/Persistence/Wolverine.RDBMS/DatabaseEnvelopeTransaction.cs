@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
-using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
@@ -26,12 +25,12 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
         _tx?.Dispose();
     }
 
-    public Task PersistAsync(Envelope envelope)
+    public Task PersistOutgoingAsync(Envelope envelope)
     {
-        return PersistAsync(new[] { envelope });
+        return PersistOutgoingAsync(new[] { envelope });
     }
 
-    public Task PersistAsync(Envelope[] envelopes)
+    public Task PersistOutgoingAsync(Envelope[] envelopes)
     {
         if (!envelopes.Any())
         {
@@ -41,11 +40,8 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
         return _persistence.StoreOutgoingAsync(_tx, envelopes);
     }
 
-    public Task ScheduleJobAsync(Envelope envelope)
+    public Task PersistIncomingAsync(Envelope envelope)
     {
-        envelope.OwnerId = TransportConstants.AnyNode;
-        envelope.Status = EnvelopeStatus.Scheduled;
-
         return _persistence.StoreIncomingAsync(_tx, new[] { envelope });
     }
 

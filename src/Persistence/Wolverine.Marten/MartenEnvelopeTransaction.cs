@@ -31,20 +31,20 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 
     public IDocumentSession Session { get; }
 
-    public Task PersistAsync(Envelope envelope)
+    public Task PersistOutgoingAsync(Envelope envelope)
     {
         Session.StoreOutgoing(_settings, envelope, _nodeId);
         return Task.CompletedTask;
     }
 
-    public Task PersistAsync(Envelope[] envelopes)
+    public Task PersistOutgoingAsync(Envelope[] envelopes)
     {
         foreach (var envelope in envelopes) Session.StoreOutgoing(_settings, envelope, _nodeId);
 
         return Task.CompletedTask;
     }
 
-    public Task ScheduleJobAsync(Envelope envelope)
+    public Task PersistIncomingAsync(Envelope envelope)
     {
         Session.StoreIncoming(_settings, envelope);
         return Task.CompletedTask;

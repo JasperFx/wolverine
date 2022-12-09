@@ -235,7 +235,7 @@ public class EnvelopeTests
 
         await envelope.PersistAsync(transaction);
 
-        await transaction.Received().PersistAsync(envelope);
+        await transaction.Received().PersistOutgoingAsync(envelope);
         envelope.OwnerId.ShouldBe(33333);
     }
 
@@ -254,7 +254,7 @@ public class EnvelopeTests
 
         await envelope.PersistAsync(transaction);
 
-        await transaction.Received().PersistAsync(envelope);
+        await transaction.Received().PersistOutgoingAsync(envelope);
         envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
     }
 
@@ -273,7 +273,7 @@ public class EnvelopeTests
 
         await envelope.PersistAsync(transaction);
 
-        await transaction.DidNotReceive().PersistAsync(envelope);
+        await transaction.DidNotReceive().PersistOutgoingAsync(envelope);
     }
 
     [Fact]

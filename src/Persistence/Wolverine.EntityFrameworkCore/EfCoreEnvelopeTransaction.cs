@@ -31,7 +31,7 @@ internal class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public DbContext DbContext { get; }
 
-    public async Task PersistAsync(Envelope envelope)
+    public async Task PersistOutgoingAsync(Envelope envelope)
     {
         if (DbContext.Database.CurrentTransaction == null)
         {
@@ -47,7 +47,7 @@ internal class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task PersistAsync(Envelope[] envelopes)
+    public async Task PersistOutgoingAsync(Envelope[] envelopes)
     {
         if (!envelopes.Any())
         {
@@ -68,7 +68,7 @@ internal class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task ScheduleJobAsync(Envelope envelope)
+    public async Task PersistIncomingAsync(Envelope envelope)
     {
         if (DbContext.Database.CurrentTransaction == null)
         {

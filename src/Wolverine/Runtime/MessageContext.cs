@@ -187,19 +187,19 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
     }
 
-    Task IEnvelopeTransaction.PersistAsync(Envelope envelope)
+    Task IEnvelopeTransaction.PersistOutgoingAsync(Envelope envelope)
     {
         _outstanding.Fill(envelope);
         return Task.CompletedTask;
     }
 
-    Task IEnvelopeTransaction.PersistAsync(Envelope[] envelopes)
+    Task IEnvelopeTransaction.PersistOutgoingAsync(Envelope[] envelopes)
     {
         _outstanding.Fill(envelopes);
         return Task.CompletedTask;
     }
 
-    Task IEnvelopeTransaction.ScheduleJobAsync(Envelope envelope)
+    Task IEnvelopeTransaction.PersistIncomingAsync(Envelope envelope)
     {
         Scheduled.Fill(envelope);
         return Task.CompletedTask;
@@ -207,9 +207,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     async Task IEnvelopeTransaction.CopyToAsync(IEnvelopeTransaction other)
     {
-        await other.PersistAsync(_outstanding.ToArray());
+        await other.PersistOutgoingAsync(_outstanding.ToArray());
 
-        foreach (var envelope in Scheduled) await other.ScheduleJobAsync(envelope);
+        foreach (var envelope in Scheduled) await other.PersistIncomingAsync(envelope);
     }
 
     public ValueTask RollbackAsync()

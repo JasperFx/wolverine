@@ -131,7 +131,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
             await messaging.DbContext.Database.EnsureCreatedAsync();
 
-            await messaging.Transaction.PersistAsync(envelope);
+            await messaging.Transaction.PersistOutgoingAsync(envelope);
             messaging.DbContext.Items.Add(new Item { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString() });
 
             await messaging.SaveChangesAndFlushMessagesAsync();
@@ -260,7 +260,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
             messaging.Enroll(context);
 
-            await messaging.As<MessageContext>().Transaction.ScheduleJobAsync(envelope);
+            await messaging.As<MessageContext>().Transaction.PersistIncomingAsync(envelope);
             await messaging.SaveChangesAndFlushMessagesAsync();
         }
 
