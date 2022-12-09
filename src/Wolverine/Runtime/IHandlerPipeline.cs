@@ -9,5 +9,4 @@ public interface IHandlerPipeline
 {
     Task InvokeAsync(Envelope envelope, IChannelCallback channel);
     Task InvokeAsync(Envelope envelope, IChannelCallback channel, Activity activity);
-    Task InvokeNowAsync(Envelope envelope, CancellationToken cancellation = default);
 }

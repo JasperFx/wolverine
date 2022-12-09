@@ -87,25 +87,6 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
-    [Obsolete]
-    public async Task InvokeNowAsync(Envelope envelope, CancellationToken cancellation = default)
-    {
-        // The static one is the application's, so put that check on the outside
-        if (_cancellation.IsCancellationRequested || cancellation.IsCancellationRequested)
-        {
-            return;
-        }
-
-        // Do this check on the outside of invoker as well
-        if (envelope.Message == null)
-        {
-            throw new ArgumentNullException(nameof(envelope.Message));
-        }
-
-        var executor = _executors[envelope.Message.GetType()];
-        await executor.InvokeInlineAsync(envelope, cancellation);
-    }
-
     private bool tryDeserializeEnvelope(Envelope envelope, out IContinuation continuation)
     {
         // Try to deserialize
