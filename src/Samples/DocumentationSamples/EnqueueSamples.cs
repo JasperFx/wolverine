@@ -56,14 +56,6 @@ public class EnqueueSamples
                     // per message type
                     .Named(type => type.Namespace)
 
-                    // Create an optional deny list of types to fall under
-                    // this convention
-                    .ExcludeTypes(type => type.IsInNamespace("MyApp.NotHere"))
-
-                    // Create an optional allow list of message types
-                    // to fall under this routing convention
-                    .IncludeTypes(type => type.IsInNamespace("MyApp.Here"))
-
                     // Optionally configure the local queues
                     .CustomizeQueues((type, listener) => { listener.Sequential(); });
             }).StartAsync();

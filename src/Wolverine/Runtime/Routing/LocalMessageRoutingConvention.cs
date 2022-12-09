@@ -15,24 +15,19 @@ public class LocalMessageRoutingConvention
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
     private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace("+", ".");
 
-    /// <summary>
-    ///     Optionally include (allow list) or exclude (deny list) types. By default, this will apply to all message types
-    /// </summary>
-    internal CompositeFilter<Type> TypeFilters { get; } = new();
-
     public Dictionary<Type, LocalQueueSettings> Assignments { get; } = new();
 
     internal void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
-        var matching = handledMessageTypes.Where(x => TypeFilters.Matches(x));
-
         var transport = runtime.Options.Transports.OfType<LocalTransport>().Single();
 
-        foreach (var messageType in matching)
+        foreach (var messageType in handledMessageTypes)
         {
             var queueName = messageType.HasAttribute<LocalQueueAttribute>() 
                 ? messageType.GetAttribute<LocalQueueAttribute>()!.QueueName 
                 : _determineName(messageType);
+            
+            if (queueName.IsEmpty()) continue;
             
             var queue = transport.AllQueues().FirstOrDefault(x => x.EndpointName == queueName);
 
@@ -65,21 +60,6 @@ public class LocalMessageRoutingConvention
     }
 
     /// <summary>
-    ///     Create an allow list of included message types. This is accumulative.
-    /// </summary>
-    /// <param name="filter"></param>
-    public LocalMessageRoutingConvention IncludeTypes(Func<Type, bool> filter)
-    {
-        if (filter == null)
-        {
-            throw new ArgumentNullException(nameof(filter));
-        }
-
-        TypeFilters.Includes.Add(filter);
-        return this;
-    }
-
-    /// <summary>
     ///     Override the type to local queue naming. By default this is the MessageTypeName
     ///     to lower case invariant
     /// </summary>
@@ -89,21 +69,6 @@ public class LocalMessageRoutingConvention
     public LocalMessageRoutingConvention Named(Func<Type, string> determineName)
     {
         _determineName = determineName ?? throw new ArgumentNullException(nameof(determineName));
-        return this;
-    }
-
-    /// <summary>
-    ///     Create an deny list of included message types. This is accumulative.
-    /// </summary>
-    /// <param name="filter"></param>
-    public LocalMessageRoutingConvention ExcludeTypes(Func<Type, bool> filter)
-    {
-        if (filter == null)
-        {
-            throw new ArgumentNullException(nameof(filter));
-        }
-
-        TypeFilters.Excludes.Add(filter);
         return this;
     }
 

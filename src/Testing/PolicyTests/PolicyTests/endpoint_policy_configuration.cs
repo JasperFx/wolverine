@@ -238,69 +238,6 @@ public class endpoint_policy_configuration : IDisposable
             .ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
     }
 
-    [Fact]
-    public async Task discover_local_endpoints_exclude_some_types()
-    {
-        var options = await UsingOptions(opts =>
-        {
-            opts.Policies.ConfigureConventionalLocalRouting()
-                .ExcludeTypes(t => t == typeof(Message1))
-                .CustomizeQueues((type, listener) => { listener.UseDurableInbox(); });
-        });
-
-        var runtime = _host.Services.GetRequiredService<IWolverineRuntime>()
-            .ShouldBeOfType<WolverineRuntime>();
-
-        var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint1.EndpointName.ShouldBe(TransportConstants.Default);
-        endpoint1.Mode.ShouldBe(EndpointMode.BufferedInMemory);
-
-        var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint2.EndpointName.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
-        endpoint2.Mode.ShouldBe(EndpointMode.Durable);
-
-        runtime.DetermineLocalSendingAgent(typeof(Message3))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName
-            .ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
-
-        runtime.DetermineLocalSendingAgent(typeof(Message4))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName
-            .ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
-    }
-
-    [Fact]
-    public async Task discover_local_endpoints_include_some_types()
-    {
-        var options = await UsingOptions(opts =>
-        {
-            opts.Policies.ConfigureConventionalLocalRouting()
-                .IncludeTypes(t => t != typeof(Message1))
-                .CustomizeQueues((type, listener) => { listener.UseDurableInbox(); });
-        });
-
-        var runtime = _host.Services.GetRequiredService<IWolverineRuntime>()
-            .ShouldBeOfType<WolverineRuntime>();
-
-        var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint1.EndpointName.ShouldBe(TransportConstants.Default);
-        endpoint1.Mode.ShouldBe(EndpointMode.BufferedInMemory);
-
-        var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>();
-        endpoint2.EndpointName.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
-        endpoint2.Mode.ShouldBe(EndpointMode.Durable);
-
-        runtime.DetermineLocalSendingAgent(typeof(Message3))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName
-            .ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
-
-        runtime.DetermineLocalSendingAgent(typeof(Message4))
-            .Endpoint.ShouldBeOfType<LocalQueueSettings>().EndpointName
-            .ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
-    }
 
     [Fact]
     public async Task discover_local_endpoints_with_custom_name_pattern()

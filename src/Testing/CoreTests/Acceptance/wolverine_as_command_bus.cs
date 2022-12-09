@@ -9,6 +9,7 @@ using TestingSupport;
 using TestMessages;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -164,7 +165,7 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
     [Fact]
     public async Task invoke_with_expected_response_when_there_is_no_receiver()
     {
-        await Should.ThrowAsync<NotSupportedException>(async () =>
+        await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
         {
             await Bus.InvokeAsync<Answer>(new QuestionWithNoHandler());
         });
