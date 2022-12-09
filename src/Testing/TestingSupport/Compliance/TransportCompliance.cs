@@ -290,12 +290,11 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     {
         var message1 = new Message1();
 
-        var (session, ack) = await theSender.TrackActivity(Fixture.DefaultTimeout)
+        var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .Timeout(30.Seconds())
-            .SendMessageAndWaitForAcknowledgementAsync(c => c.SendAndWaitAsync(message1, timeout: 1.Minutes()));
+            .InvokeMessageAndWaitAsync(message1);
 
-        ack.ShouldNotBeNull();
     }
 
     [Fact]
@@ -305,7 +304,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         var (session, response) = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
-            .RequestAndWaitAsync(c => c.RequestAsync<Response>(request, timeout: 1.Minutes()));
+            .InvokeAndWaitAsync<Response>(request);
 
         response.Name.ShouldBe(request.Name);
     }

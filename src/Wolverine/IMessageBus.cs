@@ -84,12 +84,4 @@ public interface IMessageBus : ICommandBus
     [Obsolete]
     ValueTask SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null);
 
-    [Obsolete]
-    Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null);
-
-    [Obsolete]
-    Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
-        where T : class;
-
 }

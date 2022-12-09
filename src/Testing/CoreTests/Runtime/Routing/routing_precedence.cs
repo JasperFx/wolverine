@@ -129,9 +129,9 @@ public class routing_precedence
             .UseWolverine().StartAsync();
 
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
-        var local = collection.FindForMessageType(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
+        var local = collection.FindInvoker(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
         
-        collection.FindForMessageType(typeof(BlueMessage))
+        collection.FindInvoker(typeof(BlueMessage))
             .ShouldBeSameAs(local);
     }
     
@@ -147,9 +147,9 @@ public class routing_precedence
             }).StartAsync();
 
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
-        var local = collection.FindForMessageType(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
+        var local = collection.FindInvoker(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
         
-        collection.FindForMessageType(typeof(BlueMessage))
+        collection.FindInvoker(typeof(BlueMessage))
             .ShouldBeSameAs(local);
     }
     
@@ -164,9 +164,9 @@ public class routing_precedence
             }).StartAsync();
 
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
-        var remote = collection.FindForMessageType(typeof(RedMessage)).ShouldBeOfType<MessageRoute>();
+        var remote = collection.FindInvoker(typeof(RedMessage)).ShouldBeOfType<MessageRoute>();
         
-        collection.FindForMessageType(typeof(RedMessage))
+        collection.FindInvoker(typeof(RedMessage))
             .ShouldBeSameAs(remote);
     }
 
@@ -180,7 +180,7 @@ public class routing_precedence
             }).StartAsync();
         
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
-        collection.FindForMessageType(typeof(RedMessage))
+        collection.FindInvoker(typeof(RedMessage))
             .ShouldBeOfType<NoHandlerExecutor>();
     }
 }

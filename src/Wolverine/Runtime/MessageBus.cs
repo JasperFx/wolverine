@@ -62,48 +62,31 @@ public class MessageBus : IMessageBus
     public IWolverineRuntime Runtime { get; }
     public IMessageStore Storage { get; }
     
-        public IEnumerable<Envelope> Outstanding => _outstanding;
+    public IEnumerable<Envelope> Outstanding => _outstanding;
 
     public IEnvelopeTransaction? Transaction { get; protected set; }
     public Guid ConversationId { get; protected set; }
 
 
-    public Task InvokeAsync(object message, CancellationToken cancellation = default)
-    {
-        return Runtime.Pipeline.InvokeNowAsync(new Envelope(message)
-        {
-            ReplyUri = TransportConstants.RepliesUri,
-            CorrelationId = CorrelationId,
-            ConversationId = ConversationId,
-            Source = Runtime.Advanced.ServiceName
-        }, cancellation);
-    }
-
-    public async Task<T?> InvokeAsync<T>(object message, CancellationToken cancellation = default)
+    public Task InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = default)
     {
         if (message == null)
         {
             throw new ArgumentNullException(nameof(message));
         }
 
-        var envelope = new Envelope(message)
-        {
-            ReplyUri = TransportConstants.RepliesUri,
-            ReplyRequested = typeof(T).ToMessageTypeName(),
-            ResponseType = typeof(T),
-            CorrelationId = CorrelationId,
-            ConversationId = ConversationId,
-            Source = Runtime.Advanced.ServiceName
-        };
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout);
+    }
 
-        await Runtime.Pipeline.InvokeNowAsync(envelope, cancellation);
-
-        if (envelope.Response == null)
+    public Task<T?> InvokeAsync<T>(object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        if (message == null)
         {
-            return default;
+            throw new ArgumentNullException(nameof(message));
         }
-
-        return (T)envelope.Response;
+        
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout);
     }
 
     public async Task<Guid> ScheduleAsync<T>(T message, DateTimeOffset executionTime)
@@ -294,34 +277,7 @@ public class MessageBus : IMessageBus
         options.ScheduleDelay = delay;
         return PublishAsync(message, options);
     }
-
-    public Task<Acknowledgement> SendAndWaitAsync(object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        return Runtime.RoutingFor(message.GetType()).FindSingleRouteForSending()
-            .InvokeAsync<Acknowledgement>(message, this, cancellation, timeout);
-    }
-
-    public Task<T> RequestAsync<T>(object message, CancellationToken cancellation = default,
-        TimeSpan? timeout = null) where T : class
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        // KEEP THIS IN MESSAGE PUBLISHER
-        Runtime.RegisterMessageType(typeof(T));
-
-        return Runtime.RoutingFor(message.GetType()).FindSingleRouteForSending()
-            .InvokeAsync<T>(message, this, cancellation, timeout);
-    }
-
+    
     private void trackEnvelopeCorrelation(Envelope[] outgoing)
     {
         foreach (var outbound in outgoing) TrackEnvelopeCorrelation(outbound);

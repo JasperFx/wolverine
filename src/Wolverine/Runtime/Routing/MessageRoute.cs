@@ -91,6 +91,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             throw new ArgumentNullException(nameof(message));
         }
         
+        bus.Runtime.RegisterMessageType(typeof(T));
+        
         timeout ??= 5.Seconds();
         
 

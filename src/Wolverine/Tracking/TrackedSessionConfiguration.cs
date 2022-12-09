@@ -154,7 +154,7 @@ public class TrackedSessionConfiguration
     /// </summary>
     /// <param name="message"></param>
     /// <returns></returns>
-    public Task<ITrackedSession> SendMessageToTopicAndWaitAsync(string topicName, object message,
+    public Task<ITrackedSession> BroadcastMessageToTopicAndWaitAsync(string topicName, object message,
         DeliveryOptions? options = null)
     {
         return ExecuteAndWaitAsync(c => c.BroadcastToTopicAsync(topicName, message, options));
@@ -192,11 +192,11 @@ public class TrackedSessionConfiguration
     /// <param name="requestInvocation"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public async Task<(ITrackedSession, T?)> RequestAndWaitAsync<T>(Func<IMessageContext, Task<T>> requestInvocation)
+    public async Task<(ITrackedSession, T?)> InvokeAndWaitAsync<T>(object request)
     {
         T? response = default;
 
-        Func<IMessageContext, Task> invocation = async c => { response = await requestInvocation(c); };
+        Func<IMessageContext, Task> invocation = async c => { response = await c.InvokeAsync<T>(request); };
 
         var session = await ExecuteAndWaitAsync(invocation);
 

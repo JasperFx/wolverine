@@ -128,12 +128,12 @@ public class TestMessageContextTests
     }
 
     [Fact]
-    public async Task send_and_await()
+    public async Task invoke_remotely()
     {
         var message1 = new Message1();
-        await theContext.SendAndWaitAsync(message1);
+        await theContext.InvokeAsync(message1);
 
-        theSpy.Sent.ShouldHaveMessageOfType<Message1>();
+        theSpy.Invoked.ShouldHaveMessageOfType<Message1>();
     }
 
     [Fact]

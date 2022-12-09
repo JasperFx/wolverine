@@ -116,7 +116,7 @@ public class send_by_topics : IDisposable
             .TrackActivity()
             .IncludeExternalTransports()
             .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
-            .SendMessageToTopicAndWaitAsync("color.green", new PurpleMessage());
+            .BroadcastMessageToTopicAndWaitAsync("color.green", new PurpleMessage());
 
         session.FindEnvelopesWithMessageType<PurpleMessage>()
             .Where(x => x.EventType == EventType.Received)
@@ -132,7 +132,7 @@ public class send_by_topics : IDisposable
             .TrackActivity()
             .IncludeExternalTransports()
             .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
-            .SendMessageToTopicAndWaitAsync("color.blue", new PurpleMessage());
+            .BroadcastMessageToTopicAndWaitAsync("color.blue", new PurpleMessage());
 
         session.FindEnvelopesWithMessageType<PurpleMessage>()
             .Where(x => x.EventType == EventType.Received)

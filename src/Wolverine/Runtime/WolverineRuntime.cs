@@ -96,13 +96,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             
             return (IMessageInvoker)RoutingFor(messageType).FindSingleRouteForSending();
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            return new NoHandlerExecutor(messageType, this);
+            return new NoHandlerExecutor(messageType, this){ExceptionText = e.Message};
         }
     }
     
-    public IMessageInvoker FindForMessageType(Type messageType)
+    public IMessageInvoker FindInvoker(Type messageType)
     {
         return _invokers[messageType];
     }

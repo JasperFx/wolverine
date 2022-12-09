@@ -58,7 +58,7 @@ public class publish_versus_send_mechanics : IntegrationContext
     [Fact]
     public async Task send_message_with_no_known_subscribers()
     {
-        await Should.ThrowAsync<NoRoutesException>(async () =>
+        await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
             await Publisher.SendAsync(new Message3()));
     }
 

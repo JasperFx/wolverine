@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -21,6 +22,8 @@ internal class NoHandlerExecutor : IExecutor
         var handlers = runtime.MissingHandlers();
         _continuation = new NoHandlerContinuation(handlers, runtime);
     }
+
+    public string? ExceptionText { get; set; }
 
     public Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
     {
@@ -48,27 +51,11 @@ internal class NoHandlerExecutor : IExecutor
 
     public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        var handlerAssemblies = _runtime
-            .Options
-            .HandlerGraph
-            .Source
-            .Assemblies
-            .Select(x => x.FullName)
-            .Join(", ");
-        
-        throw new NotSupportedException($"No known handler for message type {_messageType.FullNameInCode()}. Wolverine was looking for handlers in assemblies {handlerAssemblies}");
+        throw new IndeterminateRoutesException(typeof(T));
     }
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        var handlerAssemblies = _runtime
-            .Options
-            .HandlerGraph
-            .Source
-            .Assemblies
-            .Select(x => x.FullName)
-            .Join(", ");
-        
-        throw new NotSupportedException($"No known handler for message type {_messageType.FullNameInCode()}. Wolverine was looking for handlers in assemblies {handlerAssemblies}");
+        throw new IndeterminateRoutesException(message.GetType(), ExceptionText);
     }
 }

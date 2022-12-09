@@ -10,7 +10,7 @@ public class EmptyMessageRouter<T> : MessageRouterBase<T>
 
     public override Envelope[] RouteForSend(T message, DeliveryOptions? options)
     {
-        throw new NoRoutesException(typeof(T));
+        throw new IndeterminateRoutesException(typeof(T));
     }
 
     public override Envelope[] RouteForPublish(T message, DeliveryOptions? options)
@@ -20,6 +20,6 @@ public class EmptyMessageRouter<T> : MessageRouterBase<T>
 
     public override IMessageRoute FindSingleRouteForSending()
     {
-        throw new NoRoutesException(typeof(T));
+        throw new IndeterminateRoutesException(typeof(T));
     }
 }

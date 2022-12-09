@@ -13,7 +13,7 @@ public class no_available_route_behavior : IntegrationContext
     [Fact]
     public async Task throw_no_route_exception_by_default()
     {
-        await Should.ThrowAsync<NoRoutesException>(async () =>
+        await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
         {
             await Publisher.SendAsync(new MessageWithNoRoutes());
         });

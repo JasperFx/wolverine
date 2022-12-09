@@ -73,13 +73,13 @@ public class TestMessageContext : IMessageContext
     public string? CorrelationId { get; set; }
     public Envelope? Envelope { get; }
 
-    Task ICommandBus.InvokeAsync(object message, CancellationToken cancellation)
+    Task ICommandBus.InvokeAsync(object message, CancellationToken cancellation, TimeSpan? timeout = default)
     {
         _invoked.Add(message);
         return Task.CompletedTask;
     }
 
-    Task<T?> ICommandBus.InvokeAsync<T>(object message, CancellationToken cancellation) where T : default
+    Task<T?> ICommandBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout = default) where T : default
     {
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
@@ -169,13 +169,6 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    Task<Acknowledgement> IMessageBus.SendAndWaitAsync(object message, CancellationToken cancellation,
-        TimeSpan? timeout)
-    {
-        _sent.Add(message);
-        return Task.FromResult(new Acknowledgement());
-    }
-
     internal class DestinationEndpoint : IDestinationEndpoint
     {
         private readonly TestMessageContext _parent;
@@ -211,11 +204,6 @@ public class TestMessageContext : IMessageContext
         {
             throw new NotSupportedException();
         }
-    }
-
-    Task<T> IMessageBus.RequestAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout)
-    {
-        throw new NotSupportedException();
     }
 
     ValueTask IMessageContext.RespondToSenderAsync(object response)

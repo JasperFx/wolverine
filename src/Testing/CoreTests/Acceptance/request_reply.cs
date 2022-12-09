@@ -82,7 +82,7 @@ public class request_reply : IAsyncLifetime
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
-            await publisher.RequestAsync<Response1>(new Request3());
+            await publisher.InvokeAsync<Response1>(new Request3());
         });
 
         ex.Message.ShouldContain(
@@ -95,9 +95,9 @@ public class request_reply : IAsyncLifetime
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
         var publisher = nested.GetInstance<IMessageBus>();
 
-        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
+        var ex = await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
         {
-            await publisher.SendAndWaitAsync(new Request4());
+            await publisher.InvokeAsync(new Request4());
         });
 
         ex.Message.ShouldContain("There are multiple subscribing endpoints");
@@ -109,7 +109,7 @@ public class request_reply : IAsyncLifetime
         var (session, response) = await _sender.TrackActivity()
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
-            .RequestAndWaitAsync(c => c.RequestAsync<Response1>(new Request1 { Name = "Croaker" }));
+            .InvokeAndWaitAsync<Response1>(new Request1 { Name = "Croaker" });
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.EventType == EventType.Sent);
@@ -129,19 +129,24 @@ public class request_reply : IAsyncLifetime
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
         var publisher = nested.GetInstance<IMessageBus>();
 
-        await Should.ThrowAsync<NoRoutesException>(async () =>
+        await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
         {
-            await publisher.RequestAsync<Response1>(new RequestWithNoHandler());
+            await publisher.InvokeAsync<Response1>(new RequestWithNoHandler());
         });
     }
 
     [Fact]
     public async Task happy_path_with_explicit_endpoint_name()
     {
-        var (session, response) = await _sender.TrackActivity()
+        Response1 response = default;
+        
+        Func<IMessageContext, Task<Response1>> fetch = async c =>
+            response = await c.EndpointFor("Receiver2").InvokeAsync<Response1>(new Request1 { Name = "Croaker" });
+        
+        var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
-            .RequestAndWaitAsync(c => c.EndpointFor("Receiver2").InvokeAsync<Response1>( new Request1 { Name = "Croaker" }));
+            .ExecuteAndWaitAsync(fetch);
         
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
@@ -162,10 +167,15 @@ public class request_reply : IAsyncLifetime
     {
         var destination = new Uri("tcp://localhost:" + _receiver2Port);
 
-        var (session, response) = await _sender.TrackActivity()
+        Response1 response = default;
+
+        Func<IMessageContext, Task> fetch = async c =>
+            response = await c.EndpointFor(destination).InvokeAsync<Response1>(new Request1 { Name = "Croaker" });
+        
+        var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
-            .RequestAndWaitAsync(c => c.EndpointFor(destination).InvokeAsync<Response1>( new Request1 { Name = "Croaker" }));
+            .ExecuteAndWaitAsync(fetch);
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.EventType == EventType.Sent);
@@ -189,7 +199,7 @@ public class request_reply : IAsyncLifetime
                 .Timeout(5.Seconds())
                 .DoNotAssertOnExceptionsDetected()
                 // This message is rigged to fail
-                .RequestAndWaitAsync(c => c.RequestAsync<Response1>(new Request1 { Name = "Soulcatcher" }));
+                .InvokeAndWaitAsync<Response1>(new Request1 { Name = "Soulcatcher" });
         });
 
         ex.Message.ShouldContain("Request failed");
@@ -205,7 +215,7 @@ public class request_reply : IAsyncLifetime
 
         var ex = await Should.ThrowAsync<TimeoutException>(async () =>
         {
-            await publisher.RequestAsync<Response1>(new Request1 { Name = "SLOW" });
+            await publisher.InvokeAsync<Response1>(new Request1 { Name = "SLOW" });
         });
 
         ex.Message.ShouldContain("Timed out waiting for expected response CoreTests.Acceptance.Response1");
@@ -214,10 +224,10 @@ public class request_reply : IAsyncLifetime
     [Fact]
     public async Task happy_path_send_and_wait_with_auto_routing()
     {
-        var (session, ack) = await _sender.TrackActivity()
+        var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
-            .SendMessageAndWaitForAcknowledgementAsync(c => c.SendAndWaitAsync(new Request2 { Name = "Croaker" }));
+            .InvokeMessageAndWaitAsync(new Request2 { Name = "Croaker" });
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
             .Single(x => x.EventType == EventType.Sent);
@@ -271,12 +281,13 @@ public class request_reply : IAsyncLifetime
     {
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
-            var (session, response) = await _sender.TrackActivity()
+            var session = await _sender.TrackActivity()
                 .AlsoTrack(_receiver1, _receiver2)
                 .Timeout(5.Seconds())
                 .DoNotAssertOnExceptionsDetected()
                 // This message is rigged to fail
-                .SendMessageAndWaitForAcknowledgementAsync(c => c.SendAndWaitAsync(new Request2 { Name = "Limper" }));
+                
+                .InvokeMessageAndWaitAsync(new Request2 { Name = "Limper" });
         });
 
         ex.Message.ShouldContain("Request failed");
@@ -291,7 +302,7 @@ public class request_reply : IAsyncLifetime
 
         var ex = await Should.ThrowAsync<TimeoutException>(async () =>
         {
-            await publisher.SendAndWaitAsync(new Request2 { Name = "SLOW" });
+            await publisher.InvokeAsync(new Request2 { Name = "SLOW" });
         });
 
         ex.Message.ShouldContain("Timed out waiting for expected acknowledgement for original message");
@@ -333,7 +344,7 @@ public class request_reply : IAsyncLifetime
         using var nested = _sender.Get<IContainer>().GetNestedContainer();
         var publisher = nested.GetInstance<IMessageBus>();
 
-        await Should.ThrowAsync<NoRoutesException>(() => publisher.SendAndWaitAsync(new RequestWithNoHandler()));
+        await Should.ThrowAsync<IndeterminateRoutesException>(() => publisher.InvokeAsync(new RequestWithNoHandler()));
     }
 }
 
