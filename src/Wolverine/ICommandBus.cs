@@ -32,22 +32,24 @@ public interface ICommandBus
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     Task<T?> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
-
+    
+    
     /// <summary>
-    ///     Schedule a message to be processed in this application at a specified time
+    /// Schedule the publishing or execution of a message until a later time
     /// </summary>
     /// <param name="message"></param>
-    /// <param name="executionTime"></param>
+    /// <param name="time"></param>
+    /// <param name="options"></param>
     /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    Task<Guid> ScheduleAsync<T>(T message, DateTimeOffset executionTime);
+    ValueTask ScheduleAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options = null);
 
     /// <summary>
-    ///     Schedule a message to be processed in this application at a specified time with a delay
+    /// Schedule the publishing or execution of a message until a later time
     /// </summary>
     /// <param name="message"></param>
     /// <param name="delay"></param>
+    /// <param name="options"></param>
     /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    Task<Guid> ScheduleAsync<T>(T message, TimeSpan delay);
+    ValueTask ScheduleAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null);
+
 }

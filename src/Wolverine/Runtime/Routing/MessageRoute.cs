@@ -10,6 +10,8 @@ using Wolverine.Configuration;
 using Wolverine.Runtime.ResponseReply;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
 
@@ -25,7 +27,10 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies) : this(endpoint.DefaultSerializer!, endpoint.Agent!,
         endpoint.OutgoingRules.Concat(RulesForMessageType(messageType)), replies)
     {
+        IsLocal = endpoint is LocalQueueSettings;
     }
+
+    public bool IsLocal { get; }
 
     public MessageRoute(IMessageSerializer serializer, ISendingAgent sender, IEnumerable<IEnvelopeRule> rules,
         IReplyTracker replyTracker)
@@ -34,6 +39,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         Sender = sender ?? throw new ArgumentNullException(nameof(sender));
         Rules.AddRange(rules);
+
+        IsLocal = sender.Endpoint is LocalQueueSettings;
     }
 
     public IMessageSerializer Serializer { get; }
@@ -55,10 +62,17 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         // Delivery options win
         options?.Override(envelope);
 
-        // adjust for local, scheduled send
-        if (envelope.IsScheduledForLater(DateTimeOffset.Now) && !Sender.SupportsNativeScheduledSend)
+        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
         {
-            return envelope.ForScheduledSend(localDurableQueue);
+            if (IsLocal)
+            {
+                envelope.Status = EnvelopeStatus.Scheduled;
+                envelope.OwnerId = TransportConstants.AnyNode;
+            }
+            else if (!Sender.SupportsNativeScheduledSend)
+            {
+                return envelope.ForScheduledSend(localDurableQueue);
+            }
         }
 
         return envelope;

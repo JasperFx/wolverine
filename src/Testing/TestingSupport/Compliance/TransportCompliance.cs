@@ -361,7 +361,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .AlsoTrack(theReceiver)
             .Timeout(15.Seconds())
             .WaitForMessageToBeReceivedAt<ColorChosen>(theReceiver ?? theSender)
-            .ExecuteAndWaitAsync(c => c.SchedulePublishAsync(new ColorChosen { Name = "Orange" }, 5.Seconds()));
+            .ExecuteAndWaitAsync(c => c.ScheduleAsync(new ColorChosen { Name = "Orange" }, 5.Seconds()));
 
         var message = session.FindSingleTrackedMessageOfType<ColorChosen>(EventType.MessageSucceeded);
         message.Name.ShouldBe("Orange");

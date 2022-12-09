@@ -64,24 +64,5 @@ public interface IMessageBus : ICommandBus
     /// <returns></returns>
     ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null);
 
-    /// <summary>
-    ///     Send a message that should be executed at the given time
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="time"></param>
-    /// <param name="options"></param>
-    /// <typeparam name="T"></typeparam>
-    [Obsolete]
-    ValueTask SchedulePublishAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options = null);
-
-    /// <summary>
-    ///     Send a message that should be executed after the given delay
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="delay"></param>
-    /// <param name="options"></param>
-    /// <typeparam name="T"></typeparam>
-    [Obsolete]
-    ValueTask SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null);
 
 }

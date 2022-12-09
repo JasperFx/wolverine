@@ -221,7 +221,7 @@ public class EnvelopeTests
     }
 
     [Fact]
-    public async Task should_persist_when_sender_is_durable()
+    public async Task should_persist_when_sender_is_durable_and_it_is_outgoing()
     {
         var transaction = Substitute.For<IEnvelopeTransaction>();
         var sender = Substitute.For<ISendingAgent>();
@@ -232,10 +232,33 @@ public class EnvelopeTests
         var envelope = ObjectMother.Envelope();
         envelope.OwnerId = 33333;
         envelope.Sender = sender;
+        envelope.Status = EnvelopeStatus.Outgoing;
+        envelope.Destination = new Uri("tcp://localhost:100"); // just to make it be not remote
 
         await envelope.PersistAsync(transaction);
 
         await transaction.Received().PersistOutgoingAsync(envelope);
+        envelope.OwnerId.ShouldBe(33333);
+    }
+    
+    [Fact]
+    public async Task should_persist_when_sender_is_durable_and_it_is_scheduled()
+    {
+        var transaction = Substitute.For<IEnvelopeTransaction>();
+        var sender = Substitute.For<ISendingAgent>();
+
+        sender.IsDurable.Returns(true);
+        sender.Latched.Returns(false);
+
+        var envelope = ObjectMother.Envelope();
+        envelope.OwnerId = 33333;
+        envelope.Sender = sender;
+        envelope.Status = EnvelopeStatus.Scheduled;
+        envelope.Destination = new Uri("tcp://localhost:100"); // just to make it be not remote
+
+        await envelope.PersistAsync(transaction);
+
+        await transaction.Received().PersistIncomingAsync(envelope);
         envelope.OwnerId.ShouldBe(33333);
     }
 
@@ -251,8 +274,10 @@ public class EnvelopeTests
         var envelope = ObjectMother.Envelope();
         envelope.OwnerId = 33333;
         envelope.Sender = sender;
+        envelope.Destination = new Uri("tcp://localhost:100"); // just to make it be not remote
 
         await envelope.PersistAsync(transaction);
+        
 
         await transaction.Received().PersistOutgoingAsync(envelope);
         envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);

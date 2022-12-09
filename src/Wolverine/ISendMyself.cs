@@ -21,7 +21,7 @@ public abstract record DelayedMessage(TimeSpan DelayTime) : ISendMyself
 {
     public virtual ValueTask ApplyAsync(IMessageContext context)
     {
-        return context.SchedulePublishAsync(this, DelayTime);
+        return context.ScheduleAsync(this, DelayTime);
     }
 }
 

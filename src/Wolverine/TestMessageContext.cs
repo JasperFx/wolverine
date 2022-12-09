@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Wolverine.Runtime.ResponseReply;
-using Wolverine.Transports.Local;
 
 namespace Wolverine;
 
@@ -16,9 +15,7 @@ public class TestMessageContext : IMessageContext
 {
 
     private readonly List<object> _invoked = new();
-
     private readonly List<object> _published = new();
-
     private readonly List<object> _responses = new();
     private readonly List<object> _sent = new();
 
@@ -84,34 +81,35 @@ public class TestMessageContext : IMessageContext
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
 
-    Task<Guid> ICommandBus.ScheduleAsync<T>(T message, DateTimeOffset executionTime)
+    ValueTask ICommandBus.ScheduleAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options = null)
     {
         var envelope = new Envelope
         {
-            Message = message, ScheduledTime = executionTime,
+            Message = message, ScheduledTime = time,
             Status = EnvelopeStatus.Scheduled
         };
 
         _published.Add(envelope);
 
-        return Task.FromResult(envelope.Id);
+        return new ValueTask();
     }
 
-    Task<Guid> ICommandBus.ScheduleAsync<T>(T message, TimeSpan delay)
+    ValueTask ICommandBus.ScheduleAsync<T>(T message, TimeSpan delay, DeliveryOptions? options = null)
     {
         var envelope = new Envelope
         {
-            Message = message,
+            Message = message, 
             ScheduleDelay = delay,
             Status = EnvelopeStatus.Scheduled
         };
 
         _published.Add(envelope);
 
-        return Task.FromResult(envelope.Id);
+        return new ValueTask();
     }
 
-    public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
+
+    IReadOnlyList<Envelope> IMessageBus.PreviewSubscriptions(object message)
     {
         throw new NotSupportedException();
     }
@@ -145,30 +143,7 @@ public class TestMessageContext : IMessageContext
 
         return new ValueTask();
     }
-
-    ValueTask IMessageBus.SchedulePublishAsync<T>(T message, DateTimeOffset time, DeliveryOptions? options)
-    {
-        var envelope = new Envelope
-        {
-            Message = message, ScheduledTime = time,
-            Status = EnvelopeStatus.Scheduled
-        };
-
-        options?.Override(envelope);
-        _published.Add(envelope);
-
-        return new ValueTask();
-    }
-
-    ValueTask IMessageBus.SchedulePublishAsync<T>(T message, TimeSpan delay, DeliveryOptions? options)
-    {
-        var envelope = new Envelope { Message = message, ScheduleDelay = delay, Status = EnvelopeStatus.Scheduled };
-        options?.Override(envelope);
-        _published.Add(envelope);
-
-        return new ValueTask();
-    }
-
+    
     internal class DestinationEndpoint : IDestinationEndpoint
     {
         private readonly TestMessageContext _parent;

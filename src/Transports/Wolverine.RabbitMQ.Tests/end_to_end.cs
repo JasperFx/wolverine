@@ -276,7 +276,7 @@ public class end_to_end
                 .AlsoTrack(receiver)
                 .WaitForMessageToBeReceivedAt<ColorChosen>(receiver)
                 .Timeout(15.Seconds())
-                .ExecuteAndWaitAsync(c => c.SchedulePublishAsync(new ColorChosen { Name = "Orange" }, 5.Seconds()));
+                .ExecuteAndWaitAsync(c => c.ScheduleAsync(new ColorChosen { Name = "Orange" }, 5.Seconds()));
 
             receiver.Get<ColorHistory>().Name.ShouldBe("Orange");
         }

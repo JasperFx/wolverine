@@ -110,7 +110,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
     public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
     {
-        var now = DateTimeOffset.Now;
+        var now = DateTimeOffset.UtcNow;
 
         return ProcessReceivedMessagesAsync(now, listener, messages);
     }

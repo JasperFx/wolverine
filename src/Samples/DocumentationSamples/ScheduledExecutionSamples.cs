@@ -15,7 +15,7 @@ public class ScheduledExecutionSamples
         };
 
         // Process the issue timeout logic 3 days from now
-        await context.SchedulePublishAsync(timeout, 3.Days());
+        await context.ScheduleAsync(timeout, 3.Days());
     }
 
     #endregion
@@ -35,7 +35,7 @@ public class ScheduledExecutionSamples
         // Process the issue timeout at 5PM tomorrow
         // Do note that Wolverine quietly converts this
         // to universal time in storage
-        await context.SchedulePublishAsync(timeout, time);
+        await context.ScheduleAsync(timeout, time);
     }
 
     #endregion
@@ -74,7 +74,7 @@ public class ScheduledExecutionSamples
         // in *this* system
         // Do note that Wolverine quietly converts this
         // to universal time in storage
-        await context.SchedulePublishAsync(timeout, time);
+        await context.ScheduleAsync(timeout, time);
     }
 
     #endregion

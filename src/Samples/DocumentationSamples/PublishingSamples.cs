@@ -137,10 +137,10 @@ public class PublishingSamples
 
         // Schedule the message to be processed in a certain amount
         // of time
-        await bus.SchedulePublishAsync(message, 30.Days());
+        await bus.ScheduleAsync(message, 30.Days());
 
         // Schedule the message to be processed at a certain time
-        await bus.SchedulePublishAsync(message, DateTimeOffset.Now.AddDays(30));
+        await bus.ScheduleAsync(message, DateTimeOffset.Now.AddDays(30));
     }
 
     #endregion

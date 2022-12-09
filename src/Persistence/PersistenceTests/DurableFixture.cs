@@ -221,9 +221,9 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
         await send(async c =>
         {
-            await c.SchedulePublishAsync(message1, 2.Hours());
-            await c.SchedulePublishAsync(message2, 5.Seconds());
-            await c.SchedulePublishAsync(message3, 2.Hours());
+            await c.ScheduleAsync(message1, 2.Hours());
+            await c.ScheduleAsync(message2, 5.Seconds());
+            await c.ScheduleAsync(message3, 2.Hours());
         });
 
         ScheduledMessageHandler.ReceivedMessages.Count.ShouldBe(0);

@@ -38,7 +38,7 @@ public class DeliveryOptions
     /// <value></value>
     public TimeSpan DeliverWithin
     {
-        set => DeliverBy = DateTimeOffset.Now.Add(value);
+        set => DeliverBy = DateTimeOffset.UtcNow.Add(value);
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ public class DeliveryOptions
     /// </summary>
     public TimeSpan ScheduleDelay
     {
-        set => ScheduledTime = DateTimeOffset.Now.Add(value);
+        set => ScheduledTime = DateTimeOffset.UtcNow.Add(value);
     }
 
     /// <summary>

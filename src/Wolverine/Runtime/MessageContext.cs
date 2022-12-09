@@ -41,7 +41,17 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             try
             {
-                await envelope.QuickSendAsync();
+                if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
+                {
+                    if (!@envelope.Sender!.IsDurable)
+                    {
+                        Runtime.ScheduleLocalExecutionInMemory(@envelope.ScheduledTime!.Value, envelope);
+                    }                    
+                }
+                else
+                {
+                    await envelope.QuickSendAsync();
+                }
             }
             catch (Exception e)
             {
@@ -201,7 +211,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     Task IEnvelopeTransaction.PersistIncomingAsync(Envelope envelope)
     {
-        Scheduled.Fill(envelope);
+        if (envelope.Status == EnvelopeStatus.Scheduled)
+        {
+            Scheduled.Fill(envelope);
+        }
         return Task.CompletedTask;
     }
 
