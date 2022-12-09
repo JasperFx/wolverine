@@ -58,11 +58,6 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         return RouteToDestination((T)message, uri, options);
     }
 
-    public Envelope RouteToEndpointByName(object message, string endpointName, DeliveryOptions? options)
-    {
-        return RouteToEndpointByName((T)message, endpointName, options);
-    }
-
     public Envelope[] RouteToTopic(object message, string topicName, DeliveryOptions? options)
     {
         return RouteToTopic((T)message, topicName, options);
@@ -82,7 +77,6 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             .CreateForSending(message, options, LocalDurableQueue, Runtime);
     }
 
-    [Obsolete("Might be unnecessary soon")]
     public IMessageRoute RouteForUri(Uri destination)
     {
         if (_specificRoutes.TryFind(destination, out var route))
@@ -98,36 +92,6 @@ public abstract class MessageRouterBase<T> : IMessageRouter
     }
 
     public abstract IMessageRoute FindSingleRouteForSending();
-
-    public Envelope RouteToEndpointByName(T message, string endpointName, DeliveryOptions? options)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        return RouteForEndpoint(endpointName)
-            .CreateForSending(message, options, LocalDurableQueue, Runtime);
-    }
-    
-    [Obsolete("Might be unnecessary soon")]
-    public IMessageRoute RouteForEndpoint(string endpointName)
-    {
-        if (_routeByName.TryFind(endpointName, out var route))
-        {
-            return route;
-        }
-        
-        var endpoint = Runtime.Endpoints.EndpointByName(endpointName);
-        route = endpoint == null
-            ? new NoNamedEndpointRoute(endpointName,
-                Runtime.Options.Transports.AllEndpoints().Select(x => x.EndpointName).ToArray())
-            : new MessageRoute(typeof(T), Runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri).Endpoint, Runtime.Replies);
-
-        _routeByName = _routeByName.AddOrUpdate(endpointName, route);
-
-        return route;
-    }
 
     public Envelope[] RouteToTopic(T message, string topicName, DeliveryOptions? options)
     {

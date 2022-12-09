@@ -260,26 +260,6 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         HasDeclared = true;
     }
 
-    [Obsolete]
-    internal void Teardown(IModel channel)
-    {
-        channel.QueueDeleteNoWait(EndpointName);
-    }
-
-    internal void Purge(IModel channel)
-    {
-        try
-        {
-            channel.QueuePurge(QueueName);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine("Unable to purge queue " + QueueName);
-            Console.WriteLine(e);
-        }
-    }
-
-
     public override IDictionary<string, object> DescribeProperties()
     {
         var dict = base.DescribeProperties();
