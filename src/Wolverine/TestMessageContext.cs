@@ -136,7 +136,7 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessageBus.SendToTopicAsync(string topicName, object message, DeliveryOptions? options)
+    ValueTask IMessageBus.BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null)
     {
         var envelope = new Envelope { Message = message, TopicName = topicName };
         options?.Override(envelope);

@@ -95,7 +95,7 @@ public class TestMessageContextTests
     {
         var message1 = new Message1();
 
-        await theContext.SendToTopicAsync("topic1", message1, new DeliveryOptions().WithHeader("a", "1"));
+        await theContext.BroadcastToTopicAsync("topic1", message1, new DeliveryOptions().WithHeader("a", "1"));
 
         var envelope = theSpy.AllOutgoing.ShouldHaveEnvelopeForMessageType<Message1>();
         envelope

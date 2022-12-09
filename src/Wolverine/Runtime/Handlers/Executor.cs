@@ -6,6 +6,9 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Runtime.Routing;
+using Wolverine.Transports;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -15,7 +18,7 @@ internal enum InvokeResult
     TryAgain
 }
 
-internal interface IExecutor
+internal interface IExecutor : IMessageInvoker
 {
     Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation);
     Task<InvokeResult> InvokeAsync(MessageContext context, CancellationToken cancellation);
@@ -75,6 +78,34 @@ internal class Executor : IExecutor
             _contextPool.Return(context);
             activity?.Stop();
         }
+    }
+
+    public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+    {
+        var envelope = new Envelope(message)
+        {
+            ReplyUri = TransportConstants.RepliesUri,
+            ReplyRequested = typeof(T).ToMessageTypeName(),
+            ResponseType = typeof(T)
+        };
+        
+        bus.TrackEnvelopeCorrelation(envelope);
+        
+        await InvokeInlineAsync(envelope, cancellation);
+
+        if (envelope.Response == null)
+        {
+            return default;
+        }
+
+        return (T)envelope.Response;
+    }
+
+    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    {
+        var envelope = new Envelope(message);
+        bus.TrackEnvelopeCorrelation(envelope);
+        return InvokeInlineAsync(envelope, cancellation);
     }
 
     public async Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)

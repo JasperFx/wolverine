@@ -54,13 +54,15 @@ public interface IMessageBus : ICommandBus
     /// <summary>
     ///     Send a message to a specific topic name. This relies
     ///     on having a backing transport endpoint that supports
-    ///     topic routing
+    ///     topic routing.
+    ///
+    ///     At this point, this feature pretty well only matters with Rabbit MQ topic exchanges!
     /// </summary>
     /// <param name="topicName"></param>
     /// <param name="message"></param>
     /// <param name="options"></param>
     /// <returns></returns>
-    ValueTask SendToTopicAsync(string topicName, object message, DeliveryOptions? options = null);
+    ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null);
 
     /// <summary>
     ///     Send a message that should be executed at the given time

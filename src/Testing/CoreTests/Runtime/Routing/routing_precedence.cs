@@ -1,4 +1,5 @@
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using TestingSupport;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Tcp;
 using Xunit;
@@ -118,6 +120,68 @@ public class routing_precedence
         var bus = host.Services.GetRequiredService<IMessageBus>();
         bus.PreviewSubscriptions(new RedMessage())
             .Single().Destination.ShouldBe(new Uri("tcp://localhost:" + port));
+    }
+
+    [Fact]
+    public async Task use_local_invoker_if_local_exists()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine().StartAsync();
+
+        var collection = host.Services.GetRequiredService<MessageInvokerCollection>();
+        var local = collection.FindForMessageType(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
+        
+        collection.FindForMessageType(typeof(BlueMessage))
+            .ShouldBeSameAs(local);
+    }
+    
+    
+    [Fact]
+    public async Task favor_local_invoker_if_local_exists()
+    {
+        var port = PortFinder.GetAvailablePort();
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PublishMessage<RedMessage>().ToPort(port);
+            }).StartAsync();
+
+        var collection = host.Services.GetRequiredService<MessageInvokerCollection>();
+        var local = collection.FindForMessageType(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
+        
+        collection.FindForMessageType(typeof(BlueMessage))
+            .ShouldBeSameAs(local);
+    }
+    
+    [Fact]
+    public async Task use_messageroute_if_cannot_handle_and_subscriber_exists()
+    {
+        var port = PortFinder.GetAvailablePort();
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PublishMessage<RedMessage>().ToPort(port);
+            }).StartAsync();
+
+        var collection = host.Services.GetRequiredService<MessageInvokerCollection>();
+        var remote = collection.FindForMessageType(typeof(RedMessage)).ShouldBeOfType<MessageRoute>();
+        
+        collection.FindForMessageType(typeof(RedMessage))
+            .ShouldBeSameAs(remote);
+    }
+
+    [Fact]
+    public async Task use_no_handler_if_no_handler_and_no_subscriber()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+
+            }).StartAsync();
+        
+        var collection = host.Services.GetRequiredService<MessageInvokerCollection>();
+        collection.FindForMessageType(typeof(RedMessage))
+            .ShouldBeOfType<NoHandlerExecutor>();
     }
 }
 

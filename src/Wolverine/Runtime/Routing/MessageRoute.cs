@@ -15,7 +15,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Routing;
 
-public class MessageRoute : IMessageRoute
+public class MessageRoute : IMessageRoute, IMessageInvoker
 {
     private readonly IReplyTracker _replyTracker;
 
@@ -76,7 +76,12 @@ public class MessageRoute : IMessageRoute
 
         return rules;
     }
-    
+
+    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    {
+        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout);
+    }
+
     public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null) where T : class

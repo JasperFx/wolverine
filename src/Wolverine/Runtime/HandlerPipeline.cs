@@ -87,7 +87,7 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
-
+    [Obsolete]
     public async Task InvokeNowAsync(Envelope envelope, CancellationToken cancellation = default)
     {
         // The static one is the application's, so put that check on the outside

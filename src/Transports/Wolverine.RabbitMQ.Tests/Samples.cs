@@ -42,7 +42,7 @@ public class Samples
 
         #region sample_sending_to_a_specific_topic
 
-        await publisher.SendToTopicAsync("color.*", new Message1());
+        await publisher.BroadcastToTopicAsync("color.*", new Message1());
 
         #endregion
     }

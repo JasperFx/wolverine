@@ -157,7 +157,7 @@ public class TrackedSessionConfiguration
     public Task<ITrackedSession> SendMessageToTopicAndWaitAsync(string topicName, object message,
         DeliveryOptions? options = null)
     {
-        return ExecuteAndWaitAsync(c => c.SendToTopicAsync(topicName, message, options));
+        return ExecuteAndWaitAsync(c => c.BroadcastToTopicAsync(topicName, message, options));
     }
 
     /// <summary>
