@@ -5,7 +5,7 @@ using JasperFx.CodeGeneration;
 
 namespace Wolverine.Runtime.ResponseReply;
 
-internal class ReplyListener<T> : IReplyListener where T : class
+internal class ReplyListener<T> : IReplyListener
 {
     private readonly CancellationTokenSource _cancellation;
     private readonly TaskCompletionSource<T> _completion;

@@ -13,5 +13,5 @@ public interface IMessageRoute
 
     public Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
-        TimeSpan? timeout = null) where T : class;
+        TimeSpan? timeout = null);
 }

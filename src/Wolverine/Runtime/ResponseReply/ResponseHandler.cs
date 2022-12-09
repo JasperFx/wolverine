@@ -11,7 +11,6 @@ public interface IReplyTracker : IDisposable
 {
 #pragma warning disable VSTHRD200
     Task<T> RegisterListener<T>(Envelope envelope, CancellationToken cancellationToken, TimeSpan timeout)
-        where T : class
 #pragma warning restore VSTHRD200
     ;
 
@@ -31,7 +30,6 @@ internal class ReplyTracker : IReplyTracker
 
 #pragma warning disable VSTHRD200
     public Task<T> RegisterListener<T>(Envelope envelope, CancellationToken cancellationToken, TimeSpan timeout)
-        where T : class
 #pragma warning restore VSTHRD200
     {
         envelope.DeliverWithin = timeout; // Make the message expire so it doesn't cruft up the receivers

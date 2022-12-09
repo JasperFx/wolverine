@@ -46,7 +46,7 @@ internal class NoHandlerExecutor : IExecutor
         throw new NotSupportedException($"No known handler for message type {_messageType.FullNameInCode()}. Wolverine was looking for handlers in assemblies {handlerAssemblies}");
     }
 
-    public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+    public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
         var handlerAssemblies = _runtime
             .Options

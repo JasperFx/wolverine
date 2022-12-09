@@ -84,7 +84,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
     public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
-        TimeSpan? timeout = null) where T : class
+        TimeSpan? timeout = null) 
     {
         if (message == null)
         {

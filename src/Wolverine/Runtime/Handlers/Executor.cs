@@ -80,7 +80,7 @@ internal class Executor : IExecutor
         }
     }
 
-    public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+    public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
         var envelope = new Envelope(message)
         {
