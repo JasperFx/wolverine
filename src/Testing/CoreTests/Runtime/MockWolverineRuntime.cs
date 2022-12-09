@@ -64,6 +64,11 @@ public class MockWolverineRuntime : IWolverineRuntime
         throw new NotImplementedException();
     }
 
+    public IMessageInvoker FindForMessageType(Type messageType)
+    {
+        throw new NotImplementedException();
+    }
+
     public bool TryFindMessageType(string? messageTypeName, out Type messageType)
     {
         throw new NotSupportedException();

@@ -47,6 +47,8 @@ public interface IWolverineRuntime
 
 
     void RegisterMessageType(Type messageType);
+
+    IMessageInvoker FindForMessageType(Type messageType);
 }
 
 internal interface IExecutorFactory

@@ -4,6 +4,7 @@ using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,7 @@ using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Runtime;
@@ -21,6 +23,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 {
     private readonly IContainer _container;
     private readonly EndpointCollection _endpoints;
+    private readonly LightweightCache<Type, IMessageInvoker> _invokers;
 
     private readonly Lazy<IMessageStore> _persistence;
 
@@ -78,6 +81,30 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime,
             MetricsConstants.Milliseconds,
             "Effective time between a message being sent and being completely handled");
+        
+        _invokers = new(findInvoker);
+    }
+    
+    private IMessageInvoker findInvoker(Type messageType)
+    {
+        try
+        {
+            if (Options.HandlerGraph.CanHandle(messageType))
+            {
+                return this.As<IExecutorFactory>().BuildFor(messageType);
+            }
+            
+            return (IMessageInvoker)RoutingFor(messageType).FindSingleRouteForSending();
+        }
+        catch (Exception)
+        {
+            return new NoHandlerExecutor(messageType, this);
+        }
+    }
+    
+    public IMessageInvoker FindForMessageType(Type messageType)
+    {
+        return _invokers[messageType];
     }
 
     internal Meter Meter { get; }

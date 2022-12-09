@@ -128,7 +128,7 @@ public class routing_precedence
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine().StartAsync();
 
-        var collection = host.Services.GetRequiredService<MessageInvokerCollection>();
+        var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         var local = collection.FindForMessageType(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
         
         collection.FindForMessageType(typeof(BlueMessage))
@@ -146,7 +146,7 @@ public class routing_precedence
                 opts.PublishMessage<RedMessage>().ToPort(port);
             }).StartAsync();
 
-        var collection = host.Services.GetRequiredService<MessageInvokerCollection>();
+        var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         var local = collection.FindForMessageType(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
         
         collection.FindForMessageType(typeof(BlueMessage))
@@ -163,7 +163,7 @@ public class routing_precedence
                 opts.PublishMessage<RedMessage>().ToPort(port);
             }).StartAsync();
 
-        var collection = host.Services.GetRequiredService<MessageInvokerCollection>();
+        var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         var remote = collection.FindForMessageType(typeof(RedMessage)).ShouldBeOfType<MessageRoute>();
         
         collection.FindForMessageType(typeof(RedMessage))
@@ -179,7 +179,7 @@ public class routing_precedence
 
             }).StartAsync();
         
-        var collection = host.Services.GetRequiredService<MessageInvokerCollection>();
+        var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         collection.FindForMessageType(typeof(RedMessage))
             .ShouldBeOfType<NoHandlerExecutor>();
     }
