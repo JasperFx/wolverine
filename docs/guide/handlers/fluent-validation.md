@@ -11,7 +11,7 @@ to your Wolverine application bootstrapping:
 <!-- snippet: sample_bootstrap_with_fluent_validation -->
 <a id='snippet-sample_bootstrap_with_fluent_validation'></a>
 ```cs
-using var host = await  Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // Apply the validation middleware *and* discover and register
@@ -44,8 +44,8 @@ public class CreateCustomerValidator : AbstractValidator<CreateCustomer>
 
 public record CreateCustomer
 (
-    string FirstName, 
-    string LastName, 
+    string FirstName,
+    string LastName,
     string PostalCode
 );
 
@@ -58,7 +58,7 @@ public static class CreateCustomerHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L70-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_customer' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L69-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_customer' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, the Fluent Validation check will happen at runtime *before* the call to the handler methods. If 
@@ -108,7 +108,7 @@ and with the corresponding override:
 <!-- snippet: sample_bootstrap_with_fluent_validation_and_custom_failure_condition -->
 <a id='snippet-sample_bootstrap_with_fluent_validation_and_custom_failure_condition'></a>
 ```cs
-using var host = await  Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // Apply the validation middleware *and* discover and register

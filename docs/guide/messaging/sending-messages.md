@@ -5,17 +5,15 @@
 ```mermaid
 classDiagram
     
-class ICommandBus
-class IMessagePublisher
+
+class IMessageBus
 class IMessageContext
 
-IMessageContext ..> IMessagePublisher
-IMessagePublisher ..> ICommandBus
+IMessageContext ..> IMessageBus
 IMessageContext --> Envelope : Current Message
-    
 ```
 
-To send a message with Wolverine, use the `IMessagePublisher` interface or the bigger `IMessageContext` interface that
+To send a message with Wolverine, use the `IMessageBus` interface or the bigger `IMessageContext` interface that
 are registered in your application's IoC container. The sample below shows the most common usage:
 
 <!-- snippet: sample_sending_message_with_servicebus -->
@@ -36,7 +34,7 @@ public ValueTask SendMessage(IMessageContext bus)
     return bus.SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L157-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L167-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That by itself will send the `InvoiceCreated` message to whatever subscribers are interested in
@@ -64,7 +62,7 @@ public ValueTask PublishMessage(IMessageContext bus)
     return bus.PublishAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L175-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L187-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Send Messages to a Specific Endpoint
@@ -90,10 +88,10 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 
 var publisher = host.Services
-    .GetRequiredService<IMessagePublisher>();
+    .GetRequiredService<IMessageBus>();
 
 // Explicitly send a message to a named endpoint
-await publisher.SendToEndpointAsync("One", new SomeMessage());
+await publisher.EndpointFor("One").SendAsync( new SomeMessage());
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L54-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -129,9 +127,9 @@ You can explicitly publish a message to a topic through this syntax:
 <a id='snippet-sample_send_to_topic'></a>
 ```cs
 var publisher = theSender.Services
-    .GetRequiredService<IMessagePublisher>();
+    .GetRequiredService<IMessageBus>();
 
-await publisher.SendToTopicAsync("color.purple", new Message1());
+await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L72-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -148,24 +146,23 @@ TODO -- more text here
 <!-- snippet: sample_SendMessagesWithDeliveryOptions -->
 <a id='snippet-sample_sendmessageswithdeliveryoptions'></a>
 ```cs
-public static async Task SendMessagesWithDeliveryOptions(IMessagePublisher publisher)
+public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
 {
-    await publisher.PublishAsync(new Message1(), new DeliveryOptions
-    {
-        AckRequested = true,
-        ContentType = "text/xml", // you can do this, but I'm not sure why you'd want to override this
-        DeliverBy = DateTimeOffset.Now.AddHours(1), // set a message expiration date
-        DeliverWithin = 1.Hours(), // convenience method to set the deliver-by expiration date
-        ScheduleDelay = 1.Hours(), // Send this in one hour, or...
-        ScheduledTime = DateTimeOffset.Now.AddHours(1),
-        ResponseType = typeof(Message2) // ask the receiver to send this message back to you if it can
-    }
+    await bus.PublishAsync(new Message1(), new DeliveryOptions
+        {
+            AckRequested = true,
+            ContentType = "text/xml", // you can do this, but I'm not sure why you'd want to override this
+            DeliverBy = DateTimeOffset.Now.AddHours(1), // set a message expiration date
+            DeliverWithin = 1.Hours(), // convenience method to set the deliver-by expiration date
+            ScheduleDelay = 1.Hours(), // Send this in one hour, or...
+            ScheduledTime = DateTimeOffset.Now.AddHours(1),
+            ResponseType = typeof(Message2) // ask the receiver to send this message back to you if it can
+        }
         // There's a chained fluent interface for adding header values too
         .WithHeader("tenant", "one"));
-
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomizingMessageDelivery.cs#L9-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sendmessageswithdeliveryoptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomizingMessageDelivery.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sendmessageswithdeliveryoptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

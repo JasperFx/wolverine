@@ -1,14 +1,9 @@
 # Wolverine as Command Bus
 
-::: tip
-Both `IMessagePublisher` and `IMessageContext` also implement `ICommandBus` to enable users
-to use a mix of local and remote message handling at one time.
-:::
-
-Using the `Wolverine.ICommandBus` service that is automatically registered in your system through 
+Using the `Wolverine.IMessageBus` service that is automatically registered in your system through 
 the `IHostBuilder.UseWolverine()` extensions, you can either invoke message handlers inline, enqueue 
 messages to local, in process queues, or schedule message execution within the system. All known message
-handlers within a Wolverine application can be used from `ICommandBus` without any additional
+handlers within a Wolverine application can be used from `IMessageBus` without any additional
 configuration as some other tools require.
 
 ## Invoking Message Handling
@@ -18,14 +13,13 @@ To execute the message processing immediately, use this syntax:
 <!-- snippet: sample_invoke_locally -->
 <a id='snippet-sample_invoke_locally'></a>
 ```cs
-public static async Task invoke_locally(ICommandBus bus)
+public static async Task invoke_locally(IMessageBus bus)
 {
     // Execute the message inline
     await bus.InvokeAsync(new Message1());
-
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L20-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L11-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this feature does utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
@@ -33,24 +27,9 @@ for potentially transient errors.
 
 ## Enqueueing Messages Locally
 
-You can queue up messages to be executed locally and asynchronously in a background thread:
-
-<!-- snippet: sample_enqueue_locally -->
-<a id='snippet-sample_enqueue_locally'></a>
-```cs
-public static async Task enqueue_locally(ICommandBus bus)
-{
-    // Enqueue a message to the local worker queues
-    await bus.EnqueueAsync(new Message1());
-
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L10-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enqueue_locally' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
 The queueing is all based around the [TPL Dataflow library](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/how-to-perform-action-when-a-dataflow-block-receives-data) objects from the [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) library.
 As such, you have a fair amount of control over parallelization and even some back pressure. These local queues can be used directly, or as a transport to accept messages sent through
-`IMessagePublisher.SendAsync()` or `IMessagePublisher.PublishAsync()`. using the application's [message routing rules](/guide/messaging/#routing-rules).
+`IMessageBus.SendAsync()` or `IMessageBus.PublishAsync()`. using the application's [message routing rules](/guide/messaging/#routing-rules).
 
 This feature is useful for asynchronous processing in web applications or really any kind of application where you need some parallelization or concurrency.
 
@@ -84,10 +63,10 @@ public ValueTask EnqueueToQueue(IMessageContext bus)
 
     // Put this message in a local worker
     // queue named 'highpriority'
-    return bus.EnqueueAsync(@event, "highpriority");
+    return bus.EndpointFor("highpriority").SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L106-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iservicebus.enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L110-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iservicebus.enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduling Local Execution
@@ -96,7 +75,7 @@ public ValueTask EnqueueToQueue(IMessageContext bus)
 If you need the command scheduling to be persistent or be persisted across service restarts, you'll need to enable the [message persistence](/guide/persistence/) within Wolverine.
 :::
 
-The "scheduled execution" feature can be used with local execution within the same application. See [Scheduled Messages](/guide/scheduled) for more information. Use the `ICommandBus.ScheduleAsync()` methods like this:
+The "scheduled execution" feature can be used with local execution within the same application. See [Scheduled Messages](/guide/scheduled) for more information. Use the `IMessageBus.ScheduleAsync()` extension methods like this:
 
 <!-- snippet: sample_schedule_job_locally -->
 <a id='snippet-sample_schedule_job_locally'></a>
@@ -116,32 +95,29 @@ public async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
     await bus.ScheduleAsync(message, DateTimeOffset.Now.AddDays(30));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L140-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedule_job_locally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L148-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedule_job_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
 ## The Default Queue
 
 Out of the box, each Wolverine application has a default queue named "default". In the absence of any
-other routing rules, all messages enqueued to `ICommandBus` will be published to this queue. The default in memory
+other routing rules, all messages enqueued to `IMessageBus` will be published to this queue. The default in memory
 queue can be configured like this:
 
 <!-- snippet: sample_ConfigureDefaultQueue -->
 <a id='snippet-sample_configuredefaultqueue'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        opts.DefaultLocalQueue.MaximumParallelMessages(3);
-    }).StartAsync();
+    .UseWolverine(opts => { opts.DefaultLocalQueue.MaximumParallelMessages(3); }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ConfigureDurableLocalQueueApp.cs#L28-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuredefaultqueue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ConfigureDurableLocalQueueApp.cs#L28-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuredefaultqueue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Explicit Local Message Routing
 
-In the absence of any kind of routing rules, any message enqueued with `ICommandBus.Enqueue()` will just be handled by the
-*default* local queue. To override that choice on a message type by message type basis, you can use the `[LocalQueue]` attribute
+In the absence of any kind of routing rules, any message enqueued with `IMessageBus.PublishAsync()` will just be handled by a
+local queue with the message type name. To override that choice on a message type by message type basis, you can use the `[LocalQueue]` attribute
 on a message type:
 
 <!-- snippet: sample_local_queue_routed_message -->
@@ -150,7 +126,6 @@ on a message type:
 [LocalQueue("important")]
 public class ImportanceMessage
 {
-
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L5-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_routed_message' title='Start of snippet'>anchor</a></sup>
@@ -189,28 +164,17 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Out of the box, this uses a separate local queue
         // for each message based on the message type name
-        opts.Policies.UseConventionalLocalRouting()
+        opts.Policies.ConfigureConventionalLocalRouting()
 
             // Or you can customize the usage of queues
             // per message type
             .Named(type => type.Namespace)
 
-            // Create an optional deny list of types to fall under
-            // this convention
-            .ExcludeTypes(type => type.IsInNamespace("MyApp.NotHere"))
-
-            // Create an optional allow list of message types
-            // to fall under this routing convention
-            .IncludeTypes(type => type.IsInNamespace("MyApp.Here"))
-
             // Optionally configure the local queues
-            .CustomizeQueues((type, listener) =>
-            {
-                listener.Sequential();
-            });
+            .CustomizeQueues((type, listener) => { listener.Sequential(); });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L55-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_conventions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L46-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_conventions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Configuring Local Queues
@@ -231,13 +195,13 @@ using var host = await Host.CreateDefaultBuilder()
         opts.LocalQueue("two")
             .MaximumParallelMessages(10)
             .UseDurableInbox();
-        
+
         // Apply configuration options to all local queues,
         // but explicit changes to specific local queues take precedence
         opts.Policies.AllLocalQueues(x => x.UseDurableInbox());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L32-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_local_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L23-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Durable Local Messages
@@ -260,7 +224,7 @@ using var host = await Host.CreateDefaultBuilder()
             .UseDurableInbox();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessagingConfigurationExamples.cs#L124-L137' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_localdurabletransportapp' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessagingConfigurationExamples.cs#L123-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_localdurabletransportapp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -334,4 +298,4 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessagingConfigurationExamples.cs#L104-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_localtransportapp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Calling `IMessagePublisher.Send(new Message2())` would publish the message to the local "important" queue.
+Calling `IMessageBus.SendAsync(new Message2())` would publish the message to the local "important" queue.

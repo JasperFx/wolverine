@@ -30,7 +30,7 @@ finally
     logger.Info("Ran something in " + stopwatch.ElapsedMilliseconds);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L17-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatch_concept' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L17-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatch_concept' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Alright, the first step is to create a LamarCompiler `Frame` class that generates that code around the inner message or HTTP handler:
@@ -41,8 +41,8 @@ Alright, the first step is to create a LamarCompiler `Frame` class that generate
 public class StopwatchFrame : SyncFrame
 {
     private readonly IChain _chain;
-    private Variable _logger;
     private readonly Variable _stopwatch;
+    private Variable _logger;
 
     public StopwatchFrame(IChain chain)
     {
@@ -57,7 +57,7 @@ public class StopwatchFrame : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write($"var stopwatch = new {typeof(Stopwatch).FullNameInCode()}();");
-        writer.Write($"stopwatch.Start();");
+        writer.Write("stopwatch.Start();");
 
         writer.Write("BLOCK:try");
         Next?.GenerateCode(method, writer);
@@ -66,8 +66,9 @@ public class StopwatchFrame : SyncFrame
         // Write a finally block where you record the stopwatch
         writer.Write("BLOCK:finally");
 
-        writer.Write($"stopwatch.Stop();");
-        writer.Write($"{_logger.Usage}.Log(Microsoft.Extensions.Logging.LogLevel.Information, \"{_chain.Description} ran in \" + {_stopwatch.Usage}.{nameof(Stopwatch.ElapsedMilliseconds)});)");
+        writer.Write("stopwatch.Stop();");
+        writer.Write(
+            $"{_logger.Usage}.Log(Microsoft.Extensions.Logging.LogLevel.Information, \"{_chain.Description} ran in \" + {_stopwatch.Usage}.{nameof(Stopwatch.ElapsedMilliseconds)});)");
 
         writer.FinishBlock();
     }
@@ -81,7 +82,7 @@ public class StopwatchFrame : SyncFrame
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L35-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L36-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -112,7 +113,7 @@ public class StopwatchAttribute : ModifyChainAttribute
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L81-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L85-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This attribute can now be placed either on a specific HTTP route endpoint method or message handler method to **only** apply to
@@ -132,7 +133,7 @@ public class ClockedEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L91-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L97-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, when the application is bootstrapped, this is the code that would be generated to handle the "GET /clocked" route:
@@ -276,7 +277,7 @@ public class CustomizedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L26-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L28-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

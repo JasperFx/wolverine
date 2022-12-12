@@ -27,11 +27,11 @@ And next, I'll start a small *Pinger* service with the `dotnet new worker` templ
 <!-- snippet: sample_BootstrappingPinger -->
 <a id='snippet-sample_bootstrappingpinger'></a>
 ```cs
-using Wolverine;
-using Wolverine.Transports.Tcp;
 using Messages;
 using Oakton;
 using Pinger;
+using Wolverine;
+using Wolverine.Transports.Tcp;
 
 return await Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
@@ -58,20 +58,20 @@ and the `Worker` class that's just going to publish a new `Ping` message once a 
 <!-- snippet: sample_PingPong_Worker -->
 <a id='snippet-sample_pingpong_worker'></a>
 ```cs
-using Wolverine;
 using Messages;
+using Wolverine;
 
 namespace Pinger;
 
 public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
-    private readonly IMessagePublisher _publisher;
+    private readonly IMessageBus _bus;
 
-    public Worker(ILogger<Worker> logger, IMessagePublisher publisher)
+    public Worker(ILogger<Worker> logger, IMessageBus bus)
     {
         _logger = logger;
-        _publisher = publisher;
+        _bus = bus;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -80,16 +80,15 @@ public class Worker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-
             await Task.Delay(1000, stoppingToken);
             _logger.LogInformation("Sending Ping #{Number}", pingNumber);
-            await _publisher.PublishAsync(new Ping { Number = pingNumber });
+            await _bus.PublishAsync(new Ping { Number = pingNumber });
             pingNumber++;
         }
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Pinger/Worker.cs#L1-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pingpong_worker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Pinger/Worker.cs#L1-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pingpong_worker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and lastly a message handler for any `Pong` messages coming back from the `Ponger` we'll build next:
@@ -118,10 +117,10 @@ project, then add references to our *Messages* library and Wolverine itself. For
 <!-- snippet: sample_PongerBootstrapping -->
 <a id='snippet-sample_pongerbootstrapping'></a>
 ```cs
-using Wolverine;
-using Wolverine.Transports.Tcp;
 using Microsoft.Extensions.Hosting;
 using Oakton;
+using Wolverine;
+using Wolverine.Transports.Tcp;
 
 return await Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
@@ -131,7 +130,7 @@ return await Host.CreateDefaultBuilder(args)
     })
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/Program.cs#L1-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pongerbootstrapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/Program.cs#L1-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pongerbootstrapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And a message handler for the `Ping` messages that will turn right around and shoot a `Pong` response right back
@@ -140,9 +139,9 @@ to the original sender:
 <!-- snippet: sample_PingHandler -->
 <a id='snippet-sample_pinghandler'></a>
 ```cs
-using Wolverine;
 using Messages;
 using Microsoft.Extensions.Logging;
+using Wolverine;
 
 namespace Ponger;
 
@@ -155,7 +154,7 @@ public class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_pinghandler-1'></a>
 ```cs
 public static class PingHandler
@@ -170,7 +169,7 @@ public static class PingHandler
         // being handled
         IMessageContext context)
     {
-        ConsoleWriter.Write(ConsoleColor.Blue, $"Got ping #{message.Number}");
+        AnsiConsole.Write($"[blue]Got ping #{message.Number}[/]");
 
         var response = new PongMessage
         {
@@ -185,7 +184,7 @@ public static class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L8-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If I start up first the *Ponger* service, then the *Pinger* service, I'll see console output like this from *Pinger*:

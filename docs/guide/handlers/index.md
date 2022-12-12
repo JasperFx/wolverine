@@ -21,7 +21,7 @@ public class MyMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L74-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplest_possible_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L76-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplest_possible_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you've used other messaging, command execution, or so called "mediator" tool in .NET, you'll surely notice the absence of any kind of
@@ -34,21 +34,21 @@ Back to the handler code, at the point which you pass a new message into Wolveri
 <!-- snippet: sample_publish_MyMessage -->
 <a id='snippet-sample_publish_mymessage'></a>
 ```cs
-public static async Task publish_command(ICommandBus bus)
+public static async Task publish_command(IMessageBus bus)
 {
-    await bus.EnqueueAsync(new MyMessage());
+    await bus.PublishAsync(new MyMessage());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L86-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_mymessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L90-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_mymessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Between the call to `ICommandBus.EnqueueAsync()` and `MyMessageHandler.Handle(MyMessage)` there's a couple things
+Between the call to `IMessageBus.PublishAsync()` and `MyMessageHandler.Handle(MyMessage)` there's a couple things
 going on:
 
 1. Wolverine's built in, [automatic handler discovery](/discovery) has to find the candidate message handler methods
    and correlate them by message type
 2. Wolverine's [runtime message processing](/runtime) builds some connective code at runtime to relay the
-   messages passed into `ICommandBus` or `IMessagePublisher` to the right message handler methods
+   messages passed into `IMessageBus` to the right message handler methods
 
 Before diving into the exact rules for message handlers, here are some valid handler methods:
 
@@ -111,7 +111,7 @@ public class ValidMessageHandlers
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Rules for Message Handlers
@@ -161,7 +161,7 @@ The first argument always has to be the message type, but after that, you can ac
 
 * Additional services from your application's Lamar IoC container
 * `Envelope` from Wolverine to interrogate metadata about the current message
-* `IMessageContext`, `IMessagePublisher`, or `ICommandBus` from Wolverine scoped to the current message being handled
+* `IMessageContext` or `IMessageBus` from Wolverine scoped to the current message being handled
 * `CancellationToken` for the current message execution to check for timeouts or system shut down
 * `DateTime now` or `DateTimeOffset now` for the current time. Don't laugh, I like doing this for testability's sake.
 
@@ -188,7 +188,7 @@ public class ExampleHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L99-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbyinstance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L103-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbyinstance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When using instance methods, the containing handler type will be scoped to a single message and be
@@ -209,14 +209,14 @@ public class ServiceUsingHandler
 
     public Task Handle(InvoiceCreated created)
     {
-        var invoice = new Invoice {Id = created.InvoiceId};
+        var invoice = new Invoice { Id = created.InvoiceId };
         _session.Store(invoice);
 
         return _session.SaveChangesAsync();
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L140-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerbuiltbyconstructorinjection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L147-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerbuiltbyconstructorinjection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -243,7 +243,7 @@ public static class ExampleHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L119-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbystaticmethods' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L124-L140' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbystaticmethods' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler classes can be static classes as well. This technique gets much more useful when combined with Wolverine's
@@ -264,14 +264,14 @@ public static class MethodInjectionHandler
 {
     public static Task Handle(InvoiceCreated message, IDocumentSession session)
     {
-        var invoice = new Invoice {Id = message.InvoiceId};
+        var invoice = new Invoice { Id = message.InvoiceId };
         session.Store(invoice);
 
         return session.SaveChangesAsync();
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L164-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingmethodinjection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L174-L187' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingmethodinjection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So, what can be injected as an argument to your message handler?
@@ -302,7 +302,7 @@ public class EnvelopeUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L179-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingenvelope' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L190-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingenvelope' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 TODO -- link to documentation on Envelope?
@@ -316,9 +316,9 @@ like in this example:
 <!-- snippet: sample_PingHandler -->
 <a id='snippet-sample_pinghandler'></a>
 ```cs
-using Wolverine;
 using Messages;
 using Microsoft.Extensions.Logging;
+using Wolverine;
 
 namespace Ponger;
 
@@ -331,7 +331,7 @@ public class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_pinghandler-1'></a>
 ```cs
 public static class PingHandler
@@ -346,7 +346,7 @@ public static class PingHandler
         // being handled
         IMessageContext context)
     {
-        ConsoleWriter.Write(ConsoleColor.Blue, $"Got ping #{message.Number}");
+        AnsiConsole.Write($"[blue]Got ping #{message.Number}[/]");
 
         var response = new PongMessage
         {
@@ -361,7 +361,7 @@ public static class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L8-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Abstract or Interface Types in Handler Methods

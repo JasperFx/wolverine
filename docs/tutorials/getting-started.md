@@ -9,7 +9,7 @@ The killer feature of Wolverine (we think) is its very efficient command executi
 can be used as:
 
 1. An [inline "mediator" pipeline](/tutorials/mediator) for executing commands
-2. An [in memory command executor and message bus](/guide/command-bus) within .NET applications
+2. A [local message bus](/guide/command-bus) within .NET applications
 3. A full fledged [asynchronous messaging framework](/guide/messaging/) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ, 
 
 Wolverine tries very hard to be a good citizen within the .NET ecosystem and even when used in
@@ -58,8 +58,8 @@ Let's jump right into the `Program.cs` file of our new web service:
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
-using Wolverine;
 using Quickstart;
+using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -77,10 +77,10 @@ builder.Services.AddSingleton<IssueRepository>();
 var app = builder.Build();
 
 // An endpoint to create a new issue
-app.MapPost("/issues/create", (CreateIssue body, ICommandBus bus) => bus.InvokeAsync(body));
+app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
 // An endpoint to assign an issue to an existing user
-app.MapPost("/issues/assign", (AssignIssue body, ICommandBus bus) => bus.InvokeAsync(body));
+app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
 app.Run();
 ```
@@ -95,7 +95,7 @@ Alright, let's talk about what's going on up above:
 
 See also: [Wolverine as Command Bus](/guide/in-memory-bus)
 
-The two Web API functions directly delegate to Wolverine's `ICommandBus.InvokeAsync()` method.
+The two Web API functions directly delegate to Wolverine's `IMessageBus.InvokeAsync()` method.
 In that method, Wolverine will direct the command to the correct handler and invoke that handler
 inline. In a simplistic form, here is the entire handler file for the `CreateIssue`
 command:

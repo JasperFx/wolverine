@@ -9,7 +9,7 @@ TODO -- link to new documentation on pre-generated adapter code
 
 
 2. Create a new instance of that handler class for a new message
-3. Execute the `Handle(MyMessage)` method against the `MyMessage` object passed in up above to `ICommandBus.EnqueueAsync()`
+3. Execute the `Handle(MyMessage)` method against the `MyMessage` object passed in up above to `IMessageBus.PublishAsync()`
 
 
 

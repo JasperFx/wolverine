@@ -24,26 +24,24 @@ using var host = await Host.CreateDefaultBuilder()
         var azureServiceBusConnectionString = context
             .Configuration
             .GetConnectionString("azure-service-bus");
-        
+
         // Connect to the broker in the simplest possible way
         opts.UseAzureServiceBus(azureServiceBusConnectionString)
-            
+
             // Let Wolverine try to initialize any missing queues
             // on the first usage at runtime
             .AutoProvision()
-            
+
             // Direct Wolverine to purge all queues on application startup.
             // This is probably only helpful for testing
             .AutoPurgeOnStartup();
-        
+
         // Or if you need some further specification...
-        opts.UseAzureServiceBus(azureServiceBusConnectionString, azure =>
-        {
-            azure.RetryOptions.Mode = ServiceBusRetryMode.Exponential;
-        });
+        opts.UseAzureServiceBus(azureServiceBusConnectionString,
+            azure => { azure.RetryOptions.Mode = ServiceBusRetryMode.Exponential; });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L15-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_connection_to_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L14-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_connection_to_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The advanced configuration for the broker is the [ServiceBusClientOptions](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusclientoptions?view=azure-dotnet) class from the Azure.Messaging.ServiceBus
@@ -90,7 +88,7 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L50-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L47-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Listening to Queues
@@ -128,7 +126,7 @@ using var host = await Host.CreateDefaultBuilder()
             .BufferedInMemory();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L83-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_an_azure_service_bus_listener' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L80-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_an_azure_service_bus_listener' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing to Queues
@@ -158,7 +156,7 @@ using var host = await Host.CreateDefaultBuilder()
             .BufferedInMemory();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L118-L139' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_to_specific_azure_service_bus_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L115-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_to_specific_azure_service_bus_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Conventional Listener Configuration
@@ -183,13 +181,10 @@ using var host = await Host.CreateDefaultBuilder()
             // Apply default configuration to all Azure Service Bus listeners
             // This can be overridden explicitly by any configuration for specific
             // listening endpoints
-            .ConfigureListeners(listener =>
-            {
-                listener.UseDurableInbox(new BufferingLimits(500, 100));
-            });
+            .ConfigureListeners(listener => { listener.UseDurableInbox(new BufferingLimits(500, 100)); });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L144-L166' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_listener_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L141-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_listener_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that any of these settings would be overridden by specific configuration to
@@ -218,10 +213,9 @@ using var host = await Host.CreateDefaultBuilder()
             // This can be overridden explicitly by any configuration for specific
             // sending/subscribing endpoints
             .ConfigureSenders(sender => sender.UseDurableOutbox());
-
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L172-L192' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_subscriber_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L165-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_subscriber_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that any of these settings would be overridden by specific configuration to
@@ -251,35 +245,34 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Connect to the broker in the simplest possible way
         opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
-
             .UseConventionalRouting(convention =>
             {
                 // Optionally override the default queue naming scheme
                 convention.QueueNameForSender(t => t.Namespace)
 
-                // Optionally override the default queue naming scheme
-                .QueueNameForListener(t => t.Namespace)
+                    // Optionally override the default queue naming scheme
+                    .QueueNameForListener(t => t.Namespace)
 
-                // Fine tune the conventionally discovered listeners
-                .ConfigureListeners((listener, context) =>
-                {
-                    var messageType = context.MessageType;
-                    var runtime = context.Runtime; // Access to basically everything
+                    // Fine tune the conventionally discovered listeners
+                    .ConfigureListeners((listener, context) =>
+                    {
+                        var messageType = context.MessageType;
+                        var runtime = context.Runtime; // Access to basically everything
 
-                    // customize the new queue
-                    listener.CircuitBreaker(queue => { });
+                        // customize the new queue
+                        listener.CircuitBreaker(queue => { });
 
-                    // other options...
-                })
-                
-                // Fine tune the conventionally discovered sending endpoints
-                .ConfigureSending((subscriber, context) =>
-                {
-                    // Similarly, use the message type and/or wolverine runtime
-                    // to customize the message sending
-                });
+                        // other options...
+                    })
+
+                    // Fine tune the conventionally discovered sending endpoints
+                    .ConfigureSending((subscriber, context) =>
+                    {
+                        // Similarly, use the message type and/or wolverine runtime
+                        // to customize the message sending
+                    });
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L199-L242' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L190-L232' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

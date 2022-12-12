@@ -67,7 +67,7 @@ public class Order : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A few explanatory notes on this code before we move on to detailed documentation:
@@ -83,12 +83,12 @@ Now, to add saga persistence, I'm going to lean on the [Marten integration](/gui
 <!-- snippet: sample_bootstrapping_order_saga_sample -->
 <a id='snippet-sample_bootstrapping_order_saga_sample'></a>
 ```cs
-using Wolverine.Marten;
 using Marten;
 using Oakton;
 using Oakton.Resources;
 using OrderSagaSample;
 using Wolverine;
+using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -118,8 +118,8 @@ builder.Host.UseWolverine();
 var app = builder.Build();
 
 // Just delegating to Wolverine's local command bus for all
-app.MapPost("/start", (StartOrder start, ICommandBus bus) => bus.InvokeAsync(start));
-app.MapPost("/complete", (CompleteOrder start, ICommandBus bus) => bus.InvokeAsync(start));
+app.MapPost("/start", (StartOrder start, IMessageBus bus) => bus.InvokeAsync(start));
+app.MapPost("/complete", (CompleteOrder start, IMessageBus bus) => bus.InvokeAsync(start));
 app.MapGet("/all", (IQuerySession session) => session.Query<Order>().ToListAsync());
 app.MapGet("/", (HttpResponse response) =>
 {
@@ -132,7 +132,7 @@ app.UseSwaggerUI();
 
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Program.cs#L1-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_order_saga_sample' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Program.cs#L1-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_order_saga_sample' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The call to `IServiceCollection.AddMarten().IntegrateWithWolverine()` adds the Marten backed saga persistence to your application. No other configuration
@@ -161,7 +161,7 @@ public class ToyOnTray
     [SagaIdentity] public int OrderId { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L248-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L265-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Next, Wolverine looks for a member named "{saga type name}Id." In the case of our `Order`

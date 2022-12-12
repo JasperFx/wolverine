@@ -109,14 +109,14 @@ Now, moving up to the API layer, we can add a new HTTP endpoint to delegate to W
 <!-- snippet: sample_InMemoryMediator_UseWolverineAsMediatorController -->
 <a id='snippet-sample_inmemorymediator_usewolverineasmediatorcontroller'></a>
 ```cs
-app.MapPost("/items/create", (CreateItemCommand cmd, ICommandBus bus) => bus.InvokeAsync(cmd));
+app.MapPost("/items/create", (CreateItemCommand cmd, IMessageBus bus) => bus.InvokeAsync(cmd));
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L44-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_usewolverineasmediatorcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There isn't much to this code -- and that's the entire point! When Wolverine registers itself into
-a .NET Core application, it adds the `ICommandBus` service to the underlying system IoC container
-so it can be injected into controller classes or Minimal API endpoint as shown above.The `ICommandBus.InvokeAsync(message)`
+a .NET Core application, it adds the `IMessageBus` service to the underlying system IoC container
+so it can be injected into controller classes or Minimal API endpoint as shown above.The `IMessageBus.InvokeAsync(message)`
 method takes the message passed in, finds the correct execution path for the message type, and
 executes the correct Wolverine handler(s) as well as any of the registered [Wolverine middleware](/guide/messages/middleware).
 
@@ -177,7 +177,7 @@ public class DoItAllMyselfItemController : ControllerBase
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/DoItAllMyselfItemController.cs#L7-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_doitallmyselfitemcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/DoItAllMyselfItemController.cs#L6-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_doitallmyselfitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So one, there's just more going on in the `/items/create` HTTP endpoint defined above because you're needing to do a little bit of
@@ -199,12 +199,12 @@ example code simpler):
 <!-- snippet: sample_InMemoryMediator_WithResponseController -->
 <a id='snippet-sample_inmemorymediator_withresponsecontroller'></a>
 ```cs
-app.MapPost("/items/create2", (CreateItemCommand cmd, ICommandBus bus) => bus.InvokeAsync<ItemCreated>(cmd));
+app.MapPost("/items/create2", (CreateItemCommand cmd, IMessageBus bus) => bus.InvokeAsync<ItemCreated>(cmd));
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L50-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_withresponsecontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Using the `ICommandBus.Invoke<T>(message)` overload, the returned `ItemCreated` response
+Using the `IMessageBus.Invoke<T>(message)` overload, the returned `ItemCreated` response
 of the message handler is returned from the `Invoke()` message. To be perfectly clear, this only
 works if the message handler method returns a cascading message of the exact same type of the
 designated `T` parameter.

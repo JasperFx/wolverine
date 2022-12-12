@@ -27,7 +27,7 @@ var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L29-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L27-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -38,7 +38,7 @@ var host = await Host.CreateDefaultBuilder()
     .UseWolverine((context, opts) =>
     {
         var config = context.Configuration;
-        
+
         opts.UseAmazonSqsTransport(sqsConfig =>
             {
                 sqsConfig.ServiceURL = config["AwsUrl"];
@@ -54,7 +54,7 @@ var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L49-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L47-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -72,7 +72,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.UseAmazonSqsTransportLocally();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L13-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L12-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Configuring Queues

@@ -3,11 +3,11 @@ layout: home
 sidebar: false
 
 title: Wolverine
-titleTemplate: Next Generation .NET Command and Message Bus
+titleTemplate: Next Generation .NET Mediator and Message Bus
 
 hero:
   name: Wolverine
-  text: Next Generation .NET Command and Message Bus
+  text: Next Generation .NET Mediator and Message Bus
   tagline: A batteries included modern and opinionated library!
   image:
     src: /logo.png

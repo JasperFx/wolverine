@@ -78,7 +78,7 @@ public class ValidMessageHandlers
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The valid method names are:
@@ -113,7 +113,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Handlers.DisableConventionalDiscovery();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L200-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicithandlerdiscovery' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L213-L222' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicithandlerdiscovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Explicitly Ignoring Methods
@@ -170,7 +170,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L162-L210' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L160-L208' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -210,7 +210,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L115-L138' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L129-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -231,7 +231,7 @@ public class MessageOne : IMessage
 {
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L48-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_imessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L52-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_imessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can handle the `MessageOne` specifically with a handler action like this:
@@ -246,7 +246,7 @@ public class SpecificMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L68-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_specificmessagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L76-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_specificmessagehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also create a handler for `IMessage` like this one:
@@ -262,7 +262,7 @@ public class GenericMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L58-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_genericmessagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L64-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_genericmessagehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When Wolverine handles the `MessageOne` message, it first calls all the specific handlers for that message type,
