@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 
-namespace Wolverine.Runtime.ResponseReply;
+namespace Wolverine.Runtime.RemoteInvocation;
 
 internal class ReplyListener<T> : IReplyListener
 {

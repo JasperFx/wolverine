@@ -2,7 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Wolverine.Runtime.Handlers;
 
-namespace Wolverine.Runtime.ResponseReply;
+namespace Wolverine.Runtime.RemoteInvocation;
 
 internal class AcknowledgementHandler : MessageHandler
 {

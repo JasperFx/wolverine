@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
-using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Transports;
 using Wolverine.Util;
 

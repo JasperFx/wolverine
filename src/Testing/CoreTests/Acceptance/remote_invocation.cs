@@ -6,7 +6,7 @@ using Lamar;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using Wolverine.Attributes;
-using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
@@ -14,7 +14,7 @@ using Xunit;
 
 namespace CoreTests.Acceptance;
 
-public class request_reply : IAsyncLifetime
+public class remote_invocation : IAsyncLifetime
 {
     private IHost _receiver1;
 

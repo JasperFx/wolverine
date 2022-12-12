@@ -14,7 +14,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Middleware;
 using Wolverine.Persistence.Sagas;
-using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;

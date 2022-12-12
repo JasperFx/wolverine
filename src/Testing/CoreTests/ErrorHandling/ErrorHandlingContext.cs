@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using TestingSupport;
 using TestingSupport.ErrorHandling;
-using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Tracking;
 
 namespace CoreTests.ErrorHandling;

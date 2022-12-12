@@ -6,7 +6,7 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Handlers;
-using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Runtime;

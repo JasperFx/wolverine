@@ -100,6 +100,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         var handleMethod = _generatedType.MethodFor(nameof(MessageHandler.HandleAsync));
         handleMethod.Sources.Add(new MessageHandlerVariableSource(MessageType));
+        handleMethod.Sources.Add(new LoggerVariableSource(MessageType));
         handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules, _parent.Container!));
 
         // TODO -- this is temporary, but there's a bug in LamarCodeGeneration that uses await using

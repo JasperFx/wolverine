@@ -1,6 +1,6 @@
 using System;
 
-namespace Wolverine.Runtime.ResponseReply;
+namespace Wolverine.Runtime.RemoteInvocation;
 
 public class WolverineRequestReplyException : Exception
 {

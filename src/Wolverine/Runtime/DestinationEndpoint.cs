@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.Core;
 using Wolverine.Configuration;
-using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
 

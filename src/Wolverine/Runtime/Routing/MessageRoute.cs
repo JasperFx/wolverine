@@ -7,7 +7,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
-using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;

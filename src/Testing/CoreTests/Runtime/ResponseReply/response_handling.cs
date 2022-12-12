@@ -6,7 +6,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using TestMessages;
 using Wolverine.Runtime;
-using Wolverine.Runtime.ResponseReply;
+using Wolverine.Runtime.RemoteInvocation;
 using Xunit;
 
 namespace CoreTests.Runtime.ResponseReply;
