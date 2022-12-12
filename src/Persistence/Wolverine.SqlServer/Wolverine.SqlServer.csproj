@@ -8,15 +8,10 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-        <LangVersion>10</LangVersion>
-        <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
         <EmbeddedResource Include="Schema/*.sql" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Weasel.SqlServer" Version="6.0.0-alpha.6" />
     </ItemGroup>
 

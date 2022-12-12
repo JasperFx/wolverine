@@ -11,9 +11,6 @@
       <Link>Servers.cs</Link>
     </Compile>
     <Compile Include="build.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Bullseye" Version="3.8.0" />
     <PackageReference Include="Npgsql" Version="5.0.10" />
     <PackageReference Include="SimpleExec" Version="8.0.0" />

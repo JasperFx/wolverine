@@ -2,23 +2,16 @@
 
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj" />
-      <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Compile Include="..\..\..\Servers.cs">
-        <Link>Servers.cs</Link>
-      </Compile>
+        <ProjectReference Include="..\..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <Compile Include="..\..\..\Servers.cs">
+          <Link>Servers.cs</Link>
+        </Compile>
     </ItemGroup>
 
 </Project>

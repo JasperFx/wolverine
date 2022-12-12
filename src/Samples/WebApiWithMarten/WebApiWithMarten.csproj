@@ -2,15 +2,11 @@
 
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Marten.AspNetCore" Version="5.8.0"/>
     </ItemGroup>
 

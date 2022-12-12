@@ -2,8 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
-
-    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,22 +10,6 @@
     <PackageReference Include="Shouldly" Version="4.0.3"/>
     <PackageReference Include="xunit" Version="2.4.1"/>
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1"/>
-
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="Properties\**"/>
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Remove="Properties\**"/>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Remove="Properties\**"/>
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\CommandBus\CommandBus.csproj"/>
     <ProjectReference Include="..\..\OrderSagaSample\OrderSagaSample.csproj"/>
   </ItemGroup>

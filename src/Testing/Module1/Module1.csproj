@@ -2,8 +2,6 @@
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
         <DebugType>portable</DebugType>
-        <AssemblyName>Module1</AssemblyName>
-        <PackageId>Module1</PackageId>
         <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
         <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
         <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>

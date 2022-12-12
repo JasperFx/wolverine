@@ -9,9 +9,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="AWSSDK.SQS" Version="3.7.100.16"/>
     </ItemGroup>
 

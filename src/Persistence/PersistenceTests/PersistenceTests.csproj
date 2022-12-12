@@ -2,12 +2,6 @@
 
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
-
-        <IsPackable>false</IsPackable>
-
-        <LangVersion>10</LangVersion>
-
-        <RootNamespace>PersistenceTests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -16,18 +10,12 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0"/>
         <PackageReference Include="xunit" Version="2.4.1"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
         <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
         <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj"/>
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
         <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
         <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <Compile Include="..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>

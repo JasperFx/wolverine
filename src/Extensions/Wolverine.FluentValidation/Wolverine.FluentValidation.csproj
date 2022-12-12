@@ -14,9 +14,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="FluentValidation" Version="11.3.0"/>
     </ItemGroup>
 

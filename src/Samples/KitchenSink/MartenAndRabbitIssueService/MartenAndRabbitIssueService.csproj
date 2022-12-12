@@ -2,18 +2,13 @@
 
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <LangVersion>latestmajor</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
         <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
         <ProjectReference Include="..\MartenAndRabbitMessages\MartenAndRabbitMessages.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <Compile Include="..\..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>

@@ -2,19 +2,14 @@
 
     <PropertyGroup>
         <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
         <PackageId>WolverineFx.AzureServiceBus</PackageId>
         <Description>Azure Service Bus transport for Wolverine applications</Description>
     </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Azure.Identity" Version="1.8.0"/>
         <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.11.1"/>
-
     </ItemGroup>
 
 </Project>

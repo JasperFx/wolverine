@@ -2,15 +2,11 @@
 
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="LamarCodeGeneration.Commands" Version="6.2.0"/>
     </ItemGroup>
 
