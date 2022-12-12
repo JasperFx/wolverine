@@ -1,5 +1,5 @@
-using Baseline.Dates;
 using Wolverine;
+using JasperFx.Core;
 
 namespace DocumentationSamples;
 
@@ -29,7 +29,7 @@ public class MessageBusBasics
         await bus.ScheduleAsync(new DebitAccount(1111, 100), DateTimeOffset.UtcNow.AddDays(1));
         
         // Or do the same, but this time express the time as a delay
-        await bus.ScheduleAsync(new DebitAccount(1111, 225.25L), 1.Days());
+        await bus.ScheduleAsync(new DebitAccount(1111, 225), 1.Days());
     }
 
     #endregion
@@ -40,6 +40,15 @@ public class MessageBusBasics
     {
         // Debit $250 from the account #2222
         await bus.InvokeAsync(new DebitAccount(2222, 250));
+    }
+
+    #endregion
+
+    #region sample_using_invoke_with_response_type
+
+    public async Task invoke_math_operations(IMessageBus bus)
+    {
+        var results = await bus.InvokeAsync<Results>(new Numbers(3, 4));
     }
 
     #endregion
@@ -67,3 +76,18 @@ public record AccountOverdrawn(long AccountId);
 
 #endregion
 public record AccountStatus(long AccountId, float Status);
+
+#region sample_numbers_and_results_for_request_response
+
+public record Numbers(int X, int Y);
+public record Results(int Sum, int Product);
+
+public static class NumbersHandler
+{
+    public static Results Handle(Numbers numbers)
+    {
+        return new Results(numbers.X + numbers.Y, numbers.X * numbers.Y);
+    }
+}
+
+#endregion

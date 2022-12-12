@@ -63,14 +63,34 @@ public class PublishingSamples
                     .Named("Two");
             }).StartAsync();
 
-        var publisher = host.Services
+        var bus = host.Services
             .GetRequiredService<IMessageBus>();
 
         // Explicitly send a message to a named endpoint
-        await publisher.EndpointFor("One").SendAsync( new SomeMessage());
+        await bus.EndpointFor("One").SendAsync( new SomeMessage());
+        
+        // Or invoke remotely
+        await bus.EndpointFor("One").InvokeAsync(new SomeMessage());
+        
+        // Or request/reply
+        var answer = bus.EndpointFor("One")
+            .InvokeAsync<Answer>(new Question());
+
+        #endregion
+
+
+        #region sample_accessing_endpoint_by_uri
+
+        // Or access operations on a specific endpoint using a Uri
+        await bus.EndpointFor(new Uri("rabbitmq://queue/rabbit-one"))
+            .InvokeAsync(new SomeMessage());
 
         #endregion
     }
+
+    public record Question;
+
+    public record Answer;
 
 
     #region sample_IServiceBus.Invoke

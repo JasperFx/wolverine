@@ -94,8 +94,7 @@ export default withMermaid({
                     collapsible: true,
                     collapsed: true,
                     items: [
-                        {text: 'Message Operations', link: '/guide/message-bus'},
-                        {text: 'Sending Messages', link: '/guide/messaging/sending-messages'},
+                        {text: 'Working with IMessageBus', link: '/guide/messaging/message-bus'},
                         {text: 'Subscriptions', link: '/guide/messaging/subscriptions'},
                         {
                             text: 'Transports',
@@ -110,7 +109,9 @@ export default withMermaid({
                                 {text: 'Pulsar', link: '/guide/messaging/transports/pulsar'},
                             ]
                         },
-                        {text: 'Message Expiration', link: '/guide/messaging/expiration'}
+                        {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
+                        {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
+                        {text: 'Message Expiration', link: '/guide/messaging/expiration'},
                     ]
                 },
                 {

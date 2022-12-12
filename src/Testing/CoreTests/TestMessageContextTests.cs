@@ -22,7 +22,7 @@ public class TestMessageContextTests
     }
 
     [Fact]
-    public async Task invoke_locally()
+    public async Task invoke_a_message_inline()
     {
         var message = new Message2();
         await theContext.InvokeAsync(message);

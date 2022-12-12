@@ -1,4 +1,4 @@
-## Message Operations at Runtime
+# Message Operations at Runtime
 
 The main entry point into Wolverine to initiate any message handling or publishing is the `IMessageBus` service
 that is registered by Wolverine into your application's IoC container as a scoped service. Here's a brief sample
@@ -53,7 +53,7 @@ public static async Task use_message_bus(IMessageBus bus)
 <!-- endSnippet -->
 
 ::: tip
-The only practical difference between `Send` and `Publish` is that `Send` will assert that there is at least
+The only practical difference between `SendAsync()` and `PublishAsync()` is that `SendAsync()` will assert that there is at least
 one subscriber for the message and throw an exception if there is not.
 :::
 
@@ -61,22 +61,60 @@ one subscriber for the message and throw an exception if there is not.
 
 To execute the message processing immediately and wait until it's finished, use this syntax:
 
-<!-- snippet: sample_invoke_locally -->
-<a id='snippet-sample_invoke_locally'></a>
+snippet: sample_invoke_locally
+
+If the `Message1` message has a local subscription, the message handler will be invoked in the calling thread. In this usage, the `InvokeAsync()` feature will utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
+for potentially transient errors.
+
+::: tip
+While the syntax for a remote invocation of a message is identical to a local invocation, it's obviously much more expensive
+and slower to do so remotely. The Wolverine team recommends using remote invocations cautiously.
+:::
+
+If the `Message1` message has a remote subscription (to a Rabbit MQ queue for example), Wolverine will send the message through its
+normal transport, but the thread will wait until Wolverine receives an acknowledgement message back from the remote service. In this
+case, Wolverine does enforce timeout conditions with a default of 5 seconds which can be overridden by the caller.
+
+## Request/Reply
+
+Wolverine also has direct support for the [request/reply](https://www.enterpriseintegrationpatterns.com/RequestReply.html) pattern or really just mediating between your code and complex query handlers through
+the `IMessageBus.InvokeAsync<T>()` API. To make that concrete, let's assume you want to request the results of a mathematical operation as shown below
+in these message types and a corresponding message handler:
+
+<!-- snippet: sample_numbers_and_results_for_request_response -->
+<a id='snippet-sample_numbers_and_results_for_request_response'></a>
 ```cs
-public static async Task invoke_locally(IMessageBus bus)
+public record Numbers(int X, int Y);
+public record Results(int Sum, int Product);
+
+public static class NumbersHandler
 {
-    // Execute the message inline
-    await bus.InvokeAsync(new Message1());
+    public static Results Handle(Numbers numbers)
+    {
+        return new Results(numbers.X + numbers.Y, numbers.X * numbers.Y);
+    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L11-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L80-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_numbers_and_results_for_request_response' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-HERE HERE HERE!!!!!!!!!!!!!!!!!!!
+Note in the sample above that the message handler that accepts `Numbers` returns a `Results` object. That return value is necessary for Wolverine to be able to
+use that handler in a request/reply operation. Finally, to actually invoke the handler and retrieve a `Results` object, we can use the `IMessageBus.InvokeAsync<T>(message)`
+API as shown below:
 
-Note that this feature does utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
-for potentially transient errors.
+<!-- snippet: sample_using_invoke_with_response_type -->
+<a id='snippet-sample_using_invoke_with_response_type'></a>
+```cs
+public async Task invoke_math_operations(IMessageBus bus)
+{
+    var results = await bus.InvokeAsync<Results>(new Numbers(3, 4));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L47-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_response_type' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that this API hides whether or not this operation is a local operation running on the same thread and invoking a local message handler or sending a message through to a remote
+endpoint and waiting for the response. The same timeout mechanics and performance concerns apply to this operation as the `InvokeAsync()` method described in the previous section.
 
 ## Sending or Publishing Messages
 
@@ -135,6 +173,8 @@ public ValueTask PublishMessage(IMessageContext bus)
 <!-- endSnippet -->
 
 ## Scheduling Message Delivery or Execution
+
+TODO
 
 
 ## Customizing Message Delivery
