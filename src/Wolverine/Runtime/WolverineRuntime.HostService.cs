@@ -113,7 +113,7 @@ public partial class WolverineRuntime
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
     }
 
-    private async Task startDurabilityAgentAsync()
+    private Task startDurabilityAgentAsync()
     {
         // HOKEY, BUT IT WORKS
         if (_container.Model.DefaultTypeFor<IMessageStore>() != typeof(NullMessageStore) &&
@@ -127,7 +127,9 @@ public partial class WolverineRuntime
             Durability = new DurabilityAgent(this, Logger, durabilityLogger, worker, Storage,
                 Options.Advanced);
 
-            await Durability.StartAsync(Options.Advanced.Cancellation);
+            return Durability.StartAsync(Options.Advanced.Cancellation);
         }
+
+        return Task.CompletedTask;
     }
 }

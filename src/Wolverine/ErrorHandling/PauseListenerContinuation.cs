@@ -22,11 +22,9 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
         if (agent != null)
         {
 #pragma warning disable VSTHRD110
-            Task.Factory.StartNew(async () =>
+            Task.Factory.StartNew(() =>
 #pragma warning restore VSTHRD110
-            {
-                await agent.PauseAsync(PauseTime);
-            }, CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
+                agent.PauseAsync(PauseTime), CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
         }
 
         return ValueTask.CompletedTask;

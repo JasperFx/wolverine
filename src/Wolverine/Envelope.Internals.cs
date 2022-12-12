@@ -153,7 +153,7 @@ public partial class Envelope
         };
     }
 
-    internal async ValueTask StoreAndForwardAsync()
+    internal ValueTask StoreAndForwardAsync()
     {
         if (_enqueued)
         {
@@ -167,7 +167,7 @@ public partial class Envelope
 
         _enqueued = true;
 
-        await Sender.StoreAndForwardAsync(this);
+        return Sender.StoreAndForwardAsync(this);
     }
 
     internal void PrepareForIncomingPersistence(DateTimeOffset now, AdvancedSettings settings)

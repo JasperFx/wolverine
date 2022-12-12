@@ -142,7 +142,7 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
         return UpdateTotalsAsync(time, failures, tokens.Length);
     }
 
-    public async ValueTask UpdateTotalsAsync(DateTimeOffset time, int failures, int total)
+    public ValueTask UpdateTotalsAsync(DateTimeOffset time, int failures, int total)
     {
         var generation = DetermineGeneration(time);
         generation.Failures += failures;
@@ -150,8 +150,10 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 
         if (failures > 0 && ShouldStopProcessing())
         {
-            await _circuit.PauseAsync(Options.PauseTime);
+            return _circuit.PauseAsync(Options.PauseTime);
         }
+
+        return ValueTask.CompletedTask;
     }
 
     public Generation DetermineGeneration(DateTimeOffset now)

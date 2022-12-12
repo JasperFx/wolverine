@@ -41,28 +41,23 @@ internal class BackPressureAgent : IDisposable
 #pragma warning restore CS4014
     }
 
-    public async ValueTask CheckNowAsync()
+    public ValueTask CheckNowAsync()
     {
-        switch (_agent.Status)
+        if (_agent.Status is ListeningStatus.Accepting or ListeningStatus.Unknown)
         {
-            case ListeningStatus.Accepting:
-            case ListeningStatus.Unknown:
-                if (_agent.QueueCount > _endpoint.BufferingLimits.Maximum)
-                {
-                    await _agent.MarkAsTooBusyAndStopReceivingAsync();
-                }
-
-                break;
-
-            case ListeningStatus.TooBusy:
-                if (_agent.QueueCount <= _endpoint.BufferingLimits.Restart)
-                {
-                    await _agent.StartAsync();
-                }
-
-                break;
-            default:
-                return;
+            if (_agent.QueueCount > _endpoint.BufferingLimits.Maximum)
+            {
+                return _agent.MarkAsTooBusyAndStopReceivingAsync();
+            }
         }
+        else if (_agent.Status == ListeningStatus.TooBusy)
+        {
+            if (_agent.QueueCount <= _endpoint.BufferingLimits.Restart)
+            {
+                return _agent.StartAsync();
+            }
+        }
+
+        return ValueTask.CompletedTask;
     }
 }
