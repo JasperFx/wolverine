@@ -108,14 +108,14 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
     TimeSpan ISenderCircuit.RetryInterval => Endpoint.PingIntervalForCircuitResume;
 
-    async Task ISenderCircuit.ResumeAsync(CancellationToken cancellationToken)
+    Task ISenderCircuit.ResumeAsync(CancellationToken cancellationToken)
     {
         _circuitWatcher?.SafeDispose();
         _circuitWatcher = null;
 
         Unlatch();
 
-        await executeWithRetriesAsync(() => afterRestartingAsync(_sender));
+        return executeWithRetriesAsync(() => afterRestartingAsync(_sender));
     }
 
     public Endpoint Endpoint { get; }

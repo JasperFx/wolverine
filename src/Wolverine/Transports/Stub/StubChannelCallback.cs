@@ -28,9 +28,9 @@ internal class StubChannelCallback : IChannelCallback
         return ValueTask.CompletedTask;
     }
 
-    public async ValueTask DeferAsync(Envelope envelope)
+    public ValueTask DeferAsync(Envelope envelope)
     {
         Deferred = true;
-        await _endpoint.EnqueueOutgoingAsync(_envelope);
+        return _endpoint.EnqueueOutgoingAsync(_envelope);
     }
 }

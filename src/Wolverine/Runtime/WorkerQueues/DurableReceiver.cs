@@ -153,10 +153,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         await _moveToErrors.DrainAsync();
         await _receivingOne.DrainAsync();
 
-        await executeWithRetriesAsync(async () =>
-        {
-            await _persistence.ReleaseIncomingAsync(_settings.UniqueNodeId, Uri);
-        });
+        await executeWithRetriesAsync(() => _persistence.ReleaseIncomingAsync(_settings.UniqueNodeId, Uri));
     }
 
 
