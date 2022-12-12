@@ -18,8 +18,6 @@ namespace CoreTests.Runtime.Routing;
 
 public class routing_precedence
 {
-
-    
     [Fact]
     public async Task local_routing_is_applied_automatically()
     {

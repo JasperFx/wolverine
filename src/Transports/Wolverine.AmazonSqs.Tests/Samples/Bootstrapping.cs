@@ -119,4 +119,19 @@ public class Bootstrapping
                 });
             }).StartAsync();
     }
+
+    public async Task using_conventional_routing()
+    {
+        #region sample_using_conventional_sqs_routing
+
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport()
+                    .UseConventionalRouting();
+
+            }).StartAsync();
+
+        #endregion
+    }
 }
