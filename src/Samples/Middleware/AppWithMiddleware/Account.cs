@@ -20,12 +20,16 @@ public interface IAccountCommand
 // writing functions/methods
 public static class AccountLookupMiddleware
 {
-    // TODO -- add ILogger here too
     // The message *has* to be first in the parameter list
     // Before or BeforeAsync tells Wolverine this method should be called before the actual action
-    public static async Task<(HandlerContinuation, Account?)> BeforeAsync(IAccountCommand command, IDocumentSession session, CancellationToken cancellation)
+    public static async Task<(HandlerContinuation, Account?)> BeforeAsync(IAccountCommand command, ILogger logger, IDocumentSession session, CancellationToken cancellation)
     {
         var account = await session.LoadAsync<Account>(command.AccountId, cancellation);
+        if (account == null)
+        {
+            logger.LogInformation("Unable to find an account for {AccountId}, aborting the requested operation", command.AccountId);
+        }
+        
         return (account == null ? HandlerContinuation.Stop : HandlerContinuation.Continue, account);
     }
 }
