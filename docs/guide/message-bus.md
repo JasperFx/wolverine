@@ -28,25 +28,25 @@ public static async Task use_message_bus(IMessageBus bus)
 {
     // Execute this command message right now! And wait until
     // it's completed or acknowledged
-    await bus.InvokeAsync(new DebitAccount(100));
+    await bus.InvokeAsync(new DebitAccount(1111, 100));
     
     // Execute this message right now, but wait for the declared response
-    var status = await bus.InvokeAsync<AccountStatus>(new DebitAccount(250));
+    var status = await bus.InvokeAsync<AccountStatus>(new DebitAccount(1111, 250));
     
     // Send the message expecting there to be at least one subscriber to be executed later, but
     // don't wait around
-    await bus.SendAsync(new DebitAccount(250));
+    await bus.SendAsync(new DebitAccount(1111, 250));
     
     // Or instead, publish it to any interested subscribers, 
     // but don't worry about it if there are actually any subscribers
     // This is probably best for raising event messages
-    await bus.PublishAsync(new DebitAccount(300));
+    await bus.PublishAsync(new DebitAccount(1111, 300));
     
     // Send a message to be sent or executed at a specific time
-    await bus.ScheduleAsync(new DebitAccount(100), DateTimeOffset.UtcNow.AddDays(1));
+    await bus.ScheduleAsync(new DebitAccount(1111, 100), DateTimeOffset.UtcNow.AddDays(1));
     
     // Or do the same, but this time express the time as a delay
-    await bus.ScheduleAsync(new DebitAccount(225.25L), 1.Days());
+    await bus.ScheduleAsync(new DebitAccount(1111, 225.25L), 1.Days());
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L8-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_bus_basics' title='Start of snippet'>anchor</a></sup>
@@ -59,7 +59,7 @@ one subscriber for the message and throw an exception if there is not.
 
 ## Invoking Message Execution
 
-To execute the message processing immediately, use this syntax:
+To execute the message processing immediately and wait until it's finished, use this syntax:
 
 <!-- snippet: sample_invoke_locally -->
 <a id='snippet-sample_invoke_locally'></a>
@@ -72,6 +72,8 @@ public static async Task invoke_locally(IMessageBus bus)
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L11-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+HERE HERE HERE!!!!!!!!!!!!!!!!!!!
 
 Note that this feature does utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
 for potentially transient errors.
