@@ -62,7 +62,7 @@ export default withMermaid({
                     collapsible: true,
                     collapsed: true,
                     items: [
-                        {text: 'Basic Concepts', link: '/guide/concepts'},
+                        {text: 'Basic Concepts', link: '/guide/basics'},
                         {text: 'Configuration', link: '/guide/configuration'},
                         {text: 'Instrumentation, Diagnostics, and Logging', link: '/guide/logging'},
                         {text: 'Test Automation Support', link: '/guide/testing'},

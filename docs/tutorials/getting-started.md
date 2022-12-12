@@ -1,7 +1,7 @@
 # Getting Started
 
 ::: tip
-Wolverine targets .NET 6 and above.
+Wolverine targets .NET 6/7 and above.
 :::
 
 Wolverine is a toolset for command execution and message handling within .NET Core applications.
@@ -86,6 +86,11 @@ app.Run();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+::: tip
+`IMessageBus` is the entrypoint into all message invocation, publishing, or scheduling. Pretty much everything at runtime will start with this service. Wolverine
+registers `IMessageBus` as a scoped service inside your application's DI container as part of the `UseWolverine()` mechanism.
+:::
 
 Alright, let's talk about what's going on up above:
 
