@@ -21,7 +21,7 @@ export default withMermaid({
         logo: '/logo.png',
 
         nav: [
-            {text: 'Guide', link: '/guide/concepts'},
+            {text: 'Guide', link: '/guide/basics'},
             {text: 'Tutorials', link: '/tutorials/'},
             {
                 text: 'Gitter | Join Chat',
@@ -64,6 +64,7 @@ export default withMermaid({
                     items: [
                         {text: 'Basic Concepts', link: '/guide/basics'},
                         {text: 'Configuration', link: '/guide/configuration'},
+                        {text: 'Message Operations', link: '/guide/message-bus'},
                         {text: 'Instrumentation, Diagnostics, and Logging', link: '/guide/logging'},
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
@@ -90,12 +91,6 @@ export default withMermaid({
                     ]
                 },
                 {
-                    text: 'Executing Messages',
-                    collapsible: true,
-                    collapsed: true,
-                    items: [{text: 'Use as Command Bus', link: '/guide/command-bus'}]
-                },
-                {
                     text: 'Wolverine as Message Bus',
                     collapsible: true,
                     collapsed: true,
@@ -105,6 +100,7 @@ export default withMermaid({
                         {
                             text: 'Transports', 
                             items: [
+                                {text: 'Local Queues', link: '/guide/messaging/transports/local'},
                                 {text: 'Rabbit MQ', link: '/guide/messaging/transports/rabbitmq'},
                                 {text: 'Azure Service Bus', link: '/guide/messaging/transports/azure-service-bus'},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs'},

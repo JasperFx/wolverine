@@ -1,4 +1,4 @@
-# Wolverine as Command Bus
+# Using Local Queueing
 
 Using the `Wolverine.IMessageBus` service that is automatically registered in your system through 
 the `IHostBuilder.UseWolverine()` extensions, you can either invoke message handlers inline, enqueue 
@@ -6,26 +6,8 @@ messages to local, in process queues, or schedule message execution within the s
 handlers within a Wolverine application can be used from `IMessageBus` without any additional
 configuration as some other tools require.
 
-## Invoking Message Handling
 
-To execute the message processing immediately, use this syntax:
-
-<!-- snippet: sample_invoke_locally -->
-<a id='snippet-sample_invoke_locally'></a>
-```cs
-public static async Task invoke_locally(IMessageBus bus)
-{
-    // Execute the message inline
-    await bus.InvokeAsync(new Message1());
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L11-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-Note that this feature does utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
-for potentially transient errors.
-
-## Enqueueing Messages Locally
+## Publishing Messages Locally
 
 The queueing is all based around the [TPL Dataflow library](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/how-to-perform-action-when-a-dataflow-block-receives-data) objects from the [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) library.
 As such, you have a fair amount of control over parallelization and even some back pressure. These local queues can be used directly, or as a transport to accept messages sent through
@@ -44,7 +26,7 @@ Some things to know about the local queues:
 * The local queues can be used like any other message transport and be the target of routing rules
 
 
-## Explicitly Enqueue to a Specific Local Queue
+## Explicitly Publish to a Specific Local Queue
 
 If you want to enqueue a message locally to a specific worker queue, you can use this syntax:
 
