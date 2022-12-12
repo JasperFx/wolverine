@@ -64,7 +64,6 @@ export default withMermaid({
                     items: [
                         {text: 'Basic Concepts', link: '/guide/basics'},
                         {text: 'Configuration', link: '/guide/configuration'},
-                        {text: 'Message Operations', link: '/guide/message-bus'},
                         {text: 'Instrumentation, Diagnostics, and Logging', link: '/guide/logging'},
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
@@ -91,14 +90,17 @@ export default withMermaid({
                     ]
                 },
                 {
-                    text: 'Wolverine as Message Bus',
+                    text: 'Messaging',
                     collapsible: true,
                     collapsed: true,
                     items: [
-                        {text: 'Getting Started', link: '/guide/messaging/'},
+                        {text: 'Message Operations', link: '/guide/message-bus'},
                         {text: 'Sending Messages', link: '/guide/messaging/sending-messages'},
+                        {text: 'Subscriptions', link: '/guide/messaging/subscriptions'},
                         {
-                            text: 'Transports', 
+                            text: 'Transports',
+                            collapsible: true,
+                            collapsed: true,
                             items: [
                                 {text: 'Local Queues', link: '/guide/messaging/transports/local'},
                                 {text: 'Rabbit MQ', link: '/guide/messaging/transports/rabbitmq'},
@@ -108,11 +110,7 @@ export default withMermaid({
                                 {text: 'Pulsar', link: '/guide/messaging/transports/pulsar'},
                             ]
                         },
-
-                        {text: 'Message Routing', link: '/guide/messaging/routing'},
-                        {text: 'Message Expiration', link: '/guide/messaging/expiration'},
-                        {text: 'MassTransit Interop', link: '/guide/messaging/transports/masstransit'},
-                        {text: 'NServiceBus Interop', link: '/guide/messaging/transports/nservicebus'},
+                        {text: 'Message Expiration', link: '/guide/messaging/expiration'}
                     ]
                 },
                 {
