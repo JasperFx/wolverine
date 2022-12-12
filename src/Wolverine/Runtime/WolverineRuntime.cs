@@ -146,6 +146,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {
+        MessageLogger.Sent(envelope);
         ScheduledJobs.Enqueue(executionTime, envelope);
     }
 
