@@ -76,8 +76,5 @@ public class try_out_the_middleware
         {
             await bus.InvokeAsync(new DebitAccount(account.Id, 0));
         });
-        
-        
-
     }
 }
