@@ -76,7 +76,7 @@ public interface IMessageBus
     /// <param name="timeout">Optional timeout</param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    Task<T?> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
+    Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
     
     
     /// <summary>
