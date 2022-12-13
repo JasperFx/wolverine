@@ -76,7 +76,7 @@ public class MessageBus : IMessageBus
         return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout);
     }
 
-    public Task<T?> InvokeAsync<T>(object message, CancellationToken cancellation = default,
+    public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default,
         TimeSpan? timeout = default)
     {
         if (message == null)
