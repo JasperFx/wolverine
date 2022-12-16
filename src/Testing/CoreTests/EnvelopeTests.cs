@@ -351,6 +351,18 @@ public class EnvelopeTests
     }
 
     [Fact]
+    public void set_schedule_delay()
+    {
+        var envelope = new Envelope
+        {
+            ScheduleDelay = 1.Days()
+        };
+        
+        envelope.ScheduledTime.Value.Date.ShouldBe(DateTime.Today.AddDays(1));
+        envelope.ScheduleDelay.ShouldBe(1.Days());
+    }
+
+    [Fact]
     public void prepare_for_persistence_when_scheduled_in_the_future()
     {
         var envelope = new Envelope

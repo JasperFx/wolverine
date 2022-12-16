@@ -64,12 +64,23 @@ public partial class Envelope
         set => DeliverBy = DateTimeOffset.Now.Add(value);
     }
 
+    private TimeSpan? _scheduleDelay;
+    
     /// <summary>
-    ///     Set the ScheduleTime to now plus the value of the supplied TimeSpan
+    /// Set the ScheduleTime to now plus the value of the supplied TimeSpan.
+    /// If set, this value is retained just for the sake of testing
     /// </summary>
-    public TimeSpan ScheduleDelay
+    public TimeSpan? ScheduleDelay
     {
-        set => ScheduledTime = DateTimeOffset.Now.Add(value);
+        set
+        {
+            _scheduleDelay = value;
+            if (value != null)
+            {
+                ScheduledTime = DateTimeOffset.Now.Add(value.Value);
+            }
+        }
+        get => _scheduleDelay;
     }
 
     /// <summary>
