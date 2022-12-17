@@ -34,7 +34,7 @@ dotnet new webapi
 Next, let's add Wolverine to our project with:
 
 ```bash
-dotnet add package Wolverine
+dotnet add package WolverineFx
 ```
 
 To start off, we're just going to build two API endpoints that accepts
