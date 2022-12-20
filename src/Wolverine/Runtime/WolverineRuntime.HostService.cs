@@ -78,6 +78,8 @@ public partial class WolverineRuntime
 
     private async Task startMessagingTransportsAsync()
     {
+        discoverListenersFromConventions();
+        
         foreach (var transport in Options.Transports)
         {
             if (!Options.Advanced.StubAllExternalTransports)
@@ -96,8 +98,6 @@ public partial class WolverineRuntime
             }
         }
 
-        
-
         foreach (var transport in Options.Transports)
         {
             var replyUri = transport.ReplyEndpoint()?.Uri;
@@ -110,12 +110,11 @@ public partial class WolverineRuntime
 
         if (!Options.Advanced.StubAllExternalTransports)
         {
-            discoverListenersFromConventions();
             await Endpoints.StartListenersAsync();
         }
         else
         {
-            Logger.LogInformation("All external transport listeners are disabled");
+            Logger.LogInformation("All external endpoint listeners are disabled because of configuration");
         }
     }
 
@@ -123,9 +122,16 @@ public partial class WolverineRuntime
     {
         // Let any registered routing conventions discover listener endpoints
         var handledMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
-        foreach (var routingConvention in Options.RoutingConventions)
+        if (!Options.Advanced.StubAllExternalTransports)
         {
-            routingConvention.DiscoverListeners(this, handledMessageTypes);
+            foreach (var routingConvention in Options.RoutingConventions)
+            {
+                routingConvention.DiscoverListeners(this, handledMessageTypes);
+            }
+        }
+        else
+        {
+            Logger.LogInformation("External transports are disabled, skipping conventional listener discovery");
         }
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
