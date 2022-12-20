@@ -88,7 +88,7 @@ public class WolverineOptionsTests
         var options = new WolverineOptions();
         options.Advanced.StubAllExternalTransports.ShouldBeFalse();
 
-        options.StubAllExternallyOutgoingEndpoints();
+        options.StubAllExternalTransports();
 
         options.Advanced.StubAllExternalTransports.ShouldBeTrue();
     }

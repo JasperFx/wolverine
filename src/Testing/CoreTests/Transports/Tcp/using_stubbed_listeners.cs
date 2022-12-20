@@ -17,7 +17,7 @@ public class using_stubbed_listeners
         using var host = WolverineHost.For(options =>
         {
             options.PublishAllMessages().ToPort(7777);
-            options.StubAllExternallyOutgoingEndpoints();
+            options.StubAllExternalTransports();
         });
 
         var message = new Message1();

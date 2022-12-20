@@ -141,8 +141,9 @@ public partial class WolverineOptions : IAsyncDisposable
 
     /// <summary>
     ///     For testing mode, this directs Wolverine to stub out all outbound message sending
+    /// or inbound listening from message brokers
     /// </summary>
-    public void StubAllExternallyOutgoingEndpoints()
+    public void StubAllExternalTransports()
     {
         Advanced.StubAllExternalTransports = true;
     }

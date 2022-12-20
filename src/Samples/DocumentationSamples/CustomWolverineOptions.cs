@@ -48,7 +48,7 @@ public class SampleProgram2
                 if (context.HostingEnvironment.IsDevelopment())
                 {
                     // This will "stub" out all configured external endpoints
-                    opts.StubAllExternallyOutgoingEndpoints();
+                    opts.StubAllExternalTransports();
                 }
             });
     }
