@@ -52,7 +52,7 @@ public class configuring_endpoints : IDisposable
         _host.Dispose();
     }
 
-    private LocalQueueSettings localQueue(string queueName)
+    private LocalQueue localQueue(string queueName)
     {
         var settings = theOptions.Transports.GetOrCreate<LocalTransport>()
             .QueueFor(queueName);

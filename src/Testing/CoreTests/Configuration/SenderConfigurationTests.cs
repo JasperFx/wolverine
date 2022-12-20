@@ -12,7 +12,7 @@ public class SenderConfigurationTests
     [Fact]
     public void durably()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
 
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
 
@@ -26,7 +26,7 @@ public class SenderConfigurationTests
     [Fact]
     public void buffered_in_memory()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         endpoint.Mode = EndpointMode.Durable;
 
         var expression = new SubscriberConfiguration(endpoint);
@@ -40,7 +40,7 @@ public class SenderConfigurationTests
     [Fact]
     public void named()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         endpoint.Mode = EndpointMode.Durable;
 
         var expression = new SubscriberConfiguration(endpoint);
@@ -53,7 +53,7 @@ public class SenderConfigurationTests
     [Fact]
     public void inline()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         endpoint.Mode = EndpointMode.Durable;
 
         var expression = new SubscriberConfiguration(endpoint);
@@ -67,7 +67,7 @@ public class SenderConfigurationTests
     [Fact]
     public void customize_envelope_rules()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         var expression = new SubscriberConfiguration(endpoint);
         expression.CustomizeOutgoing(e => e.Headers.Add("a", "one"));
 
@@ -84,7 +84,7 @@ public class SenderConfigurationTests
     [Fact]
     public void customize_per_specific_message_type()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         var expression = new SubscriberConfiguration(endpoint);
         expression.CustomizeOutgoingMessagesOfType<OtherMessage>(e => e.Headers.Add("g", "good"));
 
@@ -108,7 +108,7 @@ public class SenderConfigurationTests
     [Fact]
     public void customize_per_specific_message_type_parent()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         var expression = new SubscriberConfiguration(endpoint);
         expression.CustomizeOutgoingMessagesOfType<BaseMessage>(e => e.Headers.Add("g", "good"));
 

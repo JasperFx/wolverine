@@ -85,7 +85,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
         runtime.Advanced.Returns(theSettings);
 
 
-        theReceiver = new DurableReceiver(new LocalQueueSettings("temp"), runtime, runtime.Pipeline);
+        theReceiver = new DurableReceiver(new LocalQueue("temp"), runtime, runtime.Pipeline);
     }
 
     public Task DisposeAsync()

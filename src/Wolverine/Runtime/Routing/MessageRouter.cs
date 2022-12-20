@@ -13,7 +13,7 @@ public class MessageRouter<T> : MessageRouterBase<T>
     {
         Routes = routes.ToArray();
 
-        foreach (var route in Routes.Where(x => x.Sender.Endpoint is LocalQueueSettings))
+        foreach (var route in Routes.Where(x => x.Sender.Endpoint is LocalQueue))
             route.Rules.Fill(HandlerRules);
     }
 

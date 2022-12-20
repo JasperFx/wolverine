@@ -103,7 +103,7 @@ public class AdvancedSettings
     ///     This should probably *only* be used in development or testing
     ///     to latch all outgoing message sending
     /// </summary>
-    public bool StubAllOutgoingExternalSenders { get; set; }
+    public bool StubAllExternalTransports { get; set; }
 
     internal void Cancel()
     {

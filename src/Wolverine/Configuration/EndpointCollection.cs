@@ -164,7 +164,7 @@ public class EndpointCollection : IEndpointCollection
     public async Task StartListenersAsync()
     {
         var listeningEndpoints = _options.Transports.SelectMany(x => x.Endpoints())
-            .Where(x => x.IsListener).Where(x => x is not LocalQueueSettings);
+            .Where(x => x.IsListener).Where(x => x is not LocalQueue);
 
         foreach (var endpoint in listeningEndpoints)
         {

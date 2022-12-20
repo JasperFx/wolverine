@@ -48,7 +48,7 @@ public class SqlServerBackedListenerContext : SqlServerContext
         runtime.Advanced.Returns(theSettings);
 
 
-        theReceiver = new DurableReceiver(new LocalQueueSettings("temp"), runtime, thePipeline);
+        theReceiver = new DurableReceiver(new LocalQueue("temp"), runtime, thePipeline);
     }
 
     protected Envelope notScheduledEnvelope()

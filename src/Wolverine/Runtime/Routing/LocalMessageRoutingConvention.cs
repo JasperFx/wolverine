@@ -15,7 +15,7 @@ public class LocalMessageRoutingConvention
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
     private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace("+", ".");
 
-    public Dictionary<Type, LocalQueueSettings> Assignments { get; } = new();
+    public Dictionary<Type, LocalQueue> Assignments { get; } = new();
 
     internal void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {

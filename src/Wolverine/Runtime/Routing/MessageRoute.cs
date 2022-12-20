@@ -27,7 +27,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies) : this(endpoint.DefaultSerializer!, endpoint.Agent!,
         endpoint.OutgoingRules.Concat(RulesForMessageType(messageType)), replies)
     {
-        IsLocal = endpoint is LocalQueueSettings;
+        IsLocal = endpoint is LocalQueue;
     }
 
     public bool IsLocal { get; }
@@ -40,7 +40,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         Sender = sender ?? throw new ArgumentNullException(nameof(sender));
         Rules.AddRange(rules);
 
-        IsLocal = sender.Endpoint is LocalQueueSettings;
+        IsLocal = sender.Endpoint is LocalQueue;
     }
 
     public IMessageSerializer Serializer { get; }

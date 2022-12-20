@@ -86,11 +86,11 @@ public class WolverineOptionsTests
     public void stub_out_external_setting_via_IEndpoints()
     {
         var options = new WolverineOptions();
-        options.Advanced.StubAllOutgoingExternalSenders.ShouldBeFalse();
+        options.Advanced.StubAllExternalTransports.ShouldBeFalse();
 
         options.StubAllExternallyOutgoingEndpoints();
 
-        options.Advanced.StubAllOutgoingExternalSenders.ShouldBeTrue();
+        options.Advanced.StubAllExternalTransports.ShouldBeTrue();
     }
 
     [Fact]

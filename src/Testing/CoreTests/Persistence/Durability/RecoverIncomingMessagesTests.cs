@@ -29,7 +29,7 @@ public class RecoverIncomingMessagesTests
     {
         theAction = new RecoverIncomingMessages(theSettings, NullLogger.Instance, theEndpoints);
 
-        var settings = new LocalQueueSettings("one");
+        var settings = new LocalQueue("one");
         settings.BufferingLimits = new BufferingLimits(theBufferedLimit, 100);
 
         theAgent.Endpoint.Returns(settings);

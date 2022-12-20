@@ -8,13 +8,13 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Transports.Local;
 
-internal class LocalTransport : TransportBase<LocalQueueSettings>
+internal class LocalTransport : TransportBase<LocalQueue>
 {
-    private readonly Cache<string, LocalQueueSettings> _queues;
+    private readonly Cache<string, LocalQueue> _queues;
 
     public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)")
     {
-        _queues = new(name => new LocalQueueSettings(name));
+        _queues = new(name => new LocalQueue(name));
 
         _queues.FillDefault(TransportConstants.Default);
         _queues.FillDefault(TransportConstants.Replies);
@@ -22,12 +22,12 @@ internal class LocalTransport : TransportBase<LocalQueueSettings>
         _queues[TransportConstants.Durable].Mode = EndpointMode.Durable;
     }
 
-    protected override IEnumerable<LocalQueueSettings> endpoints()
+    protected override IEnumerable<LocalQueue> endpoints()
     {
         return _queues;
     }
 
-    protected override LocalQueueSettings findEndpointByUri(Uri uri)
+    protected override LocalQueue findEndpointByUri(Uri uri)
     {
         var queueName = QueueName(uri);
         var settings = _queues[queueName];
@@ -46,7 +46,7 @@ internal class LocalTransport : TransportBase<LocalQueueSettings>
     }
 
 
-    public IEnumerable<LocalQueueSettings> AllQueues()
+    public IEnumerable<LocalQueue> AllQueues()
     {
         return _queues;
     }
@@ -56,7 +56,7 @@ internal class LocalTransport : TransportBase<LocalQueueSettings>
     /// </summary>
     /// <param name="queueName"></param>
     /// <returns></returns>
-    public LocalQueueSettings QueueFor(string queueName)
+    public LocalQueue QueueFor(string queueName)
     {
         return _queues[queueName.ToLowerInvariant()];
     }

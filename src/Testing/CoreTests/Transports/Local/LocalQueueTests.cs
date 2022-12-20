@@ -7,7 +7,7 @@ using Xunit;
 
 namespace CoreTests.Transports.Local;
 
-public class LocalQueueSettingsTests
+public class LocalQueueTests
 {
     [Theory]
     [InlineData(EndpointMode.Durable)]
@@ -15,7 +15,7 @@ public class LocalQueueSettingsTests
     [InlineData(EndpointMode.BufferedInMemory)]
     public void should_not_enforce_back_pressure_no_matter_what(EndpointMode mode)
     {
-        var endpoint = new LocalQueueSettings("foo")
+        var endpoint = new LocalQueue("foo")
         {
             Mode = mode
         };
@@ -26,7 +26,7 @@ public class LocalQueueSettingsTests
     [Fact]
     public void should_use_the_queue_name_as_endpoint_name()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
 
         endpoint.EndpointName.ShouldBe("foo");
     }
@@ -34,14 +34,14 @@ public class LocalQueueSettingsTests
     [Fact]
     public void should_set_the_Uri_in_constructor()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         endpoint.Uri.ShouldBe(new Uri("local://foo"));
     }
 
     [Fact]
     public void create_by_uri()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
         endpoint.EndpointName.ShouldBe("foo");
     }
@@ -49,7 +49,7 @@ public class LocalQueueSettingsTests
     [Fact]
     public void create_by_uri_case_insensitive()
     {
-        var endpoint = new LocalQueueSettings("Foo");
+        var endpoint = new LocalQueue("Foo");
         endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
         endpoint.EndpointName.ShouldBe("foo");
     }
@@ -57,7 +57,7 @@ public class LocalQueueSettingsTests
     [Fact]
     public void configure_circuit_breaker_options_with_defaults()
     {
-        var endpoint = new LocalQueueSettings("foo");
+        var endpoint = new LocalQueue("foo");
         new LocalQueueConfiguration(endpoint).CircuitBreaker();
         endpoint.Compile(new MockWolverineRuntime());
 
@@ -68,7 +68,7 @@ public class LocalQueueSettingsTests
     [Fact]
     public void configure_circuit_breaker_options_with_explicit_config()
     {
-        var endpoint = new LocalQueueSettings("Foo");
+        var endpoint = new LocalQueue("Foo");
         new LocalQueueConfiguration(endpoint).CircuitBreaker(cb => { cb.PauseTime = 23.Minutes(); });
 
         endpoint.Compile(new MockWolverineRuntime());

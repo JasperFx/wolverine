@@ -144,6 +144,6 @@ public partial class WolverineOptions : IAsyncDisposable
     /// </summary>
     public void StubAllExternallyOutgoingEndpoints()
     {
-        Advanced.StubAllOutgoingExternalSenders = true;
+        Advanced.StubAllExternalTransports = true;
     }
 }

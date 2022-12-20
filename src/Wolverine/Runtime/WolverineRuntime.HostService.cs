@@ -80,7 +80,15 @@ public partial class WolverineRuntime
     {
         foreach (var transport in Options.Transports)
         {
-            await transport.InitializeAsync(this).ConfigureAwait(false);
+            if (!Options.Advanced.StubAllExternalTransports)
+            {
+                await transport.InitializeAsync(this).ConfigureAwait(false);
+            }
+            else
+            {
+                Logger.LogInformation("'Stubbing' out all external transports for testing");
+            }
+            
             foreach (var endpoint in transport.Endpoints())
             {
                 endpoint.Runtime = this; // necessary to locate serialization
@@ -88,17 +96,27 @@ public partial class WolverineRuntime
             }
         }
 
-        discoverListenersFromConventions();
+        
 
         foreach (var transport in Options.Transports)
         {
             var replyUri = transport.ReplyEndpoint()?.Uri;
 
             foreach (var endpoint in transport.Endpoints().Where(x => x.AutoStartSendingAgent()))
+            {
                 endpoint.StartSending(this, replyUri);
+            }
         }
 
-        await Endpoints.StartListenersAsync();
+        if (!Options.Advanced.StubAllExternalTransports)
+        {
+            discoverListenersFromConventions();
+            await Endpoints.StartListenersAsync();
+        }
+        else
+        {
+            Logger.LogInformation("All external transport listeners are disabled");
+        }
     }
 
     private void discoverListenersFromConventions()
@@ -122,7 +140,7 @@ public partial class WolverineRuntime
             var durabilityLogger = _container.GetInstance<ILogger<DurabilityAgent>>();
 
             // TODO -- use the worker queue for Retries?
-            var worker = new DurableReceiver(new LocalQueueSettings("scheduled"), this, Pipeline);
+            var worker = new DurableReceiver(new LocalQueue("scheduled"), this, Pipeline);
 
             Durability = new DurabilityAgent(this, Logger, durabilityLogger, worker, Storage,
                 Options.Advanced);

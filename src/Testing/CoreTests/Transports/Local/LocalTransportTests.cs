@@ -27,9 +27,9 @@ public class LocalTransportTests
     }
 
     [Fact]
-    public void LocalQueueSettings_forces_the_queue_name_to_be_lower_case()
+    public void forces_the_queue_name_to_be_lower_case()
     {
-        new LocalQueueSettings("Foo")
+        new LocalQueue("Foo")
             .EndpointName.ShouldBe("foo");
     }
 

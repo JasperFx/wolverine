@@ -52,7 +52,7 @@ internal class EndpointPolicies : IEndpointPolicies
                 return;
             }
 
-            if (e is LocalQueueSettings)
+            if (e is LocalQueue)
             {
                 return;
             }
@@ -75,7 +75,7 @@ internal class EndpointPolicies : IEndpointPolicies
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
-            if (e is LocalQueueSettings)
+            if (e is LocalQueue)
             {
                 return;
             }
@@ -103,7 +103,7 @@ internal class EndpointPolicies : IEndpointPolicies
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
-            if (e is LocalQueueSettings local)
+            if (e is LocalQueue local)
             {
                 if (e.Role == EndpointRole.System)
                 {
