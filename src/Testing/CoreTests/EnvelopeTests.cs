@@ -363,6 +363,18 @@ public class EnvelopeTests
     }
 
     [Fact]
+    public void set_deliver_within()
+    {
+        var envelope = new Envelope
+        {
+            DeliverWithin = 1.Days()
+        };
+        
+        envelope.DeliverBy.Value.Date.ShouldBe(DateTime.Today.AddDays(1));
+        envelope.DeliverWithin.ShouldBe(1.Days());
+    }
+    
+    [Fact]
     public void prepare_for_persistence_when_scheduled_in_the_future()
     {
         var envelope = new Envelope

@@ -54,14 +54,23 @@ public partial class Envelope
         set => _scheduledTime = value?.ToUniversalTime();
     }
 
+    private TimeSpan? _deliverWithin;
+
     /// <summary>
-    ///     Set the DeliverBy property to have this message thrown away
-    ///     if it cannot be sent before the alotted time
+    /// Set the DeliverBy property to have this message thrown away
+    /// if it cannot be sent before the allotted time. This value if set
+    /// is retained for testing purposes
     /// </summary>
     /// <value></value>
-    public TimeSpan DeliverWithin
+    public TimeSpan? DeliverWithin
     {
-        set => DeliverBy = DateTimeOffset.Now.Add(value);
+        set
+        {
+            if (value == null) throw new ArgumentNullException(nameof(value));
+            DeliverBy = DateTimeOffset.Now.Add(value.Value);
+            _deliverWithin = value;
+        }
+        get => _deliverWithin;
     }
 
     private TimeSpan? _scheduleDelay;

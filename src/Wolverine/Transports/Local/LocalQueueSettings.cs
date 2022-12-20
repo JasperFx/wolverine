@@ -16,6 +16,18 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
     }
 
     /// <summary>
+    /// Limit all outgoing messages to a certain "deliver within" time span after which the messages
+    /// will be discarded even if not successfully delivered or processed
+    /// </summary>
+    /// <param name="timeToLive"></param>
+    /// <returns></returns>
+    public LocalQueueConfiguration DeliverWithin(TimeSpan timeToLive)
+    {
+        add(e => e.OutgoingRules.Add(new DeliverWithinRule(timeToLive)));
+        return this;
+    }
+
+    /// <summary>
     ///     Add circuit breaker exception handling to this local queue. This will only
     ///     be applied if the local queue is marked as durable!!!
     /// </summary>

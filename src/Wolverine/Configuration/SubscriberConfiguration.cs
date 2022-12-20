@@ -113,6 +113,12 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         add(e => e.OutgoingRules.Add(rule));
         return this.As<T>();
     }
+
+    public T DeliverWithin(TimeSpan timeToLive)
+    {
+        add(e => e.OutgoingRules.Add(new DeliverWithinRule(timeToLive)));
+        return this.As<T>();
+    }
 }
 
 internal class SubscriberConfiguration : SubscriberConfiguration<ISubscriberConfiguration, Endpoint>,

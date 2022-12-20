@@ -46,6 +46,13 @@ public interface ISubscriberConfiguration<T> where T : ISubscriberConfiguration<
     /// <returns></returns>
     T CustomizeOutgoingMessagesOfType<TMessage>(Action<Envelope, TMessage> customize);
 
+    /// <summary>
+    /// Limit all outgoing messages to a certain "deliver within" time span after which the messages
+    /// will be discarded even if not successfully delivered or processed
+    /// </summary>
+    /// <param name="timeToLive"></param>
+    /// <returns></returns>
+    T DeliverWithin(TimeSpan timeToLive);
 
     /// <summary>
     ///     Fine-tune the circuit breaker parameters for this outgoing subscriber endpoint
