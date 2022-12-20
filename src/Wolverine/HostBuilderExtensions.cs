@@ -242,4 +242,26 @@ public static class HostBuilderExtensions
     {
         return host.Get<IMessageBus>().InvokeAsync(command!);
     }
+
+
+    /// <summary>
+    /// Disable all Wolverine messaging outside the current process. This is almost entirely
+    /// meant to enable integration testing scenarios where you only mean to execute messages
+    /// locally. 
+    /// </summary>
+    /// <param name="services"></param>
+    /// <returns></returns>
+    public static IServiceCollection DisableAllExternalWolverineTransports(this IServiceCollection services)
+    {
+        services.AddSingleton<IWolverineExtension, DisableExternalTransports>();
+        return services;
+    }
+
+    internal class DisableExternalTransports : IWolverineExtension
+    {
+        public void Configure(WolverineOptions options)
+        {
+            options.Advanced.StubAllExternalTransports = true;
+        }
+    }
 }
