@@ -52,7 +52,7 @@ public class try_out_the_middleware
         var account2 = await session.LoadAsync<Account>(account.Id);
         
         // Should be 1000 + 100
-        account2.Balance.ShouldBe(1100);
+        account2.Balance.ShouldBe(900);
     }
 
     [Fact]
