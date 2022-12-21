@@ -84,25 +84,23 @@ internal class OutgoingSqsBatch
         }
         else
         {
-            var fails = response.Failed.Select(x =>
+            var fails = new List<Envelope>();
+            foreach (var fail in response.Failed)
             {
-                if (_envelopes.TryGetValue(x.Id, out var env))
+                if (_envelopes.TryGetValue(fail.Id, out var env))
                 {
-                    return env;
+                    fails.Add(env);
                 }
+            }
 
-                return null;
-            }).Where(x => x != null).ToArray();
-
-            var successes = response.Successful.Select(x =>
+            var successes = new List<Envelope>();
+            foreach (var success in response.Successful)
             {
-                if (_envelopes.TryGetValue(x.Id, out var env))
+                if (_envelopes.TryGetValue(success.Id, out var env))
                 {
-                    return env;
+                    successes.Add(env);
                 }
-
-                return null;
-            }).Where(x => x != null).ToArray();
+            }
 
             await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination,
                 successes.Concat(_mappingFailures).ToList()));
