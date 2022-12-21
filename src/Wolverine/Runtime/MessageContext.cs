@@ -107,7 +107,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
     }
 
-    public async Task MoveToDeadLetterQueueAsync(Exception exception)
+    public Task MoveToDeadLetterQueueAsync(Exception exception)
     {
         if (_channel == null || Envelope == null)
         {
@@ -116,12 +116,12 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         if (_channel is ISupportDeadLetterQueue c)
         {
-            await c.MoveToErrorsAsync(Envelope, exception);
+            return c.MoveToErrorsAsync(Envelope, exception);
         }
         else
         {
             // If persistable, persist
-            await Storage.MoveToDeadLetterStorageAsync(Envelope, exception);
+            return Storage.MoveToDeadLetterStorageAsync(Envelope, exception);
         }
     }
 
