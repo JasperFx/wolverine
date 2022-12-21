@@ -226,22 +226,19 @@ public sealed partial class WolverineOptions
         for (var i = index; i < frames.Length; i++)
         {
             var candidate = frames[i];
-            if (candidate.HasMethod())
-            {
-                var assembly = candidate.GetMethod()?.DeclaringType?.Assembly;
+            var assembly = candidate.GetMethod()?.DeclaringType?.Assembly;
 
-                if (assembly is null) continue;
+            if (assembly is null) continue;
 
-                if (assembly.HasAttribute<WolverineIgnoreAttribute>()) continue;
+            if (assembly.HasAttribute<WolverineIgnoreAttribute>()) continue;
 
-                var assemblyName = assembly.GetName().Name;
+            var assemblyName = assembly.GetName().Name;
 
-                if (assemblyName is null) continue;
+            if (assemblyName is null) continue;
 
-                if (assemblyName.StartsWith("System")) continue;
+            if (assemblyName.StartsWith("System")) continue;
 
-                return assembly;
-            }
+            return assembly;
         }
 
         return Assembly.GetEntryAssembly();
