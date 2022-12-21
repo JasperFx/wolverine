@@ -52,13 +52,14 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 
     Uri IListener.Address => Destination;
 
-    public async ValueTask SendAsync(Envelope envelope)
+    public ValueTask SendAsync(Envelope envelope)
     {
         Sent.Add(envelope);
         if (_pipeline != null)
         {
-            await _pipeline.InvokeAsync(envelope, new StubChannelCallback(this, envelope));
+            return new ValueTask(_pipeline.InvokeAsync(envelope, new StubChannelCallback(this, envelope)));
         }
+        return ValueTask.CompletedTask;
     }
 
     public Task<bool> PingAsync()
@@ -79,7 +80,7 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
         set => Debug.WriteLine(value);
     }
 
-    public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
+    public ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
         envelope.ReplyUri ??= Destination;
 
@@ -92,8 +93,10 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 
         if (_pipeline != null)
         {
-            await _pipeline.InvokeAsync(envelope, callback);
+            return new ValueTask(_pipeline.InvokeAsync(envelope, callback));
         }
+
+        return ValueTask.CompletedTask;
     }
 
     public ValueTask StoreAndForwardAsync(Envelope envelope)

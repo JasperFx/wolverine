@@ -88,11 +88,11 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public int QueueCount => _receivingBlock.InputCount;
 
-    public async ValueTask DrainAsync()
+    public ValueTask DrainAsync()
     {
         _latched = true;
         _receivingBlock.Complete();
-        await _receivingBlock.Completion;
+        return new ValueTask(_receivingBlock.Completion);
     }
 
     public void Enqueue(Envelope envelope)

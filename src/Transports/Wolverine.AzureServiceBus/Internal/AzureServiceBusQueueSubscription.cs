@@ -26,7 +26,7 @@ public class AzureServiceBusQueueSubscription : AzureServiceBusEndpoint
 
     public AzureServiceBusTopic Topic { get; }
 
-    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         throw new NotImplementedException();
     }

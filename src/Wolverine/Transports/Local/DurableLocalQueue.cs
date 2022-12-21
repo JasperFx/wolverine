@@ -172,7 +172,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         return ValueTask.CompletedTask;
     }
 
-    public async ValueTask StoreAndForwardAsync(Envelope envelope)
+    public ValueTask StoreAndForwardAsync(Envelope envelope)
     {
         // Try this first, let everything fail if it fails, don't want to log
         writeMessageData(envelope);
@@ -186,7 +186,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             envelope.OwnerId = TransportConstants.AnyNode;
         }
 
-        await _storeAndEnqueue.PostAsync(envelope);
+        return new ValueTask(_storeAndEnqueue.PostAsync(envelope));
     }
 
     public bool SupportsNativeScheduledSend => true;

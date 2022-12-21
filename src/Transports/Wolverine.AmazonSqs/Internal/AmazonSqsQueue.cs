@@ -81,14 +81,14 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
         await client.DeleteQueueAsync(new DeleteQueueRequest(QueueUrl));
     }
 
-    public async ValueTask SetupAsync(ILogger logger)
+    public ValueTask SetupAsync(ILogger logger)
     {
-        await SetupAsync(_parent.Client!);
+        return new ValueTask(SetupAsync(_parent.Client!));
     }
 
-    public async ValueTask PurgeAsync(ILogger logger)
+    public ValueTask PurgeAsync(ILogger logger)
     {
-        await PurgeAsync(_parent.Client!);
+        return new ValueTask(PurgeAsync(_parent.Client!));
     }
 
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()

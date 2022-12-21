@@ -87,11 +87,13 @@ internal class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         throw new NotSupportedException();
     }
 
-    public async ValueTask RollbackAsync()
+    public ValueTask RollbackAsync()
     {
         if (DbContext.Database.CurrentTransaction != null)
         {
-            await DbContext.Database.CurrentTransaction.RollbackAsync();
+            return new ValueTask(DbContext.Database.CurrentTransaction.RollbackAsync());
         }
+
+        return ValueTask.CompletedTask;
     }
 }

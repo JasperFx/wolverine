@@ -47,11 +47,11 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
     public bool IsDurable => false;
     public bool SupportsNativeScheduledSend => _sender.SupportsNativeScheduledSend;
 
-    public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
+    public ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
         setDefaults(envelope);
 
-        await _sending.PostAsync(envelope);
+        return new ValueTask(_sending.PostAsync(envelope));
     }
 
     public ValueTask StoreAndForwardAsync(Envelope envelope)

@@ -96,20 +96,24 @@ internal class SqsListener : IListener
         }, _cancellation.Token);
     }
 
-    public async ValueTask CompleteAsync(Envelope envelope)
+    public ValueTask CompleteAsync(Envelope envelope)
     {
         if (envelope is AmazonSqsEnvelope e)
         {
-            await CompleteAsync(e.SqsMessage);
+            return new ValueTask(CompleteAsync(e.SqsMessage));
         }
+
+        return ValueTask.CompletedTask;
     }
 
-    public async ValueTask DeferAsync(Envelope envelope)
+    public ValueTask DeferAsync(Envelope envelope)
     {
         if (envelope is AmazonSqsEnvelope e)
         {
-            await DeferAsync(e.SqsMessage);
+            return new ValueTask(DeferAsync(e.SqsMessage));
         }
+
+        return ValueTask.CompletedTask;
     }
 
     public ValueTask DisposeAsync()
