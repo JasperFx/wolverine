@@ -93,7 +93,7 @@ public class TestMessageContext : IMessageContext
 
         _sent.Add(envelope);
 
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
 
     ValueTask IMessageBus.PublishAsync<T>(T message, DeliveryOptions? options)
@@ -103,7 +103,7 @@ public class TestMessageContext : IMessageContext
 
         _published.Add(envelope);
 
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
 
     ValueTask IMessageBus.BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null)
@@ -113,7 +113,7 @@ public class TestMessageContext : IMessageContext
 
         _published.Add(envelope);
 
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
     
     internal class DestinationEndpoint : IDestinationEndpoint
@@ -137,7 +137,7 @@ public class TestMessageContext : IMessageContext
             options?.Override(envelope);
             
             _parent._sent.Add(envelope);
-            return new ValueTask();
+            return ValueTask.CompletedTask;
         }
 
         public Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
@@ -157,7 +157,7 @@ public class TestMessageContext : IMessageContext
     {
         _responses.Add(response);
 
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
