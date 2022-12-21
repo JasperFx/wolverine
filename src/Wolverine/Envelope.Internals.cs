@@ -233,7 +233,7 @@ public partial class Envelope
         activity.MaybeSetTag(WolverineTracing.MessagingConversationId, ConversationId);
     }
 
-    internal async ValueTask PersistAsync(IEnvelopeTransaction transaction)
+    internal ValueTask PersistAsync(IEnvelopeTransaction transaction)
     {
         if (Sender is { IsDurable: true })
         {
@@ -242,7 +242,9 @@ public partial class Envelope
                 OwnerId = TransportConstants.AnyNode;
             }
 
-            await transaction.PersistAsync(this);
+            return new ValueTask(transaction.PersistAsync(this));
         }
+
+        return ValueTask.CompletedTask;
     }
 }

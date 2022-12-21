@@ -41,12 +41,14 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
     public ServiceBusClient BusClient => _busClient.Value;
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         if (_busClient.IsValueCreated)
         {
-            await _busClient.Value.DisposeAsync();
+            return _busClient.Value.DisposeAsync();
         }
+
+        return ValueTask.CompletedTask;
     }
 
     protected override IEnumerable<AzureServiceBusEndpoint> endpoints()

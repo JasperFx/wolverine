@@ -51,8 +51,8 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
             $"Cannot copy data from an existing Sql Server envelope transaction to {other}. You may have erroneously enlisted an IMessageContext in a transaction twice.");
     }
 
-    public async ValueTask RollbackAsync()
+    public ValueTask RollbackAsync()
     {
-        await _tx.RollbackAsync().ConfigureAwait(false);
+        return new ValueTask(_tx.RollbackAsync());
     }
 }
