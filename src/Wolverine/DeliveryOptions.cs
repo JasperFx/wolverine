@@ -33,7 +33,7 @@ public class DeliveryOptions
 
     /// <summary>
     ///     Set the DeliverBy property to have this message thrown away
-    ///     if it cannot be sent before the alotted time
+    ///     if it cannot be sent before the allotted time
     /// </summary>
     /// <value></value>
     public TimeSpan DeliverWithin

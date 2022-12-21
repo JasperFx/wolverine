@@ -158,7 +158,7 @@ public class ShipOrderHandler
         var stream = await session
             .Events
 
-            // Explicitly tell Marten the exptected, starting version of the
+            // Explicitly tell Marten the expected, starting version of the
             // event stream
             .FetchForWriting<Order>(command.OrderId, command.Version);
 
@@ -190,7 +190,7 @@ public class ShipOrderHandler
         var stream = await session
             .Events
 
-            // Explicitly tell Marten the exptected, starting version of the
+            // Explicitly tell Marten the expected, starting version of the
             // event stream
             .FetchForExclusiveWriting<Order>(command.OrderId);
 

@@ -92,7 +92,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
                 ArrayPool = _jsonCharPool,
                 CloseOutput = false
 
-                //AutoCompleteOnClose = false // TODO -- put this in if we upgrad Newtonsoft
+                //AutoCompleteOnClose = false // TODO -- put this in if we upgrade Newtonsoft
             };
 
             _serializer.Serialize(jsonWriter, message);
@@ -149,7 +149,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
             ArrayPool = _jsonCharPool,
             CloseOutput = false
 
-            //AutoCompleteOnClose = false // TODO -- put this in if we upgrad Newtonsoft
+            //AutoCompleteOnClose = false // TODO -- put this in if we upgrade Newtonsoft
         };
 
         serializer.Serialize(jsonWriter, model);
