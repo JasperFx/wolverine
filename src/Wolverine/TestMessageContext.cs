@@ -70,13 +70,13 @@ public class TestMessageContext : IMessageContext
     public string? CorrelationId { get; set; }
     public Envelope? Envelope { get; }
 
-    Task IMessageBus.InvokeAsync(object message, CancellationToken cancellation, TimeSpan? timeout = default)
+    Task IMessageBus.InvokeAsync(object message, CancellationToken cancellation, TimeSpan? timeout)
     {
         _invoked.Add(message);
         return Task.CompletedTask;
     }
 
-    Task<T?> IMessageBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout = default) where T : default
+    Task<T?> IMessageBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout) where T : default
     {
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
@@ -106,7 +106,7 @@ public class TestMessageContext : IMessageContext
         return new ValueTask();
     }
 
-    ValueTask IMessageBus.BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null)
+    ValueTask IMessageBus.BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message, TopicName = topicName };
         options?.Override(envelope);
