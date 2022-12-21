@@ -19,7 +19,7 @@ public class DeadLetterQueue
         // The underlying message typ
         Console.WriteLine(report.Envelope.MessageType);
 
-        // The name ofthe system that sent the message
+        // The name of the system that sent the message
         Console.WriteLine(report.Envelope.Source);
 
         // The .Net Exception type name

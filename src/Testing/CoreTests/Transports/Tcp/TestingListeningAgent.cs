@@ -12,7 +12,7 @@ using Wolverine.Util;
 namespace CoreTests.Transports.Tcp;
 
 // This is only really used in the automated testing now
-// to test out the wire protocol. Otherwise, this has been superceded
+// to test out the wire protocol. Otherwise, this has been superseded
 // by SocketListeningAgent
 public class TestingListeningAgent : IDisposable, IListener
 {
