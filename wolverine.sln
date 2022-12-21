@@ -143,6 +143,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppWithMiddleware", "src\Sa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppWithMiddleware.Tests", "src\Samples\Middleware\AppWithMiddleware.Tests\AppWithMiddleware.Tests.csproj", "{53B3D48F-D6CE-4292-856F-AB369844FF4C}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".SolutionItems", ".SolutionItems", "{51B05E49-D96B-45BB-AA24-C3F37C143727}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.props = Directory.Build.props
+		Analysis.Build.props = Analysis.Build.props
+		global.json = global.json
+		mdsnippets.json = mdsnippets.json
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
