@@ -42,7 +42,7 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
         var container = (IContainer)_host.Services;
-        using (var nested = container.GetNestedContainer())
+        await using (var nested = container.GetNestedContainer())
         {
             var outbox = nested.GetInstance<IMartenOutbox>();
             var session = nested.GetInstance<IDocumentSession>();
@@ -58,7 +58,7 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
         var message = await waiter;
         message.Id.ShouldBe(id);
 
-        using var query = container.GetInstance<IDocumentStore>()
+        await using var query = container.GetInstance<IDocumentStore>()
             .QuerySession();
         ;
         (await query.LoadAsync<Item>(id)).ShouldNotBeNull();

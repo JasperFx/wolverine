@@ -52,7 +52,7 @@ public class GettingStarted
         var boardId = Guid.NewGuid();
 
         var store = DocumentStore.For("connection string");
-        using var session = store.LightweightSession();
+        await using var session = store.LightweightSession();
 
         var shiftId = session.Events.StartStream<ProviderShift>(
             new ProviderJoined(boardId, Guid.NewGuid()),

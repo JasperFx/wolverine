@@ -124,7 +124,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         await withItemsTable();
 
-        using (var nested = container.GetNestedContainer())
+        await using (var nested = container.GetNestedContainer())
         {
             var messaging = nested.GetInstance<IDbContextOutbox<SampleDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<SampleDbContext>>();
@@ -155,7 +155,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
     private async Task withItemsTable()
     {
-        using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
         {
             await conn.OpenAsync();
             var migration = await SchemaMigration.Determine(conn, ItemsTable);
@@ -177,7 +177,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
-        using (var nested = container.GetNestedContainer())
+        await using (var nested = container.GetNestedContainer())
         {
             var context = nested.GetInstance<SampleDbContext>();
             var messaging = nested.GetInstance<IDbContextOutbox>();
@@ -193,7 +193,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var message = await waiter;
         message.Id.ShouldBe(id);
 
-        using (var nested = container.GetNestedContainer())
+        await using (var nested = container.GetNestedContainer())
         {
             var context = nested.GetInstance<SampleDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
@@ -211,7 +211,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
-        using (var nested = container.GetNestedContainer())
+        await using (var nested = container.GetNestedContainer())
         {
             var outbox = nested.GetInstance<IDbContextOutbox<SampleDbContext>>();
 
@@ -224,7 +224,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var message = await waiter;
         message.Id.ShouldBe(id);
 
-        using (var nested = container.GetNestedContainer())
+        await using (var nested = container.GetNestedContainer())
         {
             var context = nested.GetInstance<SampleDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
@@ -253,7 +253,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         await withItemsTable();
 
-        using (var nested = container.GetNestedContainer())
+        await using (var nested = container.GetNestedContainer())
         {
             var context = nested.GetInstance<SampleDbContext>();
             var messaging = nested.GetInstance<IDbContextOutbox>();

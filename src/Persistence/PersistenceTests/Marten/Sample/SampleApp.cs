@@ -48,7 +48,7 @@ public class MessageInvocationTests : PostgresqlContext, IDisposable
         await theHost.ExecuteAndWaitAsync(x => x.InvokeAsync(new CreateUser { Name = "Tom" }));
 
 
-        using (var session = theHost.Get<IDocumentStore>().QuerySession())
+        await using (var session = theHost.Get<IDocumentStore>().QuerySession())
         {
             session.Load<User>("Tom").ShouldNotBeNull();
         }
@@ -63,7 +63,7 @@ public class MessageInvocationTests : PostgresqlContext, IDisposable
     {
         await theHost.ExecuteAndWaitAsync(x => x.InvokeAsync(new CreateUser { Name = "Bill" }));
 
-        using (var session = theHost.Get<IDocumentStore>().QuerySession())
+        await using (var session = theHost.Get<IDocumentStore>().QuerySession())
         {
             session.Load<User>("Bill").ShouldNotBeNull();
         }

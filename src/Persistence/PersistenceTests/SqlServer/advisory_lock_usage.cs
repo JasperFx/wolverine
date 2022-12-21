@@ -15,9 +15,9 @@ public class advisory_lock_usage : SqlServerContext
     {
         var settings = new SqlServerSettings();
 
-        using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
-        using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
-        using (var conn3 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn3 = new SqlConnection(Servers.SqlServerConnectionString))
         {
             await conn1.OpenAsync();
             await conn2.OpenAsync();
@@ -53,9 +53,9 @@ public class advisory_lock_usage : SqlServerContext
     {
         var settings = new SqlServerSettings();
 
-        using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
-        using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
-        using (var conn3 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn3 = new SqlConnection(Servers.SqlServerConnectionString))
         {
             await conn1.OpenAsync();
             await conn2.OpenAsync();
@@ -93,9 +93,9 @@ public class advisory_lock_usage : SqlServerContext
     {
         var settings = new SqlServerSettings();
 
-        using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
-        using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
-        using (var conn3 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn3 = new SqlConnection(Servers.SqlServerConnectionString))
         {
             await conn1.OpenAsync();
             await conn2.OpenAsync();
@@ -128,9 +128,9 @@ public class advisory_lock_usage : SqlServerContext
     {
         var settings = new SqlServerSettings();
 
-        using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
-        using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
-        using (var conn3 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn3 = new SqlConnection(Servers.SqlServerConnectionString))
         {
             await conn1.OpenAsync();
             await conn2.OpenAsync();

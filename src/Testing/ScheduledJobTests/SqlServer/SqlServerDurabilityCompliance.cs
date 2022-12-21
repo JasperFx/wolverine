@@ -31,7 +31,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
 
     protected override async Task buildAdditionalObjects()
     {
-        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 
         await conn.DropSchema("receiver");
@@ -71,7 +71,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
     {
         #region sample_basic_sql_server_outbox_sample
 
-        using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
+        await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
         {
             await conn.OpenAsync();
 
