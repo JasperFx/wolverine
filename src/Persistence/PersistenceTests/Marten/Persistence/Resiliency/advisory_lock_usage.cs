@@ -15,9 +15,9 @@ public class advisory_lock_usage : PostgresqlContext
     {
         var settings = new PostgresqlSettings();
 
-        using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
-        using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
-        using (var conn3 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn3 = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
             await conn1.OpenAsync();
             await conn2.OpenAsync();
@@ -53,9 +53,9 @@ public class advisory_lock_usage : PostgresqlContext
     {
         var settings = new PostgresqlSettings();
 
-        using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
-        using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
-        using (var conn3 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn3 = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
             await conn1.OpenAsync();
             await conn2.OpenAsync();
@@ -93,9 +93,9 @@ public class advisory_lock_usage : PostgresqlContext
     {
         var settings = new PostgresqlSettings();
 
-        using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
-        using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
-        using (var conn3 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn3 = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
             await conn1.OpenAsync();
             await conn2.OpenAsync();
@@ -128,9 +128,9 @@ public class advisory_lock_usage : PostgresqlContext
     {
         var settings = new PostgresqlSettings();
 
-        using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
-        using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
-        using (var conn3 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
+        await using (var conn3 = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
             await conn1.OpenAsync();
             await conn2.OpenAsync();

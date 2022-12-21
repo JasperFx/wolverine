@@ -30,7 +30,7 @@ public class SeedCommand : OaktonAsyncCommand<NetCoreInput>
 
         await store.BulkInsertAsync(new[] { provider1, provider2 });
 
-        using var session = store.LightweightSession();
+        await using var session = store.LightweightSession();
         var boardId =
             session.Events.StartStream<Board>(new BoardOpened("Lakers", DateOnly.FromDateTime(DateTime.Today),
                 DateTimeOffset.Now)).Id;

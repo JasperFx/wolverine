@@ -101,7 +101,7 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
 
     public async Task ReleaseIncomingAsync(int ownerId)
     {
-        using var conn = CreateConnection();
+        await using var conn = CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         await conn

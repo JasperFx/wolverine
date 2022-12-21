@@ -117,7 +117,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
 
 
         var documentStore = theReceiver.Get<IDocumentStore>();
-        using (var session = documentStore.QuerySession())
+        await using (var session = documentStore.QuerySession())
         {
             var item2 = session.Load<ItemCreated>(item.Id);
             if (item2 == null)
