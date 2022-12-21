@@ -20,9 +20,8 @@ internal class MethodCallAgainstMessage : MethodCall
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        var messageType = Method.MessageType();
-        Arguments[0] = new Variable(messageType,
-            $"({messageType.FullNameInCode()})context.{nameof(MessageContext.Envelope)}.{nameof(Envelope.Message)}");
+        Arguments[0] = new Variable(_messageType,
+            $"({_messageType.FullNameInCode()})context.{nameof(MessageContext.Envelope)}.{nameof(Envelope.Message)}");
         foreach (var variable in base.FindVariables(chain)) yield return variable;
     }
 }
