@@ -219,10 +219,9 @@ public sealed partial class WolverineOptions
     {
         var stack = new StackTrace();
         var frames = stack.GetFrames();
-        var wolverine = frames.LastOrDefault(x =>
-            x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly?.GetName().Name == GetType().Assembly.GetName().Name);
+        var wolverineFrame = frames.LastOrDefault(x => x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly?.GetName().Name == "Wolverine");
 
-        var index = frames.IndexOf(wolverine);
+        var index = frames.IndexOf(wolverineFrame);
         for (var i = index; i < frames.Length; i++)
         {
             var candidate = frames[i];
