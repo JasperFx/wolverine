@@ -76,7 +76,7 @@ public class TestMessageContext : IMessageContext
         return Task.CompletedTask;
     }
 
-    Task<T?> IMessageBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout) where T : default
+    Task<T> IMessageBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout) where T : default
     {
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
