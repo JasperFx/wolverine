@@ -69,7 +69,7 @@ public static class DebitAccountHandler
 #region sample_DebutAccount_command
 
 // A "command" message
-public record DebitAccount(long AccountId, float Amount);
+public record DebitAccount(long AccountId, decimal Amount);
 
 // An "event" message
 public record AccountOverdrawn(long AccountId);

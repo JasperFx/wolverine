@@ -53,6 +53,8 @@ public record DebitAccount(Guid AccountId, decimal Amount) : IAccountCommand;
 
 public static class DebitAccountHandler
 {
+    #region sample_DebitAccountHandler_that_uses_IMessageContext
+
     [Transactional] 
     public static async Task Handle(
         DebitAccount command, 
@@ -85,6 +87,8 @@ public static class DebitAccountHandler
         await messaging.SendAsync(new AccountUpdated(account.Id, account.Balance),
             new DeliveryOptions { DeliverWithin = 5.Seconds() });
     }
+
+    #endregion
 }
 
 #region sample_using_deliver_within_attribute

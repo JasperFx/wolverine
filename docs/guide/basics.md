@@ -11,7 +11,7 @@ something happened. Here's a couple simple samples:
 <a id='snippet-sample_debutaccount_command'></a>
 ```cs
 // A "command" message
-public record DebitAccount(long AccountId, float Amount);
+public record DebitAccount(long AccountId, decimal Amount);
 
 // An "event" message
 public record AccountOverdrawn(long AccountId);
