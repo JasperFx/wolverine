@@ -137,6 +137,7 @@ namespace build
                 "./src/Persistence/Wolverine.Postgresql", 
                 "./src/Persistence/Wolverine.EntityFrameworkCore", 
                 "./src/Persistence/Wolverine.Marten",
+                "./src/Persistence/Wolverine.SqlServer",
                 "./src/Extensions/Wolverine.FluentValidation"
             };
 
