@@ -87,10 +87,14 @@ public static class DebitAccountHandler
     }
 }
 
+#region sample_using_deliver_within_attribute
+
 // The attribute directs Wolverine to send this message with 
 // a "deliver within 5 seconds, or discard" directive
 [DeliverWithin(5)]
 public record AccountUpdated(Guid AccountId, decimal Balance);
+
+#endregion
 
 public record LowBalanceDetected(Guid AccountId) : IAccountCommand;
 public record AccountOverdrawn(Guid AccountId) : IAccountCommand;

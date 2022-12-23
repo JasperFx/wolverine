@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
@@ -136,6 +137,36 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task delivery_expiration_rules_per_subscriber()
+    {
+        #region sample_delivery_expiration_rules_per_subscriber
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                // One way or another, you're probably pulling the Azure Service Bus
+                // connection string out of configuration
+                var azureServiceBusConnectionString = context
+                    .Configuration
+                    .GetConnectionString("azure-service-bus");
+
+                // Connect to the broker in the simplest possible way
+                opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+                // Explicitly configure a delivery expiration of 5 seconds
+                // for a specific Azure Service Bus queue
+                opts.PublishMessage<StatusUpdate>().ToAzureServiceBusQueue("transient")
+                    
+                    // If the messages are transient, it's likely that they should not be 
+                    // durably stored, so make things lighter in your system
+                    .BufferedInMemory()
+                    .DeliverWithin(5.Seconds());
+
+            }).StartAsync();
+
+        #endregion
+    }
+
     public async Task conventional_listener_configuration()
     {
         #region sample_conventional_listener_configuration_for_azure_service_bus
@@ -231,4 +262,20 @@ public class DocumentationSamples
 
         #endregion
     }
+
+    public record StatusUpdate(string Status);
+
+    #region sample_message_expiration_by_message
+
+    public async Task message_expiration(IMessageBus bus)
+    {
+        // Disregard the message if it isn't sent and/or processed within 3 seconds from now
+        await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverWithin = 3.Seconds() });
+        
+        // Disregard the message if it isn't sent and/or processed by 3 PM today
+        // but watch all the potentially harmful time zone issues in your real code that I'm ignoring here!
+        await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverBy = DateTime.Today.AddHours(15)});
+    }
+
+    #endregion
 }

@@ -29,6 +29,8 @@ public partial class Envelope
     /// </summary>
     public Dictionary<string, string?> Headers { get; internal set; } = new();
 
+    #region sample_envelope_deliver_by_property
+
     /// <summary>
     ///     Instruct Wolverine to throw away this message if it is not successfully sent and processed
     ///     by the time specified
@@ -38,6 +40,8 @@ public partial class Envelope
         get => _deliverBy;
         set => _deliverBy = value?.ToUniversalTime();
     }
+
+    #endregion
 
     /// <summary>
     ///     Is an acknowledgement requested
