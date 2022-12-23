@@ -20,15 +20,30 @@ using var host = await Host.CreateDefaultBuilder()
             .Named("Two");
     }).StartAsync();
 
-var publisher = host.Services
+var bus = host.Services
     .GetRequiredService<IMessageBus>();
 
 // Explicitly send a message to a named endpoint
-await publisher.EndpointFor("One").SendAsync( new SomeMessage());
+await bus.EndpointFor("One").SendAsync( new SomeMessage());
+
+// Or invoke remotely
+await bus.EndpointFor("One").InvokeAsync(new SomeMessage());
+
+// Or request/reply
+var answer = bus.EndpointFor("One")
+    .InvokeAsync<Answer>(new Question());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L54-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L54-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There's another option to reference a messaging endpoint by `Uri` as shown below:
 
-snippet: sample_accessing_endpoint_by_uri
+<!-- snippet: sample_accessing_endpoint_by_uri -->
+<a id='snippet-sample_accessing_endpoint_by_uri'></a>
+```cs
+// Or access operations on a specific endpoint using a Uri
+await bus.EndpointFor(new Uri("rabbitmq://queue/rabbit-one"))
+    .InvokeAsync(new SomeMessage());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L82-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accessing_endpoint_by_uri' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
