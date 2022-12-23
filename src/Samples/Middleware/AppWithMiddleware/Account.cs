@@ -79,8 +79,9 @@ public static class DebitAccountHandler
             // Give the customer 10 days to deal with the overdrawn account
             await messaging.ScheduleAsync(new EnforceAccountOverdrawnDeadline(account.Id), 10.Days());
         }
-
-        yield return new AccountUpdated(account.Id, account.Balance);
+        
+        // "messaging" is a Wolverine IMessageContext or IMessageBus service 
+        // Do the deliver within rule on individual messages
         await messaging.SendAsync(new AccountUpdated(account.Id, account.Balance),
             new DeliveryOptions { DeliverWithin = 5.Seconds() });
     }
