@@ -3,7 +3,6 @@
         <Description>In-memory command bus and asynchronous messaging framework</Description>
         <DebugType>portable</DebugType>
         <PackageId>WolverineFx</PackageId>
-        <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
