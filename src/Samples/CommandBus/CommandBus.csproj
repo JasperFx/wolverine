@@ -3,9 +3,7 @@
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
         <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>CommandBusSamples</RootNamespace>
-        <LangVersion>10</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>

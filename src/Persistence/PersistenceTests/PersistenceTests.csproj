@@ -2,11 +2,7 @@
 
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
-
         <IsPackable>false</IsPackable>
-
-        <LangVersion>10</LangVersion>
-
         <RootNamespace>PersistenceTests</RootNamespace>
     </PropertyGroup>
 

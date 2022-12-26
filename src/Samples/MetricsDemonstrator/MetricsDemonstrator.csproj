@@ -3,7 +3,6 @@
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
         <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-MetricsDemonstrator-88B6BC0A-D21F-4B47-8970-5354EBE2A42F</UserSecretsId>
     </PropertyGroup>
 

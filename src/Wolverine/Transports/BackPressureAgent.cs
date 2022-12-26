@@ -9,7 +9,7 @@ internal class BackPressureAgent : IDisposable
 {
     private readonly IListeningAgent _agent;
     private readonly Endpoint _endpoint;
-    private Timer? _timer;
+    private System.Timers.Timer? _timer;
 
     public BackPressureAgent(IListeningAgent agent, Endpoint endpoint)
     {
@@ -24,7 +24,7 @@ internal class BackPressureAgent : IDisposable
 
     public void Start()
     {
-        _timer = new Timer
+        _timer = new()
         {
             AutoReset = true, Enabled = true, Interval = 2000
         };

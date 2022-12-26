@@ -4,7 +4,6 @@
         <OutputType>Exe</OutputType>
         <TargetFramework>net6.0</TargetFramework>
         <Optimize>true</Optimize>
-        <LangVersion>10</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>

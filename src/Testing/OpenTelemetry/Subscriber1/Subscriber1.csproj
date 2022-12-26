@@ -3,7 +3,6 @@
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
         <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-Subscriber1-8788A818-4B49-447E-B910-75863F907A1F</UserSecretsId>
     </PropertyGroup>
 

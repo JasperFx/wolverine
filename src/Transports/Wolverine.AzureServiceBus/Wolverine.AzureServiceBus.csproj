@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <PackageId>WolverineFx.AzureServiceBus</PackageId>
         <Description>Azure Service Bus transport for Wolverine applications</Description>
