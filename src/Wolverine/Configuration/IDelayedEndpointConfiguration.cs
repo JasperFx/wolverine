@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Wolverine.Configuration;
 
 public interface IDelayedEndpointConfiguration

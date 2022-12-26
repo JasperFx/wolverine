@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Linq;
 using JasperFx.Core.Reflection;
 using Npgsql;
 using NpgsqlTypes;

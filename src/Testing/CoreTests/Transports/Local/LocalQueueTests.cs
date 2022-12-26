@@ -1,4 +1,3 @@
-using System;
 using CoreTests.Runtime;
 using JasperFx.Core;
 using Wolverine.Configuration;

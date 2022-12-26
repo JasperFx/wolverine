@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine.Persistence.Sagas;
+﻿namespace Wolverine.Persistence.Sagas;
 
 /// <summary>
 ///     Marks a public property on a message type as the saga state identity

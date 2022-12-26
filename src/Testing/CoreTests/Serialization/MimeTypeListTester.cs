@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using TestingSupport;
+﻿using TestingSupport;
 using Wolverine.Runtime.Serialization;
 using Xunit;
 

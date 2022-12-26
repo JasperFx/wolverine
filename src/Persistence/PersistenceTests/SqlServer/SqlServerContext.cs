@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine;
 using Wolverine.SqlServer;

@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Transports.Sending;
 
 public class QueueDoesNotExistException : Exception

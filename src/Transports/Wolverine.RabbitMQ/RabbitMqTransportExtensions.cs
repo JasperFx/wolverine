@@ -1,4 +1,3 @@
-using System;
 using JasperFx.Core.Reflection;
 using RabbitMQ.Client;
 using Wolverine.Configuration;

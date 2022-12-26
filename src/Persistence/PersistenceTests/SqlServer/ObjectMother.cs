@@ -1,5 +1,4 @@
-﻿using System;
-using Wolverine;
+﻿using Wolverine;
 using Wolverine.Transports;
 
 namespace PersistenceTests.SqlServer;

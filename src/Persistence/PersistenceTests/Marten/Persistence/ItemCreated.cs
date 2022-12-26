@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace PersistenceTests.Marten.Persistence;
+﻿namespace PersistenceTests.Marten.Persistence;
 
 public class ItemCreated
 {

@@ -1,5 +1,4 @@
-﻿using System;
-using Wolverine.Transports;
+﻿using Wolverine.Transports;
 
 namespace CoreTests.Messaging;
 

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
 using Microsoft.Extensions.Configuration;

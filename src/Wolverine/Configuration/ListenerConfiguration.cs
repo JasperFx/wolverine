@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;

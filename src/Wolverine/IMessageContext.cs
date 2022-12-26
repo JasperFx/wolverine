@@ -1,6 +1,4 @@
-﻿using System.Threading.Tasks;
-
-namespace Wolverine;
+﻿namespace Wolverine;
 
 public interface IMessageContext : IMessageBus
 {

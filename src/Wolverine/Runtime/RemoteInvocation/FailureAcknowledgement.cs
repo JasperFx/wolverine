@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine.Runtime.RemoteInvocation;
+﻿namespace Wolverine.Runtime.RemoteInvocation;
 
 public class FailureAcknowledgement
 {

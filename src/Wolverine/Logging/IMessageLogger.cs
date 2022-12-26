@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Logging;
 
 #region sample_IMessageLogger

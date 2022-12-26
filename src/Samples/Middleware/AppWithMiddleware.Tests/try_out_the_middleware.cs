@@ -1,14 +1,11 @@
-﻿using System.Diagnostics;
-using Alba;
+﻿using Alba;
 using JasperFx.Core;
-using Lamar;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Oakton;
 using Shouldly;
 using Wolverine;
-using Wolverine.Runtime;
 using Xunit.Abstractions;
 
 namespace AppWithMiddleware.Tests;

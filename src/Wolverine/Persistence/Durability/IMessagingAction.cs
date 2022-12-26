@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-
 namespace Wolverine.Persistence.Durability;
 
 internal interface IMessagingAction

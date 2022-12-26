@@ -1,8 +1,4 @@
-﻿using System;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Wolverine.Util;
+﻿namespace Wolverine.Util;
 
 [Obsolete("Moved to Core")]
 public static class TaskExtensions

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using TestingSupport.Compliance;
 using Xunit;
 

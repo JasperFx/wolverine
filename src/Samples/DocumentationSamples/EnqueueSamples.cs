@@ -1,4 +1,3 @@
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using TestMessages;
 using Wolverine;

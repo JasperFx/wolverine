@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using CoreTests.Messaging;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;

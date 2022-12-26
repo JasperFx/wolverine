@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using CoreTests.Messaging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;

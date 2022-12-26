@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine.Runtime;
+﻿namespace Wolverine.Runtime;
 
 public class UnknownTransportException : Exception
 {

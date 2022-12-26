@@ -1,4 +1,3 @@
-using System.Linq;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

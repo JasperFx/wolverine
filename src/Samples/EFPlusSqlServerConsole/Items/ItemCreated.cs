@@ -1,5 +1,3 @@
-using System;
-
 namespace EFPlusSqlServerConsole.Items;
 
 public class ItemCreated

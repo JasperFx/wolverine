@@ -1,7 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;

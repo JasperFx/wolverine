@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Logging;
 using Wolverine.Transports;

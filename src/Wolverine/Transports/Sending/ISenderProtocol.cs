@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-
 namespace Wolverine.Transports.Sending;
 
 public interface ISenderProtocol

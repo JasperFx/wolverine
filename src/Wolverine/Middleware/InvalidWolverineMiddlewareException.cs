@@ -1,4 +1,3 @@
-using System;
 using JasperFx.CodeGeneration;
 
 namespace Wolverine.Middleware;

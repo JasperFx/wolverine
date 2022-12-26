@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.ErrorHandling.Matches;
 
 internal class InnerMatch : IExceptionMatch

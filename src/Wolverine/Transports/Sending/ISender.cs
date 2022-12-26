@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-
 namespace Wolverine.Transports.Sending;
 
 public interface ISenderRequiresCallback : IDisposable

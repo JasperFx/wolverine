@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using IntegrationTests;
+﻿using IntegrationTests;
 using Lamar;
 using Marten;
 using Microsoft.Extensions.Hosting;

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine;
+﻿namespace Wolverine;
 
 public class ErrorReport
 {

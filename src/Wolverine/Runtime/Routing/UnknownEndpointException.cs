@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Runtime.Routing;
 
 public class UnknownEndpointException : Exception

@@ -1,4 +1,3 @@
-using System;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Runtime.Interop.MassTransit;

@@ -1,5 +1,4 @@
-﻿using System;
-using JasperFx.Core.Reflection;
+﻿using JasperFx.Core.Reflection;
 using Oakton;
 
 namespace Wolverine.Attributes;

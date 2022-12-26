@@ -1,4 +1,3 @@
-using System;
 using CoreTests.Messaging;
 using CoreTests.Util;
 using Wolverine.Util;

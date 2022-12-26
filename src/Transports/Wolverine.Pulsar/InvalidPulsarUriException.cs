@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Pulsar;
 
 public class InvalidPulsarUriException : Exception

@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Persistence.Durability;
 
 public class DuplicateIncomingEnvelopeException : Exception

@@ -1,7 +1,5 @@
 using System.Data;
 using System.Data.Common;
-using System.Threading;
-using System.Threading.Tasks;
 using Weasel.Core;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 

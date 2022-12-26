@@ -1,4 +1,3 @@
-using System.IO;
 using System.Reflection;
 using JasperFx.Core;
 using Weasel.Core;

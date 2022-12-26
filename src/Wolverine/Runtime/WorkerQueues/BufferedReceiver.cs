@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;

@@ -1,4 +1,3 @@
-using System;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;

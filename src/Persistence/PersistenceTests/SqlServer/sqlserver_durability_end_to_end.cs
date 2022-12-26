@@ -1,6 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Data.SqlClient;

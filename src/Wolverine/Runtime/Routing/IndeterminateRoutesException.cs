@@ -1,5 +1,4 @@
-﻿using System;
-using JasperFx.CodeGeneration;
+﻿using JasperFx.CodeGeneration;
 
 namespace Wolverine.Runtime.Routing;
 

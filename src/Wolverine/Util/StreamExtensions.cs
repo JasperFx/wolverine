@@ -1,9 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace Wolverine.Util;
+﻿namespace Wolverine.Util;
 
 internal static class StreamExtensions
 {

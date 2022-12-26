@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using Lamar;
 using Marten.Schema;

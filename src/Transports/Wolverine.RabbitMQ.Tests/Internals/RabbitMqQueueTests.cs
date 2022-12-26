@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;

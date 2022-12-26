@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace TestingSupport.ErrorHandling;
 
 public class ErrorCausingMessage

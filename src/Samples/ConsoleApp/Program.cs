@@ -1,6 +1,5 @@
 #region sample_QuickStartConsoleMain
 
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using TestingSupport;
 using Wolverine.RabbitMQ;

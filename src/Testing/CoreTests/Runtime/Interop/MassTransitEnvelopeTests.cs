@@ -1,4 +1,3 @@
-using System;
 using Wolverine.Runtime.Interop.MassTransit;
 using Xunit;
 

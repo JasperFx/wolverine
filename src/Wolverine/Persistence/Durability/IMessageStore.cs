@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
-
-namespace Wolverine.Persistence.Durability;
+﻿namespace Wolverine.Persistence.Durability;
 
 public interface IMessageStore : IDisposable
 {

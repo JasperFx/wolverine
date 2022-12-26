@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine.Attributes;
+﻿namespace Wolverine.Attributes;
 
 /// <summary>
 ///     Place on a concrete class or method to make Wolverine ignore the class or methods

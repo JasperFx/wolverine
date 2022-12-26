@@ -1,5 +1,4 @@
-﻿using System;
-using Wolverine.Attributes;
+﻿using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 using Xunit.Abstractions;

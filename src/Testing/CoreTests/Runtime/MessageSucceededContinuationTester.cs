@@ -1,5 +1,4 @@
-﻿using System;
-using CoreTests.Messaging;
+﻿using CoreTests.Messaging;
 using NSubstitute;
 using Wolverine.Runtime;
 using Xunit;

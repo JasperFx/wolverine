@@ -1,5 +1,4 @@
-﻿using System;
-using Lamar;
+﻿using Lamar;
 
 namespace Wolverine.Attributes;
 

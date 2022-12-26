@@ -1,4 +1,3 @@
-using System;
 using System.Data.Common;
 using Microsoft.Extensions.Logging;
 using Weasel.Core.Migrations;

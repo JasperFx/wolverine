@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Wolverine.Configuration;
 
 namespace Wolverine.Transports.Sending;

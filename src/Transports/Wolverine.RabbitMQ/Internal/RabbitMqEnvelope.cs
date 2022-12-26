@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-
 namespace Wolverine.RabbitMQ.Internal;
 
 internal class RabbitMqEnvelope : Envelope

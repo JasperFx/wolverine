@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Runtime.RemoteInvocation;
 
 public class WolverineRequestReplyException : Exception

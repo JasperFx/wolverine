@@ -1,4 +1,3 @@
-using System;
 using JasperFx.CodeGeneration.Model;
 
 namespace Wolverine.RDBMS;

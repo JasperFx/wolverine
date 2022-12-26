@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine.Runtime.RemoteInvocation;
+﻿namespace Wolverine.Runtime.RemoteInvocation;
 
 /// <summary>
 ///     Successful receipt of an outgoing message

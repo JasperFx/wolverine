@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 using TestMessages;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;

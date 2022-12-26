@@ -1,4 +1,3 @@
-using System;
 using JasperFx.CodeGeneration;
 using Lamar;
 using Wolverine.Configuration;

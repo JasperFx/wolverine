@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using TestingSupport.Compliance;
 
 namespace CoreTests.Runtime.Samples;

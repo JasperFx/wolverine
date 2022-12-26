@@ -1,5 +1,4 @@
-﻿using System;
-using Wolverine;
+﻿using Wolverine;
 using Wolverine.Attributes;
 
 namespace TestMessages;

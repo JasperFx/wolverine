@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

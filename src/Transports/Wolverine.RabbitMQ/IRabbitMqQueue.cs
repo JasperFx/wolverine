@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Wolverine.RabbitMQ;
 
 public interface IRabbitMqQueue
