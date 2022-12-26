@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Nullable>enable</Nullable>
         <PackageId>WolverineFx.AmazonSqs</PackageId>
         <Description>Amazon SQS transport for Wolverine applications</Description>
     </PropertyGroup>

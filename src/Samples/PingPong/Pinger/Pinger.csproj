@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <UserSecretsId>dotnet-Pinger-819CA4EE-78C2-4B8C-93A5-0F271BCB1705</UserSecretsId>
     </PropertyGroup>
 

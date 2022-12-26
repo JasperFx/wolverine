@@ -8,11 +8,8 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-        <Nullable>enable</Nullable>
     </PropertyGroup>
-    <ItemGroup>
 
-    </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
         <PackageReference Include="Marten.CommandLine" Version="6.0.0-alpha.6" />

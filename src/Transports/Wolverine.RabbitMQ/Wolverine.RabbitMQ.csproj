@@ -8,7 +8,6 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-        <Nullable>enable</Nullable>
         <RootNamespace>Wolverine.RabbitMQ</RootNamespace>
     </PropertyGroup>
     <ItemGroup>

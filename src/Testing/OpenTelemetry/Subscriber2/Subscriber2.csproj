@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <TargetFramework>net6.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <UserSecretsId>dotnet-Subscriber2-0332C66C-99C6-4B10-A43D-356A26FE69C0</UserSecretsId>
     </PropertyGroup>
 
