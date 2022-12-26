@@ -1,5 +1,4 @@
-﻿using System;
-using JasperFx.CodeGeneration;
+﻿using JasperFx.CodeGeneration;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Attributes;

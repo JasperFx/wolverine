@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Configuration;
 
 public interface ICircuitParameters

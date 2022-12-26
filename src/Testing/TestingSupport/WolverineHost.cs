@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using JasperFx.TypeDiscovery;
 using Microsoft.Extensions.Hosting;
 using Oakton;

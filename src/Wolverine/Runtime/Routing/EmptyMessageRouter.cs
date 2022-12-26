@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Runtime.Routing;
 
 public class EmptyMessageRouter<T> : MessageRouterBase<T>

@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Configuration;
 using Wolverine.Runtime;

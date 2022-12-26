@@ -1,5 +1,4 @@
-﻿using System;
-using Oakton;
+﻿using Oakton;
 using Spectre.Console;
 
 namespace Module1;

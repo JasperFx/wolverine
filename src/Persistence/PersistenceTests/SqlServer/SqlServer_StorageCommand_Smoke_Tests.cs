@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using IntegrationTests;
 using Microsoft.Extensions.Hosting;
 using Shouldly;

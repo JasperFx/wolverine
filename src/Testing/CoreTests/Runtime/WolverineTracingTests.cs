@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 using CoreTests.Messaging;
 using OpenTelemetry;

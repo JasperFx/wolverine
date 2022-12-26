@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-
-namespace Wolverine.Transports;
+﻿namespace Wolverine.Transports;
 
 public interface IReceiver : IDisposable
 {

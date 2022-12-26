@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using CoreTests.Acceptance;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.Extensions.Hosting;

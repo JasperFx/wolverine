@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using JasperFx.CodeGeneration;
+﻿using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Lamar;
 using TestMessages;

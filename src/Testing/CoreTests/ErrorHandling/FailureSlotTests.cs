@@ -1,4 +1,3 @@
-using System;
 using CoreTests.Messaging;
 using NSubstitute;
 using Wolverine.ErrorHandling;

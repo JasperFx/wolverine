@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks.Dataflow;
+﻿using System.Threading.Tasks.Dataflow;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;

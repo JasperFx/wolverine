@@ -1,5 +1,4 @@
-﻿using System;
-using Wolverine.ErrorHandling;
+﻿using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Configuration;

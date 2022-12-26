@@ -1,5 +1,4 @@
-﻿using System;
-using Weasel.Core;
+﻿using Weasel.Core;
 using Weasel.SqlServer.Tables;
 using Wolverine.RDBMS;
 

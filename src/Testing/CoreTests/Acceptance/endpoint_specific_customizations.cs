@@ -1,4 +1,3 @@
-using System.Linq;
 using CoreTests.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TestingSupport;

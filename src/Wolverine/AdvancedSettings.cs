@@ -1,6 +1,4 @@
-using System;
 using System.Reflection;
-using System.Threading;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;

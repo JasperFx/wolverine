@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;

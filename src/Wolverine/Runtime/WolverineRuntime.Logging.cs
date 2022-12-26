@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;

@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using CoreTests.Messaging;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;

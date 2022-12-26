@@ -1,4 +1,3 @@
-using System.Linq;
 using Shouldly;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;

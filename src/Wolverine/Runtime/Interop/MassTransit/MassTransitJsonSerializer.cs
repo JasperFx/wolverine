@@ -1,4 +1,3 @@
-using System;
 using System.Text.Json;
 using JasperFx.Core;
 using Newtonsoft.Json;

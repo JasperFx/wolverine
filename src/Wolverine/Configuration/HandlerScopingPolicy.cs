@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Lamar.IoC.Instances;

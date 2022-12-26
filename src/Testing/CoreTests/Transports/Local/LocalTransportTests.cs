@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using Wolverine.Transports;
+﻿using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Util;
 using Xunit;

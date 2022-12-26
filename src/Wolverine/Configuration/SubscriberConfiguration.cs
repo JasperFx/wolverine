@@ -1,4 +1,3 @@
-using System;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;

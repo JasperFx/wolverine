@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using TestMessages;
+﻿using TestMessages;
 using Xunit;
 
 namespace CoreTests.Compilation;

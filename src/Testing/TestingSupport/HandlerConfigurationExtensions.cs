@@ -1,5 +1,4 @@
-﻿using System;
-using Wolverine.Configuration;
+﻿using Wolverine.Configuration;
 
 namespace TestingSupport;
 

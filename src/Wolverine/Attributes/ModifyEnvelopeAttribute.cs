@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine.Attributes;
+﻿namespace Wolverine.Attributes;
 
 /// <summary>
 ///     Base class for an attribute that will customize how

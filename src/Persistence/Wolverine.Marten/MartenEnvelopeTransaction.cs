@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using Marten;
+﻿using Marten;
 using Wolverine.Marten.Persistence.Operations;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;

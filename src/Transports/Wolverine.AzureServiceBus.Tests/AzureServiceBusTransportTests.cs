@@ -1,4 +1,3 @@
-using System;
 using Shouldly;
 using Wolverine.AzureServiceBus.Internal;
 using Xunit;

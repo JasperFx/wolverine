@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-
 namespace Wolverine.Transports.Sending;
 
 internal class NullSender : ISender

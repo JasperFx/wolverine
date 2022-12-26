@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Transports;
 
 /// <summary>

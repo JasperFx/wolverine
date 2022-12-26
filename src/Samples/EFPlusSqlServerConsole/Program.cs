@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using EFPlusSqlServerConsole.Items;
+﻿using EFPlusSqlServerConsole.Items;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

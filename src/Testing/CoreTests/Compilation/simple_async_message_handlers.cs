@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using TestingSupport;
+﻿using TestingSupport;
 using TestMessages;
 using Xunit;
 

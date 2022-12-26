@@ -1,5 +1,4 @@
-﻿using System;
-using JasperFx.CodeGeneration.Frames;
+﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
 

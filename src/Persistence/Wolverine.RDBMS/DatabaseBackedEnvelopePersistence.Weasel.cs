@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 

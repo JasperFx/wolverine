@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.RabbitMQ.Internal;

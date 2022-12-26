@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Threading.Tasks;
 using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;

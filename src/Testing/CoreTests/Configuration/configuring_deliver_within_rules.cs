@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;

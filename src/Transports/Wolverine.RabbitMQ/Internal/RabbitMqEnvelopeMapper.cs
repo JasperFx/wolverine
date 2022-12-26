@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 using RabbitMQ.Client;
 using Wolverine.Configuration;

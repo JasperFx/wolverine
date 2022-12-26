@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using JasperFx.CodeGeneration;
 
 namespace Wolverine.Persistence.Sagas;

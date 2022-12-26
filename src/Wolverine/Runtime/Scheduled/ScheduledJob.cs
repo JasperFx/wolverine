@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine.Runtime.Scheduled;
+﻿namespace Wolverine.Runtime.Scheduled;
 
 internal class ScheduledJob
 {

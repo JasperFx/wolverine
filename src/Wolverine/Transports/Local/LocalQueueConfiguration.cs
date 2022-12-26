@@ -1,4 +1,3 @@
-using System;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 

@@ -1,5 +1,4 @@
-﻿using System;
-using TestMessages;
+﻿using TestMessages;
 using Wolverine.Attributes;
 using Xunit;
 

@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using IntegrationTests;
 using Marten;
 using TestingSupport;

@@ -6,7 +6,6 @@ using Oakton;
 using Wolverine;
 using Wolverine.FluentValidation;
 using Wolverine.Marten;
-using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 

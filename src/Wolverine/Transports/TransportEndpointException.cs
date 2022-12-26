@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Transports;
 
 public class TransportEndpointException : Exception

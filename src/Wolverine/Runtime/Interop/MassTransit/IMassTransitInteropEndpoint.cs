@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Runtime.Interop.MassTransit;
 
 public interface IMassTransitInteropEndpoint

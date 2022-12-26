@@ -1,8 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.Hosting;

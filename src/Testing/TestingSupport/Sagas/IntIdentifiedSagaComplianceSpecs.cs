@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using Shouldly;
+﻿using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 using Xunit;
