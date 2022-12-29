@@ -18,7 +18,7 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class DatabaseBackedMessageStore<T> : DatabaseBase<T>,
+public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     IDatabaseBackedMessageStore, IMessageStoreAdmin where T : DbConnection, new()
 {
     protected readonly CancellationToken _cancellation;
@@ -26,7 +26,7 @@ public abstract partial class DatabaseBackedMessageStore<T> : DatabaseBase<T>,
     private readonly string _findAtLargeIncomingEnvelopeCountsSql;
     private readonly string _outgoingEnvelopeSql;
 
-    protected DatabaseBackedMessageStore(DatabaseSettings databaseSettings, AdvancedSettings settings,
+    protected MessageDatabase(DatabaseSettings databaseSettings, AdvancedSettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
         "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
     {

@@ -15,7 +15,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Postgresql;
 
-internal class PostgresqlMessageStore : DatabaseBackedMessageStore<NpgsqlConnection>
+internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 {
     private readonly string _deleteIncomingEnvelopesSql;
     private readonly string _deleteOutgoingEnvelopesSql;

@@ -16,7 +16,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerMessageStore : DatabaseBackedMessageStore<SqlConnection>
+public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 {
     private readonly SqlServerSettings _databaseSettings;
     private readonly string _findAtLargeEnvelopesSql;

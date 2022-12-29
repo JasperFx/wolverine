@@ -7,7 +7,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class DatabaseBackedMessageStore<T>
+public abstract partial class MessageDatabase<T>
 {
     private readonly string _deleteIncomingEnvelopeById;
     private readonly string _incrementIncominEnvelopeAttempts;
