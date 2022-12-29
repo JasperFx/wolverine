@@ -35,7 +35,7 @@ public class PersistenceRunner : IDisposable
     {
         theDriver.Start(opts =>
         {
-            opts.Advanced.DurabilityAgentEnabled = false;
+            opts.Node.DurabilityAgentEnabled = false;
             if (DatabaseEngine == "SqlServer")
             {
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);

@@ -186,16 +186,16 @@ public class EndpointCollection : IEndpointCollection
         switch (endpoint.Mode)
         {
             case EndpointMode.Durable:
-                return new DurableSendingAgent(sender, _options.Advanced, _runtime.Logger, _runtime.MessageLogger,
+                return new DurableSendingAgent(sender, _options.Node, _runtime.Logger, _runtime.MessageLogger,
                     _runtime.Storage, endpoint);
 
             case EndpointMode.BufferedInMemory:
-                return new BufferedSendingAgent(_runtime.Logger, _runtime.MessageLogger, sender, _runtime.Advanced,
+                return new BufferedSendingAgent(_runtime.Logger, _runtime.MessageLogger, sender, _runtime.Node,
                     endpoint);
 
             case EndpointMode.Inline:
                 return new InlineSendingAgent(_runtime.Logger, sender, endpoint, _runtime.MessageLogger,
-                    _runtime.Advanced);
+                    _runtime.Node);
         }
 
         throw new InvalidOperationException();

@@ -15,14 +15,14 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly ILogger _logger;
     private readonly ActionBlock<Envelope> _receivingBlock;
     private readonly InMemoryScheduledJobProcessor _scheduler;
-    private readonly AdvancedSettings _settings;
+    private readonly NodeSettings _settings;
     private bool _latched;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         Uri = endpoint.Uri;
         _logger = runtime.Logger;
-        _settings = runtime.Advanced;
+        _settings = runtime.Node;
         Pipeline = pipeline;
 
         _scheduler = new InMemoryScheduledJobProcessor(this);

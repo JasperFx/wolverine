@@ -22,7 +22,7 @@ internal class Program
 
             opts.PublishAllMessages().ToPort(2224);
 
-            opts.Advanced.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            opts.Node.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup()
                 .BindExchange("Main")

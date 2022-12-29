@@ -32,7 +32,7 @@ public class MockWolverineRuntime : IWolverineRuntime
 
     public WolverineOptions Options { get; } = new();
 
-    public AdvancedSettings Advanced { get; } = new(null);
+    public NodeSettings Node { get; } = new(null);
 
     public IReplyTracker Replies { get; } = Substitute.For<IReplyTracker>();
 

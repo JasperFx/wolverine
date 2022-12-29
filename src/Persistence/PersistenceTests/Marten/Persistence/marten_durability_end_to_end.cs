@@ -50,7 +50,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
             opts.DatabaseSchemaName = SenderSchemaName;
         });
 
-        var advanced = new AdvancedSettings(null);
+        var advanced = new NodeSettings(null);
 
         var logger = new NullLogger<PostgresqlMessageStore>();
         await new PostgresqlMessageStore(new PostgresqlSettings
@@ -103,8 +103,8 @@ public class marten_durability_end_to_end : IAsyncLifetime
                         m.DatabaseSchemaName = SenderSchemaName;
                     }).IntegrateWithWolverine();
 
-                    opts.Advanced.ScheduledJobPollingTime = 1.Seconds();
-                    opts.Advanced.ScheduledJobFirstExecution = 0.Seconds();
+                    opts.Node.ScheduledJobPollingTime = 1.Seconds();
+                    opts.Node.ScheduledJobFirstExecution = 0.Seconds();
                 })
                 .Start();
         });

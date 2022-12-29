@@ -23,7 +23,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     private readonly string _moveToDeadLetterStorageSql;
 
 
-    public SqlServerMessageStore(SqlServerSettings databaseSettings, AdvancedSettings settings,
+    public SqlServerMessageStore(SqlServerSettings databaseSettings, NodeSettings settings,
         ILogger<SqlServerMessageStore> logger)
         : base(databaseSettings, settings, logger)
     {
@@ -131,7 +131,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     }
 
     protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings,
-        AdvancedSettings settings)
+        NodeSettings settings)
     {
         return
             $"select top {settings.RecoveryBatchSize} {DatabaseConstants.OutgoingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination";

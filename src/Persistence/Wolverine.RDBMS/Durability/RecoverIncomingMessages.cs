@@ -19,7 +19,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
         _endpoints = endpoints;
     }
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
         DatabaseSettings databaseSettings)
     {
         var rescheduleImmediately = false;
@@ -43,7 +43,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
     public string Description => "Recover persisted incoming messages";
 
     public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count,
-        AdvancedSettings nodeSettings)
+        NodeSettings nodeSettings)
     {
         if (listener!.Status != ListeningStatus.Accepting)
         {
@@ -70,7 +70,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
     }
 
     internal async Task<bool> TryRecoverIncomingMessagesAsync(IMessageStore storage, IncomingCount count,
-        AdvancedSettings nodeSettings)
+        NodeSettings nodeSettings)
     {
         var listener = findListenerCircuit(count);
 
@@ -100,7 +100,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
     }
 
     public virtual async Task RecoverMessagesAsync(IMessageStore storage, IncomingCount count, int pageSize,
-        IListenerCircuit listener, AdvancedSettings nodeSettings)
+        IListenerCircuit listener, NodeSettings nodeSettings)
     {
         await storage.Session.BeginAsync();
 

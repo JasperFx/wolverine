@@ -15,13 +15,13 @@ internal class MartenIntegration : IWolverineExtension
 
     public void Configure(WolverineOptions options)
     {
-        options.Advanced.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
+        options.Node.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
 
         var frameProvider = new MartenSagaPersistenceFrameProvider();
-        options.Advanced.CodeGeneration.SetSagaPersistence(frameProvider);
-        options.Advanced.CodeGeneration.SetTransactions(frameProvider);
+        options.Node.CodeGeneration.SetSagaPersistence(frameProvider);
+        options.Node.CodeGeneration.SetTransactions(frameProvider);
 
-        options.Advanced.CodeGeneration.Sources.Add(new SessionVariableSource());
+        options.Node.CodeGeneration.Sources.Add(new SessionVariableSource());
 
         options.Handlers.Discovery(x => x.IncludeTypes(type => type.HasAttribute<MartenCommandWorkflowAttribute>()));
     }

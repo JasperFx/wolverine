@@ -45,7 +45,7 @@ public class TcpEndpoint : Endpoint
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         // check the uri for an ip address to bind to
-        var cancellation = runtime.Advanced.Cancellation;
+        var cancellation = runtime.Node.Cancellation;
 
         var hostNameType = Uri.CheckHostName(HostName);
 
@@ -65,6 +65,6 @@ public class TcpEndpoint : Endpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new BatchedSender(Uri, new SocketSenderProtocol(), runtime.Advanced.Cancellation, runtime.Logger);
+        return new BatchedSender(Uri, new SocketSenderProtocol(), runtime.Node.Cancellation, runtime.Logger);
     }
 }

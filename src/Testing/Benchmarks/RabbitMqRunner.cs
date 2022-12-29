@@ -36,7 +36,7 @@ public class RabbitMqRunner : IDisposable
     {
         theDriver.Start(opts =>
         {
-            opts.Advanced.DurabilityAgentEnabled = false;
+            opts.Node.DurabilityAgentEnabled = false;
 
             switch (DatabaseEngine)
             {

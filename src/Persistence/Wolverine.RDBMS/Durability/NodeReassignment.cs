@@ -9,14 +9,14 @@ internal class NodeReassignment : IDurabilityAction
 {
     public string Description { get; } = "Dormant node reassignment";
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
         DatabaseSettings databaseSettings)
     {
         await storage.Session.WithinTransactionalGlobalLockAsync(TransportConstants.ReassignmentLockId,
             () => ReassignNodesAsync(storage, nodeSettings));
     }
 
-    public static async Task ReassignNodesAsync(IMessageStore storage, AdvancedSettings nodeSettings)
+    public static async Task ReassignNodesAsync(IMessageStore storage, NodeSettings nodeSettings)
     {
         var owners = await storage.FindUniqueOwnersAsync(nodeSettings.UniqueNodeId);
 

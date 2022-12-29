@@ -24,7 +24,7 @@ public class marten_scheduled_jobs : IAsyncLifetime
             .CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Advanced.ScheduledJobPollingTime = 50.Milliseconds();
+                opts.Node.ScheduledJobPollingTime = 50.Milliseconds();
 
                 opts.Services.AddSingleton(theReceiver);
 

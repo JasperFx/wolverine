@@ -22,14 +22,14 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     private readonly IMessageStore _persistence;
     private readonly WolverineRuntime _runtime;
     private readonly IMessageSerializer _serializer;
-    private readonly AdvancedSettings _settings;
+    private readonly NodeSettings _settings;
     private readonly RetryBlock<Envelope> _storeAndEnqueue;
     private DurableReceiver? _receiver;
     private Restarter? _restarter;
 
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
-        _settings = runtime.Advanced;
+        _settings = runtime.Node;
         _persistence = runtime.Storage;
         _messageLogger = runtime.MessageLogger;
         _serializer = endpoint.DefaultSerializer ??

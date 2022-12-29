@@ -28,7 +28,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
     public string Description => "Recover persisted outgoing messages";
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
         DatabaseSettings databaseSettings)
     {
         var hasLock = await storage.Session.TryGetGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
@@ -101,7 +101,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
 
     private async Task<int> recoverFromAsync(ISendingAgent sendingAgent, IMessageStore storage,
-        AdvancedSettings nodeSettings)
+        NodeSettings nodeSettings)
     {
 #pragma warning disable CS8600
         Envelope[] filtered;

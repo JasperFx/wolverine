@@ -59,7 +59,7 @@ public sealed partial class WolverineOptions
 
         establishApplicationAssembly(assemblyName);
         
-        Advanced = new AdvancedSettings(ApplicationAssembly);
+        Node = new NodeSettings(ApplicationAssembly);
 
         deriveServiceName();
 
@@ -77,9 +77,9 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     ///     Advanced configuration options for Wolverine message processing,
-    ///     job scheduling, validation, and resiliency features
+    ///     job scheduling, validation, and resiliency features and node specific settings
     /// </summary>
-    public AdvancedSettings Advanced { get; }
+    public NodeSettings Node { get; }
 
     /// <summary>
     ///     The default message execution timeout. This uses a CancellationTokenSource
@@ -112,10 +112,10 @@ public sealed partial class WolverineOptions
                 HandlerGraph.Source.Assemblies.Add(value);
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (Advanced != null)
+                if (Node != null)
                 {
-                    Advanced.CodeGeneration.ApplicationAssembly = value;
-                    Advanced.CodeGeneration.ReferenceAssembly(value);
+                    Node.CodeGeneration.ApplicationAssembly = value;
+                    Node.CodeGeneration.ReferenceAssembly(value);
                 }
             }
         }
@@ -135,8 +135,8 @@ public sealed partial class WolverineOptions
     /// </summary>
     public string? ServiceName
     {
-        get => Advanced.ServiceName;
-        set => Advanced.ServiceName = value;
+        get => Node.ServiceName;
+        set => Node.ServiceName = value;
     }
 
     /// <summary>
@@ -206,11 +206,11 @@ public sealed partial class WolverineOptions
     {
         if (GetType() == typeof(WolverineOptions))
         {
-            Advanced.ServiceName = ApplicationAssembly?.GetName().Name ?? "WolverineService";
+            Node.ServiceName = ApplicationAssembly?.GetName().Name ?? "WolverineService";
         }
         else
         {
-            Advanced.ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
+            Node.ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
                 .Replace("Options", "");
         }
     }

@@ -25,7 +25,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     private readonly string _reassignOutgoingSql;
 
 
-    public PostgresqlMessageStore(PostgresqlSettings databaseSettings, AdvancedSettings settings,
+    public PostgresqlMessageStore(PostgresqlSettings databaseSettings, NodeSettings settings,
         ILogger<PostgresqlMessageStore> logger) : base(databaseSettings,
         settings, logger)
     {
@@ -158,7 +158,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     }
 
 
-    protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, AdvancedSettings settings)
+    protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, NodeSettings settings)
     {
         return
             $"select {DatabaseConstants.OutgoingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";

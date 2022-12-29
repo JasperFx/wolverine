@@ -16,7 +16,7 @@ public abstract class SqlServerContext : IAsyncLifetime
     public async Task InitializeAsync()
     {
         thePersistence = new SqlServerMessageStore(
-            new SqlServerSettings { ConnectionString = Servers.SqlServerConnectionString }, new AdvancedSettings(null),
+            new SqlServerSettings { ConnectionString = Servers.SqlServerConnectionString }, new NodeSettings(null),
             new NullLogger<SqlServerMessageStore>());
         await thePersistence.RebuildAsync();
         await initialize();

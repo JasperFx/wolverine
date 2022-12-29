@@ -8,13 +8,13 @@ using Wolverine.Util;
 
 namespace Wolverine;
 
-public class AdvancedSettings
+public class NodeSettings
 {
     private readonly CancellationTokenSource _cancellation = new();
     private string _serviceName;
 
 
-    public AdvancedSettings(Assembly? applicationAssembly)
+    public NodeSettings(Assembly? applicationAssembly)
     {
         _serviceName = applicationAssembly?.GetName().Name ?? "WolverineApplication";
         CodeGeneration = new GenerationRules("Internal.Generated");

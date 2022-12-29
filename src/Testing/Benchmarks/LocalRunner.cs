@@ -34,7 +34,7 @@ public class LocalRunner : IDisposable
     {
         theDriver.Start(opts =>
         {
-            opts.Advanced.DurabilityAgentEnabled = false;
+            opts.Node.DurabilityAgentEnabled = false;
             switch (DatabaseEngine)
             {
                 case "SqlServer":

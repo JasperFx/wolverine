@@ -232,8 +232,8 @@ public class end_to_end
 
         var publisher = WolverineHost.For(opts =>
         {
-            opts.Advanced.ScheduledJobFirstExecution = 1.Seconds();
-            opts.Advanced.ScheduledJobPollingTime = 1.Seconds();
+            opts.Node.ScheduledJobFirstExecution = 1.Seconds();
+            opts.Node.ScheduledJobPollingTime = 1.Seconds();
             opts.ServiceName = "Publisher";
 
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();

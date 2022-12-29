@@ -156,7 +156,7 @@ public class EnvelopeTests
         envelope.ScheduledTime = null;
 
         var uri = TransportConstants.LocalUri;
-        var settings = new AdvancedSettings(null);
+        var settings = new NodeSettings(null);
 
         var listener = Substitute.For<IListener>();
         listener.Address.Returns(uri);
@@ -173,7 +173,7 @@ public class EnvelopeTests
         envelope.ScheduledTime = DateTimeOffset.Now.AddDays(-1);
 
         var uri = TransportConstants.LocalUri;
-        var settings = new AdvancedSettings(null);
+        var settings = new NodeSettings(null);
 
         var listener = Substitute.For<IListener>();
         listener.Address.Returns(uri);
@@ -194,7 +194,7 @@ public class EnvelopeTests
         var listener = Substitute.For<IListener>();
         listener.Address.Returns(uri);
 
-        var settings = new AdvancedSettings(null);
+        var settings = new NodeSettings(null);
 
         envelope.MarkReceived(listener, DateTimeOffset.Now, settings);
 
@@ -212,7 +212,7 @@ public class EnvelopeTests
         var listener = Substitute.For<IListener>();
         listener.Address.Returns(uri);
 
-        var settings = new AdvancedSettings(null);
+        var settings = new NodeSettings(null);
 
         envelope.MarkReceived(listener, DateTimeOffset.Now, settings);
 
@@ -342,7 +342,7 @@ public class EnvelopeTests
             ScheduledTime = null
         };
 
-        var settings = new AdvancedSettings(null);
+        var settings = new NodeSettings(null);
 
         envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
 
@@ -382,7 +382,7 @@ public class EnvelopeTests
             ScheduleDelay = 1.Days()
         };
 
-        var settings = new AdvancedSettings(null);
+        var settings = new NodeSettings(null);
 
         envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
 
@@ -398,7 +398,7 @@ public class EnvelopeTests
             ScheduledTime = DateTimeOffset.UtcNow.AddDays(-1)
         };
 
-        var settings = new AdvancedSettings(null);
+        var settings = new NodeSettings(null);
 
         envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
 

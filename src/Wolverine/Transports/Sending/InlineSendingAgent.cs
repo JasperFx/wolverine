@@ -12,10 +12,10 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
 {
     private readonly ISender _sender;
     private readonly RetryBlock<Envelope> _sending;
-    private readonly AdvancedSettings _settings;
+    private readonly NodeSettings _settings;
 
     public InlineSendingAgent(ILogger logger, ISender sender, Endpoint endpoint, IMessageLogger messageLogger,
-        AdvancedSettings settings)
+        NodeSettings settings)
     {
         _sender = sender;
         _settings = settings;

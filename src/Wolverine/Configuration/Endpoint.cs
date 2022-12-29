@@ -313,7 +313,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     protected internal virtual ISendingAgent StartSending(IWolverineRuntime runtime,
         Uri? replyUri)
     {
-        var sender = runtime.Advanced.StubAllExternalTransports ? new NullSender(Uri) : CreateSender(runtime);
+        var sender = runtime.Node.StubAllExternalTransports ? new NullSender(Uri) : CreateSender(runtime);
         return runtime.Endpoints.CreateSendingAgent(replyUri, sender, this);
     }
 

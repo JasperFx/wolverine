@@ -105,7 +105,7 @@ public partial class Envelope
         };
     }
 
-    internal void MarkReceived(IListener listener, DateTimeOffset now, AdvancedSettings settings)
+    internal void MarkReceived(IListener listener, DateTimeOffset now, NodeSettings settings)
     {
         Listener = listener;
         Destination = listener.Address;
@@ -170,7 +170,7 @@ public partial class Envelope
         return Sender.StoreAndForwardAsync(this);
     }
 
-    internal void PrepareForIncomingPersistence(DateTimeOffset now, AdvancedSettings settings)
+    internal void PrepareForIncomingPersistence(DateTimeOffset now, NodeSettings settings)
     {
         Status = IsScheduledForLater(now)
             ? EnvelopeStatus.Scheduled

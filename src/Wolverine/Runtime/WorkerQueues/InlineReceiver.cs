@@ -10,13 +10,13 @@ internal class InlineReceiver : IReceiver
 {
     private readonly ILogger _logger;
     private readonly IHandlerPipeline _pipeline;
-    private readonly AdvancedSettings _settings;
+    private readonly NodeSettings _settings;
 
     public InlineReceiver(IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _pipeline = pipeline;
         _logger = runtime.Logger;
-        _settings = runtime.Advanced;
+        _settings = runtime.Node;
     }
 
     public int QueueCount => 0;

@@ -25,7 +25,7 @@ public class response_queue_mechanics : IAsyncLifetime
             }).StartAsync();
 
         var options = _host.Services.GetRequiredService<WolverineOptions>();
-        theExpectedResponseQueueName = $"myapp_response_{options.Advanced.UniqueNodeId}";
+        theExpectedResponseQueueName = $"myapp_response_{options.Node.UniqueNodeId}";
 
         theEndpoint = _host.GetRuntime().Endpoints.EndpointByName(RabbitMqTransport.ResponseEndpointName)
             .ShouldBeOfType<RabbitMqQueue>();

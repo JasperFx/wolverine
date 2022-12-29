@@ -43,8 +43,8 @@ public class Driver : IDisposable
             .UseWolverine(opts =>
             {
                 configure(opts);
-                opts.Advanced.CodeGeneration.ApplicationAssembly = GetType().Assembly;
-                opts.Advanced.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+                opts.Node.CodeGeneration.ApplicationAssembly = GetType().Assembly;
+                opts.Node.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
             })
             .ConfigureLogging(logging =>
             {

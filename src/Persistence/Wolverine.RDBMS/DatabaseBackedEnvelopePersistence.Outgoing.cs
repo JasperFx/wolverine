@@ -69,5 +69,5 @@ public abstract partial class MessageDatabase<T>
     }
 
     protected abstract string
-        determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, AdvancedSettings settings);
+        determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, NodeSettings settings);
 }

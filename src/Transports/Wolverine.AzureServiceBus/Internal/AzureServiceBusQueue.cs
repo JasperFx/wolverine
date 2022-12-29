@@ -129,6 +129,6 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         var sender = Parent.BusClient.CreateSender(QueueName);
         var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
 
-        return new BatchedSender(Uri, protocol, runtime.Advanced.Cancellation, runtime.Logger);
+        return new BatchedSender(Uri, protocol, runtime.Node.Cancellation, runtime.Logger);
     }
 }

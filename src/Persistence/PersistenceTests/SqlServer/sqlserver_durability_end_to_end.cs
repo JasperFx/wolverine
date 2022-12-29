@@ -35,13 +35,13 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
         await new SqlServerMessageStore(
                 new SqlServerSettings
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = ReceiverSchemaName },
-                new AdvancedSettings(null), new NullLogger<SqlServerMessageStore>())
+                new NodeSettings(null), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
         await new SqlServerMessageStore(
                 new SqlServerSettings
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
-                new AdvancedSettings(null), new NullLogger<SqlServerMessageStore>())
+                new NodeSettings(null), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
         await buildTraceDocTable();
@@ -75,8 +75,8 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
 
                     opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, SenderSchemaName);
 
-                    opts.Advanced.ScheduledJobPollingTime = 1.Seconds();
-                    opts.Advanced.ScheduledJobFirstExecution = 0.Seconds();
+                    opts.Node.ScheduledJobPollingTime = 1.Seconds();
+                    opts.Node.ScheduledJobFirstExecution = 0.Seconds();
                 })
                 .Start();
         });

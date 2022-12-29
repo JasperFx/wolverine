@@ -22,7 +22,7 @@ public interface IWolverineRuntime
 
     IMessageStore Storage { get; }
     ILogger Logger { get; }
-    AdvancedSettings Advanced { get; }
+    NodeSettings Node { get; }
     CancellationToken Cancellation { get; }
     ListenerTracker ListenerTracker { get; }
 

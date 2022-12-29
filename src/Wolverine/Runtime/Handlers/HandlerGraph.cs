@@ -219,7 +219,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
     internal async Task CompileAsync(WolverineOptions options, IContainer container)
     {
-        Rules = options.Advanced.CodeGeneration;
+        Rules = options.Node.CodeGeneration;
         var calls = await Source.FindCallsAsync(options);
 
         if (calls.Any())

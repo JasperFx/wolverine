@@ -26,7 +26,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     private readonly string _findAtLargeIncomingEnvelopeCountsSql;
     private readonly string _outgoingEnvelopeSql;
 
-    protected MessageDatabase(DatabaseSettings databaseSettings, AdvancedSettings settings,
+    protected MessageDatabase(DatabaseSettings databaseSettings, NodeSettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
         "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
     {
@@ -56,7 +56,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             $"select {DatabaseConstants.ReceivedAt}, count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
     }
 
-    public AdvancedSettings Settings { get; }
+    public NodeSettings Settings { get; }
 
     public DatabaseSettings DatabaseSettings { get; }
 
@@ -147,7 +147,7 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
         // TODO -- use the worker queue for Retries?
         var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
         return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, runtime.Storage,
-            runtime.Options.Advanced, DatabaseSettings);
+            runtime.Options.Node, DatabaseSettings);
     }
 
     public void Dispose()

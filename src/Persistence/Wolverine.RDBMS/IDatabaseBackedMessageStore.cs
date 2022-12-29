@@ -6,7 +6,7 @@ namespace Wolverine.RDBMS;
 
 public interface IDatabaseBackedMessageStore : IMessageStore
 {
-    public AdvancedSettings Settings { get; }
+    public NodeSettings Settings { get; }
 
     public DatabaseSettings DatabaseSettings { get; }
 

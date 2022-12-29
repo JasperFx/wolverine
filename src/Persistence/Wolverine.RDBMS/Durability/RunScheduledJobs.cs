@@ -12,15 +12,15 @@ namespace Wolverine.RDBMS.Durability;
 internal class RunScheduledJobs : IDurabilityAction
 {
     private readonly ILogger _logger;
-    private readonly AdvancedSettings _settings;
+    private readonly NodeSettings _settings;
 
-    public RunScheduledJobs(AdvancedSettings settings, ILogger logger)
+    public RunScheduledJobs(NodeSettings settings, ILogger logger)
     {
         _settings = settings;
         _logger = logger;
     }
 
-    public Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+    public Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
         DatabaseSettings databaseSettings)
     {
         var utcNow = DateTimeOffset.UtcNow;

@@ -25,7 +25,7 @@ internal class MetricsCalculator : IDurabilityAction
 
     public string Description { get; } = "Metrics collection of inbox and outbox";
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
         DatabaseSettings databaseSettings)
     {
         var counts = await storage.Admin.FetchCountsAsync();

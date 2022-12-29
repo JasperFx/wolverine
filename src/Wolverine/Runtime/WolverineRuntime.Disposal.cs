@@ -20,7 +20,7 @@ public partial class WolverineRuntime : IAsyncDisposable
 
         await Options.Transports.As<IAsyncDisposable>().DisposeAsync();
 
-        Advanced.Cancel();
+        Node.Cancel();
 
         ScheduledJobs?.Dispose();
     }

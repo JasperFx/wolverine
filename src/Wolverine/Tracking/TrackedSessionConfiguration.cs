@@ -91,7 +91,7 @@ public class TrackedSessionConfiguration
     {
         var condition = new WaitForMessage<T>
         {
-            UniqueNodeId = host.Services.GetRequiredService<IWolverineRuntime>().Advanced.UniqueNodeId
+            UniqueNodeId = host.Services.GetRequiredService<IWolverineRuntime>().Node.UniqueNodeId
         };
 
         _session.AddCondition(condition);
