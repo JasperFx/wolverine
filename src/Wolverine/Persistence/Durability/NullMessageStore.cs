@@ -146,11 +146,6 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         throw new NotSupportedException();
     }
 
-    public Task<int[]> FindUniqueOwnersAsync(int currentNodeId)
-    {
-        throw new NotSupportedException();
-    }
-
     public Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
         throw new NotSupportedException();

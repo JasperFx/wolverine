@@ -80,25 +80,6 @@ where
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-    public async Task<int[]> FindUniqueOwnersAsync(int currentNodeId)
-    {
-        if (Session.Transaction == null)
-        {
-            throw new InvalidOperationException("No current transaction");
-        }
-
-        var sql = $@"
-select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id != 0 and owner_id != @owner
-union
-select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id != 0 and owner_id != @owner";
-
-        var list = await Session.Transaction.CreateCommand(sql)
-            .With("owner", currentNodeId)
-            .FetchList<int>(_cancellation);
-
-        return list.ToArray();
-    }
-
     public async Task ReleaseIncomingAsync(int ownerId)
     {
         await using var conn = CreateConnection();

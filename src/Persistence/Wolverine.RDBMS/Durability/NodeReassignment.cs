@@ -1,5 +1,7 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
@@ -13,12 +15,13 @@ internal class NodeReassignment : IDurabilityAction
         DatabaseSettings databaseSettings)
     {
         await storage.Session.WithinTransactionalGlobalLockAsync(TransportConstants.ReassignmentLockId,
-            () => ReassignNodesAsync(storage, nodeSettings));
+            () => ReassignNodesAsync(storage, nodeSettings, databaseSettings));
     }
 
-    public static async Task ReassignNodesAsync(IMessageStore storage, NodeSettings nodeSettings)
+    public static async Task ReassignNodesAsync(IMessageStore storage, NodeSettings nodeSettings,
+        DatabaseSettings databaseSettings)
     {
-        var owners = await storage.FindUniqueOwnersAsync(nodeSettings.UniqueNodeId);
+        var owners = await FindUniqueOwnersAsync(storage.Session, nodeSettings, databaseSettings);
 
         foreach (var owner in owners.Where(x => x != TransportConstants.AnyNode))
         {
@@ -30,7 +33,27 @@ internal class NodeReassignment : IDurabilityAction
             if (await storage.Session.TryGetGlobalTxLockAsync(owner))
             {
                 await storage.ReassignDormantNodeToAnyNodeAsync(owner);
+                await storage.Session.ReleaseGlobalLockAsync(owner);
             }
         }
+    }
+    
+    public static async Task<int[]> FindUniqueOwnersAsync(IDurableStorageSession session, NodeSettings nodeSettings, DatabaseSettings databaseSettings)
+    {
+        if (session.Transaction == null)
+        {
+            throw new InvalidOperationException("No current transaction");
+        }
+
+        var sql = $@"
+select distinct owner_id from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id != 0 and owner_id != @owner
+union
+select distinct owner_id from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id != 0 and owner_id != @owner";
+
+        var list = await session.Transaction.CreateCommand(sql)
+            .With("owner", nodeSettings.UniqueNodeId)
+            .FetchList<int>(session.Cancellation);
+
+        return list.ToArray();
     }
 }
