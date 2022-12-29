@@ -11,7 +11,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RDBMS.Durability;
 
-internal class RecoverOutgoingMessages : IMessagingAction
+internal class RecoverOutgoingMessages : IDurabilityAction
 {
     private readonly ILogger _logger;
     private readonly IWolverineRuntime _runtime;

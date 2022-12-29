@@ -4,7 +4,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS.Durability;
 
-public class DeleteExpiredHandledEnvelopes : IMessagingAction
+public class DeleteExpiredHandledEnvelopes : IDurabilityAction
 {
     public string Description { get; } = "Deleting Expired, Handled Envelopes";
 

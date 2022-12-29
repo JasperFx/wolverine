@@ -6,7 +6,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS.Durability;
 
-internal class NodeReassignment : IMessagingAction
+internal class NodeReassignment : IDurabilityAction
 {
     private readonly AdvancedSettings _settings;
 

@@ -9,7 +9,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS.Durability;
 
-internal class RunScheduledJobs : IMessagingAction
+internal class RunScheduledJobs : IDurabilityAction
 {
     private readonly ILogger _logger;
     private readonly AdvancedSettings _settings;

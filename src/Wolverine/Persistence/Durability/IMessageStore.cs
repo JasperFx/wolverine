@@ -11,6 +11,7 @@ public interface IMessageStore : IDisposable
 {
     IMessageStoreAdmin Admin { get; }
 
+    [Obsolete]
     IDurableStorageSession Session { get; }
 
     Task ScheduleExecutionAsync(Envelope[] envelopes);

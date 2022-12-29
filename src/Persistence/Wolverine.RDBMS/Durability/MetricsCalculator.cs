@@ -5,7 +5,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS.Durability;
 
-internal class MetricsCalculator : IMessagingAction
+internal class MetricsCalculator : IDurabilityAction
 {
     private readonly ObservableGauge<int> _incoming;
     private readonly ObservableGauge<int> _outgoing;

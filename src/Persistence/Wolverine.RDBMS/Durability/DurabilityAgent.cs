@@ -14,19 +14,19 @@ internal class DurabilityAgent : IDurabilityAgent
 {
     private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
     private readonly bool _disabled;
-    private readonly IMessagingAction _incomingMessages;
+    private readonly IDurabilityAction _incomingMessages;
     private readonly ILocalQueue _locals;
     private readonly ILogger _logger;
     private readonly MetricsCalculator _metrics;
-    private readonly IMessagingAction _nodeReassignment;
-    private readonly IMessagingAction _outgoingMessages;
-    private readonly IMessagingAction _scheduledJobs;
+    private readonly IDurabilityAction _nodeReassignment;
+    private readonly IDurabilityAction _outgoingMessages;
+    private readonly IDurabilityAction _scheduledJobs;
     private readonly AdvancedSettings _settings;
 
     private readonly IMessageStore _storage;
     private readonly ILogger<DurabilityAgent> _trace;
 
-    private readonly ActionBlock<IMessagingAction> _worker;
+    private readonly ActionBlock<IDurabilityAction> _worker;
 
     private Timer? _nodeReassignmentTimer;
     private Timer? _scheduledJobTimer;
@@ -53,7 +53,7 @@ internal class DurabilityAgent : IDurabilityAgent
 
         _metrics = new MetricsCalculator(runtime.Meter);
 
-        _worker = new ActionBlock<IMessagingAction>(processActionAsync, new ExecutionDataflowBlockOptions
+        _worker = new ActionBlock<IDurabilityAction>(processActionAsync, new ExecutionDataflowBlockOptions
         {
             MaxDegreeOfParallelism = 1,
             CancellationToken = _settings.Cancellation
@@ -169,7 +169,7 @@ internal class DurabilityAgent : IDurabilityAgent
         }
     }
 
-    private async Task processActionAsync(IMessagingAction action)
+    private async Task processActionAsync(IDurabilityAction action)
     {
         if (_settings.Cancellation.IsCancellationRequested)
         {
