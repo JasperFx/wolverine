@@ -12,6 +12,7 @@ using Shouldly;
 using TestingSupport;
 using Wolverine;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS.Durability;
 using Wolverine.SqlServer;
 using Wolverine.Transports;
 using Wolverine.Util;
@@ -117,7 +118,9 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance,
             -1000);
         await thePersistence.Session.BeginAsync();
-        await thePersistence.DeleteExpiredHandledEnvelopesAsync(DateTimeOffset.UtcNow.Add(1.Hours()));
+        var settings = theHost.Services.GetRequiredService<SqlServerSettings>();
+        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session, DateTimeOffset.UtcNow.Add(1.Hours()), settings);
+
         await thePersistence.Session.CommitAsync();
 
         var counts = await thePersistence.Admin.FetchCountsAsync();

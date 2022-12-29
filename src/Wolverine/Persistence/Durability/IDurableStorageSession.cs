@@ -1,5 +1,6 @@
 using System;
 using System.Data.Common;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -8,6 +9,7 @@ namespace Wolverine.Persistence.Durability;
 public interface IDurableStorageSession : IDisposable
 {
     DbTransaction? Transaction { get; }
+    CancellationToken Cancellation { get; }
     Task ReleaseNodeLockAsync(int lockId);
     Task GetNodeLockAsync(int lockId);
     Task BeginAsync();

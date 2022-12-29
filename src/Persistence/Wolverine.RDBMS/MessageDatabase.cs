@@ -22,7 +22,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     IDatabaseBackedMessageStore, IMessageStoreAdmin where T : DbConnection, new()
 {
     protected readonly CancellationToken _cancellation;
-    private readonly string _deleteExpiredHandledEnvelopes;
     private readonly string _findAtLargeIncomingEnvelopeCountsSql;
     private readonly string _outgoingEnvelopeSql;
 
@@ -47,10 +46,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         // ReSharper disable once VirtualMemberCallInConstructor
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(databaseSettings, settings);
-
-
-        _deleteExpiredHandledEnvelopes =
-            $"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @time";
 
         _findAtLargeIncomingEnvelopeCountsSql =
             $"select {DatabaseConstants.ReceivedAt}, count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";

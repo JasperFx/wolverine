@@ -61,11 +61,6 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         throw new NotSupportedException();
     }
 
-    public Task DeleteExpiredHandledEnvelopesAsync(DateTimeOffset utcNow)
-    {
-        return Task.CompletedTask;
-    }
-
     public Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
         return Task.CompletedTask;

@@ -67,8 +67,6 @@ public interface IMessageStore : IDisposable
 
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
 
-    Task DeleteExpiredHandledEnvelopesAsync(DateTimeOffset utcNow);
-
     Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync();
 
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);

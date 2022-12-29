@@ -7,6 +7,7 @@ using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NSubstitute;
 using Oakton.Resources;
 using PersistenceTests.Marten;
 using PersistenceTests.Marten.Persistence;
@@ -15,6 +16,8 @@ using TestingSupport;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
+using Wolverine.Postgresql;
+using Wolverine.RDBMS.Durability;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
@@ -185,7 +188,10 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
         await thePersistence.Session.BeginAsync();
-        await thePersistence.DeleteExpiredHandledEnvelopesAsync(DateTimeOffset.UtcNow.Add(1.Hours()));
+
+        var settings = theHost.Services.GetRequiredService<PostgresqlSettings>();
+        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session, DateTimeOffset.UtcNow.Add(1.Hours()), settings);
+
         await thePersistence.Session.CommitAsync();
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
