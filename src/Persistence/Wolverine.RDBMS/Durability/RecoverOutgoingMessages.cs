@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -14,17 +16,22 @@ namespace Wolverine.RDBMS.Durability;
 internal class RecoverOutgoingMessages : IDurabilityAction
 {
     private readonly ILogger _logger;
+    private readonly DatabaseSettings _databaseSettings;
     private readonly IWolverineRuntime _runtime;
     private readonly AdvancedSettings _settings;
+    private readonly CancellationToken _cancellation;
 
-    public RecoverOutgoingMessages(IWolverineRuntime runtime, AdvancedSettings settings, ILogger logger)
+    public RecoverOutgoingMessages(IWolverineRuntime runtime, AdvancedSettings settings, ILogger logger,
+        DatabaseSettings databaseSettings)
     {
         _runtime = runtime;
         _settings = settings;
         _logger = logger;
+        _databaseSettings = databaseSettings;
+        _cancellation = runtime.Cancellation;
     }
 
-    public string Description { get; } = "Recover persisted outgoing messages";
+    public string Description => "Recover persisted outgoing messages";
 
     public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
     {
@@ -61,7 +68,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
                     await storage.Session.BeginAsync();
 
-                    await storage.DeleteByDestinationAsync(destination);
+                    await DeleteByDestinationAsync(storage.Session, destination);
                     await storage.Session.CommitAsync();
                     break;
                 }
@@ -78,6 +85,21 @@ internal class RecoverOutgoingMessages : IDurabilityAction
         {
             await storage.Session.ReleaseGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
         }
+    }
+    
+    internal Task DeleteByDestinationAsync(IDurableStorageSession session, Uri? destination)
+    {
+        if (session.Transaction == null)
+        {
+            throw new InvalidOperationException("No current transaction");
+        }
+
+        return session.Transaction
+            .CreateCommand(
+                $"delete from {_databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = :owner and destination = @destination")
+            .With("destination", destination!.ToString())
+            .With("owner", TransportConstants.AnyNode)
+            .ExecuteNonQueryAsync(_cancellation);
     }
 
 

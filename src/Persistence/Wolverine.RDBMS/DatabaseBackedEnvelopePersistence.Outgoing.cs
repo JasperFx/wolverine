@@ -29,21 +29,6 @@ public abstract partial class MessageDatabase<T>
 
     public abstract Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);
 
-    public Task DeleteByDestinationAsync(Uri? destination)
-    {
-        if (Session.Transaction == null)
-        {
-            throw new InvalidOperationException("No current transaction");
-        }
-
-        return Session.Transaction
-            .CreateCommand(
-                $"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = :owner and destination = @destination")
-            .With("destination", destination!.ToString())
-            .With("owner", TransportConstants.AnyNode)
-            .ExecuteNonQueryAsync(_cancellation);
-    }
-
     public Task DeleteOutgoingAsync(Envelope envelope)
     {
         return DatabaseSettings

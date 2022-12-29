@@ -147,7 +147,7 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
         // TODO -- use the worker queue for Retries?
         var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
         return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, runtime.Storage,
-            runtime.Options.Advanced);
+            runtime.Options.Advanced, DatabaseSettings);
     }
 
     public void Dispose()

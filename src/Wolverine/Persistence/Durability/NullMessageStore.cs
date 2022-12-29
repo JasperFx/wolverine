@@ -166,11 +166,6 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         throw new NotSupportedException();
     }
 
-    public Task DeleteByDestinationAsync(Uri? destination)
-    {
-        throw new NotSupportedException();
-    }
-
     public Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync()
     {
         return Task.FromResult((IReadOnlyList<IncomingCount>)new List<IncomingCount>());

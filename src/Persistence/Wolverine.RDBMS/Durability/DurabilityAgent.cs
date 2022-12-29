@@ -12,6 +12,7 @@ namespace Wolverine.RDBMS.Durability;
 
 internal class DurabilityAgent : IDurabilityAgent
 {
+    public DatabaseSettings DatabaseSettings { get; }
     private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
     private readonly bool _disabled;
     private readonly IDurabilityAction _incomingMessages;
@@ -33,12 +34,14 @@ internal class DurabilityAgent : IDurabilityAgent
 
 #pragma warning disable CS8618
     internal DurabilityAgent(IWolverineRuntime runtime, ILogger logger,
-#pragma warning restore CS8618
         ILogger<DurabilityAgent> trace,
         ILocalQueue locals,
         IMessageStore storage,
-        AdvancedSettings settings)
+        AdvancedSettings settings, 
+        DatabaseSettings databaseSettings)
+#pragma warning restore CS8618)
     {
+        DatabaseSettings = databaseSettings;
         if (storage is NullMessageStore)
         {
             _disabled = true;
@@ -60,7 +63,7 @@ internal class DurabilityAgent : IDurabilityAgent
         });
 
         _incomingMessages = new RecoverIncomingMessages(settings, logger, runtime.Endpoints);
-        _outgoingMessages = new RecoverOutgoingMessages(runtime, settings, logger);
+        _outgoingMessages = new RecoverOutgoingMessages(runtime, settings, logger, DatabaseSettings);
         _nodeReassignment = new NodeReassignment(settings);
         _deleteExpired = new DeleteExpiredHandledEnvelopes();
         _scheduledJobs = new RunScheduledJobs(settings, logger);

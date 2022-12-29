@@ -42,7 +42,6 @@ public interface IMessageStore : IDisposable
 
     Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination);
     Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);
-    Task DeleteByDestinationAsync(Uri? destination);
     Task<Uri[]> FindAllDestinationsAsync();
 
     Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
