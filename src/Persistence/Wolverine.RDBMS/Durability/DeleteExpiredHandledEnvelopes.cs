@@ -1,7 +1,8 @@
 using System;
 using System.Threading.Tasks;
+using Wolverine.Persistence.Durability;
 
-namespace Wolverine.Persistence.Durability;
+namespace Wolverine.RDBMS.Durability;
 
 public class DeleteExpiredHandledEnvelopes : IMessagingAction
 {

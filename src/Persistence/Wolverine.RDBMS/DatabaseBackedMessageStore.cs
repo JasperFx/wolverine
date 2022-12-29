@@ -5,11 +5,16 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Lamar;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS.Durability;
+using Wolverine.Runtime;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.RDBMS;
 
@@ -133,6 +138,16 @@ select distinct owner_id from {DatabaseSettings.SchemaName}.{DatabaseConstants.O
 
             return new IncomingCount(address, count);
         }, _cancellation);
+    }
+
+    public IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container)
+    {
+        var durabilityLogger = container.GetInstance<ILogger<DurabilityAgent>>();
+
+        // TODO -- use the worker queue for Retries?
+        var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
+        return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, runtime.Storage,
+            runtime.Options.Advanced);
     }
 
     public void Dispose()

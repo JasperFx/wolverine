@@ -4,11 +4,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
-namespace Wolverine.Persistence.Durability;
+namespace Wolverine.RDBMS.Durability;
 
 internal class RecoverOutgoingMessages : IMessagingAction
 {

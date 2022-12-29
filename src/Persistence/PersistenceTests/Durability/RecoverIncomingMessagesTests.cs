@@ -2,13 +2,16 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Shouldly;
+using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS.Durability;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Xunit;
 
-namespace CoreTests.Persistence.Durability;
+namespace PersistenceTests.Durability;
 
 public class RecoverIncomingMessagesTests
 {

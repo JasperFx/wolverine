@@ -42,7 +42,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         Options = options;
         Handlers = options.HandlerGraph;
         Environment = environment;
-
+        
         Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
 
         Logger = logger;
@@ -107,11 +107,11 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         return _invokers[messageType];
     }
 
-    internal Meter Meter { get; }
+    public Meter Meter { get; }
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
 
-    internal DurabilityAgent? Durability { get; private set; }
+    internal IDurabilityAgent? Durability { get; private set; }
 
     internal HandlerGraph Handlers { get; }
 

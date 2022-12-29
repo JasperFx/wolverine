@@ -3,14 +3,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 
-namespace Wolverine.Persistence.Durability;
+namespace Wolverine.RDBMS.Durability;
 
-internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposable
+internal class DurabilityAgent : IDurabilityAgent
 {
     private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
     private readonly bool _disabled;
@@ -32,7 +32,7 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
     private Timer? _scheduledJobTimer;
 
 #pragma warning disable CS8618
-    internal DurabilityAgent(WolverineRuntime runtime, ILogger logger,
+    internal DurabilityAgent(IWolverineRuntime runtime, ILogger logger,
 #pragma warning restore CS8618
         ILogger<DurabilityAgent> trace,
         ILocalQueue locals,
@@ -120,6 +120,7 @@ internal class DurabilityAgent : IHostedService, IDurabilityAgent, IAsyncDisposa
             _worker.Post(_incomingMessages);
             _worker.Post(_outgoingMessages);
             _worker.Post(_metrics);
+            _worker.Post(_deleteExpired);
         }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
 
         _nodeReassignmentTimer = new Timer(_ => { _worker.Post(_nodeReassignment); }, _settings,

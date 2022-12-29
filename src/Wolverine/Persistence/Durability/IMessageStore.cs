@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Lamar;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Durability;
 
@@ -68,6 +70,8 @@ public interface IMessageStore : IDisposable
     Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync();
 
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
+
+    IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container);
 }
 
 public record IncomingCount(Uri Destination, int Count);

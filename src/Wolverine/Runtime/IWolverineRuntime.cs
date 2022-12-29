@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.Metrics;
 using System.Threading;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,7 @@ public interface IWolverineRuntime
 
     IReplyTracker Replies { get; }
     IEndpointCollection Endpoints { get; }
+    Meter Meter { get; }
 
     /// <summary>
     ///     Schedule an envelope for later execution in memory

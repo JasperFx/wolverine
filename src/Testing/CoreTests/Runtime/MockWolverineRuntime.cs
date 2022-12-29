@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,6 +28,7 @@ public class MockWolverineRuntime : IWolverineRuntime
     public IHostEnvironment Environment { get; } = Substitute.For<IHostEnvironment>();
 
     public IEndpointCollection Endpoints { get; } = Substitute.For<IEndpointCollection>();
+    public Meter Meter { get; } = new Meter("Wolverine");
 
     public WolverineOptions Options { get; } = new();
 

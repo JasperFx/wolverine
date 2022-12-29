@@ -1,9 +1,10 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
-namespace Wolverine.Persistence.Durability;
+namespace Wolverine.RDBMS.Durability;
 
 internal class NodeReassignment : IMessagingAction
 {

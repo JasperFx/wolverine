@@ -6,11 +6,9 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
-using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
-using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime;
 
@@ -139,21 +137,8 @@ public partial class WolverineRuntime
 
     private Task startDurabilityAgentAsync()
     {
-        // HOKEY, BUT IT WORKS
-        if (_container.Model.DefaultTypeFor<IMessageStore>() != typeof(NullMessageStore) &&
-            Options.Advanced.DurabilityAgentEnabled)
-        {
-            var durabilityLogger = _container.GetInstance<ILogger<DurabilityAgent>>();
-
-            // TODO -- use the worker queue for Retries?
-            var worker = new DurableReceiver(new LocalQueue("scheduled"), this, Pipeline);
-
-            Durability = new DurabilityAgent(this, Logger, durabilityLogger, worker, Storage,
-                Options.Advanced);
-
-            return Durability.StartAsync(Options.Advanced.Cancellation);
-        }
-
-        return Task.CompletedTask;
+        var store = _container.GetInstance<IMessageStore>();
+        Durability = store.BuildDurabilityAgent(this, _container);
+        return Durability.StartAsync(Options.Advanced.Cancellation);
     }
 }

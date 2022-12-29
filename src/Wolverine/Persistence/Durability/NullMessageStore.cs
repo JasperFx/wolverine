@@ -4,7 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Lamar;
 using Wolverine.Logging;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Persistence.Durability;
@@ -177,6 +179,44 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
     public Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
         throw new NotSupportedException();
+    }
+
+    public IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container)
+    {
+        return new NullDurabilityAgent();
+    }
+
+    internal class NullDurabilityAgent : IDurabilityAgent
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        public void EnqueueLocally(Envelope envelope)
+        {
+            // Nothing
+        }
+
+        public void RescheduleIncomingRecovery()
+        {
+            // Nothing
+        }
+
+        public void RescheduleOutgoingRecovery()
+        {
+            // Nothing
+        }
     }
 
     public Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)

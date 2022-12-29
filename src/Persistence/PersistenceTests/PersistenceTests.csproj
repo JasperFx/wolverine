@@ -11,20 +11,20 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.0.0"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0"/>
-        <PackageReference Include="xunit" Version="2.4.1"/>
-        <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1"/>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.0.0" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
+        <PackageReference Include="xunit" Version="2.4.1" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
-        <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
-        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj"/>
-        <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
-        <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
+        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
+        <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
+        <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
+        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>

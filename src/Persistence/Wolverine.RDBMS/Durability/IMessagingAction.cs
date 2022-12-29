@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
+using Wolverine.Persistence.Durability;
 
-namespace Wolverine.Persistence.Durability;
+namespace Wolverine.RDBMS.Durability;
 
 internal interface IMessagingAction
 {

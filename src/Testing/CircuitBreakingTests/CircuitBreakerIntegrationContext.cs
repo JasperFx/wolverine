@@ -225,7 +225,7 @@ public class OutputLogger<T> : ILogger<T>, IDisposable
 
     public bool IsEnabled(LogLevel logLevel)
     {
-        return typeof(T) == typeof(DurabilityAgent);
+        return typeof(T).Name == "DurabilityAgent";
     }
 
     public IDisposable BeginScope<TState>(TState state)
