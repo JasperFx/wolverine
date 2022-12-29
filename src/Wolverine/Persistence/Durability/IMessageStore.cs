@@ -37,6 +37,8 @@ public interface IMessageStore : IDisposable
     Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow);
 
     Task ReassignDormantNodeToAnyNodeAsync(int nodeId);
+    
+    [Obsolete]
     Task<int[]> FindUniqueOwnersAsync(int currentNodeId);
 
 

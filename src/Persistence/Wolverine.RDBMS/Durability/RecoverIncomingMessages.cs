@@ -12,37 +12,27 @@ internal class RecoverIncomingMessages : IDurabilityAction
 {
     private readonly IEndpointCollection _endpoints;
     private readonly ILogger _logger;
-    private readonly AdvancedSettings _settings;
 
-    public RecoverIncomingMessages(AdvancedSettings settings,
-        ILogger logger, IEndpointCollection endpoints)
+    public RecoverIncomingMessages(ILogger logger, IEndpointCollection endpoints)
     {
-        _settings = settings;
         _logger = logger;
         _endpoints = endpoints;
     }
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+        DatabaseSettings databaseSettings)
     {
-        // We don't need this to be transactional
-        var gotLock = await storage.Session.TryGetGlobalLockAsync(TransportConstants.IncomingMessageLockId);
-        if (!gotLock)
-        {
-            return;
-        }
-
         var rescheduleImmediately = false;
 
-        try
+        await storage.Session.WithinSessionGlobalLockAsync(TransportConstants.IncomingMessageLockId, async () =>
         {
             var counts = await storage.LoadAtLargeIncomingCountsAsync();
             foreach (var count in counts)
-                rescheduleImmediately = rescheduleImmediately || await TryRecoverIncomingMessagesAsync(storage, count);
-        }
-        finally
-        {
-            await storage.Session.ReleaseGlobalLockAsync(TransportConstants.IncomingMessageLockId);
-        }
+            {
+                rescheduleImmediately = rescheduleImmediately || await TryRecoverIncomingMessagesAsync(storage, count, nodeSettings);
+            }
+        });
+
 
         if (rescheduleImmediately)
         {
@@ -52,14 +42,15 @@ internal class RecoverIncomingMessages : IDurabilityAction
 
     public string Description => "Recover persisted incoming messages";
 
-    public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count)
+    public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count,
+        AdvancedSettings nodeSettings)
     {
         if (listener!.Status != ListeningStatus.Accepting)
         {
             return 0;
         }
 
-        var pageSize = _settings.RecoveryBatchSize;
+        var pageSize = nodeSettings.RecoveryBatchSize;
         if (pageSize > count.Count)
         {
             pageSize = count.Count;
@@ -78,18 +69,19 @@ internal class RecoverIncomingMessages : IDurabilityAction
         return pageSize;
     }
 
-    internal async Task<bool> TryRecoverIncomingMessagesAsync(IMessageStore storage, IncomingCount count)
+    internal async Task<bool> TryRecoverIncomingMessagesAsync(IMessageStore storage, IncomingCount count,
+        AdvancedSettings nodeSettings)
     {
         var listener = findListenerCircuit(count);
 
-        var pageSize = DeterminePageSize(listener!, count);
+        var pageSize = DeterminePageSize(listener!, count, nodeSettings);
 
         if (pageSize <= 0)
         {
             return false;
         }
 
-        await RecoverMessagesAsync(storage, count, pageSize, listener!).ConfigureAwait(false);
+        await RecoverMessagesAsync(storage, count, pageSize, listener!, nodeSettings).ConfigureAwait(false);
 
         // Reschedule again if it wasn't able to grab all outstanding envelopes
         return pageSize < count.Count;
@@ -108,14 +100,14 @@ internal class RecoverIncomingMessages : IDurabilityAction
     }
 
     public virtual async Task RecoverMessagesAsync(IMessageStore storage, IncomingCount count, int pageSize,
-        IListenerCircuit listener)
+        IListenerCircuit listener, AdvancedSettings nodeSettings)
     {
         await storage.Session.BeginAsync();
 
         try
         {
             var envelopes = await storage.LoadPageOfGloballyOwnedIncomingAsync(count.Destination, pageSize);
-            await storage.ReassignIncomingAsync(_settings.UniqueNodeId, envelopes);
+            await storage.ReassignIncomingAsync(nodeSettings.UniqueNodeId, envelopes);
 
             await storage.Session.CommitAsync();
 

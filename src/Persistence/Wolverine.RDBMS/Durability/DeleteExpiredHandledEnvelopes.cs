@@ -6,23 +6,11 @@ namespace Wolverine.RDBMS.Durability;
 
 public class DeleteExpiredHandledEnvelopes : IDurabilityAction
 {
-    public string Description { get; } = "Deleting Expired, Handled Envelopes";
+    public string Description => "Deleting Expired, Handled Envelopes";
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
+    public Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+        DatabaseSettings databaseSettings)
     {
-        await storage.Session.BeginAsync();
-
-
-        try
-        {
-            await storage.DeleteExpiredHandledEnvelopesAsync(DateTimeOffset.UtcNow);
-        }
-        catch (Exception)
-        {
-            await storage.Session.RollbackAsync();
-            throw;
-        }
-
-        await storage.Session.CommitAsync();
+        return storage.Session.WithinTransactionAsync(() => storage.DeleteExpiredHandledEnvelopesAsync(DateTimeOffset.UtcNow));
     }
 }

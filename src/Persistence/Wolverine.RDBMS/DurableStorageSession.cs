@@ -45,6 +45,69 @@ public class DurableStorageSession : IDurableStorageSession
         return cmd;
     }
 
+    public async Task WithinTransactionAsync(Func<Task> action)
+    {
+        await BeginAsync();
+
+        try
+        {
+            await action();
+        }
+        catch (Exception)
+        {
+            await RollbackAsync();
+            throw;
+        }
+
+        await CommitAsync();
+    }
+
+    public async Task WithinSessionGlobalLockAsync(int lockId, Func<Task> action)
+    {
+        var gotLock = await TryGetGlobalLockAsync(lockId);
+        if (!gotLock)
+        {
+            return;
+        }
+
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            await ReleaseGlobalLockAsync(lockId);
+        }
+    }
+
+    public async Task WithinTransactionalGlobalLockAsync(int lockId, Func<Task> action)
+    {
+        await BeginAsync();
+
+        var gotLock = await TryGetGlobalLockAsync(lockId);
+        if (!gotLock)
+        {
+            await RollbackAsync();
+            return;
+        }
+
+        try
+        {
+            await action();
+        }
+        catch (Exception)
+        {
+            await RollbackAsync();
+            throw;
+        }
+        finally
+        {
+            await ReleaseGlobalLockAsync(lockId);
+        }
+
+        await CommitAsync();
+    }
+
 
     public Task BeginAsync()
     {

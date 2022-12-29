@@ -22,4 +22,7 @@ public interface IDurableStorageSession : IDisposable
     Task ConnectAndLockCurrentNodeAsync(ILogger logger, int nodeId);
     DbCommand CallFunction(string functionName);
     DbCommand CreateCommand(string sql);
+    Task WithinTransactionAsync(Func<Task> action);
+    Task WithinTransactionalGlobalLockAsync(int lockId, Func<Task> action);
+    Task WithinSessionGlobalLockAsync(int lockId, Func<Task> action);
 }

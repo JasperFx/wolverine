@@ -20,7 +20,8 @@ internal class RunScheduledJobs : IDurabilityAction
         _logger = logger;
     }
 
-    public Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
+    public Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+        DatabaseSettings databaseSettings)
     {
         var utcNow = DateTimeOffset.UtcNow;
         return ExecuteAtTimeAsync(storage, agent, utcNow);

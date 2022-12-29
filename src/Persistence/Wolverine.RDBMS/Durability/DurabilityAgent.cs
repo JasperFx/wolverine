@@ -62,9 +62,9 @@ internal class DurabilityAgent : IDurabilityAgent
             CancellationToken = _settings.Cancellation
         });
 
-        _incomingMessages = new RecoverIncomingMessages(settings, logger, runtime.Endpoints);
-        _outgoingMessages = new RecoverOutgoingMessages(runtime, settings, logger, DatabaseSettings);
-        _nodeReassignment = new NodeReassignment(settings);
+        _incomingMessages = new RecoverIncomingMessages(logger, runtime.Endpoints);
+        _outgoingMessages = new RecoverOutgoingMessages(runtime, logger);
+        _nodeReassignment = new NodeReassignment();
         _deleteExpired = new DeleteExpiredHandledEnvelopes();
         _scheduledJobs = new RunScheduledJobs(settings, logger);
     }
@@ -196,7 +196,7 @@ internal class DurabilityAgent : IDurabilityAgent
                     _trace.LogDebug("Running action {Action}", action.Description);
                 }
 
-                await action.ExecuteAsync(_storage, this);
+                await action.ExecuteAsync(_storage, this, _settings, DatabaseSettings);
             }
             catch (Exception e)
             {

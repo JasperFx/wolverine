@@ -30,7 +30,7 @@ public class RecoverIncomingMessagesTests
 
     public RecoverIncomingMessagesTests()
     {
-        theAction = new RecoverIncomingMessages(theSettings, NullLogger.Instance, theEndpoints);
+        theAction = new RecoverIncomingMessages(NullLogger.Instance, theEndpoints);
 
         var settings = new LocalQueue("one");
         settings.BufferingLimits = new BufferingLimits(theBufferedLimit, 100);
@@ -45,7 +45,7 @@ public class RecoverIncomingMessagesTests
     public void not_accepting(ListeningStatus status)
     {
         theAgent.Status.Returns(status);
-        theAction.DeterminePageSize(theAgent, new IncomingCount(TransportConstants.DurableLocalUri, 50))
+        theAction.DeterminePageSize(theAgent, new IncomingCount(TransportConstants.DurableLocalUri, 50), theSettings)
             .ShouldBe(0);
     }
 
@@ -61,65 +61,65 @@ public class RecoverIncomingMessagesTests
         theAgent.QueueCount.Returns(queueLimit);
         theAgent.Status.Returns(ListeningStatus.Accepting);
 
-        theAction.DeterminePageSize(theAgent, new IncomingCount(TransportConstants.LocalUri, serverCount))
+        theAction.DeterminePageSize(theAgent, new IncomingCount(TransportConstants.LocalUri, serverCount), theSettings)
             .ShouldBe(expected);
     }
 
     [Fact]
     public async Task do_nothing_when_page_size_is_0()
     {
-        var action = Substitute.For<RecoverIncomingMessages>(theSettings, NullLogger.Instance, theEndpoints);
+        var action = Substitute.For<RecoverIncomingMessages>(NullLogger.Instance, theEndpoints);
         var count = new IncomingCount(new Uri("stub://one"), 23);
 
-        action.DeterminePageSize(theAgent, count).Returns(0);
+        action.DeterminePageSize(theAgent, count, theSettings).Returns(0);
 
         var persistence = Substitute.For<IMessageStore>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count);
+        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count, theSettings);
         shouldFetchMore.ShouldBeFalse();
 
-        await action.DidNotReceive().RecoverMessagesAsync(persistence, count, Arg.Any<int>(), theAgent);
+        await action.DidNotReceive().RecoverMessagesAsync(persistence, count, Arg.Any<int>(), theAgent, theSettings);
     }
 
     [Fact]
     public async Task recover_messages_when_page_size_is_non_zero_but_all_were_recovered()
     {
-        var action = Substitute.For<RecoverIncomingMessages>(theSettings, NullLogger.Instance, theEndpoints);
+        var action = Substitute.For<RecoverIncomingMessages>(NullLogger.Instance, theEndpoints);
         var count = new IncomingCount(new Uri("stub://one"), 11);
 
-        action.DeterminePageSize(theAgent, count).Returns(11);
+        action.DeterminePageSize(theAgent, count, theSettings).Returns(11);
 
         var persistence = Substitute.For<IMessageStore>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count);
+        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count, theSettings);
         shouldFetchMore.ShouldBeFalse();
 
-        await action.Received().RecoverMessagesAsync(persistence, count, 11, theAgent);
+        await action.Received().RecoverMessagesAsync(persistence, count, 11, theAgent, theSettings);
     }
 
 
     [Fact]
     public async Task recover_messages_when_page_size_is_non_zero_and_not_all_on_server_were_were_recovered()
     {
-        var action = Substitute.For<RecoverIncomingMessages>(theSettings, NullLogger.Instance, theEndpoints);
+        var action = Substitute.For<RecoverIncomingMessages>(NullLogger.Instance, theEndpoints);
         var count = new IncomingCount(new Uri("stub://one"), 100);
 
-        action.DeterminePageSize(theAgent, count).Returns(11);
+        action.DeterminePageSize(theAgent, count, theSettings).Returns(11);
 
         var persistence = Substitute.For<IMessageStore>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count);
+        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count, theSettings);
         shouldFetchMore.ShouldBeTrue();
 
-        await action.Received().RecoverMessagesAsync(persistence, count, 11, theAgent);
+        await action.Received().RecoverMessagesAsync(persistence, count, 11, theAgent, theSettings);
     }
 }

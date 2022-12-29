@@ -16,24 +16,20 @@ namespace Wolverine.RDBMS.Durability;
 internal class RecoverOutgoingMessages : IDurabilityAction
 {
     private readonly ILogger _logger;
-    private readonly DatabaseSettings _databaseSettings;
     private readonly IWolverineRuntime _runtime;
-    private readonly AdvancedSettings _settings;
     private readonly CancellationToken _cancellation;
 
-    public RecoverOutgoingMessages(IWolverineRuntime runtime, AdvancedSettings settings, ILogger logger,
-        DatabaseSettings databaseSettings)
+    public RecoverOutgoingMessages(IWolverineRuntime runtime, ILogger logger)
     {
         _runtime = runtime;
-        _settings = settings;
         _logger = logger;
-        _databaseSettings = databaseSettings;
         _cancellation = runtime.Cancellation;
     }
 
     public string Description => "Recover persisted outgoing messages";
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent)
+    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, AdvancedSettings nodeSettings,
+        DatabaseSettings databaseSettings)
     {
         var hasLock = await storage.Session.TryGetGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
         if (!hasLock)
@@ -57,7 +53,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                         break;
                     }
 
-                    var found = await recoverFromAsync(sendingAgent, storage);
+                    var found = await recoverFromAsync(sendingAgent, storage, nodeSettings);
 
                     count += found;
                 }
@@ -68,13 +64,13 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
                     await storage.Session.BeginAsync();
 
-                    await DeleteByDestinationAsync(storage.Session, destination);
+                    await DeleteByDestinationAsync(storage.Session, destination, databaseSettings);
                     await storage.Session.CommitAsync();
                     break;
                 }
             }
 
-            var wasMaxedOut = count >= _settings.RecoveryBatchSize;
+            var wasMaxedOut = count >= nodeSettings.RecoveryBatchSize;
 
             if (wasMaxedOut)
             {
@@ -87,7 +83,8 @@ internal class RecoverOutgoingMessages : IDurabilityAction
         }
     }
     
-    internal Task DeleteByDestinationAsync(IDurableStorageSession session, Uri? destination)
+    internal Task DeleteByDestinationAsync(IDurableStorageSession session, Uri? destination,
+        DatabaseSettings databaseSettings)
     {
         if (session.Transaction == null)
         {
@@ -96,14 +93,15 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
         return session.Transaction
             .CreateCommand(
-                $"delete from {_databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = :owner and destination = @destination")
+                $"delete from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = :owner and destination = @destination")
             .With("destination", destination!.ToString())
             .With("owner", TransportConstants.AnyNode)
             .ExecuteNonQueryAsync(_cancellation);
     }
 
 
-    private async Task<int> recoverFromAsync(ISendingAgent sendingAgent, IMessageStore storage)
+    private async Task<int> recoverFromAsync(ISendingAgent sendingAgent, IMessageStore storage,
+        AdvancedSettings nodeSettings)
     {
 #pragma warning disable CS8600
         Envelope[] filtered;
@@ -132,7 +130,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                 return 0;
             }
 
-            await storage.ReassignOutgoingAsync(_settings.UniqueNodeId, filtered);
+            await storage.ReassignOutgoingAsync(nodeSettings.UniqueNodeId, filtered);
 
             await storage.Session.CommitAsync();
         }
