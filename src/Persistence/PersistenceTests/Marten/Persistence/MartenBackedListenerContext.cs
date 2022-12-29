@@ -50,9 +50,9 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
 public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyncLifetime
 {
     protected readonly IMessageStoreAdmin MessageStoreAdmin =
-        new PostgresqlMessageStore(new PostgresqlSettings
+        new PostgresqlMessageMessageStore(new PostgresqlSettings
                 { ConnectionString = Servers.PostgresConnectionString }, new NodeSettings(null),
-            new NullLogger<PostgresqlMessageStore>());
+            new NullLogger<PostgresqlMessageMessageStore>());
 
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
@@ -75,9 +75,9 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
         await MessageStoreAdmin.RebuildAsync();
 
         var persistence =
-            new PostgresqlMessageStore(
+            new PostgresqlMessageMessageStore(
                 new PostgresqlSettings { ConnectionString = Servers.PostgresConnectionString }, theSettings,
-                new NullLogger<PostgresqlMessageStore>());
+                new NullLogger<PostgresqlMessageMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Storage.Returns(persistence);

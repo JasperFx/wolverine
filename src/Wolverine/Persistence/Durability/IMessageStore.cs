@@ -34,13 +34,8 @@ public interface IMessageStore : IDisposable
     void Describe(TextWriter writer);
     Task ScheduleJobAsync(Envelope envelope);
 
-    Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow);
 
     Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination);
-    Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);
-    Task<Uri[]> FindAllDestinationsAsync();
-
-    Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
 
     Task StoreOutgoingAsync(Envelope envelope, int ownerId);
 
@@ -50,8 +45,8 @@ public interface IMessageStore : IDisposable
 
     Task DeleteOutgoingAsync(Envelope envelope);
 
+    Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
 
-    Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
     // TODO -- call this in system drain?
     Task ReleaseIncomingAsync(int ownerId);
@@ -61,7 +56,6 @@ public interface IMessageStore : IDisposable
 
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
 
-    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 
     IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container);
 }

@@ -21,17 +21,17 @@ internal class RecoverIncomingMessages : IDurabilityAction
         _endpoints = endpoints;
     }
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
-        DatabaseSettings databaseSettings)
+    public async Task ExecuteAsync(IMessageDatabase database, IDurabilityAgent agent,
+        IDurableStorageSession session)
     {
         var rescheduleImmediately = false;
 
-        await storage.Session.WithinSessionGlobalLockAsync(TransportConstants.IncomingMessageLockId, async () =>
+        await session.WithinSessionGlobalLockAsync(TransportConstants.IncomingMessageLockId, async () =>
         {
-            var counts = await LoadAtLargeIncomingCountsAsync(storage.Session, databaseSettings);
+            var counts = await LoadAtLargeIncomingCountsAsync(session, database.Settings);
             foreach (var count in counts)
             {
-                rescheduleImmediately = rescheduleImmediately || await TryRecoverIncomingMessagesAsync(storage, count, nodeSettings);
+                rescheduleImmediately = rescheduleImmediately || await TryRecoverIncomingMessagesAsync(database, session, count, database.Node);
             }
         });
 
@@ -84,7 +84,8 @@ internal class RecoverIncomingMessages : IDurabilityAction
         return pageSize;
     }
 
-    internal async Task<bool> TryRecoverIncomingMessagesAsync(IMessageStore storage, IncomingCount count,
+    internal async Task<bool> TryRecoverIncomingMessagesAsync(IMessageDatabase database,
+        IDurableStorageSession session, IncomingCount count,
         NodeSettings nodeSettings)
     {
         var listener = findListenerCircuit(count);
@@ -96,7 +97,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
             return false;
         }
 
-        await RecoverMessagesAsync(storage, count, pageSize, listener!, nodeSettings).ConfigureAwait(false);
+        await RecoverMessagesAsync(database, session, count, pageSize, listener!, nodeSettings).ConfigureAwait(false);
 
         // Reschedule again if it wasn't able to grab all outstanding envelopes
         return pageSize < count.Count;
@@ -114,24 +115,25 @@ internal class RecoverIncomingMessages : IDurabilityAction
         return listener!;
     }
 
-    public virtual async Task RecoverMessagesAsync(IMessageStore storage, IncomingCount count, int pageSize,
+    public virtual async Task RecoverMessagesAsync(IMessageDatabase database,
+        IDurableStorageSession session, IncomingCount count, int pageSize,
         IListenerCircuit listener, NodeSettings nodeSettings)
     {
-        await storage.Session.BeginAsync();
+        await session.BeginAsync();
 
         try
         {
-            var envelopes = await storage.LoadPageOfGloballyOwnedIncomingAsync(count.Destination, pageSize);
-            await storage.ReassignIncomingAsync(nodeSettings.UniqueNodeId, envelopes);
+            var envelopes = await database.LoadPageOfGloballyOwnedIncomingAsync(count.Destination, pageSize);
+            await database.ReassignIncomingAsync(nodeSettings.UniqueNodeId, envelopes);
 
-            await storage.Session.CommitAsync();
+            await session.CommitAsync();
 
             listener.EnqueueDirectly(envelopes);
             _logger.RecoveredIncoming(envelopes);
         }
         catch (Exception e)
         {
-            await storage.Session.RollbackAsync();
+            await session.RollbackAsync();
             _logger.LogError(e, "Error trying to recover incoming envelopes");
         }
     }

@@ -12,6 +12,7 @@ using Shouldly;
 using TestingSupport;
 using Wolverine;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.SqlServer;
 using Wolverine.Transports;
@@ -569,7 +570,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         var limit = list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localOne) - 1;
-        var one = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(localOne, limit);
+        var one = await thePersistence.As<IMessageDatabase>().LoadPageOfGloballyOwnedIncomingAsync(localOne, limit);
         foreach (var envelope in one)
         {
             envelope.Destination.ShouldBe(localOne);

@@ -13,6 +13,6 @@ internal class MartenBackedPersistenceMarker : IVariableSource
 
     public Variable Create(Type type)
     {
-        return Variable.For<PostgresqlMessageStore>();
+        return Variable.For<PostgresqlMessageMessageStore>();
     }
 }

@@ -28,10 +28,10 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
     public string Description => "Recover persisted outgoing messages";
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
-        DatabaseSettings databaseSettings)
+    public async Task ExecuteAsync(IMessageDatabase database, IDurabilityAgent agent,
+        IDurableStorageSession session)
     {
-        var hasLock = await storage.Session.TryGetGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
+        var hasLock = await session.TryGetGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
         if (!hasLock)
         {
             return;
@@ -39,7 +39,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
         try
         {
-            var destinations = await storage.FindAllDestinationsAsync();
+            var destinations = await database.FindAllDestinationsAsync();
 
             var count = 0;
             foreach (var destination in destinations)
@@ -53,7 +53,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                         break;
                     }
 
-                    var found = await recoverFromAsync(sendingAgent, storage, nodeSettings);
+                    var found = await recoverFromAsync(sendingAgent, database, session, database.Node);
 
                     count += found;
                 }
@@ -62,15 +62,15 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                     _logger.LogError(e, "Could not resolve a channel for {Destination}. Deleting outgoing messages",
                         destination);
 
-                    await storage.Session.BeginAsync();
+                    await session.BeginAsync();
 
-                    await DeleteByDestinationAsync(storage.Session, destination, databaseSettings);
-                    await storage.Session.CommitAsync();
+                    await DeleteByDestinationAsync(session, destination, database.Settings);
+                    await session.CommitAsync();
                     break;
                 }
             }
 
-            var wasMaxedOut = count >= nodeSettings.RecoveryBatchSize;
+            var wasMaxedOut = count >= database.Node.RecoveryBatchSize;
 
             if (wasMaxedOut)
             {
@@ -79,7 +79,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
         }
         finally
         {
-            await storage.Session.ReleaseGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
+            await session.ReleaseGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
         }
     }
     
@@ -100,7 +100,8 @@ internal class RecoverOutgoingMessages : IDurabilityAction
     }
 
 
-    private async Task<int> recoverFromAsync(ISendingAgent sendingAgent, IMessageStore storage,
+    private async Task<int> recoverFromAsync(ISendingAgent sendingAgent, IMessageDatabase storage,
+        IDurableStorageSession session,
         NodeSettings nodeSettings)
     {
 #pragma warning disable CS8600
@@ -110,7 +111,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
         try
         {
-            await storage.Session.BeginAsync();
+            await session.BeginAsync();
 
             outgoing = await storage.LoadOutgoingAsync(sendingAgent.Destination);
 
@@ -126,19 +127,19 @@ internal class RecoverOutgoingMessages : IDurabilityAction
             // (contrived) testing
             if (sendingAgent.Latched || !filtered.Any())
             {
-                await storage.Session.RollbackAsync();
+                await session.RollbackAsync();
                 return 0;
             }
 
             await storage.ReassignOutgoingAsync(nodeSettings.UniqueNodeId, filtered);
 
-            await storage.Session.CommitAsync();
+            await session.CommitAsync();
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Error while trying to recover persisted, outgoing envelopes to {Uri}",
                 sendingAgent.Destination);
-            await storage.Session.RollbackAsync();
+            await session.RollbackAsync();
             throw;
         }
 

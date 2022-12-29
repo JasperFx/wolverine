@@ -6,6 +6,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -73,15 +74,15 @@ public class RecoverIncomingMessagesTests
 
         action.DeterminePageSize(theAgent, count, theSettings).Returns(0);
 
-        var persistence = Substitute.For<IMessageStore>();
+        var persistence = Substitute.For<IMessageDatabase>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count, theSettings);
+        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, theSettings);
         shouldFetchMore.ShouldBeFalse();
 
-        await action.DidNotReceive().RecoverMessagesAsync(persistence, count, Arg.Any<int>(), theAgent, theSettings);
+        await action.DidNotReceive().RecoverMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, Arg.Any<int>(), theAgent, theSettings);
     }
 
     [Fact]
@@ -92,15 +93,15 @@ public class RecoverIncomingMessagesTests
 
         action.DeterminePageSize(theAgent, count, theSettings).Returns(11);
 
-        var persistence = Substitute.For<IMessageStore>();
+        var persistence = Substitute.For<IMessageDatabase>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count, theSettings);
+        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, theSettings);
         shouldFetchMore.ShouldBeFalse();
 
-        await action.Received().RecoverMessagesAsync(persistence, count, 11, theAgent, theSettings);
+        await action.Received().RecoverMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, 11, theAgent, theSettings);
     }
 
 
@@ -112,14 +113,14 @@ public class RecoverIncomingMessagesTests
 
         action.DeterminePageSize(theAgent, count, theSettings).Returns(11);
 
-        var persistence = Substitute.For<IMessageStore>();
+        var persistence = Substitute.For<IMessageDatabase>();
 
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync(persistence, count, theSettings);
+        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, theSettings);
         shouldFetchMore.ShouldBeTrue();
 
-        await action.Received().RecoverMessagesAsync(persistence, count, 11, theAgent, theSettings);
+        await action.Received().RecoverMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, 11, theAgent, theSettings);
     }
 }

@@ -11,17 +11,17 @@ internal class NodeReassignment : IDurabilityAction
 {
     public string Description { get; } = "Dormant node reassignment";
 
-    public async Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
-        DatabaseSettings databaseSettings)
+    public async Task ExecuteAsync(IMessageDatabase database, IDurabilityAgent agent,
+        IDurableStorageSession session)
     {
-        await storage.Session.WithinTransactionalGlobalLockAsync(TransportConstants.ReassignmentLockId,
-            () => ReassignNodesAsync(storage, nodeSettings, databaseSettings));
+        await session.WithinTransactionalGlobalLockAsync(TransportConstants.ReassignmentLockId,
+            () => ReassignNodesAsync(session, database.Node, database.Settings));
     }
 
-    public static async Task ReassignNodesAsync(IMessageStore storage, NodeSettings nodeSettings,
+    public static async Task ReassignNodesAsync(IDurableStorageSession session, NodeSettings nodeSettings,
         DatabaseSettings databaseSettings)
     {
-        var owners = await FindUniqueOwnersAsync(storage.Session, nodeSettings, databaseSettings);
+        var owners = await FindUniqueOwnersAsync(session, nodeSettings, databaseSettings);
 
         foreach (var owner in owners.Where(x => x != TransportConstants.AnyNode))
         {
@@ -30,10 +30,10 @@ internal class NodeReassignment : IDurabilityAction
                 continue;
             }
 
-            if (await storage.Session.TryGetGlobalTxLockAsync(owner))
+            if (await session.TryGetGlobalTxLockAsync(owner))
             {
-                await ReassignDormantNodeToAnyNodeAsync(storage.Session, owner, databaseSettings);
-                await storage.Session.ReleaseGlobalLockAsync(owner);
+                await ReassignDormantNodeToAnyNodeAsync(session, owner, databaseSettings);
+                await session.ReleaseGlobalLockAsync(owner);
             }
         }
     }

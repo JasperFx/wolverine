@@ -15,19 +15,19 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
-    IDatabaseBackedMessageStore, IMessageStoreAdmin where T : DbConnection, new()
+public abstract partial class MessageMessageDatabase<T> : DatabaseBase<T>,
+    IMessageDatabase, IMessageStoreAdmin where T : DbConnection, new()
 {
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
 
-    protected MessageDatabase(DatabaseSettings databaseSettings, NodeSettings settings,
+    protected MessageMessageDatabase(DatabaseSettings databaseSettings, NodeSettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
         "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
     {
-        DatabaseSettings = databaseSettings;
+        Settings = databaseSettings;
 
-        Settings = settings;
+        Node = settings;
         _cancellation = settings.Cancellation;
 
         var transaction = new DurableStorageSession(databaseSettings, settings.Cancellation);
@@ -36,9 +36,9 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         _cancellation = settings.Cancellation;
         _deleteIncomingEnvelopeById =
-            $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
+            $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
         _incrementIncominEnvelopeAttempts =
-            $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id";
+            $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id";
 
         // ReSharper disable once VirtualMemberCallInConstructor
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(databaseSettings, settings);
@@ -46,9 +46,9 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     }
 
-    public NodeSettings Settings { get; }
+    public NodeSettings Node { get; }
 
-    public DatabaseSettings DatabaseSettings { get; }
+    public DatabaseSettings Settings { get; }
 
     public IMessageStoreAdmin Admin => this;
 
@@ -63,7 +63,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         await conn
             .CreateCommand(
-                $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner")
+                $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner")
             .With("owner", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
     }
@@ -75,7 +75,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         var impacted = await conn
             .CreateCommand(
-                $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
+                $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
             .With("owner", ownerId)
             .With("uri", receivedAt.ToString())
             .ExecuteNonQueryAsync(_cancellation);
@@ -88,7 +88,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         // TODO -- use the worker queue for Retries?
         var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
         return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, runtime.Storage,
-            runtime.Options.Node, DatabaseSettings);
+            runtime.Options.Node, Settings);
     }
 
     public void Dispose()

@@ -16,15 +16,15 @@ using Wolverine.Transports;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerMessageStore : MessageDatabase<SqlConnection>
+public class SqlServerMessageMessageStore : MessageMessageDatabase<SqlConnection>
 {
     private readonly SqlServerSettings _databaseSettings;
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _moveToDeadLetterStorageSql;
 
 
-    public SqlServerMessageStore(SqlServerSettings databaseSettings, NodeSettings settings,
-        ILogger<SqlServerMessageStore> logger)
+    public SqlServerMessageMessageStore(SqlServerSettings databaseSettings, NodeSettings settings,
+        ILogger<SqlServerMessageMessageStore> logger)
         : base(databaseSettings, settings, logger)
     {
         _databaseSettings = databaseSettings;
@@ -40,15 +40,15 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             return new ISchemaObject[]
             {
-                new OutgoingEnvelopeTable(DatabaseSettings.SchemaName),
-                new IncomingEnvelopeTable(DatabaseSettings.SchemaName),
-                new DeadLettersTable(DatabaseSettings.SchemaName),
-                new EnvelopeIdTable(DatabaseSettings.SchemaName),
-                new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", DatabaseSettings),
-                new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", DatabaseSettings),
-                new WolverineStoredProcedure("uspDiscardAndReassignOutgoing.sql", DatabaseSettings),
-                new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", DatabaseSettings),
-                new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", DatabaseSettings)
+                new OutgoingEnvelopeTable(Settings.SchemaName),
+                new IncomingEnvelopeTable(Settings.SchemaName),
+                new DeadLettersTable(Settings.SchemaName),
+                new EnvelopeIdTable(Settings.SchemaName),
+                new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", Settings),
+                new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", Settings),
+                new WolverineStoredProcedure("uspDiscardAndReassignOutgoing.sql", Settings),
+                new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", Settings),
+                new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", Settings)
             };
         }
     }
@@ -62,13 +62,13 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         var counts = new PersistedCounts();
 
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync();
 
 
         await using var reader = await conn
             .CreateCommand(
-                $"select status, count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} group by status")
+                $"select status, count(*) from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} group by status")
             .ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
@@ -93,7 +93,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         }
 
         counts.Outgoing = (int)(await conn
-            .CreateCommand($"select count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable}")
+            .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteScalarAsync())!;
 
 
@@ -112,7 +112,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         table.Columns.Add(new DataColumn("ID", typeof(Guid)));
         foreach (var error in errors) table.Rows.Add(error.Id);
 
-        var builder = DatabaseSettings.ToCommandBuilder();
+        var builder = Settings.ToCommandBuilder();
 
         var list = builder.AddNamedParameter("IDLIST", table).As<SqlParameter>();
         list.SqlDbType = SqlDbType.Structured;
@@ -120,7 +120,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
         builder.Append(_moveToDeadLetterStorageSql);
 
-        DatabasePersistence.ConfigureDeadLetterCommands(errors, builder, DatabaseSettings);
+        DatabasePersistence.ConfigureDeadLetterCommands(errors, builder, Settings);
 
         return builder.Compile().ExecuteOnce(_cancellation);
     }
@@ -140,7 +140,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     public override Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
     {
         var cmd = Session.CallFunction("uspMarkOutgoingOwnership")
-            .WithIdList(DatabaseSettings, outgoing)
+            .WithIdList(Settings, outgoing)
             .With("owner", ownerId);
 
         return cmd.ExecuteNonQueryAsync(_cancellation);
@@ -148,9 +148,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     public override Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
-        var cmd = DatabaseSettings.CallFunction("uspDiscardAndReassignOutgoing")
-            .WithIdList(DatabaseSettings, discards, "discards")
-            .WithIdList(DatabaseSettings, reassigned, "reassigned")
+        var cmd = Settings.CallFunction("uspDiscardAndReassignOutgoing")
+            .WithIdList(Settings, discards, "discards")
+            .WithIdList(Settings, reassigned, "reassigned")
             .With("ownerId", nodeId);
 
         return cmd.ExecuteOnce(_cancellation);
@@ -158,8 +158,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     public override Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
-        return DatabaseSettings.CallFunction("uspDeleteOutgoingEnvelopes")
-            .WithIdList(DatabaseSettings, envelopes).ExecuteOnce(_cancellation);
+        return Settings.CallFunction("uspDeleteOutgoingEnvelopes")
+            .WithIdList(Settings, envelopes).ExecuteOnce(_cancellation);
     }
 
     public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
@@ -182,7 +182,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         return Session!.Transaction!
             .CreateCommand(
-                $"select TOP {Settings.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time")
+                $"select TOP {Node.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time")
             .With("time", utcNow)
             .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }

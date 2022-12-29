@@ -10,7 +10,7 @@ using Wolverine.Util;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T>
+public abstract partial class MessageMessageDatabase<T>
 {
     public abstract Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
     public abstract Task DeleteOutgoingAsync(Envelope[] envelopes);
@@ -31,9 +31,9 @@ public abstract partial class MessageDatabase<T>
 
     public Task DeleteOutgoingAsync(Envelope envelope)
     {
-        return DatabaseSettings
+        return Settings
             .CreateCommand(
-                $"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
+                $"delete from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
             .With("id", envelope.Id)
             .ExecuteOnce(_cancellation);
     }
@@ -41,27 +41,27 @@ public abstract partial class MessageDatabase<T>
     public async Task<Uri[]> FindAllDestinationsAsync()
     {
         var cmd = Session.CreateCommand(
-            $"select distinct destination from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable}");
+            $"select distinct destination from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}");
         var uris = await cmd.FetchList<string>(_cancellation);
         return uris.Where(x => x != null).Select(x => x!.ToUri()).ToArray();
     }
 
     public Task StoreOutgoingAsync(Envelope envelope, int ownerId)
     {
-        return DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, DatabaseSettings)
+        return DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, Settings)
             .ExecuteOnce(_cancellation);
     }
 
 
     public Task StoreOutgoingAsync(Envelope[] envelopes, int ownerId)
     {
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, ownerId, DatabaseSettings);
+        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, ownerId, Settings);
         return cmd.ExecuteOnce(CancellationToken.None);
     }
 
     public Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Settings.UniqueNodeId, DatabaseSettings);
+        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Node.UniqueNodeId, Settings);
         cmd.Connection = tx.Connection;
         cmd.Transaction = tx;
 

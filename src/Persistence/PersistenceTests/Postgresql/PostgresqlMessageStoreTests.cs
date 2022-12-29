@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +18,7 @@ using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
@@ -308,7 +310,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         var limit = list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localOne) - 1;
-        var one = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(localOne, limit);
+        var one = await thePersistence.As<IMessageDatabase>().LoadPageOfGloballyOwnedIncomingAsync(localOne, limit);
         foreach (var envelope in one)
         {
             envelope.Destination.ShouldBe(localOne);

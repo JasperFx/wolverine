@@ -15,10 +15,10 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 
     public MartenEnvelopeTransaction(IDocumentSession session, MessageContext context)
     {
-        if (context.Storage is PostgresqlMessageStore persistence)
+        if (context.Storage is PostgresqlMessageMessageStore persistence)
         {
-            _settings = (PostgresqlSettings)persistence.DatabaseSettings;
-            _nodeId = persistence.Settings.UniqueNodeId;
+            _settings = (PostgresqlSettings)persistence.Settings;
+            _nodeId = persistence.Node.UniqueNodeId;
         }
         else
         {

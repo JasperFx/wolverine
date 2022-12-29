@@ -15,7 +15,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Postgresql;
 
-internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
+internal class PostgresqlMessageMessageStore : MessageMessageDatabase<NpgsqlConnection>
 {
     private readonly string _deleteIncomingEnvelopesSql;
     private readonly string _deleteOutgoingEnvelopesSql;
@@ -25,8 +25,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     private readonly string _reassignOutgoingSql;
 
 
-    public PostgresqlMessageStore(PostgresqlSettings databaseSettings, NodeSettings settings,
-        ILogger<PostgresqlMessageStore> logger) : base(databaseSettings,
+    public PostgresqlMessageMessageStore(PostgresqlSettings databaseSettings, NodeSettings settings,
+        ILogger<PostgresqlMessageMessageStore> logger) : base(databaseSettings,
         settings, logger)
     {
         _deleteIncomingEnvelopesSql =
@@ -42,7 +42,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             $"select {DatabaseConstants.IncomingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = :address limit :limit";
 
         _discardAndReassignOutgoingSql = _deleteOutgoingEnvelopesSql +
-                                         $";update {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
+                                         $";update {Settings.SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
     }
 
 
@@ -52,9 +52,9 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         {
             return new ISchemaObject[]
             {
-                new OutgoingEnvelopeTable(DatabaseSettings.SchemaName),
-                new IncomingEnvelopeTable(DatabaseSettings.SchemaName),
-                new DeadLettersTable(DatabaseSettings.SchemaName)
+                new OutgoingEnvelopeTable(Settings.SchemaName),
+                new IncomingEnvelopeTable(Settings.SchemaName),
+                new DeadLettersTable(Settings.SchemaName)
             };
         }
     }
@@ -74,13 +74,13 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         var counts = new PersistedCounts();
 
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync();
 
 
         await using (var reader = await conn
                          .CreateCommand(
-                             $"select status, count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} group by status")
+                             $"select status, count(*) from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} group by status")
                          .ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
@@ -104,7 +104,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         }
 
         var longCount = await conn
-            .CreateCommand($"select count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable}")
+            .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteScalarAsync();
 
         counts.Outgoing = Convert.ToInt32(longCount);
@@ -116,13 +116,13 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override Task MoveToDeadLetterStorageAsync(ErrorReport[] errors)
     {
-        var builder = DatabaseSettings.ToCommandBuilder();
+        var builder = Settings.ToCommandBuilder();
         builder.Append(_deleteIncomingEnvelopesSql);
         var param = (NpgsqlParameter)builder.AddNamedParameter("ids", DBNull.Value);
         param.Value = errors.Select(x => x.Id).ToArray();
         param.NpgsqlDbType = NpgsqlDbType.Uuid | NpgsqlDbType.Array;
 
-        DatabasePersistence.ConfigureDeadLetterCommands(errors, builder, DatabaseSettings);
+        DatabasePersistence.ConfigureDeadLetterCommands(errors, builder, Settings);
 
         return builder.Compile().ExecuteOnce(_cancellation);
     }
@@ -130,7 +130,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
     {
-        return DatabaseSettings.CreateCommand(_deleteIncomingEnvelopesSql)
+        return Settings.CreateCommand(_deleteIncomingEnvelopesSql)
             .WithEnvelopeIds("ids", envelopes)
             .ExecuteOnce(_cancellation);
     }
@@ -138,12 +138,12 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override void Describe(TextWriter writer)
     {
-        writer.WriteLine($"Persistent Envelope storage using Postgresql in schema '{DatabaseSettings.SchemaName}'");
+        writer.WriteLine($"Persistent Envelope storage using Postgresql in schema '{Settings.SchemaName}'");
     }
 
     public override Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
-        return DatabaseSettings.CreateCommand(_discardAndReassignOutgoingSql)
+        return Settings.CreateCommand(_discardAndReassignOutgoingSql)
             .WithEnvelopeIds("ids", discards)
             .With("node", nodeId)
             .With("rids", reassigned)
@@ -152,7 +152,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
-        return DatabaseSettings.CreateCommand(_deleteOutgoingEnvelopesSql)
+        return Settings.CreateCommand(_deleteOutgoingEnvelopesSql)
             .WithEnvelopeIds("ids", envelopes)
             .ExecuteOnce(_cancellation);
     }
@@ -198,7 +198,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         return Session!.Transaction!
             .CreateCommand(
-                $"select {DatabaseConstants.IncomingFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time LIMIT {Settings.RecoveryBatchSize}")
+                $"select {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time LIMIT {Node.RecoveryBatchSize}")
             .With("time", utcNow)
             .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }

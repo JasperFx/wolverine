@@ -6,11 +6,11 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T>
+public abstract partial class MessageMessageDatabase<T>
 {
     public Task ScheduleExecutionAsync(Envelope[] envelopes)
     {
-        var builder = DatabaseSettings.ToCommandBuilder();
+        var builder = Settings.ToCommandBuilder();
 
         foreach (var envelope in envelopes)
         {
@@ -19,7 +19,7 @@ public abstract partial class MessageDatabase<T>
             var attempts = builder.AddParameter(envelope.Attempts);
 
             builder.Append(
-                $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set execution_time = @{time.ParameterName}, status = \'{EnvelopeStatus.Scheduled}\', attempts = @{attempts.ParameterName}, owner_id = {TransportConstants.AnyNode} where id = @{id.ParameterName};");
+                $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set execution_time = @{time.ParameterName}, status = \'{EnvelopeStatus.Scheduled}\', attempts = @{attempts.ParameterName}, owner_id = {TransportConstants.AnyNode} where id = @{id.ParameterName};");
         }
 
         return builder.Compile().ExecuteOnce(_cancellation);

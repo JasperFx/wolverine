@@ -12,18 +12,18 @@ namespace Wolverine.RDBMS;
 ///     Base class for relational database backed message storage
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public abstract partial class MessageDatabase<T>
+public abstract partial class MessageMessageDatabase<T>
 {
     public async Task ClearAllAsync()
     {
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
         await truncateEnvelopeDataAsync(conn);
     }
 
     public async Task RebuildAsync()
     {
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         await migrateAsync(conn);
@@ -33,7 +33,7 @@ public abstract partial class MessageDatabase<T>
 
     public async Task MigrateAsync()
     {
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         await migrateAsync(conn);
@@ -43,39 +43,39 @@ public abstract partial class MessageDatabase<T>
 
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         return await conn
             .CreateCommand(
-                $"select {DatabaseConstants.IncomingFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable}")
+                $"select {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable}")
             .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 
     public async Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
     {
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         return await conn
             .CreateCommand(
-                $"select {DatabaseConstants.OutgoingFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable}")
+                $"select {DatabaseConstants.OutgoingFields} from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
             .FetchList(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
     }
 
     public async Task ReleaseAllOwnershipAsync()
     {
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         await conn.CreateCommand(
-                $"update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0;update {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0")
+                $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0;update {Settings.SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0")
             .ExecuteNonQueryAsync(_cancellation);
     }
 
     public async Task CheckConnectivityAsync(CancellationToken token)
     {
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(token);
         await conn.CloseAsync();
     }
@@ -95,11 +95,11 @@ public abstract partial class MessageDatabase<T>
         try
         {
             var tx = await conn.BeginTransactionAsync(_cancellation);
-            await tx.CreateCommand($"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable}")
+            await tx.CreateCommand($"delete from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
                 .ExecuteNonQueryAsync(_cancellation);
-            await tx.CreateCommand($"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable}")
+            await tx.CreateCommand($"delete from {Settings.SchemaName}.{DatabaseConstants.IncomingTable}")
                 .ExecuteNonQueryAsync(_cancellation);
-            await tx.CreateCommand($"delete from {DatabaseSettings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
+            await tx.CreateCommand($"delete from {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
                 .ExecuteNonQueryAsync(_cancellation);
 
             await tx.CommitAsync(_cancellation);

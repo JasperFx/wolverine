@@ -196,7 +196,8 @@ internal class DurabilityAgent : IDurabilityAgent
                     _trace.LogDebug("Running action {Action}", action.Description);
                 }
 
-                await action.ExecuteAsync(_storage, this, _settings, DatabaseSettings);
+                // TODO -- eliminate the downcast!
+                await action.ExecuteAsync((IMessageDatabase)_storage, this, _storage.Session);
             }
             catch (Exception e)
             {

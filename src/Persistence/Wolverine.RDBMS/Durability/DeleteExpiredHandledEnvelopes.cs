@@ -9,10 +9,10 @@ public class DeleteExpiredHandledEnvelopes : IDurabilityAction
 {
     public string Description => "Deleting Expired, Handled Envelopes";
 
-    public Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
-        DatabaseSettings databaseSettings)
+    public Task ExecuteAsync(IMessageDatabase database, IDurabilityAgent agent,
+        IDurableStorageSession session)
     {
-        return storage.Session.WithinTransactionAsync(() => DeleteExpiredHandledEnvelopesAsync(storage.Session, DateTimeOffset.UtcNow, databaseSettings));
+        return session.WithinTransactionAsync(() => DeleteExpiredHandledEnvelopesAsync(session, DateTimeOffset.UtcNow, database.Settings));
     }
     
     public Task DeleteExpiredHandledEnvelopesAsync(IDurableStorageSession session, DateTimeOffset utcNow, DatabaseSettings databaseSettings)

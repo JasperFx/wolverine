@@ -6,6 +6,5 @@ namespace Wolverine.RDBMS.Durability;
 internal interface IDurabilityAction
 {
     string Description { get; }
-    Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
-        DatabaseSettings databaseSettings);
+    Task ExecuteAsync(IMessageDatabase database, IDurabilityAgent agent, IDurableStorageSession session);
 }

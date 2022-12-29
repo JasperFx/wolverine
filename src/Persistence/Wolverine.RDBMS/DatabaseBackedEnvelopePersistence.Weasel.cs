@@ -6,7 +6,7 @@ using Weasel.Core.Migrations;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T> : IFeatureSchema
+public abstract partial class MessageMessageDatabase<T> : IFeatureSchema
 {
     void IFeatureSchema.WritePermissions(Migrator rules, TextWriter writer)
     {

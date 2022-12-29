@@ -16,9 +16,9 @@ internal class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
-        if (messaging.Storage is IDatabaseBackedMessageStore persistence)
+        if (messaging.Storage is IMessageDatabase persistence)
         {
-            _settings = persistence.DatabaseSettings;
+            _settings = persistence.Settings;
         }
         else
         {

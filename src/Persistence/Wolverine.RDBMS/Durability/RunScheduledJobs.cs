@@ -20,24 +20,25 @@ internal class RunScheduledJobs : IDurabilityAction
         _logger = logger;
     }
 
-    public Task ExecuteAsync(IMessageStore storage, IDurabilityAgent agent, NodeSettings nodeSettings,
-        DatabaseSettings databaseSettings)
+    public Task ExecuteAsync(IMessageDatabase database, IDurabilityAgent agent,
+        IDurableStorageSession session)
     {
         var utcNow = DateTimeOffset.UtcNow;
-        return ExecuteAtTimeAsync(storage, agent, utcNow);
+        return ExecuteAtTimeAsync(database, session, agent, utcNow);
     }
 
     public string Description { get; } = "Run Scheduled Messages";
 
-    public async Task ExecuteAtTimeAsync(IMessageStore storage, IDurabilityAgent agent,
+    public async Task ExecuteAtTimeAsync(IMessageDatabase database, IDurableStorageSession session,
+        IDurabilityAgent agent,
         DateTimeOffset utcNow)
     {
-        await storage.Session.BeginAsync();
+        await session.BeginAsync();
 
-        var hasLock = await storage.Session.TryGetGlobalLockAsync(TransportConstants.ScheduledJobLockId);
+        var hasLock = await session.TryGetGlobalLockAsync(TransportConstants.ScheduledJobLockId);
         if (!hasLock)
         {
-            await storage.Session.RollbackAsync();
+            await session.RollbackAsync();
             return;
         }
 
@@ -50,21 +51,21 @@ internal class RunScheduledJobs : IDurabilityAction
 
             try
             {
-                readyToExecute = await storage.LoadScheduledToExecuteAsync(utcNow);
+                readyToExecute = await database.LoadScheduledToExecuteAsync(utcNow);
 
                 if (!readyToExecute.Any())
                 {
-                    await storage.Session.RollbackAsync();
+                    await session.RollbackAsync();
                     return;
                 }
 
-                await storage.ReassignIncomingAsync(_settings.UniqueNodeId, readyToExecute);
+                await database.ReassignIncomingAsync(_settings.UniqueNodeId, readyToExecute);
 
-                await storage.Session.CommitAsync();
+                await session.CommitAsync();
             }
             catch (Exception)
             {
-                await storage.Session.RollbackAsync();
+                await session.RollbackAsync();
                 throw;
             }
 
@@ -74,7 +75,7 @@ internal class RunScheduledJobs : IDurabilityAction
         }
         finally
         {
-            await storage.Session.ReleaseGlobalLockAsync(TransportConstants.ScheduledJobLockId);
+            await session.ReleaseGlobalLockAsync(TransportConstants.ScheduledJobLockId);
         }
     }
 }

@@ -26,7 +26,7 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
-        expression.Services.AddSingleton<IMessageStore, PostgresqlMessageStore>();
+        expression.Services.AddSingleton<IMessageStore, PostgresqlMessageMessageStore>();
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 

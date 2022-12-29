@@ -92,7 +92,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
 
     protected override IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender)
     {
-        return sender.Get<IMessageStore>().As<SqlServerMessageStore>()
+        return sender.Get<IMessageStore>().As<SqlServerMessageMessageStore>()
             .Admin.AllOutgoingAsync().GetAwaiter().GetResult();
     }
 }

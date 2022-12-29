@@ -39,8 +39,8 @@ public class SqlServerBackedListenerContext : SqlServerContext
         };
 
         thePersistence =
-            new SqlServerMessageStore(mssqlSettings, theSettings,
-                new NullLogger<SqlServerMessageStore>());
+            new SqlServerMessageMessageStore(mssqlSettings, theSettings,
+                new NullLogger<SqlServerMessageMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Storage.Returns(thePersistence);

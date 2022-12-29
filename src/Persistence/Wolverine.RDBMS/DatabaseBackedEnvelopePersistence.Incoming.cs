@@ -7,7 +7,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T>
+public abstract partial class MessageMessageDatabase<T>
 {
     private readonly string _deleteIncomingEnvelopeById;
     private readonly string _incrementIncominEnvelopeAttempts;
@@ -19,16 +19,16 @@ public abstract partial class MessageDatabase<T>
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
-        return DatabaseSettings
+        return Settings
             .CreateCommand(_deleteIncomingEnvelopeById)
             .With("id", envelope.Id)
-            .With("keepUntil", DateTimeOffset.UtcNow.Add(Settings.KeepAfterMessageHandling))
+            .With("keepUntil", DateTimeOffset.UtcNow.Add(Node.KeepAfterMessageHandling))
             .ExecuteOnce(_cancellation);
     }
 
     public Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, DatabaseSettings);
+        var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, Settings);
 
         cmd.Transaction = tx;
         cmd.Connection = tx.Connection;
@@ -44,7 +44,7 @@ public abstract partial class MessageDatabase<T>
 
     public Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
-        return DatabaseSettings.CreateCommand(_incrementIncominEnvelopeAttempts)
+        return Settings.CreateCommand(_incrementIncominEnvelopeAttempts)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
             .ExecuteOnce(_cancellation);
@@ -52,8 +52,8 @@ public abstract partial class MessageDatabase<T>
 
     public async Task StoreIncomingAsync(Envelope envelope)
     {
-        var builder = DatabaseSettings.ToCommandBuilder();
-        DatabasePersistence.BuildIncomingStorageCommand(DatabaseSettings, builder, envelope);
+        var builder = Settings.ToCommandBuilder();
+        DatabasePersistence.BuildIncomingStorageCommand(Settings, builder, envelope);
 
         var cmd = builder.Compile();
         try
@@ -73,9 +73,9 @@ public abstract partial class MessageDatabase<T>
 
     public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
-        var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, DatabaseSettings);
+        var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, Settings);
 
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         cmd.Connection = conn;
@@ -85,11 +85,11 @@ public abstract partial class MessageDatabase<T>
 
     public async Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
     {
-        await using var conn = DatabaseSettings.CreateConnection();
+        await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
         var cmd = conn.CreateCommand(
-            $"select {DatabaseConstants.DeadLetterFields} from {DatabaseSettings.SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id");
+            $"select {DatabaseConstants.DeadLetterFields} from {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id");
         cmd.With("id", id);
 
         await using var reader = await cmd.ExecuteReaderAsync(_cancellation);

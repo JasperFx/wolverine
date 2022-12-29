@@ -11,13 +11,13 @@ namespace PersistenceTests.SqlServer;
 [Collection("sqlserver")]
 public abstract class SqlServerContext : IAsyncLifetime
 {
-    protected SqlServerMessageStore thePersistence;
+    protected SqlServerMessageMessageStore thePersistence;
 
     public async Task InitializeAsync()
     {
-        thePersistence = new SqlServerMessageStore(
+        thePersistence = new SqlServerMessageMessageStore(
             new SqlServerSettings { ConnectionString = Servers.SqlServerConnectionString }, new NodeSettings(null),
-            new NullLogger<SqlServerMessageStore>());
+            new NullLogger<SqlServerMessageMessageStore>());
         await thePersistence.RebuildAsync();
         await initialize();
     }
