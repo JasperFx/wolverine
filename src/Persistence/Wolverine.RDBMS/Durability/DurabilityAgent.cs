@@ -157,7 +157,7 @@ internal class DurabilityAgent : IDurabilityAgent
             await _storage.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
 
             // Release all envelopes tagged to this node in message persistence to any node
-            await _storage.ReassignDormantNodeToAnyNodeAsync(_settings.UniqueNodeId);
+            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_storage.Session, _settings.UniqueNodeId, DatabaseSettings);
         }
         catch (Exception e)
         {

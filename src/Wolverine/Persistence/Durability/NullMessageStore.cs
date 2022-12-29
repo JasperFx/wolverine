@@ -141,11 +141,6 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         throw new NotSupportedException();
     }
 
-    public Task ReassignDormantNodeToAnyNodeAsync(int nodeId)
-    {
-        throw new NotSupportedException();
-    }
-
     public Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
         throw new NotSupportedException();
@@ -154,11 +149,6 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
     public Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
     {
         throw new NotSupportedException();
-    }
-
-    public Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync()
-    {
-        return Task.FromResult((IReadOnlyList<IncomingCount>)new List<IncomingCount>());
     }
 
     public Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)

@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Data.Common;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Lamar;
@@ -13,7 +11,6 @@ using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
-using Wolverine.Transports;
 using Wolverine.Transports.Local;
 
 namespace Wolverine.RDBMS;
@@ -22,7 +19,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     IDatabaseBackedMessageStore, IMessageStoreAdmin where T : DbConnection, new()
 {
     protected readonly CancellationToken _cancellation;
-    private readonly string _findAtLargeIncomingEnvelopeCountsSql;
     private readonly string _outgoingEnvelopeSql;
 
     protected MessageDatabase(DatabaseSettings databaseSettings, NodeSettings settings,
@@ -47,8 +43,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         // ReSharper disable once VirtualMemberCallInConstructor
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(databaseSettings, settings);
 
-        _findAtLargeIncomingEnvelopeCountsSql =
-            $"select {DatabaseConstants.ReceivedAt}, count(*) from {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
+
     }
 
     public NodeSettings Settings { get; }
@@ -60,25 +55,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public IDurableStorageSession Session { get; }
 
     public abstract void Describe(TextWriter writer);
-
-    public Task ReassignDormantNodeToAnyNodeAsync(int nodeId)
-    {
-        var sql = $@"
-update {DatabaseSettings.SchemaName}.{DatabaseConstants.IncomingTable}
-  set owner_id = 0
-where
-  owner_id = @owner;
-
-update {DatabaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable}
-  set owner_id = 0
-where
-  owner_id = @owner;
-";
-
-        return Session.CreateCommand(sql)
-            .With("owner", nodeId)
-            .ExecuteNonQueryAsync(_cancellation);
-    }
 
     public async Task ReleaseIncomingAsync(int ownerId)
     {
@@ -103,17 +79,6 @@ where
             .With("owner", ownerId)
             .With("uri", receivedAt.ToString())
             .ExecuteNonQueryAsync(_cancellation);
-    }
-
-    public Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync()
-    {
-        return Session.CreateCommand(_findAtLargeIncomingEnvelopeCountsSql).FetchList(async reader =>
-        {
-            var address = new Uri(await reader.GetFieldValueAsync<string>(0, _cancellation).ConfigureAwait(false));
-            var count = await reader.GetFieldValueAsync<int>(1, _cancellation).ConfigureAwait(false);
-
-            return new IncomingCount(address, count);
-        }, _cancellation);
     }
 
     public IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container)

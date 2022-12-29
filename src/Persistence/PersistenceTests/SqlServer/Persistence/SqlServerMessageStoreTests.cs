@@ -503,7 +503,9 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance, 5);
         await thePersistence.Session.BeginAsync();
-        var counts = await thePersistence.LoadAtLargeIncomingCountsAsync();
+        var settings = theHost.Services.GetRequiredService<SqlServerSettings>();
+        var counts = await RecoverIncomingMessages.LoadAtLargeIncomingCountsAsync(thePersistence.Session, settings);
+
 
 
         counts[0].Destination.ShouldBe(localOne);

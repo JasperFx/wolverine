@@ -246,7 +246,8 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         await thePersistence.StoreIncomingAsync(list);
 
 
-        var counts = await thePersistence.LoadAtLargeIncomingCountsAsync();
+        var settings = theHost.Services.GetRequiredService<PostgresqlSettings>();
+        var counts = await RecoverIncomingMessages.LoadAtLargeIncomingCountsAsync(thePersistence.Session, settings);
 
 
         counts[0].Destination.ShouldBe(localOne);

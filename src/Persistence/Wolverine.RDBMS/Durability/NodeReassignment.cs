@@ -32,10 +32,29 @@ internal class NodeReassignment : IDurabilityAction
 
             if (await storage.Session.TryGetGlobalTxLockAsync(owner))
             {
-                await storage.ReassignDormantNodeToAnyNodeAsync(owner);
+                await ReassignDormantNodeToAnyNodeAsync(storage.Session, owner, databaseSettings);
                 await storage.Session.ReleaseGlobalLockAsync(owner);
             }
         }
+    }
+    
+    public static Task ReassignDormantNodeToAnyNodeAsync(IDurableStorageSession session, int nodeId, DatabaseSettings databaseSettings)
+    {
+        var sql = $@"
+update {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable}
+  set owner_id = 0
+where
+  owner_id = @owner;
+
+update {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable}
+  set owner_id = 0
+where
+  owner_id = @owner;
+";
+
+        return session.CreateCommand(sql)
+            .With("owner", nodeId)
+            .ExecuteNonQueryAsync(session.Cancellation);
     }
     
     public static async Task<int[]> FindUniqueOwnersAsync(IDurableStorageSession session, NodeSettings nodeSettings, DatabaseSettings databaseSettings)

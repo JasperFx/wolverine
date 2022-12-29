@@ -36,8 +36,6 @@ public interface IMessageStore : IDisposable
 
     Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow);
 
-    Task ReassignDormantNodeToAnyNodeAsync(int nodeId);
-
     Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination);
     Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);
     Task<Uri[]> FindAllDestinationsAsync();
@@ -62,8 +60,6 @@ public interface IMessageStore : IDisposable
     Task ReleaseIncomingAsync(int ownerId, Uri receivedAt);
 
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
-
-    Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync();
 
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 

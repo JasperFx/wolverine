@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -26,7 +28,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
 
         await storage.Session.WithinSessionGlobalLockAsync(TransportConstants.IncomingMessageLockId, async () =>
         {
-            var counts = await storage.LoadAtLargeIncomingCountsAsync();
+            var counts = await LoadAtLargeIncomingCountsAsync(storage.Session, databaseSettings);
             foreach (var count in counts)
             {
                 rescheduleImmediately = rescheduleImmediately || await TryRecoverIncomingMessagesAsync(storage, count, nodeSettings);
@@ -38,6 +40,19 @@ internal class RecoverIncomingMessages : IDurabilityAction
         {
             agent.RescheduleIncomingRecovery();
         }
+    }
+    
+    public static Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync(IDurableStorageSession session, DatabaseSettings databaseSettings)
+    {
+        var sql = $"select {DatabaseConstants.ReceivedAt}, count(*) from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
+        
+        return session.CreateCommand(sql).FetchList(async reader =>
+        {
+            var address = new Uri(await reader.GetFieldValueAsync<string>(0, session.Cancellation).ConfigureAwait(false));
+            var count = await reader.GetFieldValueAsync<int>(1, session.Cancellation).ConfigureAwait(false);
+
+            return new IncomingCount(address, count);
+        }, session.Cancellation);
     }
 
     public string Description => "Recover persisted incoming messages";
