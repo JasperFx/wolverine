@@ -10,12 +10,17 @@ using Wolverine.Runtime;
 namespace Wolverine.EntityFrameworkCore;
 
 // ReSharper disable once InconsistentNaming
-internal class EfCoreEnvelopeTransaction : IEnvelopeTransaction
+/// <summary>
+/// Envelope transaction for raw database access for DbContexts w/o the explicit wolverine mappings
+/// </summary>
+internal class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly DatabaseSettings _settings;
 
-    public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
+    public RawDatabaseEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
+        
+        
         if (messaging.Storage is IMessageDatabase persistence)
         {
             _settings = persistence.Settings;
@@ -37,7 +42,7 @@ internal class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         {
             await DbContext.Database.BeginTransactionAsync();
         }
-
+        
         var conn = DbContext.Database.GetDbConnection();
         var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
         var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _settings);

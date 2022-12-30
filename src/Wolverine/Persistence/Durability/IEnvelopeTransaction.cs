@@ -16,7 +16,6 @@ public interface IEnvelopeTransaction
     ValueTask RollbackAsync();
 }
 
-// TODO -- THIS IS TEMPORARY, WILL BE OPTIMIZED SOON!
 public static class EnvelopeTransactionExtensions
 {
     public static Task PersistAsync(this IEnvelopeTransaction transaction, Envelope envelope)

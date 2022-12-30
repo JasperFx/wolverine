@@ -12,7 +12,9 @@ using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.SqlServer;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace PersistenceTests.EFCore;
@@ -29,6 +31,7 @@ public class persisting_envelopes : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Services.AddDbContext<SampleMappedDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
                 opts.Services.AddDbContext<SampleDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
@@ -80,7 +83,7 @@ public class persisting_envelopes : IAsyncLifetime
         };
 
         using var nested = _host.Services.As<IContainer>().GetNestedContainer();
-        var context = nested.GetInstance<SampleDbContext>();
+        var context = nested.GetInstance<SampleMappedDbContext>();
 
         context.Add(new IncomingMessage(theIncomingEnvelope));
         context.Add(new OutgoingMessage(theOutgoingEnvelope));
@@ -96,6 +99,25 @@ public class persisting_envelopes : IAsyncLifetime
     {
         await _host.StopAsync();
         _host.Dispose();
+    }
+
+    [Fact]
+    public void is_wolverine_enabled()
+    {
+        using var nested = _host.Services.As<IContainer>().GetNestedContainer();
+        nested.GetInstance<SampleDbContext>().IsWolverineEnabled().ShouldBeFalse();
+        nested.GetInstance<SampleMappedDbContext>().IsWolverineEnabled().ShouldBeTrue();
+    }
+
+    [Fact]
+    public void selectively_building_envelope_transaction()
+    {
+        using var nested = _host.Services.As<IContainer>().GetNestedContainer();
+        var runtime = _host.GetRuntime();
+        var context = new MessageContext(runtime);
+        
+        nested.GetInstance<SampleDbContext>().BuildTransaction(context).ShouldBeOfType<RawDatabaseEnvelopeTransaction>();
+        nested.GetInstance<SampleMappedDbContext>().BuildTransaction(context).ShouldBeOfType<MappedEnvelopeTransaction>();
     }
 
     [Fact]

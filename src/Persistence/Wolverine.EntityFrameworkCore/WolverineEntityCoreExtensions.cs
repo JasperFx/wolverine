@@ -1,10 +1,27 @@
 using Microsoft.EntityFrameworkCore;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
+using Wolverine.Runtime;
+using Wolverine.Transports;
 
 namespace Wolverine.EntityFrameworkCore;
 
 public static class WolverineEntityCoreExtensions
 {
+    internal const string WolverineEnabled = "WolverineEnabled";
+
+    internal static bool IsWolverineEnabled(this DbContext dbContext)
+    {
+        return dbContext.Model.FindAnnotation(WolverineEntityCoreExtensions.WolverineEnabled) != null;
+    }
+
+    internal static IEnvelopeTransaction BuildTransaction(this DbContext dbContext, MessageContext context)
+    {
+        return dbContext.IsWolverineEnabled() 
+            ? new MappedEnvelopeTransaction(dbContext, context) 
+            : new RawDatabaseEnvelopeTransaction(dbContext, context);
+    }
+    
     /// <summary>
     /// Add entity mappings for Wolverine message storage
     /// </summary>
@@ -13,6 +30,8 @@ public static class WolverineEntityCoreExtensions
     /// <returns></returns>
     public static ModelBuilder MapWolverineEnvelopeStorage(this ModelBuilder modelBuilder, string? databaseSchema = null)
     {
+        modelBuilder.Model.AddAnnotation(WolverineEnabled, "true");
+        
         modelBuilder.Entity<IncomingMessage>(eb =>
         {
             var table = eb.ToTable(DatabaseConstants.IncomingTable, databaseSchema, x => x.ExcludeFromMigrations())

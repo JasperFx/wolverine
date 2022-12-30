@@ -12,7 +12,7 @@ internal class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T 
     {
         DbContext = dbContext;
 
-        Transaction = new EfCoreEnvelopeTransaction(dbContext, this);
+        Transaction = dbContext.BuildTransaction(this);
     }
 
     public T DbContext { get; }
@@ -39,7 +39,7 @@ internal class DbContextOutbox : MessageContext, IDbContextOutbox
     {
         ActiveContext = dbContext;
 
-        Transaction = new EfCoreEnvelopeTransaction(dbContext, this);
+        Transaction = dbContext.BuildTransaction(this);
     }
 
     public DbContext? ActiveContext { get; private set; }

@@ -155,7 +155,7 @@ internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, I
             writer.WriteComment(
                 "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
             writer.Write(
-                $"var envelopeTransaction = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext!.Usage}, {_context!.Usage});");
+                $"var envelopeTransaction = new {typeof(RawDatabaseEnvelopeTransaction).FullNameInCode()}({_dbContext!.Usage}, {_context!.Usage});");
 
             writer.Write(
                 $"await context.{nameof(MessageContext.EnlistInOutboxAsync)}(envelopeTransaction);");
