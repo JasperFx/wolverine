@@ -42,8 +42,8 @@ public class OutgoingMessage
         ReplyUri = envelope.ReplyUri?.ToString();
 
         Destination = envelope.Destination!.ToString();
-        DeliverBy = envelope.DeliverBy;
-        SentAt = envelope.SentAt;
+        DeliverBy = envelope.DeliverBy?.ToUniversalTime();
+        SentAt = envelope.SentAt.ToUniversalTime();
     }
 
     

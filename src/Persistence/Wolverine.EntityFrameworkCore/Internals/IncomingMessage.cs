@@ -31,7 +31,7 @@ public class IncomingMessage
         Id = envelope.Id;
         Status = envelope.Status.ToString();
         OwnerId = envelope.OwnerId;
-        ExecutionTime = envelope.ScheduledTime;
+        ExecutionTime = envelope.ScheduledTime?.ToUniversalTime();
         Attempts = envelope.Attempts;
         Body = envelope.Data;
         ConversationId = envelope.ConversationId;
@@ -44,6 +44,6 @@ public class IncomingMessage
         AckRequested = envelope.AckRequested;
         ReplyUri = envelope.ReplyUri?.ToString();
         ReceivedAt = envelope.Destination?.ToString();
-        SentAt = envelope.SentAt;
+        SentAt = envelope.SentAt.ToUniversalTime();
     }
 }

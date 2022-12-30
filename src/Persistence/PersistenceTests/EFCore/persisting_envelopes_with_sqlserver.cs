@@ -23,7 +23,7 @@ using Xunit;
 namespace PersistenceTests.EFCore;
 
 [Collection("sqlserver")]
-public class persisting_envelopes : IAsyncLifetime
+public class persisting_envelopes_with_sqlserver : IAsyncLifetime
 {
     private IHost _host;
     private Envelope theIncomingEnvelope;

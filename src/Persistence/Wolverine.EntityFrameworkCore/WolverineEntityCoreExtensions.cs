@@ -1,15 +1,39 @@
+using System;
+using Lamar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
-using Wolverine.Transports;
 
 namespace Wolverine.EntityFrameworkCore;
 
 public static class WolverineEntityCoreExtensions
 {
     internal const string WolverineEnabled = "WolverineEnabled";
+
+    public static IServiceCollection AddDbContextWithWolverineIntegration<T>(this IServiceCollection services, Action<DbContextOptionsBuilder> configure) where T : DbContext
+    {
+        services.AddDbContext<T>(b =>
+        {
+            configure(b);
+            b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
+        }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+
+        return services;
+    }
+    
+    /// <summary>
+    ///     Uses Entity Framework Core for Saga persistence and transactional
+    ///     middleware
+    /// </summary>
+    /// <param name="options"></param>
+    public static void UseEntityFrameworkCoreTransactions(this WolverineOptions options)
+    {
+        options.Include<EntityFrameworkCoreBackedPersistence>();
+    }
 
     internal static bool IsWolverineEnabled(this DbContext dbContext)
     {
@@ -35,10 +59,13 @@ public static class WolverineEntityCoreExtensions
         
         modelBuilder.Entity<IncomingMessage>(eb =>
         {
-            var table = eb.ToTable(DatabaseConstants.IncomingTable, databaseSchema, x => x.ExcludeFromMigrations())
-                .HasKey(x => x.Id).HasName(DatabaseConstants.Id);
+            var table = eb.ToTable(DatabaseConstants.IncomingTable, databaseSchema, x => x.ExcludeFromMigrations());
 
-            
+
+            eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
+            eb.HasKey(x => x.Id);
+
+                
             eb.Property(x => x.Status).HasColumnName(DatabaseConstants.Status).IsRequired();
             eb.Property(x => x.OwnerId).HasColumnName(DatabaseConstants.OwnerId).IsRequired();
             eb.Property(x => x.ExecutionTime).HasColumnName(DatabaseConstants.ExecutionTime).HasDefaultValue(null);
@@ -59,8 +86,9 @@ public static class WolverineEntityCoreExtensions
         
         modelBuilder.Entity<OutgoingMessage>(eb =>
         {
-            eb.ToTable(DatabaseConstants.OutgoingTable, databaseSchema, x => x.ExcludeFromMigrations())
-                .HasKey(x => x.Id).HasName(DatabaseConstants.Id);
+            eb.ToTable(DatabaseConstants.OutgoingTable, databaseSchema, x => x.ExcludeFromMigrations());
+            eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
+            eb.HasKey(x => x.Id);
 
             eb.Property(x => x.OwnerId).HasColumnName(DatabaseConstants.OwnerId).IsRequired();
             eb.Property(x => x.Destination).HasColumnName(DatabaseConstants.Destination).IsRequired();
