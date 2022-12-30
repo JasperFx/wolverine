@@ -40,7 +40,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         opts.ListenAtPort(2345).UseDurableInbox();
     });
 
-    private IMessageStore thePersistence;
+    private IMessageDatabase thePersistence;
 
     public async Task InitializeAsync()
     {
@@ -48,7 +48,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         await store.Advanced.Clean.CompletelyRemoveAllAsync();
         await theHost.ResetResourceState();
 
-        thePersistence = theHost.Services.GetRequiredService<IMessageStore>();
+        thePersistence = (IMessageDatabase)theHost.Services.GetRequiredService<IMessageStore>();
     }
 
     public Task DisposeAsync()

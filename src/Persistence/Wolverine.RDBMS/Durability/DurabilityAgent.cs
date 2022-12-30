@@ -24,7 +24,7 @@ internal class DurabilityAgent : IDurabilityAgent
     private readonly IDurabilityAction _scheduledJobs;
     private readonly NodeSettings _settings;
 
-    private readonly IMessageStore _storage;
+    private readonly IMessageDatabase _database;
     private readonly ILogger<DurabilityAgent> _trace;
 
     private readonly ActionBlock<IDurabilityAction> _worker;
@@ -36,22 +36,18 @@ internal class DurabilityAgent : IDurabilityAgent
     internal DurabilityAgent(IWolverineRuntime runtime, ILogger logger,
         ILogger<DurabilityAgent> trace,
         ILocalQueue locals,
-        IMessageStore storage,
+        IMessageDatabase database,
         NodeSettings settings, 
         DatabaseSettings databaseSettings)
 #pragma warning restore CS8618)
     {
         DatabaseSettings = databaseSettings;
-        if (storage is NullMessageStore)
-        {
-            _disabled = true;
-            return;
-        }
+
 
         _logger = logger;
         _trace = trace;
         _locals = locals;
-        _storage = storage;
+        _database = database;
         _settings = settings;
 
         _metrics = new MetricsCalculator(runtime.Meter);
@@ -76,10 +72,10 @@ internal class DurabilityAgent : IDurabilityAgent
             return;
         }
 
-        if (_storage.Session.IsConnected())
+        if (_database.Session.IsConnected())
         {
-            await _storage.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
-            _storage.SafeDispose();
+            await _database.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
+            _database.SafeDispose();
         }
 
         if (_scheduledJobTimer != null)
@@ -154,10 +150,10 @@ internal class DurabilityAgent : IDurabilityAgent
         {
             await _worker.Completion;
 
-            await _storage.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
+            await _database.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
 
             // Release all envelopes tagged to this node in message persistence to any node
-            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_storage.Session, _settings.UniqueNodeId, DatabaseSettings);
+            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_database.Session, _settings.UniqueNodeId, DatabaseSettings);
         }
         catch (Exception e)
         {
@@ -182,7 +178,7 @@ internal class DurabilityAgent : IDurabilityAgent
         await tryRestartConnectionAsync();
 
         // Something is wrong, but we'll keep trying in a bit
-        if (!_storage.Session.IsConnected())
+        if (!_database.Session.IsConnected())
         {
             return;
         }
@@ -197,7 +193,7 @@ internal class DurabilityAgent : IDurabilityAgent
                 }
 
                 // TODO -- eliminate the downcast!
-                await action.ExecuteAsync((IMessageDatabase)_storage, this, _storage.Session);
+                await action.ExecuteAsync((IMessageDatabase)_database, this, _database.Session);
             }
             catch (Exception e)
             {
@@ -207,22 +203,22 @@ internal class DurabilityAgent : IDurabilityAgent
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to run {Action}", action);
-            await _storage.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
+            await _database.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
         }
 
-        await _storage.Session.GetNodeLockAsync(_settings.UniqueNodeId);
+        await _database.Session.GetNodeLockAsync(_settings.UniqueNodeId);
     }
 
     private async Task tryRestartConnectionAsync()
     {
-        if (_storage.Session.IsConnected())
+        if (_database.Session.IsConnected())
         {
             return;
         }
 
         try
         {
-            await _storage.Session.ConnectAndLockCurrentNodeAsync(_logger, _settings.UniqueNodeId);
+            await _database.Session.ConnectAndLockCurrentNodeAsync(_logger, _settings.UniqueNodeId);
         }
         catch (Exception? e)
         {

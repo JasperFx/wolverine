@@ -35,7 +35,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
     protected override Task initialize()
     {
-        thePersistence = theHost.Services.GetRequiredService<IMessageStore>();
+        thePersistence = (IMessageDatabase)theHost.Services.GetRequiredService<IMessageStore>();
         return thePersistence.Admin.ClearAllAsync();
     }
 

@@ -12,7 +12,7 @@ namespace Wolverine.RDBMS;
 ///     Base class for relational database backed message storage
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public abstract partial class MessageMessageDatabase<T>
+public abstract partial class MessageDatabase<T>
 {
     public async Task ClearAllAsync()
     {

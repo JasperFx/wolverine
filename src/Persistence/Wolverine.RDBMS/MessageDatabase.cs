@@ -15,13 +15,13 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageMessageDatabase<T> : DatabaseBase<T>,
+public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     IMessageDatabase, IMessageStoreAdmin where T : DbConnection, new()
 {
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
 
-    protected MessageMessageDatabase(DatabaseSettings databaseSettings, NodeSettings settings,
+    protected MessageDatabase(DatabaseSettings databaseSettings, NodeSettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
         "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
     {
@@ -87,7 +87,7 @@ public abstract partial class MessageMessageDatabase<T> : DatabaseBase<T>,
 
         // TODO -- use the worker queue for Retries?
         var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
-        return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, runtime.Storage,
+        return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, this,
             runtime.Options.Node, Settings);
     }
 

@@ -9,9 +9,11 @@ namespace Wolverine.RDBMS;
 
 public interface IMessageDatabase : IMessageStore
 {
+    
     public NodeSettings Node { get; }
 
     public DatabaseSettings Settings { get; }
+    IDurableStorageSession Session { get; }
 
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);

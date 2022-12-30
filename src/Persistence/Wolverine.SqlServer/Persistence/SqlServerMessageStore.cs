@@ -16,15 +16,15 @@ using Wolverine.Transports;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerMessageMessageStore : MessageMessageDatabase<SqlConnection>
+public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 {
     private readonly SqlServerSettings _databaseSettings;
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _moveToDeadLetterStorageSql;
 
 
-    public SqlServerMessageMessageStore(SqlServerSettings databaseSettings, NodeSettings settings,
-        ILogger<SqlServerMessageMessageStore> logger)
+    public SqlServerMessageStore(SqlServerSettings databaseSettings, NodeSettings settings,
+        ILogger<SqlServerMessageStore> logger)
         : base(databaseSettings, settings, logger)
     {
         _databaseSettings = databaseSettings;

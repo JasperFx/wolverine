@@ -33,7 +33,7 @@ public class service_registrations : PostgresqlContext
         var container = (IContainer)host.Services;
 
         container.Model.For<IMessageStore>()
-            .Default.ImplementationType.ShouldBe(typeof(PostgresqlMessageMessageStore));
+            .Default.ImplementationType.ShouldBe(typeof(PostgresqlMessageStore));
 
         container.Model.For<IWolverineExtension>().Instances
             .Any(x => x.ImplementationType == typeof(MartenIntegration))
@@ -59,7 +59,7 @@ public class service_registrations : PostgresqlContext
         var container = (IContainer)host.Services;
 
         container.Model.For<IMessageStore>()
-            .Default.ImplementationType.ShouldBe(typeof(PostgresqlMessageMessageStore));
+            .Default.ImplementationType.ShouldBe(typeof(PostgresqlMessageStore));
 
         container.Model.For<IWolverineExtension>().Instances
             .Any(x => x.ImplementationType == typeof(MartenIntegration))

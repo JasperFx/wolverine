@@ -50,7 +50,7 @@ public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
 
         theHost.Get<IMessageStore>().ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
 
-        var persistor = theHost.Get<SqlServerMessageMessageStore>();
+        var persistor = theHost.Get<SqlServerMessageStore>();
 
         persisted = (await persistor.Admin.AllIncomingAsync())
             .FirstOrDefault(x => x.Id == theEnvelope.Id);

@@ -6,7 +6,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageMessageDatabase<T>
+public abstract partial class MessageDatabase<T>
 {
     public Task ScheduleExecutionAsync(Envelope[] envelopes)
     {

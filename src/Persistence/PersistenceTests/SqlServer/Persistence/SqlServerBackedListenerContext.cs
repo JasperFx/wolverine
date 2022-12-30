@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer;
@@ -24,7 +25,7 @@ public class SqlServerBackedListenerContext : SqlServerContext
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
     protected SqlServerSettings mssqlSettings;
-    protected IMessageStore thePersistence;
+    protected IMessageDatabase thePersistence;
     internal DurableReceiver theReceiver;
     protected NodeSettings theSettings;
 
@@ -39,8 +40,8 @@ public class SqlServerBackedListenerContext : SqlServerContext
         };
 
         thePersistence =
-            new SqlServerMessageMessageStore(mssqlSettings, theSettings,
-                new NullLogger<SqlServerMessageMessageStore>());
+            new SqlServerMessageStore(mssqlSettings, theSettings,
+                new NullLogger<SqlServerMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Storage.Returns(thePersistence);
