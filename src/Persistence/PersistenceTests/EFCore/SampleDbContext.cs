@@ -1,20 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore;
 
 namespace PersistenceTests.EFCore;
 
 public class SampleDbContext : DbContext
 {
-    private readonly DbContextOptions<SampleDbContext> _options;
-
     public SampleDbContext(DbContextOptions<SampleDbContext> options) : base(options)
     {
-        _options = options;
     }
 
     public DbSet<Item> Items { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.MapWolverineEnvelopeStorage();
+        
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {
