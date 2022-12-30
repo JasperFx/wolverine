@@ -13,6 +13,8 @@ public class SampleDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+        
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {

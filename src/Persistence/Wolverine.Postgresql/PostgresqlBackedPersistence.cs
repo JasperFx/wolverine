@@ -9,7 +9,7 @@ using Wolverine.RDBMS;
 namespace Wolverine.Postgresql;
 
 /// <summary>
-///     Activates the Sql Server backed message persistence
+///     Activates the Postgresql backed message persistence
 /// </summary>
 internal class PostgresqlBackedPersistence : IWolverineExtension
 {

@@ -1,12 +1,11 @@
 using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
 
-namespace Wolverine.EntityFrameworkCore;
+namespace Wolverine.EntityFrameworkCore.Internals;
 
 /// <summary>
 /// This envelope transaction should be used for DbContext types where the Wolverine

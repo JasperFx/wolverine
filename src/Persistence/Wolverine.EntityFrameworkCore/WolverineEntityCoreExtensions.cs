@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;

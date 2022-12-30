@@ -7,7 +7,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
 
-namespace Wolverine.EntityFrameworkCore;
+namespace Wolverine.EntityFrameworkCore.Internals;
 
 // ReSharper disable once InconsistentNaming
 /// <summary>

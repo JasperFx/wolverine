@@ -16,6 +16,7 @@ using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;

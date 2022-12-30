@@ -1,3 +1,5 @@
+using Wolverine.EntityFrameworkCore.Internals;
+
 namespace Wolverine.EntityFrameworkCore;
 
 public static class WolverineOptionsEntityFrameworkCoreConfigurationExtensions

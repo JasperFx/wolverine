@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.Persistence.Sagas;
 
-namespace Wolverine.EntityFrameworkCore;
+namespace Wolverine.EntityFrameworkCore.Internals;
 
 /// <summary>
 ///     Add to your Wolverine application to opt into EF Core-backed

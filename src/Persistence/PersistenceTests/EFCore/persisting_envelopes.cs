@@ -1,16 +1,19 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
@@ -90,9 +93,6 @@ public class persisting_envelopes : IAsyncLifetime
 
         await context.SaveChangesAsync();
 
-
-        context.Model.FindEntityType(typeof(IncomingMessage))
-            .ShouldNotBeNull();
     }
 
     public async Task DisposeAsync()

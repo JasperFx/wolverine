@@ -1,6 +1,6 @@
 using System;
 
-namespace Wolverine.EntityFrameworkCore;
+namespace Wolverine.EntityFrameworkCore.Internals;
 
 public class IncomingMessage
 {

@@ -10,6 +10,7 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Configuration;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
