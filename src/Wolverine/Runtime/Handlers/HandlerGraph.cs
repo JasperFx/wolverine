@@ -13,6 +13,7 @@ using Lamar;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Middleware;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
@@ -124,6 +125,11 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
         var application = policy.AddType(middlewareType);
         application.MatchByMessageType = true;
+    }
+
+    public void AutoApplyTransactions()
+    {
+        AddPolicy(new AutoApplyTransactions());
     }
 
     internal void AddMessageHandler(Type messageType, MessageHandler handler)

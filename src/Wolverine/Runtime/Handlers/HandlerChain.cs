@@ -52,6 +52,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handlers.Add(call);
     }
 
+    public bool HasAttribute<T>() where T : Attribute
+    {
+        return Handlers.Any(x => x.Method.HasAttribute<T>() || x.HandlerType.HasAttribute<T>());
+    }
+
     public HandlerChain(IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
     {
         Handlers.AddRange(grouping);
@@ -62,6 +67,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var create in handler.Creates)
             i = DisambiguateOutgoingVariableName(create, i);
     }
+    
+    
 
     /// <summary>
     ///     A textual description of this HandlerChain

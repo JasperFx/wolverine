@@ -124,4 +124,5 @@ internal class EndpointPolicies : IEndpointPolicies
     {
         return _wolverineOptions.LocalRouting;
     }
+
 }

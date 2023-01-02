@@ -56,4 +56,6 @@ public interface IEndpointPolicies
     /// </summary>
     /// <returns></returns>
     LocalMessageRoutingConvention ConfigureConventionalLocalRouting();
+
+
 }

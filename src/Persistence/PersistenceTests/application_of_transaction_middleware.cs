@@ -35,6 +35,11 @@ public class application_of_transaction_middleware : IAsyncLifetime
             opts.Services.AddMarten(Servers.PostgresConnectionString);
             opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
                 x.UseSqlServer(Servers.SqlServerConnectionString));
+            
+            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
+            
+            opts.Handlers.AutoApplyTransactions();
 
             opts.Services.AddScoped<ISomeService, SomeService>();
         }).StartAsync();
@@ -143,7 +148,7 @@ public static class TransactionHandler
         
     }
     
-    public static void Handle(T2 t, NpgsqlConnection connection)
+    public static void Handle(T2 t, NpgsqlTransaction connection)
     {
         
     }

@@ -59,6 +59,14 @@ public static class GenerationRulesExtensions
         }
     }
 
+    public static List<ITransactionFrameProvider> TransactionProviders(this GenerationRules rules)
+    {
+        if (rules.Properties.TryGetValue(TRANSACTIONS, out var raw) &&
+            raw is List<ITransactionFrameProvider> list) return list;
+
+        return new List<ITransactionFrameProvider>();
+    }
+
     /// <summary>
     ///     The currently known strategy for code generating transaction middleware
     /// </summary>

@@ -64,4 +64,10 @@ public interface IHandlerConfiguration : IWithFailurePolicies
     /// </summary>
     /// <param name="middlewareType"></param>
     void AddMiddlewareByMessageType(Type middlewareType);
+    
+    /// <summary>
+    /// In place of using [Transactional] attributes, apply transactional middleware
+    /// to every message handler that uses transactional services
+    /// </summary>
+    void AutoApplyTransactions();
 }
