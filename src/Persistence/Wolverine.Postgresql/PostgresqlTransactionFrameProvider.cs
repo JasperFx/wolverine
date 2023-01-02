@@ -1,4 +1,5 @@
-﻿using Lamar;
+﻿using System.Linq;
+using Lamar;
 using Npgsql;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -17,5 +18,10 @@ internal class PostgresqlTransactionFrameProvider : ITransactionFrameProvider
             { ShouldFlushOutgoingMessages = shouldFlushOutgoingMessages };
 
         chain.Middleware.Add(frame);
+    }
+
+    public bool CanApply(IChain chain, IContainer container)
+    {
+        return chain.ServiceDependencies(container).Any(x => x == typeof(NpgsqlConnection));
     }
 }

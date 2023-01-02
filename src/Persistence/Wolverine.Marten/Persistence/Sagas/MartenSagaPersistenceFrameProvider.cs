@@ -27,6 +27,11 @@ internal class MartenSagaPersistenceFrameProvider : ISagaPersistenceFrameProvide
         }
     }
 
+    public bool CanApply(IChain chain, IContainer container)
+    {
+        return chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession));
+    }
+
     public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)
     {
         return new LoadDocumentFrame(sagaType, sagaId);

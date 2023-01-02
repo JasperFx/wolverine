@@ -1,14 +1,12 @@
-using System;
 using System.Linq;
 using JasperFx.Core.Reflection;
 using Lamar;
-using Lamar.IoC.Instances;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Configuration;
 
-internal class HandlerScopingPolicy : IFamilyPolicy
+internal class HandlerScopingPolicy : IRegistrationPolicy
 {
     private readonly HandlerGraph _handlers;
 
@@ -17,22 +15,15 @@ internal class HandlerScopingPolicy : IFamilyPolicy
         _handlers = handlers;
     }
 
-    public ServiceFamily? Build(Type type, ServiceGraph serviceGraph)
-    {
-        if (type.IsConcrete() && matches(type))
-        {
-            var instance = new ConstructorInstance(type, type, ServiceLifetime.Scoped);
-            return new ServiceFamily(type, new IDecoratorPolicy[0], instance);
-        }
-
-        return null;
-    }
-
-    private bool matches(Type type)
+    public void Apply(ServiceRegistry services)
     {
         var handlerTypes = _handlers.Chains.SelectMany(x => x.Handlers)
-            .Select(x => x.HandlerType);
+            .Select(x => x.HandlerType).Where(x => !x.IsStatic());
 
-        return handlerTypes.Contains(type);
+        foreach (var handlerType in handlerTypes)
+        {
+            services.AddScoped(handlerType);
+        }
     }
+
 }

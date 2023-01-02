@@ -96,6 +96,11 @@ internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, I
         }
     }
 
+    public bool CanApply(IChain chain, IContainer container)
+    {
+        return chain.ServiceDependencies(container).Any(x => x.CanBeCastTo<DbContext>());
+    }
+
     internal Type DetermineDbContextType(Type entityType, IContainer container)
     {
         if (_dbContextTypes.TryFind(entityType, out var dbContextType))

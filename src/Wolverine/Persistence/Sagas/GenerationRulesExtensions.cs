@@ -85,5 +85,10 @@ public static class GenerationRulesExtensions
         {
             // Nothing
         }
+
+        public bool CanApply(IChain chain, IContainer container)
+        {
+            return false;
+        }
     }
 }

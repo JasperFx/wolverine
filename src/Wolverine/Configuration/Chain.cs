@@ -92,6 +92,9 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
             foreach (var parameter in handlerCall.Method.GetParameters()) yield return parameter.ParameterType;
 
+            // Don't have to consider dependencies of a static handler
+            if (handlerCall.HandlerType.IsStatic()) continue;
+            
             var @default = container.Model.For(handlerCall.HandlerType).Default;
             foreach (var dependency in @default.Instance.Dependencies) yield return dependency.ServiceType;
         }
