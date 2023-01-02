@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using JasperFx.CodeGeneration;
 using Lamar;
 using Wolverine.Configuration;
@@ -10,7 +12,7 @@ public static class GenerationRulesExtensions
     public static readonly string TRANSACTIONS = "TRANSACTIONS";
 
     private static readonly ISagaPersistenceFrameProvider _nulloSagas = new InMemorySagaPersistenceFrameProvider();
-    private static readonly ITransactionFrameProvider _transactions = new NulloTransactionFrameProvider();
+    private static readonly ITransactionFrameProvider _nullo = new NulloTransactionFrameProvider();
 
     /// <summary>
     ///     The currently known strategy for persisting saga state
@@ -43,40 +45,32 @@ public static class GenerationRulesExtensions
     /// <summary>
     ///     The currently known strategy for code generating transaction middleware
     /// </summary>
-    public static void SetTransactions(this GenerationRules rules, ITransactionFrameProvider value)
+    public static void AddTransactionStrategy(this GenerationRules rules, ITransactionFrameProvider value)
     {
-        if (rules.Properties.ContainsKey(TRANSACTIONS))
+        if (rules.Properties.TryGetValue(TRANSACTIONS, out var raw) && raw is List<ITransactionFrameProvider> list)
         {
-            rules.Properties[TRANSACTIONS] = value;
+            list.Add(value);
         }
         else
         {
-            rules.Properties.Add(TRANSACTIONS, value);
+            list = new List<ITransactionFrameProvider>();
+            list.Add(value);
+            rules.Properties[TRANSACTIONS] = list;
         }
     }
 
     /// <summary>
     ///     The currently known strategy for code generating transaction middleware
     /// </summary>
-    public static void SetTransactionsIfNone(this GenerationRules rules, ITransactionFrameProvider value)
+    public static ITransactionFrameProvider GetTransactions(this GenerationRules rules, IChain chain,
+        IContainer container)
     {
-        if (!rules.Properties.ContainsKey(TRANSACTIONS))
+        if (rules.Properties.TryGetValue(TRANSACTIONS, out var raw) && raw is List<ITransactionFrameProvider> list)
         {
-            rules.Properties.Add(TRANSACTIONS, value);
-        }
-    }
-
-    /// <summary>
-    ///     The currently known strategy for code generating transaction middleware
-    /// </summary>
-    public static ITransactionFrameProvider GetTransactions(this GenerationRules rules)
-    {
-        if (rules.Properties.TryGetValue(TRANSACTIONS, out var transactions))
-        {
-            return (ITransactionFrameProvider)transactions;
+            return list.FirstOrDefault(x => x.CanApply(chain, container)) ?? _nullo;
         }
 
-        return _transactions;
+        return _nullo;
     }
 
     public class NulloTransactionFrameProvider : ITransactionFrameProvider

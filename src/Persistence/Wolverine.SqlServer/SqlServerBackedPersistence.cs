@@ -34,6 +34,6 @@ internal class SqlServerBackedPersistence : IWolverineExtension
             new SqlConnectionInstance(typeof(DbConnection))));
 
         // Don't overwrite the EF Core transaction support if it's there
-        options.Node.CodeGeneration.SetTransactionsIfNone(new SqlServerTransactionFrameProvider());
+        options.Node.CodeGeneration.AddTransactionStrategy(new SqlServerTransactionFrameProvider());
     }
 }

@@ -14,6 +14,7 @@ public class TransactionalAttribute : ModifyChainAttribute
 {
     public override void Modify(IChain chain, GenerationRules rules, IContainer container)
     {
-        rules.As<GenerationRules>().GetTransactions().ApplyTransactionSupport(chain, container);
+        var transactionFrameProvider = rules.As<GenerationRules>().GetTransactions(chain, container);
+        transactionFrameProvider.ApplyTransactionSupport(chain, container);
     }
 }

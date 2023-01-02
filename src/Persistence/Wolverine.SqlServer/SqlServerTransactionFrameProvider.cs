@@ -22,6 +22,6 @@ internal class SqlServerTransactionFrameProvider : ITransactionFrameProvider
 
     public bool CanApply(IChain chain, IContainer container)
     {
-        return chain.ServiceDependencies(container).Any(x => x == typeof(SqlConnection));
+        return chain.ServiceDependencies(container).Any(x => x == typeof(SqlConnection) || x == typeof(SqlTransaction));
     }
 }

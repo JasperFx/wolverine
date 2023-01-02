@@ -22,6 +22,6 @@ internal class PostgresqlTransactionFrameProvider : ITransactionFrameProvider
 
     public bool CanApply(IChain chain, IContainer container)
     {
-        return chain.ServiceDependencies(container).Any(x => x == typeof(NpgsqlConnection));
+        return chain.ServiceDependencies(container).Any(x => x == typeof(NpgsqlConnection) || x == typeof(NpgsqlTransaction));
     }
 }

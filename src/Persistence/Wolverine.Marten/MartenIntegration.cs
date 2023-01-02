@@ -19,7 +19,7 @@ internal class MartenIntegration : IWolverineExtension
 
         var frameProvider = new MartenSagaPersistenceFrameProvider();
         options.Node.CodeGeneration.SetSagaPersistence(frameProvider);
-        options.Node.CodeGeneration.SetTransactions(frameProvider);
+        options.Node.CodeGeneration.AddTransactionStrategy(frameProvider);
 
         options.Node.CodeGeneration.Sources.Add(new SessionVariableSource());
 

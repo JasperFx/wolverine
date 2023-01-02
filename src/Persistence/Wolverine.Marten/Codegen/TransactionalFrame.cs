@@ -22,22 +22,7 @@ internal class TransactionalFrame : Frame
     }
 
     public Variable? Session { get; private set; }
-
-    public Variable LoadDocument(Type documentType, Variable docId)
-    {
-        var document = new Variable(documentType, this);
-        var loaded = new Loaded(document, documentType, docId);
-        _loadedDocs.Add(loaded);
-
-        return document;
-    }
-
-    public void SaveDocument(Variable document)
-    {
-        _saved.Add(document);
-    }
-
-
+    
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         Session = chain.TryFindVariable(typeof(IDocumentSession), VariableSource.NotServices);

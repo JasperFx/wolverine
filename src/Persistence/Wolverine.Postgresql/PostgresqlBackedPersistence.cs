@@ -30,6 +30,6 @@ internal class PostgresqlBackedPersistence : IWolverineExtension
         options.Services.Add(new ServiceDescriptor(typeof(DbConnection),
             new NpgsqlConnectionInstance(typeof(DbConnection))));
 
-        options.Node.CodeGeneration.SetTransactionsIfNone(new PostgresqlTransactionFrameProvider());
+        options.Node.CodeGeneration.AddTransactionStrategy(new PostgresqlTransactionFrameProvider());
     }
 }
