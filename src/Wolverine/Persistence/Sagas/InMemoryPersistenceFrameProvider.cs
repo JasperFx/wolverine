@@ -4,11 +4,22 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Oakton.Parsing;
+using Wolverine.Configuration;
 
 namespace Wolverine.Persistence.Sagas;
 
-public class InMemorySagaPersistenceFrameProvider : ISagaPersistenceFrameProvider
+public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
 {
+    public void ApplyTransactionSupport(IChain chain, IContainer container)
+    {
+        // Nothing
+    }
+
+    public bool CanApply(IChain chain, IContainer container)
+    {
+        return false;
+    }
+    
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
         return SagaChain.DetermineSagaIdMember(sagaType)?.GetMemberType() ?? typeof(object);

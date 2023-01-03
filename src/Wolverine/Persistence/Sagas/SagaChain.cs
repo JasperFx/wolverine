@@ -12,7 +12,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Persistence.Sagas;
 
-internal class SagaChain : HandlerChain
+public class SagaChain : HandlerChain
 {
     public const string Orchestrate = "Orchestrate";
     public const string Orchestrates = "Orchestrates";
@@ -25,13 +25,12 @@ internal class SagaChain : HandlerChain
     public const string SagaIdMemberName = "SagaId";
     public const string SagaIdVariableName = "sagaId";
     public static readonly Type[] ValidSagaIdTypes = { typeof(Guid), typeof(int), typeof(long), typeof(string) };
-    private readonly Type _sagaType;
 
     public SagaChain(IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : base(grouping, parent)
     {
         try
         {
-            _sagaType = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>()).Select(x => x.HandlerType)
+            SagaType = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>()).Select(x => x.HandlerType)
                 .Distinct().Single();
         }
         catch (Exception e)
@@ -46,6 +45,8 @@ internal class SagaChain : HandlerChain
 
         SagaIdMember = DetermineSagaIdMember(MessageType);
     }
+
+    public Type SagaType { get; }
 
     public MemberInfo? SagaIdMember { get; set; }
 
@@ -72,7 +73,7 @@ internal class SagaChain : HandlerChain
     {
         applyCustomizations(rules, container);
 
-        var frameProvider = rules.GetSagaPersistence();
+        var frameProvider = rules.GetPersistenceProviders(this, container);
 
         NotFoundCalls = findByNames(NotFound);
         StartingCalls = findByNames(Start, Starts, StartOrHandle, StartsOrHandles);
@@ -94,16 +95,16 @@ internal class SagaChain : HandlerChain
         return Middleware.Concat(Postprocessors).ToList();
     }
 
-    private void generateCodeForMaybeExisting(IContainer container, ISagaPersistenceFrameProvider frameProvider)
+    private void generateCodeForMaybeExisting(IContainer container, IPersistenceFrameProvider frameProvider)
     {
         var findSagaId = SagaIdMember == null
-            ? (Frame)new PullSagaIdFromEnvelopeFrame(frameProvider.DetermineSagaIdType(_sagaType, container))
+            ? (Frame)new PullSagaIdFromEnvelopeFrame(frameProvider.DetermineSagaIdType(SagaType, container))
             : new PullSagaIdFromMessageFrame(MessageType, SagaIdMember);
         Postprocessors.Insert(0, findSagaId);
 
         var sagaId = findSagaId.Creates.Single();
 
-        var load = frameProvider.DetermineLoadFrame(container, _sagaType, sagaId);
+        var load = frameProvider.DetermineLoadFrame(container, SagaType, sagaId);
         var saga = load.Creates.Single();
         Postprocessors.Add(load);
 
@@ -116,9 +117,9 @@ internal class SagaChain : HandlerChain
         Postprocessors.Add(ifNullBlock);
     }
 
-    private void generateForOnlyStartingSaga(IContainer container, ISagaPersistenceFrameProvider frameProvider)
+    private void generateForOnlyStartingSaga(IContainer container, IPersistenceFrameProvider frameProvider)
     {
-        var creator = new CreateNewSagaFrame(_sagaType);
+        var creator = new CreateNewSagaFrame(SagaType);
         Postprocessors.Add(creator);
 
         foreach (var call in StartingCalls)
@@ -132,7 +133,7 @@ internal class SagaChain : HandlerChain
     }
 
     internal IEnumerable<Frame> DetermineSagaDoesNotExistSteps(Variable sagaId, Variable saga,
-        ISagaPersistenceFrameProvider frameProvider, IContainer container)
+        IPersistenceFrameProvider frameProvider, IContainer container)
     {
         if (MessageType.CanBeCastTo<TimeoutMessage>())
         {
@@ -168,7 +169,7 @@ internal class SagaChain : HandlerChain
         }
     }
 
-    private static Frame buildFrameForConditionalInsert(Variable saga, ISagaPersistenceFrameProvider frameProvider,
+    private static Frame buildFrameForConditionalInsert(Variable saga, IPersistenceFrameProvider frameProvider,
         IContainer container)
     {
         var insert = frameProvider.DetermineInsertFrame(saga, container);
@@ -177,7 +178,7 @@ internal class SagaChain : HandlerChain
     }
 
     internal IEnumerable<Frame> DetermineSagaExistsSteps(Variable sagaId, Variable saga,
-        ISagaPersistenceFrameProvider frameProvider, IContainer container)
+        IPersistenceFrameProvider frameProvider, IContainer container)
     {
         foreach (var call in ExistingCalls)
         {

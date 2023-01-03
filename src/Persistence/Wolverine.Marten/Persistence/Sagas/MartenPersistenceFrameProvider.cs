@@ -11,7 +11,7 @@ using Wolverine.Persistence.Sagas;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 
-internal class MartenSagaPersistenceFrameProvider : ISagaPersistenceFrameProvider, ITransactionFrameProvider
+internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 {
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
@@ -29,6 +29,7 @@ internal class MartenSagaPersistenceFrameProvider : ISagaPersistenceFrameProvide
 
     public bool CanApply(IChain chain, IContainer container)
     {
+        if (chain is SagaChain) return true;
         return chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession));
     }
 

@@ -2,14 +2,15 @@
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
+using Wolverine.Configuration;
 
-namespace Wolverine.Persistence.Sagas;
+namespace Wolverine.Persistence;
 
-/// <summary>
-///     This must be implemented for new types of saga storage
-/// </summary>
-public interface ISagaPersistenceFrameProvider
+public interface IPersistenceFrameProvider
 {
+    void ApplyTransactionSupport(IChain chain, IContainer container);
+    bool CanApply(IChain chain, IContainer container);
+    
     Type DetermineSagaIdType(Type sagaType, IContainer container);
     Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId);
     Frame DetermineInsertFrame(Variable saga, IContainer container);

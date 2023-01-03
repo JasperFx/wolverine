@@ -18,9 +18,9 @@ using Wolverine.Runtime;
 namespace Wolverine.EntityFrameworkCore.Codegen;
 
 // ReSharper disable once InconsistentNaming
-internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, ITransactionFrameProvider
+internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 {
-    private ImHashMap<Type, Type> _dbContextTypes = ImHashMap<Type, Type>.Empty;
+    private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
 
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
@@ -98,10 +98,16 @@ internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, I
 
     public bool CanApply(IChain chain, IContainer container)
     {
+        if (chain is SagaChain saga)
+        {
+            var sagaType = saga.SagaType;
+            return TryDetermineDbContextType(sagaType, container) != null;
+        }
+        
         return chain.ServiceDependencies(container).Any(x => x.CanBeCastTo<DbContext>());
     }
 
-    internal Type DetermineDbContextType(Type entityType, IContainer container)
+    internal Type? TryDetermineDbContextType(Type entityType, IContainer container)
     {
         if (_dbContextTypes.TryFind(entityType, out var dbContextType))
         {
@@ -122,8 +128,18 @@ internal class EFCorePersistenceFrameProvider : ISagaPersistenceFrameProvider, I
             }
         }
 
-        throw new ArgumentOutOfRangeException(nameof(entityType),
-            $"Cannot find a DbContext type that has a mapping for {entityType.FullNameInCode()}");
+        _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, null);
+        return null;
+    }
+    
+    internal Type DetermineDbContextType(Type entityType, IContainer container)
+    {
+        var contextType = TryDetermineDbContextType(entityType, container);
+        if (contextType == null)
+            throw new ArgumentOutOfRangeException($"Unable to determine a DbContext type that persists " +
+                                                  entityType.FullNameInCode());
+
+        return contextType;
     }
 
     public static Type DetermineDbContextType(IChain chain, IContainer container)

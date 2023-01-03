@@ -63,7 +63,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
     [InlineData(typeof(T5), false)]
     public void sql_server_connection_matching(Type messageType, bool expected)
     {
-        var provider = new SqlServerTransactionFrameProvider();
+        var provider = new SqlServerPersistenceFrameProvider();
         var chain = theHandlers.ChainFor(messageType);
         
         provider.CanApply(chain, theContainer).ShouldBe(expected);
@@ -77,7 +77,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
     [InlineData(typeof(T5), false)]
     public void postgresql_connection_matching(Type messageType, bool expected)
     {
-        var provider = new PostgresqlTransactionFrameProvider();
+        var provider = new PostgresqlPersistenceFrameProvider();
         var chain = theHandlers.ChainFor(messageType);
         
         provider.CanApply(chain, theContainer).ShouldBe(expected);
@@ -91,7 +91,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
     [InlineData(typeof(T5), true)]
     public void marten_document_session_matching(Type messageType, bool expected)
     {
-        var provider = new MartenSagaPersistenceFrameProvider();
+        var provider = new MartenPersistenceFrameProvider();
         var chain = theHandlers.ChainFor(messageType);
         
         provider.CanApply(chain, theContainer).ShouldBe(expected);

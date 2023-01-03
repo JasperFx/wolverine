@@ -8,72 +8,45 @@ namespace Wolverine.Persistence.Sagas;
 
 public static class GenerationRulesExtensions
 {
-    public static readonly string SAGA_PERSISTENCE = "SAGA_PERSISTENCE";
-    public static readonly string TRANSACTIONS = "TRANSACTIONS";
+    public static readonly string PERSISTENCE = "PERSISTENCE";
 
-    private static readonly ISagaPersistenceFrameProvider _nulloSagas = new InMemorySagaPersistenceFrameProvider();
-    private static readonly ITransactionFrameProvider _nullo = new NulloTransactionFrameProvider();
-
+    private static readonly IPersistenceFrameProvider _nullo = new InMemoryPersistenceFrameProvider();
+    
     /// <summary>
-    ///     The currently known strategy for persisting saga state
+    ///     The currently known strategy for code generating transaction middleware
     /// </summary>
-    public static void SetSagaPersistence(this GenerationRules rules, ISagaPersistenceFrameProvider value)
+    public static void AddPersistenceStrategy<T>(this GenerationRules rules) where T : IPersistenceFrameProvider, new()
     {
-        if (rules.Properties.ContainsKey(SAGA_PERSISTENCE))
+        if (rules.Properties.TryGetValue(PERSISTENCE, out var raw) && raw is List<IPersistenceFrameProvider> list)
         {
-            rules.Properties[SAGA_PERSISTENCE] = value;
+            if (!list.OfType<T>().Any())
+            {
+                list.Add(new T());
+            }
         }
         else
         {
-            rules.Properties.Add(SAGA_PERSISTENCE, value);
+            list = new List<IPersistenceFrameProvider>();
+            list.Add(new T());
+            rules.Properties[PERSISTENCE] = list;
         }
     }
 
-    /// <summary>
-    ///     The currently known strategy for persisting saga state
-    /// </summary>
-    public static ISagaPersistenceFrameProvider GetSagaPersistence(this GenerationRules rules)
+    public static List<IPersistenceFrameProvider> PersistenceProviders(this GenerationRules rules)
     {
-        if (rules.Properties.TryGetValue(SAGA_PERSISTENCE, out var persistence))
-        {
-            return (ISagaPersistenceFrameProvider)persistence;
-        }
+        if (rules.Properties.TryGetValue(PERSISTENCE, out var raw) &&
+            raw is List<IPersistenceFrameProvider> list) return list;
 
-        return _nulloSagas;
+        return new List<IPersistenceFrameProvider>();
     }
 
     /// <summary>
     ///     The currently known strategy for code generating transaction middleware
     /// </summary>
-    public static void AddTransactionStrategy(this GenerationRules rules, ITransactionFrameProvider value)
-    {
-        if (rules.Properties.TryGetValue(TRANSACTIONS, out var raw) && raw is List<ITransactionFrameProvider> list)
-        {
-            list.Add(value);
-        }
-        else
-        {
-            list = new List<ITransactionFrameProvider>();
-            list.Add(value);
-            rules.Properties[TRANSACTIONS] = list;
-        }
-    }
-
-    public static List<ITransactionFrameProvider> TransactionProviders(this GenerationRules rules)
-    {
-        if (rules.Properties.TryGetValue(TRANSACTIONS, out var raw) &&
-            raw is List<ITransactionFrameProvider> list) return list;
-
-        return new List<ITransactionFrameProvider>();
-    }
-
-    /// <summary>
-    ///     The currently known strategy for code generating transaction middleware
-    /// </summary>
-    public static ITransactionFrameProvider GetTransactions(this GenerationRules rules, IChain chain,
+    public static IPersistenceFrameProvider GetPersistenceProviders(this GenerationRules rules, IChain chain,
         IContainer container)
     {
-        if (rules.Properties.TryGetValue(TRANSACTIONS, out var raw) && raw is List<ITransactionFrameProvider> list)
+        if (rules.Properties.TryGetValue(PERSISTENCE, out var raw) && raw is List<IPersistenceFrameProvider> list)
         {
             return list.FirstOrDefault(x => x.CanApply(chain, container)) ?? _nullo;
         }
@@ -81,16 +54,5 @@ public static class GenerationRulesExtensions
         return _nullo;
     }
 
-    public class NulloTransactionFrameProvider : ITransactionFrameProvider
-    {
-        public void ApplyTransactionSupport(IChain chain, IContainer container)
-        {
-            // Nothing
-        }
 
-        public bool CanApply(IChain chain, IContainer container)
-        {
-            return false;
-        }
-    }
 }
