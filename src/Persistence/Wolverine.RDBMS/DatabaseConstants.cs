@@ -14,8 +14,6 @@ public static class DatabaseConstants
     public const string Source = "source";
     public const string MessageType = "message_type";
 
-    public const string Explanation = "explanation";
-    public const string ExceptionText = "exception_text";
     public const string ExceptionType = "exception_type";
     public const string ExceptionMessage = "exception_message";
 
@@ -23,14 +21,6 @@ public static class DatabaseConstants
     public const string IncomingTable = "wolverine_incoming_envelopes";
     public const string DeadLetterTable = "wolverine_dead_letters";
 
-    public const string CorrelationId = "correlation_id"; // add to all
-    public const string ConversationId = "conversation_id"; // add to all
-    public const string SagaId = "saga_id"; // add to all
-    public const string ParentId = "parent_id"; // add to all
-    public const string ContentType = "content_type"; // add to all
-    public const string ReplyRequested = "reply_requested"; // add to all
-    public const string ReplyUri = "reply_uri"; // add to all
-    public const string AckRequested = "ack_requested"; // add to all
     public const string ReceivedAt = "received_at"; // add to all
     public const string SentAt = "sent_at"; // add to all
 
@@ -43,5 +33,5 @@ public static class DatabaseConstants
         $"{Body}, {Id}, {OwnerId}, {Destination}, {DeliverBy}, {Attempts}, {MessageType}";
 
     public static readonly string DeadLetterFields =
-        $"{Id}, {ExecutionTime}, {Attempts}, {Body}, {ConversationId}, {CorrelationId}, {ParentId}, {SagaId}, {MessageType}, {ContentType}, {ReplyRequested}, {AckRequested}, {ReplyUri}, {Source}, {Explanation}, {ExceptionText}, {ExceptionType}, {ExceptionMessage}, {SentAt}";
+        $"{Id}, {ExecutionTime}, {Body}, {MessageType}, {Source}, {ExceptionType}, {ExceptionMessage}, {SentAt}";
 }

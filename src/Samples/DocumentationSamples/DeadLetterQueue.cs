@@ -13,9 +13,6 @@ public class DeadLetterQueue
         // The Id
         Console.WriteLine(report.Id);
 
-        // Why it was moved out
-        Console.WriteLine(report.Explanation);
-
         // The underlying message typ
         Console.WriteLine(report.Envelope.MessageType);
 
@@ -27,9 +24,6 @@ public class DeadLetterQueue
 
         // Just the message of the exception
         Console.WriteLine(report.ExceptionMessage);
-
-        // JUST SHOW ME THE FULL STACKTRACE ALREADY!!!!
-        Console.WriteLine(report.ExceptionText);
     }
 
     #endregion

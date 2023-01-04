@@ -210,7 +210,7 @@ create table receiver.trace_doc
         _senders.Remove(name);
     }
 
-    [Fact]
+    [Fact] // This test "blinks"
     public async Task sending_recovered_messages_when_sender_starts_up()
     {
         StartSender("Sender1");

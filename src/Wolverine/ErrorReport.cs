@@ -13,10 +13,8 @@ public class ErrorReport
 
     public ErrorReport(Envelope envelope, Exception ex)
     {
-        ExceptionText = ex.ToString();
         ExceptionMessage = ex.Message;
         ExceptionType = ex.GetType().FullName;
-        Explanation = ExceptionDetected;
 
         Envelope = envelope;
     }
@@ -26,9 +24,6 @@ public class ErrorReport
 
     public Guid Id => Envelope.Id;
 
-    public string? Explanation { get; set; }
-
     public string? ExceptionType { get; set; }
     public string? ExceptionMessage { get; set; }
-    public string? ExceptionText { get; set; }
 }

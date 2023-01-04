@@ -288,9 +288,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         stored.ExceptionMessage.ShouldBe(report2.ExceptionMessage);
         stored.Id.ShouldBe(report2.Id);
-        stored.ExceptionText.ShouldBe(report2.ExceptionText);
         stored.ExceptionType.ShouldBe(report2.ExceptionType);
-        stored.Explanation.ShouldBe(report2.Explanation);
         stored.Envelope.MessageType.ShouldBe(report2.Envelope.MessageType);
         stored.Envelope.Source.ShouldBe(report2.Envelope.Source);
     }

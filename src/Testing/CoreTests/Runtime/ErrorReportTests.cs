@@ -26,7 +26,6 @@ public class ErrorReportTests
     [Fact]
     public void captures_exception_data()
     {
-        theErrorReport.ExceptionText.ShouldBe(theException.ToString());
         theErrorReport.ExceptionMessage.ShouldBe(theException.Message);
         theErrorReport.ExceptionType.ShouldBe(theException.GetType().FullName);
     }

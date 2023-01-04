@@ -118,20 +118,9 @@ public static class DatabasePersistence
 
             list.Add(builder.AddParameter(error.Id));
             list.Add(builder.AddParameter(error.Envelope.ScheduledTime));
-            list.Add(builder.AddParameter(error.Envelope.Attempts));
             list.Add(builder.AddParameter(EnvelopeSerializer.Serialize(error.Envelope)));
-            list.Add(builder.AddParameter(error.Envelope.ConversationId));
-            list.Add(builder.AddParameter(error.Envelope.CorrelationId));
-            list.Add(builder.AddParameter(error.Envelope.ParentId));
-            list.Add(builder.AddParameter(error.Envelope.SagaId));
             list.Add(builder.AddParameter(error.Envelope.MessageType));
-            list.Add(builder.AddParameter(error.Envelope.ContentType));
-            list.Add(builder.AddParameter(error.Envelope.ReplyRequested));
-            list.Add(builder.AddParameter(error.Envelope.AckRequested));
-            list.Add(builder.AddParameter(error.Envelope.ReplyUri?.ToString()));
             list.Add(builder.AddParameter(error.Envelope.Source));
-            list.Add(builder.AddParameter(error.Explanation));
-            list.Add(builder.AddParameter(error.ExceptionText));
             list.Add(builder.AddParameter(error.ExceptionType));
             list.Add(builder.AddParameter(error.ExceptionMessage));
             list.Add(builder.AddParameter(error.Envelope.SentAt.ToUniversalTime()));
