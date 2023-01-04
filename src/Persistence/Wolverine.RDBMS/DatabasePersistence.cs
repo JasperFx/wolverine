@@ -48,16 +48,7 @@ public static class DatabasePersistence
         list.Add(builder.AddParameter(envelope.DeliverBy));
 
         list.Add(builder.AddParameter(envelope.Attempts));
-        list.Add(builder.AddParameter(envelope.ConversationId));
-        list.Add(builder.AddParameter(envelope.CorrelationId));
-        list.Add(builder.AddParameter(envelope.ParentId));
-        list.Add(builder.AddParameter(envelope.SagaId));
         list.Add(builder.AddParameter(envelope.MessageType));
-        list.Add(builder.AddParameter(envelope.ContentType));
-        list.Add(builder.AddParameter(envelope.ReplyRequested));
-        list.Add(builder.AddParameter(envelope.AckRequested));
-        list.Add(builder.AddParameter(envelope.ReplyUri?.ToString()));
-        list.Add(builder.AddParameter(envelope.SentAt.ToUniversalTime()));
 
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
@@ -154,6 +145,7 @@ public static class DatabasePersistence
 
     public static async Task<Envelope> ReadOutgoingAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
+        // TODO -- don't use all the columns
         var body = await reader.GetFieldValueAsync<byte[]>(0, cancellation);
         var envelope = EnvelopeSerializer.Deserialize(body);
         envelope.OwnerId = await reader.GetFieldValueAsync<int>(2, cancellation);
@@ -164,16 +156,6 @@ public static class DatabasePersistence
         }
 
         envelope.Attempts = await reader.GetFieldValueAsync<int>(5, cancellation);
-        envelope.ConversationId = await reader.MaybeReadAsync<Guid>(6, cancellation);
-        envelope.CorrelationId = await reader.MaybeReadAsync<string>(7, cancellation);
-        envelope.ParentId = await reader.MaybeReadAsync<string>(8, cancellation);
-        envelope.SagaId = await reader.MaybeReadAsync<string>(9, cancellation);
-        envelope.MessageType = await reader.GetFieldValueAsync<string>(10, cancellation);
-        envelope.ContentType = await reader.GetFieldValueAsync<string>(11, cancellation);
-        envelope.ReplyRequested = await reader.MaybeReadAsync<string>(12, cancellation);
-        envelope.AckRequested = await reader.GetFieldValueAsync<bool>(13, cancellation);
-        envelope.ReplyUri = await reader.ReadUriAsync(14, cancellation);
-        envelope.SentAt = await reader.GetFieldValueAsync<DateTimeOffset>(15, cancellation);
 
         return envelope;
     }

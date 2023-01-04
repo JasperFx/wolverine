@@ -37,16 +37,7 @@ internal class StoreOutgoingEnvelope : IStorageOperation
             builder.AddParameter(Envelope.Destination!.ToString()),
             builder.AddParameter(Envelope.DeliverBy),
             builder.AddParameter(Envelope.Attempts),
-            builder.AddParameter(Envelope.ConversationId),
-            builder.AddParameter(Envelope.CorrelationId),
-            builder.AddParameter(Envelope.ParentId),
-            builder.AddParameter(Envelope.SagaId),
-            builder.AddParameter(Envelope.MessageType),
-            builder.AddParameter(Envelope.ContentType),
-            builder.AddParameter(Envelope.ReplyRequested),
-            builder.AddParameter(Envelope.AckRequested),
-            builder.AddParameter(Envelope.ReplyUri?.ToString()),
-            builder.AddParameter(Envelope.SentAt.ToUniversalTime())
+            builder.AddParameter(Envelope.MessageType)
         };
 
         var parameterList = list.Select(x => $":{x.ParameterName}").Join(", ");

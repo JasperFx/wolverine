@@ -18,16 +18,6 @@ internal class OutgoingEnvelopeTable : Table
 
         AddColumn<int>(DatabaseConstants.Attempts).DefaultValue(0);
 
-        AddColumn<Guid>(DatabaseConstants.ConversationId);
-        AddColumn<string>(DatabaseConstants.CorrelationId);
-        AddColumn<string>(DatabaseConstants.ParentId);
-        AddColumn<string>(DatabaseConstants.SagaId);
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
-        AddColumn<string>(DatabaseConstants.ContentType);
-        AddColumn<string>(DatabaseConstants.ReplyRequested);
-        AddColumn<bool>(DatabaseConstants.AckRequested);
-        AddColumn<string>(DatabaseConstants.ReplyUri);
-
-        AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
     }
 }
