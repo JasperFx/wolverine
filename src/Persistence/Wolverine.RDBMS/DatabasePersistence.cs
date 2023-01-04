@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.Core;
+using Weasel.Core;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -78,7 +80,7 @@ public static class DatabasePersistence
     {
         var list = new List<DbParameter>
         {
-            builder.AddParameter(envelope.Data),
+            builder.AddParameter(EnvelopeSerializer.Serialize(envelope)),
             builder.AddParameter(envelope.Id),
             builder.AddParameter(envelope.Status.ToString()),
             builder.AddParameter(envelope.OwnerId),
@@ -103,18 +105,17 @@ public static class DatabasePersistence
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
         builder.Append(
-            $@"insert into {settings.SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) values ({parameterList});");
+            $@"insert into {settings.SchemaName}.{DatabaseConstants.IncomingTable}({DatabaseConstants.IncomingFields}) values ({parameterList});");
     }
 
     public static async Task<Envelope> ReadIncomingAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
-        var envelope = new Envelope
-        {
-            Data = await reader.GetFieldValueAsync<byte[]>(0, cancellation),
-            Id = await reader.GetFieldValueAsync<Guid>(1, cancellation),
-            Status = Enum.Parse<EnvelopeStatus>(await reader.GetFieldValueAsync<string>(2, cancellation)),
-            OwnerId = await reader.GetFieldValueAsync<int>(3, cancellation)
-        };
+        // TODO -- don't fetch columns that aren't read here.
+        
+        var body = await reader.GetFieldValueAsync<byte[]>(0, cancellation);
+        var envelope = EnvelopeSerializer.Deserialize(body);
+        envelope.Status = Enum.Parse<EnvelopeStatus>(await reader.GetFieldValueAsync<string>(2, cancellation));
+        envelope.OwnerId = await reader.GetFieldValueAsync<int>(3, cancellation);
 
         if (!await reader.IsDBNullAsync(4, cancellation))
         {

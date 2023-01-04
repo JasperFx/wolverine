@@ -7,7 +7,7 @@ using System.Xml;
 
 namespace Wolverine.Runtime.Serialization;
 
-internal static class EnvelopeSerializer
+public static class EnvelopeSerializer
 {
     private static void readData(Envelope env, string key, string value)
     {
