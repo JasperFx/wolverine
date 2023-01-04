@@ -241,7 +241,7 @@ public static class SpecialLetterHandler
     // This can be done as a policy at the application level and not
     // on a handler by handler basis too
     [ScheduleRetry(typeof(ConcurrencyException), 1, 2, 5)]
-    [MartenCommandWorkflow(AggregateLoadStyle.Exclusive)]
+    [MartenCommandWorkflow(ConcurrencyStyle.Exclusive)]
     public static IEnumerable<object> Handle(IncrementAB command, LetterAggregate aggregate)
     {
         command.LetterAggregateId.ShouldBe(aggregate.Id);
@@ -250,8 +250,7 @@ public static class SpecialLetterHandler
     }
 }
 
-[MartenCommandWorkflow]
-public class LetterHandler
+public class LetterAggregateHandler
 {
     // No event returned
     public AEvent Handle(IncrementNone command, LetterAggregate aggregate)
@@ -269,7 +268,7 @@ public class LetterHandler
     }
 
     // Asynchronous, one event, no other services
-    public Task<BEvent> Handle(IncrementB command, LetterAggregate aggregate, ILogger<LetterHandler> logger)
+    public Task<BEvent> Handle(IncrementB command, LetterAggregate aggregate, ILogger<LetterAggregateHandler> logger)
     {
         command.LetterAggregateId.ShouldBe(aggregate.Id);
         logger.ShouldNotBeNull();

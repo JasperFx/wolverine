@@ -31,16 +31,16 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
     private static readonly Type _versioningBaseType =
         typeof(IAggregateVersioning).Assembly.DefinedTypes.Single(x => x.Name.StartsWith("AggregateVersioning"));
 
-    public MartenCommandWorkflowAttribute(AggregateLoadStyle loadStyle)
+    public MartenCommandWorkflowAttribute(ConcurrencyStyle loadStyle)
     {
         LoadStyle = loadStyle;
     }
 
-    public MartenCommandWorkflowAttribute() : this(AggregateLoadStyle.Optimistic)
+    public MartenCommandWorkflowAttribute() : this(ConcurrencyStyle.Optimistic)
     {
     }
 
-    internal AggregateLoadStyle LoadStyle { get; }
+    internal ConcurrencyStyle LoadStyle { get; }
 
     /// <summary>
     ///     Override or "help" Wolverine to understand which type is the aggregate type

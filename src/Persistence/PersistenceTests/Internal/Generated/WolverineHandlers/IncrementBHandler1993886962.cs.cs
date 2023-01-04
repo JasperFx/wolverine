@@ -8,10 +8,10 @@ namespace Internal.Generated.WolverineHandlers
     // START: IncrementBHandler1993886962
     public class IncrementBHandler1993886962 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterHandler> _logger;
+        private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> _logger;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementBHandler1993886962(Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterHandler> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementBHandler1993886962(Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _logger = logger;
             _outboxedSessionFactory = outboxedSessionFactory;
@@ -21,14 +21,14 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var letterHandler = new PersistenceTests.Marten.LetterHandler();
+            var letterAggregateHandler = new PersistenceTests.Marten.LetterAggregateHandler();
             var incrementB = (PersistenceTests.Marten.IncrementB)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementB.LetterAggregateId, cancellation).ConfigureAwait(false);
 
-            var bEvent = await letterHandler.Handle(incrementB, eventStream.Aggregate, _logger).ConfigureAwait(false);
+            var bEvent = await letterAggregateHandler.Handle(incrementB, eventStream.Aggregate, _logger).ConfigureAwait(false);
             if (bEvent != null)
             {
                 // Capturing any possible events returned from the command handlers

@@ -26,7 +26,7 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
         yield return _command;
 
         Arguments[0] = new MemberAccessVariable(_command, _att.AggregateIdMember!);
-        if (_att.LoadStyle == AggregateLoadStyle.Optimistic && _att.VersionMember != null)
+        if (_att.LoadStyle == ConcurrencyStyle.Optimistic && _att.VersionMember != null)
         {
             Arguments[1] = new MemberAccessVariable(_command, _att.VersionMember);
         }
@@ -38,7 +38,7 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
     {
         var isGuidIdentified = att.AggregateIdMember.GetMemberType() == typeof(Guid);
 
-        if (att.LoadStyle == AggregateLoadStyle.Exclusive)
+        if (att.LoadStyle == ConcurrencyStyle.Exclusive)
         {
             return isGuidIdentified
                 ? ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForExclusiveWriting<T>(Guid.Empty, default))
