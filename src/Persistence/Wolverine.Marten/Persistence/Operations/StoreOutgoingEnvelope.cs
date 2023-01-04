@@ -9,6 +9,7 @@ using Marten.Internal;
 using Marten.Internal.Operations;
 using Weasel.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Marten.Persistence.Operations;
 
@@ -30,7 +31,7 @@ internal class StoreOutgoingEnvelope : IStorageOperation
     {
         var list = new List<DbParameter>
         {
-            builder.AddParameter(Envelope.Data),
+            builder.AddParameter(EnvelopeSerializer.Serialize(Envelope)),
             builder.AddParameter(Envelope.Id),
             builder.AddParameter(_ownerId),
             builder.AddParameter(Envelope.Destination!.ToString()),

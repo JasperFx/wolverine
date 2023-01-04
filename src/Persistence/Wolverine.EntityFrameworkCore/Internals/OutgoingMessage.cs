@@ -1,4 +1,5 @@
 using System;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
@@ -30,7 +31,7 @@ public class OutgoingMessage
         Id = envelope.Id;
         OwnerId = envelope.OwnerId;
         Attempts = envelope.Attempts;
-        Body = envelope.Data;
+        Body = EnvelopeSerializer.Serialize(envelope);
         ConversationId = envelope.ConversationId;
         CorrelationId = envelope.CorrelationId;
         ParentId = envelope.ParentId;

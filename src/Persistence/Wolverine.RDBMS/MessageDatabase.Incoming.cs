@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Threading.Tasks;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.RDBMS;
 
@@ -97,11 +98,9 @@ public abstract partial class MessageDatabase<T>
         {
             return null;
         }
-
-        var envelope = new Envelope
-        {
-            Id = await reader.GetFieldValueAsync<Guid>(0, _cancellation)
-        };
+        
+        var body = await reader.GetFieldValueAsync<byte[]>(3, _cancellation);
+        var envelope = EnvelopeSerializer.Deserialize(body);
 
         if (!await reader.IsDBNullAsync(1, _cancellation))
         {
@@ -109,7 +108,7 @@ public abstract partial class MessageDatabase<T>
         }
 
         envelope.Attempts = await reader.GetFieldValueAsync<int>(2, _cancellation);
-        envelope.Data = await reader.GetFieldValueAsync<byte[]>(3, _cancellation);
+        
         envelope.ConversationId = await reader.MaybeReadAsync<Guid>(4, _cancellation);
         envelope.CorrelationId = await reader.MaybeReadAsync<string>(5, _cancellation);
         envelope.ParentId = await reader.MaybeReadAsync<string>(6, _cancellation);

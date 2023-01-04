@@ -41,7 +41,7 @@ public static class DatabasePersistence
     {
         var list = new List<DbParameter>();
 
-        list.Add(builder.AddParameter(envelope.Data));
+        list.Add(builder.AddParameter(EnvelopeSerializer.Serialize(envelope)));
         list.Add(builder.AddParameter(envelope.Id));
         list.Add(owner);
         list.Add(builder.AddParameter(envelope.Destination!.ToString()));
@@ -150,7 +150,7 @@ public static class DatabasePersistence
             list.Add(builder.AddParameter(error.Id));
             list.Add(builder.AddParameter(error.Envelope.ScheduledTime));
             list.Add(builder.AddParameter(error.Envelope.Attempts));
-            list.Add(builder.AddParameter(error.Envelope.Data));
+            list.Add(builder.AddParameter(EnvelopeSerializer.Serialize(error.Envelope)));
             list.Add(builder.AddParameter(error.Envelope.ConversationId));
             list.Add(builder.AddParameter(error.Envelope.CorrelationId));
             list.Add(builder.AddParameter(error.Envelope.ParentId));
@@ -176,14 +176,10 @@ public static class DatabasePersistence
 
     public static async Task<Envelope> ReadOutgoingAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
-        var envelope = new Envelope
-        {
-            Data = await reader.GetFieldValueAsync<byte[]>(0, cancellation),
-            Id = await reader.GetFieldValueAsync<Guid>(1, cancellation),
-            OwnerId = await reader.GetFieldValueAsync<int>(2, cancellation),
-            Destination = (await reader.GetFieldValueAsync<string>(3, cancellation)).ToUri()
-        };
-
+        var body = await reader.GetFieldValueAsync<byte[]>(0, cancellation);
+        var envelope = EnvelopeSerializer.Deserialize(body);
+        envelope.OwnerId = await reader.GetFieldValueAsync<int>(2, cancellation);
+        
         if (!await reader.IsDBNullAsync(4, cancellation))
         {
             envelope.DeliverBy = await reader.GetFieldValueAsync<DateTimeOffset>(4, cancellation);
