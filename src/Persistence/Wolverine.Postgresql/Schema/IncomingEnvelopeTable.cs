@@ -17,18 +17,9 @@ internal class IncomingEnvelopeTable : Table
         AddColumn<int>(DatabaseConstants.Attempts).DefaultValue(0);
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
 
-        AddColumn<Guid>(DatabaseConstants.ConversationId);
-        AddColumn<string>(DatabaseConstants.CorrelationId);
-        AddColumn<string>(DatabaseConstants.ParentId);
-        AddColumn<string>(DatabaseConstants.SagaId);
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
-        AddColumn<string>(DatabaseConstants.ContentType);
-        AddColumn<string>(DatabaseConstants.ReplyRequested);
-        AddColumn<bool>(DatabaseConstants.AckRequested);
-        AddColumn<string>(DatabaseConstants.ReplyUri);
         AddColumn<string>(DatabaseConstants.ReceivedAt);
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
 
-        AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
     }
 }

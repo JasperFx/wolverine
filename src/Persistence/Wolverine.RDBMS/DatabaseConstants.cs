@@ -37,7 +37,7 @@ public static class DatabaseConstants
     public const string KeepUntil = "keep_until";
 
     public static readonly string IncomingFields =
-        $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {ConversationId}, {CorrelationId}, {ParentId}, {SagaId}, {MessageType}, {ContentType}, {ReplyRequested}, {AckRequested}, {ReplyUri}, {ReceivedAt}, {SentAt}";
+        $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType},  {ReceivedAt}";
 
     public static readonly string OutgoingFields =
         $"{Body}, {Id}, {OwnerId}, {Destination}, {DeliverBy}, {Attempts}, {ConversationId}, {CorrelationId}, {ParentId}, {SagaId}, {MessageType}, {ContentType}, {ReplyRequested}, {AckRequested}, {ReplyUri}, {SentAt}";

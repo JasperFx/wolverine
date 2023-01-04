@@ -86,17 +86,8 @@ public static class DatabasePersistence
             builder.AddParameter(envelope.OwnerId),
             builder.AddParameter(envelope.ScheduledTime),
             builder.AddParameter(envelope.Attempts),
-            builder.AddParameter(envelope.ConversationId),
-            builder.AddParameter(envelope.CorrelationId),
-            builder.AddParameter(envelope.ParentId),
-            builder.AddParameter(envelope.SagaId),
             builder.AddParameter(envelope.MessageType),
-            builder.AddParameter(envelope.ContentType),
-            builder.AddParameter(envelope.ReplyRequested),
-            builder.AddParameter(envelope.AckRequested),
-            builder.AddParameter(envelope.ReplyUri?.ToString()),
             builder.AddParameter(envelope.Destination?.ToString()),
-            builder.AddParameter(envelope.SentAt.ToUniversalTime())
         };
 
         // TODO -- this seems like a good thing to generalize and move to Weasel
@@ -123,19 +114,6 @@ public static class DatabasePersistence
         }
 
         envelope.Attempts = await reader.GetFieldValueAsync<int>(5, cancellation);
-
-        envelope.ConversationId = await reader.MaybeReadAsync<Guid>(6, cancellation);
-        envelope.CorrelationId = await reader.MaybeReadAsync<string>(7, cancellation);
-        envelope.ParentId = await reader.MaybeReadAsync<string>(8, cancellation);
-        envelope.SagaId = await reader.MaybeReadAsync<string>(9, cancellation);
-
-        envelope.MessageType = await reader.GetFieldValueAsync<string>(10, cancellation);
-        envelope.ContentType = await reader.GetFieldValueAsync<string>(11, cancellation);
-        envelope.ReplyRequested = await reader.MaybeReadAsync<string>(12, cancellation);
-        envelope.AckRequested = await reader.GetFieldValueAsync<bool>(13, cancellation);
-        envelope.ReplyUri = await reader.ReadUriAsync(14, cancellation);
-        envelope.Destination = await reader.ReadUriAsync(15, cancellation);
-        envelope.SentAt = await reader.GetFieldValueAsync<DateTimeOffset>(16, cancellation);
 
         return envelope;
     }

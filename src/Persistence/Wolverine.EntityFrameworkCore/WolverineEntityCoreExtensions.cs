@@ -71,17 +71,8 @@ public static class WolverineEntityCoreExtensions
             eb.Property(x => x.ExecutionTime).HasColumnName(DatabaseConstants.ExecutionTime).HasDefaultValue(null);
             eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts).HasDefaultValue(0);
             eb.Property(x => x.Body).HasColumnName(DatabaseConstants.Body).IsRequired();
-            eb.Property(x => x.ConversationId).HasColumnName(DatabaseConstants.ConversationId);
-            eb.Property(x => x.CorrelationId).HasColumnName(DatabaseConstants.CorrelationId);
-            eb.Property(x => x.ParentId).HasColumnName(DatabaseConstants.ParentId);
-            eb.Property(x => x.SagaId).HasColumnName(DatabaseConstants.SagaId);
             eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
-            eb.Property(x => x.ContentType).HasColumnName(DatabaseConstants.ContentType);
-            eb.Property(x => x.ReplyRequested).HasColumnName(DatabaseConstants.ReplyRequested);
-            eb.Property(x => x.AckRequested).HasColumnName(DatabaseConstants.AckRequested);
-            eb.Property(x => x.ReplyUri).HasColumnName(DatabaseConstants.ReplyUri);
             eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt);
-            eb.Property(x => x.SentAt).HasColumnName(DatabaseConstants.SentAt);
         });
         
         modelBuilder.Entity<OutgoingMessage>(eb =>
