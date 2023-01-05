@@ -14,6 +14,7 @@ using PersistenceTests.Marten;
 using PersistenceTests.Marten.Persistence;
 using Shouldly;
 using TestingSupport;
+using Weasel.Core;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
@@ -199,6 +200,72 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
         counts.Incoming.ShouldBe(0);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(0);
+    }
+    
+    [Fact]
+    public async Task move_replayable_error_messages_to_incoming()
+    {
+        /*
+         * Going to start with two error messages in dead letter queue
+         * Mark one as Replayable
+         * Run the DurabilityAction
+         * Replayable message should be moved back to Inbox
+         */
+        
+        var unReplayableEnvelope = ObjectMother.Envelope();
+        var replayableEnvelope = ObjectMother.Envelope();
+        await thePersistence.StoreIncomingAsync(unReplayableEnvelope);
+        await thePersistence.StoreIncomingAsync(replayableEnvelope);
+
+        var ex = new DivideByZeroException("Kaboom!");
+        await thePersistence.MoveToDeadLetterStorageAsync(unReplayableEnvelope, ex);
+        await thePersistence.MoveToDeadLetterStorageAsync(replayableEnvelope, ex);
+
+        var settings = theHost.Services.GetRequiredService<PostgresqlSettings>();
+
+        // make one of the messages replayable
+        
+        var updateErrorMessageAsReplayable = $"update {settings.SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = true " +
+                                             $"where {DatabaseConstants.Id} = '{replayableEnvelope.Id}'";
+        
+        await settings
+            .CreateCommand(updateErrorMessageAsReplayable)
+            .ExecuteOnce();
+        
+        // verify message was updated to make it replayable
+        await using var conn = settings.CreateConnection();
+        await conn.OpenAsync();
+        
+        var replayableErrorMessagesCountAfterMakingReplayable = (long) (await conn.CreateCommand(
+                $"select count(*) from {settings.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = true")
+            .ExecuteScalarAsync())!;
+        
+        await conn.CloseAsync();
+        
+        await thePersistence.Session.BeginAsync();
+
+        // run the action
+        await new MoveReplayableErrorMessagesToIncoming()
+            .MoveReplayableErrorMessagesToIncomingAsync(thePersistence.Session, settings);
+
+        await thePersistence.Session.CommitAsync();
+
+        // verify un replayable message still exists
+        await conn.OpenAsync();
+        
+        var errorMessagesCountAfterDurabilityAction = (long) (await conn.CreateCommand(
+                $"select count(*) from {settings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
+            .ExecuteScalarAsync())!;
+
+        await conn.CloseAsync();
+        
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+
+        replayableErrorMessagesCountAfterMakingReplayable.ShouldBe(1);
+        errorMessagesCountAfterDurabilityAction.ShouldBe(1);
+        counts.Incoming.ShouldBe(1);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
     }

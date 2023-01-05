@@ -120,10 +120,12 @@ public static class DatabasePersistence
             list.Add(builder.AddParameter(error.Envelope.ScheduledTime));
             list.Add(builder.AddParameter(EnvelopeSerializer.Serialize(error.Envelope)));
             list.Add(builder.AddParameter(error.Envelope.MessageType));
+            list.Add(builder.AddParameter(error.Envelope.Destination?.ToString()));
             list.Add(builder.AddParameter(error.Envelope.Source));
             list.Add(builder.AddParameter(error.ExceptionType));
             list.Add(builder.AddParameter(error.ExceptionMessage));
             list.Add(builder.AddParameter(error.Envelope.SentAt.ToUniversalTime()));
+            list.Add(builder.AddParameter(false));
 
             var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
