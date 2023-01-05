@@ -22,5 +22,6 @@ internal class DeadLettersTable : Table
         AddColumn<string>(DatabaseConstants.ExceptionMessage);
 
         AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
+        AddColumn<bool>(DatabaseConstants.Replayable);
     }
 }

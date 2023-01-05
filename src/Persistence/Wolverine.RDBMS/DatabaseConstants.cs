@@ -16,6 +16,7 @@ public static class DatabaseConstants
 
     public const string ExceptionType = "exception_type";
     public const string ExceptionMessage = "exception_message";
+    public const string Replayable = "replayable";
 
     public const string OutgoingTable = "wolverine_outgoing_envelopes";
     public const string IncomingTable = "wolverine_incoming_envelopes";
@@ -33,5 +34,5 @@ public static class DatabaseConstants
         $"{Body}, {Id}, {OwnerId}, {Destination}, {DeliverBy}, {Attempts}, {MessageType}";
 
     public static readonly string DeadLetterFields =
-        $"{Id}, {ExecutionTime}, {Body}, {MessageType}, {Source}, {ExceptionType}, {ExceptionMessage}, {SentAt}";
+        $"{Id}, {ExecutionTime}, {Body}, {MessageType}, {ReceivedAt}, {Source}, {ExceptionType}, {ExceptionMessage}, {SentAt}, {Replayable}";
 }
