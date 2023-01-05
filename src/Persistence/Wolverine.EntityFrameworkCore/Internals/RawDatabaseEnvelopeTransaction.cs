@@ -13,7 +13,7 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 /// <summary>
 /// Envelope transaction for raw database access for DbContexts w/o the explicit wolverine mappings
 /// </summary>
-internal class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
+public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly DatabaseSettings _settings;
 
