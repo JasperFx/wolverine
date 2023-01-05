@@ -65,37 +65,36 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         await using var conn = Settings.CreateConnection();
         await conn.OpenAsync();
 
-
-        await using var reader = await conn
-            .CreateCommand(
-                $"select status, count(*) from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} group by status")
-            .ExecuteReaderAsync();
-
-        while (await reader.ReadAsync())
+        await using (var reader = await conn
+                         .CreateCommand(
+                             $"select status, count(*) from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} group by status")
+                         .ExecuteReaderAsync())
         {
-            var status = Enum.Parse<EnvelopeStatus>(await reader.GetFieldValueAsync<string>(0));
-            var count = await reader.GetFieldValueAsync<int>(1);
-
-            switch (status)
+            while (await reader.ReadAsync())
             {
-                case EnvelopeStatus.Incoming:
-                    counts.Incoming = count;
-                    break;
+                var status = Enum.Parse<EnvelopeStatus>(await reader.GetFieldValueAsync<string>(0));
+                var count = await reader.GetFieldValueAsync<int>(1);
 
-                case EnvelopeStatus.Handled:
-                    counts.Handled = count;
-                    break;
+                switch (status)
+                {
+                    case EnvelopeStatus.Incoming:
+                        counts.Incoming = count;
+                        break;
 
-                case EnvelopeStatus.Scheduled:
-                    counts.Scheduled = count;
-                    break;
+                    case EnvelopeStatus.Handled:
+                        counts.Handled = count;
+                        break;
+
+                    case EnvelopeStatus.Scheduled:
+                        counts.Scheduled = count;
+                        break;
+                }
             }
         }
 
         counts.Outgoing = (int)(await conn
             .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteScalarAsync())!;
-
 
         return counts;
     }
