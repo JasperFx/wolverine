@@ -22,6 +22,7 @@ internal class DurabilityAgent : IDurabilityAgent
     private readonly IDurabilityAction _nodeReassignment;
     private readonly IDurabilityAction _outgoingMessages;
     private readonly IDurabilityAction _scheduledJobs;
+    private readonly MoveReplayableErrorMessagesToIncoming _moveReplayable;
     private readonly NodeSettings _settings;
 
     private readonly IMessageDatabase _database;
@@ -63,6 +64,7 @@ internal class DurabilityAgent : IDurabilityAgent
         _nodeReassignment = new NodeReassignment();
         _deleteExpired = new DeleteExpiredHandledEnvelopes();
         _scheduledJobs = new RunScheduledJobs(settings, logger);
+        _moveReplayable = new MoveReplayableErrorMessagesToIncoming();
     }
 
     public async ValueTask DisposeAsync()
@@ -120,6 +122,7 @@ internal class DurabilityAgent : IDurabilityAgent
             _worker.Post(_outgoingMessages);
             _worker.Post(_metrics);
             _worker.Post(_deleteExpired);
+            _worker.Post(_moveReplayable);
         }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
 
         _nodeReassignmentTimer = new Timer(_ => { _worker.Post(_nodeReassignment); }, _settings,
