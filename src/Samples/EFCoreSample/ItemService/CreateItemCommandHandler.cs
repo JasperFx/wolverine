@@ -1,12 +1,7 @@
-using Wolverine.Attributes;
+namespace ItemService;
 
-namespace EFPlusSqlServerConsole.Items;
-
-public class ItemHandler
+public static class CreateItemCommandHandler
 {
-    // This attribute applies Wolverine's EF Core transactional
-    // middleware
-    [Transactional]
     public static ItemCreated Handle(
         // This would be the message
         CreateItemCommand command,

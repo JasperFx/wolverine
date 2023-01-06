@@ -14,6 +14,13 @@ public static class WolverineEntityCoreExtensions
 {
     internal const string WolverineEnabled = "WolverineEnabled";
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configure"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
     public static IServiceCollection AddDbContextWithWolverineIntegration<T>(this IServiceCollection services, Action<DbContextOptionsBuilder> configure) where T : DbContext
     {
         services.AddDbContext<T>(b =>
@@ -21,6 +28,8 @@ public static class WolverineEntityCoreExtensions
             configure(b);
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+
+        services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
 
         return services;
     }

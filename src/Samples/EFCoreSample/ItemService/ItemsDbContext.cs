@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace EFPlusSqlServerConsole.Items;
+namespace ItemService;
 
 #region sample_ItemsDbContext
 

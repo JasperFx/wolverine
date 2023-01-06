@@ -1,4 +1,4 @@
-namespace EFPlusSqlServerConsole.Items;
+namespace ItemService;
 
 public class CreateItemCommand
 {
