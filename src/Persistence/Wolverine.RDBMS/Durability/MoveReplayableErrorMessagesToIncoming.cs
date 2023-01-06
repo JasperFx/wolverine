@@ -23,10 +23,10 @@ public class MoveReplayableErrorMessagesToIncoming : IDurabilityAction
             throw new InvalidOperationException("No current transaction");
         }
         
-        var insertIntoIncomingSql = $"insert into {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields})" +
-                                    $" select {DatabaseConstants.Body}, {DatabaseConstants.Id}, '{EnvelopeStatus.Incoming}', 0, null, 0, {DatabaseConstants.MessageType}, {DatabaseConstants.ReceivedAt} " +
-                                    $"from {databaseSettings.SchemaName}.{DatabaseConstants.DeadLetterTable} " +
-                                    $"where {DatabaseConstants.Replayable} = @replayable";
+        var insertIntoIncomingSql = $@"
+insert into {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) 
+select {DatabaseConstants.Body}, {DatabaseConstants.Id}, '{EnvelopeStatus.Incoming}', 0, null, 0, {DatabaseConstants.MessageType}, {DatabaseConstants.ReceivedAt}
+from {databaseSettings.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = @replayable";
 
         var removeFromDeadLetterSql = $"; delete from {databaseSettings.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = @replayable";
         
