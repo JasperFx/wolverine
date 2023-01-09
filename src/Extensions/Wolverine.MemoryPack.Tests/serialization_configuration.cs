@@ -2,10 +2,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.Runtime;
 using Xunit;
 using Wolverine.Util;
 
-namespace Wolverine.Runtime.Serialization.MemoryPack.Tests;
+namespace Wolverine.MemoryPack.Tests;
 
 public class serialization_configuration
 {

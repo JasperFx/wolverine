@@ -1,6 +1,7 @@
 ﻿using MemoryPack;
+using Wolverine.Runtime.Serialization;
 
-namespace Wolverine.Runtime.Serialization.MemoryPack.Internal;
+namespace Wolverine.MemoryPack.Internal;
 
 internal class MemoryPackMessageSerializer : IMessageSerializer
 {
@@ -14,7 +15,7 @@ internal class MemoryPackMessageSerializer : IMessageSerializer
 
     public byte[] Write(Envelope envelope)
     {
-        return MemoryPackSerializer.Serialize(envelope, _options);
+        return MemoryPackSerializer.Serialize(envelope.Message, _options);
     }
 
     public byte[] WriteMessage(Object message)
