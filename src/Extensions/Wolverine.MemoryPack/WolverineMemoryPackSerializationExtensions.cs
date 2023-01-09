@@ -1,5 +1,4 @@
-﻿using System;
-using MemoryPack;
+﻿using MemoryPack;
 using Wolverine.MemoryPack.Internal;
 
 namespace Wolverine.MemoryPack;
