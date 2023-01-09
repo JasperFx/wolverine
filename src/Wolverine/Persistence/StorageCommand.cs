@@ -12,7 +12,8 @@ public enum StorageAction
     clear,
     counts,
     rebuild,
-    release
+    release,
+    replay
 }
 
 public class StorageInput : NetCoreInput
@@ -21,6 +22,10 @@ public class StorageInput : NetCoreInput
 
     [Description("Optional, specify the file where the schema script would be written")]
     public string FileFlag { get; set; } = "storage.sql";
+
+    [FlagAlias("exception-type", 't')]
+    [Description("Optional, specify the exception type that should be replayed. Default is any.")]
+    public string ExceptionTypeForReplayFlag { get; set; } = string.Empty;
 }
 
 [Description("Administer the envelope storage")]
@@ -42,13 +47,12 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
         {
             case StorageAction.counts:
 
-                await persistence.Admin.RebuildAsync();
-
                 var counts = await persistence.Admin.FetchCountsAsync();
                 Console.WriteLine("Persisted Enveloper Counts");
                 Console.WriteLine($"Incoming    {counts.Incoming.ToString().PadLeft(5)}");
                 Console.WriteLine($"Outgoing    {counts.Outgoing.ToString().PadLeft(5)}");
                 Console.WriteLine($"Scheduled   {counts.Scheduled.ToString().PadLeft(5)}");
+                Console.WriteLine($"DeadLetter   {counts.DeadLetter.ToString().PadLeft(5)}");
 
                 break;
 
@@ -66,6 +70,15 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
                 await persistence.Admin.RebuildAsync();
                 Console.WriteLine("Releasing all ownership of persisted envelopes");
                 await persistence.Admin.ReleaseAllOwnershipAsync();
+
+                break;
+            
+            case StorageAction.replay:
+                var markedCount = await persistence.Admin.MarkDeadLetterEnvelopesAsReplayableAsync(input.ExceptionTypeForReplayFlag);
+                var exceptionType = string.IsNullOrEmpty(input.ExceptionTypeForReplayFlag)
+                    ? "any" 
+                    : input.ExceptionTypeForReplayFlag;
+                Console.WriteLine($"[green]Successfully replayed {markedCount} envelope(s) in dead letter with exception type '{exceptionType}'");
 
                 break;
         }

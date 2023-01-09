@@ -108,7 +108,12 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             .ExecuteScalarAsync();
 
         counts.Outgoing = Convert.ToInt32(longCount);
+        
+        var deadLetterCount = await conn
+            .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
+            .ExecuteScalarAsync();
 
+        counts.DeadLetter = Convert.ToInt32(deadLetterCount);
 
         return counts;
     }

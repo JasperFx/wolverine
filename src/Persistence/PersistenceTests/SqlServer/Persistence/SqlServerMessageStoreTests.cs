@@ -147,30 +147,17 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         await thePersistence.StoreIncomingAsync(unReplayableEnvelope);
         await thePersistence.StoreIncomingAsync(replayableEnvelope);
 
-        var ex = new DivideByZeroException("Kaboom!");
-        await thePersistence.MoveToDeadLetterStorageAsync(unReplayableEnvelope, ex);
-        await thePersistence.MoveToDeadLetterStorageAsync(replayableEnvelope, ex);
+        var divideByZeroException = new DivideByZeroException("Kaboom!");
+        var applicationException = new ApplicationException("Kaboom!");
+        await thePersistence.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
+        await thePersistence.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
 
         var settings = theHost.Services.GetRequiredService<SqlServerSettings>();
 
-        // make one of the messages replayable
-        
-        var updateErrorMessageAsReplayable = $"update {settings.SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = true " +
-                                             $"where {DatabaseConstants.Id} = '{replayableEnvelope.Id}'";
-        
-        await settings
-            .CreateCommand(updateErrorMessageAsReplayable)
-            .ExecuteOnce();
-
-        // verify message was updated to make it replayable
-        await using var conn = settings.CreateConnection();
-        await conn.OpenAsync();
-        
-        var replayableErrorMessagesCountAfterMakingReplayable = (long) (await conn.CreateCommand(
-                $"select count(*) from {settings.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = true")
-            .ExecuteScalarAsync())!;
-        
-        await conn.CloseAsync();
+        // make one of the messages(DivideByZeroException) replayable
+        var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
+            .Admin
+            .MarkDeadLetterEnvelopesAsReplayableAsync(divideByZeroException.GetType().FullName!);
         
         await thePersistence.Session.BeginAsync();
 
@@ -180,19 +167,10 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         await thePersistence.Session.CommitAsync();
 
-        // verify un replayable message still exists
-        await conn.OpenAsync();
-        
-        var errorMessagesCountAfterDurabilityAction = (long) (await conn.CreateCommand(
-                $"select count(*) from {settings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
-            .ExecuteScalarAsync())!;
-
-        await conn.CloseAsync();
-        
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
         replayableErrorMessagesCountAfterMakingReplayable.ShouldBe(1);
-        errorMessagesCountAfterDurabilityAction.ShouldBe(1);
+        counts.DeadLetter.ShouldBe(1);
         counts.Incoming.ShouldBe(1);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);

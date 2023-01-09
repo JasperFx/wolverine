@@ -240,6 +240,11 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         return Task.CompletedTask;
     }
 
+    public Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    {
+        return Task.FromResult(0);
+    }
+
     public Task RebuildAsync()
     {
         return Task.CompletedTask;

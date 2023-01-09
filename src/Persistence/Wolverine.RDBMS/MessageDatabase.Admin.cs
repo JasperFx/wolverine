@@ -20,6 +20,22 @@ public abstract partial class MessageDatabase<T>
         await conn.OpenAsync(_cancellation);
         await truncateEnvelopeDataAsync(conn);
     }
+    
+    public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    {
+        await using var conn = Settings.CreateConnection();
+        await conn.OpenAsync(_cancellation);
+
+        var sql = $"update {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = true";
+
+        if (!string.IsNullOrEmpty(exceptionType))
+        {
+            sql = $"{sql} where {DatabaseConstants.ExceptionType} = '{exceptionType}'";   
+        }
+
+        return await conn.CreateCommand(sql)
+            .ExecuteNonQueryAsync(_cancellation);
+    }
 
     public async Task RebuildAsync()
     {
