@@ -13,7 +13,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Wolverine.Runtime.Serialization.MemoryPack\Wolverine.Runtime.Serialization.MemoryPack.csproj" />
+      <ProjectReference Include="..\Wolverine.MemoryPack\Wolverine.MemoryPack.csproj" />
     </ItemGroup>
 
 </Project>

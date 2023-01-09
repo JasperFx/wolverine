@@ -1,8 +1,8 @@
 ﻿using System;
 using MemoryPack;
-using Wolverine.Runtime.Serialization.MemoryPack.Internal;
+using Wolverine.MemoryPack.Internal;
 
-namespace Wolverine.Runtime.Serialization.MemoryPack;
+namespace Wolverine.MemoryPack;
 
 public static class WolverineMemoryPackSerializationExtensions
 {

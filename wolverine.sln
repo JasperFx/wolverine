@@ -149,9 +149,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".SolutionItems", ".Solution
 		mdsnippets.json = mdsnippets.json
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Runtime.Serialization.MemoryPack", "src\Extensions\Wolverine.Runtime.Serialization.MemoryPack\Wolverine.Runtime.Serialization.MemoryPack.csproj", "{469A2C91-64B4-439B-9097-05499770FFB3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MemoryPack", "src\Extensions\Wolverine.MemoryPack\Wolverine.MemoryPack.csproj", "{469A2C91-64B4-439B-9097-05499770FFB3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Runtime.Serialization.MemoryPack.Tests", "src\Extensions\Wolverine.Runtime.Serialization.MemoryPack.Tests\Wolverine.Runtime.Serialization.MemoryPack.Tests.csproj", "{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MemoryPack.Tests", "src\Extensions\Wolverine.MemoryPack.Tests\Wolverine.MemoryPack.Tests.csproj", "{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "EFCoreSample", "EFCoreSample", "{D7E65E36-A803-4240-A049-659BC93627F3}"
 EndProject
