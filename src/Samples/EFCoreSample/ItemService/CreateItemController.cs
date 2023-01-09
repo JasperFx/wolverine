@@ -5,6 +5,8 @@ namespace ItemService;
 
 public class CreateItemController : ControllerBase
 {
+    #region sample_using_dbcontext_outbox_1
+
     [HttpPost("/items/create2")]
     public async Task Post(
         [FromBody] CreateItemCommand command,
@@ -31,5 +33,45 @@ public class CreateItemController : ControllerBase
         // to the persistent outbox
         // in the correct order
         await outbox.SaveChangesAndFlushMessagesAsync();
-    }    
+    }  
+
+    #endregion
+
+
+    #region sample_using_dbcontext_outbox_2
+
+    [HttpPost("/items/create3")]
+    public async Task Post3(
+        [FromBody] CreateItemCommand command,
+        [FromServices] ItemsDbContext dbContext,
+        [FromServices] IDbContextOutbox outbox)
+    {
+        // Create a new Item entity
+        var item = new Item
+        {
+            Name = command.Name
+        };
+
+        // Add the item to the current
+        // DbContext unit of work
+        dbContext.Items.Add(item);
+
+        // Gotta attach the DbContext to the outbox
+        // BEFORE sending any messages
+        outbox.Enroll(dbContext);
+        
+        // Publish a message to take action on the new item
+        // in a background thread
+        await outbox.PublishAsync(new ItemCreated
+        {
+            Id = item.Id
+        });
+
+        // Commit all changes and flush persisted messages
+        // to the persistent outbox
+        // in the correct order
+        await outbox.SaveChangesAndFlushMessagesAsync();
+    }   
+
+    #endregion
 }
