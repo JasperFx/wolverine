@@ -95,6 +95,10 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         counts.Outgoing = (int)(await conn
             .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteScalarAsync())!;
+        
+        counts.DeadLetter = (int)(await conn
+            .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
+            .ExecuteScalarAsync())!;
 
         return counts;
     }
