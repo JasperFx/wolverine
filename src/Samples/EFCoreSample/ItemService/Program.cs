@@ -12,10 +12,16 @@ var builder = WebApplication.CreateBuilder(args);
 // application configuration
 var connectionString = builder.Configuration.GetConnectionString("sqlserver");
 
+#region sample_optimized_efcore_registration
+
 // If you're okay with this, this will register the DbContext as normally,
 // but make some Wolverine specific optimizations at the same time
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
     x => x.UseSqlServer(connectionString));
+
+#endregion
+
+#region sample_registering_efcore_middleware
 
 builder.Host.UseWolverine(opts =>
 {
@@ -27,6 +33,8 @@ builder.Host.UseWolverine(opts =>
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
 });
+
+#endregion
 
 // This is rebuilding the persistent storage database schema on startup
 // and also clearing any persisted envelope state

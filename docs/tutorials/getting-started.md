@@ -19,7 +19,7 @@ This makes Wolverine relatively easy to use in combination with many of the most
 
 ## Your First Wolverine Application
 
-Also see the full [quickstart code](https://github.com/JasperFx/wolverine/tree/master/src/Samples/Quickstart) on GitHub.
+Also see the full [quickstart code](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Quickstart) on GitHub.
 
 For a first application, let's say that we're building a very simple issue tracking system for
 our own usage. If you're reading this web page, it's a pretty safe bet you spend quite a bit of time

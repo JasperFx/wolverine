@@ -2,6 +2,8 @@ namespace ItemService;
 
 public static class CreateItemCommandHandler
 {
+    #region sample_handler_using_efcore
+
     public static ItemCreated Handle(
         // This would be the message
         CreateItemCommand command,
@@ -28,4 +30,6 @@ public static class CreateItemCommandHandler
             Id = item.Id
         };
     }
+
+    #endregion
 }
