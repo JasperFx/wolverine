@@ -15,12 +15,14 @@ internal class MemoryPackMessageSerializer : IMessageSerializer
 
     public byte[] Write(Envelope envelope)
     {
-        return MemoryPackSerializer.Serialize(envelope.Message, _options);
+        if (envelope.Message == null) throw new NullReferenceException("Envelope message is empty");
+        
+        return MemoryPackSerializer.Serialize(envelope.Message.GetType(), envelope.Message, _options);
     }
 
     public byte[] WriteMessage(Object message)
     {
-        return MemoryPackSerializer.Serialize(message, _options);
+        return MemoryPackSerializer.Serialize(message.GetType(), message, _options);
     }
 
     public object ReadFromData(Byte[] data)
