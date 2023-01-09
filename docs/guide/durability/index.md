@@ -1,6 +1,6 @@
 # Durable Inbox and Outbox Messaging
 
-One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the lightweight <[linkto:documentation/integration/transports/tcp]> and external transports like <[linkto:documentation/integration/transports/rabbitmq]> or and <[linkto:documentation/integration/transports/azureservicebus]>.
+One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](/transports/tcp) and external transports like the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq).
 
 It's a chaotic world out when high volume systems need to interact with other systems. Your system may fail, other systems may be down,
 there's network hiccups, occasional failures -- and you still need your systems to get to a consistent state without messages just
