@@ -1,7 +1,7 @@
 # Marten Integration
 
 [Marten](https://martendb.io) and Wolverine are sibling projects under the [JasperFx organization](https://github.com/wolverinefx), and as such, have quite a bit of synergy when
-used together. At this point, adding the *Wolverine.Persistence.Marten* Nuget dependency to your application adds the capability to combine Marten and Wolverine to:
+used together. At this point, adding the `WolverineFx.Marten`*` Nuget dependency to your application adds the capability to combine Marten and Wolverine to:
 
 * Simplify persistent handler coding with transactional middleware
 * Use Marten and Postgresql as a persistent inbox or outbox with Wolverine messaging
@@ -50,8 +50,7 @@ builder.Host.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-TODO -- link to the outbox page
-TODO -- link to the sample code project~~~~
+For more information, see [durable messaging](/guide/durability/) and the [sample Marten + Wolverine project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/WebApiWithMarten).
 
 Using the `IntegrateWithWolverine()` extension method behind your call to `AddMarten()` will:
 
@@ -202,6 +201,12 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 You will need to make the `IServiceCollection.AddMarten(...).IntegrateWithWolverine()` call to add this middleware to a Wolverine application.
 :::
 
+::: tip
+It is no longer necessary to mark a handler method with `[Transactional]`. Wolverine will automatically use the Marten
+transactional middleware for handlers that have a dependency on `IDocumentSession` (meaning the method takes in `IDocumentSession` or has
+some dependency that itself depends on `IDocumentSession`) as long as the `IntegrateWithWolverine()` call was used in application bootstrapping.
+:::
+
 In the previous section we saw an example of incorporating Wolverine's outbox with Marten transactions. We also wrote a fair amount of code to do so that could easily feel
 repetitive over time. Using Wolverine's transactional middleware support for Marten, the long hand handler above can become this equivalent:
 
@@ -210,7 +215,6 @@ repetitive over time. Using Wolverine's transactional middleware support for Mar
 ```cs
 // Note that we're able to avoid doing any kind of asynchronous
 // code in this handler
-[Transactional]
 public static OrderCreated Handle(CreateOrder command, IDocumentSession session)
 {
     var order = new Order
@@ -379,15 +383,16 @@ When using the Wolverine + Marten integration, your stateful saga classes should
 Marten [identity member](https://martendb.io/documents/identity.html). Remember that your handler methods in Wolverine can accept "method injected" dependencies from your underlying
 IoC container.
 
-TODO -- link to order saga sample
+See the [Saga with Marten sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderSagaSample).
 
 ## Event Store & CQRS Support
 
-TODO -- link to new OrderEventSourcingSample on GitHub
-
 ::: tip
-This syntax or attribute might change before 2.0 is released. *If* anybody can ever come up with a better named alternative.
+You can forgo the `[MartenCommandWorkflow]` attribute by instead naming your message handler type with the `AggregateHandler` suffix
+if the Wolverine/Marten integration is applied to your application.
 :::
+
+See the [OrderEventSourcingSample project on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderEventSourcingSample) for more samples.
 
 That Wolverine + Marten combination is optimized for efficient and productive development using a [CQRS architecture style](https://martinfowler.com/bliki/CQRS.html) with [Marten's event sourcing](https://martendb.io/events/) support.
 Specifically, let's dive into the responsibilities of a typical command handler in a CQRS with event sourcing architecture:
@@ -613,6 +618,7 @@ before you use this middleware strategy.
 
 The Marten workflow command handler method signature needs to follow these rules:
 
+* Either explicitly use the `[MartenCommandWorkflow]` attribute on the handler method **or use the `AggregateHandler` suffix** on the message handler type to tell Wolverine to opt into the aggregate command workflow.
 * The first argument should be the command type, just like any other Wolverine message handler
 * The 2nd argument should be the aggregate -- either the aggregate itself (`Order`) or wrapped
   in the Marten `IEventStream<T>` type (`IEventStream<Order>`). There is an example of that usage below:
