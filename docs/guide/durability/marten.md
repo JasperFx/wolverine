@@ -215,6 +215,7 @@ repetitive over time. Using Wolverine's transactional middleware support for Mar
 ```cs
 // Note that we're able to avoid doing any kind of asynchronous
 // code in this handler
+[Transactional]
 public static OrderCreated Handle(CreateOrder command, IDocumentSession session)
 {
     var order = new Order
