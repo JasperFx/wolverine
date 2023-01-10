@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
     <PropertyGroup>
-        <VersionPrefix>0.9.6</VersionPrefix>
+        <VersionPrefix>0.9.7</VersionPrefix>
         <LangVersion>11</LangVersion>
         <Authors>Jeremy D. Miller</Authors>
         <PackageIconUrl>https://github.com/JasperFx/wolverine/blob/main/docs/public/logo.png?raw=true</PackageIconUrl>
