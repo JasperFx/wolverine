@@ -244,11 +244,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     internal static int DisambiguateOutgoingVariableName(Variable create, int i)
     {
-        if (create.VariableType == typeof(object) || create.VariableType == typeof(object[]) ||
-            create.VariableType == typeof(IEnumerable<object>))
-        {
-            create.OverrideName("outgoing" + ++i);
-        }
+        create.OverrideName("outgoing" + ++i);
 
         return i;
     }
