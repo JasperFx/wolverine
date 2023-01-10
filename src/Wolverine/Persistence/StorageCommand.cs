@@ -49,10 +49,15 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
 
                 var counts = await persistence.Admin.FetchCountsAsync();
                 Console.WriteLine("Persisted Enveloper Counts");
-                Console.WriteLine($"Incoming    {counts.Incoming.ToString().PadLeft(5)}");
-                Console.WriteLine($"Outgoing    {counts.Outgoing.ToString().PadLeft(5)}");
-                Console.WriteLine($"Scheduled   {counts.Scheduled.ToString().PadLeft(5)}");
-                Console.WriteLine($"DeadLetter   {counts.DeadLetter.ToString().PadLeft(5)}");
+
+                var table = new Table();
+                table.AddColumns(new TableColumn("Category"), new TableColumn("Count").RightAligned());
+                table.AddRow("Incoming", counts.Incoming.ToString());
+                table.AddRow("Outgoing", counts.Outgoing.ToString());
+                table.AddRow("Scheduled", counts.Scheduled.ToString());
+                table.AddRow("Dead Letter", counts.DeadLetter.ToString());
+                
+                AnsiConsole.Write(table);
 
                 break;
 
@@ -78,7 +83,7 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
                 var exceptionType = string.IsNullOrEmpty(input.ExceptionTypeForReplayFlag)
                     ? "any" 
                     : input.ExceptionTypeForReplayFlag;
-                Console.WriteLine($"[green]Successfully replayed {markedCount} envelope(s) in dead letter with exception type '{exceptionType}'");
+                AnsiConsole.Write($"[green]Successfully replayed {markedCount} envelope(s) in dead letter with exception type '{exceptionType}'");
 
                 break;
         }

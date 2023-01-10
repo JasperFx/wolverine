@@ -26,14 +26,14 @@ public abstract partial class MessageDatabase<T>
         await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
-        var sql = $"update {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = true";
+        var sql = $"update {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay";
 
         if (!string.IsNullOrEmpty(exceptionType))
         {
-            sql = $"{sql} where {DatabaseConstants.ExceptionType} = '{exceptionType}'";   
+            sql = $"{sql} where {DatabaseConstants.ExceptionType} = @extype";   
         }
 
-        return await conn.CreateCommand(sql)
+        return await conn.CreateCommand(sql).With("replay", true).With("extype", exceptionType)
             .ExecuteNonQueryAsync(_cancellation);
     }
 

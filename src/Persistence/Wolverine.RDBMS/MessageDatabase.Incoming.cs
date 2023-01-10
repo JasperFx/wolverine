@@ -105,8 +105,8 @@ public abstract partial class MessageDatabase<T>
 
         var report = new ErrorReport(envelope)
         {
-            ExceptionType = await reader.GetFieldValueAsync<string>(5, _cancellation),
-            ExceptionMessage = await reader.GetFieldValueAsync<string>(6, _cancellation)
+            ExceptionType = await reader.GetFieldValueAsync<string>(6, _cancellation),
+            ExceptionMessage = await reader.GetFieldValueAsync<string>(7, _cancellation)
         };
 
         return report;

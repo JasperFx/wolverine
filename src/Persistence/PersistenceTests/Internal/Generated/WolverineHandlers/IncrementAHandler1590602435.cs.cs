@@ -25,11 +25,11 @@ namespace Internal.Generated.WolverineHandlers
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementA.LetterAggregateId, cancellation).ConfigureAwait(false);
 
-            var aEvent = letterAggregateHandler.Handle(incrementA, eventStream.Aggregate, documentSession);
-            if (aEvent != null)
+            var outgoing1 = letterAggregateHandler.Handle(incrementA, eventStream.Aggregate, documentSession);
+            if (outgoing1 != null)
             {
                 // Capturing any possible events returned from the command handlers
-                eventStream.AppendOne(aEvent);
+                eventStream.AppendOne(outgoing1);
 
             }
 

@@ -158,7 +158,8 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
             .Admin
             .MarkDeadLetterEnvelopesAsReplayableAsync(divideByZeroException.GetType().FullName!);
-        
+
+        await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance, 12345678);
         await thePersistence.Session.BeginAsync();
 
         // run the action

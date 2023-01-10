@@ -8,13 +8,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: IncrementBHandler1993886962
     public class IncrementBHandler1993886962 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> _logger;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> _logger;
 
-        public IncrementBHandler1993886962(Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementBHandler1993886962(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> logger)
         {
-            _logger = logger;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _logger = logger;
         }
 
 
@@ -28,11 +28,11 @@ namespace Internal.Generated.WolverineHandlers
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementB.LetterAggregateId, cancellation).ConfigureAwait(false);
 
-            var bEvent = await letterAggregateHandler.Handle(incrementB, eventStream.Aggregate, _logger).ConfigureAwait(false);
-            if (bEvent != null)
+            var outgoing1 = await letterAggregateHandler.Handle(incrementB, eventStream.Aggregate, _logger).ConfigureAwait(false);
+            if (outgoing1 != null)
             {
                 // Capturing any possible events returned from the command handlers
-                eventStream.AppendOne(bEvent);
+                eventStream.AppendOne(outgoing1);
 
             }
 
