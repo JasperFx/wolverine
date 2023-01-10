@@ -36,9 +36,12 @@ builder.Host.UseWolverine(opts =>
 
 #endregion
 
+#region sample_resource_setup_on_startup
+
 // This is rebuilding the persistent storage database schema on startup
-// and also clearing any persisted envelope state
-builder.Host.UseResourceSetupOnStartup(StartupAction.ResetState);
+builder.Host.UseResourceSetupOnStartup();
+
+#endregion
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -60,5 +63,9 @@ app.MapControllers();
 
 app.MapPost("/items/create", (CreateItemCommand command, IMessageBus bus) => bus.InvokeAsync(command));
 
+#region sample_using_oakton_for_command_line_parsing
+
 // Opt into using Oakton for command parsing
 await app.RunOaktonCommands(args);
+
+#endregion

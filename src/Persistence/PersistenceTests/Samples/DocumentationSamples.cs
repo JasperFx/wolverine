@@ -2,10 +2,12 @@ using System.Threading.Tasks;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
 using Wolverine.Transports.Tcp;
@@ -14,7 +16,35 @@ namespace PersistenceTests.Samples;
 
 public class DocumentationSamples
 {
+    #region sample_programmatic_management_of_message_storage
 
+    // IHost would be your application in a testing harness
+    public static async Task testing_setup_or_teardown(IHost host)
+    {
+        // Programmatically apply any outstanding message store
+        // database changes
+        await host.SetupResources();
+
+        // Teardown the database message storage
+        await host.TeardownResources();
+
+        // Clear out any database message storage
+        // also tries to clear out any messages held
+        // by message brokers connected to your Wolverine app
+        await host.ResetResourceState();
+        
+        var store = host.Services.GetRequiredService<IMessageStore>();
+        
+        // Rebuild the database schema objects
+        // and delete existing message data
+        // This is good for testing
+        await store.Admin.RebuildAsync();
+
+        // Remove all persisted messages
+        await store.Admin.ClearAllAsync();
+    }
+
+    #endregion
     
     public static async Task configure_all_subscribers_as_durable()
     {
