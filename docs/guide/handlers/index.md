@@ -45,9 +45,9 @@ public static async Task publish_command(IMessageBus bus)
 Between the call to `IMessageBus.PublishAsync()` and `MyMessageHandler.Handle(MyMessage)` there's a couple things
 going on:
 
-1. Wolverine's built in, [automatic handler discovery](/discovery) has to find the candidate message handler methods
+1. Wolverine's built in, [automatic handler discovery](/guide/handlers/discovery) has to find the candidate message handler methods
    and correlate them by message type
-2. Wolverine's [runtime message processing](/runtime) builds some connective code at runtime to relay the
+2. Wolverine's [runtime message processing](/guide/runtime) builds some connective code at runtime to relay the
    messages passed into `IMessageBus` to the right message handler methods
 
 Before diving into the exact rules for message handlers, here are some valid handler methods:
@@ -283,7 +283,7 @@ So, what can be injected as an argument to your message handler?
 
 ## Cascading Messages from Actions
 
-See [Cascading Messages](/cascade) for more details on this feature.
+See [Cascading Messages](/guide/handlers/cascading) for more details on this feature.
 
 ## Using the Message Envelope
 

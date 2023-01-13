@@ -55,7 +55,7 @@ See the [Rabbit MQ .NET Client documentation](https://www.rabbitmq.com/dotnet-ap
 
 ## Interoperability with Mass Transit
 
-Wolverine can interoperate bi-directionally with [MassTransit](https://masstransit-project.com/) using [Rabbit MQ](/guides/messaging/transports/masstransit).
+Wolverine can interoperate bi-directionally with [MassTransit](https://masstransit-project.com/) using [RabbitMQ](http://www.rabbitmq.com/).
 At this point, the interoperability is **only** functional if MassTransit is using its standard "envelope" serialization
 approach (i.e., **not** using raw JSON serialization).
 
@@ -126,16 +126,16 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 With the defaults from above, for each message that the application can handle
-(as determined by the discovered [message handlers](/guide/messages/discovery)) the conventional routing will:
+(as determined by the discovered [message handlers](/guide/handlers/discovery)) the conventional routing will:
 
-1. A durable queue using Wolverine's [message type name logic](/guide/messages/#message-type-name-or-alias)
+1. A durable queue using Wolverine's [message type name logic](/guide/messages.html#message-type-name-or-alias)
 2. A listening endpoint to the queue above configured with a single, inline listener and **without and enrollment in the durable outbox**
 
 Likewise, for every outgoing message type, the routing convention will *on demand at runtime*:
 
 1. Declare a fanout exchange named with the Wolverine message type alias name (usually the full name of the message type)
 2. Create the exchange if auto provisioning is enabled if the exchange does not already exist
-3. Create a [subscription rule](/guide/messaging/configuration) for that message type to the new exchange within the system
+3. Create a [subscription rule](/guide/messaging/subscriptions) for that message type to the new exchange within the system
 
 Of course, you may want your own slightly different behavior, so there's plenty of hooks to customize the
 Rabbit MQ routing conventions as shown below:
@@ -396,7 +396,7 @@ await publisher.SendAsync(new Message1());
 <!-- endSnippet -->
 
 You will be sending that message to the "topics-exchange" with a topic name derived from
-the message type. By default that topic name will be Wolverine's [message type alias](/guide/messages/#message-type-name-or-alias).
+the message type. By default that topic name will be Wolverine's [message type alias](/guide/messages.html#message-type-name-or-alias).
 Unless explicitly overridden, that alias is the full type name of the message type.
 
 That topic name derivation can be overridden explicitly by placing the `[Topic]` attribute

@@ -73,7 +73,7 @@ public class Order : Saga
 A few explanatory notes on this code before we move on to detailed documentation:
 
 * Wolverine leans a bit on type and naming conventions to discover message handlers and to “know” how to call these message handlers. Some folks will definitely not like the magic, but this approach leads to substantially less code and arguably complexity compared to existing .Net tools
-* Wolverine supports the idea of [scheduled messages](/guide/messaging/scheduled), and the new `TimeoutMessage` base class we used up there is just a shorthand way to utilize that support for “saga timeout” conditions
+* Wolverine supports the idea of [scheduled messages](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution), and the new `TimeoutMessage` base class we used up there is just a shorthand way to utilize that support for “saga timeout” conditions
 * Wolverine generally tries to adapt to your application code rather that using mandatory adapter interfaces
 * Subclassing `Saga` is meaningful first as this tells Wolverine "hey, this stateful type should be treated as a saga" for [handler discovery](/guide/handlers/discovery), but also for communicating
   to Wolverine that a logical saga is complete and should be deleted

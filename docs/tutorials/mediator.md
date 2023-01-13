@@ -17,7 +17,7 @@ endpoint that can accept an input that will create and persist a new `Item`, whi
 * [MVC Core](https://docs.microsoft.com/en-us/aspnet/core/mvc/overview?view=aspnetcore-6.0) as the Web API framework, but I'm mostly
   using the newer Minimal API feature for this
 * Wolverine as our mediator of course!
-* Sql Server as the backing database store, using [Wolverine's Sql Server message persistence](/guide/persistence/sqlserver)
+* Sql Server as the backing database store, using [Wolverine's Sql Server message persistence](/guide/durability/#using-sql-server-for-message-storage)
 * [EF Core](https://docs.microsoft.com/en-us/ef/core/) as the persistence mechanism
 
 First off, let's start a new project with the `dotnet new webapi` template. Next, we'll add some configuration
@@ -118,17 +118,18 @@ There isn't much to this code -- and that's the entire point! When Wolverine reg
 a .NET Core application, it adds the `IMessageBus` service to the underlying system IoC container
 so it can be injected into controller classes or Minimal API endpoint as shown above.The `IMessageBus.InvokeAsync(message)`
 method takes the message passed in, finds the correct execution path for the message type, and
-executes the correct Wolverine handler(s) as well as any of the registered [Wolverine middleware](/guide/messages/middleware).
+executes the correct Wolverine handler(s) as well as any of the registered [Wolverine middleware](/guide/handlers/middleware).
 
 ::: tip
-This execution happens inline, but will use the *RetryNow* error handling capabilities. See [Wolverine's error handling](/guide/messages/error-handling) for more information.
+This execution happens inline, but will use the *RetryNow* error handling capabilities. See [Wolverine's error handling](/guide/handlers/error-handling) for more information.
 :::
 
 See also:
 
-* [Cascading messages from actions](/guide/messages/handlers.html#cascading-messages-from-actions) for a better explanation of how the `ItemCreated`
+* [Cascading messages from actions](/guide/handlers/cascading) for a better explanation of how the `ItemCreated`
   event message is automatically published if the handler success.
-* [Messages and message handlers](/guide/messages/) for the details of how to write Wolverine message handlers and how they
+* [Messages](/guide/messages) for the details of messages themselves including versioning, serialization, and forwarding.
+* [Message handlers](/guide/handlers/) for the details of how to write Wolverine message handlers and how they
   are discovered
 
 As a contrast, here's what the same functionality looks like if you write all the functionality out

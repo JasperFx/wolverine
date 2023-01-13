@@ -156,7 +156,7 @@ with extraneous `return Task.Completed;` code like you'd have to with other .NET
 As I mentioned earlier, we want our API to create an email whenever a new issue is created. In
 this case I'm opting to have that email generation and email sending happen in a second
 message handler that will run after the initial command. You might also notice that the `CreateIssueHandler.Handle()` method returns an `IssueCreated` event.
-When Wolverine sees that a handler creates what we call a [cascading message](TODO -- link here!), Wolverine will
+When Wolverine sees that a handler creates what we call a [cascading message](/guide/handlers/cascading), Wolverine will
 publish the `IssueCreated` event to an in memory
 queue after the initial message handler succeeds. The advantage of doing this is allowing the
 slower email generation and sending process to happen in background processes instead of holding up
@@ -205,4 +205,4 @@ years before the ASP.NET team got around to it:-)*
 
 This page introduced the basic usage of Wolverine, how to wire Wolverine
 into .NET applications, and some rudimentary `Handler` usage. There's much more
-of course, so learn more about [Handlers and Messages](/guide/messages/).
+of course, so learn more about [Handlers and Messages](/guide/handlers/).
