@@ -54,9 +54,9 @@ For more information, see [durable messaging](/guide/durability/) and the [sampl
 
 Using the `IntegrateWithWolverine()` extension method behind your call to `AddMarten()` will:
 
-* Register the necessary [inbox and outbox](/guide/persistence/) database tables with [Marten's database schema management](https://martendb.io/schema/migrations.html)
+* Register the necessary [inbox and outbox](/guide/durability/) database tables with [Marten's database schema management](https://martendb.io/schema/migrations.html)
 * Adds Wolverine's "DurabilityAgent" to your .NET application for the inbox and outbox
-* Makes Marten the active [saga storage](/guide/persistence/sagas) for Wolverine
+* Makes Marten the active [saga storage](/guide/durability/sagas) for Wolverine
 * Adds transactional middleware using Marten to your Wolverine application
 
 
@@ -315,7 +315,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 On the flip side of using Wolverine's "outbox" support for outgoing messages, you can also choose to use the same message persistence for incoming messages such that
 incoming messages are first persisted to the application's underlying Postgresql database before being processed. While
-you *could* use this with external message brokers like Rabbit MQ, it's more likely this will be valuable for Wolverine's [local queues](/guide/in-memory-bus).
+you *could* use this with external message brokers like Rabbit MQ, it's more likely this will be valuable for Wolverine's [local queues](/guide/messaging/transports/local).
 
 Back to the sample Marten + Wolverine integration from this page:
 
@@ -377,7 +377,7 @@ app.MapPost("/orders/create2", (CreateOrder command, IMessageBus bus)
 
 ## Saga Storage
 
-Marten is an easy option for [persistent sagas](/guide/persistence/sagas) with Wolverine. Yet again, to opt into using Marten as your saga storage mechanism in Wolverine, you
+Marten is an easy option for [persistent sagas](/guide/durability/sagas) with Wolverine. Yet again, to opt into using Marten as your saga storage mechanism in Wolverine, you
 just need to add the `IntegrateWithWolverine()` option to your Marten configuration as shown in the [Getting Started](#getting-started) section above.
 
 When using the Wolverine + Marten integration, your stateful saga classes should be valid Marten document types that inherit from Wolverine's `Saga` type, which generally means being a public class with a valid
@@ -469,7 +469,7 @@ public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L64-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-In the code above we're also utilizing Wolverine's [outbox messaging](/guide/persistence/) support to both order and guarantee the delivery of a `ShipOrder` message when
+In the code above we're also utilizing Wolverine's [outbox messaging](/guide/durability/) support to both order and guarantee the delivery of a `ShipOrder` message when
 the Marten transaction
 
 Before getting into Wolverine middleware strategies, let's first build out an MVC controller method for the command above:
@@ -657,7 +657,7 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Alternatives/Signatures.cs#L25-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Just as in other Wolverine [message handlers](/guide/messages/handlers), you can use
+Just as in other Wolverine [message handlers](/guide/handlers/), you can use
 additional method arguments for registered services ("method injection"), the `CancellationToken`
 for the message, and the message `Envelope` if you need access to message metadata.
 

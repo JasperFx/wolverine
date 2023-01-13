@@ -2,7 +2,7 @@
 
 See the blog post [Transactional Outbox/Inbox with Wolverine and why you care](https://jeremydmiller.com/2022/12/15/transactional-outbox-inbox-with-wolverine-and-why-you-care/) for more context.
 
-One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](/transports/tcp) and external transports like the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq).
+One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](/guide/messaging/transports/tcp) and external transports like the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq).
 
 It's a chaotic world out when high volume systems need to interact with other systems. Your system may fail, other systems may be down,
 there's network hiccups, occasional failures -- and you still need your systems to get to a consistent state without messages just
@@ -67,8 +67,8 @@ storage and processed when the system is restarted. Wolverine does this through 
 [IHostedService](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-6.0&tabs=visual-studio) runtime that is automatically registered in your system through the `UseWolverine()` extension method.
 
 ::: tip
-At the moment, Wolverine only supports Postgresql or Sql Server as the underlying database and either [Marten](/marten) or
-[Entity Framework Core](/efcore) as the application persistence framework.
+At the moment, Wolverine only supports Postgresql or Sql Server as the underlying database and either [Marten](/guide/durability/marten) or
+[Entity Framework Core](/guide/durability/efcore) as the application persistence framework.
 :::
 
 There are four things you need to enable for the transactional outbox (and inbox for incoming messages):

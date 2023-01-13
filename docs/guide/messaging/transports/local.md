@@ -19,10 +19,10 @@ Some things to know about the local queues:
 
 * Local worker queues can be durable, meaning that the enqueued messages are persisted first so that they aren't lost if the application is shut down before they're processed. More on that below.
 * You can use any number of named local queues, and they don't even have to be declared upfront (might want to be careful with that though)
-* Local worker queues utilize Wolverine's [error handling](/guide/messages/error-handling) policies to selectively handle any detected exceptions from the [message handlers](/guide/messages/handlers).
+* Local worker queues utilize Wolverine's [error handling](/guide/handlers/error-handling) policies to selectively handle any detected exceptions from the [message handlers](/guide/handlers/).
 * You can control the priority and parallelization of each individual local queue
 * Message types can be routed to particular queues
-* [Cascading messages](/guide/messages/handlers.html#cascading-messages-from-actions) can be used with the local queues
+* [Cascading messages](/guide/handlers/cascading) can be used with the local queues
 * The local queues can be used like any other message transport and be the target of routing rules
 
 
@@ -54,10 +54,10 @@ public ValueTask EnqueueToQueue(IMessageContext bus)
 ## Scheduling Local Execution
 
 :::tip
-If you need the command scheduling to be persistent or be persisted across service restarts, you'll need to enable the [message persistence](/guide/persistence/) within Wolverine.
+If you need the command scheduling to be persistent or be persisted across service restarts, you'll need to enable the [message persistence](/guide/durability/) within Wolverine.
 :::
 
-The "scheduled execution" feature can be used with local execution within the same application. See [Scheduled Messages](/guide/scheduled) for more information. Use the `IMessageBus.ScheduleAsync()` extension methods like this:
+The "scheduled execution" feature can be used with local execution within the same application. See [Scheduled Messages](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution) for more information. Use the `IMessageBus.ScheduleAsync()` extension methods like this:
 
 <!-- snippet: sample_schedule_job_locally -->
 <a id='snippet-sample_schedule_job_locally'></a>
@@ -210,7 +210,7 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 
-See [Persistent Messaging](http://localhost:5050/guide/persistence/) for more information.
+See [Durable Inbox and Outbox Messaging](/guide/durability/) for more information.
 
 
 ## Configuring Parallelization and Execution Properties
