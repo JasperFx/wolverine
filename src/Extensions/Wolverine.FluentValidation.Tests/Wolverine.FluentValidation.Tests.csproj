@@ -25,4 +25,8 @@
         <ProjectReference Include="..\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>
