@@ -20,4 +20,7 @@
         <ProjectReference Include="..\TestingSupport\TestingSupport.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

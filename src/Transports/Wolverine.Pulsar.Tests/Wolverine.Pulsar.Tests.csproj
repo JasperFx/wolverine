@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
-
         <IsPackable>false</IsPackable>
 
         <RootNamespace>Jasper.Pulsar.Tests</RootNamespace>
@@ -24,6 +22,10 @@
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Pulsar\Wolverine.Pulsar.csproj"/>
         <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
 </Project>
