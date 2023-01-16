@@ -20,9 +20,9 @@ public class LightweightTcpFixture : TransportComplianceFixture, IAsyncLifetime
         await ReceiverIs(opts => { opts.ListenAtPort(OutboundAddress.Port); });
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return Task.CompletedTask;
+        await DisposeAsync();
     }
 }
 

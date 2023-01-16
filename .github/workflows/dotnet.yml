@@ -35,4 +35,4 @@ jobs:
 
 
     - name: Test
-      run: dotnet run -p build/build.csproj -- ci
+      run: dotnet run -p build/build.csproj -- full
