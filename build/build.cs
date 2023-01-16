@@ -175,7 +175,7 @@ namespace build
 
         private static void RunCurrentProject(string args)
         {
-            Run("dotnet", $"run  --framework net6.0 --no-build --no-restore -- {args}");
+            Run("dotnet", $"run  --framework net7.0 --no-build --no-restore -- {args}");
         }
 
         private static void CopyFilesRecursively(string sourcePath, string targetPath)
@@ -235,7 +235,7 @@ namespace build
                 ? $"src/Testing/{projectName}/{projectName}.csproj"
                 : $"src/{string.Join('/', paths.SkipLast(1))}/{projectName}/{projectName}.csproj";
             
-            Run("dotnet", $"test --no-build --no-restore " + path);
+            Run("dotnet", $"test --no-build --no-restore {path} --logger \"console;verbosity=detailed\"");
         }
 
         private static string GetEnvironmentVariable(string variableName)

@@ -44,10 +44,9 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
         });
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        Dispose();
-        return Task.CompletedTask;
+        await DisposeAsync();
     }
 }
 

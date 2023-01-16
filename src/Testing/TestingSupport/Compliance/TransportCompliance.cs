@@ -21,7 +21,7 @@ using Xunit;
 
 namespace TestingSupport.Compliance;
 
-public abstract class TransportComplianceFixture : IDisposable
+public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 {
     public readonly TimeSpan DefaultTimeout = 5.Seconds();
 
@@ -45,7 +45,15 @@ public abstract class TransportComplianceFixture : IDisposable
             Receiver?.Dispose();
         }
     }
-
+    
+    public async ValueTask DisposeAsync()
+    {
+        await Sender?.StopAsync();
+        if (!ReferenceEquals(Sender, Receiver))
+        {
+            await Receiver?.StopAsync();
+        }
+    }
 
     protected Task TheOnlyAppIs(Action<WolverineOptions> configure)
     {
@@ -163,10 +171,16 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         Fixture.BeforeEach();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        Fixture.SafeDispose();
-        return Task.CompletedTask;
+        if (Fixture is IAsyncDisposable)
+        {
+            await Fixture.DisposeAsync();
+        }
+        else
+        {
+            Fixture?.SafeDispose();
+        }
     }
 
     [Fact]

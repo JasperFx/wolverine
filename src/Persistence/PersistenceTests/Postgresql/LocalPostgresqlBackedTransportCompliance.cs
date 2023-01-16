@@ -18,10 +18,9 @@ public class LocalPostgresqlBackedFixture : TransportComplianceFixture, IAsyncLi
         return TheOnlyAppIs(opts => { opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString); });
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        Dispose();
-        return Task.CompletedTask;
+        await DisposeAsync();
     }
 }
 
