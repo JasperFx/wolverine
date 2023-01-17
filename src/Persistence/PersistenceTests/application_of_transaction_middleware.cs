@@ -50,9 +50,10 @@ public class application_of_transaction_middleware : IAsyncLifetime
         theContainer = _host.Services.ShouldBeOfType<Container>();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        await theContainer.DisposeAsync();
     }
 
     [Theory]

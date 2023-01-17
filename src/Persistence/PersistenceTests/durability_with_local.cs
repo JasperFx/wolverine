@@ -35,8 +35,8 @@ public class durability_with_local : PostgresqlContext
         }
 
         // Don't use WolverineHost here because you need the existing persisted state!!!!
-        using (var host1 = Host.CreateDefaultBuilder().UseWolverine(opts => opts.ConfigureDurableSender(true, false))
-                   .Start())
+        using (var host1 = await Host.CreateDefaultBuilder().UseWolverine(opts => opts.ConfigureDurableSender(true, false))
+                   .StartAsync())
         {
             var counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
 
