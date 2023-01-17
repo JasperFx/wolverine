@@ -33,7 +33,9 @@ public class executing_with_middleware
         await host.InvokeMessageAndWaitAsync(message);
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
-
+        
+        await host.StopAsync();
+        
         return recorder.Actions;
     }
 
