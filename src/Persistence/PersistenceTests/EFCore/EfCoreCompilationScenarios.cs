@@ -25,13 +25,14 @@ public class EfCoreCompilationScenarios
     [Fact]
     public async Task ef_context_is_scoped_and_options_are_singleton()
     {
-        using var host = WolverineHost.For(opts =>
+        var host = WolverineHost.For(opts =>
         {
             // Default of both is scoped
             opts.Services.AddDbContext<SampleDbContext>(optionsLifetime: ServiceLifetime.Singleton);
         });
 
         await host.Services.GetRequiredService<IMessageBus>().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.StopAsync();
     }
 
 

@@ -23,36 +23,32 @@ public class durability_with_local : PostgresqlContext
     [Fact]
     public async Task should_recover_persisted_messages()
     {
-        using (var host1 = WolverineHost.For(opts => opts.ConfigureDurableSender(true, true)))
-        {
-            await host1.SendAsync(new ReceivedMessage());
+        var host1 = WolverineHost.For(opts => opts.ConfigureDurableSender(true, true));
+        await host1.SendAsync(new ReceivedMessage());
 
-            var counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
+        var counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
 
-            await host1.StopAsync();
+        await host1.StopAsync();
 
-            counts.Incoming.ShouldBe(1);
-        }
+        counts.Incoming.ShouldBe(1);
+        await host1.StopAsync();
 
         // Don't use WolverineHost here because you need the existing persisted state!!!!
-        using (var host1 = await Host.CreateDefaultBuilder().UseWolverine(opts => opts.ConfigureDurableSender(true, false))
-                   .StartAsync())
+        var host2 = await Host.CreateDefaultBuilder().UseWolverine(opts => opts.ConfigureDurableSender(true, false))
+            .StartAsync();
+        var counts2 = await host2.Get<IMessageStore>().Admin.FetchCountsAsync();
+
+        var i = 0;
+        while (counts2.Incoming != 1 && i < 10)
         {
-            var counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
-
-            var i = 0;
-            while (counts.Incoming != 1 && i < 10)
-            {
-                await Task.Delay(100.Milliseconds());
-                counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
-                i++;
-            }
-
-            counts.Incoming.ShouldBe(1);
-
-
-            await host1.StopAsync();
+            await Task.Delay(100.Milliseconds());
+            counts2 = await host2.Get<IMessageStore>().Admin.FetchCountsAsync();
+            i++;
         }
+
+        counts2.Incoming.ShouldBe(1);
+
+        await host2.StopAsync();
     }
 }
 
