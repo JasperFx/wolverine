@@ -48,6 +48,13 @@ public static class WolverineHost
         return bootstrap(options);
     }
 
+    public static Task<IHost> ForAsync(Action<WolverineOptions> configure)
+    {
+        var options = new WolverineOptions();
+        configure(options);
+        return bootstrapAsync(options);
+    }
+    
     private static IHost bootstrap(WolverineOptions options)
     {
         return Host.CreateDefaultBuilder()
@@ -57,6 +64,14 @@ public static class WolverineHost
             .Start();
     }
 
+    private static Task<IHost> bootstrapAsync(WolverineOptions options)
+    {
+        return Host.CreateDefaultBuilder()
+            .UseWolverine(options, (c, o) => { })
+            .UseResourceSetupOnStartup(StartupAction.ResetState)
+            //.ConfigureLogging(x => x.ClearProviders())
+            .StartAsync();
+    }
 
     /// <summary>
     ///     Shortcut to create a new empty WebHostBuilder with Wolverine's default

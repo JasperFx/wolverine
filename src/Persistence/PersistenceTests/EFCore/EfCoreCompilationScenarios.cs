@@ -25,7 +25,7 @@ public class EfCoreCompilationScenarios
     [Fact]
     public async Task ef_context_is_scoped_and_options_are_singleton()
     {
-        var host = WolverineHost.For(opts =>
+        var host = await WolverineHost.ForAsync(opts =>
         {
             // Default of both is scoped
             opts.Services.AddDbContext<SampleDbContext>(optionsLifetime: ServiceLifetime.Singleton);
