@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
-        
         <IsPackable>false</IsPackable>
 
         <LangVersion>10</LangVersion>
