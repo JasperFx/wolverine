@@ -19,9 +19,12 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     where TChain : Chain<TChain, TModifyAttribute>
     where TModifyAttribute : Attribute, IModifyChain<TChain>
 {
-    public IList<Frame> Middleware { get; } = new List<Frame>();
+    public List<Frame> Middleware { get; } = new();
 
-    public IList<Frame> Postprocessors { get; } = new List<Frame>();
+    public List<Frame> Postprocessors { get; } = new List<Frame>
+    {
+        Capacity = 0
+    };
     public abstract string Description { get; }
     public abstract bool ShouldFlushOutgoingMessages();
 

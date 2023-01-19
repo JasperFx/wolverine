@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>High Performance ASP.Net Core Endpoints using Wolverine</Description>
+        <TargetFramework>net7.0</TargetFramework>
+        <DebugType>portable</DebugType>
+        <PackageId>WolverineFx.Http</PackageId>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <OutputType>library</OutputType>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <FrameworkReference Include="Microsoft.AspNetCore.App" />
+      <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+</Project>

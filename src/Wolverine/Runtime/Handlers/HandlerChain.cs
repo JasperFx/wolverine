@@ -38,7 +38,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public HandlerChain(Type messageType, HandlerGraph parent)
     {
-        Debug.WriteLine("Creating chain for " + messageType.NameInCode());
         _parent = parent;
         MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
 
