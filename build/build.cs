@@ -233,7 +233,7 @@ namespace build
             
             path += " --logger \"console;verbosity=detailed\"";
             if (!String.IsNullOrEmpty(GetEnvironmentVariable("GITHUB_ACTIONS")))
-                path += "  ;GitHubActions";
+                path += ";GitHubActions";
             
             Run("dotnet", $"test --no-build --no-restore " + path);
 
