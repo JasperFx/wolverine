@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-Ponger-2FC9D4AA-C8CD-4460-B762-52A0BA552D8F</UserSecretsId>
         <LangVersion>10</LangVersion>
