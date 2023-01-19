@@ -15,9 +15,6 @@ namespace build
 {
     internal class Build
     {
-        private const string BUILD_VERSION = "6.0.0";
-        private const string GITHUB_REPO = "https://github.com/jasperfx/jasperfx.github.io.git";
-
         private static void Main(string[] args)
         {
 
@@ -79,7 +76,7 @@ namespace build
                 Directory.SetCurrentDirectory(original);
             });
 
-            Target("ci", DependsOn("compile"));
+            Target("ci", DependsOn("default"));
 
             Target("install", () =>
                 RunNpm("install"));

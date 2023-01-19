@@ -22,12 +22,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 6.0.x
-
     - name: Setup .NET 7
       uses: actions/setup-dotnet@v1
       with:
@@ -35,4 +29,4 @@ jobs:
 
 
     - name: Test
-      run: dotnet run -p build/build.csproj -- full
+      run: dotnet run -p build/build.csproj -- ci
