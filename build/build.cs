@@ -67,9 +67,8 @@ namespace build
   end
                  */
 
-                Directory.SetCurrentDirectory(Path.Combine(original, "src", "ConsoleApp"));
+                Directory.SetCurrentDirectory(Path.Combine(original, "src", "Samples", "ConsoleApp"));
                 RunCurrentProject("?");
-                RunCurrentProject("export-json-schema obj/schema");
                 RunCurrentProject("describe");
 
 
