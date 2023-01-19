@@ -231,9 +231,11 @@ namespace build
                 ? $"src/Testing/{projectName}/{projectName}.csproj"
                 : $"src/{string.Join('/', paths.SkipLast(1))}/{projectName}/{projectName}.csproj";
             
-            path += " --logger \"console;verbosity=detailed\"";
             if (!String.IsNullOrEmpty(GetEnvironmentVariable("GITHUB_ACTIONS")))
-                path += ";GitHubActions";
+            {
+                path += " --logger \"GitHubActions;verbosity=detailed\"";
+            }
+
             
             Run("dotnet", $"test --no-build --no-restore " + path);
 
