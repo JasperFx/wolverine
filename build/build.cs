@@ -232,7 +232,12 @@ namespace build
                 ? $"src/Testing/{projectName}/{projectName}.csproj"
                 : $"src/{string.Join('/', paths.SkipLast(1))}/{projectName}/{projectName}.csproj";
             
-            Run("dotnet", $"test --no-build --no-restore {path} --logger \"console;verbosity=detailed\"");
+            path += " --logger \"console;verbosity=detailed\"";
+            if (!String.IsNullOrEmpty(GetEnvironmentVariable("GITHUB_ACTIONS")))
+                path += "  ;GitHubActions";
+            
+            Run("dotnet", $"test --no-build --no-restore " + path);
+
         }
 
         private static string GetEnvironmentVariable(string variableName)
