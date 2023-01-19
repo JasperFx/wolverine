@@ -17,13 +17,13 @@ public interface IChain
     ///     Frames that would be initially placed in front of
     ///     the primary action(s)
     /// </summary>
-    IList<Frame> Middleware { get; }
+    List<Frame> Middleware { get; }
 
     /// <summary>
     ///     Frames that would be initially placed behind the primary
     ///     action(s)
     /// </summary>
-    IList<Frame> Postprocessors { get; }
+    List<Frame> Postprocessors { get; }
 
     /// <summary>
     ///     A description of this frame
