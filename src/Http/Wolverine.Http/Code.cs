@@ -39,6 +39,8 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     }
     
     private string _fileName;
+    
+    // Make the assumption that the route argument has to match the parameter name
     private readonly List<ParameterInfo> _routeArguments = new();
     
     public MethodCall Method { get; }
@@ -54,12 +56,14 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
             RoutePattern = RoutePatternFactory.Parse(att.Template);
             
         }
-        
+
+        ResourceType = method.ReturnType;
+
         // TODO -- can use RoutePattern to match arguments
         // left over, "primitive" arguments would be query string args. Must be nullable
-        
+
         // TODO -- See RouteEndpointDataSource for "how" to build metadata
-        
+
         // RoutePatternFactory
     }
     
