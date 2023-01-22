@@ -20,18 +20,18 @@ public static class AmazonSqsTransportExtensions
         return transports.GetOrCreate<AmazonSqsTransport>();
     }
 
-    public static AmazonSqlTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options)
+    public static AmazonSqsTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options)
     {
         var transport = options.AmazonSqsTransport();
-        return new AmazonSqlTransportConfiguration(transport, options);
+        return new AmazonSqsTransportConfiguration(transport, options);
     }
 
-    public static AmazonSqlTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options,
+    public static AmazonSqsTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options,
         Action<AmazonSQSConfig> configuration)
     {
         var transport = options.AmazonSqsTransport();
         configuration(transport.Config);
-        return new AmazonSqlTransportConfiguration(transport, options);
+        return new AmazonSqsTransportConfiguration(transport, options);
     }
 
 
@@ -41,13 +41,13 @@ public static class AmazonSqsTransportExtensions
     /// </summary>
     /// <param name="port">Port for SQS. Default is 4566</param>
     /// <returns></returns>
-    public static AmazonSqlTransportConfiguration UseAmazonSqsTransportLocally(this WolverineOptions options,
+    public static AmazonSqsTransportConfiguration UseAmazonSqsTransportLocally(this WolverineOptions options,
         int port = 4566)
     {
         var transport = options.AmazonSqsTransport();
         transport.ConnectToLocalStack(port);
 
-        return new AmazonSqlTransportConfiguration(transport, options);
+        return new AmazonSqsTransportConfiguration(transport, options);
     }
 
     /// <summary>
