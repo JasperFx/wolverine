@@ -4,10 +4,10 @@ using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqlTransportConfiguration : BrokerExpression<AmazonSqsTransport, AmazonSqsQueue, AmazonSqsQueue,
-    AmazonSqsListenerConfiguration, AmazonSqsSubscriberConfiguration, AmazonSqlTransportConfiguration>
+public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTransport, AmazonSqsQueue, AmazonSqsQueue,
+    AmazonSqsListenerConfiguration, AmazonSqsSubscriberConfiguration, AmazonSqsTransportConfiguration>
 {
-    public AmazonSqlTransportConfiguration(AmazonSqsTransport transport, WolverineOptions options) : base(transport,
+    public AmazonSqsTransportConfiguration(AmazonSqsTransport transport, WolverineOptions options) : base(transport,
         options)
     {
     }
@@ -27,7 +27,7 @@ public class AmazonSqlTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     /// </summary>
     /// <param name="credentials"></param>
     /// <returns></returns>
-    public AmazonSqlTransportConfiguration Credentials(AWSCredentials credentials)
+    public AmazonSqsTransportConfiguration Credentials(AWSCredentials credentials)
     {
         Transport.CredentialSource = r => credentials;
         return this;
@@ -38,7 +38,7 @@ public class AmazonSqlTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     /// </summary>
     /// <param name="credentialSource"></param>
     /// <returns></returns>
-    public AmazonSqlTransportConfiguration Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
+    public AmazonSqsTransportConfiguration Credentials(Func<IWolverineRuntime, AWSCredentials> credentialSource)
     {
         Transport.CredentialSource = credentialSource;
         return this;
@@ -50,7 +50,7 @@ public class AmazonSqlTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     /// </summary>
     /// <param name="port">Port to connect to LocalStack. Default is 4566</param>
     /// <returns></returns>
-    public AmazonSqlTransportConfiguration UseLocalStackIfDevelopment(int port = 4566)
+    public AmazonSqsTransportConfiguration UseLocalStackIfDevelopment(int port = 4566)
     {
         Transport.LocalStackPort = port;
         Transport.UseLocalStackInDevelopment = true;
@@ -62,7 +62,7 @@ public class AmazonSqlTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public AmazonSqlTransportConfiguration UseConventionalRouting(
+    public AmazonSqsTransportConfiguration UseConventionalRouting(
         Action<AmazonSqsMessageRoutingConvention>? configure = null)
     {
         var routing = new AmazonSqsMessageRoutingConvention();
