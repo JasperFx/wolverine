@@ -45,8 +45,6 @@ public class initializing_endpoints_from_method_call
     }
 }
 
-
-
 public class FakeEndpoint
 {
     [HttpGet("/hello")]
