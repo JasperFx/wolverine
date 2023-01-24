@@ -1,7 +1,10 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Json;
 
 namespace Wolverine.Http;
 
@@ -51,10 +54,24 @@ public abstract class EndpointHandler
 {
     public abstract Task Handle(HttpContext httpContext);
 
-    public Task WriteString(HttpContext context, string text)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Task WriteString(HttpContext context, string text)
     {
         context.Response.ContentType = "text/plain";
         context.Response.ContentLength = text.Length;
         return context.Response.WriteAsync(text, context.RequestAborted);
     }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ValueTask<T?> ReadJsonAsync<T>(HttpContext context, JsonSerializerOptions jsonOptions)
+    {
+        return JsonSerializer.DeserializeAsync<T>(context.Request.Body, jsonOptions, context.RequestAborted);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Task WriteJsonAsync<T>(HttpContext context, T body, JsonSerializerOptions jsonOptions)
+    {
+        return context.Response.WriteAsJsonAsync(body, jsonOptions, context.RequestAborted);
+    }
 }
+
