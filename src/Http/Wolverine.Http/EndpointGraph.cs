@@ -1,3 +1,4 @@
+using System.Text.Json;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
@@ -10,7 +11,8 @@ public class EndpointGraph : ICodeFileCollection
 
     private readonly List<IResourceWriterPolicy> _writerPolicies = new()
     {
-        new StringResourceWriterPolicy()
+        new StringResourceWriterPolicy(),
+        new JsonResourceWriterPolicy()
     };
 
     public EndpointGraph()
@@ -21,6 +23,8 @@ public class EndpointGraph : ICodeFileCollection
     // TODO -- resolve this from somewhere else!
     internal IContainer Container { get; } = new Container(x =>
     {
+        // TODO -- pull the JsonSerializerOptions from Minimal API location
+        x.ForConcreteType<JsonSerializerOptions>().Configure.Singleton();
         x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
     });
 

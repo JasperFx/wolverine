@@ -34,6 +34,11 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     private GeneratedType _generatedType;
     private Type? _handlerType;
 
+    public bool HasResourceType()
+    {
+        return ResourceType != null && ResourceType != typeof(void);
+    }
+
     public MethodCall Method { get; }
 
     public EndpointChain(MethodCall method, EndpointGraph parent)
