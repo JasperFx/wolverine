@@ -20,12 +20,11 @@ public class smoke_test_code_generation_of_endpoints_with_no_service_dependencie
     {
         var container = new Container(x =>
         {
-            x.ForConcreteType<JsonSerializerOptions>().Configure.Singleton();
+            x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         });
         
         var parent = new EndpointGraph(new WolverineOptions{ApplicationAssembly = GetType().Assembly}, container);
-        parent.Rules.ReferenceAssembly(GetType().Assembly); 
         
         var endpoint = new EndpointChain(new MethodCall(typeof(FakeEndpoint), method), parent);
 
