@@ -1,12 +1,9 @@
 using System.Text.Json;
-using TestEndpoints;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Routing;
 using Shouldly;
-using Microsoft.AspNetCore.Http;
+using TestEndpoints;
 
 namespace Wolverine.Http.Tests;
 
@@ -22,19 +19,22 @@ public class initializing_endpoints_from_method_call : IDisposable
             x.ForConcreteType<JsonSerializerOptions>().Configure.Singleton();
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         });
-        
-        parent = new EndpointGraph(new WolverineOptions{ApplicationAssembly = GetType().Assembly}, container);
 
+        parent = new EndpointGraph(new WolverineOptions { ApplicationAssembly = GetType().Assembly }, container);
+    }
+
+    public void Dispose()
+    {
+        container.Dispose();
     }
 
     [Fact]
     public void build_pattern_using_http_pattern_with_attribute()
     {
         var endpoint = EndpointChain.ChainFor<FakeEndpoint>(x => x.SayHello());
-        
+
         endpoint.RoutePattern.RawText.ShouldBe("/hello");
         endpoint.RoutePattern.Parameters.Any().ShouldBeFalse();
-
     }
 
     [Theory]
@@ -50,7 +50,7 @@ public class initializing_endpoints_from_method_call : IDisposable
     public void determine_resource_type(string methodName, Type? expectedType)
     {
         var method = new MethodCall(typeof(FakeEndpoint), methodName);
-        
+
 
         var endpoint = new EndpointChain(method, parent);
 
@@ -63,11 +63,5 @@ public class initializing_endpoints_from_method_call : IDisposable
             endpoint.ResourceType.ShouldBe(expectedType);
         }
     }
-
-    public void Dispose()
-    {
-        container.Dispose();
-    }
 }
 
-public class BigResponse{}

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Wolverine.Http.Tests;
 
 namespace TestEndpoints;
 
@@ -22,13 +21,13 @@ public class FakeEndpoint
     {
         return ValueTask.FromResult("Hello");
     }
-
+    
     [HttpPost("/go")]
     public void Go()
     {
         
     }
-
+    
     [HttpPost("/go/async")]
     public Task GoAsync()
     {
@@ -59,4 +58,8 @@ public class FakeEndpoint
     {
         return ValueTask.FromResult(new BigResponse());
     }
+}
+
+public class BigResponse
+{
 }

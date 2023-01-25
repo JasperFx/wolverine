@@ -6,9 +6,11 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.RuntimeCompiler;
 using Lamar;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
 
@@ -28,7 +30,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
         return new EndpointChain(call, parent ?? new EndpointGraph(new WolverineOptions(), new Container(x =>
         {
-            x.ForConcreteType<JsonSerializerOptions>().Configure.Singleton();
+            x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         })));
     }
@@ -39,6 +41,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     private readonly List<ParameterInfo> _routeArguments = new();
     private GeneratedType _generatedType;
     private Type? _handlerType;
+    private EndpointHandler _handler;
 
     public bool HasResourceType()
     {
@@ -46,6 +49,8 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     }
 
     public MethodCall Method { get; }
+
+    public EndpointMetadataCollection Metadata { get; } = new();
 
     public EndpointChain(MethodCall method, EndpointGraph parent)
     {
@@ -147,11 +152,24 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         {
             return false;
         }
-        
-        // TODO -- create the actual handler
+
+        var ctors = _handlerType.GetConstructors();
+
+        _handler = (EndpointHandler)_parent.Container.QuickBuild(_handlerType);
 
         return true;
     }
 
     string ICodeFile.FileName => _fileName;
+    
+    public RouteEndpoint BuildEndpoint()
+    {
+        // TODO -- do something to make this lazily compiled
+        // or group the compilation
+        
+        this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
+
+        // TODO -- something to make the display name clean?
+        return new RouteEndpoint(c => _handler.Handle(c), RoutePattern, 0, Metadata, Method.ToString());
+    }
 }

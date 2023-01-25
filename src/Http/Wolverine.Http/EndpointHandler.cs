@@ -6,6 +6,10 @@ namespace Wolverine.Http;
 
 public abstract class EndpointHandler
 {
+    protected EndpointHandler()
+    {
+    }
+
     public abstract Task Handle(HttpContext httpContext);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
