@@ -7,6 +7,7 @@ namespace Wolverine.Http;
 
 public class EndpointGraph : ICodeFileCollection
 {
+    private readonly WolverineOptions _options;
     public static readonly string Context = "httpContext";
 
     private readonly List<IResourceWriterPolicy> _writerPolicies = new()
@@ -15,18 +16,13 @@ public class EndpointGraph : ICodeFileCollection
         new JsonResourceWriterPolicy()
     };
 
-    public EndpointGraph()
+    public EndpointGraph(WolverineOptions options, IContainer container)
     {
-        Rules.ReferenceAssembly(GetType().Assembly);
+        _options = options;
+        Container = container;
     }
 
-    // TODO -- resolve this from somewhere else!
-    internal IContainer Container { get; } = new Container(x =>
-    {
-        // TODO -- pull the JsonSerializerOptions from Minimal API location
-        x.ForConcreteType<JsonSerializerOptions>().Configure.Singleton();
-        x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
-    });
+    internal IContainer Container { get; } 
 
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _writerPolicies;
 
