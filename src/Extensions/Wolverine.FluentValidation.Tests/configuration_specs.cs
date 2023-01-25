@@ -108,10 +108,23 @@ public class Command1Validator2 : AbstractValidator<Command1>
 
 public interface IDataService
 {
+    Task<bool> IsUniqueEmail(string email);
+    Task<bool> IsUniqueUsername(string userName);
 }
 
 public class DataService : IDataService
 {
+    public async Task<bool> IsUniqueEmail(string email)
+    {
+        bool isUnique = email.Equals("new@email.me");
+        return await Task.FromResult(isUnique);
+    }
+
+    public async Task<bool> IsUniqueUsername(string userName)
+    {
+        bool isUnique = userName.Equals("UniqueUsername");
+        return await Task.FromResult(isUnique);
+    }
 }
 
 public class Command2
@@ -134,6 +147,46 @@ public class FancyCommand2Validator : AbstractValidator<Command2>
 
 public record Command3; // Always valid
 
+public class Command4
+{
+    public required string Email { get; init; }
+}
+
+public class Command4Validator : AbstractValidator<Command4>
+{
+    public Command4Validator(IDataService dataService)
+    {
+        RuleFor(x => x.Email).MustAsync(async (email, cancelation) 
+            => await dataService.IsUniqueEmail(email));
+    }
+}
+
+public class Command5
+{
+    public required string Username { get; init; }
+    public required string Email { get; init; }
+}
+
+public class Command5ValidatorAsync : AbstractValidator<Command5>
+{
+    public Command5ValidatorAsync(IDataService dataService)
+    {
+        RuleFor(x => x.Email).MustAsync(async (email, cancelation) 
+            => await dataService.IsUniqueEmail(email));
+        RuleFor(x => x.Username).MustAsync(async (userName, cancelation) 
+            => await dataService.IsUniqueUsername(userName));
+    }
+}
+
+public class Command5Validator : AbstractValidator<Command5>
+{
+    public Command5Validator(IDataService dataService)
+    {
+        RuleFor(x => x.Email).NotNull().NotEmpty();
+        RuleFor(x => x.Username).NotNull().NotEmpty();;
+    }
+}
+
 public class CommandHandler
 {
     public void Handle(Command1 command)
@@ -145,6 +198,15 @@ public class CommandHandler
     }
 
     public void Handle(Command3 command)
+    {
+    }
+    
+    
+    public void Handle(Command4 command)
+    {
+    }
+    
+    public void Handle(Command5 command)
     {
     }
 }

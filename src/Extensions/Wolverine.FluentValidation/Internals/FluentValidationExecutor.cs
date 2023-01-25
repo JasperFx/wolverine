@@ -6,9 +6,9 @@ namespace Wolverine.FluentValidation.Internals;
 public static class FluentValidationExecutor
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ExecuteOne<T>(IValidator<T> validator, IFailureAction<T> failureAction, T message)
+    public static async Task ExecuteOne<T>(IValidator<T> validator, IFailureAction<T> failureAction, T message)
     {
-        var result = validator.Validate(message);
+        var result = await validator.ValidateAsync(message);
         if (result.Errors.Any())
         {
             failureAction.Throw(message, result.Errors);
@@ -16,18 +16,19 @@ public static class FluentValidationExecutor
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ExecuteMany<T>(IReadOnlyList<IValidator<T>> validators, IFailureAction<T> failureAction,
+    public static async Task ExecuteMany<T>(IReadOnlyList<IValidator<T>> validators, IFailureAction<T> failureAction,
         T message)
     {
-        var validationFailures = validators
-            .Select(validator => validator.Validate(message))
-            .SelectMany(validationResult => validationResult.Errors)
+        var validationFailureTasks = validators
+            .Select(validator => validator.ValidateAsync(message));
+        var validationFailures = await Task.WhenAll(validationFailureTasks);
+        var failures = validationFailures.SelectMany(validationResult => validationResult.Errors)
             .Where(validationFailure => validationFailure != null)
             .ToList();
 
-        if (validationFailures.Any())
+        if (failures.Any())
         {
-            failureAction.Throw(message, validationFailures);
+            failureAction.Throw(message, failures);
         }
     }
 }
