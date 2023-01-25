@@ -1,10 +1,12 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text.Json;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Lamar;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
@@ -24,7 +26,11 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         var method = ReflectionHelper.GetMethod(expression);
         var call = new MethodCall(typeof(T), method);
 
-        return new EndpointChain(call, parent ?? new EndpointGraph());
+        return new EndpointChain(call, parent ?? new EndpointGraph(new WolverineOptions(), new Container(x =>
+        {
+            x.ForConcreteType<JsonSerializerOptions>().Configure.Singleton();
+            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
+        })));
     }
     
     private string _fileName;
