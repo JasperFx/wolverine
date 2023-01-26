@@ -13,7 +13,6 @@ using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
-using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
@@ -79,8 +78,9 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
         _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_").Replace("{", "").Replace("}", "");
 
-        // TODO -- can use RoutePattern to match arguments
-        // left over, "primitive" arguments would be query string args. Must be nullable
+        Description = _fileName;
+        
+        _parent.ApplyMatching(this);
 
     }
 
