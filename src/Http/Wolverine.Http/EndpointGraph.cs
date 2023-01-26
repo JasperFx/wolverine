@@ -51,10 +51,10 @@ public class EndpointGraph : EndpointDataSource, ICodeFileCollection, IChangeTok
     public string ChildNamespace => "Endpoints";
     public GenerationRules Rules { get; }
 
-    public async Task DiscoverEndpoints()
+    public void DiscoverEndpoints()
     {
         var source = new EndpointSource(_options.Assemblies);
-        var calls = await source.FindActions();
+        var calls = source.FindActions();
 
         _chains.AddRange(calls.Select(x => new EndpointChain(x, this)));
         
@@ -65,6 +65,11 @@ public class EndpointGraph : EndpointDataSource, ICodeFileCollection, IChangeTok
     public override IChangeToken GetChangeToken()
     {
         return this;
+    }
+
+    public EndpointChain? ChainFor(string httpMethod, string urlPattern)
+    {
+        return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern.RawText == urlPattern);
     }
 }
 

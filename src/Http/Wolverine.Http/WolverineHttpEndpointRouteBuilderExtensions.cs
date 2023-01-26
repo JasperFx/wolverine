@@ -35,11 +35,11 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var container = (IContainer)endpoints.ServiceProvider;
         
         // Making sure this exists
-        container.GetInstance<WolverineHttpOptions>();
-        var graph = new EndpointGraph(runtime.Options, container);
+        var options = container.GetInstance<WolverineHttpOptions>();
+        options.Endpoints = new EndpointGraph(runtime.Options, container);
         
-        graph.DiscoverEndpoints().GetAwaiter().GetResult();
+        options.Endpoints.DiscoverEndpoints();
         
-        endpoints.DataSources.Add(graph);
+        endpoints.DataSources.Add(options.Endpoints);
     }
 }

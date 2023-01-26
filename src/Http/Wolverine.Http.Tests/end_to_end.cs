@@ -21,7 +21,7 @@ public class end_to_end : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
         
-        body.ReadAsText().ShouldBe("Hello");
+        (await body.ReadAsTextAsync()).ShouldBe("Hello");
     }
 
     [Fact]

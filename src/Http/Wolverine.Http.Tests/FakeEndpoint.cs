@@ -4,7 +4,7 @@ namespace TestEndpoints;
 
 public class FakeEndpoint
 {
-    [HttpGet("/hello")]
+    [HttpGet("/hello", Order = 55, Name = "The Hello Route!")]
     public string SayHello()
     {
         return "Hello";

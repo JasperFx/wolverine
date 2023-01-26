@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
+using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
@@ -43,6 +44,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     private GeneratedType _generatedType;
     private Type? _handlerType;
     private EndpointHandler _handler;
+    private readonly List<string> _httpMethods = new();
 
     public bool HasResourceType()
     {
@@ -53,8 +55,10 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     public EndpointChain(MethodCall method, EndpointGraph parent)
     {
-        _parent = parent;
-        Method = method;
+        _parent = parent ?? throw new ArgumentNullException(nameof(parent));
+        Method = method ?? throw new ArgumentNullException(nameof(method));
+
+        DisplayName = Method.ToString();
         
         // TODO -- need a helper for this in JasperFx.Core
         var att = method.Method.GetAttribute<HttpMethodAttribute>();
@@ -65,10 +69,10 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
             // TODO -- figure out how to get at the Cors preflight stuff
             var metadata = new HttpMethodMetadata(att.HttpMethods);
             _metadata.Add(metadata);
-            
 
-            // TODO -- get Order off the attribute
-            // TODO -- get the route display name off the attribute as well
+            _httpMethods.AddRange(att.HttpMethods);
+            Order = att.Order;
+            DisplayName = att.Name ?? Method.ToString();
         }
 
         ResourceType = method.ReturnType;
@@ -79,10 +83,13 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         // TODO -- can use RoutePattern to match arguments
         // left over, "primitive" arguments would be query string args. Must be nullable
 
-        // TODO -- See RouteEndpointDataSource for "how" to build metadata
-
-        // RoutePatternFactory
     }
+
+    public string? DisplayName { get; set; }
+
+    public int Order { get; set; }
+
+    public IEnumerable<string> HttpMethods => _httpMethods;
 
     public Type ResourceType { get; }
     
@@ -176,6 +183,9 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
         // TODO -- something to make the display name clean? Use the Name on the 
         // TODO -- pick the order out of the HttpMethod attributes
-        return new RouteEndpoint(c => _handler.Handle(c), RoutePattern, 0, new EndpointMetadataCollection(_metadata), Method.ToString());
+        Endpoint = new RouteEndpoint(c => _handler.Handle(c), RoutePattern, Order, new EndpointMetadataCollection(_metadata), DisplayName);
+        return Endpoint;
     }
+    
+    internal RouteEndpoint? Endpoint { get; private set; }
 }
