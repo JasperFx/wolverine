@@ -1,13 +1,17 @@
 using System.Reflection;
+using Wolverine.Http.CodeGen;
 
 namespace Wolverine.Http;
 
 public partial class EndpointGraph
 {
     // TODO -- make this pluggable later???
-    private readonly List<IParameterStrategy> _strategies = new();
+    private readonly List<IParameterStrategy> _strategies = new()
+    {
+        new RouteParameterStrategy()
+    };
     
-    internal void ApplyMatching(EndpointChain chain)
+    internal void ApplyParameterMatching(EndpointChain chain)
     {
         var parameters = chain.Method.Method.GetParameters();
         for (int i = 0; i < parameters.Length; i++)
@@ -30,6 +34,8 @@ public partial class EndpointGraph
                 chain.Method.Arguments[i] = variable;
                 return true;
             }
+            
+            
         }
 
         return false;
