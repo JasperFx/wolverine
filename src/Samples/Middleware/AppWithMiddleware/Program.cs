@@ -53,6 +53,8 @@ builder.Host.UseWolverine(opts =>
 
 var app = builder.Build();
 
+app.MapControllers();
+
 // One Minimal API that just delegates directly to Wolverine
 app.MapPost("/accounts/debit", (DebitAccount command, IMessageBus bus) => bus.InvokeAsync(command));
 
