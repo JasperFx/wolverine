@@ -6,7 +6,7 @@ using Microsoft.Extensions.Primitives;
 
 namespace Wolverine.Http;
 
-public class EndpointGraph : EndpointDataSource, ICodeFileCollection, IChangeToken
+public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IChangeToken
 {
     public static readonly string Context = "httpContext";
     private readonly WolverineOptions _options;
