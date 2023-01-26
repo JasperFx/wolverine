@@ -25,10 +25,11 @@ internal class EndpointSource
     private readonly ActionMethodFilter _methodFilters = new();
     private readonly CompositeFilter<Type> _typeFilters = new();
 
-    internal async Task<MethodCall[]> FindActions()
+    internal MethodCall[] FindActions()
     {
-        var discovered =
-            await TypeRepository.FindTypes(_assemblies, TypeClassification.Concretes | TypeClassification.Closed, _typeFilters.Matches);
+        var discovered = _assemblies.SelectMany(x => x.ExportedTypes)
+            .Where(x => x.IsConcrete() && !x.IsOpenGeneric())
+            .Where(x => _typeFilters.Matches(x));
 
         return discovered
             .Distinct()

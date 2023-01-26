@@ -7,4 +7,5 @@ namespace Wolverine.Http;
 public class WolverineHttpOptions
 {
     public JsonSerializerOptions JsonSerializerOptions { get; set; } = new();
+    public EndpointGraph? Endpoints { get; internal set; }
 }

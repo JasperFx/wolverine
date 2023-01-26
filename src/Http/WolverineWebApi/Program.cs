@@ -1,5 +1,7 @@
 using IntegrationTests;
 using Marten;
+using Oakton;
+using Oakton.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -19,6 +21,8 @@ builder.Services.AddMarten(opts =>
     opts.DatabaseSchemaName = "http";
 }).IntegrateWithWolverine();
 
+builder.Services.AddResourceSetupOnStartup();
+
 // Need this.
 builder.Host.UseWolverine();
 
@@ -37,4 +41,4 @@ app.MapControllers();
 
 app.MapWolverineEndpoints();
 
-app.Run();
+await app.RunOaktonCommands(args);
