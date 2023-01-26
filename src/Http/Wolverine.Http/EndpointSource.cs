@@ -28,8 +28,8 @@ internal class EndpointSource
     internal MethodCall[] FindActions()
     {
         var discovered = _assemblies.SelectMany(x => x.ExportedTypes)
-            .Where(x => x.IsConcrete() && !x.IsOpenGeneric())
-            .Where(x => _typeFilters.Matches(x));
+            .Where(x => _typeFilters.Matches(x))
+            .Where(x => x.IsPublic && !x.GetGenericArguments().Any());
 
         return discovered
             .Distinct()

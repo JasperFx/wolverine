@@ -4,7 +4,6 @@ using JasperFx.CodeGeneration.Model;
 using Lamar;
 using Microsoft.AspNetCore.Routing;
 using Shouldly;
-using TestEndpoints;
 
 namespace Wolverine.Http.Tests;
 
