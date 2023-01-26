@@ -77,8 +77,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
         ResourceType = method.ReturnType;
 
-        // TODO -- prefix with HTTP verb
-        _fileName = RoutePattern.RawText.Replace("/", "").Replace("{", "").Replace("}", "");
+        _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_").Replace("{", "").Replace("}", "");
 
         // TODO -- can use RoutePattern to match arguments
         // left over, "primitive" arguments would be query string args. Must be nullable
