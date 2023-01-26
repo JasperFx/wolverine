@@ -2,6 +2,7 @@ using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
+using Microsoft.AspNetCore.Routing;
 using Shouldly;
 using TestEndpoints;
 
@@ -20,7 +21,10 @@ public class initializing_endpoints_from_method_call : IDisposable
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         });
 
-        parent = new EndpointGraph(new WolverineOptions { ApplicationAssembly = GetType().Assembly }, container);
+        parent = new EndpointGraph(new WolverineOptions
+        {
+            ApplicationAssembly = GetType().Assembly
+        }, container);
     }
 
     public void Dispose()
@@ -37,6 +41,16 @@ public class initializing_endpoints_from_method_call : IDisposable
         endpoint.RoutePattern.Parameters.Any().ShouldBeFalse();
     }
 
+    [Fact]
+    public void capturing_the_http_method_metadata()
+    {
+        var chain = EndpointChain.ChainFor<FakeEndpoint>(x => x.SayHello());
+        var endpoint = chain.BuildEndpoint();
+
+        var metadata = endpoint.Metadata.OfType<HttpMethodMetadata>().Single();
+        metadata.HttpMethods.Single().ShouldBe("GET");
+    }
+    
     [Theory]
     [InlineData(nameof(FakeEndpoint.SayHello), typeof(string))]
     [InlineData(nameof(FakeEndpoint.SayHelloAsync), typeof(string))]
@@ -50,8 +64,6 @@ public class initializing_endpoints_from_method_call : IDisposable
     public void determine_resource_type(string methodName, Type? expectedType)
     {
         var method = new MethodCall(typeof(FakeEndpoint), methodName);
-
-
         var endpoint = new EndpointChain(method, parent);
 
         if (expectedType == null)

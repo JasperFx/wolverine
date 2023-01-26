@@ -20,7 +20,7 @@ public class smoke_test_code_generation_of_endpoints_with_no_service_dependencie
     {
         var container = new Container(x =>
         {
-            x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
+            x.For<WolverineHttpOptions>().Use<WolverineHttpOptions>();
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         });
         

@@ -6,8 +6,12 @@ namespace Wolverine.Http;
 
 public abstract class EndpointHandler
 {
-    protected EndpointHandler()
+    private readonly WolverineHttpOptions _options;
+
+    // ReSharper disable once PublicConstructorInAbstractClass
+    public EndpointHandler(WolverineHttpOptions options)
     {
+        _options = options;
     }
 
     public abstract Task Handle(HttpContext httpContext);
@@ -21,14 +25,14 @@ public abstract class EndpointHandler
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ValueTask<T?> ReadJsonAsync<T>(HttpContext context, JsonSerializerOptions jsonOptions)
+    public ValueTask<T?> ReadJsonAsync<T>(HttpContext context)
     {
-        return JsonSerializer.DeserializeAsync<T>(context.Request.Body, jsonOptions, context.RequestAborted);
+        return JsonSerializer.DeserializeAsync<T>(context.Request.Body, _options.JsonSerializerOptions, context.RequestAborted);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Task WriteJsonAsync<T>(HttpContext context, T body, JsonSerializerOptions jsonOptions)
+    public Task WriteJsonAsync<T>(HttpContext context, T body)
     {
-        return context.Response.WriteAsJsonAsync(body, jsonOptions, context.RequestAborted);
+        return context.Response.WriteAsJsonAsync(body, _options.JsonSerializerOptions, context.RequestAborted);
     }
 }

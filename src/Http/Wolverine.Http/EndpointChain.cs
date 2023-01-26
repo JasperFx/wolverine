@@ -22,6 +22,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         Variable.VariablesForProperties<HttpContext>(EndpointGraph.Context);
     
     private readonly EndpointGraph _parent;
+    private readonly List<object> _metadata = new();
 
     public static EndpointChain ChainFor<T>(Expression<Action<T>> expression, EndpointGraph? parent = null)
     {
@@ -50,8 +51,6 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     public MethodCall Method { get; }
 
-    public EndpointMetadataCollection Metadata { get; } = new();
-
     public EndpointChain(MethodCall method, EndpointGraph parent)
     {
         _parent = parent;
@@ -63,6 +62,13 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         {
             RoutePattern = RoutePatternFactory.Parse(att.Template);
             
+            // TODO -- figure out how to get at the Cors preflight stuff
+            var metadata = new HttpMethodMetadata(att.HttpMethods);
+            _metadata.Add(metadata);
+            
+
+            // TODO -- get Order off the attribute
+            // TODO -- get the route display name off the attribute as well
         }
 
         ResourceType = method.ReturnType;
@@ -96,6 +102,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
         _generatedType = assembly.AddType(_fileName, typeof(EndpointHandler));
+
         assembly.ReferenceAssembly(Method.HandlerType.Assembly);
         assembly.ReferenceAssembly(typeof(HttpContext).Assembly);
         assembly.ReferenceAssembly(typeof(EndpointChain).Assembly);
@@ -153,8 +160,6 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
             return false;
         }
 
-        var ctors = _handlerType.GetConstructors();
-
         _handler = (EndpointHandler)_parent.Container.QuickBuild(_handlerType);
 
         return true;
@@ -169,7 +174,8 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         
         this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
 
-        // TODO -- something to make the display name clean?
-        return new RouteEndpoint(c => _handler.Handle(c), RoutePattern, 0, Metadata, Method.ToString());
+        // TODO -- something to make the display name clean? Use the Name on the 
+        // TODO -- pick the order out of the HttpMethod attributes
+        return new RouteEndpoint(c => _handler.Handle(c), RoutePattern, 0, new EndpointMetadataCollection(_metadata), Method.ToString());
     }
 }
