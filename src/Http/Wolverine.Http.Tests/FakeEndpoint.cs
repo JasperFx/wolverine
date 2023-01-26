@@ -58,6 +58,12 @@ public class FakeEndpoint
     {
         return ValueTask.FromResult(new BigResponse());
     }
+
+    [HttpGet("/read/{name}")]
+    public string ReadStringArgument(string name)
+    {
+        return $"name is {name}";
+    }
 }
 
 public class BigResponse

@@ -19,6 +19,13 @@ public static class TestEndpoints
             Product = 4
         };
     }
+
+    [HttpGet("/name/{name}")]
+    public static string SimpleStringRouteArgument(string name, HttpContext context)
+    {
+        var data = context.GetRouteValue("name");
+        return $"Name is {name}";
+    }
 }
 
 public class Results

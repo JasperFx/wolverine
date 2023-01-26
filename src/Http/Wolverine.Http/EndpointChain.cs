@@ -80,7 +80,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
         Description = _fileName;
         
-        _parent.ApplyMatching(this);
+        _parent.ApplyParameterMatching(this);
 
     }
 
@@ -107,6 +107,8 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
+        assembly.UsingNamespaces.Fill(typeof(RoutingHttpContextExtensions).Namespace);
+        
         _generatedType = assembly.AddType(_fileName, typeof(EndpointHandler));
 
         assembly.ReferenceAssembly(Method.HandlerType.Assembly);
@@ -180,11 +182,15 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         
         this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
 
-        // TODO -- something to make the display name clean? Use the Name on the 
-        // TODO -- pick the order out of the HttpMethod attributes
         Endpoint = new RouteEndpoint(c => _handler.Handle(c), RoutePattern, Order, new EndpointMetadataCollection(_metadata), DisplayName);
         return Endpoint;
     }
     
     internal RouteEndpoint? Endpoint { get; private set; }
+    public string SourceCode => _generatedType.SourceCode;
+
+    public override string ToString()
+    {
+        return _fileName;
+    }
 }
