@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json;
-using TestEndpoints;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
