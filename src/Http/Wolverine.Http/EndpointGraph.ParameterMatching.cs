@@ -8,7 +8,8 @@ public partial class EndpointGraph
     // TODO -- make this pluggable later???
     private readonly List<IParameterStrategy> _strategies = new()
     {
-        new RouteParameterStrategy()
+        new RouteParameterStrategy(),
+        new QueryStringParameterStrategy()
     };
     
     internal void ApplyParameterMatching(EndpointChain chain)

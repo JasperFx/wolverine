@@ -93,6 +93,8 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     public Type ResourceType { get; }
     
     public RoutePattern RoutePattern { get; }
+    
+    public Type RequestType { get; internal set; }
 
     public override string Description { get; }
     public override bool ShouldFlushOutgoingMessages()
@@ -108,6 +110,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
         assembly.UsingNamespaces.Fill(typeof(RoutingHttpContextExtensions).Namespace);
+        assembly.UsingNamespaces.Fill("System.Linq");
         
         _generatedType = assembly.AddType(_fileName, typeof(EndpointHandler));
 
