@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Lamar;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Runtime;
@@ -36,6 +38,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         
         // Making sure this exists
         var options = container.GetInstance<WolverineHttpOptions>();
+        options.JsonSerializerOptions = container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
         options.Endpoints = new EndpointGraph(runtime.Options, container);
         
         options.Endpoints.DiscoverEndpoints();

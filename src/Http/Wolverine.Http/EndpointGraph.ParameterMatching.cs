@@ -9,7 +9,8 @@ public partial class EndpointGraph
     private readonly List<IParameterStrategy> _strategies = new()
     {
         new RouteParameterStrategy(),
-        new QueryStringParameterStrategy()
+        new QueryStringParameterStrategy(),
+        new JsonBodyParameterStrategy()
     };
     
     internal void ApplyParameterMatching(EndpointChain chain)

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using JasperFx.CodeGeneration;
 using Lamar;
 using Microsoft.AspNetCore.Http;
