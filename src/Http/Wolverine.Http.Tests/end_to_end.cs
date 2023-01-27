@@ -75,4 +75,28 @@ public class end_to_end : IntegrationContext
             x.StatusCodeShouldBe(404);
         });
     }
+    
+    [Fact]
+    public async Task use_string_querystring_hit()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/querystring/string?name=Magic");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Name is Magic");
+    }
+    
+    [Fact]
+    public async Task use_string_querystring_miss()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/querystring/string");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Name is missing");
+    }
 }

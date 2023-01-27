@@ -1,3 +1,4 @@
+using Marten;
 using Microsoft.AspNetCore.Mvc;
 
 namespace WolverineWebApi;
@@ -30,6 +31,12 @@ public static class TestEndpoints
     public static string IntRouteArgument(int age)
     {
         return $"Age is {age}";
+    }
+
+    [HttpGet("/querystring/string")]
+    public static string UsingQueryString(string name)
+    {
+        return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
     }
 }
 
