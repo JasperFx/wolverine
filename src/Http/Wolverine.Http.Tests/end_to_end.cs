@@ -52,6 +52,27 @@ public class end_to_end : IntegrationContext
         });
         
         body.ReadAsText().ShouldBe("Name is Lebron");
-        // 0HMNVRSNL532U
+    }
+    
+    [Fact]
+    public async Task use_int_route_argument_happy_path()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/age/49");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Age is 49");
+    }
+    
+    [Fact]
+    public async Task use_int_route_argument_sad_path()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/age/junk");
+            x.StatusCodeShouldBe(404);
+        });
     }
 }

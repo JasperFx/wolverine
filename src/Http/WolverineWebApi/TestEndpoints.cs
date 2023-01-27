@@ -21,10 +21,15 @@ public static class TestEndpoints
     }
 
     [HttpGet("/name/{name}")]
-    public static string SimpleStringRouteArgument(string name, HttpContext context)
+    public static string SimpleStringRouteArgument(string name)
     {
-        var data = context.GetRouteValue("name");
         return $"Name is {name}";
+    }
+    
+    [HttpGet("/age/{age}")]
+    public static string IntRouteArgument(int age)
+    {
+        return $"Age is {age}";
     }
 }
 
