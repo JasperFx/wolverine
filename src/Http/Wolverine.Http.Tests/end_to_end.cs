@@ -99,4 +99,76 @@ public class end_to_end : IntegrationContext
         
         body.ReadAsText().ShouldBe("Name is missing");
     }
+    
+    [Fact]
+    public async Task use_parsed_querystring_hit()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/querystring/int?age=8");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Age is 8");
+    }
+    
+    [Fact]
+    public async Task use_parsed_querystring_complete_miss()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/querystring/int");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Age is 0");
+    }
+    
+    [Fact]
+    public async Task use_parsed_querystring_bad_data()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/querystring/int?age=garbage");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Age is 0");
+    }
+    
+    [Fact]
+    public async Task use_parsed_nullable_querystring_hit()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/querystring/int/nullable?age=11");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Age is 11");
+    }
+    
+    [Fact]
+    public async Task use_parsed_nullable_querystring_complete_miss()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/querystring/int/nullable");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Age is missing");
+    }
+    
+    [Fact]
+    public async Task use_parsed_nullable_querystring_bad_data()
+    {
+        var body = await Host.Scenario(x =>
+        {
+            x.Get.Url("/querystring/int/nullable?age=garbage");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        body.ReadAsText().ShouldBe("Age is missing");
+    }
 }

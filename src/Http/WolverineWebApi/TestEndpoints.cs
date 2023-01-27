@@ -38,6 +38,19 @@ public static class TestEndpoints
     {
         return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
     }
+    
+    [HttpGet("/querystring/int")]
+    public static string UsingQueryStringParsing(int age)
+    {
+        return $"Age is {age}";
+    }
+    
+    [HttpGet("/querystring/int/nullable")]
+    public static string UsingQueryStringParsingNullable(int? age)
+    {
+        if (!age.HasValue) return "Age is missing";
+        return $"Age is {age}";
+    }
 }
 
 public class Results
