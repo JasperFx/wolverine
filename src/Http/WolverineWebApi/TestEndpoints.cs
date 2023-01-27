@@ -51,10 +51,26 @@ public static class TestEndpoints
         if (!age.HasValue) return "Age is missing";
         return $"Age is {age}";
     }
+
+    [HttpPost("/question")]
+    public static Results PostJson(Question question)
+    {
+        return new Results
+        {
+            Sum = question.One + question.Two,
+            Product = question.One * question.Two
+        };
+    }
 }
 
 public class Results
 {
     public int Sum { get; set; }
     public int Product { get; set; }
+}
+
+public class Question
+{
+    public int One { get; set; }
+    public int Two { get; set; }
 }
