@@ -125,8 +125,6 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
     {
-        // TODO -- have to take in IContainer later
-        
         // TODO -- apply customizations from attributes if any
         
         // Add frames for any writers
