@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FastExpressionCompiler;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
