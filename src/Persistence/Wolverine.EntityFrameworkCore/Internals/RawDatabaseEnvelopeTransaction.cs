@@ -101,4 +101,14 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 
         return ValueTask.CompletedTask;
     }
+    
+    public ValueTask CommitAsync()
+    {
+        if (DbContext.Database.CurrentTransaction != null)
+        {
+            return new ValueTask(DbContext.Database.CurrentTransaction.CommitAsync());
+        }
+
+        return ValueTask.CompletedTask;
+    }
 }

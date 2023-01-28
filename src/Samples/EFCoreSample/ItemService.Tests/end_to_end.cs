@@ -30,7 +30,7 @@ public class end_to_end
         using var nested = host.Services.As<IContainer>().GetNestedContainer();
         var context = nested.GetInstance<ItemsDbContext>();
 
-        var item = context.Items.FirstOrDefaultAsync(x => x.Name == name);
+        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
         item.ShouldNotBeNull();
     }
 

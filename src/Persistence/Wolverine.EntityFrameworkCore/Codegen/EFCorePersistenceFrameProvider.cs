@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Wolverine.Configuration;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -87,7 +88,9 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         };
 
         chain.Postprocessors.Add(call);
-
+        
+        chain.Postprocessors.Add(new CommitDbContextTransactionIfNecessary());
+        
         if (chain.ShouldFlushOutgoingMessages())
         {
 #pragma warning disable CS4014
@@ -164,24 +167,22 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     public class EnrollDbContextInTransaction : SyncFrame
     {
         private readonly Type _dbContextType;
+        private readonly Variable? _envelopeTransaction;
         private Variable? _context;
         private Variable? _dbContext;
 
         public EnrollDbContextInTransaction(Type dbContextType)
         {
             _dbContextType = dbContextType;
+            _envelopeTransaction = Create(typeof(IEnvelopeTransaction));
         }
 
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
-            writer.WriteComment(
-                "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
-            writer.Write(
-                $"var envelopeTransaction = new {typeof(RawDatabaseEnvelopeTransaction).FullNameInCode()}({_dbContext!.Usage}, {_context!.Usage});");
-
-            writer.Write(
-                $"await context.{nameof(MessageContext.EnlistInOutboxAsync)}(envelopeTransaction);");
-
+            writer.WriteComment("Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
+            writer.Write($"var {_envelopeTransaction.Usage} = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction({_dbContext!.Usage}, {_context!.Usage});");
+            writer.Write($"await context.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
+            
             Next?.GenerateCode(method, writer);
         }
 
@@ -192,6 +193,40 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
             _dbContext = chain.FindVariable(_dbContextType);
             yield return _dbContext;
+        }
+        
+        public override IEnumerable<Variable> Creates
+        {
+            get
+            {
+                yield return _envelopeTransaction;
+            }
+        }
+    }
+    
+    public class CommitDbContextTransactionIfNecessary : SyncFrame
+    {
+        private Variable? _envelopeTransaction;
+
+        public CommitDbContextTransactionIfNecessary()
+        {
+        }
+
+        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+        {
+            writer.WriteComment(
+                "If we have separate context for outbox and application, the we need to manually commit the transaction");
+            writer.Write(
+                $"if ({_envelopeTransaction.Usage} is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) {{ await rawTx.CommitAsync(); }}");
+            
+            
+            Next?.GenerateCode(method, writer);
+        }
+
+        public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+        {
+            _envelopeTransaction = chain.FindVariable(typeof(IEnvelopeTransaction));
+            yield return _envelopeTransaction;
         }
     }
 }

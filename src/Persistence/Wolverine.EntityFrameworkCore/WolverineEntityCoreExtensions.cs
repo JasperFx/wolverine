@@ -49,7 +49,7 @@ public static class WolverineEntityCoreExtensions
         return dbContext.Model.FindAnnotation(WolverineEntityCoreExtensions.WolverineEnabled) != null;
     }
 
-    internal static IEnvelopeTransaction BuildTransaction(this DbContext dbContext, MessageContext context)
+    public static IEnvelopeTransaction BuildTransaction(this DbContext dbContext, MessageContext context)
     {
         return dbContext.IsWolverineEnabled() 
             ? new MappedEnvelopeTransaction(dbContext, context) 
