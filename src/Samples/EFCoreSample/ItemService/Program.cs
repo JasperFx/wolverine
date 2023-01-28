@@ -21,6 +21,14 @@ builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
 
 #endregion
 
+#region registration_of_db_context_not_integrated_with_outbox
+
+// Add DbContext that is not integrated with outbox
+builder.Services.AddDbContext<ItemsDbContextWithoutOutbox>(
+    x => x.UseSqlServer(connectionString));
+
+#endregion
+
 #region sample_registering_efcore_middleware
 
 builder.Host.UseWolverine(opts =>
@@ -66,6 +74,8 @@ if (app.Environment.IsDevelopment())
 app.MapControllers();
 
 app.MapPost("/items/create", (CreateItemCommand command, IMessageBus bus) => bus.InvokeAsync(command));
+
+app.MapPost("/items/createWithDbContextNotIntegratedWithOutbox", (CreateItemWithDbContextNotIntegratedWithOutboxCommand command, IMessageBus bus) => bus.InvokeAsync(command));
 
 #region sample_using_oakton_for_command_line_parsing
 

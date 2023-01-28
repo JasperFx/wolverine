@@ -1,9 +1,12 @@
+using Wolverine.Attributes;
+
 namespace ItemService;
 
 public static class CreateItemCommandHandler
 {
     #region sample_handler_using_efcore
 
+    [Transactional]
     public static ItemCreated Handle(
         // This would be the message
         CreateItemCommand command,
