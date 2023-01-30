@@ -42,6 +42,8 @@ public static class WolverineEntityCoreExtensions
     public static void UseEntityFrameworkCoreTransactions(this WolverineOptions options)
     {
         options.Include<EntityFrameworkCoreBackedPersistence>();
+        
+        options.Handlers.AutoApplyTransactions();
     }
 
     internal static bool IsWolverineEnabled(this DbContext dbContext)

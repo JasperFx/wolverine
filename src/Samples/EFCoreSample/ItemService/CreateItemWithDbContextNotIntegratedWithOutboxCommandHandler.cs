@@ -1,5 +1,3 @@
-using Wolverine.Attributes;
-
 namespace ItemService;
 
 public class CreateItemWithDbContextNotIntegratedWithOutboxCommand
@@ -14,7 +12,6 @@ public class ItemCreatedInDbContextNotIntegratedWithOutbox
 
 public class CreateItemWithDbContextNotIntegratedWithOutboxCommandHandler
 {
-    [Transactional]
     public static ItemCreatedInDbContextNotIntegratedWithOutbox Handle(
         // This would be the message
         CreateItemWithDbContextNotIntegratedWithOutboxCommand command,

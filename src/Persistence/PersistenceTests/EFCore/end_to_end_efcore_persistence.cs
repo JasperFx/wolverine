@@ -16,6 +16,7 @@ using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -73,6 +74,21 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         container.Model.For<IDbContextOutbox>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
         container.Model.For(typeof(IDbContextOutbox<>)).Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+    }
+
+    [Fact]
+    public void auto_apply_transactions()
+    {
+        var container = (IContainer)Host.Services;
+        var handlerGraph = container.GetRequiredService<WolverineOptions>().HandlerGraph;
+        
+        var chainsForCreateItem =
+            handlerGraph.Chains.First(c => c.MessageType == typeof(CreateItem));
+        chainsForCreateItem.Middleware.ShouldContain(m=>m is EFCorePersistenceFrameProvider.EnrollDbContextInTransaction);
+        
+        var chainsForPersistenceTestsT4 =
+            handlerGraph.Chains.First(c => c.MessageType == typeof(T4));
+        chainsForPersistenceTestsT4.Middleware.ShouldContain(m=>m is EFCorePersistenceFrameProvider.EnrollDbContextInTransaction);
     }
 
     [Fact]

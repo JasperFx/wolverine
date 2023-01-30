@@ -15,7 +15,7 @@ internal class AutoApplyTransactions : IHandlerPolicy
         var providers = rules.PersistenceProviders();
         if (!providers.Any()) return;
         
-        foreach (var chain in graph.Chains.Where(x => !x.HasAttribute<TransactionalAttribute>()))
+        foreach (var chain in graph.Chains.Where(x => x is not SagaChain && !x.HasAttribute<TransactionalAttribute>()))
         {
             var potentials = providers.Where(x => x.CanApply(chain, container)).ToArray();
             if (potentials.Length == 1)
