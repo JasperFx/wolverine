@@ -1,10 +1,11 @@
-﻿using Wolverine.Attributes;
+﻿using Module1;
+using Wolverine.Attributes;
 using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Util;
 
-public class GetTypeAliasTester
+public class WolverineMessageNamingTests
 {
     [Fact]
     public void respect_the_type_alias_attribute()
@@ -26,6 +27,19 @@ public class GetTypeAliasTester
         typeof(AliasedMessage2).ToMessageTypeName()
             .ShouldBe("MyThing.V2");
     }
+
+    [Fact]
+    public void use_interface_from_interop_message_naming()
+    {
+        WolverineMessageNaming.AddMessageInterfaceAssembly(typeof(IInterfaceMessage).Assembly);
+        
+        typeof(ConcreteMessage).ToMessageTypeName().ShouldBe(typeof(IInterfaceMessage).ToMessageTypeName());
+    }
+}
+
+public class ConcreteMessage : IInterfaceMessage
+{
+    public string Name { get; set; }
 }
 
 [MessageIdentity("MyThing")]

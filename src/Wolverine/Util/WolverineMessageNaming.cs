@@ -68,6 +68,26 @@ internal class FullTypeNaming : IMessageTypeNaming
     }
 }
 
+internal class InteropAssemblyInterfaces : IMessageTypeNaming
+{
+    internal List<Assembly> Assemblies { get; } = new();
+
+    public bool TryDetermineName(Type messageType, out string messageTypeName)
+    {
+        var @interface = messageType.GetInterfaces()
+            .FirstOrDefault(x => Assemblies.Contains(x.Assembly));
+
+        if (@interface != null)
+        {
+            messageTypeName = @interface.ToMessageTypeName();
+            return true;
+        }
+
+        messageTypeName = default;
+        return false;
+    }
+}
+
 
 
 public static class WolverineMessageNaming
@@ -76,10 +96,23 @@ public static class WolverineMessageNaming
 
     private static readonly List<IMessageTypeNaming> _namingStrategies = new()
     {
+        
         new MessageIdentityAttributeNaming(),
         new ForwardNaming(),
+        new InteropAssemblyInterfaces(),
         new FullTypeNaming()
     };
+
+    /// <summary>
+    /// Tag an assembly as containing message types that should be used for interoperability with
+    /// NServiceBus or MassTransit
+    /// </summary>
+    /// <param name="assembly"></param>
+    public static void AddMessageInterfaceAssembly(Assembly assembly)
+    {
+        var naming = _namingStrategies.OfType<InteropAssemblyInterfaces>().Single();
+        naming.Assemblies.Fill(assembly);
+    }
     
     
     private static readonly Type[] _tupleTypes =
