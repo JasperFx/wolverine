@@ -182,9 +182,14 @@ public class executing_with_middleware
     public async Task conditional_filter_continue_sync()
     {
         var list = await invokeMessage(new RunsScoredMessage { Number = 3, Batter = "George Brett" },
-            handlers => { handlers.AddMiddlewareByMessageType(typeof(StopIfGreaterThan5)); });
+            handlers =>
+            {
+                handlers.AddMiddlewareByMessageType(typeof(StopIfGreaterThan5));
+                handlers.AddMiddlewareByMessageType(typeof(StopIfGreaterThan20));
+            });
 
         list.ShouldHaveTheSameElementsAs(
+            "Evaluated Number",
             "Evaluated Number",
             "RunsScoredMessage: George Brett"
         );
@@ -391,6 +396,15 @@ public class StopIfGreaterThan5
     {
         recorder.Actions.Add("Evaluated Number");
         return message.Number > 5 ? HandlerContinuation.Stop : HandlerContinuation.Continue;
+    }
+}
+
+public class StopIfGreaterThan20
+{
+    public HandlerContinuation Before(NumberedMessage message, Recorder recorder)
+    {
+        recorder.Actions.Add("Evaluated Number");
+        return message.Number > 20 ? HandlerContinuation.Stop : HandlerContinuation.Continue;
     }
 }
 
