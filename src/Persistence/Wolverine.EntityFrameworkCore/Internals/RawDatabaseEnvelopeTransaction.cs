@@ -87,11 +87,6 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
         await builder.ExecuteNonQueryAsync(conn, tx: tx);
     }
 
-    public Task CopyToAsync(IEnvelopeTransaction other)
-    {
-        throw new NotSupportedException();
-    }
-
     public ValueTask RollbackAsync()
     {
         if (DbContext.Database.CurrentTransaction != null)

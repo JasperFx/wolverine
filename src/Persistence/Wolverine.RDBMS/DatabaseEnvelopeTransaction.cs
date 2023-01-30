@@ -22,7 +22,7 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
 
     public void Dispose()
     {
-        _tx?.Dispose();
+        _tx.Dispose();
     }
 
     public Task PersistOutgoingAsync(Envelope envelope)
@@ -43,12 +43,6 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
     public Task PersistIncomingAsync(Envelope envelope)
     {
         return _persistence.StoreIncomingAsync(_tx, new[] { envelope });
-    }
-
-    public Task CopyToAsync(IEnvelopeTransaction other)
-    {
-        throw new NotSupportedException(
-            $"Cannot copy data from an existing Sql Server envelope transaction to {other}. You may have erroneously enlisted an IMessageContext in a transaction twice.");
     }
 
     public ValueTask RollbackAsync()

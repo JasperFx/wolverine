@@ -11,8 +11,6 @@ public interface IEnvelopeTransaction
     Task PersistOutgoingAsync(Envelope[] envelopes);
     Task PersistIncomingAsync(Envelope envelope);
 
-    Task CopyToAsync(IEnvelopeTransaction other);
-
     ValueTask RollbackAsync();
 }
 

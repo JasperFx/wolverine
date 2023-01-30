@@ -166,9 +166,9 @@ public class MessageBus : IMessageBus
         var original = Transaction;
         Transaction = transaction;
 
-        return original == null
-            ? Task.CompletedTask
-            : original.CopyToAsync(transaction);
+        if (original is MessageContext c) return c.CopyToAsync(transaction);
+
+        return Task.CompletedTask;
     }
 
     private void trackEnvelopeCorrelation(Envelope[] outgoing)

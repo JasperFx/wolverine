@@ -56,11 +56,6 @@ internal class MappedEnvelopeTransaction : IEnvelopeTransaction
         return Task.CompletedTask;
     }
 
-    public Task CopyToAsync(IEnvelopeTransaction other)
-    {
-        throw new NotSupportedException();
-    }
-
     public ValueTask RollbackAsync()
     {
         if (DbContext.Database.CurrentTransaction != null)

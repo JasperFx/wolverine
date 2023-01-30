@@ -48,10 +48,15 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
     
     public async ValueTask DisposeAsync()
     {
-        await Sender?.StopAsync();
-        if (!ReferenceEquals(Sender, Receiver))
+        if (Sender == null) return;
+        
+        await Sender.StopAsync();
+        if (Receiver != null)
         {
-            await Receiver?.StopAsync();
+            if (!ReferenceEquals(Sender, Receiver))
+            {
+                await Receiver.StopAsync();
+            }
         }
     }
 

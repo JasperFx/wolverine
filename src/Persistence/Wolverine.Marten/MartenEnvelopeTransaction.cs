@@ -50,11 +50,6 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
         return Task.CompletedTask;
     }
 
-    public Task CopyToAsync(IEnvelopeTransaction other)
-    {
-        throw new NotSupportedException();
-    }
-
     public ValueTask RollbackAsync()
     {
         return ValueTask.CompletedTask;

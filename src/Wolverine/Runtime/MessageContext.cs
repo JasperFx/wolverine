@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System.Transactions;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
@@ -43,10 +40,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             {
                 if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
                 {
-                    if (!@envelope.Sender!.IsDurable)
+                    if (!envelope.Sender!.IsDurable)
                     {
-                        Runtime.ScheduleLocalExecutionInMemory(@envelope.ScheduledTime!.Value, envelope);
-                    }                    
+                        Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
+                    }
                 }
                 else
                 {
@@ -118,11 +115,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             return c.MoveToErrorsAsync(Envelope, exception);
         }
-        else
-        {
-            // If persistable, persist
-            return Storage.MoveToDeadLetterStorageAsync(Envelope, exception);
-        }
+
+        // If persistable, persist
+        return Storage.MoveToDeadLetterStorageAsync(Envelope, exception);
     }
 
     public Task RetryExecutionNowAsync()
@@ -215,10 +210,11 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             Scheduled.Fill(envelope);
         }
+
         return Task.CompletedTask;
     }
 
-    async Task IEnvelopeTransaction.CopyToAsync(IEnvelopeTransaction other)
+    internal async Task CopyToAsync(IEnvelopeTransaction other)
     {
         await other.PersistOutgoingAsync(_outstanding.ToArray());
 
@@ -341,6 +337,11 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     internal void ClearState()
     {
+        if (Transaction is IDisposable d)
+        {
+            d.SafeDispose();
+        }
+        
         _outstanding.Clear();
         Scheduled.Clear();
         Envelope = null;
