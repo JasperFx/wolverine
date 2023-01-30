@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
-using TypeExtensions = Wolverine.Util.TypeExtensions;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -48,7 +48,7 @@ public class HandlerCall : MethodCall
 
         var hasOutput = method.ReturnType != typeof(void);
 
-        if (TypeExtensions.IsValueTuple(method.ReturnType))
+        if (WolverineMessageNaming.IsValueTuple(method.ReturnType))
         {
             return true;
         }
