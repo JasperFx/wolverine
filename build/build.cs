@@ -28,7 +28,7 @@ namespace build
             Target("compile",  DependsOn("restore"),() =>
             {
                 Run("dotnet",
-                    $"build wolverine.sln --no-restore");
+                    $"build wolverine.sln --no-restore --framework net7.0");
             });
             
             Target("test", DependsOn("compile"),() =>
@@ -237,7 +237,7 @@ namespace build
             }
 
             
-            Run("dotnet", $"test --no-build --no-restore " + path);
+            Run("dotnet", "test --no-build --no-restore --framework net7.0 " + path);
 
         }
 
