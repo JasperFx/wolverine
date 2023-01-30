@@ -18,6 +18,7 @@ using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
+using Wolverine.Util;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
 
@@ -80,6 +81,17 @@ public sealed partial class WolverineOptions
     ///     job scheduling, validation, and resiliency features and node specific settings
     /// </summary>
     public NodeSettings Node { get; }
+
+    /// <summary>
+    /// For the purposes of interoperability with NServiceBus or MassTransit, register
+    /// the assemblies for shared message types to make Wolverine try to forward the message
+    /// names of its messages to the interfaces of NServiceBus or MassTransit message types
+    /// </summary>
+    /// <param name="assembly"></param>
+    public void RegisterInteropMessageAssembly(Assembly assembly)
+    {
+        WolverineMessageNaming.AddMessageInterfaceAssembly(assembly);
+    }
 
     /// <summary>
     ///     The default message execution timeout. This uses a CancellationTokenSource

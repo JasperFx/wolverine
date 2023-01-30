@@ -35,12 +35,26 @@ public class WolverineMessageNamingTests
         
         typeof(ConcreteMessage).ToMessageTypeName().ShouldBe(typeof(IInterfaceMessage).ToMessageTypeName());
     }
+
+    [Fact]
+    public void forward_to_another_type_by_attribute()
+    {
+        typeof(DifferentMessage).ToMessageTypeName()
+            .ShouldBe("MyThing");
+    }
 }
 
 public class ConcreteMessage : IInterfaceMessage
 {
     public string Name { get; set; }
 }
+
+[MessageIdentity(typeof(AliasedMessage))]
+public class DifferentMessage
+{
+    
+}
+
 
 [MessageIdentity("MyThing")]
 public class AliasedMessage

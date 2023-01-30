@@ -1,4 +1,5 @@
 using System;
+using Wolverine.Util;
 
 namespace Wolverine.Attributes;
 
@@ -10,9 +11,23 @@ namespace Wolverine.Attributes;
 [AttributeUsage(AttributeTargets.Class)]
 public class MessageIdentityAttribute : Attribute
 {
+    /// <summary>
+    /// Explicitly map this message type to a hard coded message type identity
+    /// </summary>
+    /// <param name="alias"></param>
     public MessageIdentityAttribute(string? alias)
     {
         Alias = alias;
+    }
+
+    /// <summary>
+    /// Explicitly forward the message type identity for this message type to another type
+    /// This may be helpful for NServiceBus, MassTransit, or other external tooling interoperability
+    /// </summary>
+    /// <param name="forwardToType"></param>
+    public MessageIdentityAttribute(Type forwardToType) : this(forwardToType.ToMessageTypeName())
+    {
+        
     }
 
     public string? Alias { get; }
