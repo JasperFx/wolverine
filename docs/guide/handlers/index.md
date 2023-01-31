@@ -136,7 +136,7 @@ For naming conventions:
 * Handler type names should be suffixed with either `Handler` or `Consumer`
 * Handler method names should be either `Handle()` or `Consume()`
 
-TODO -- link to sagas
+Also see [stateful sagas](/guide/durability/sagas) as they have some additional rules.
 
 The valid return types are:
 
@@ -279,11 +279,55 @@ So, what can be injected as an argument to your message handler?
 1. Any service that is registered in your application's IoC container
 1. `Envelope`
 1. The current time in UTC if you have a parameter like `DateTime now` or `DateTimeOffset now`
-1. Services or variables that match a registered code generation strategy. TODO -- link to code generation here
+1. Services or variables that match a registered code generation strategy. 
 
 ## Cascading Messages from Actions
 
 See [Cascading Messages](/guide/handlers/cascading) for more details on this feature.
+
+
+## "Compound Handlers"
+
+It's frequently advantageous to split message handling for a single message up into methods that load any necessary data and the business logic that
+transforms the current state or decides to take other actions. Wolverine allows you to use the [conventional middleware naming conventions](/guide/handlers/middleware.html#conventional-middleware) on each handler
+to do exactly this. 
+
+Consider the case of a message handler that is used to initiate the shipment of an order. That handler will ultimately need to load 
+data for both the order itself and the customer information in order to figure out exactly what to ship out, how to ship it (overnight air? 2 day ground delivery?), and where.
+
+Using Wolverine's compound handler feature, that might look like this: 
+
+<!-- snippet: sample_ShipOrderHandler -->
+<a id='snippet-sample_shiporderhandler'></a>
+```cs
+public static class ShipOrderHandler
+{
+    // This would be called first
+    public static async Task<(Order, Customer)> LoadAsync(ShipOrder command, IDocumentSession session)
+    {
+        var order = await session.LoadAsync<Order>(command.OrderId);
+        if (order == null) throw new MissingOrderException(command.OrderId);
+
+        var customer = await session.LoadAsync<Customer>(command.CustomerId);
+
+        return (order, customer);
+    }
+
+    // By making this method completely synchronous and having it just receive the
+    // data it needs to make determinations of what to do next, Wolverine makes this
+    // business logic easy to unit test
+    public static IEnumerable<object> Handle(ShipOrder command, Order order, Customer customer)
+    {
+        // use the command data, plus the related Order & Customer data to 
+        // "decide" what action to take next
+
+        yield return new MailOvernight(order.Id);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L33-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 
 ## Using the Message Envelope
 
