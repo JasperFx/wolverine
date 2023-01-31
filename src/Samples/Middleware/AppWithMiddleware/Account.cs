@@ -13,10 +13,17 @@ public class Account
     public decimal MinimumThreshold { get; set; }
 }
 
+#region sample_IAccountCommand
+
 public interface IAccountCommand
 {
     Guid AccountId { get; }
 }
+
+#endregion
+
+
+#region sample_AccountLookupMiddleware
 
 // This is *a* way to build middleware in Wolverine by basically just
 // writing functions/methods. There's a naming convention that
@@ -25,10 +32,13 @@ public static class AccountLookupMiddleware
 {
     // The message *has* to be first in the parameter list
     // Before or BeforeAsync tells Wolverine this method should be called before the actual action
-    public static async Task<(HandlerContinuation, Account?)> BeforeAsync(
+    public static async Task<(HandlerContinuation, Account?)> LoadAsync(
         IAccountCommand command, 
         ILogger logger, 
+        
+        // This app is using Marten for persistence
         IDocumentSession session, 
+        
         CancellationToken cancellation)
     {
         var account = await session.LoadAsync<Account>(command.AccountId, cancellation);
@@ -40,6 +50,9 @@ public static class AccountLookupMiddleware
         return (account == null ? HandlerContinuation.Stop : HandlerContinuation.Continue, account);
     }
 }
+
+#endregion
+
 
 public class DebitAccountValidator : AbstractValidator<DebitAccount>
 {

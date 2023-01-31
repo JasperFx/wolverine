@@ -25,10 +25,15 @@ builder.Services.AddMarten(opts =>
     // Helps with Wolverine integration in development
     .ApplyAllDatabaseChangesOnStartup();
 
+#region sample_registering_middleware_by_message_type
+
 builder.Host.UseWolverine(opts =>
 {
-    // Middleware introduced in previous posts
+    // This middleware should be applied to all handlers where the 
+    // command type implements the IAccountCommand interface that is the
+    // "detected" message type of the middleware
     opts.Handlers.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
+    
     opts.UseFluentValidation();
 
     // Explicit routing for the AccountUpdated
@@ -43,6 +48,8 @@ builder.Host.UseWolverine(opts =>
         // Not durable
         .BufferedInMemory();
 });
+
+#endregion
 
 var app = builder.Build();
 
