@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -98,7 +99,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         }
         catch (Exception e)
         {
-            return new NoHandlerExecutor(messageType, this){ExceptionText = e.Message};
+            Logger.LogError(e, "Failed to create a message handler for {MessageType}", messageType.FullNameInCode());
+            return new NoHandlerExecutor(messageType, this){ExceptionText = e.ToString()};
         }
     }
     

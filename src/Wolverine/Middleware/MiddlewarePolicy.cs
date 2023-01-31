@@ -15,8 +15,8 @@ namespace Wolverine.Middleware;
 
 internal class MiddlewarePolicy : IHandlerPolicy
 {
-    public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync" };
-    public static readonly string[] AfterMethodNames = { "After", "AfterAsync" };
+    public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync", "Load", "LoadAsync" };
+    public static readonly string[] AfterMethodNames = { "After", "AfterAsync", "PostProcess", "PostProcessAsync" };
 
     private readonly List<Application> _applications = new();
 

@@ -14,6 +14,7 @@ using Lamar;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Middleware;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -225,6 +226,24 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
             foreach (var attribute in MessageType.GetTypeInfo().GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
+        }
+
+        var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
+        foreach (var handlerType in handlerTypes)
+        {
+            var befores = handlerType.GetMethods().Where(x => MiddlewarePolicy.BeforeMethodNames.Contains(x.Name) && !x.HasAttribute<WolverineIgnoreAttribute>());
+            foreach (var before in befores)
+            {
+                var frame = new MethodCall(handlerType, before);
+                Middleware.Add(frame);
+            }
+            
+            var afters = handlerType.GetMethods().Where(x => MiddlewarePolicy.AfterMethodNames.Contains(x.Name) && !x.HasAttribute<WolverineIgnoreAttribute>());
+            foreach (var after in afters)
+            {
+                var frame = new MethodCall(handlerType, after);
+                Postprocessors.Add(frame);
+            }
         }
     }
 
