@@ -230,7 +230,44 @@ Using this strategy, other systems could still send your system the original `ap
 message, and on the receiving end, Wolverine would know to deserialize the Json data into the `PersonBorn` object, then call its
 `Transform()` method to build out the `PersonBornV2` type that matches up with your message handler.
 
+## MemoryPack Serialization
 
+Wolverine supports the high performance [MemoryPack](https://github.com/Cysharp/MemoryPack) serializer through the `WolverineFx.MemoryPack` Nuget package.
+To enable MemoryPack serialization through the entire application, use:
+
+<!-- snippet: sample_using_memorypack_for_the_default_for_the_app -->
+<a id='snippet-sample_using_memorypack_for_the_default_for_the_app'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Make MemoryPack the default serializer throughout this application
+        opts.UseMemoryPackSerialization();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MemoryPack.Tests/Samples.cs#L10-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_memorypack_for_the_default_for_the_app' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Likewise, you can use MemoryPack on selected endpoints like this:
+
+<!-- snippet: sample_using_memorypack_on_selected_endpoints -->
+<a id='snippet-sample_using_memorypack_on_selected_endpoints'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Use MemoryPack on a local queue
+        opts.LocalQueue("one").UseMemoryPackSerialization();
+
+        // Use MemoryPack on a listening endpoint
+        opts.ListenAtPort(2223).UseMemoryPackSerialization();
+
+        // Use MemoryPack on one subscriber
+        opts.PublishAllMessages().ToPort(2222).UseMemoryPackSerialization();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MemoryPack.Tests/Samples.cs#L24-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_memorypack_on_selected_endpoints' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 

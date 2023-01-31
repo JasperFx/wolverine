@@ -42,7 +42,7 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         return this.As<T>();
     }
 
-    public ISubscriberConfiguration<T> CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings)
+    public T CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings)
     {
         add(e =>
         {
@@ -51,10 +51,10 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
             e.DefaultSerializer = serializer;
         });
 
-        return this;
+        return this.As<T>();
     }
 
-    public ISubscriberConfiguration<T> DefaultSerializer(IMessageSerializer serializer)
+    public T DefaultSerializer(IMessageSerializer serializer)
     {
         add(e =>
         {

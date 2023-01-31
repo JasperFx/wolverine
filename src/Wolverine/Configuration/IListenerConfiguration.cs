@@ -6,7 +6,32 @@ using Wolverine.Transports;
 
 namespace Wolverine.Configuration;
 
-public interface IListenerConfiguration<T>
+public interface IEndpointConfiguration<T>
+{
+    /// <summary>
+    ///     Give this subscriber endpoint a diagnostic name. This will be used
+    ///     by Open Telemetry diagnostics if set
+    /// </summary>
+    /// <param name="name"></param>
+    /// <returns></returns>
+    T Named(string name);
+
+    /// <summary>
+    ///     Use custom Newtonsoft.Json settings for this listener endpoint
+    /// </summary>
+    /// <param name="customSettings"></param>
+    /// <returns></returns>
+    T CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings);
+
+    /// <summary>
+    ///     Override the default serializer for this endpoint
+    /// </summary>
+    /// <param name="serializer"></param>
+    /// <returns></returns>
+    T DefaultSerializer(IMessageSerializer serializer);
+}
+
+public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
 {
     /// <summary>
     ///     Specify the maximum number of threads that this worker queue
@@ -70,27 +95,7 @@ public interface IListenerConfiguration<T>
     /// <returns></returns>
     T UseForReplies();
 
-    /// <summary>
-    ///     Give this subscriber endpoint a diagnostic name. This will be used
-    ///     by Open Telemetry diagnostics if set
-    /// </summary>
-    /// <param name="name"></param>
-    /// <returns></returns>
-    T Named(string name);
 
-    /// <summary>
-    ///     Use custom Newtonsoft.Json settings for this listener endpoint
-    /// </summary>
-    /// <param name="customSettings"></param>
-    /// <returns></returns>
-    T CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings);
-
-    /// <summary>
-    ///     Override the default serializer for this endpoint
-    /// </summary>
-    /// <param name="serializer"></param>
-    /// <returns></returns>
-    T DefaultSerializer(IMessageSerializer serializer);
 }
 
 public interface IListenerConfiguration : IListenerConfiguration<IListenerConfiguration>

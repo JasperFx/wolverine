@@ -29,9 +29,13 @@ builder.Host.UseWolverine(opts =>
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
+    
+    // Enrolling all local queues into the
+    // durable inbox/outbox processing
+    opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L24-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L32-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -47,6 +51,7 @@ type of `DbContext` like this one:
 <!-- snippet: sample_handler_using_efcore -->
 <a id='snippet-sample_handler_using_efcore'></a>
 ```cs
+[Transactional]
 public static ItemCreated Handle(
     // This would be the message
     CreateItemCommand command,
@@ -74,7 +79,7 @@ public static ItemCreated Handle(
     };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemCommandHandler.cs#L5-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handler_using_efcore' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemCommandHandler.cs#L7-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handler_using_efcore' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When using the transactional middleware around a message handler, the `DbContext` is used to persist

@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.MemoryPack.Internal;
 using Wolverine.Runtime;
 using Xunit;
 using Wolverine.Util;
@@ -26,5 +27,27 @@ public class serialization_configuration
     
         root.Endpoints.EndpointFor("stub://two".ToUri())
             ?.DefaultSerializer.ShouldBeOfType<Internal.MemoryPackMessageSerializer>();
+    }
+    
+    
+    [Fact]
+    public async Task can_override_the_serialization_on_just_one_endpoint()
+    {
+        using var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+        {
+            opts.PublishAllMessages().To("stub://one").UseMemoryPackSerialization();
+            opts.ListenForMessagesFrom("stub://two").UseMemoryPackSerialization();
+            opts.ListenForMessagesFrom("stub://three");
+        }).StartAsync();
+    
+        var root = host.Services.GetRequiredService<IWolverineRuntime>();
+        root.Endpoints.EndpointFor("stub://one".ToUri())
+            ?.DefaultSerializer.ShouldBeOfType<Internal.MemoryPackMessageSerializer>();
+    
+        root.Endpoints.EndpointFor("stub://two".ToUri())
+            ?.DefaultSerializer.ShouldBeOfType<Internal.MemoryPackMessageSerializer>();
+        
+        root.Endpoints.EndpointFor("stub://three".ToUri())
+            ?.DefaultSerializer.ShouldNotBeOfType<MemoryPackMessageSerializer>();
     }
 }

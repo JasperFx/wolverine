@@ -52,7 +52,7 @@ To have any missing database schema objects built as needed on application start
 // This is rebuilding the persistent storage database schema on startup
 builder.Host.UseResourceSetupOnStartup();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L39-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L51-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Command Line Management
@@ -66,7 +66,7 @@ shown in this last line of a .NET 6/7 `Program` code file:
 // Opt into using Oakton for command parsing
 await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L66-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_oakton_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L80-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_oakton_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you're using the message persistence from either the `WolverineFx.SqlServer` or `WolverineFx.Postgresql`
