@@ -13,11 +13,61 @@ public class Account
     public decimal MinimumThreshold { get; set; }
 }
 
+public static class Samples
+{
+    #region sample_common_scenario
+
+    public static async Task Handle(DebitAccount command, IDocumentSession session, ILogger logger)
+    {
+        // Try to find a matching account for the incoming command
+        var account = await session.LoadAsync<Account>(command.AccountId);
+        if (account == null)
+        {
+            logger.LogInformation("Referenced account {AccountId} does not exist", command.AccountId);
+            return;
+        }
+        
+        // do the real processing
+    }
+
+    #endregion
+}
+
 #region sample_IAccountCommand
 
 public interface IAccountCommand
 {
     Guid AccountId { get; }
+}
+
+#endregion
+
+#region sample_CreditAccount
+
+public record CreditAccount(Guid AccountId, decimal Amount) : IAccountCommand;
+
+#endregion
+
+#region sample_CreditAccountHandler
+
+public static class CreditAccountHandler
+{
+    public static void Handle(
+        CreditAccount command, 
+        
+        // Wouldn't it be nice to just have Wolverine "push"
+        // the right account into this method?
+        Account account,
+
+        // Using Marten for persistence here
+        IDocumentSession session)
+    {
+        account.Balance += command.Amount;
+        
+        // Just mark this account as needing to be updated 
+        // in the database
+        session.Store(account);
+    }
 }
 
 #endregion
