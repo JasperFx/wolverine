@@ -11,15 +11,6 @@ namespace CoreTests.Runtime.Handlers;
 
 public class HandlerChainTester
 {
-    [Fact]
-    public void apply_generic_middleware()
-    {
-        var chain = HandlerChain.For<Target>(x => x.Go(null), null);
-        var frames = chain.DetermineFrames(new GenerationRules(), Container.Empty());
-
-        chain.Middleware.Any(x => x is FakeMiddleware1).ShouldBeTrue();
-        chain.Middleware.Any(x => x is FakeMiddleware2).ShouldBeTrue();
-    }
 
     [Fact]
     public void create_by_method()
@@ -53,7 +44,6 @@ public class HandlerChainTester
 
     public class Target
     {
-        [Middleware(typeof(FakeMiddleware1), typeof(FakeMiddleware2))]
         public void Go(Message1 message)
         {
         }
@@ -63,25 +53,5 @@ public class HandlerChainTester
         }
     }
 
-    public class FakeMiddleware1 : Frame
-    {
-        public FakeMiddleware1() : base(false)
-        {
-        }
 
-        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-        {
-        }
-    }
-
-    public class FakeMiddleware2 : Frame
-    {
-        public FakeMiddleware2() : base(false)
-        {
-        }
-
-        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-        {
-        }
-    }
 }

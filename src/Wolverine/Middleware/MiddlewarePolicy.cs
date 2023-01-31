@@ -13,42 +13,6 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Middleware;
 
-/// <summary>
-/// Starts a new coding block with the supplied code
-/// </summary>
-public class StartBlock : SyncFrame
-{
-    private readonly string _code;
-
-    public static StartBlock ForTry() => new StartBlock("try");
-
-    /// <summary>
-    /// Start a new code block with the supplied code 
-    /// </summary>
-    /// <param name="code"></param>
-    public StartBlock(string code)
-    {
-        _code = code;
-    }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        writer.Write("BLOCK:" + _code);
-        Next?.GenerateCode(method, writer);
-    }
-}
-
-/// <summary>
-/// Writes the ending code block
-/// </summary>
-public class EndBlock : SyncFrame
-{
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        writer.FinishBlock();
-        Next?.GenerateCode(method, writer);
-    }
-}
 
 // TODO -- move this to JasperFx.CodeGeneration if it works
 public class TryFinallyWrapperFrame : Frame
@@ -119,25 +83,52 @@ internal class MiddlewarePolicy : IHandlerPolicy
 
     private readonly List<Application> _applications = new();
 
+    /// <summary>
+    /// Applies a single middleware type to a single chain
+    /// </summary>
+    /// <param name="middlewareType"></param>
+    /// <param name="chain"></param>
+    public static void Apply(Type middlewareType, HandlerChain chain)
+    {
+        var application = new Application(middlewareType, _ => true);
+        var befores = application.BuildBeforeCalls(chain).ToArray();
+        
+        for (var i = 0; i < befores.Length; i++)
+        {
+            chain.Middleware.Insert(i, befores[i]);
+        }
+        
+        var afters = application.BuildAfterCalls(chain).ToArray().Reverse();
+
+        chain.Postprocessors.AddRange(afters);
+    }
+
     public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
     {
+        var applications = _applications;
+        
         foreach (var chain in graph.Chains)
         {
-            var befores = _applications.SelectMany(x => x.BuildBeforeCalls(chain)).ToArray();
-
-            for (var i = 0; i < befores.Length; i++)
-            {
-                chain.Middleware.Insert(i, befores[i]);
-            }
-
-            var afters = _applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain));
-
-            chain.Postprocessors.AddRange(afters);
+            ApplyToChain(applications, chain);
         }
     }
 
+    internal static void ApplyToChain(List<Application> applications, IChain chain)
+    {
+        var befores = applications.SelectMany(x => x.BuildBeforeCalls(chain)).ToArray();
 
-    public Application AddType(Type middlewareType, Func<HandlerChain, bool>? filter = null)
+        for (var i = 0; i < befores.Length; i++)
+        {
+            chain.Middleware.Insert(i, befores[i]);
+        }
+
+        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain));
+
+        chain.Postprocessors.AddRange(afters);
+    }
+
+
+    public Application AddType(Type middlewareType, Func<IChain, bool> filter = null)
     {
         filter ??= _ => true;
         var application = new Application(middlewareType, filter);
@@ -152,7 +143,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
         private readonly MethodInfo[] _finals;
         private readonly ConstructorInfo? _constructor;
 
-        public Application(Type middlewareType, Func<HandlerChain, bool> filter)
+        public Application(Type middlewareType, Func<IChain, bool> filter)
         {
             if (!middlewareType.IsPublic)
             {
@@ -186,12 +177,12 @@ internal class MiddlewarePolicy : IHandlerPolicy
         }
 
         public Type MiddlewareType { get; }
-        public Func<HandlerChain, bool> Filter { get; }
+        public Func<IChain, bool> Filter { get; }
 
 
         public bool MatchByMessageType { get; set; }
 
-        public IEnumerable<Frame> BuildBeforeCalls(HandlerChain chain)
+        public IEnumerable<Frame> BuildBeforeCalls(IChain chain)
         {
             var frames = buildBefores(chain).ToArray();
             if (frames.Any() && !MiddlewareType.IsStatic())
@@ -231,14 +222,17 @@ internal class MiddlewarePolicy : IHandlerPolicy
             }
         }
 
-        private MethodCall? buildCallForBefore(HandlerChain chain, MethodInfo before)
+        private MethodCall? buildCallForBefore(IChain chain, MethodInfo before)
         {
             if (MatchByMessageType)
             {
-                var messageType = before.MessageType();
-                if (messageType != null && chain.MessageType.CanBeCastTo(messageType))
+                if (chain is HandlerChain c)
                 {
-                    return new MethodCallAgainstMessage(MiddlewareType, before, messageType);
+                    var messageType = before.MessageType();
+                    if (messageType != null && c.MessageType.CanBeCastTo(messageType))
+                    {
+                        return new MethodCallAgainstMessage(MiddlewareType, before, messageType);
+                    }
                 }
             }
             else
@@ -249,7 +243,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
             return null;
         }
 
-        private IEnumerable<Frame> buildBefores(HandlerChain chain)
+        private IEnumerable<Frame> buildBefores(IChain chain)
         {
             if (!Filter(chain))
             {
@@ -269,7 +263,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
             }
         }
 
-        public IEnumerable<Frame> BuildAfterCalls(HandlerChain chain)
+        public IEnumerable<Frame> BuildAfterCalls(IChain chain)
         {
             var afters = buildAfters(chain).ToArray();
 
@@ -284,7 +278,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
             foreach (var after in afters) yield return after;
         }
 
-        private IEnumerable<Frame> buildAfters(HandlerChain chain)
+        private IEnumerable<Frame> buildAfters(IChain chain)
         {
             if (!Filter(chain))
             {
@@ -295,10 +289,13 @@ internal class MiddlewarePolicy : IHandlerPolicy
             {
                 if (MatchByMessageType)
                 {
-                    var messageType = after.MessageType();
-                    if (messageType != null && chain.MessageType.CanBeCastTo(messageType))
+                    if (chain is HandlerChain c)
                     {
-                        yield return new MethodCallAgainstMessage(MiddlewareType, after, messageType);
+                        var messageType = after.MessageType();
+                        if (messageType != null && c.MessageType.CanBeCastTo(messageType))
+                        {
+                            yield return new MethodCallAgainstMessage(MiddlewareType, after, messageType);
+                        }
                     }
                 }
                 else

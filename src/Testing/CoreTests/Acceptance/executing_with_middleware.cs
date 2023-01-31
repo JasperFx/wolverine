@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
+using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Xunit;
@@ -261,6 +262,22 @@ public class executing_with_middleware
             "SimpleBeforeAfterFinally.Finally", 
             "SimpleBeforeAfterFinally.FinallyAsync");
     }
+
+    [Fact]
+    public async Task explicitly_added_middleware_by_attribute()
+    {
+        var list = await invokeMessage(new ExplicitMiddlewareMessage("Steve Balboni"), _ => { });
+        
+        list.ShouldHaveTheSameElementsAs(
+            "Created SimpleBeforeAndAfter",
+        "SimpleBeforeAndAfter.Before",
+        "Created SimpleBeforeAndAfterTask",
+        "SimpleBeforeAndAfterTask.Before",
+        "Name is Steve Balboni",
+        "SimpleBeforeAndAfterTask.After",
+        "SimpleBeforeAndAfter.After"
+            );
+    }
 }
 
 public class SimpleBeforeAndAfter
@@ -435,6 +452,8 @@ public class OtherTracedMessage
 {
 }
 
+public record ExplicitMiddlewareMessage(string Name);
+
 public class TracedMessageHandler
 {
     public void Handle(TracedMessage message, Recorder recorder)
@@ -445,6 +464,12 @@ public class TracedMessageHandler
     public void Handle(OtherTracedMessage message, Recorder recorder)
     {
         recorder.Actions.Add("Handled OtherTracedMessage");
+    }
+
+    [Middleware(typeof(SimpleBeforeAndAfter), typeof(SimpleBeforeAndAfterTask))]
+    public void Handle(ExplicitMiddlewareMessage message, Recorder recorder)
+    {
+        recorder.Actions.Add($"Name is {message.Name}");
     }
 }
 

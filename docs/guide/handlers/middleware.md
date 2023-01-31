@@ -106,6 +106,19 @@ Wolverine determines the message type for a middleware class method by assuming 
 argument is the message type, and then looking for actual messages that implement that interface or
 subclass.
 
+## Applying Middleware Explicitly by Attribute
+
+::: tip
+You can subclass the `MiddlewareAttribute` class to make more specific middleware applicative attributes for your application. 
+:::
+
+You can apply the middleware types to individual handler methods with the `[Middleware]` attribute as shown below:
+
+snippet: sample_apply_middleware_by_attribute
+
+Note that this attribute will accept multiple middleware types. Also note that the `[Middleware]` attribute can be placed either
+on an individual handler method or apply to all handler methods on the same handler class if the attribute is at the class level.
+
 
 ## Custom Code Generation
 
@@ -163,17 +176,6 @@ public class StopwatchFrame : SyncFrame
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L36-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-
-
-## Applying Middleware
-
-Okay, great, but the next question is "how do I stick this middleware on routes or message handlers?". You've got three options:
-
-1. Use custom attributes
-1. Use a custom `IRoutePolicy` or `IHandlerPolicy` class
-1. Expose a static `Configure(chain)` method on handler classes
-
-Even though one of the original design goals of FubuMVC and now Wolverine was to eliminate or at least reduce the number of attributes users had to spew out into their application code, let's start with using an attribute.
 
 ## Custom Attributes
 

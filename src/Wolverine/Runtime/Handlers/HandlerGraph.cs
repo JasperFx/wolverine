@@ -75,7 +75,11 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     {
         var policy = findOrCreateMiddlewarePolicy();
 
-        policy.AddType(middlewareType, filter);
+        Func<IChain, bool> f = filter == null
+            ? c => c is HandlerChain
+            : c => c is HandlerChain chain && filter(chain);
+        
+        policy.AddType(middlewareType, f );
     }
 
     public IHandlerConfiguration Discovery(Action<HandlerSource> configure)

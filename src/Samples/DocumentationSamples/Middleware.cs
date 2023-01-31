@@ -82,6 +82,21 @@ public class StopwatchMiddleware
 
 #endregion
 
+public record PotentiallySlowMessage(string Name);
+
+#region sample_apply_middleware_by_attribute
+
+public static class SomeHandler
+{
+    [Middleware(typeof(StopwatchMiddleware))]
+    public static void Handle(PotentiallySlowMessage message)
+    {
+        // do something expensive with the message
+    }
+}
+
+#endregion
+
 #region sample_silly_micro_optimized_stopwatch_middleware
 
 public static class StopwatchMiddleware2
