@@ -4,9 +4,9 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
 using Microsoft.Extensions.Logging;
+using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
-using ILogger = Castle.Core.Logging.ILogger;
 
 namespace DocumentationSamples;
 
@@ -26,11 +26,32 @@ public class Middleware
         finally
         {
             stopwatch.Stop();
-            logger.Info("Ran something in " + stopwatch.ElapsedMilliseconds);
+            logger.LogInformation("Ran something in " + stopwatch.ElapsedMilliseconds);
         }
 
         #endregion
     }
+}
+
+public class StopwatchMiddleware
+{
+    private readonly Stopwatch _stopwatch = new Stopwatch();
+
+    public void Before()
+    {
+        _stopwatch.Start();
+    }
+
+    public void Finally(ILogger logger, Envelope envelope)
+    {
+        _stopwatch.Stop();
+        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds", envelope.Id, envelope.MessageType, _stopwatch.ElapsedMilliseconds);
+    }
+}
+
+public static class UsingStopwatchMiddleware
+{
+    
 }
 
 #region sample_StopwatchFrame

@@ -364,7 +364,3 @@ public static class PingHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-## Abstract or Interface Types in Handler Methods
-
-TODO -- explain this? Kinda tempted to remove this in favor of easier
-middleware strategies

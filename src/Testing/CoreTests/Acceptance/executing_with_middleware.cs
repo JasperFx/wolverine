@@ -30,7 +30,7 @@ public class executing_with_middleware
                 registration(opts.HandlerGraph);
             }).StartAsync();
 
-        await host.InvokeMessageAndWaitAsync(message);
+        await host.TrackActivity().DoNotAssertOnExceptionsDetected().PublishMessageAndWaitAsync(message);
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
         
@@ -230,6 +230,37 @@ public class executing_with_middleware
             "Evaluated Number"
         );
     }
+
+    [Fact]
+    public async Task using_try_finally_with_one_middleware_happy_path()
+    {
+        // SimpleBeforeAfterFinally
+        
+        var list = await invokeMessage(new RunsScoredMessage { Number = 20, Batter = "George Brett" },
+            handlers => { handlers.AddMiddleware(typeof(SimpleBeforeAfterFinally)); });
+
+        list.ShouldHaveTheSameElementsAs(
+            "SimpleBeforeAfterFinally.Before", 
+            "RunsScoredMessage: George Brett", 
+            "SimpleBeforeAfterFinally.After", 
+            "SimpleBeforeAfterFinally.Finally", 
+            "SimpleBeforeAfterFinally.FinallyAsync");
+    }
+    
+    [Fact]
+    public async Task using_try_finally_with_one_middleware_sad_path()
+    {
+        // SimpleBeforeAfterFinally
+        
+        var list = await invokeMessage(new RunsScoredMessage { Number = 200, Batter = "George Brett" },
+            handlers => { handlers.AddMiddleware(typeof(SimpleBeforeAfterFinally)); });
+
+        list.ShouldHaveTheSameElementsAs(
+            "SimpleBeforeAfterFinally.Before", 
+            "RunsScoredMessage: George Brett", 
+            "SimpleBeforeAfterFinally.Finally", 
+            "SimpleBeforeAfterFinally.FinallyAsync");
+    }
 }
 
 public class SimpleBeforeAndAfter
@@ -310,6 +341,38 @@ public static class SimpleStaticBeforeAndAfter
     public static void After(Recorder recorder)
     {
         recorder.Actions.Add("SimpleStaticBeforeAndAfter.After");
+    }
+}
+
+public class SimpleBeforeAfterFinally
+{
+    public SimpleBeforeAfterFinally(Recorder recorder)
+    {
+        Recorder = recorder;
+    }
+    
+    public Recorder Recorder { get; }
+    
+    public Task BeforeAsync()
+    {
+        Recorder.Actions.Add("SimpleBeforeAfterFinally.Before");
+        return Task.CompletedTask;
+    }
+
+    public Task AfterAsync()
+    {
+        Recorder.Actions.Add("SimpleBeforeAfterFinally.After");
+        return Task.CompletedTask;
+    }
+
+    public void Finally()
+    {
+        Recorder.Actions.Add("SimpleBeforeAfterFinally.Finally");
+    }
+    
+    public void FinallyAsync()
+    {
+        Recorder.Actions.Add("SimpleBeforeAfterFinally.FinallyAsync");
     }
 }
 
@@ -446,6 +509,8 @@ public class BaseballHandler
     public void Handle(RunsScoredMessage message, Recorder recorder)
     {
         recorder.Actions.Add($"{nameof(RunsScoredMessage)}: {message.Batter}");
+
+        if (message.Number > 100) throw new Exception("C'mon, that's silly, nobody scores 100 runs");
     }
 
     public void Handle(StrikeoutsMessage message, Recorder recorder)
