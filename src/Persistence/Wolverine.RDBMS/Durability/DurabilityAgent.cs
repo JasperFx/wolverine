@@ -61,7 +61,7 @@ internal class DurabilityAgent : IDurabilityAgent
 
         _incomingMessages = new RecoverIncomingMessages(logger, runtime.Endpoints);
         _outgoingMessages = new RecoverOutgoingMessages(runtime, logger);
-        _nodeReassignment = new NodeReassignment();
+        _nodeReassignment = new NodeReassignment(logger);
         _deleteExpired = new DeleteExpiredHandledEnvelopes();
         _scheduledJobs = new RunScheduledJobs(settings, logger);
         _moveReplayable = new MoveReplayableErrorMessagesToIncoming();

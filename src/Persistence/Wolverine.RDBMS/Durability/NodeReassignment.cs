@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
@@ -9,6 +10,13 @@ namespace Wolverine.RDBMS.Durability;
 
 internal class NodeReassignment : IDurabilityAction
 {
+    private readonly ILogger _logger;
+
+    public NodeReassignment(ILogger logger)
+    {
+        _logger = logger;
+    }
+
     public string Description { get; } = "Dormant node reassignment";
 
     public async Task ExecuteAsync(IMessageDatabase database, IDurabilityAgent agent,
@@ -18,7 +26,7 @@ internal class NodeReassignment : IDurabilityAction
             () => ReassignNodesAsync(session, database.Node, database.Settings));
     }
 
-    public static async Task ReassignNodesAsync(IDurableStorageSession session, NodeSettings nodeSettings,
+    public async Task ReassignNodesAsync(IDurableStorageSession session, NodeSettings nodeSettings,
         DatabaseSettings databaseSettings)
     {
         var owners = await FindUniqueOwnersAsync(session, nodeSettings, databaseSettings);
@@ -33,7 +41,15 @@ internal class NodeReassignment : IDurabilityAction
             if (await session.TryGetGlobalTxLockAsync(owner))
             {
                 await ReassignDormantNodeToAnyNodeAsync(session, owner, databaseSettings);
-                await session.ReleaseGlobalLockAsync(owner);
+                try
+                {
+                    await session.ReleaseGlobalLockAsync(owner);
+                }
+                catch (Exception e)
+                {
+                    // Need to swallow the exception on releasing the tx here
+                    _logger.LogError(e, "Error trying to release global transaction lock for '{Owner}'", owner);
+                }
             }
         }
     }
