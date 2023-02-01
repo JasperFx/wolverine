@@ -10,10 +10,6 @@ There's only a handful of touch points to EF Core that you need to be aware of:
 
 ## Registering Transactional Middleware and Saga Support
 
-::: tip
-It's no longer mandatory to use the `[Transactional]` attribute to enroll in transactional middleware. 
-:::
-
 Support for using Wolverine transactional middleware requires an explicit registration on `WolverineOptions`
 shown below (it's an extension method):
 
@@ -39,7 +35,7 @@ builder.Host.UseWolverine(opts =>
 <!-- endSnippet -->
 
 ::: tip
-Wolverine (really Lamar) can detect that your handler method uses a `DbContext` if it's a method argument,
+When using the opt in `Handlers.AutoApplyTransactions()` option, Wolverine (really Lamar) can detect that your handler method uses a `DbContext` if it's a method argument,
 a dependency of any service injected as a method argument, or a dependency of any service injected as a constructor
 argument of the handler class.
 :::
@@ -84,6 +80,35 @@ public static ItemCreated Handle(
 
 When using the transactional middleware around a message handler, the `DbContext` is used to persist
 the outgoing messages as part of Wolverine's outbox support.
+
+## Auto Apply Transactional Middleware
+
+You can opt into automatically applying the transactional middleware to any handler that depends on a `DbContext` type
+with the `AutoApplyTransactions()` option as shown below:
+
+<!-- snippet: sample_bootstrapping_with_auto_apply_transactions_for_sql_server -->
+<a id='snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine((context, opts) =>
+    {
+        var connectionString = context.Configuration.GetConnectionString("database");
+
+        opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
+        {
+            x.UseSqlServer(connectionString);
+        });
+        
+        opts.UseEntityFrameworkCoreTransactions();
+        
+        // Add the auto transaction middleware attachment policy
+        opts.Handlers.AutoApplyTransactions();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/EFCore/SampleUsageWithAutoApplyTransactions.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With this option, you will no longer need to decorate handler methods with the `[Transactional]` attribute.
 
 
 ## Optimized DbContext Registration

@@ -201,11 +201,27 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 You will need to make the `IServiceCollection.AddMarten(...).IntegrateWithWolverine()` call to add this middleware to a Wolverine application.
 :::
 
-::: tip
-It is no longer necessary to mark a handler method with `[Transactional]`. Wolverine will automatically use the Marten
+It is no longer necessary to mark a handler method with `[Transactional]` if you choose to use the `AutoApplyTransactions()` option as shown below: 
+
+<!-- snippet: sample_using_auto_apply_transactions_with_marten -->
+<a id='snippet-sample_using_auto_apply_transactions_with_marten'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Services.AddMarten("some connection string")
+            .IntegrateWithWolverine();
+
+        // Opt into using "auto" transaction middleware
+        opts.Handlers.AutoApplyTransactions();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/Sample/BootstrapWithAutoTransactions.cs#L12-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_auto_apply_transactions_with_marten' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With this enabled, Wolverine will automatically use the Marten
 transactional middleware for handlers that have a dependency on `IDocumentSession` (meaning the method takes in `IDocumentSession` or has
 some dependency that itself depends on `IDocumentSession`) as long as the `IntegrateWithWolverine()` call was used in application bootstrapping.
-:::
 
 In the previous section we saw an example of incorporating Wolverine's outbox with Marten transactions. We also wrote a fair amount of code to do so that could easily feel
 repetitive over time. Using Wolverine's transactional middleware support for Marten, the long hand handler above can become this equivalent:
