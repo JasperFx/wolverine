@@ -115,6 +115,8 @@ export default {
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},
+                        {text: 'Interoperability with NServiceBus', link: '/guide/messaging/nservicebus'},
+                        {text: 'Interoperability with MassTransit', link: '/guide/messaging/masstransit'},
                     ]
                 },
                 {
