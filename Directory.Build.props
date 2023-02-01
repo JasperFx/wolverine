@@ -12,10 +12,7 @@
         <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618</NoWarn>
         <ImplicitUsings>true</ImplicitUsings>
         <Version>0.9.8</Version>
-
-        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
-        <MinVerTagPrefix>v</MinVerTagPrefix>
-
+        
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -24,7 +21,6 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All"/>
-        <PackageReference Include="MinVer" Version="4.2.0" PrivateAssets="All" />
     </ItemGroup>
 
 </Project>
