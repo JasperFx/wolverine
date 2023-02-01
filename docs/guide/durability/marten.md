@@ -406,7 +406,8 @@ See the [Saga with Marten sample project](https://github.com/JasperFx/wolverine/
 
 ::: tip
 You can forgo the `[MartenCommandWorkflow]` attribute by instead naming your message handler type with the `AggregateHandler` suffix
-if the Wolverine/Marten integration is applied to your application.
+if the Wolverine/Marten integration is applied to your application. Do note that you will still have to use the attribute to opt into 
+exclusive write locking.
 :::
 
 See the [OrderEventSourcingSample project on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderEventSourcingSample) for more samples.
