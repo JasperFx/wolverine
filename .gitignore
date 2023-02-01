@@ -233,6 +233,7 @@ src/ConsoleApp/Internal
 src/ConsoleApp/Generated/
 
 docs/.vitepress/dist
+docs/.vitepress/cache
 JasperSamples
 /volume
 

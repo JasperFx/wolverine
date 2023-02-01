@@ -73,12 +73,12 @@ public class Order : Saga
 A few explanatory notes on this code before we move on to detailed documentation:
 
 * Wolverine leans a bit on type and naming conventions to discover message handlers and to “know” how to call these message handlers. Some folks will definitely not like the magic, but this approach leads to substantially less code and arguably complexity compared to existing .Net tools
-* Wolverine supports the idea of [scheduled messages](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution), and the new `TimeoutMessage` base class we used up there is just a shorthand way to utilize that support for “saga timeout” conditions
+* Wolverine supports the idea of [scheduled messages](../messaging/message-bus.md#scheduling-message-delivery-or-execution), and the new `TimeoutMessage` base class we used up there is just a shorthand way to utilize that support for “saga timeout” conditions
 * Wolverine generally tries to adapt to your application code rather that using mandatory adapter interfaces
-* Subclassing `Saga` is meaningful first as this tells Wolverine "hey, this stateful type should be treated as a saga" for [handler discovery](/guide/handlers/discovery), but also for communicating
+* Subclassing `Saga` is meaningful first as this tells Wolverine "hey, this stateful type should be treated as a saga" for [handler discovery](../handlers/discovery.md), but also for communicating
   to Wolverine that a logical saga is complete and should be deleted
 
-Now, to add saga persistence, I'm going to lean on the [Marten integration](/guide/durability/marten) with Wolverine and use this bootstrapping for our little order web service:
+Now, to add saga persistence, I'm going to lean on the [Marten integration](./marten.md) with Wolverine and use this bootstrapping for our little order web service:
 
 <!-- snippet: sample_bootstrapping_order_saga_sample -->
 <a id='snippet-sample_bootstrapping_order_saga_sample'></a>
@@ -136,7 +136,7 @@ return await app.RunOaktonCommands(args);
 <!-- endSnippet -->
 
 The call to `IServiceCollection.AddMarten().IntegrateWithWolverine()` adds the Marten backed saga persistence to your application. No other configuration
-is necessary. See the [Marten integration](/guide/durability/marten.html#saga-storage) for a little more information about using Marten backed sagas.
+is necessary. See the [Marten integration](./marten.md#saga-storage) for a little more information about using Marten backed sagas.
 
 ## Saga Message Identity
 

@@ -126,16 +126,16 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 With the defaults from above, for each message that the application can handle
-(as determined by the discovered [message handlers](/guide/handlers/discovery)) the conventional routing will:
+(as determined by the discovered [message handlers](../../handlers/discovery.md)) the conventional routing will:
 
-1. A durable queue using Wolverine's [message type name logic](/guide/messages.html#message-type-name-or-alias)
+1. A durable queue using Wolverine's [message type name logic](../../messages.md#message-type-name-or-alias)
 2. A listening endpoint to the queue above configured with a single, inline listener and **without and enrollment in the durable outbox**
 
 Likewise, for every outgoing message type, the routing convention will *on demand at runtime*:
 
 1. Declare a fanout exchange named with the Wolverine message type alias name (usually the full name of the message type)
 2. Create the exchange if auto provisioning is enabled if the exchange does not already exist
-3. Create a [subscription rule](/guide/messaging/subscriptions) for that message type to the new exchange within the system
+3. Create a [subscription rule](../subscriptions.md) for that message type to the new exchange within the system
 
 Of course, you may want your own slightly different behavior, so there's plenty of hooks to customize the
 Rabbit MQ routing conventions as shown below:
@@ -396,7 +396,7 @@ await publisher.SendAsync(new Message1());
 <!-- endSnippet -->
 
 You will be sending that message to the "topics-exchange" with a topic name derived from
-the message type. By default that topic name will be Wolverine's [message type alias](/guide/messages.html#message-type-name-or-alias).
+the message type. By default that topic name will be Wolverine's [message type alias](../../messages.md#message-type-name-or-alias).
 Unless explicitly overridden, that alias is the full type name of the message type.
 
 That topic name derivation can be overridden explicitly by placing the `[Topic]` attribute
@@ -529,7 +529,7 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L180-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://wolverinefx.github.io/oakton/guide/host/resources.html) model,
+Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://jasperfx.github.io/oakton/guide/host/resources.html) model,
 so you can make a generic declaration to auto-provision the Rabbit MQ objects at startup time
 (as well as any other stateful Wolverine resources like envelope storage) with the Oakton
 declarations as shown in the setup below that uses the `AddResourceSetupOnStartup()` declaration:

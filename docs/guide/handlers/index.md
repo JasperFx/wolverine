@@ -45,9 +45,9 @@ public static async Task publish_command(IMessageBus bus)
 Between the call to `IMessageBus.PublishAsync()` and `MyMessageHandler.Handle(MyMessage)` there's a couple things
 going on:
 
-1. Wolverine's built in, [automatic handler discovery](/guide/handlers/discovery) has to find the candidate message handler methods
+1. Wolverine's built in, [automatic handler discovery](./discovery.md) has to find the candidate message handler methods
    and correlate them by message type
-2. Wolverine's [runtime message processing](/guide/runtime) builds some connective code at runtime to relay the
+2. Wolverine's [runtime message processing](../runtime.md) builds some connective code at runtime to relay the
    messages passed into `IMessageBus` to the right message handler methods
 
 Before diving into the exact rules for message handlers, here are some valid handler methods:
@@ -136,7 +136,7 @@ For naming conventions:
 * Handler type names should be suffixed with either `Handler` or `Consumer`
 * Handler method names should be either `Handle()` or `Consume()`
 
-Also see [stateful sagas](/guide/durability/sagas) as they have some additional rules.
+Also see [stateful sagas](../durability/sagas.md) as they have some additional rules.
 
 The valid return types are:
 
@@ -255,7 +255,7 @@ support for method injection in a following section.
 Similar to ASP.NET Core, Wolverine supports the concept of [method injection](https://www.martinfowler.com/articles/injection.html) in handler methods where you can just accept additional
 arguments that will be passed into your method by Wolverine when a new message is being handled.
 
-Below is an example action method that takes in a dependency on an `IDocumentSession` from [Marten](http://wolverinefx.github.io/marten):
+Below is an example action method that takes in a dependency on an `IDocumentSession` from [Marten](https://martendb.io/):
 
 <!-- snippet: sample_HandlerUsingMethodInjection -->
 <a id='snippet-sample_handlerusingmethodinjection'></a>
@@ -283,13 +283,13 @@ So, what can be injected as an argument to your message handler?
 
 ## Cascading Messages from Actions
 
-See [Cascading Messages](/guide/handlers/cascading) for more details on this feature.
+See [Cascading Messages](./cascading.md) for more details on this feature.
 
 
 ## "Compound Handlers"
 
 It's frequently advantageous to split message handling for a single message up into methods that load any necessary data and the business logic that
-transforms the current state or decides to take other actions. Wolverine allows you to use the [conventional middleware naming conventions](/guide/handlers/middleware.html#conventional-middleware) on each handler
+transforms the current state or decides to take other actions. Wolverine allows you to use the [conventional middleware naming conventions](./middleware.md#conventional-middleware) on each handler
 to do exactly this. 
 
 Consider the case of a message handler that is used to initiate the shipment of an order. That handler will ultimately need to load 

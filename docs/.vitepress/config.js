@@ -19,7 +19,7 @@ export default {
     ],
     lastUpdated: true,
     themeConfig: {
-        logo: '/logo.png',
+        logo: '/img/logo.png',
 
         nav: [
             {text: 'Guide', link: '/guide/basics'},

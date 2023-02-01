@@ -4,16 +4,18 @@
         "vitepress-dev": "vitepress dev docs --port 5050 --open",
         "vitepress-build": "vitepress build docs",
         "mdsnippets": "mdsnippets",
+        "validate": "npx markdown-link-validator ./docs",
         "docs": "npm-run-all -s mdsnippets vitepress-dev",
         "docs:build": "npm-run-all -s mdsnippets vitepress-build",
         "docs:publish": "netlify deploy --prod"
     },
     "dependencies": {
-        "vitepress": "^1.0.0-alpha.19",
-        "vitepress-plugin-mermaid": "^2.0.8"
+        "vitepress": "^1.0.0-alpha.45",
+        "vitepress-plugin-mermaid": "^2.0.10"
     },
     "devDependencies": {
-        "npm-run-all": "^4.1.5",
-        "netlify-cli": "^11.5.1"
+        "markdown-link-validator": "^1.0.1",
+        "netlify-cli": "^12.10.0",
+        "npm-run-all": "^4.1.5"
     }
 }

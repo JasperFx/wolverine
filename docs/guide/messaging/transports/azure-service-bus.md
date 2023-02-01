@@ -225,7 +225,7 @@ a specific endpoint.
 
 Lastly, you can have Wolverine automatically determine message routing to Azure Service Bus
 based on conventions as shown in the code snippet below. By default, this approach assumes that
-each outgoing message type should be sent to queue named with the [message type name](/guide/messages.html#message-type-name-or-alias) for that 
+each outgoing message type should be sent to queue named with the [message type name](../../messages.md#message-type-name-or-alias) for that 
 message type. 
 
 Likewise, Wolverine sets up a listener for a queue named similarly for each message type known

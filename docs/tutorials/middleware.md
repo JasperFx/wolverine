@@ -28,7 +28,7 @@ public static async Task Handle(DebitAccount command, IDocumentSession session, 
 
 That added up to a lot of repetitive code, and it'd be nice if we introduced some kind of middleware to eliminate the duplication -- so let's do just that!
 
-Using Wolverine's [conventional middleware approach](/guide/handlers/middleware.html#conventional-middleware) strategy, we'll start by lifting a common interface for
+Using Wolverine's [conventional middleware approach](./middleware.md#conventional-middleware) strategy, we'll start by lifting a common interface for
 command message types that reference an `Account` like so:
 
 <!-- snippet: sample_IAccountCommand -->

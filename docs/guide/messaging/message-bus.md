@@ -73,7 +73,7 @@ public static async Task invoke_locally(IMessageBus bus)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L11-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-If the `Message1` message has a local subscription, the message handler will be invoked in the calling thread. In this usage, the `InvokeAsync()` feature will utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
+If the `Message1` message has a local subscription, the message handler will be invoked in the calling thread. In this usage, the `InvokeAsync()` feature will utilize any registered [retry or retry with cooldown error handling rules](../handlers/error-handling.md)
 for potentially transient errors.
 
 ::: tip

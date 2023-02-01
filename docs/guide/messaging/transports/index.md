@@ -5,7 +5,7 @@
 ## Building a new Transport
 
 In Wolverine parlance, a "transport" refers to one of Wolverine's adapter libraries that enable the usage of an
-external messaging infrastructure technology like Rabbit MQ or Pulsar. The local queues and [lightweight TCP transport](/tcp)
+external messaging infrastructure technology like Rabbit MQ or Pulsar. The local queues and [lightweight TCP transport](./tcp.md)
 come in the box with Wolverine, but you'll need an add on Nuget to enable any of the other transports.
 
 ### Key Abstractions
@@ -17,9 +17,9 @@ come in the box with Wolverine, but you'll need an add on Nuget to enable any of
 | `IListener`  | A service that helps read messages from the underlying message transport and relays those to Wolverine as Wolverine's `Envelope` structure                                                                                                                        |
 | `ISender`    | A service that helps put Wolverine `Envelope` structures out into the outgoing messaging infrastructure                                                                                                                                                        |
 
-To build a new transport, we recommend looking first at the [Wolverine.AmazonSqs](https://github.com/JasperFx/wolverine/tree/master/src/Wolverine.Pulsar) library
+To build a new transport, we recommend looking first at the [Wolverine.AmazonSqs](https://github.com/JasperFx/wolverine/tree/main/src/Transports/Wolverine.Pulsar) library
 for a sample. At a bare minimum, you'll need to implement the services above, and also add some kind of `WolverineOptions.Use[TransportName]()` extension
 method to configure the connectivity to the messaging infrastructure and add the new transport to your Wolverine application.
 
-Also note, you will definitely want to use the [SendingCompliance](https://github.com/JasperFx/wolverine/blob/master/src/TestingSupport/Compliance/SendingCompliance.cs)
+Also note, you will definitely want to use the [TransportCompliance](https://github.com/JasperFx/wolverine/blob/main/src/Testing/TestingSupport/Compliance/TransportCompliance.cs)
 tests in Wolverine to verify that your new transport meets all Wolverine requirements.

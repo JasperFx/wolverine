@@ -8,9 +8,9 @@ Wolverine is a toolset for command execution and message handling within .NET Co
 The killer feature of Wolverine (we think) is its very efficient command execution pipeline that
 can be used as:
 
-1. An [inline "mediator" pipeline](/tutorials/mediator) for executing commands
-2. A [local message bus](/guide/command-bus) within .NET applications
-3. A full fledged [asynchronous messaging framework](/guide/messaging/) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ, 
+1. An [inline "mediator" pipeline](mediator.md) for executing commands
+2. A [local message bus](../guide/command-bus.md) within .NET applications
+3. A full fledged [asynchronous messaging framework](../guide/messaging/index.md) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ, 
 
 Wolverine tries very hard to be a good citizen within the .NET ecosystem and even when used in
 "headless" services, uses the idiomatic elements of .NET (logging, configuration, bootstrapping, hosted services)
@@ -98,7 +98,7 @@ Alright, let's talk about what's going on up above:
 2. I registered the `UserRepository` and `IssueRepository` services
 3. I created a couple [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) endpoints
 
-See also: [Wolverine as Command Bus](/guide/in-memory-bus)
+See also: [Wolverine as Command Bus](../guide/in-memory-bus.md)
 
 The two Web API functions directly delegate to Wolverine's `IMessageBus.InvokeAsync()` method.
 In that method, Wolverine will direct the command to the correct handler and invoke that handler
@@ -156,7 +156,7 @@ with extraneous `return Task.Completed;` code like you'd have to with other .NET
 As I mentioned earlier, we want our API to create an email whenever a new issue is created. In
 this case I'm opting to have that email generation and email sending happen in a second
 message handler that will run after the initial command. You might also notice that the `CreateIssueHandler.Handle()` method returns an `IssueCreated` event.
-When Wolverine sees that a handler creates what we call a [cascading message](/guide/handlers/cascading), Wolverine will
+When Wolverine sees that a handler creates what we call a [cascading message](../guide/handlers/cascading.md), Wolverine will
 publish the `IssueCreated` event to an in memory
 queue after the initial message handler succeeds. The advantage of doing this is allowing the
 slower email generation and sending process to happen in background processes instead of holding up
@@ -205,4 +205,4 @@ years before the ASP.NET team got around to it:-)*
 
 This page introduced the basic usage of Wolverine, how to wire Wolverine
 into .NET applications, and some rudimentary `Handler` usage. There's much more
-of course, so learn more about [Handlers and Messages](/guide/handlers/).
+of course, so learn more about [Handlers and Messages](../guide/handlers/index.md).

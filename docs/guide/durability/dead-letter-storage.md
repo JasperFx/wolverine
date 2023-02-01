@@ -1,6 +1,6 @@
 # Dead Letter Storage
 
-If [message storage](/guide/durability/) is configured for your application, and you're using either the local queues or messaging
+If [message storage](../durability/index.md) is configured for your application, and you're using either the local queues or messaging
 transports where Wolverine doesn't (yet) support native [dead letter queueing](https://en.wikipedia.org/wiki/Dead_letter_queue), Wolverine is actually moving messages
 to the `wolverine_dead_letters` table in your database in lieu of native dead letter queueing. 
 

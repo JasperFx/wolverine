@@ -2,7 +2,7 @@
 
 To show off some of the messaging, let's just build [a very simple "Ping/Pong" example](https://github.com/JasperFx/wolverine/tree/master/src/Samples/PingPong) that will exchange messages between two small .NET processes.
 
-![Pinger and Ponger](/ping-pong.png)
+![Pinger and Ponger](../img/ping-pong.png)
 
 First off, I'm going to build out a very small shared library just to hold the messages we're going to exchange:
 

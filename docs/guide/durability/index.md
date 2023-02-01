@@ -2,7 +2,7 @@
 
 See the blog post [Transactional Outbox/Inbox with Wolverine and why you care](https://jeremydmiller.com/2022/12/15/transactional-outbox-inbox-with-wolverine-and-why-you-care/) for more context.
 
-One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](/guide/messaging/transports/tcp) and external transports like the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq).
+One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](../messaging/transports/tcp.md) and external transports like the [Rabbit MQ transport](../messaging/transports/rabbitmq.md).
 
 It's a chaotic world out when high volume systems need to interact with other systems. Your system may fail, other systems may be down,
 there's network hiccups, occasional failures -- and you still need your systems to get to a consistent state without messages just
@@ -63,12 +63,12 @@ and slow [distributed transactions](https://en.wikipedia.org/wiki/Distributed_tr
 also includes a separate *message relay* process that will send the persisted outgoing messages in background processes (it's done by marshalling the outgoing message envelopes through [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) queues if you're curious.)
 
 If any node of a Wolverine system that uses durable messaging goes down before all the messages are processed, the persisted messages will be loaded from
-storage and processed when the system is restarted. Wolverine does this through its [DurabilityAgent](https://github.com/JasperFx/wolverine/blob/master/src/Wolverine/Persistence/Durability/DurabilityAgent.cs) that will run within your application through Wolverine's
+storage and processed when the system is restarted. Wolverine does this through its [DurableSendingAgent](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Persistence/Durability/DurableSendingAgent.cs) that will run within your application through Wolverine's
 [IHostedService](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-6.0&tabs=visual-studio) runtime that is automatically registered in your system through the `UseWolverine()` extension method.
 
 ::: tip
-At the moment, Wolverine only supports Postgresql or Sql Server as the underlying database and either [Marten](/guide/durability/marten) or
-[Entity Framework Core](/guide/durability/efcore) as the application persistence framework.
+At the moment, Wolverine only supports Postgresql or Sql Server as the underlying database and either [Marten](./marten.md) or
+[Entity Framework Core](./efcore.md) as the application persistence framework.
 :::
 
 There are four things you need to enable for the transactional outbox (and inbox for incoming messages):
@@ -77,7 +77,7 @@ There are four things you need to enable for the transactional outbox (and inbox
 2. Enroll outgoing subscriber or listener endpoints in the durable storage at configuration time
 3. Enable Wolverine's transactional middleware or utilize one of Wolverine's outbox publishing services
 
-The last bullet point varies a little bit between the [Marten integration](/guide/durability/marten) and the [EF Core integration](/guide/durability/efcore), so see the
+The last bullet point varies a little bit between the [Marten integration](./marten.md) and the [EF Core integration](./efcore.md), so see the
 the specific documentation on each for more details.
 
 
@@ -142,7 +142,7 @@ sample_configuring_durable_inbox
 
 ## Local Queues
 
-When you mark a [local queue](/guide/messaging/transports/local) as durable, you're telling Wolverine to store every message published
+When you mark a [local queue](../messaging/transports/local.md) as durable, you're telling Wolverine to store every message published
 to that queue be stored in the backing message database until it is successfully processed. Doing so makes even the local queues be able
 to guarantee eventual delivery even if the current node where the message was published fails before the message is processed.
 

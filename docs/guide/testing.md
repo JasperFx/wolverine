@@ -6,7 +6,7 @@ to decouple application code from framework or other infrastructure concerns.
 
 See Jeremy's blog post [How Wolverine allows for easier testing](https://jeremydmiller.com/2022/12/13/how-wolverine-allows-for-easier-testing/) for an introduction to unit testing Wolverine message handlers.
 
-Also see [Wolverine Best Practices](/tutorials/best-practices) for other helpful tips.
+Also see [Wolverine Best Practices](../tutorials/best-practices.md) for other helpful tips.
 
 ## Extension Methods for Outgoing Messages
 
@@ -16,7 +16,7 @@ in those assertions, Wolverine out of the box includes some testing helper exten
 inspired by the [Shouldly](https://github.com/shouldly/shouldly) project.
 
 For an example, let's look at this message handler for applying a debit to a bank account that
-will use [cascading messages](/guide/handlers/cascading) to raise a variable number of additional messages:
+will use [cascading messages](./handlers/cascading.md) to raise a variable number of additional messages:
 
 <!-- snippet: sample_AccountHandler_for_testing_examples -->
 <a id='snippet-sample_accounthandler_for_testing_examples'></a>

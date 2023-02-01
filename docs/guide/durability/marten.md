@@ -1,6 +1,6 @@
 # Marten Integration
 
-[Marten](https://martendb.io) and Wolverine are sibling projects under the [JasperFx organization](https://github.com/wolverinefx), and as such, have quite a bit of synergy when
+[Marten](https://martendb.io) and Wolverine are sibling projects under the [JasperFx organization](https://github.com/jasperfx), and as such, have quite a bit of synergy when
 used together. At this point, adding the `WolverineFx.Marten`*` Nuget dependency to your application adds the capability to combine Marten and Wolverine to:
 
 * Simplify persistent handler coding with transactional middleware
@@ -50,13 +50,13 @@ builder.Host.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-For more information, see [durable messaging](/guide/durability/) and the [sample Marten + Wolverine project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/WebApiWithMarten).
+For more information, see [durable messaging](./index.md) and the [sample Marten + Wolverine project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/WebApiWithMarten).
 
 Using the `IntegrateWithWolverine()` extension method behind your call to `AddMarten()` will:
 
-* Register the necessary [inbox and outbox](/guide/durability/) database tables with [Marten's database schema management](https://martendb.io/schema/migrations.html)
+* Register the necessary [inbox and outbox](./index.md) database tables with [Marten's database schema management](https://martendb.io/schema/migrations.html)
 * Adds Wolverine's "DurabilityAgent" to your .NET application for the inbox and outbox
-* Makes Marten the active [saga storage](/guide/durability/sagas) for Wolverine
+* Makes Marten the active [saga storage](./sagas.md) for Wolverine
 * Adds transactional middleware using Marten to your Wolverine application
 
 
@@ -315,7 +315,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 On the flip side of using Wolverine's "outbox" support for outgoing messages, you can also choose to use the same message persistence for incoming messages such that
 incoming messages are first persisted to the application's underlying Postgresql database before being processed. While
-you *could* use this with external message brokers like Rabbit MQ, it's more likely this will be valuable for Wolverine's [local queues](/guide/messaging/transports/local).
+you *could* use this with external message brokers like Rabbit MQ, it's more likely this will be valuable for Wolverine's [local queues](../messaging/transports/local.md).
 
 Back to the sample Marten + Wolverine integration from this page:
 
@@ -363,7 +363,7 @@ delivery guarantee to local messages and even allow messages to be processed if 
 There are some vague plans to add a little more efficient integration between Wolverine and ASP.Net Core Minimal API, but we're not there yet.
 :::
 
-Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](/guide/in-memory-bus) functionality as in this sample [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) usage:
+Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](../in-memory-bus.md) functionality as in this sample [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) usage:
 
 <!-- snippet: sample_delegate_to_command_bus_from_minimal_api -->
 <a id='snippet-sample_delegate_to_command_bus_from_minimal_api'></a>
@@ -377,7 +377,7 @@ app.MapPost("/orders/create2", (CreateOrder command, IMessageBus bus)
 
 ## Saga Storage
 
-Marten is an easy option for [persistent sagas](/guide/durability/sagas) with Wolverine. Yet again, to opt into using Marten as your saga storage mechanism in Wolverine, you
+Marten is an easy option for [persistent sagas](./sagas.md) with Wolverine. Yet again, to opt into using Marten as your saga storage mechanism in Wolverine, you
 just need to add the `IntegrateWithWolverine()` option to your Marten configuration as shown in the [Getting Started](#getting-started) section above.
 
 When using the Wolverine + Marten integration, your stateful saga classes should be valid Marten document types that inherit from Wolverine's `Saga` type, which generally means being a public class with a valid
@@ -469,7 +469,7 @@ public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L64-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-In the code above we're also utilizing Wolverine's [outbox messaging](/guide/durability/) support to both order and guarantee the delivery of a `ShipOrder` message when
+In the code above we're also utilizing Wolverine's [outbox messaging](./index.md) support to both order and guarantee the delivery of a `ShipOrder` message when
 the Marten transaction
 
 Before getting into Wolverine middleware strategies, let's first build out an MVC controller method for the command above:
@@ -657,7 +657,7 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Alternatives/Signatures.cs#L25-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Just as in other Wolverine [message handlers](/guide/handlers/), you can use
+Just as in other Wolverine [message handlers](../handlers/index.md), you can use
 additional method arguments for registered services ("method injection"), the `CancellationToken`
 for the message, and the message `Envelope` if you need access to message metadata.
 

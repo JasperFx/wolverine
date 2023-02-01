@@ -11,7 +11,7 @@ configuration as some other tools require.
 
 The queueing is all based around the [TPL Dataflow library](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/how-to-perform-action-when-a-dataflow-block-receives-data) objects from the [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) library.
 As such, you have a fair amount of control over parallelization and even some back pressure. These local queues can be used directly, or as a transport to accept messages sent through
-`IMessageBus.SendAsync()` or `IMessageBus.PublishAsync()`. using the application's [message routing rules](/guide/messaging/#routing-rules).
+`IMessageBus.SendAsync()` or `IMessageBus.PublishAsync()`. using the application's [message routing rules](../index.md#routing-rules).
 
 This feature is useful for asynchronous processing in web applications or really any kind of application where you need some parallelization or concurrency.
 
@@ -19,10 +19,10 @@ Some things to know about the local queues:
 
 * Local worker queues can be durable, meaning that the enqueued messages are persisted first so that they aren't lost if the application is shut down before they're processed. More on that below.
 * You can use any number of named local queues, and they don't even have to be declared upfront (might want to be careful with that though)
-* Local worker queues utilize Wolverine's [error handling](/guide/handlers/error-handling) policies to selectively handle any detected exceptions from the [message handlers](/guide/handlers/).
+* Local worker queues utilize Wolverine's [error handling](../../handlers/error-handling.md) policies to selectively handle any detected exceptions from the [message handlers](../../handlers/index.md).
 * You can control the priority and parallelization of each individual local queue
 * Message types can be routed to particular queues
-* [Cascading messages](/guide/handlers/cascading) can be used with the local queues
+* [Cascading messages](../../handlers/cascading.md) can be used with the local queues
 * The local queues can be used like any other message transport and be the target of routing rules
 
 
@@ -54,10 +54,10 @@ public ValueTask EnqueueToQueue(IMessageContext bus)
 ## Scheduling Local Execution
 
 :::tip
-If you need the command scheduling to be persistent or be persisted across service restarts, you'll need to enable the [message persistence](/guide/durability/) within Wolverine.
+If you need the command scheduling to be persistent or be persisted across service restarts, you'll need to enable the [message persistence](../../durability/index.md) within Wolverine.
 :::
 
-The "scheduled execution" feature can be used with local execution within the same application. See [Scheduled Messages](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution) for more information. Use the `IMessageBus.ScheduleAsync()` extension methods like this:
+The "scheduled execution" feature can be used with local execution within the same application. See [Scheduled Messages](../message-bus.md#scheduling-message-delivery-or-execution) for more information. Use the `IMessageBus.ScheduleAsync()` extension methods like this:
 
 <!-- snippet: sample_schedule_job_locally -->
 <a id='snippet-sample_schedule_job_locally'></a>
@@ -132,7 +132,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 The routing rules and/or `[LocalQueue]` routing is also honored for cascading messages, meaning that any message that is handled inside a Wolverine system could publish cascading messages to the local worker queues.
 
-See [message routing rules](/guide/messaging/#routing-rules) for more information.
+See [message routing rules](../index.md#routing-rules) for more information.
 
 ## Conventional Local Messaging
 
@@ -210,7 +210,7 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 
-See [Durable Inbox and Outbox Messaging](/guide/durability/) for more information.
+See [Durable Inbox and Outbox Messaging](../../durability/index.md) for more information.
 
 
 ## Configuring Parallelization and Execution Properties

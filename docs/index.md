@@ -10,7 +10,7 @@ hero:
   text: Next Generation .NET Mediator and Message Bus
   tagline: A batteries included modern and opinionated library!
   image:
-    src: /logo.png
+    src: /img/logo.png
     alt: Wolverine Logo image
   actions:
     - theme: brand

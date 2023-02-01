@@ -7,7 +7,7 @@ than most other frameworks that adopt the "Russian Doll" middleware approach tha
 that the exception stack traces from failures in Wolverine message handlers will be far less noisy than competitor tools and Wolverine's own predecessors.
 
 ::: tip
-Wolverine has [performance metrics](/guide/logging) around message execution out of the box, so this while "stopwatch" sample is unnecessary. But it *was* an easy way to illustrate
+Wolverine has [performance metrics](../logging.md) around message execution out of the box, so this while "stopwatch" sample is unnecessary. But it *was* an easy way to illustrate
 the middleware approach.
 :::
 
@@ -149,7 +149,7 @@ finally
 Here's the rules for these conventional middleware classes:
 
 * Can optionally be static classes, and that maybe advantageous when possible from a performance standpoint
-* If the middleware class is not static, Wolverine can inject constructor arguments with the same rules as for [handler methods](/guide/handlers/)
+* If the middleware class is not static, Wolverine can inject constructor arguments with the same rules as for [handler methods](./index.md)
 * Objects returned from the `Before` / `BeforeAsync` methods can be used as arguments to the inner handler methods or the later "after" or "finally" methods
 * A middleware class can have any mix of zero to many "befores", "afters", or "finallys."
 
@@ -158,7 +158,7 @@ Here's the rules for these conventional middleware classes:
 A "before" method in middleware can be used to stop further message handler by either directly returning `HandlerContinuation` or returning that value as part of a
 tuple. If the value `Stop` is returned, Wolverine will stop all of the further message processing (it's done by generating an `if (continuation == HandlerContinuation.Stop) return;` line of code).
 
-Here's an example from the [custom middleware tutorial](/tutorials/middleware) that tries to load a matching `Account` entity referenced
+Here's an example from the [custom middleware tutorial](../../tutorials/middleware.md) that tries to load a matching `Account` entity referenced
 by the incoming message and aborts the message processing if it is not found:
 
 <!-- snippet: sample_AccountLookupMiddleware -->

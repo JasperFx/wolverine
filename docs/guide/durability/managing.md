@@ -93,7 +93,7 @@ The available commands are:
 ```
 
 There's admittedly some duplication here with different options coming from [Oakton](https://jasperfx.github.io/oakton) itself, the [Weasel.CommandLine](https://github.com/JasperFx/weasel) library,
-and the `storage` command from Wolverine itself. To build out the schema objects for [message persistence](/guide/durability/), you
+and the `storage` command from Wolverine itself. To build out the schema objects for [message persistence](./index.md), you
 can use this command to apply any outstanding database changes necessary to bring the database schema to the Wolverine configuration:
 
 ```bash
