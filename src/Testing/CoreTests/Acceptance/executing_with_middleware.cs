@@ -278,6 +278,24 @@ public class executing_with_middleware
         "SimpleBeforeAndAfter.After"
             );
     }
+
+    [Fact]
+    public async Task using_finally_only_middleware_happy_path()
+    {
+        var list = await invokeMessage(new RunsScoredMessage { Number = 5, Batter = "Willie Wilson" },
+            x => x.AddMiddleware<FinallyOnlyMiddleware>());
+        
+        list.Last().ShouldBe("Called Finally");
+    }
+    
+    [Fact]
+    public async Task using_finally_only_middleware_sad_path()
+    {
+        var list = await invokeMessage(new RunsScoredMessage { Number = 200, Batter = "Willie Wilson" },
+            x => x.AddMiddleware<FinallyOnlyMiddleware>());
+        
+        list.Last().ShouldBe("Called Finally");
+    }
 }
 
 public class SimpleBeforeAndAfter
@@ -453,6 +471,14 @@ public class OtherTracedMessage
 }
 
 public record ExplicitMiddlewareMessage(string Name);
+
+public class FinallyOnlyMiddleware
+{
+    public void Finally(Recorder recorder)
+    {
+        recorder.Actions.Add("Called Finally");
+    }
+}
 
 public class TracedMessageHandler
 {

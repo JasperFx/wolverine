@@ -170,7 +170,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
             _afters = methods.Where(x => AfterMethodNames.Contains(x.Name)).ToArray();
             _finals = methods.Where(x => FinallyMethodNames.Contains(x.Name)).ToArray();
 
-            if (!_befores.Any() && !_afters.Any())
+            if (!_befores.Any() && !_afters.Any() && !_finals.Any())
             {
                 throw new InvalidWolverineMiddlewareException(middlewareType);
             }
@@ -250,6 +250,14 @@ internal class MiddlewarePolicy : IHandlerPolicy
                 yield break;
             }
 
+            if (!_befores.Any() && _finals.Any())
+            {
+                var finals = buildFinals(chain).ToArray();
+
+                yield return new TryFinallyWrapperFrame(new CommentFrame("Wrapped by middleware"), finals);
+                yield break;
+            }
+
             foreach (var before in _befores)
             {
                 var call = buildCallForBefore(chain, before);
@@ -259,6 +267,28 @@ internal class MiddlewarePolicy : IHandlerPolicy
                     {
                         yield return frame;
                     }
+                }
+            }
+        }
+
+        private IEnumerable<Frame> buildFinals(IChain chain)
+        {
+            foreach (var final in _finals)
+            {
+                if (MatchByMessageType)
+                {
+                    if (chain is HandlerChain c)
+                    {
+                        var messageType = final.MessageType();
+                        if (messageType != null && c.MessageType.CanBeCastTo(messageType))
+                        {
+                            yield return new MethodCallAgainstMessage(MiddlewareType, final, messageType);
+                        }
+                    }
+                }
+                else
+                {
+                    yield return new MethodCall(MiddlewareType, final);
                 }
             }
         }
