@@ -3,7 +3,9 @@ using FastExpressionCompiler;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Shouldly;
 using Wolverine.Configuration;
@@ -115,6 +117,45 @@ public class initializing_endpoints_from_method_call : IDisposable
         {
             endpoint.ResourceType.ShouldBe(expectedType);
         }
+    }
+
+    [Fact]
+    public void pick_up_metadata_from_attribute_on_handler_type()
+    {
+        var chain = EndpointChain.ChainFor<SecuredEndpoint>(x => x.Greetings());
+        var endpoint = chain.BuildEndpoint();
+
+        endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
+    }
+    
+    
+    [Fact]
+    public void pick_up_metadata_from_attribute_on_method()
+    {
+        var chain = EndpointChain.ChainFor<IndividualEndpoint>(x => x.Goodbypes());
+        var endpoint = chain.BuildEndpoint();
+
+        endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
+    }
+}
+
+[Authorize]
+public class SecuredEndpoint
+{
+    [HttpGet("/greetings")]
+    public string Greetings()
+    {
+        return "Salutations!";
+    }
+}
+
+public class IndividualEndpoint
+{
+    [HttpGet("/goodbyes")]
+    [Authorize]
+    public string Goodbypes()
+    {
+        return "Until later";
     }
 }
 

@@ -1,5 +1,6 @@
 using IntegrationTests;
 using Marten;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Oakton;
 using Oakton.Resources;
@@ -41,7 +42,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapGet("/orders/{orderId}", Results<BadRequest, Ok<Order>> (int orderId) 
+app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>> (int orderId) 
     => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(orderId)));
 
 app.MapPost("/orders", Results<BadRequest, Ok<Order>> (CreateOrder command) 
