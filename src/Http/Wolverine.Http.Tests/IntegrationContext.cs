@@ -47,7 +47,7 @@ public abstract class IntegrationContext : IAsyncLifetime
         Endpoints = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
     }
 
-    public EndpointGraph Endpoints { get; }
+    public EndpointGraph Endpoints { get; set; }
 
     public IAlbaHost Host { get; }
     public IDocumentStore Store { get; }

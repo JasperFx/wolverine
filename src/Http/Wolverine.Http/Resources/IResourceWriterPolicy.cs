@@ -1,4 +1,4 @@
-namespace Wolverine.Http;
+namespace Wolverine.Http.Resources;
 
 public interface IResourceWriterPolicy
 {

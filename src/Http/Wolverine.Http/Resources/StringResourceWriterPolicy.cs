@@ -2,7 +2,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 
-namespace Wolverine.Http;
+namespace Wolverine.Http.Resources;
 
 internal class StringResourceWriterPolicy : IResourceWriterPolicy
 {

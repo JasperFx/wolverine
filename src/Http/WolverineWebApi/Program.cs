@@ -1,10 +1,12 @@
 using IntegrationTests;
 using Marten;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
+using WolverineWebApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +40,12 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapGet("/orders/{orderId}", Results<BadRequest, Ok<Order>> (int orderId) 
+    => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(orderId)));
+
+app.MapPost("/orders", Results<BadRequest, Ok<Order>> (CreateOrder command) 
+    => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(command.OrderId)));
 
 app.MapWolverineEndpoints();
 

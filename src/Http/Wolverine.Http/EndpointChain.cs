@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
+using Wolverine.Http.Metadata;
 
 namespace Wolverine.Http;
 
@@ -22,12 +23,22 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         Variable.VariablesForProperties<HttpContext>(EndpointGraph.Context);
     
     private readonly EndpointGraph _parent;
-    private readonly List<object> _metadata = new();
 
     public static EndpointChain ChainFor<T>(Expression<Action<T>> expression, EndpointGraph? parent = null)
     {
         var method = ReflectionHelper.GetMethod(expression);
         var call = new MethodCall(typeof(T), method);
+
+        return new EndpointChain(call, parent ?? new EndpointGraph(new WolverineOptions(), new Container(x =>
+        {
+            x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
+            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
+        })));
+    }
+    
+    public static EndpointChain ChainFor(Type handlerType, string methodName, EndpointGraph? parent = null)
+    {
+        var call = new MethodCall(handlerType, methodName);
 
         return new EndpointChain(call, parent ?? new EndpointGraph(new WolverineOptions(), new Container(x =>
         {
@@ -64,10 +75,6 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         if (att != null)
         {
             RoutePattern = RoutePatternFactory.Parse(att.Template);
-            
-            // TODO -- figure out how to get at the Cors preflight stuff
-            var metadata = new HttpMethodMetadata(att.HttpMethods);
-            _metadata.Add(metadata);
 
             _httpMethods.AddRange(att.HttpMethods);
             Order = att.Order;
@@ -82,6 +89,39 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         
         _parent.ApplyParameterMatching(this);
 
+    }
+
+    // TODO -- will need to be able to add other metadata later. Policies
+    // will need to be able to edit this. Example is adding ProblemDetails
+    private IEnumerable<object> buildMetadata()
+    {
+        // TODO -- figure out how to get at the Cors preflight stuff
+        yield return new HttpMethodMetadata(_httpMethods);
+        
+        if (RequestType != null)
+        {
+            yield return new WolverineAcceptsMetadata(this);
+            yield return new WolverineProducesResponse { StatusCode = 400 };
+        }
+
+        if (ResourceType != null)
+        {
+            yield return new WolverineProducesResponse
+            {
+                StatusCode = 200, 
+                Type = ResourceType, 
+                ContentTypes = new []{ "application/json"  }
+            };
+            
+            yield return new WolverineProducesResponse
+            {
+                StatusCode = 404
+            };
+        }
+        else
+        {
+            yield return new WolverineProducesResponse { StatusCode = 200 };
+        }
     }
 
     public string? DisplayName { get; set; }
@@ -111,6 +151,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     {
         assembly.UsingNamespaces.Fill(typeof(RoutingHttpContextExtensions).Namespace);
         assembly.UsingNamespaces.Fill("System.Linq");
+        assembly.UsingNamespaces.Fill("System");
         
         _generatedType = assembly.AddType(_fileName, typeof(EndpointHandler));
 
@@ -183,7 +224,8 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         
         this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
 
-        Endpoint = new RouteEndpoint(c => _handler.Handle(c), RoutePattern, Order, new EndpointMetadataCollection(_metadata), DisplayName);
+        Endpoint = new RouteEndpoint(c => _handler.Handle(c), RoutePattern, Order, new EndpointMetadataCollection(buildMetadata()), DisplayName);
+
         return Endpoint;
     }
     

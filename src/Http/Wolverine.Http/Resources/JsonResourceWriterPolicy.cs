@@ -1,8 +1,6 @@
-using Microsoft.AspNetCore.Http.Json;
-using Wolverine.Http;
 using Wolverine.Http.CodeGen;
 
-namespace Wolverine.Http;
+namespace Wolverine.Http.Resources;
 
 internal class JsonResourceWriterPolicy : IResourceWriterPolicy
 {
@@ -17,3 +15,4 @@ internal class JsonResourceWriterPolicy : IResourceWriterPolicy
         return false;
     }
 }
+
