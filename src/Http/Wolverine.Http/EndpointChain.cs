@@ -122,6 +122,16 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         {
             yield return new WolverineProducesResponse { StatusCode = 200 };
         }
+
+        foreach (var attribute in Method.HandlerType.GetCustomAttributes())
+        {
+            yield return attribute;
+        }
+
+        foreach (var attribute in Method.Method.GetCustomAttributes())
+        {
+            yield return attribute;
+        }
     }
 
     public string? DisplayName { get; set; }
