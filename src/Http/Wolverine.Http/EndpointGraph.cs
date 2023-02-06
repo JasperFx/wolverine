@@ -4,6 +4,7 @@ using Lamar;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Primitives;
+using Wolverine.Http.Resources;
 
 namespace Wolverine.Http;
 

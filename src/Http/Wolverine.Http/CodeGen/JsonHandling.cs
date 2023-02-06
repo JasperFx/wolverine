@@ -40,6 +40,9 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
             variable = new ReadJsonBody(parameter).Variable;
+            
+            // Oh, this does NOT make me feel good
+            chain.RequestType = parameter.ParameterType;
             return true;
         }
 

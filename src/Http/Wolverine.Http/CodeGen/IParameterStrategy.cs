@@ -2,7 +2,7 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
 
-namespace Wolverine.Http;
+namespace Wolverine.Http.CodeGen;
 
 
 public interface IParameterStrategy

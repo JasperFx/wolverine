@@ -6,9 +6,11 @@ namespace WolverineWebApi;
 public class ServiceEndpoints
 {
     [HttpGet("/data/{id}")]
-    public Task<Data?> GetData(Guid id, IDocumentSession session)
+    //public Task<Data?> GetData(Guid id, IDocumentSession session)
+    public Task<Data?> GetData(Guid id)
     {
-        return session.LoadAsync<Data>(id);
+        return Task.FromResult(new Data { Id = id });
+        //return session.LoadAsync<Data>(id);
     }
 }
 
