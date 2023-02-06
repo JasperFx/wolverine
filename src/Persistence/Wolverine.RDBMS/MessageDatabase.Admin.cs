@@ -98,11 +98,11 @@ public abstract partial class MessageDatabase<T>
 
     private async Task migrateAsync(DbConnection conn)
     {
-        var migration = await SchemaMigration.Determine(conn, Objects);
+        var migration = await SchemaMigration.Determine(conn, _cancellation, Objects);
 
         if (migration.Difference != SchemaPatchDifference.None)
         {
-            await Migrator.ApplyAll(conn, migration, AutoCreate.CreateOrUpdate);
+            await Migrator.ApplyAll(conn, migration, AutoCreate.CreateOrUpdate, ct: _cancellation);
         }
     }
 
