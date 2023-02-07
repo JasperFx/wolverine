@@ -212,10 +212,9 @@ public class error_handling
 // message handlers
 public class ErrorHandlingPolicy : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
-        var matchingChains = graph
-            .Chains
+        var matchingChains = chains
             .Where(x => x.MessageType.IsInNamespace("MyApp.Messages"));
 
         foreach (var chain in matchingChains) chain.OnException<SqlException>().Requeue(2);

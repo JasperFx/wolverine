@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
@@ -239,7 +240,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
         Group();
 
-        foreach (var policy in _policies) policy.Apply(this, Rules, container);
+        foreach (var policy in _policies) policy.Apply(Chains, Rules, container);
 
         Container = container;
 

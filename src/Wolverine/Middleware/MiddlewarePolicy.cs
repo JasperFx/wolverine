@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Configuration;
@@ -103,11 +99,11 @@ internal class MiddlewarePolicy : IHandlerPolicy
         chain.Postprocessors.AddRange(afters);
     }
 
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
         var applications = _applications;
         
-        foreach (var chain in graph.Chains)
+        foreach (var chain in chains)
         {
             ApplyToChain(applications, chain);
         }

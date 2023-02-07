@@ -88,12 +88,11 @@ public class UsingDocumentSessionHandler
 
 public class CommandsAreTransactional : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
         // Important! Create a brand new TransactionalFrame
         // for each chain
-        graph
-            .Chains
+        chains
             .Where(x => x.MessageType.Name.EndsWith("Command"))
             .Each(x => x.Middleware.Add(new TransactionalFrame()));
     }

@@ -14,10 +14,10 @@ public interface IHandlerPolicy
     /// <summary>
     ///     Called during bootstrapping to alter how the message handlers are configured
     /// </summary>
-    /// <param name="graph"></param>
+    /// <param name="chains"></param>
     /// <param name="rules"></param>
     /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(HandlerGraph graph, GenerationRules rules, IContainer container);
+    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container);
 }
 
 #endregion

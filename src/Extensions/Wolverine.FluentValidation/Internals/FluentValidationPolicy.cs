@@ -9,9 +9,9 @@ namespace Wolverine.FluentValidation.Internals;
 
 internal class FluentValidationPolicy : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
-        foreach (var chain in graph.Chains) Apply(chain, container);
+        foreach (var chain in chains) Apply(chain, container);
     }
 
     public void Apply(HandlerChain chain, IContainer container)

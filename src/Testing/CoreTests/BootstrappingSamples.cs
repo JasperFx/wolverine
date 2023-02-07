@@ -25,9 +25,9 @@ public class BootstrappingSamples
 
 public class WrapWithSimple : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
-        foreach (var chain in graph.Chains) chain.Middleware.Add(new SimpleWrapper());
+        foreach (var chain in chains) chain.Middleware.Add(new SimpleWrapper());
     }
 }
 
