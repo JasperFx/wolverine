@@ -50,7 +50,7 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
         return _chains;
     }
 
-    public string ChildNamespace => "Endpoints";
+    public string ChildNamespace => "WolverineHandlers";
     public GenerationRules Rules { get; }
 
     public void DiscoverEndpoints()
@@ -60,7 +60,6 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
 
         _chains.AddRange(calls.Select(x => new EndpointChain(x, this)));
         
-        // TODO -- have a lazy mode for development????
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint()));
     }
 

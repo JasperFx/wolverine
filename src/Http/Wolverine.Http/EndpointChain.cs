@@ -53,7 +53,6 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     private readonly List<ParameterInfo> _routeArguments = new();
     private GeneratedType _generatedType;
     private Type? _handlerType;
-    private EndpointHandler _handler;
     private readonly List<string> _httpMethods = new();
 
     public bool HasResourceType()
@@ -225,8 +224,6 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
             return false;
         }
 
-        _handler = (EndpointHandler)_parent.Container.QuickBuild(_handlerType);
-
         return true;
     }
 
@@ -234,12 +231,13 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     
     public RouteEndpoint BuildEndpoint()
     {
-        // TODO -- do something to make this lazily compiled
-        // or group the compilation
+        var handler = new Lazy<EndpointHandler>(() =>
+        {
+            this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
+            return (EndpointHandler)_parent.Container.QuickBuild(_handlerType);
+        });
         
-        this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
-
-        Endpoint = new RouteEndpoint(c => _handler.Handle(c), RoutePattern, Order, new EndpointMetadataCollection(buildMetadata()), DisplayName);
+        Endpoint = new RouteEndpoint(c => handler.Value.Handle(c), RoutePattern, Order, new EndpointMetadataCollection(buildMetadata()), DisplayName);
 
         return Endpoint;
     }

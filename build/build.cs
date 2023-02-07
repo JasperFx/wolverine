@@ -70,7 +70,9 @@ namespace build
                 Directory.SetCurrentDirectory(Path.Combine(original, "src", "Samples", "ConsoleApp"));
                 RunCurrentProject("?");
                 RunCurrentProject("describe");
-
+                
+                Directory.SetCurrentDirectory(Path.Combine(original, "src", "Http", "WolverineWebApi"));
+                RunCurrentProject("codegen preview");
 
                 Directory.SetCurrentDirectory(original);
             });

@@ -21,6 +21,6 @@ public class WolverineSupplementalCodeFiles : ICodeFileCollection
         return Collections.SelectMany(x => x.BuildFiles()).ToList();
     }
 
-    public string ChildNamespace => "Wolverine";
+    public string ChildNamespace => "WolverineHandlers";
     public GenerationRules Rules => _options.Node.CodeGeneration;
 }
