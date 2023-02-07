@@ -24,7 +24,7 @@ public class error_handling
         #region sample_MyApp_with_error_handling
 
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.Handlers.AddPolicy<ErrorHandlingPolicy>(); }).StartAsync();
+            .UseWolverine(opts => { opts.Policies.Add<ErrorHandlingPolicy>(); }).StartAsync();
 
         #endregion
     }

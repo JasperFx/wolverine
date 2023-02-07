@@ -33,7 +33,6 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     private readonly IList<Action> _configurations = new List<Action>();
 
     private readonly object _groupingLock = new();
-    private readonly IList<IHandlerPolicy> _policies = new List<IHandlerPolicy>();
 
     internal readonly HandlerSource Source = new();
 
@@ -67,46 +66,12 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
     public FailureRuleCollection Failures { get; set; } = new();
 
-    public void AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
-    {
-        AddMiddleware(typeof(T), filter);
-    }
-
-    public void AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null)
-    {
-        var policy = findOrCreateMiddlewarePolicy();
-
-        Func<IChain, bool> f = filter == null
-            ? c => c is HandlerChain
-            : c => c is HandlerChain chain && filter(chain);
-        
-        policy.AddType(middlewareType, f );
-    }
-
     public IHandlerConfiguration Discovery(Action<HandlerSource> configure)
     {
         configure(Source);
         return this;
     }
-
-    /// <summary>
-    ///     Applies a handler policy to all known message handlers
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    public void AddPolicy<T>() where T : IHandlerPolicy, new()
-    {
-        AddPolicy(new T());
-    }
-
-    /// <summary>
-    ///     Applies a handler policy to all known message handlers
-    /// </summary>
-    /// <param name="policy"></param>
-    public void AddPolicy(IHandlerPolicy policy)
-    {
-        _policies.Add(policy);
-    }
-
+    
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
     {
         ConfigureHandlerForMessage(typeof(T), configure);
@@ -124,34 +89,9 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         });
     }
 
-    public void AddMiddlewareByMessageType(Type middlewareType)
-    {
-        var policy = findOrCreateMiddlewarePolicy();
-
-        var application = policy.AddType(middlewareType);
-        application.MatchByMessageType = true;
-    }
-
-    public void AutoApplyTransactions()
-    {
-        AddPolicy(new AutoApplyTransactions());
-    }
-
     internal void AddMessageHandler(Type messageType, MessageHandler handler)
     {
         _handlers = _handlers.AddOrUpdate(messageType, handler);
-    }
-
-    private MiddlewarePolicy findOrCreateMiddlewarePolicy()
-    {
-        var policy = _policies.OfType<MiddlewarePolicy>().FirstOrDefault();
-        if (policy == null)
-        {
-            policy = new MiddlewarePolicy();
-            _policies.Add(policy);
-        }
-
-        return policy;
     }
 
     private void assertNotGrouped()
@@ -240,7 +180,8 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
         Group();
 
-        foreach (var policy in _policies) policy.Apply(Chains, Rules, container);
+        // TODO -- look for more generic IChainPolicy later
+        foreach (var policy in options.RegisteredPolicies.OfType<IHandlerPolicy>()) policy.Apply(Chains, Rules, container);
 
         Container = container;
 

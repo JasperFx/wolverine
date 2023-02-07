@@ -39,7 +39,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
             opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
             
-            opts.Handlers.AutoApplyTransactions();
+            opts.Policies.AutoApplyTransactions();
 
             opts.Services.AddScoped<ISomeService, SomeService>();
         }).StartAsync();

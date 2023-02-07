@@ -21,14 +21,14 @@ public class executing_with_middleware
         _output = output;
     }
 
-    protected async Task<List<string>> invokeMessage<T>(T message, Action<HandlerGraph> registration)
+    protected async Task<List<string>> invokeMessage<T>(T message, Action<IPolicies> registration)
     {
         var recorder = new Recorder();
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Services.AddSingleton(recorder);
-                registration(opts.HandlerGraph);
+                registration(opts.Policies);
             }).StartAsync();
 
         await host.TrackActivity().DoNotAssertOnExceptionsDetected().PublishMessageAndWaitAsync(message);

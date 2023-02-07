@@ -27,7 +27,7 @@ public class configuring_middleware
     protected async Task applyMiddleware<T>(Action<HandlerChain> assertions)
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.Handlers.AddMiddleware<T>(); }).StartAsync();
+            .UseWolverine(opts => { opts.Policies.AddMiddleware<T>(); }).StartAsync();
 
         var chain = host.GetRuntime().Handlers.ChainFor<MiddlewareMessage>();
 
@@ -69,7 +69,7 @@ public class configuring_middleware
     public async Task find_message_type_of_middleware()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.Handlers.AddMiddlewareByMessageType(typeof(MiddlewareWithMessage)); })
+            .UseWolverine(opts => { opts.Policies.AddMiddlewareByMessageType(typeof(MiddlewareWithMessage)); })
             .StartAsync();
 
         var chain = host.GetRuntime().Handlers.ChainFor<MiddlewareMessage>();

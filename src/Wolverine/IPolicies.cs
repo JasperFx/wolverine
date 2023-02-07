@@ -1,5 +1,6 @@
 using System;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 
 namespace Wolverine;
@@ -7,16 +8,16 @@ namespace Wolverine;
 public interface IPolicies
 {
     /// <summary>
-    ///     Add a new endpoint policy
+    /// Add a new Wolverine policy
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    void Add<T>() where T : IEndpointPolicy, new();
+    void Add<T>() where T : IWolverinePolicy, new();
 
     /// <summary>
     ///     Add a new endpoint policy
     /// </summary>
     /// <param name="policy"></param>
-    void Add(IEndpointPolicy policy);
+    void Add(IWolverinePolicy policy);
 
     /// <summary>
     ///     Set all non local listening endpoints to be enrolled into durable inbox
@@ -57,5 +58,32 @@ public interface IPolicies
     /// <returns></returns>
     LocalMessageRoutingConvention ConfigureConventionalLocalRouting();
 
+    
+    /// <summary>
+    /// In place of using [Transactional] attributes, apply transactional middleware
+    /// to every message handler that uses transactional services
+    /// </summary>
+    void AutoApplyTransactions();
+    
+    /// <summary>
+    ///     Add middleware only on handlers where the message type can be cast to the message
+    ///     type of the middleware type
+    /// </summary>
+    /// <param name="middlewareType"></param>
+    void AddMiddlewareByMessageType(Type middlewareType);
 
+    /// <summary>
+    ///     Add Wolverine middleware to message handlers
+    /// </summary>
+    /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
+    /// <typeparam name="T">The actual middleware type</typeparam>
+    void AddMiddleware<T>(Func<HandlerChain, bool>? filter = null);
+
+    /// <summary>
+    ///     Add Wolverine middleware to message handlers
+    /// </summary>
+    /// <param name="middlewareType">The actual middleware type</param>
+    /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
+    void AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null);
+    
 }

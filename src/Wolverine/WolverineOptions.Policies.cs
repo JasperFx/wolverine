@@ -1,5 +1,8 @@
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Middleware;
+using Wolverine.Persistence;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 
@@ -7,14 +10,22 @@ namespace Wolverine;
 
 public sealed partial class WolverineOptions : IPolicies
 {
+    internal List<IWolverinePolicy> RegisteredPolicies { get; } = new();
+
+    public void AutoApplyTransactions()
+    {
+        this.As<IPolicies>().Add(new AutoApplyTransactions());
+    }
+
     void IPolicies.Add<T>()
     {
         this.As<IPolicies>().Add(new T());
     }
 
-    void IPolicies.Add(IEndpointPolicy policy)
+    void IPolicies.Add(IWolverinePolicy policy)
     {
-        Transports.AddPolicy(policy);
+        if (policy is IEndpointPolicy e) Transports.AddPolicy(e);
+        RegisteredPolicies.Add(policy);
     }
 
     void IPolicies.UseDurableInboxOnAllListeners()
@@ -112,5 +123,45 @@ public sealed partial class WolverineOptions : IPolicies
     LocalMessageRoutingConvention IPolicies.ConfigureConventionalLocalRouting()
     {
         return LocalRouting;
+    }
+    
+    private MiddlewarePolicy findOrCreateMiddlewarePolicy()
+    {
+        var policy = RegisteredPolicies.OfType<MiddlewarePolicy>().FirstOrDefault();
+        if (policy == null)
+        {
+            policy = new MiddlewarePolicy();
+            RegisteredPolicies.Add(policy);
+        }
+
+        return policy;
+    }
+
+    void IPolicies.AddMiddlewareByMessageType(Type middlewareType)
+    {
+        var policy = findOrCreateMiddlewarePolicy();
+
+        var application = policy.AddType(middlewareType);
+        application.MatchByMessageType = true;
+    }
+
+    void IPolicies.AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null)
+    {
+        findOrCreateMiddlewarePolicy().AddType(middlewareType, chain =>
+        {
+            if (filter == null) return true;
+
+            if (chain is HandlerChain c)
+            {
+                return filter(c);
+            }
+
+            return false;
+        });
+    }
+
+    void IPolicies.AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
+    {
+        this.As<IPolicies>().AddMiddleware(typeof(T), filter);
     }
 }

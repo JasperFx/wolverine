@@ -55,7 +55,7 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
                 {
                     opts.Handlers.DisableConventionalDiscovery();
                     opts.Handlers.IncludeType<TraceHandler>();
-                    opts.Handlers.AutoApplyTransactions();
+                    opts.Policies.AutoApplyTransactions();
 
                     opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, ReceiverSchemaName);
 
@@ -70,7 +70,7 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
                 .UseWolverine(opts =>
                 {
                     opts.Handlers.DisableConventionalDiscovery();
-                    opts.Handlers.AutoApplyTransactions();
+                    opts.Policies.AutoApplyTransactions();
 
                     opts.Publish(x => x.Message<TraceMessage>().To(_listener)
                         .UseDurableOutbox());

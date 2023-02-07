@@ -21,7 +21,7 @@ internal class MartenIntegration : IWolverineExtension
 
         options.Node.CodeGeneration.Sources.Add(new SessionVariableSource());
 
-        options.Handlers.AddPolicy<MartenAggregateHandlerStrategy>();
+        options.Policies.Add<MartenAggregateHandlerStrategy>();
         
         options.Handlers.Discovery(x => x.IncludeTypes(type => type.HasAttribute<MartenCommandWorkflowAttribute>()));
     }

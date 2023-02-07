@@ -134,7 +134,7 @@ public static class UsingStopwatchMiddleware
             {
                 // Apply our new middleware to message handlers, but optionally 
                 // filter it to only messages from a certain namespace
-                opts.Handlers
+                opts.Policies
                     .AddMiddleware<StopwatchMiddleware>(chain => chain.MessageType.IsInNamespace("MyApp.Messages.Important"));
             }).StartAsync();
 

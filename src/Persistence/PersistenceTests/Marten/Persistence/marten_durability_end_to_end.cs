@@ -73,7 +73,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.Handlers.AutoApplyTransactions();
+                    opts.Policies.AutoApplyTransactions();
                     opts.Handlers.DisableConventionalDiscovery();
                     opts.Handlers.IncludeType<TraceHandler>();
 
@@ -94,7 +94,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
                 .UseWolverine(opts =>
                 {
                     opts.Handlers.DisableConventionalDiscovery();
-                    opts.Handlers.AutoApplyTransactions();
+                    opts.Policies.AutoApplyTransactions();
 
                     opts.Publish(x => x.Message<TraceMessage>().To(_listener)
                         .UseDurableOutbox());

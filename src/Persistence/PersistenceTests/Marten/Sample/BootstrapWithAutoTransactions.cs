@@ -18,7 +18,7 @@ public class BootstrapWithAutoTransactions
                     .IntegrateWithWolverine();
 
                 // Opt into using "auto" transaction middleware
-                opts.Handlers.AutoApplyTransactions();
+                opts.Policies.AutoApplyTransactions();
             }).StartAsync();
 
         #endregion
