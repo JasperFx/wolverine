@@ -71,7 +71,7 @@ public static class FrameExtensions
     }
 }
 
-internal class MiddlewarePolicy : IHandlerPolicy
+internal class MiddlewarePolicy : IChainPolicy
 {
     public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync", "Load", "LoadAsync" };
     public static readonly string[] AfterMethodNames = { "After", "AfterAsync", "PostProcess", "PostProcessAsync" };
@@ -84,7 +84,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
     /// </summary>
     /// <param name="middlewareType"></param>
     /// <param name="chain"></param>
-    public static void Apply(Type middlewareType, HandlerChain chain)
+    public static void Apply(Type middlewareType, IChain chain)
     {
         var application = new Application(middlewareType, _ => true);
         var befores = application.BuildBeforeCalls(chain).ToArray();
@@ -99,7 +99,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
         chain.Postprocessors.AddRange(afters);
     }
 
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
         var applications = _applications;
         

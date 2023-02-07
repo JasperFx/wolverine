@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Module1;
 using TestingSupport;
 using TestMessages;
+using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Xunit;
@@ -21,6 +22,21 @@ public class BootstrappingTests : IntegrationContext
 {
     public BootstrappingTests(DefaultApp @default) : base(@default)
     {
+    }
+
+    [Fact]
+    public void registers_the_supplemental_code_files()
+    {
+        with(_ => {});
+
+        var container = (IContainer)Host.Services;
+        container.Model.For<WolverineSupplementalCodeFiles>()
+            .Default.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        
+        container.GetAllInstances<ICodeFileCollection>()
+            .OfType<WolverineSupplementalCodeFiles>()
+            .Any()
+            .ShouldBeTrue();
     }
 
 
