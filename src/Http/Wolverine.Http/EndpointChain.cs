@@ -246,4 +246,9 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     {
         return _fileName;
     }
+
+    public override bool RequiresOutbox()
+    {
+        return ServiceDependencies(_parent.Container).Contains(typeof(IMessageBus)) ;
+    }
 }

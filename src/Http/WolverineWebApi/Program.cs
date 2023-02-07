@@ -2,9 +2,11 @@ using IntegrationTests;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
 using Wolverine.Marten;
 using WolverineWebApi;
@@ -18,18 +20,35 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
+    x => x.UseNpgsql(Servers.PostgresConnectionString));
+
+
 builder.Services.AddMarten(opts =>
 {
     opts.Connection(Servers.PostgresConnectionString);
     opts.DatabaseSchemaName = "http";
 }).IntegrateWithWolverine();
 
+
+
 builder.Services.AddResourceSetupOnStartup();
 
+builder.Services.AddSingleton<Recorder>();
+
 // Need this.
-builder.Host.UseWolverine();
+builder.Host.UseWolverine(opts =>
+{
+    // Set up Entity Framework Core as the support
+    // for Wolverine's transactional middleware
+    opts.UseEntityFrameworkCoreTransactions();
+    
+    
+});
 
 var app = builder.Build();
+
+
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

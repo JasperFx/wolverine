@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <Description>High Performance ASP.Net Core Endpoints using Wolverine</Description>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFrameworks>net7.0</TargetFrameworks>
         <DebugType>portable</DebugType>
         <PackageId>WolverineFx.Http</PackageId>
         <LangVersion>latest</LangVersion>

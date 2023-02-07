@@ -27,6 +27,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     };
     public abstract string Description { get; }
     public abstract bool ShouldFlushOutgoingMessages();
+    public abstract bool RequiresOutbox();
 
     public abstract MethodCall[] HandlerCalls();
 

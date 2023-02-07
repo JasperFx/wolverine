@@ -1,5 +1,4 @@
-﻿using System;
-using JasperFx.CodeGeneration.Model;
+﻿using JasperFx.CodeGeneration.Model;
 using Marten;
 
 namespace Wolverine.Marten.Codegen;

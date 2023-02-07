@@ -267,6 +267,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return i;
     }
 
+    public override bool RequiresOutbox()
+    {
+        return true;
+    }
+
     public override MethodCall[] HandlerCalls()
     {
         return Handlers.ToArray();

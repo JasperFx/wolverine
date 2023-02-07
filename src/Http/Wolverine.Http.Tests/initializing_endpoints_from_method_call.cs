@@ -137,6 +137,35 @@ public class initializing_endpoints_from_method_call : IDisposable
 
         endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
     }
+
+    [Fact]
+    public void must_use_outbox_when_using_message_bus()
+    {
+        var chain = EndpointChain.ChainFor<MaybeMessagingEndpoints>(x => x.Yes(null, null));
+        chain.RequiresOutbox().ShouldBeTrue();
+    }
+    
+    [Fact]
+    public void does_not_use_outbox_when_not_using_message_bus()
+    {
+        var chain = EndpointChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null));
+        chain.RequiresOutbox().ShouldBeFalse();
+    }
+}
+
+public class MaybeMessagingEndpoints
+{
+    [HttpPost("/messaging/yes")]
+    public Task Yes(Question question, IMessageBus bus)
+    {
+        return Task.CompletedTask;
+    }
+    
+    [HttpPost("/messaging/no")]
+    public Task No(Question question)
+    {
+        return Task.CompletedTask;
+    }
 }
 
 [Authorize]

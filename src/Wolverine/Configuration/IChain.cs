@@ -35,6 +35,8 @@ public interface IChain
     /// </summary>
     /// <returns></returns>
     bool ShouldFlushOutgoingMessages();
+    
+    bool RequiresOutbox();
 
     MethodCall[] HandlerCalls();
 
