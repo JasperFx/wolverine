@@ -1,16 +1,14 @@
-using System.Linq;
 using JasperFx.CodeGeneration;
 using Lamar;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Sagas;
-using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Persistence;
 
-internal class AutoApplyTransactions : IHandlerPolicy
+internal class AutoApplyTransactions : IChainPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
         var providers = rules.PersistenceProviders();
         if (!providers.Any()) return;

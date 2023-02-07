@@ -52,7 +52,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handlers.Add(call);
     }
 
-    public bool HasAttribute<T>() where T : Attribute
+    public override bool HasAttribute<T>()
     {
         return Handlers.Any(x => x.Method.HasAttribute<T>() || x.HandlerType.HasAttribute<T>());
     }

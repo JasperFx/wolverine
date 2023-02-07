@@ -157,6 +157,11 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         return new[] { Method };
     }
 
+    public override bool HasAttribute<T>()
+    {
+        return Method.HandlerType.HasAttribute<T>() || Method.Method.HasAttribute<T>();
+    }
+
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
         assembly.UsingNamespaces.Fill(typeof(RoutingHttpContextExtensions).Namespace);

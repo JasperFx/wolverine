@@ -103,4 +103,6 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             foreach (var dependency in @default.Instance.Dependencies) yield return dependency.ServiceType;
         }
     }
+
+    public abstract bool HasAttribute<T>() where T : Attribute;
 }

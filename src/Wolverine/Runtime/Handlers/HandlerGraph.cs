@@ -180,8 +180,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
         Group();
 
-        // TODO -- look for more generic IChainPolicy later
-        foreach (var policy in options.RegisteredPolicies.OfType<IHandlerPolicy>()) policy.Apply(Chains, Rules, container);
+        foreach (var policy in handlerPolicies(options)) policy.Apply(Chains, Rules, container);
 
         Container = container;
 
@@ -196,6 +195,16 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
         foreach (var chain in Chains)
             _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
+    }
+
+    private IEnumerable<IHandlerPolicy> handlerPolicies(WolverineOptions options)
+    {
+        foreach (var policy in options.RegisteredPolicies)
+        {
+            if (policy is IHandlerPolicy h) yield return h;
+
+            if (policy is IChainPolicy c) yield return new HandlerChainPolicy(c);
+        }
     }
 
     public bool TryFindMessageType(string messageTypeName, out Type messageType)

@@ -47,6 +47,14 @@ public interface IChain
     /// <param name="container"></param>
     /// <returns></returns>
     IEnumerable<Type> ServiceDependencies(IContainer container);
+
+    /// <summary>
+    /// Does this chain have the designated attribute type anywhere in
+    /// its handlers?
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    bool HasAttribute<T>() where T : Attribute;
 }
 
 #endregion
