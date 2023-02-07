@@ -70,7 +70,7 @@ public sealed partial class WolverineOptions
     /// <summary>
     ///     Options for applying conventional configuration to all or a subset of messaging endpoints
     /// </summary>
-    public IEndpointPolicies Policies => new EndpointPolicies(Transports, this);
+    public IPolicies Policies => this;
 
     /// <summary>
     /// </summary>

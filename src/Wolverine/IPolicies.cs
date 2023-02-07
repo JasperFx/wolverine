@@ -4,7 +4,7 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine;
 
-public interface IEndpointPolicies
+public interface IPolicies
 {
     /// <summary>
     ///     Add a new endpoint policy

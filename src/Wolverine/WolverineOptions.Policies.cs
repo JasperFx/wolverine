@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
@@ -7,43 +5,34 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine;
 
-internal class EndpointPolicies : IEndpointPolicies
+public sealed partial class WolverineOptions : IPolicies
 {
-    private readonly TransportCollection _endpoints;
-    private readonly WolverineOptions _wolverineOptions;
-
-    public EndpointPolicies(TransportCollection endpoints, WolverineOptions wolverineOptions)
+    void IPolicies.Add<T>()
     {
-        _endpoints = endpoints;
-        _wolverineOptions = wolverineOptions;
+        this.As<IPolicies>().Add(new T());
     }
 
-    public void Add<T>() where T : IEndpointPolicy, new()
+    void IPolicies.Add(IEndpointPolicy policy)
     {
-        Add(new T());
+        Transports.AddPolicy(policy);
     }
 
-    public void Add(IEndpointPolicy policy)
+    void IPolicies.UseDurableInboxOnAllListeners()
     {
-        _endpoints.AddPolicy(policy);
+        this.As<IPolicies>().AllListeners(x => x.UseDurableInbox());
     }
 
-    public void UseDurableInboxOnAllListeners()
+    void IPolicies.UseDurableLocalQueues()
     {
-        AllListeners(x => x.UseDurableInbox());
+        this.As<IPolicies>().AllLocalQueues(q => q.UseDurableInbox());
     }
 
-    public void UseDurableLocalQueues()
+    void IPolicies.UseDurableOutboxOnAllSendingEndpoints()
     {
-        AllLocalQueues(q => q.UseDurableInbox());
+        this.As<IPolicies>().AllSenders(x => x.UseDurableOutbox());
     }
 
-    public void UseDurableOutboxOnAllSendingEndpoints()
-    {
-        AllSenders(x => x.UseDurableOutbox());
-    }
-
-    public void AllListeners(Action<ListenerConfiguration> configure)
+    void IPolicies.AllListeners(Action<ListenerConfiguration> configure)
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
@@ -68,10 +57,10 @@ internal class EndpointPolicies : IEndpointPolicies
             configuration.As<IDelayedEndpointConfiguration>().Apply();
         });
 
-        _endpoints.AddPolicy(policy);
+        Transports.AddPolicy(policy);
     }
 
-    public void AllSenders(Action<ISubscriberConfiguration> configure)
+    void IPolicies.AllSenders(Action<ISubscriberConfiguration> configure)
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
@@ -96,10 +85,10 @@ internal class EndpointPolicies : IEndpointPolicies
             configuration.As<IDelayedEndpointConfiguration>().Apply();
         });
 
-        _endpoints.AddPolicy(policy);
+        Transports.AddPolicy(policy);
     }
 
-    public void AllLocalQueues(Action<IListenerConfiguration> configure)
+    void IPolicies.AllLocalQueues(Action<IListenerConfiguration> configure)
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
         {
@@ -117,12 +106,11 @@ internal class EndpointPolicies : IEndpointPolicies
             }
         });
 
-        _endpoints.AddPolicy(policy);
-    }
-    
-    public LocalMessageRoutingConvention ConfigureConventionalLocalRouting()
-    {
-        return _wolverineOptions.LocalRouting;
+        Transports.AddPolicy(policy);
     }
 
+    LocalMessageRoutingConvention IPolicies.ConfigureConventionalLocalRouting()
+    {
+        return LocalRouting;
+    }
 }
