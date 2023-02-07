@@ -9,7 +9,7 @@ namespace Wolverine.Configuration;
 /// <summary>
 ///     Use to apply your own conventions or policies to message handlers
 /// </summary>
-public interface IHandlerPolicy
+public interface IHandlerPolicy : IWolverinePolicy
 {
     /// <summary>
     ///     Called during bootstrapping to alter how the message handlers are configured
