@@ -47,7 +47,7 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
 
     public IReadOnlyList<ICodeFile> BuildFiles()
     {
-        return new List<ICodeFile>();
+        return _chains;
     }
 
     public string ChildNamespace => "Endpoints";

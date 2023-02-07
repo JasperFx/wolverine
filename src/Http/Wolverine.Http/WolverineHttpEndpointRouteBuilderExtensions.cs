@@ -1,9 +1,9 @@
 using System.Text.Json;
-using JasperFx.CodeGeneration;
 using Lamar;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http;
@@ -39,6 +39,8 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.JsonSerializerOptions = container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
         options.Endpoints = new EndpointGraph(runtime.Options, container);
         options.Endpoints.DiscoverEndpoints();
+        
+        container.GetInstance<WolverineSupplementalCodeFiles>().Collections.Add(options.Endpoints);
 
         endpoints.DataSources.Add(options.Endpoints);
     }
