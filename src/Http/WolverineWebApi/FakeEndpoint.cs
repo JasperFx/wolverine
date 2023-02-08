@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace Wolverine.Http.Tests;
+namespace WolverineWebApi;
 
 public class FakeEndpoint
 {

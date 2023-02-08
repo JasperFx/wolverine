@@ -7,6 +7,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
 using Lamar;
+using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
 
