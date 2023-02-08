@@ -19,7 +19,7 @@ public abstract class CompilationContext : IDisposable
 
     public CompilationContext()
     {
-        theOptions.Handlers.DisableConventionalDiscovery();
+        theOptions.DisableConventionalDiscovery();
     }
 
     public void Dispose()

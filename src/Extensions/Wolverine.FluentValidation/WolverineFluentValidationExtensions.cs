@@ -42,7 +42,7 @@ public static class WolverineFluentValidationExtensions
             });
         }
 
-        options.Handlers.OnException<ValidationException>().Discard();
+        options.OnException<ValidationException>().Discard();
         options.Policies.Add<FluentValidationPolicy>();
 
         return options;

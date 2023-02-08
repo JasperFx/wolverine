@@ -25,7 +25,7 @@ public class HostsFixture : IAsyncLifetime
                 opts.ServiceName = "Subscriber1";
                 opts.ApplicationAssembly = GetType().Assembly;
 
-                opts.Handlers.Discovery(source =>
+                opts.Policies.Discovery(source =>
                 {
                     source.DisableConventionalDiscovery();
                     source.IncludeType<Subscriber1Handlers>();
@@ -58,7 +58,7 @@ public class HostsFixture : IAsyncLifetime
                 opts.ServiceName = "Subscriber2";
                 opts.ApplicationAssembly = GetType().Assembly;
 
-                opts.Handlers.Discovery(source =>
+                opts.Policies.Discovery(source =>
                 {
                     source.DisableConventionalDiscovery();
                     source.IncludeType<Subscriber2Handlers>();

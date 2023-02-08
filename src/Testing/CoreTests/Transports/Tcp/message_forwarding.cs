@@ -15,8 +15,8 @@ public class message_forwarding
     {
         using var host = WolverineHost.For(opts =>
         {
-            opts.Handlers.DisableConventionalDiscovery();
-            opts.Handlers.IncludeType<NewMessageHandler>();
+            opts.DisableConventionalDiscovery();
+            opts.IncludeType<NewMessageHandler>();
 
             opts.Publish(x =>
             {

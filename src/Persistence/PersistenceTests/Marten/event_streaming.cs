@@ -38,7 +38,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.PublishAllMessages().ToPort(receiverPort).UseDurableOutbox();
-                opts.Handlers.DisableConventionalDiscovery().IncludeType<TriggerHandler>();
+                opts.DisableConventionalDiscovery().IncludeType<TriggerHandler>();
             })
             .ConfigureServices(services =>
             {

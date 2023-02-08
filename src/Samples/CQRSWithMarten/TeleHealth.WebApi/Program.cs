@@ -26,11 +26,11 @@ builder.Host.UseWolverine(opts =>
 
     // If we encounter a concurrency exception, just try it immediately
     // up to 3 times total
-    opts.Handlers.OnException<ConcurrencyException>().RetryTimes(3);
+    opts.Policies.OnException<ConcurrencyException>().RetryTimes(3);
 
     // It's an imperfect world, and sometimes transient connectivity errors
     // to the database happen
-    opts.Handlers.OnException<NpgsqlException>()
+    opts.Policies.OnException<NpgsqlException>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
 });
 

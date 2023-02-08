@@ -56,7 +56,7 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void ignore_method_marked_as_NotHandler()
     {
-        with(x => x.Handlers.DisableConventionalDiscovery().IncludeType<NetflixHandler>());
+        with(x => x.DisableConventionalDiscovery().IncludeType<NetflixHandler>());
         //withAllDefaults();
         chainFor<MovieAdded>()
             .ShouldNotHaveHandler<NetflixHandler>(x => x.Handles(new MovieAdded()));
@@ -85,7 +85,7 @@ public class customized_finding : IntegrationContext
     [Fact]
     public void extra_suffix()
     {
-        with(x => x.Handlers.Discovery(d => d.IncludeClassesSuffixedWith("Watcher")));
+        with(x => x.Policies.Discovery(d => d.IncludeClassesSuffixedWith("Watcher")));
 
         chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null));
     }
@@ -93,7 +93,7 @@ public class customized_finding : IntegrationContext
     [Fact]
     public void handler_types_from_a_marker_interface()
     {
-        with(x => x.Handlers.Discovery(d => d.IncludeTypesImplementing<IMovieThing>()));
+        with(x => x.Policies.Discovery(d => d.IncludeTypesImplementing<IMovieThing>()));
 
         chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
     }

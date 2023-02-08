@@ -49,7 +49,7 @@ public class remote_invocation : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.DisableConventionalDiscovery();
+                opts.DisableConventionalDiscovery();
                 opts.ServiceName = "Sender";
                 opts.ListenAtPort(senderPort);
 

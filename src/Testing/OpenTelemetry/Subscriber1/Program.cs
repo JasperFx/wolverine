@@ -14,7 +14,7 @@ return await Host.CreateDefaultBuilder(args)
     {
         opts.ServiceName = "Subscriber1";
 
-        opts.Handlers.Discovery(source =>
+        opts.Policies.Discovery(source =>
         {
             source.DisableConventionalDiscovery();
             source.IncludeType<Subscriber1Handlers>();

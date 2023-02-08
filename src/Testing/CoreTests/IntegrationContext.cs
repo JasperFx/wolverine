@@ -14,8 +14,8 @@ public class DefaultApp : IDisposable
     {
         Host = WolverineHost.For(x =>
         {
-            x.Handlers.IncludeType<MessageConsumer>();
-            x.Handlers.IncludeType<InvokedMessageHandler>();
+            x.IncludeType<MessageConsumer>();
+            x.IncludeType<InvokedMessageHandler>();
         });
     }
 

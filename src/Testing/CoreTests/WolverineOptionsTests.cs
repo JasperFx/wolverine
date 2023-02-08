@@ -72,7 +72,7 @@ public class WolverineOptionsTests
     public void sets_up_the_container_with_services()
     {
         var registry = new WolverineOptions();
-        registry.Handlers.DisableConventionalDiscovery();
+        registry.DisableConventionalDiscovery();
         registry.Services.For<IFoo>().Use<Foo>();
         registry.Services.AddTransient<IFakeStore, FakeStore>();
 

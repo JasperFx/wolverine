@@ -22,7 +22,7 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
             opts.UseAzureServiceBusTesting()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-            opts.Handlers.DisableConventionalDiscovery();
+            opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
 

@@ -85,7 +85,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
     private void configureSender(WolverineOptions options)
     {
-        options.Handlers
+        options
             .DisableConventionalDiscovery()
             .IncludeType<PongHandler>();
 
@@ -108,8 +108,8 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
     private static void configureReceiver(WolverineOptions options)
     {
-        options.Handlers.Failures.MaximumAttempts = 3;
-        options.Handlers
+        options.Policies.Failures.MaximumAttempts = 3;
+        options
             .DisableConventionalDiscovery()
             .IncludeType<MessageConsumer>()
             .IncludeType<ExecutedMessageGuy>()
@@ -120,13 +120,13 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
         options.AddSerializer(new BlueTextReader());
 
-        options.Handlers.OnException<DivideByZeroException>()
+        options.Policies.OnException<DivideByZeroException>()
             .MoveToErrorQueue();
 
-        options.Handlers.OnException<DataMisalignedException>()
+        options.Policies.OnException<DataMisalignedException>()
             .Requeue();
 
-        options.Handlers.OnException<BadImageFormatException>()
+        options.Policies.OnException<BadImageFormatException>()
             .ScheduleRetry(3.Seconds());
 
 

@@ -369,7 +369,7 @@ public class end_to_end
 
             opts.PublishAllMessages().ToRabbitTopic("special", "topics");
 
-            opts.Handlers.DisableConventionalDiscovery();
+            opts.DisableConventionalDiscovery();
         });
 
         var receiver = WolverineHost.For(opts =>
@@ -378,7 +378,7 @@ public class end_to_end
 
             opts.ListenToRabbitQueue(queueName);
 
-            opts.Handlers.DisableConventionalDiscovery().IncludeType<SpecialTopicGuy>();
+            opts.DisableConventionalDiscovery().IncludeType<SpecialTopicGuy>();
         });
 
         try

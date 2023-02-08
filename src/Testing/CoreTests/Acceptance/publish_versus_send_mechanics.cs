@@ -15,7 +15,7 @@ public class publish_versus_send_mechanics : IntegrationContext
     {
         with(opts =>
         {
-            opts.Handlers.DisableConventionalDiscovery();
+            opts.DisableConventionalDiscovery();
 
             opts.Publish(x => x
                 .Message<Message1>()

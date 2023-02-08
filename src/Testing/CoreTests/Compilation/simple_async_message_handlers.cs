@@ -9,7 +9,7 @@ public class simple_async_message_handlers : CompilationContext
 {
     public simple_async_message_handlers()
     {
-        theOptions.Handlers.IncludeType<AsyncHandler>();
+        theOptions.IncludeType<AsyncHandler>();
     }
 
     [Fact]

@@ -1,11 +1,12 @@
 using System;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 
 namespace Wolverine;
 
-public interface IPolicies : IEnumerable<IWolverinePolicy>
+public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
 {
     /// <summary>
     /// Add a new Wolverine policy
@@ -86,4 +87,12 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>
     /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
     void AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null);
     
+    /// <summary>
+    ///     Configure how & where Wolverine discovers message handler classes to override or expand
+    ///     the built in conventions
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    void Discovery(Action<HandlerSource> configure);
+
 }

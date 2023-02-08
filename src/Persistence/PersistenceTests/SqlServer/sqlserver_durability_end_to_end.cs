@@ -53,8 +53,8 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.Handlers.DisableConventionalDiscovery();
-                    opts.Handlers.IncludeType<TraceHandler>();
+                    opts.DisableConventionalDiscovery();
+                    opts.IncludeType<TraceHandler>();
                     opts.Policies.AutoApplyTransactions();
 
                     opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, ReceiverSchemaName);
@@ -69,7 +69,7 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.Handlers.DisableConventionalDiscovery();
+                    opts.DisableConventionalDiscovery();
                     opts.Policies.AutoApplyTransactions();
 
                     opts.Publish(x => x.Message<TraceMessage>().To(_listener)

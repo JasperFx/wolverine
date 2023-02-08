@@ -131,7 +131,7 @@ internal static class HandlerSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.Discovery(x =>
+                opts.Policies.Discovery(x =>
                 {
                     // Turn off the default handler conventions
                     // altogether

@@ -28,7 +28,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         var senderPort = PortFinder.GetAvailablePort();
 
         var senderRegistry = new WolverineOptions();
-        senderRegistry.Handlers
+        senderRegistry
             .DisableConventionalDiscovery()
             .IncludeType<CascadeReceiver>()
             .IncludeType<ScheduledMessageHandler>();
@@ -54,7 +54,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
 
         var receiverRegistry = new WolverineOptions();
-        receiverRegistry.Handlers.DisableConventionalDiscovery()
+        receiverRegistry.DisableConventionalDiscovery()
             .IncludeType<TTriggerHandler>()
             .IncludeType<TItemCreatedHandler>()
             .IncludeType<QuestionHandler>()

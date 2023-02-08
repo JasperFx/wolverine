@@ -20,7 +20,7 @@ public static class AppWithErrorHandling
             {
                 // On a SqlException, reschedule the message to be retried
                 // at 3 seconds, then 15, then 30 seconds later
-                opts.Handlers.OnException<SqlException>()
+                opts.Policies.OnException<SqlException>()
                     .ScheduleRetry(3.Seconds(), 15.Seconds(), 30.Seconds());
             }).StartAsync();
 
@@ -34,7 +34,7 @@ public static class AppWithErrorHandling
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.OnException<TimeoutException>()
+                opts.Policies.OnException<TimeoutException>()
                     // Just retry the message again on the
                     // first failure
                     .RetryOnce()

@@ -10,9 +10,9 @@ public class Fallback_from_Chain_to_Global_Error_Handling : ErrorHandlingContext
 {
     public Fallback_from_Chain_to_Global_Error_Handling()
     {
-        theOptions.Handlers.OnException<DivideByZeroException>().RetryTimes(3);
-        theOptions.Handlers.OnException<DataMisalignedException>().Requeue();
-        theOptions.Handlers.OnException<DataMisalignedException>().MoveToErrorQueue();
+        theOptions.Policies.OnException<DivideByZeroException>().RetryTimes(3);
+        theOptions.Policies.OnException<DataMisalignedException>().Requeue();
+        theOptions.Policies.OnException<DataMisalignedException>().MoveToErrorQueue();
 
         theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
         {

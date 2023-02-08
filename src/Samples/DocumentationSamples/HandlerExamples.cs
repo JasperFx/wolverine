@@ -216,7 +216,7 @@ namespace DocumentationSamples
                 .UseWolverine(opts =>
                 {
                     // No automatic discovery of handlers
-                    opts.Handlers.DisableConventionalDiscovery();
+                    opts.DisableConventionalDiscovery();
                 }).StartAsync();
 
             #endregion

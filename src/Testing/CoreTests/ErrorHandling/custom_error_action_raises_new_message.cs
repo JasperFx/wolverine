@@ -36,7 +36,7 @@ public class custom_error_action_raises_new_message_1 : IAsyncLifetime
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "Receiver";
 
-                opts.Handlers.OnException<ShippingFailedException>()
+                opts.Policies.OnException<ShippingFailedException>()
                     .Discard().And(async (_, context, _) =>
                     {
                         if (context.Envelope?.Message is ShipOrder cmd)
@@ -120,7 +120,7 @@ public class custom_error_action_raises_new_message_2 : IAsyncLifetime
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "Receiver";
 
-                opts.Handlers.OnException<ShippingFailedException>()
+                opts.Policies.OnException<ShippingFailedException>()
                     .Discard().And<ShippingOrderFailurePolicy>();
             }).StartAsync();
 

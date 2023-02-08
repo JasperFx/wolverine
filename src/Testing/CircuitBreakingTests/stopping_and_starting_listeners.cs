@@ -31,7 +31,7 @@ public class stopping_and_starting_listeners : IDisposable
             opts.ListenAtPort(_port2).Named("two");
             opts.ListenAtPort(_port3).Named("three");
 
-            opts.Handlers.OnException<DivideByZeroException>()
+            opts.Policies.OnException<DivideByZeroException>()
                 .Requeue().AndPauseProcessing(5.Seconds());
         });
     }

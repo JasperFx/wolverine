@@ -55,11 +55,11 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
 
             opts.Services.AddSingleton<ILogger<WolverineRuntime>>(this);
 
-            opts.Handlers.OnException<DivideByZeroException>().Requeue();
+            opts.Policies.OnException<DivideByZeroException>().Requeue();
 
-            opts.Handlers.IncludeType<InvokedMessageHandler>();
+            opts.IncludeType<InvokedMessageHandler>();
 
-            opts.Handlers.Failures.MaximumAttempts = 3;
+            opts.Policies.Failures.MaximumAttempts = 3;
         });
     }
 

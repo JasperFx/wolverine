@@ -61,8 +61,11 @@ public class configuration_specs
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
 
-        var handlers = host.Services.GetRequiredService<IWolverineRuntime>()
-            .As<WolverineRuntime>().Options.Handlers.As<HandlerGraph>();
+        var wolverineOptions = host.Services.GetRequiredService<IWolverineRuntime>()
+            .As<WolverineRuntime>().Options;
+        
+        // Not proud of this code
+        var handlers = (HandlerGraph)typeof(WolverineOptions).GetProperty(nameof(HandlerGraph)).GetValue(wolverineOptions);
 
         handlers.ChainFor<Command1>().Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(FluentValidationExecutor) &&

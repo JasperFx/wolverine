@@ -27,7 +27,7 @@ public class local_durable_queue : CircuitBreakerIntegrationContext
             })
             ;
 
-        opts.Handlers.OnAnyException().Requeue();
+        opts.Policies.OnAnyException().Requeue();
 
         opts.Services.AddMarten(opts =>
         {

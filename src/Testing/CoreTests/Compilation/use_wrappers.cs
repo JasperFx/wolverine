@@ -14,7 +14,7 @@ public class use_wrappers : CompilationContext
 
     public use_wrappers()
     {
-        theOptions.Handlers.IncludeType<TransactionalHandler>();
+        theOptions.IncludeType<TransactionalHandler>();
 
         theOptions.Services.AddSingleton(theTracking);
         theOptions.Services.ForSingletonOf<IFakeStore>().Use<FakeStore>();

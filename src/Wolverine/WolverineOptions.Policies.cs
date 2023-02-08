@@ -1,6 +1,7 @@
 using System.Collections;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Runtime.Handlers;
@@ -161,6 +162,11 @@ public sealed partial class WolverineOptions : IPolicies
         });
     }
 
+    void IPolicies.Discovery(Action<HandlerSource> configure)
+    {
+        configure(HandlerGraph.Source);
+    }
+
     void IPolicies.AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
     {
         this.As<IPolicies>().AddMiddleware(typeof(T), filter);
@@ -175,4 +181,6 @@ public sealed partial class WolverineOptions : IPolicies
     {
         return RegisteredPolicies.GetEnumerator();
     }
+
+    FailureRuleCollection IWithFailurePolicies.Failures => HandlerGraph.Failures;
 }

@@ -30,7 +30,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
         var senderRegistry = new WolverineOptions();
         senderRegistry.Services.ForSingletonOf<ILogger>().Use(NullLogger.Instance);
-        senderRegistry.Handlers
+        senderRegistry
             .DisableConventionalDiscovery()
             .IncludeType<CascadeReceiver>()
             .IncludeType<ScheduledMessageHandler>();
@@ -56,7 +56,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
         var receiverRegistry = new WolverineOptions();
         receiverRegistry.Services.ForSingletonOf<ILogger>().Use(NullLogger.Instance);
-        receiverRegistry.Handlers.DisableConventionalDiscovery()
+        receiverRegistry.DisableConventionalDiscovery()
             .IncludeType<TTriggerHandler>()
             .IncludeType<TItemCreatedHandler>()
             .IncludeType<QuestionHandler>()

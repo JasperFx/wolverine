@@ -30,7 +30,7 @@ public class sql_server_scheduled_jobs : IAsyncLifetime
                 opts.Publish(x => x.MessagesFromAssemblyContaining<ScheduledMessageReceiver>()
                     .ToLocalQueue("incoming").UseDurableInbox());
 
-                opts.Handlers.Discovery(x =>
+                opts.Policies.Discovery(x =>
                 {
                     x.DisableConventionalDiscovery();
                     x.IncludeType<ScheduledMessageCatcher>();

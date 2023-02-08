@@ -18,7 +18,7 @@ public class extension_loading_and_discovery : IntegrationContext
     public void the_application_still_wins()
     {
         var options = new WolverineOptions();
-        options.Handlers.DisableConventionalDiscovery();
+        options.DisableConventionalDiscovery();
         options.Include<OptionalExtension>();
         options.Services.For<IColorService>().Use<BlueService>();
 
@@ -31,7 +31,7 @@ public class extension_loading_and_discovery : IntegrationContext
     public void try_find_extension_miss()
     {
         var options = new WolverineOptions();
-        options.Handlers.DisableConventionalDiscovery();
+        options.DisableConventionalDiscovery();
         //options.Include<OptionalExtension>();
 
         using var host = WolverineHost.For(options);
@@ -43,7 +43,7 @@ public class extension_loading_and_discovery : IntegrationContext
     public void try_find_extension_hit()
     {
         var options = new WolverineOptions();
-        options.Handlers.DisableConventionalDiscovery();
+        options.DisableConventionalDiscovery();
         options.Include<OptionalExtension>();
 
         using var host = WolverineHost.For(options);
@@ -55,11 +55,11 @@ public class extension_loading_and_discovery : IntegrationContext
     public void try_find_extension_hit_2()
     {
         var options = new WolverineOptions();
-        options.Handlers.DisableConventionalDiscovery();
+        options.DisableConventionalDiscovery();
         options.Services.AddSingleton<IWolverineExtension>(new OptionalExtension());
 
         using var host = new HostBuilder()
-            .UseWolverine(opts => { opts.Handlers.DisableConventionalDiscovery(); })
+            .UseWolverine(opts => { opts.DisableConventionalDiscovery(); })
             .ConfigureServices(services => services.AddSingleton<IWolverineExtension, OptionalExtension>())
             .Start();
 
@@ -77,7 +77,7 @@ public class extension_loading_and_discovery : IntegrationContext
 
         #endregion
 
-        registry.Handlers.DisableConventionalDiscovery();
+        registry.DisableConventionalDiscovery();
 
         using (var runtime = WolverineHost.For(registry))
         {
@@ -137,7 +137,7 @@ public class MyExtension : IWolverineExtension
 {
     public void Configure(WolverineOptions options)
     {
-        options.Handlers.IncludeType<ExtensionThing>();
+        options.IncludeType<ExtensionThing>();
     }
 }
 

@@ -20,7 +20,7 @@ public class end_to_end_with_conventional_routing : IDisposable
         _sender = WolverineHost.For(opts =>
         {
             opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-            opts.Handlers.DisableConventionalDiscovery();
+            opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
 

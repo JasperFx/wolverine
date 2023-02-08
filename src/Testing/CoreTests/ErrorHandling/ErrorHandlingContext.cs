@@ -18,8 +18,8 @@ public class ErrorHandlingContext
 
     public ErrorHandlingContext()
     {
-        theOptions.Handlers.DisableConventionalDiscovery()
-            .Discovery(x => x.IncludeType<ErrorCausingMessageHandler>());
+        theOptions.DisableConventionalDiscovery()
+            .Policies.Discovery(x => x.IncludeType<ErrorCausingMessageHandler>());
     }
 
     protected void throwOnAttempt<T>(int attempt) where T : Exception, new()

@@ -24,7 +24,7 @@ public class EfCoreSagaHost : ISagaHost
     {
         _host = WolverineHost.For(opts =>
         {
-            opts.Handlers.DisableConventionalDiscovery().IncludeType<TSaga>();
+            opts.DisableConventionalDiscovery().IncludeType<TSaga>();
 
             opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
 

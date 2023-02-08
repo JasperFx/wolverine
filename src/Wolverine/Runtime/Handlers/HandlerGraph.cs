@@ -24,7 +24,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
-public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
+public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 {
     public static readonly string Context = "context";
     private readonly List<HandlerCall> _calls = new();
@@ -65,12 +65,6 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     public IEnumerable<Assembly> ExtensionAssemblies => Source.Assemblies;
 
     public FailureRuleCollection Failures { get; set; } = new();
-
-    public IHandlerConfiguration Discovery(Action<HandlerSource> configure)
-    {
-        configure(Source);
-        return this;
-    }
     
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
     {

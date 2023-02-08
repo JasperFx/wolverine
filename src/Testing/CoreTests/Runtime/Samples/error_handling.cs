@@ -36,12 +36,12 @@ public class error_handling
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.OnException<TimeoutException>().ScheduleRetry(5.Seconds());
-                opts.Handlers.OnException<SecurityException>().MoveToErrorQueue();
+                opts.Policies.OnException<TimeoutException>().ScheduleRetry(5.Seconds());
+                opts.Policies.OnException<SecurityException>().MoveToErrorQueue();
 
                 // You can also apply an additional filter on the
                 // exception type for finer grained policies
-                opts.Handlers
+                opts.Policies
                     .OnException<SocketException>(ex => ex.Message.Contains("not responding"))
                     .ScheduleRetry(5.Seconds());
             }).StartAsync();
@@ -56,7 +56,7 @@ public class error_handling
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers
+                opts.Policies
                     .OnException<SqlException>()
                     .Or<InvalidOperationException>(ex => ex.Message.Contains("Intermittent message of some kind"))
                     .OrInner<BadImageFormatException>()
@@ -65,7 +65,7 @@ public class error_handling
                     .Requeue();
 
                 // Use different actions for different exception types
-                opts.Handlers.OnException<InvalidOperationException>().RetryTimes(3);
+                opts.Policies.OnException<InvalidOperationException>().RetryTimes(3);
             }).StartAsync();
 
         #endregion
@@ -80,10 +80,10 @@ public class error_handling
             {
                 // Try to execute the message again without going
                 // back through the queue up to 5 times
-                opts.Handlers.OnException<SqlException>().RetryTimes(5);
+                opts.OnException<SqlException>().RetryTimes(5);
 
                 // Retry with a cooldown up to 3 times, then discard the message
-                opts.Handlers.OnException<TimeoutException>()
+                opts.OnException<TimeoutException>()
                     .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds())
                     .Then.Discard();
 
@@ -91,7 +91,7 @@ public class error_handling
                 // Retry the message again, but wait for the specified time
                 // The message will be dead lettered if it exhausts the delay
                 // attempts
-                opts.Handlers
+                opts
                     .OnException<SqlException>()
                     .ScheduleRetry(3.Seconds(), 10.Seconds(), 20.Seconds());
 
@@ -99,7 +99,7 @@ public class error_handling
                 // attempted again
                 // The message will be dead lettered if it exceeds the maximum number
                 // of attempts
-                opts.Handlers.OnException<SqlException>().Requeue(5);
+                opts.OnException<SqlException>().Requeue(5);
             }).StartAsync();
 
         #endregion
@@ -113,7 +113,7 @@ public class error_handling
             .UseWolverine(opts =>
             {
                 // Don't retry, immediately send to the error queue
-                opts.Handlers.OnException<TimeoutException>().MoveToErrorQueue();
+                opts.OnException<TimeoutException>().MoveToErrorQueue();
             }).StartAsync();
 
         #endregion
@@ -128,7 +128,7 @@ public class error_handling
             {
                 // The failing message is requeued for later processing, then
                 // the specific listener is paused for 10 minutes
-                opts.Handlers.OnException<SystemIsCompletelyUnusableException>()
+                opts.OnException<SystemIsCompletelyUnusableException>()
                     .Requeue().AndPauseProcessing(10.Minutes());
             }).StartAsync();
 
@@ -143,7 +143,7 @@ public class error_handling
             .UseWolverine(opts =>
             {
                 // Bad message, get this thing out of here!
-                opts.Handlers.OnException<InvalidMessageYouWillNeverBeAbleToProcessException>()
+                opts.OnException<InvalidMessageYouWillNeverBeAbleToProcessException>()
                     .Discard();
             }).StartAsync();
 
@@ -160,7 +160,7 @@ public class error_handling
                 // Retry the message again, but wait for the specified time
                 // The message will be dead lettered if it exhausts the delay
                 // attempts
-                opts.Handlers
+                opts
                     .OnException<SqlException>()
                     .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
             }).StartAsync();

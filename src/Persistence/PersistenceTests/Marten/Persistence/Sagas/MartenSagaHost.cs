@@ -19,7 +19,7 @@ public class MartenSagaHost : ISagaHost
     {
         _host = WolverineHost.For(opts =>
         {
-            opts.Handlers.DisableConventionalDiscovery().IncludeType<TSaga>();
+            opts.DisableConventionalDiscovery().IncludeType<TSaga>();
 
             opts.Services.AddMarten(x =>
             {

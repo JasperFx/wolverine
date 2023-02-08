@@ -63,7 +63,7 @@ public class BootstrappingTests : IntegrationContext
         with(opts =>
         {
             opts.Node.CodeGeneration.Sources.Add(new SpecialServiceSource());
-            opts.Handlers.IncludeType<SpecialServiceUsingThing>();
+            opts.IncludeType<SpecialServiceUsingThing>();
         });
 
 
@@ -77,7 +77,7 @@ public class BootstrappingTests : IntegrationContext
         using var host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.DisableConventionalDiscovery();
+                opts.DisableConventionalDiscovery();
 
                 opts.Services.For<IModuleService>().Use<AppsModuleService>();
             }).Start();

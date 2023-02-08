@@ -136,12 +136,6 @@ public sealed partial class WolverineOptions
     internal HandlerGraph HandlerGraph { get; } = new();
 
     /// <summary>
-    ///     Options to control how Wolverine discovers message handler actions, error
-    ///     handling, local worker queues, and other policies on message handling
-    /// </summary>
-    public IHandlerConfiguration Handlers => HandlerGraph;
-
-    /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is
     ///     derived from the name of a custom WolverineOptions
     /// </summary>

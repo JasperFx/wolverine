@@ -23,6 +23,6 @@ internal class MartenIntegration : IWolverineExtension
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
         
-        options.Handlers.Discovery(x => x.IncludeTypes(type => type.HasAttribute<MartenCommandWorkflowAttribute>()));
+        options.Policies.Discovery(x => x.IncludeTypes(type => type.HasAttribute<MartenCommandWorkflowAttribute>()));
     }
 }
