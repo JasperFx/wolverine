@@ -17,6 +17,7 @@ internal class TransactionalFrame : Frame
     private Variable? _context;
     private bool _createsSession;
     private Variable? _factory;
+    private Variable _cancellation;
 
     public TransactionalFrame() : base(true)
     {
@@ -26,6 +27,9 @@ internal class TransactionalFrame : Frame
     
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
+        _cancellation = chain.FindVariable(typeof(CancellationToken));
+        yield return _cancellation;
+        
         Session = chain.TryFindVariable(typeof(IDocumentSession), VariableSource.NotServices);
         if (Session == null)
         {
@@ -71,7 +75,7 @@ internal class TransactionalFrame : Frame
         writer.BlankLine();
         writer.WriteComment("Commit the unit of work");
         writer.Write(
-            $"await {Session!.Usage}.{nameof(IDocumentSession.SaveChangesAsync)}(cancellation).ConfigureAwait(false);");
+            $"await {Session!.Usage}.{nameof(IDocumentSession.SaveChangesAsync)}({_cancellation.Usage}).ConfigureAwait(false);");
     }
 
     public class Loaded

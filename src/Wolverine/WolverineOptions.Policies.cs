@@ -1,3 +1,4 @@
+using System.Collections;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Middleware;
@@ -163,5 +164,15 @@ public sealed partial class WolverineOptions : IPolicies
     void IPolicies.AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
     {
         this.As<IPolicies>().AddMiddleware(typeof(T), filter);
+    }
+
+    IEnumerator<IWolverinePolicy> IEnumerable<IWolverinePolicy>.GetEnumerator()
+    {
+        return RegisteredPolicies.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return RegisteredPolicies.GetEnumerator();
     }
 }

@@ -4,6 +4,7 @@ using System.Threading;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Util;
 
 namespace Wolverine;
@@ -19,7 +20,6 @@ public class NodeSettings
         _serviceName = applicationAssembly?.GetName().Name ?? "WolverineApplication";
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
-        //CodeGeneration.Sources.Add(new ContainerVariableSource());
 
         CodeGeneration.Assemblies.Add(GetType().GetTypeInfo().Assembly);
         CodeGeneration.Assemblies.Add(applicationAssembly);

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -10,7 +6,6 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Configuration;
-using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
@@ -76,7 +71,12 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     {
         var dbType = DetermineDbContextType(chain, container);
 
-        chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
+        if (chain.RequiresOutbox())
+        {
+            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
+        }
+
+        
 
 
         var saveChangesAsync =
@@ -88,10 +88,10 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         };
 
         chain.Postprocessors.Add(call);
-        
+
         chain.Postprocessors.Add(new CommitDbContextTransactionIfNecessary());
-        
-        if (chain.ShouldFlushOutgoingMessages())
+
+        if (chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
         {
 #pragma warning disable CS4014
             chain.Postprocessors.Add(MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync()));
@@ -106,7 +106,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             var sagaType = saga.SagaType;
             return TryDetermineDbContextType(sagaType, container) != null;
         }
-        
+
         return chain.ServiceDependencies(container).Any(x => x.CanBeCastTo<DbContext>());
     }
 
@@ -134,13 +134,15 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, null);
         return null;
     }
-    
+
     internal Type DetermineDbContextType(Type entityType, IContainer container)
     {
         var contextType = TryDetermineDbContextType(entityType, container);
         if (contextType == null)
-            throw new ArgumentOutOfRangeException($"Unable to determine a DbContext type that persists " +
+        {
+            throw new ArgumentOutOfRangeException("Unable to determine a DbContext type that persists " +
                                                   entityType.FullNameInCode());
+        }
 
         return contextType;
     }
@@ -177,56 +179,57 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             _envelopeTransaction = Create(typeof(IEnvelopeTransaction));
         }
 
-        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-        {
-            writer.WriteComment("Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
-            writer.Write($"var {_envelopeTransaction.Usage} = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction({_dbContext!.Usage}, {_context!.Usage});");
-            writer.Write($"await context.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
-            
-            Next?.GenerateCode(method, writer);
-        }
-
-        public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-        {
-            _context = chain.FindVariable(typeof(IMessageContext));
-            yield return _context;
-
-            _dbContext = chain.FindVariable(_dbContextType);
-            yield return _dbContext;
-        }
-        
         public override IEnumerable<Variable> Creates
         {
-            get
-            {
-                yield return _envelopeTransaction;
-            }
-        }
-    }
-    
-    public class CommitDbContextTransactionIfNecessary : SyncFrame
-    {
-        private Variable? _envelopeTransaction;
-
-        public CommitDbContextTransactionIfNecessary()
-        {
+            get { yield return _envelopeTransaction; }
         }
 
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
             writer.WriteComment(
-                "If we have separate context for outbox and application, the we need to manually commit the transaction");
+                "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
             writer.Write(
-                $"if ({_envelopeTransaction.Usage} is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) {{ await rawTx.CommitAsync(); }}");
-            
-            
+                $"var {_envelopeTransaction.Usage} = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction({_dbContext!.Usage}, {_context!.Usage});");
+            writer.Write($"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
+
             Next?.GenerateCode(method, writer);
         }
 
         public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
         {
-            _envelopeTransaction = chain.FindVariable(typeof(IEnvelopeTransaction));
-            yield return _envelopeTransaction;
+            _context = chain.FindVariable(typeof(MessageContext));
+            yield return _context;
+
+            _dbContext = chain.FindVariable(_dbContextType);
+            yield return _dbContext;
+        }
+    }
+
+    public class CommitDbContextTransactionIfNecessary : SyncFrame
+    {
+        private Variable? _envelopeTransaction;
+
+        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+        {
+            if (_envelopeTransaction != null)
+            {
+                writer.WriteComment(
+                    "If we have separate context for outbox and application, the we need to manually commit the transaction");
+                writer.Write(
+                    $"if ({_envelopeTransaction.Usage} is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) {{ await rawTx.CommitAsync(); }}");
+            }
+
+
+            Next?.GenerateCode(method, writer);
+        }
+
+        public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+        {
+            _envelopeTransaction = chain.TryFindVariable(typeof(IEnvelopeTransaction), VariableSource.NotServices);
+            if (_envelopeTransaction != null)
+            {
+                yield return _envelopeTransaction;
+            }
         }
     }
 }

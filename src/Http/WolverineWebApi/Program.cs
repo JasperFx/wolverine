@@ -43,7 +43,7 @@ builder.Host.UseWolverine(opts =>
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
     
-    
+    opts.Policies.AutoApplyTransactions();
 });
 
 var app = builder.Build();

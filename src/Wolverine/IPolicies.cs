@@ -5,7 +5,7 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine;
 
-public interface IPolicies
+public interface IPolicies : IEnumerable<IWolverinePolicy>
 {
     /// <summary>
     /// Add a new Wolverine policy

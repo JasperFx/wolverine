@@ -1,10 +1,11 @@
 using System.Text.Json;
 using JasperFx.CodeGeneration;
 using Lamar;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Primitives;
+using Wolverine.Configuration;
 using Wolverine.Http.Resources;
+using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
@@ -59,6 +60,13 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
         var calls = source.FindActions();
 
         _chains.AddRange(calls.Select(x => new EndpointChain(x, this)));
+
+        // TODO -- allow for IEndpointPolicy later
+        var policies = _options.Policies.OfType<IChainPolicy>();
+        foreach (var policy in policies)
+        {
+            policy.Apply(_chains, Rules, Container);
+        }
         
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint()));
     }

@@ -36,5 +36,10 @@ public class using_marten : IntegrationContext
         var published = tracked.Sent.SingleMessage<Data>();
         published.Id.ShouldBe(input.Id);
         published.Name.ShouldBe(input.Name);
+
+        using var session = Store.LightweightSession();
+        var loaded = await session.LoadAsync<Data>(input.Id);
+
+        loaded.ShouldNotBeNull();
     }
 }

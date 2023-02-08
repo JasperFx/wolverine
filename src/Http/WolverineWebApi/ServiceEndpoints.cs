@@ -14,8 +14,9 @@ public class ServiceEndpoints
     }
 
     [HttpPost("/publish/marten/message")]
-    public async Task PublishData(Data data, IMessageBus bus)
+    public async Task PublishData(Data data, IMessageBus bus, IDocumentSession session)
     {
+        session.Store(data);
         await bus.PublishAsync(new Data { Id = data.Id, Name = data.Name });
     }
 
