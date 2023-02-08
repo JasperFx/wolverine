@@ -14,7 +14,7 @@ public class Fallback_from_Chain_to_Global_Error_Handling : ErrorHandlingContext
         theOptions.Handlers.OnException<DataMisalignedException>().Requeue();
         theOptions.Handlers.OnException<DataMisalignedException>().MoveToErrorQueue();
 
-        theOptions.Handlers.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+        theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
         {
             chain.OnException<DivideByZeroException>().MoveToErrorQueue();
             chain.OnException<InvalidOperationException>().RetryTimes(3);
