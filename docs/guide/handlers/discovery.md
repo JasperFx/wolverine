@@ -83,20 +83,22 @@ public class ValidMessageHandlers
 
 The valid method names are:
 
-1. Handle
-2. Handles
-3. Consume
-4. Consumes
+1. Handle / HandleAsync
+2. Handles / HandlesAsync
+3. Consume / ConsumeAsync
+4. Consumes / ConsumesAsync
 
-And also specific to sagas: TODO -- link to Sagas
+And also specific to sagas: 
 
-1. Start
-2. Starts
-3. Orchestrate
-4. Orchestrates
-5. StartOrHandle
-6. StartsOrHandles
-7. NotFound
+1. Start / StartAsync
+2. Starts / StartAsync
+3. Orchestrate / OrchestrateAsync
+4. Orchestrates / OrchestratesAsync
+5. StartOrHandle / StartOrHandleAsync
+6. StartsOrHandles / StartsOrHandlesAsync
+7. NotFound / NotFoundAsync
+
+See [Stateful Sagas](/guide/durability/sagas) for more information. 
 
 ## Disabling Conventional Discovery
 

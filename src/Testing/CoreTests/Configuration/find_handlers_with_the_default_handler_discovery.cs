@@ -71,10 +71,11 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void find_handlers_from_wolverine_module_extensions()
     {
-        chainFor<CreateOrder>().ShouldHaveHandler<OrderHandler>(x => x.Handle(new CreateOrder()));
-        chainFor<ShipOrder>().ShouldHaveHandler<OrderHandler>(x => x.Handle(new ShipOrder()));
+        chainFor<CreateOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new CreateOrder()));
+        chainFor<ShipOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new ShipOrder()));
     }
 }
+
 
 public class customized_finding : IntegrationContext
 {

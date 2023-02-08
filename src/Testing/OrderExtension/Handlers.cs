@@ -14,11 +14,11 @@ public class ShipOrder
 
 public class OrderHandler
 {
-    public void Handle(CreateOrder create)
+    public void HandleAsync(CreateOrder create)
     {
     }
 
-    public void Handle(ShipOrder command)
+    public void HandleAsync(ShipOrder command)
     {
     }
 }

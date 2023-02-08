@@ -1,15 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.TypeDiscovery;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Handlers;
-using Wolverine.Util;
 
 namespace Wolverine.Configuration;
 
@@ -31,10 +26,13 @@ public sealed class HandlerSource
 
     public HandlerSource()
     {
+        var validMethods = _validMethods.Concat(_validMethods.Select(x => x + "Async"))
+            .ToArray();
+        
         _methodFilters = new ActionMethodFilter();
         _methodFilters.Excludes += m => m.HasAttribute<WolverineIgnoreAttribute>();
 
-        _methodFilters.Includes += m => _validMethods.Contains(m.Name);
+        _methodFilters.Includes += m => validMethods.Contains(m.Name);
 
         IncludeClassesSuffixedWith(HandlerChain.HandlerSuffix);
         IncludeClassesSuffixedWith(HandlerChain.ConsumerSuffix);
