@@ -10,16 +10,7 @@ public class AppFixture : IAsyncLifetime
 {
     public async Task InitializeAsync()
     {
-        // Workaround for Oakton with WebApplicationBuilder
-        // lifecycle issues. Doesn't matter to you w/o Oakton
-        OaktonEnvironment.AutoStartHost = true;
-         
-        // This is bootstrapping the actual application using
-        // its implied Program.Main() set up
-        Host = await AlbaHost.For<Program>(x =>
-        {
 
-        });
     }
  
     public IAlbaHost Host { get; private set; }
@@ -31,29 +22,31 @@ public class AppFixture : IAsyncLifetime
 }
 
 
-[CollectionDefinition("integration")]
-public class ScenarioCollection : ICollectionFixture<AppFixture>
-{
-     
-}
 
 [Collection("integration")]
 public abstract class IntegrationContext : IAsyncLifetime
 {
-    public IntegrationContext(AppFixture fixture)
-    {
-        Host = fixture.Host;
-        Store = Host.Services.GetRequiredService<IDocumentStore>();
-        Endpoints = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
-    }
-
     public EndpointGraph Endpoints { get; set; }
 
-    public IAlbaHost Host { get; }
-    public IDocumentStore Store { get; }
+    public IAlbaHost Host { get; private set; }
+    public IDocumentStore Store { get; private set; }
 
     async Task IAsyncLifetime.InitializeAsync()
     {
+        // Workaround for Oakton with WebApplicationBuilder
+        // lifecycle issues. Doesn't matter to you w/o Oakton
+        OaktonEnvironment.AutoStartHost = true;
+         
+        // This is bootstrapping the actual application using
+        // its implied Program.Main() set up
+        Host = await AlbaHost.For<Program>(x =>
+        {
+
+        });
+        
+        Store = Host.Services.GetRequiredService<IDocumentStore>();
+        Endpoints = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
+        
         // Using Marten, wipe out all data and reset the state
         // back to exactly what we described in InitialAccountData
         await Store.Advanced.ResetAllData();

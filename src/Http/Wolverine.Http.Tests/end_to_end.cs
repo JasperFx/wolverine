@@ -9,10 +9,6 @@ namespace Wolverine.Http.Tests;
 
 public class end_to_end : IntegrationContext
 {
-    public end_to_end(AppFixture fixture) : base(fixture)
-    {
-    }
-
     [Fact]
     public async Task retrieve_text_data()
     {

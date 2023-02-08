@@ -5,10 +5,6 @@ namespace Wolverine.Http.Tests;
 
 public class posting_json : IntegrationContext
 {
-    public posting_json(AppFixture fixture) : base(fixture)
-    {
-    }
-    
     [Fact]
     public async Task post_json_happy_path()
     {

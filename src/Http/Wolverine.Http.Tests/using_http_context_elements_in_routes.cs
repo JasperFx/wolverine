@@ -7,9 +7,6 @@ namespace Wolverine.Http.Tests;
 
 public class using_http_context_elements_in_routes : IntegrationContext
 {
-    public using_http_context_elements_in_routes(AppFixture fixture) : base(fixture)
-    {
-    }
 
     protected async Task assertExecutesWithNoErrors(string url)
     {

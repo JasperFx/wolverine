@@ -14,10 +14,6 @@ namespace Wolverine.Http.Tests;
 
 public class using_efcore : IntegrationContext
 {
-    public using_efcore(AppFixture fixture) : base(fixture)
-    {
-    }
-
     [Fact]
     public async Task using_db_context_without_outbox()
     {

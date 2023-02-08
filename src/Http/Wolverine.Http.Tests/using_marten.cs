@@ -6,10 +6,6 @@ namespace Wolverine.Http.Tests;
 
 public class using_marten : IntegrationContext
 {
-    public using_marten(AppFixture fixture) : base(fixture)
-    {
-    }
-
     [Fact]
     public async Task use_marten_document_session_without_outbox()
     {

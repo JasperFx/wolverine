@@ -5,10 +5,6 @@ namespace Wolverine.Http.Tests;
 
 public class endpoint_discovery_and_construction : IntegrationContext
 {
-    public endpoint_discovery_and_construction(AppFixture fixture) : base(fixture)
-    {
-    }
-
     [Fact]
     public void discover_and_built_endpoints()
     {

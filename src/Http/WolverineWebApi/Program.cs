@@ -44,6 +44,8 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
     
     opts.Policies.AutoApplyTransactions();
+    
+    opts.OptimizeArtifactWorkflow();
 });
 
 var app = builder.Build();
