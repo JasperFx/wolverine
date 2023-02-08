@@ -53,7 +53,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                         break;
                     }
 
-                    var found = await recoverFromAsync(sendingAgent, database, session, database.Node);
+                    var found = await recoverFromAsync(sendingAgent, database, session, database.Durability);
 
                     count += found;
                 }
@@ -70,7 +70,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                 }
             }
 
-            var wasMaxedOut = count >= database.Node.RecoveryBatchSize;
+            var wasMaxedOut = count >= database.Durability.RecoveryBatchSize;
 
             if (wasMaxedOut)
             {
@@ -102,7 +102,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
     private async Task<int> recoverFromAsync(ISendingAgent sendingAgent, IMessageDatabase storage,
         IDurableStorageSession session,
-        NodeSettings nodeSettings)
+        DurabilitySettings durabilitySettings)
     {
 #pragma warning disable CS8600
         Envelope[] filtered;
@@ -131,7 +131,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                 return 0;
             }
 
-            await storage.ReassignOutgoingAsync(nodeSettings.UniqueNodeId, filtered);
+            await storage.ReassignOutgoingAsync(durabilitySettings.UniqueNodeId, filtered);
 
             await session.CommitAsync();
         }

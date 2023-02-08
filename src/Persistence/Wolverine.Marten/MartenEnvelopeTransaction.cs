@@ -18,7 +18,7 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
         if (context.Storage is PostgresqlMessageStore persistence)
         {
             _settings = (PostgresqlSettings)persistence.Settings;
-            _nodeId = persistence.Node.UniqueNodeId;
+            _nodeId = persistence.Durability.UniqueNodeId;
         }
         else
         {

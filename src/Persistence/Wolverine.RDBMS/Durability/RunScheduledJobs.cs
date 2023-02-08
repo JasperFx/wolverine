@@ -12,9 +12,9 @@ namespace Wolverine.RDBMS.Durability;
 internal class RunScheduledJobs : IDurabilityAction
 {
     private readonly ILogger _logger;
-    private readonly NodeSettings _settings;
+    private readonly DurabilitySettings _settings;
 
-    public RunScheduledJobs(NodeSettings settings, ILogger logger)
+    public RunScheduledJobs(DurabilitySettings settings, ILogger logger)
     {
         _settings = settings;
         _logger = logger;

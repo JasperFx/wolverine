@@ -23,7 +23,7 @@ internal class DurabilityAgent : IDurabilityAgent
     private readonly IDurabilityAction _outgoingMessages;
     private readonly IDurabilityAction _scheduledJobs;
     private readonly MoveReplayableErrorMessagesToIncoming _moveReplayable;
-    private readonly NodeSettings _settings;
+    private readonly DurabilitySettings _settings;
 
     private readonly IMessageDatabase _database;
     private readonly ILogger<DurabilityAgent> _trace;
@@ -38,7 +38,7 @@ internal class DurabilityAgent : IDurabilityAgent
         ILogger<DurabilityAgent> trace,
         ILocalQueue locals,
         IMessageDatabase database,
-        NodeSettings settings, 
+        DurabilitySettings settings, 
         DatabaseSettings databaseSettings)
 #pragma warning restore CS8618)
     {

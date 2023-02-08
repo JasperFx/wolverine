@@ -23,17 +23,17 @@ internal class NodeReassignment : IDurabilityAction
         IDurableStorageSession session)
     {
         await session.WithinTransactionalGlobalLockAsync(TransportConstants.ReassignmentLockId,
-            () => ReassignNodesAsync(session, database.Node, database.Settings));
+            () => ReassignNodesAsync(session, database.Durability, database.Settings));
     }
 
-    public async Task ReassignNodesAsync(IDurableStorageSession session, NodeSettings nodeSettings,
+    public async Task ReassignNodesAsync(IDurableStorageSession session, DurabilitySettings durabilitySettings,
         DatabaseSettings databaseSettings)
     {
-        var owners = await FindUniqueOwnersAsync(session, nodeSettings, databaseSettings);
+        var owners = await FindUniqueOwnersAsync(session, durabilitySettings, databaseSettings);
 
         foreach (var owner in owners.Where(x => x != TransportConstants.AnyNode))
         {
-            if (owner == nodeSettings.UniqueNodeId)
+            if (owner == durabilitySettings.UniqueNodeId)
             {
                 continue;
             }
@@ -73,7 +73,7 @@ where
             .ExecuteNonQueryAsync(session.Cancellation);
     }
     
-    public static async Task<int[]> FindUniqueOwnersAsync(IDurableStorageSession session, NodeSettings nodeSettings, DatabaseSettings databaseSettings)
+    public static async Task<int[]> FindUniqueOwnersAsync(IDurableStorageSession session, DurabilitySettings durabilitySettings, DatabaseSettings databaseSettings)
     {
         if (session.Transaction == null)
         {
@@ -86,7 +86,7 @@ union
 select distinct owner_id from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id != 0 and owner_id != @owner";
 
         var list = await session.Transaction.CreateCommand(sql)
-            .With("owner", nodeSettings.UniqueNodeId)
+            .With("owner", durabilitySettings.UniqueNodeId)
             .FetchList<int>(session.Cancellation);
 
         return list.ToArray();

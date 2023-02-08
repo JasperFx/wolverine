@@ -67,7 +67,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        Callback = new RabbitMqChannelCallback(runtime.Logger, runtime.Node.Cancellation);
+        Callback = new RabbitMqChannelCallback(runtime.Logger, runtime.DurabilitySettings.Cancellation);
 
         // TODO -- log the connection
         _listenerConnection ??= BuildConnection();
@@ -111,7 +111,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     protected override void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
     {
-        var queueName = $"wolverine.response.{runtime.Node.UniqueNodeId}";
+        var queueName = $"wolverine.response.{runtime.DurabilitySettings.UniqueNodeId}";
 
         var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
         {

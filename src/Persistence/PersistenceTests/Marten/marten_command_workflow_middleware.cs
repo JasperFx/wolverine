@@ -40,7 +40,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
                 .IntegrateWithWolverine()
                 .ApplyAllDatabaseChangesOnStartup();
 
-            x.Node.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            x.Durability.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
         });
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();

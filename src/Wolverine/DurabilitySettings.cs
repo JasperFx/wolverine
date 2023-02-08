@@ -9,13 +9,13 @@ using Wolverine.Util;
 
 namespace Wolverine;
 
-public class NodeSettings
+public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
     private string _serviceName;
 
 
-    public NodeSettings(Assembly? applicationAssembly)
+    public DurabilitySettings(Assembly? applicationAssembly)
     {
         _serviceName = applicationAssembly?.GetName().Name ?? "WolverineApplication";
         CodeGeneration = new GenerationRules("Internal.Generated");

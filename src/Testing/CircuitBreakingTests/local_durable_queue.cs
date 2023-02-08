@@ -35,8 +35,8 @@ public class local_durable_queue : CircuitBreakerIntegrationContext
             opts.DatabaseSchemaName = "circuit_breaker";
         }).ApplyAllDatabaseChangesOnStartup().IntegrateWithWolverine();
 
-        opts.Node.RecoveryBatchSize = 1200;
-        opts.Node.ScheduledJobPollingTime = 1.Seconds();
-        opts.Node.KeepAfterMessageHandling = 1.Days(); // Keeping Handled messages for failure diagnostics
+        opts.Durability.RecoveryBatchSize = 1200;
+        opts.Durability.ScheduledJobPollingTime = 1.Seconds();
+        opts.Durability.KeepAfterMessageHandling = 1.Days(); // Keeping Handled messages for failure diagnostics
     }
 }

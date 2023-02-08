@@ -10,7 +10,7 @@ namespace Wolverine.RDBMS;
 public interface IMessageDatabase : IMessageStore
 {
     
-    public NodeSettings Node { get; }
+    public DurabilitySettings Durability { get; }
 
     public DatabaseSettings Settings { get; }
     IDurableStorageSession Session { get; }

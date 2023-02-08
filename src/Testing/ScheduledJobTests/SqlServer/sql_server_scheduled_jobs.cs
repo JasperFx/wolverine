@@ -23,7 +23,7 @@ public class sql_server_scheduled_jobs : IAsyncLifetime
             .CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Node.ScheduledJobPollingTime = 50.Milliseconds();
+                opts.Durability.ScheduledJobPollingTime = 50.Milliseconds();
 
                 opts.Services.AddSingleton(theReceiver);
 

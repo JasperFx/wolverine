@@ -100,7 +100,7 @@ public static class HostBuilderExtensions
                 }
 #endif
 
-                options.Node.CodeGeneration.GeneratedCodeOutputPath =
+                options.Durability.CodeGeneration.GeneratedCodeOutputPath =
                     directory!.AppendPath("Internal", "Generated");
 
                 return options;
@@ -111,7 +111,7 @@ public static class HostBuilderExtensions
             services.AddSingleton(s => (IStatefulResourceSource)s.GetRequiredService<IWolverineRuntime>());
 
             services.AddSingleton(options.HandlerGraph);
-            services.AddSingleton(options.Node);
+            services.AddSingleton(options.Durability);
 
             // The runtime is also a hosted service
             services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
@@ -151,7 +151,7 @@ public static class HostBuilderExtensions
 #pragma warning restore VSTHRD002
                 }
 
-                handlers.Rules ??= c.GetRequiredService<WolverineOptions>().Node.CodeGeneration;
+                handlers.Rules ??= c.GetRequiredService<WolverineOptions>().Durability.CodeGeneration;
 
                 return handlers;
             });
@@ -264,7 +264,7 @@ public static class HostBuilderExtensions
     {
         public void Configure(WolverineOptions options)
         {
-            options.Node.StubAllExternalTransports = true;
+            options.Durability.StubAllExternalTransports = true;
         }
     }
 }

@@ -15,11 +15,11 @@ internal class MartenIntegration : IWolverineExtension
 
     public void Configure(WolverineOptions options)
     {
-        options.Node.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
+        options.Durability.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
 
-        options.Node.CodeGeneration.AddPersistenceStrategy<MartenPersistenceFrameProvider>();
+        options.Durability.CodeGeneration.AddPersistenceStrategy<MartenPersistenceFrameProvider>();
 
-        options.Node.CodeGeneration.Sources.Add(new SessionVariableSource());
+        options.Durability.CodeGeneration.Sources.Add(new SessionVariableSource());
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
         

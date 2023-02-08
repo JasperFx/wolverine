@@ -23,7 +23,7 @@ public abstract partial class MessageDatabase<T>
         return Settings
             .CreateCommand(_deleteIncomingEnvelopeById)
             .With("id", envelope.Id)
-            .With("keepUntil", DateTimeOffset.UtcNow.Add(Node.KeepAfterMessageHandling))
+            .With("keepUntil", DateTimeOffset.UtcNow.Add(Durability.KeepAfterMessageHandling))
             .ExecuteOnce(_cancellation);
     }
 

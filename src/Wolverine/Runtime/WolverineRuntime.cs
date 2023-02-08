@@ -39,7 +39,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         IContainer container,
         ILogger<WolverineRuntime> logger, IHostEnvironment environment)
     {
-        Node = options.Node;
+        DurabilitySettings = options.Durability;
         Options = options;
         Handlers = options.HandlerGraph;
         Environment = environment;
@@ -48,7 +48,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         Logger = logger;
 
-        _uniqueNodeId = options.Node.UniqueNodeId;
+        _uniqueNodeId = options.Durability.UniqueNodeId;
         _serviceName = options.ServiceName ?? "WolverineService";
 
         var provider = container.GetInstance<ObjectPoolProvider>();
@@ -60,7 +60,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _container = container;
 
-        Cancellation = Node.Cancellation;
+        Cancellation = DurabilitySettings.Cancellation;
 
         ListenerTracker = new ListenerTracker(logger);
 
@@ -140,7 +140,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         return extension;
     }
 
-    public NodeSettings Node { get; }
+    public DurabilitySettings DurabilitySettings { get; }
 
     public ILogger Logger { get; }
 

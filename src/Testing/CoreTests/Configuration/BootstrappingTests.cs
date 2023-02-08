@@ -62,7 +62,7 @@ public class BootstrappingTests : IntegrationContext
     {
         with(opts =>
         {
-            opts.Node.CodeGeneration.Sources.Add(new SpecialServiceSource());
+            opts.Durability.CodeGeneration.Sources.Add(new SpecialServiceSource());
             opts.IncludeType<SpecialServiceUsingThing>();
         });
 

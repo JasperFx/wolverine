@@ -21,14 +21,14 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     private readonly ActionBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
     private readonly RetryBlock<Envelope> _scheduleExecution;
-    private readonly NodeSettings _settings;
+    private readonly DurabilitySettings _settings;
 
     // These members are for draining
     private bool _latched;
 
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
-        _settings = runtime.Node;
+        _settings = runtime.DurabilitySettings;
         _persistence = runtime.Storage;
         _logger = runtime.Logger;
 

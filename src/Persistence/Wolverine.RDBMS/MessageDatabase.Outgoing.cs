@@ -61,7 +61,7 @@ public abstract partial class MessageDatabase<T>
 
     public Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Node.UniqueNodeId, Settings);
+        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.UniqueNodeId, Settings);
         cmd.Connection = tx.Connection;
         cmd.Transaction = tx;
 
@@ -69,5 +69,5 @@ public abstract partial class MessageDatabase<T>
     }
 
     protected abstract string
-        determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, NodeSettings settings);
+        determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, DurabilitySettings settings);
 }

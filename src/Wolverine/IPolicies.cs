@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
@@ -95,4 +96,11 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// <returns></returns>
     void Discovery(Action<HandlerSource> configure);
 
+    /// <summary>
+    /// For the purposes of interoperability with NServiceBus or MassTransit, register
+    /// the assemblies for shared message types to make Wolverine try to forward the message
+    /// names of its messages to the interfaces of NServiceBus or MassTransit message types
+    /// </summary>
+    /// <param name="assembly"></param>
+    void RegisterInteropMessageAssembly(Assembly assembly);
 }

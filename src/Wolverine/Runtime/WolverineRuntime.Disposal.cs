@@ -20,7 +20,7 @@ public partial class WolverineRuntime : IAsyncDisposable
 
         await Options.Transports.As<IAsyncDisposable>().DisposeAsync();
 
-        Node.Cancel();
+        DurabilitySettings.Cancel();
 
         ScheduledJobs?.Dispose();
     }

@@ -13,7 +13,7 @@ internal class BufferedSendingAgent : SendingAgent
     private List<Envelope> _queued = new();
 
     public BufferedSendingAgent(ILogger logger, IMessageLogger messageLogger, ISender sender,
-        NodeSettings settings, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
+        DurabilitySettings settings, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
     {
     }
 

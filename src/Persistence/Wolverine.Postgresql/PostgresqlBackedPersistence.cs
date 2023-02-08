@@ -21,7 +21,7 @@ internal class PostgresqlBackedPersistence : IWolverineExtension
 
         options.Services.AddTransient<IMessageStore, PostgresqlMessageStore>();
         options.Services.AddSingleton(s => (IDatabase)s.GetRequiredService<IMessageStore>());
-        options.Node.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
+        options.Durability.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
         options.Services.For<NpgsqlConnection>().Use<NpgsqlConnection>();
 
@@ -30,6 +30,6 @@ internal class PostgresqlBackedPersistence : IWolverineExtension
         options.Services.Add(new ServiceDescriptor(typeof(DbConnection),
             new NpgsqlConnectionInstance(typeof(DbConnection))));
 
-        options.Node.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
+        options.Durability.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
     }
 }

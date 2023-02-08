@@ -178,7 +178,7 @@ public class MessageBus : IMessageBus
 
     internal virtual void TrackEnvelopeCorrelation(Envelope outbound)
     {
-        outbound.Source = Runtime.Node.ServiceName;
+        outbound.Source = Runtime.DurabilitySettings.ServiceName;
         outbound.CorrelationId = CorrelationId;
         outbound.ConversationId = outbound.Id; // the message chain originates here
     }

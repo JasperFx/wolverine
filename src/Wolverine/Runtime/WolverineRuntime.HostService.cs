@@ -59,7 +59,7 @@ public partial class WolverineRuntime
 
         await _endpoints.DrainAsync();
 
-        Node.Cancel();
+        DurabilitySettings.Cancel();
     }
 
     private void startInMemoryScheduledJobs()
@@ -80,7 +80,7 @@ public partial class WolverineRuntime
         
         foreach (var transport in Options.Transports)
         {
-            if (!Options.Node.StubAllExternalTransports)
+            if (!Options.Durability.StubAllExternalTransports)
             {
                 await transport.InitializeAsync(this).ConfigureAwait(false);
             }
@@ -106,7 +106,7 @@ public partial class WolverineRuntime
             }
         }
 
-        if (!Options.Node.StubAllExternalTransports)
+        if (!Options.Durability.StubAllExternalTransports)
         {
             await Endpoints.StartListenersAsync();
         }
@@ -120,7 +120,7 @@ public partial class WolverineRuntime
     {
         // Let any registered routing conventions discover listener endpoints
         var handledMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
-        if (!Options.Node.StubAllExternalTransports)
+        if (!Options.Durability.StubAllExternalTransports)
         {
             foreach (var routingConvention in Options.RoutingConventions)
             {
@@ -139,6 +139,6 @@ public partial class WolverineRuntime
     {
         var store = _container.GetInstance<IMessageStore>();
         Durability = store.BuildDurabilityAgent(this, _container);
-        return Durability.StartAsync(Options.Node.Cancellation);
+        return Durability.StartAsync(Options.Durability.Cancellation);
     }
 }

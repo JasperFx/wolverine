@@ -28,7 +28,7 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
     {
         _options = options;
         Container = container;
-        Rules = _options.Node.CodeGeneration;
+        Rules = _options.Durability.CodeGeneration;
     }
 
     internal IContainer Container { get; }

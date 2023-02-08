@@ -25,7 +25,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     private readonly string _reassignOutgoingSql;
 
 
-    public PostgresqlMessageStore(PostgresqlSettings databaseSettings, NodeSettings settings,
+    public PostgresqlMessageStore(PostgresqlSettings databaseSettings, DurabilitySettings settings,
         ILogger<PostgresqlMessageStore> logger) : base(databaseSettings,
         settings, logger)
     {
@@ -163,7 +163,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     }
 
 
-    protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, NodeSettings settings)
+    protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, DurabilitySettings settings)
     {
         return
             $"select {DatabaseConstants.OutgoingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";
@@ -203,7 +203,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         return Session!.Transaction!
             .CreateCommand(
-                $"select {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time LIMIT {Node.RecoveryBatchSize}")
+                $"select {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time LIMIT {Durability.RecoveryBatchSize}")
             .With("time", utcNow)
             .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }

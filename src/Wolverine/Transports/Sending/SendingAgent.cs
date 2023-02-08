@@ -17,12 +17,12 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
     protected readonly ISender _sender;
 
     protected readonly RetryBlock<Envelope> _sending;
-    protected readonly NodeSettings _settings;
+    protected readonly DurabilitySettings _settings;
     private CircuitWatcher? _circuitWatcher;
     private int _failureCount;
 
 
-    public SendingAgent(ILogger logger, IMessageLogger messageLogger, ISender sender, NodeSettings settings,
+    public SendingAgent(ILogger logger, IMessageLogger messageLogger, ISender sender, DurabilitySettings settings,
         Endpoint endpoint)
     {
         _logger = logger;

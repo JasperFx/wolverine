@@ -23,7 +23,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     private readonly string _moveToDeadLetterStorageSql;
 
 
-    public SqlServerMessageStore(SqlServerSettings databaseSettings, NodeSettings settings,
+    public SqlServerMessageStore(SqlServerSettings databaseSettings, DurabilitySettings settings,
         ILogger<SqlServerMessageStore> logger)
         : base(databaseSettings, settings, logger)
     {
@@ -134,7 +134,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     }
 
     protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings,
-        NodeSettings settings)
+        DurabilitySettings settings)
     {
         return
             $"select top {settings.RecoveryBatchSize} {DatabaseConstants.OutgoingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination";
@@ -185,7 +185,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         return Session!.Transaction!
             .CreateCommand(
-                $"select TOP {Node.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time")
+                $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time")
             .With("time", utcNow)
             .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }

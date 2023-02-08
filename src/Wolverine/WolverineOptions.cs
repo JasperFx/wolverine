@@ -60,7 +60,7 @@ public sealed partial class WolverineOptions
 
         establishApplicationAssembly(assemblyName);
         
-        Node = new NodeSettings(ApplicationAssembly);
+        Durability = new DurabilitySettings(ApplicationAssembly);
 
         deriveServiceName();
 
@@ -80,7 +80,7 @@ public sealed partial class WolverineOptions
     ///     Advanced configuration options for Wolverine message processing,
     ///     job scheduling, validation, and resiliency features and node specific settings
     /// </summary>
-    public NodeSettings Node { get; }
+    public DurabilitySettings Durability { get; }
 
     /// <summary>
     /// For the purposes of interoperability with NServiceBus or MassTransit, register
@@ -88,7 +88,7 @@ public sealed partial class WolverineOptions
     /// names of its messages to the interfaces of NServiceBus or MassTransit message types
     /// </summary>
     /// <param name="assembly"></param>
-    public void RegisterInteropMessageAssembly(Assembly assembly)
+    void IPolicies.RegisterInteropMessageAssembly(Assembly assembly)
     {
         WolverineMessageNaming.AddMessageInterfaceAssembly(assembly);
     }
@@ -124,10 +124,10 @@ public sealed partial class WolverineOptions
                 HandlerGraph.Source.Assemblies.Add(value);
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (Node != null)
+                if (Durability != null)
                 {
-                    Node.CodeGeneration.ApplicationAssembly = value;
-                    Node.CodeGeneration.ReferenceAssembly(value);
+                    Durability.CodeGeneration.ApplicationAssembly = value;
+                    Durability.CodeGeneration.ReferenceAssembly(value);
                 }
             }
         }
@@ -141,8 +141,8 @@ public sealed partial class WolverineOptions
     /// </summary>
     public string? ServiceName
     {
-        get => Node.ServiceName;
-        set => Node.ServiceName = value;
+        get => Durability.ServiceName;
+        set => Durability.ServiceName = value;
     }
 
     /// <summary>
@@ -212,11 +212,11 @@ public sealed partial class WolverineOptions
     {
         if (GetType() == typeof(WolverineOptions))
         {
-            Node.ServiceName = ApplicationAssembly?.GetName().Name ?? "WolverineService";
+            Durability.ServiceName = ApplicationAssembly?.GetName().Name ?? "WolverineService";
         }
         else
         {
-            Node.ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
+            Durability.ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
                 .Replace("Options", "");
         }
     }

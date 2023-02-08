@@ -21,13 +21,13 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
 
-    protected MessageDatabase(DatabaseSettings databaseSettings, NodeSettings settings,
+    protected MessageDatabase(DatabaseSettings databaseSettings, DurabilitySettings settings,
         ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
         "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
     {
         Settings = databaseSettings;
 
-        Node = settings;
+        Durability = settings;
         _cancellation = settings.Cancellation;
 
         var transaction = new DurableStorageSession(databaseSettings, settings.Cancellation);
@@ -46,7 +46,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     }
 
-    public NodeSettings Node { get; }
+    public DurabilitySettings Durability { get; }
 
     public DatabaseSettings Settings { get; }
 
@@ -88,7 +88,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         // TODO -- use the worker queue for Retries?
         var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
         return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, this,
-            runtime.Options.Node, Settings);
+            runtime.Options.Durability, Settings);
     }
 
     public void Dispose()

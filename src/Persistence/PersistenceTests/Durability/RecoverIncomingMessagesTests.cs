@@ -24,7 +24,7 @@ public class RecoverIncomingMessagesTests
 
     private readonly IEndpointCollection theEndpoints = Substitute.For<IEndpointCollection>();
 
-    private readonly NodeSettings theSettings = new(null)
+    private readonly DurabilitySettings theSettings = new(null)
     {
         RecoveryBatchSize = theRecoveryBatchSize
     };

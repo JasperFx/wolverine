@@ -27,12 +27,12 @@ public class SqlServerBackedListenerContext : SqlServerContext
     protected SqlServerSettings mssqlSettings;
     protected IMessageDatabase thePersistence;
     internal DurableReceiver theReceiver;
-    protected NodeSettings theSettings;
+    protected DurabilitySettings theSettings;
 
 
     public SqlServerBackedListenerContext()
     {
-        theSettings = new NodeSettings(null);
+        theSettings = new DurabilitySettings(null);
 
         mssqlSettings = new SqlServerSettings
         {
@@ -46,7 +46,7 @@ public class SqlServerBackedListenerContext : SqlServerContext
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Storage.Returns(thePersistence);
         runtime.Pipeline.Returns(thePipeline);
-        runtime.Node.Returns(theSettings);
+        runtime.DurabilitySettings.Returns(theSettings);
 
 
         theReceiver = new DurableReceiver(new LocalQueue("temp"), runtime, thePipeline);
