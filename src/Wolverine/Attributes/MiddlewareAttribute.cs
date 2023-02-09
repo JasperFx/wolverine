@@ -1,9 +1,4 @@
-﻿using System;
-using System.Linq;
-using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Frames;
-using JasperFx.Core;
-using JasperFx.Core.Reflection;
+﻿using JasperFx.CodeGeneration;
 using Lamar;
 using Wolverine.Configuration;
 using Wolverine.Middleware;
@@ -11,7 +6,7 @@ using Wolverine.Middleware;
 namespace Wolverine.Attributes;
 
 /// <summary>
-/// Attach one or more Wolverine conventional middleware types
+///     Attach one or more Wolverine conventional middleware types
 /// </summary>
 public class MiddlewareAttribute : ModifyChainAttribute
 {
@@ -25,6 +20,6 @@ public class MiddlewareAttribute : ModifyChainAttribute
     public override void Modify(IChain chain, GenerationRules rules, IContainer container)
     {
         var applications = _frameTypes.Select(type => new MiddlewarePolicy.Application(type, _ => true)).ToList();
-        MiddlewarePolicy.ApplyToChain(applications, chain);
+        MiddlewarePolicy.ApplyToChain(applications, rules, chain);
     }
 }

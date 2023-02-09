@@ -17,52 +17,32 @@ internal class MiddlewarePolicy : IChainPolicy
 
     private readonly List<Application> _applications = new();
 
-    /// <summary>
-    /// Applies a single middleware type to a single chain
-    /// </summary>
-    /// <param name="middlewareType"></param>
-    /// <param name="chain"></param>
-    public static void Apply(Type middlewareType, IChain chain)
-    {
-        var application = new Application(middlewareType, _ => true);
-        var befores = application.BuildBeforeCalls(chain).ToArray();
-        
-        for (var i = 0; i < befores.Length; i++)
-        {
-            chain.Middleware.Insert(i, befores[i]);
-        }
-        
-        var afters = application.BuildAfterCalls(chain).ToArray().Reverse();
-
-        chain.Postprocessors.AddRange(afters);
-    }
-
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
         var applications = _applications;
         
         foreach (var chain in chains)
         {
-            ApplyToChain(applications, chain);
+            ApplyToChain(applications, rules, chain);
         }
     }
 
-    internal static void ApplyToChain(List<Application> applications, IChain chain)
+    internal static void ApplyToChain(List<Application> applications, GenerationRules rules, IChain chain)
     {
-        var befores = applications.SelectMany(x => x.BuildBeforeCalls(chain)).ToArray();
+        var befores = applications.SelectMany(x => x.BuildBeforeCalls(chain, rules)).ToArray();
 
         for (var i = 0; i < befores.Length; i++)
         {
             chain.Middleware.Insert(i, befores[i]);
         }
 
-        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain));
+        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain, rules));
 
         chain.Postprocessors.AddRange(afters);
     }
 
 
-    public Application AddType(Type middlewareType, Func<IChain, bool> filter = null)
+    public Application AddType(Type middlewareType, Func<IChain, bool>? filter = null)
     {
         filter ??= _ => true;
         var application = new Application(middlewareType, filter);
@@ -116,9 +96,9 @@ internal class MiddlewarePolicy : IChainPolicy
 
         public bool MatchByMessageType { get; set; }
 
-        public IEnumerable<Frame> BuildBeforeCalls(IChain chain)
+        public IEnumerable<Frame> BuildBeforeCalls(IChain chain, GenerationRules rules)
         {
-            var frames = buildBefores(chain).ToArray();
+            var frames = buildBefores(chain, rules).ToArray();
             if (frames.Any() && !MiddlewareType.IsStatic())
             {
                 var constructorFrame = new ConstructorFrame(MiddlewareType, _constructor);
@@ -133,13 +113,13 @@ internal class MiddlewarePolicy : IChainPolicy
             foreach (var frame in frames) yield return frame;
         }
 
-        private IEnumerable<Frame> wrapBeforeFrame(MethodCall call)
+        private IEnumerable<Frame> wrapBeforeFrame(MethodCall call, GenerationRules rules)
         {
             if (_finals.Any())
             {
-                if (call.CreatesNewOf<HandlerContinuation>())
+                if (rules.TryFindContinuationHandler(call, out var frame))
                 {
-                    call.Next = new HandlerContinuationFrame(call);
+                    call.Next = frame;
                 }
 
                 var finals = _finals.Select(x => new MethodCall(MiddlewareType, x)).ToArray();
@@ -149,9 +129,9 @@ internal class MiddlewarePolicy : IChainPolicy
             else
             {
                 yield return call;
-                if (call.CreatesNewOf<HandlerContinuation>())
+                if (rules.TryFindContinuationHandler(call, out var frame))
                 {
-                    yield return new HandlerContinuationFrame(call);
+                    yield return frame;
                 }
             }
         }
@@ -177,7 +157,7 @@ internal class MiddlewarePolicy : IChainPolicy
             return null;
         }
 
-        private IEnumerable<Frame> buildBefores(IChain chain)
+        private IEnumerable<Frame> buildBefores(IChain chain, GenerationRules rules)
         {
             if (!Filter(chain))
             {
@@ -197,7 +177,7 @@ internal class MiddlewarePolicy : IChainPolicy
                 var call = buildCallForBefore(chain, before);
                 if (call != null)
                 {
-                    foreach (var frame in wrapBeforeFrame(call))
+                    foreach (var frame in wrapBeforeFrame(call, rules))
                     {
                         yield return frame;
                     }
@@ -227,9 +207,9 @@ internal class MiddlewarePolicy : IChainPolicy
             }
         }
 
-        public IEnumerable<Frame> BuildAfterCalls(IChain chain)
+        public IEnumerable<Frame> BuildAfterCalls(IChain chain, GenerationRules rules)
         {
-            var afters = buildAfters(chain).ToArray();
+            var afters = buildAfters(chain, rules).ToArray();
 
             if (afters.Any() && !MiddlewareType.IsStatic())
             {
@@ -242,7 +222,7 @@ internal class MiddlewarePolicy : IChainPolicy
             foreach (var after in afters) yield return after;
         }
 
-        private IEnumerable<Frame> buildAfters(IChain chain)
+        private IEnumerable<Frame> buildAfters(IChain chain, GenerationRules rules)
         {
             if (!Filter(chain))
             {
