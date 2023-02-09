@@ -7,6 +7,7 @@ namespace WolverineWebApi;
 
 public class ServiceEndpoints
 {
+    [Special]
     [HttpGet("/data/{id}")]
     public Task<Data?> GetData(Guid id, IDocumentSession session)
     {

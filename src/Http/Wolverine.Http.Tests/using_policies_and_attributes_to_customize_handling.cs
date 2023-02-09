@@ -1,3 +1,4 @@
+using JasperFx.CodeGeneration.Frames;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -22,5 +23,36 @@ public class using_policies_and_attributes_to_customize_handling : IntegrationCo
         {
             endpoint.Metadata.GetMetadata<CustomMetadata>().ShouldNotBeNull();
         }
+    }
+
+    [Fact]
+    public void attribute_usage_on_handler_level()
+    {
+        var endpoints = Host.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .Where(x => x.Metadata.GetMetadata<WolverineMarker>() != null).ToArray();
+        
+        endpoints.Any().ShouldBeTrue();
+
+        var testEndpoints = endpoints.Select(x => x.Metadata.GetMetadata<EndpointChain>())
+            .Where(x => x != null).Where(x => x.Method.HandlerType == typeof(TestEndpoints));
+
+        foreach (var endpoint in testEndpoints)
+        {
+            endpoint.Middleware.OfType<CommentFrame>().Any().ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public void attribute_usage_on_a_single_method()
+    {
+        var endpoints = Host.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .Where(x => x.Metadata.GetMetadata<WolverineMarker>() != null).ToArray();
+        
+        endpoints.Any().ShouldBeTrue();
+
+        var endpoint = endpoints.Select(x => x.Metadata.GetMetadata<EndpointChain>())
+            .Where(x => x != null).Single(x => x.RoutePattern.RawText == "/data/{id}");
+
+        endpoint.Middleware.OfType<CommentFrame>().Any().ShouldBeTrue();
     }
 }

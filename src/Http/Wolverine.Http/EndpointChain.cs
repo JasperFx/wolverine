@@ -87,6 +87,9 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         Description = _fileName;
         
         _parent.ApplyParameterMatching(this);
+        
+        // Apply attributes and the Configure() method if that exists too
+        applyAttributesAndConfigureMethods(_parent.Rules, _parent.Container);
 
     }
 
@@ -97,6 +100,9 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     private IEnumerable<object> buildMetadata()
     {
+        // For diagnostics
+        yield return this;
+        
         // This is just to let the world know that the endpoint came from Wolverine
         yield return new WolverineMarker();
         
@@ -194,8 +200,6 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
     {
-        // TODO -- apply customizations from attributes if any
-        
         // Add frames for any writers
         if (ResourceType != typeof(void))
         {

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace WolverineWebApi;
 
+[Special]
 public static class TestEndpoints
 {
     [HttpGet("/hello")]
