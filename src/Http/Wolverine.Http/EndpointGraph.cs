@@ -54,16 +54,20 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
     public string ChildNamespace => "WolverineHandlers";
     public GenerationRules Rules { get; }
 
-    public void DiscoverEndpoints()
+    public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
     {
         var source = new EndpointSource(_options.Assemblies);
         var calls = source.FindActions();
 
         _chains.AddRange(calls.Select(x => new EndpointChain(x, this)));
 
-        // TODO -- allow for IEndpointPolicy later
         var policies = _options.Policies.OfType<IChainPolicy>();
         foreach (var policy in policies)
+        {
+            policy.Apply(_chains, Rules, Container);
+        }
+
+        foreach (var policy in wolverineHttpOptions.Policies)
         {
             policy.Apply(_chains, Rules, Container);
         }

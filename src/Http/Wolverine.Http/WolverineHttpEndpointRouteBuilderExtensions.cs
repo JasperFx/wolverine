@@ -17,7 +17,13 @@ public class WolverineRequiredException : Exception
 
 public static class WolverineHttpEndpointRouteBuilderExtensions
 {
-    public static void MapWolverineEndpoints(this IEndpointRouteBuilder endpoints)
+    /// <summary>
+    /// Discover and add Wolverine HTTP endpoints to your ASP.Net Core system
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="configure"></param>
+    /// <exception cref="WolverineRequiredException"></exception>
+    public static void MapWolverineEndpoints(this IEndpointRouteBuilder endpoints, Action<WolverineHttpOptions>? configure = null)
     {
         WolverineRuntime runtime;
 
@@ -31,14 +37,15 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
             throw new WolverineRequiredException(e);
         }
 
-        // TODO -- let folks customize this somehow? Custom policies? Middleware?
         var container = (IContainer)endpoints.ServiceProvider;
         
         // Making sure this exists
         var options = container.GetInstance<WolverineHttpOptions>();
+        configure?.Invoke(options);
+        
         options.JsonSerializerOptions = container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
         options.Endpoints = new EndpointGraph(runtime.Options, container);
-        options.Endpoints.DiscoverEndpoints();
+        options.Endpoints.DiscoverEndpoints(options);
         
         container.GetInstance<WolverineSupplementalCodeFiles>().Collections.Add(options.Endpoints);
 

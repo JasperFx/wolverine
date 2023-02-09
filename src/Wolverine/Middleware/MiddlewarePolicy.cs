@@ -10,7 +10,6 @@ using Wolverine.Runtime.Handlers;
 namespace Wolverine.Middleware;
 
 
-// TODO -- move this to JasperFx.CodeGeneration if it works
 public class TryFinallyWrapperFrame : Frame
 {
     private readonly Frame _inner;

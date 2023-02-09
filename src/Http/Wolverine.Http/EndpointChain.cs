@@ -90,10 +90,22 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     }
 
-    // TODO -- will need to be able to add other metadata later. Policies
-    // will need to be able to edit this. Example is adding ProblemDetails
+    /// <summary>
+    /// Additional ASP.Net Core metadata for the endpoint
+    /// </summary>
+    public List<object> Metadata { get; } = new();
+
     private IEnumerable<object> buildMetadata()
     {
+        // This is just to let the world know that the endpoint came from Wolverine
+        yield return new WolverineMarker();
+        
+        // Custom metadata
+        foreach (var metadata in Metadata)
+        {
+            yield return metadata;
+        }
+        
         // TODO -- figure out how to get at the Cors preflight stuff
         yield return new HttpMethodMetadata(_httpMethods);
         
@@ -139,11 +151,11 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     public IEnumerable<string> HttpMethods => _httpMethods;
 
-    public Type ResourceType { get; }
+    public Type? ResourceType { get; }
     
     public RoutePattern RoutePattern { get; }
     
-    public Type RequestType { get; internal set; }
+    public Type? RequestType { get; internal set; }
 
     public override string Description { get; }
     public override bool ShouldFlushOutgoingMessages()
@@ -174,7 +186,6 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         assembly.ReferenceAssembly(typeof(EndpointChain).Assembly);
         
         var handleMethod = _generatedType.MethodFor(nameof(EndpointHandler.Handle));
-        //handleMethod.AsyncMode = AsyncMode.AsyncTask; // Might not be necessary anymore
         
         handleMethod.DerivedVariables.AddRange(HttpContextVariables);
 

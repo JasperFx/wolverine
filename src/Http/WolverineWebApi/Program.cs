@@ -67,6 +67,10 @@ app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>> (int 
 app.MapPost("/orders", Results<BadRequest, Ok<Order>> (CreateOrder command) 
     => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(command.OrderId)));
 
-app.MapWolverineEndpoints();
+app.MapWolverineEndpoints(opts =>
+{
+    // This is strictly to test the endpoint policy
+    opts.ConfigureEndpoints(c => c.Metadata.Add(new CustomMetadata()));
+});
 
 await app.RunOaktonCommands(args);
