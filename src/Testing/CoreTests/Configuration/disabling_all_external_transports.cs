@@ -29,6 +29,6 @@ public class disabling_all_external_transports
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
         
-        options.Durability.StubAllExternalTransports.ShouldBeTrue();
+        options.ExternalTransportsAreStubbed.ShouldBeTrue();
     }
 }

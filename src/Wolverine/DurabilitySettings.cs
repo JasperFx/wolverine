@@ -99,12 +99,6 @@ public class DurabilitySettings
     }
 
 
-    /// <summary>
-    ///     This should probably *only* be used in development or testing
-    ///     to latch all outgoing message sending
-    /// </summary>
-    public bool StubAllExternalTransports { get; set; }
-
     internal void Cancel()
     {
         _cancellation.Cancel();

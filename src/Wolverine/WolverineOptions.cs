@@ -382,4 +382,12 @@ public sealed partial class WolverineOptions
         ProductionTypeLoadMode = productionMode;
         Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>();
     }
+    
+    
+    /// <summary>
+    ///     This should probably *only* be used in development or testing
+    ///     to latch all outgoing message sending
+    /// </summary>
+    internal bool ExternalTransportsAreStubbed { get; set; }
+
 }

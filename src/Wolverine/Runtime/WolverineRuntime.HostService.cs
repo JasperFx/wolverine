@@ -80,7 +80,7 @@ public partial class WolverineRuntime
         
         foreach (var transport in Options.Transports)
         {
-            if (!Options.Durability.StubAllExternalTransports)
+            if (!Options.ExternalTransportsAreStubbed)
             {
                 await transport.InitializeAsync(this).ConfigureAwait(false);
             }
@@ -106,7 +106,7 @@ public partial class WolverineRuntime
             }
         }
 
-        if (!Options.Durability.StubAllExternalTransports)
+        if (!Options.ExternalTransportsAreStubbed)
         {
             await Endpoints.StartListenersAsync();
         }
@@ -120,7 +120,7 @@ public partial class WolverineRuntime
     {
         // Let any registered routing conventions discover listener endpoints
         var handledMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
-        if (!Options.Durability.StubAllExternalTransports)
+        if (!Options.ExternalTransportsAreStubbed)
         {
             foreach (var routingConvention in Options.RoutingConventions)
             {

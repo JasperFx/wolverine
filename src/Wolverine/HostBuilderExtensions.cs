@@ -264,7 +264,7 @@ public static class HostBuilderExtensions
     {
         public void Configure(WolverineOptions options)
         {
-            options.Durability.StubAllExternalTransports = true;
+            options.ExternalTransportsAreStubbed = true;
         }
     }
 }
