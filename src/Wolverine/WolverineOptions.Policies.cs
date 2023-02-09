@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -7,6 +8,7 @@ using Wolverine.Persistence;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
+using Wolverine.Util;
 
 namespace Wolverine;
 
@@ -183,4 +185,16 @@ public sealed partial class WolverineOptions : IPolicies
     }
 
     FailureRuleCollection IWithFailurePolicies.Failures => HandlerGraph.Failures;
+    
+    
+    /// <summary>
+    ///     For the purposes of interoperability with NServiceBus or MassTransit, register
+    ///     the assemblies for shared message types to make Wolverine try to forward the message
+    ///     names of its messages to the interfaces of NServiceBus or MassTransit message types
+    /// </summary>
+    /// <param name="assembly"></param>
+    void IPolicies.RegisterInteropMessageAssembly(Assembly assembly)
+    {
+        WolverineMessageNaming.AddMessageInterfaceAssembly(assembly);
+    }
 }
