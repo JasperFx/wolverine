@@ -62,6 +62,9 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
 
         _chains.AddRange(calls.Select(x => new EndpointChain(x, this)));
 
+                
+        wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
+
         var policies = _options.Policies.OfType<IChainPolicy>();
         foreach (var policy in policies)
         {
@@ -72,7 +75,7 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
         {
             policy.Apply(_chains, Rules, Container);
         }
-        
+
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint()));
     }
 

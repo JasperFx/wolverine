@@ -44,8 +44,6 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
     
     opts.Policies.AutoApplyTransactions();
-    
-    opts.OptimizeArtifactWorkflow();
 });
 
 var app = builder.Build();
@@ -71,6 +69,9 @@ app.MapWolverineEndpoints(opts =>
 {
     // This is strictly to test the endpoint policy
     opts.ConfigureEndpoints(c => c.Metadata.Add(new CustomMetadata()));
+
+    // Only want this middleware on endpoints on this one handler
+    opts.AddMiddleware(typeof(BeforeAndAfterMiddleware), chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
 });
 
 await app.RunOaktonCommands(args);

@@ -17,3 +17,4 @@ public class ResultEndpoints
         return Task.FromResult(result);
     }
 }
+

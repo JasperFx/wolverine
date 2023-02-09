@@ -91,6 +91,8 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         // Apply attributes and the Configure() method if that exists too
         applyAttributesAndConfigureMethods(_parent.Rules, _parent.Container);
 
+        // Add Before/After methods from the current handler
+        applyImpliedMiddlewareFromHandlers();
     }
 
     /// <summary>

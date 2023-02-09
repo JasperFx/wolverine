@@ -7,6 +7,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Attributes;
+using Wolverine.Middleware;
 
 namespace Wolverine.Configuration;
 
@@ -105,4 +106,27 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     }
 
     public abstract bool HasAttribute<T>() where T : Attribute;
+
+    protected void applyImpliedMiddlewareFromHandlers()
+    {
+        var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
+        foreach (var handlerType in handlerTypes)
+        {
+            var befores = handlerType.GetMethods().Where(x =>
+                MiddlewarePolicy.BeforeMethodNames.Contains(x.Name) && !x.HasAttribute<WolverineIgnoreAttribute>());
+            foreach (var before in befores)
+            {
+                var frame = new MethodCall(handlerType, before);
+                Middleware.Add(frame);
+            }
+
+            var afters = handlerType.GetMethods().Where(x =>
+                MiddlewarePolicy.AfterMethodNames.Contains(x.Name) && !x.HasAttribute<WolverineIgnoreAttribute>());
+            foreach (var after in afters)
+            {
+                var frame = new MethodCall(handlerType, after);
+                Postprocessors.Add(frame);
+            }
+        }
+    }
 }

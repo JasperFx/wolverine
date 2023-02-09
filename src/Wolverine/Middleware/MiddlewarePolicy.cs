@@ -1,7 +1,6 @@
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
-using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Configuration;
@@ -9,7 +8,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Middleware;
 
-internal class MiddlewarePolicy : IChainPolicy
+public class MiddlewarePolicy : IChainPolicy
 {
     public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync", "Load", "LoadAsync" };
     public static readonly string[] AfterMethodNames = { "After", "AfterAsync", "PostProcess", "PostProcessAsync" };
