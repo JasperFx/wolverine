@@ -16,6 +16,7 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
 
     private readonly List<IResourceWriterPolicy> _writerPolicies = new()
     {
+        new ResultWriterPolicy(),
         new StringResourceWriterPolicy(),
         new JsonResourceWriterPolicy()
     };

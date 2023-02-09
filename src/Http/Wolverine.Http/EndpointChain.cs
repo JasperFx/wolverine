@@ -232,7 +232,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider services,
         string containingNamespace)
     {
-        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == _generatedType.TypeName);
+        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName);
 
         if (_handlerType == null)
         {
