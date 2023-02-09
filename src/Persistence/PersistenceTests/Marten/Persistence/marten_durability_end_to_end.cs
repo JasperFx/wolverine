@@ -50,7 +50,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
             opts.DatabaseSchemaName = SenderSchemaName;
         });
 
-        var advanced = new DurabilitySettings(null);
+        var advanced = new DurabilitySettings();
 
         var logger = new NullLogger<PostgresqlMessageStore>();
         await new PostgresqlMessageStore(new PostgresqlSettings

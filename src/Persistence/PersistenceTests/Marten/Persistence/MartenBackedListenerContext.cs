@@ -51,7 +51,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
 {
     protected readonly IMessageStoreAdmin MessageStoreAdmin =
         new PostgresqlMessageStore(new PostgresqlSettings
-                { ConnectionString = Servers.PostgresConnectionString }, new DurabilitySettings(null),
+                { ConnectionString = Servers.PostgresConnectionString }, new DurabilitySettings(),
             new NullLogger<PostgresqlMessageStore>());
 
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
@@ -69,7 +69,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
 
     public async Task InitializeAsync()
     {
-        theSettings = new DurabilitySettings(null);
+        theSettings = new DurabilitySettings();
 
 
         await MessageStoreAdmin.RebuildAsync();

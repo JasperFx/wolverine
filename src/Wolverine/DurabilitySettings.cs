@@ -10,20 +10,6 @@ public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
 
-    public DurabilitySettings(Assembly? applicationAssembly)
-    {
-        CodeGeneration = new GenerationRules("Internal.Generated");
-        CodeGeneration.Sources.Add(new NowTimeVariableSource());
-
-        CodeGeneration.Assemblies.Add(GetType().GetTypeInfo().Assembly);
-        CodeGeneration.Assemblies.Add(applicationAssembly);
-    }
-
-    /// <summary>
-    ///     Configure or extend the Lamar code generation
-    /// </summary>
-    public GenerationRules CodeGeneration { get; }
-
     /// <summary>
     ///     Should the message durability agent be enabled during execution.
     ///     The default is true.

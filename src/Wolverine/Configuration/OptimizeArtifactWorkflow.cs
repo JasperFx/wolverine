@@ -16,14 +16,14 @@ internal class OptimizeArtifactWorkflow : IWolverineExtension
     {
         if (_environment.IsDevelopment())
         {
-            options.Durability.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-            options.Durability.CodeGeneration.SourceCodeWritingEnabled = true;
+            options.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            options.CodeGeneration.SourceCodeWritingEnabled = true;
             options.AutoBuildEnvelopeStorageOnStartup = true;
         }
         else
         {
-            options.Durability.CodeGeneration.TypeLoadMode = options.ProductionTypeLoadMode;
-            options.Durability.CodeGeneration.SourceCodeWritingEnabled = false;
+            options.CodeGeneration.TypeLoadMode = options.ProductionTypeLoadMode;
+            options.CodeGeneration.SourceCodeWritingEnabled = false;
             options.AutoBuildEnvelopeStorageOnStartup = false;
         }
     }

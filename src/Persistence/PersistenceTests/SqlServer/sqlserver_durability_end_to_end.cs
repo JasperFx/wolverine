@@ -35,13 +35,13 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
         await new SqlServerMessageStore(
                 new SqlServerSettings
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = ReceiverSchemaName },
-                new DurabilitySettings(null), new NullLogger<SqlServerMessageStore>())
+                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
         await new SqlServerMessageStore(
                 new SqlServerSettings
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
-                new DurabilitySettings(null), new NullLogger<SqlServerMessageStore>())
+                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
         await buildTraceDocTable();

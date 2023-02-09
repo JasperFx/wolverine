@@ -28,12 +28,12 @@ public class WolverineOptionsTests
     [Fact]
     public void unique_node_id_is_really_unique()
     {
-        var options1 = new DurabilitySettings(null);
-        var options2 = new DurabilitySettings(null);
-        var options3 = new DurabilitySettings(null);
-        var options4 = new DurabilitySettings(null);
-        var options5 = new DurabilitySettings(null);
-        var options6 = new DurabilitySettings(null);
+        var options1 = new DurabilitySettings();
+        var options2 = new DurabilitySettings();
+        var options3 = new DurabilitySettings();
+        var options4 = new DurabilitySettings();
+        var options5 = new DurabilitySettings();
+        var options6 = new DurabilitySettings();
 
         options1.UniqueNodeId.ShouldNotBe(options2.UniqueNodeId);
         options1.UniqueNodeId.ShouldNotBe(options3.UniqueNodeId);

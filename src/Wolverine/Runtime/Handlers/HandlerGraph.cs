@@ -164,7 +164,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
     internal async Task CompileAsync(WolverineOptions options, IContainer container)
     {
-        Rules = options.Durability.CodeGeneration;
+        Rules = options.CodeGeneration;
         var calls = await Source.FindCallsAsync(options);
 
         if (calls.Any())

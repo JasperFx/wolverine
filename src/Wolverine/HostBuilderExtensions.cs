@@ -100,7 +100,7 @@ public static class HostBuilderExtensions
                 }
 #endif
 
-                options.Durability.CodeGeneration.GeneratedCodeOutputPath =
+                options.CodeGeneration.GeneratedCodeOutputPath =
                     directory!.AppendPath("Internal", "Generated");
 
                 return options;
@@ -151,7 +151,7 @@ public static class HostBuilderExtensions
 #pragma warning restore VSTHRD002
                 }
 
-                handlers.Rules ??= c.GetRequiredService<WolverineOptions>().Durability.CodeGeneration;
+                handlers.Rules ??= c.GetRequiredService<WolverineOptions>().CodeGeneration;
 
                 return handlers;
             });

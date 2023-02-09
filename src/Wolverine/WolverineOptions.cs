@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,15 +31,32 @@ public sealed partial class WolverineOptions
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
 
         UseNewtonsoftForSerialization();
+        
+        CodeGeneration = new GenerationRules("Internal.Generated");
+        CodeGeneration.Sources.Add(new NowTimeVariableSource());
+        CodeGeneration.Assemblies.Add(GetType().GetTypeInfo().Assembly);
 
         establishApplicationAssembly(assemblyName);
+        
 
-        Durability = new DurabilitySettings(ApplicationAssembly);
+        if (ApplicationAssembly != null)
+        {
+            CodeGeneration.Assemblies.Add(ApplicationAssembly);
+        }
+        
+        Durability = new DurabilitySettings();
 
         deriveServiceName();
 
         LocalQueue(TransportConstants.Durable).UseDurableInbox();
     }
+    
+    
+    /// <summary>
+    ///  Configure or extend how Wolverine does the runtime (or build ahead time) code generation
+    /// </summary>
+    public GenerationRules CodeGeneration { get; }
+
 
     /// <summary>
     ///     Options for applying conventional configuration to all or a subset of messaging endpoints

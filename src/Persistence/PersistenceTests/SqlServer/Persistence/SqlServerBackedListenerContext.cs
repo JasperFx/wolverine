@@ -32,7 +32,7 @@ public class SqlServerBackedListenerContext : SqlServerContext
 
     public SqlServerBackedListenerContext()
     {
-        theSettings = new DurabilitySettings(null);
+        theSettings = new DurabilitySettings();
 
         mssqlSettings = new SqlServerSettings
         {

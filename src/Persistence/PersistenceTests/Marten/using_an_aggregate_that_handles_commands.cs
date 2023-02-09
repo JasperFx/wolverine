@@ -34,7 +34,7 @@ public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisp
                 opts.Projections.SelfAggregate<SelfLetteredAggregate>(ProjectionLifecycle.Inline);
             }).IntegrateWithWolverine().ApplyAllDatabaseChangesOnStartup();
 
-            x.Durability.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            x.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
         });
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();

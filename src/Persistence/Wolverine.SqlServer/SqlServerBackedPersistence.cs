@@ -24,7 +24,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension
         options.Services.AddTransient<IMessageStore, SqlServerMessageStore>();
         options.Services.AddSingleton(s => (IDatabase)s.GetRequiredService<IMessageStore>());
 
-        options.Durability.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
+        options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
         options.Services.For<SqlConnection>().Use<SqlConnection>();
 
@@ -34,6 +34,6 @@ internal class SqlServerBackedPersistence : IWolverineExtension
             new SqlConnectionInstance(typeof(DbConnection))));
 
         // Don't overwrite the EF Core transaction support if it's there
-        options.Durability.CodeGeneration.AddPersistenceStrategy<SqlServerPersistenceFrameProvider>();
+        options.CodeGeneration.AddPersistenceStrategy<SqlServerPersistenceFrameProvider>();
     }
 }

@@ -22,5 +22,5 @@ public class WolverineSupplementalCodeFiles : ICodeFileCollection
     }
 
     public string ChildNamespace => "WolverineHandlers";
-    public GenerationRules Rules => _options.Durability.CodeGeneration;
+    public GenerationRules Rules => _options.CodeGeneration;
 }

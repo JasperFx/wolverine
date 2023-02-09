@@ -35,11 +35,11 @@ public sealed partial class WolverineOptions
             {
                 HandlerGraph.Source.Assemblies.Add(value);
 
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (Durability != null)
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                if (CodeGeneration != null)
                 {
-                    Durability.CodeGeneration.ApplicationAssembly = value;
-                    Durability.CodeGeneration.ReferenceAssembly(value);
+                    CodeGeneration.ApplicationAssembly = value;
+                    CodeGeneration.ReferenceAssembly(value);
                 }
             }
         }
