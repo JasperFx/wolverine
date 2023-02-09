@@ -1,10 +1,7 @@
-using System;
 using System.Reflection;
-using System.Threading;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using Wolverine.Runtime.Handlers;
 using Wolverine.Util;
 
 namespace Wolverine;
@@ -12,12 +9,9 @@ namespace Wolverine;
 public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
-    private string _serviceName;
-
 
     public DurabilitySettings(Assembly? applicationAssembly)
     {
-        _serviceName = applicationAssembly?.GetName().Name ?? "WolverineApplication";
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
 
@@ -91,14 +85,6 @@ public class DurabilitySettings
     ///     Get or set the logical Wolverine service name. By default, this is
     ///     derived from the name of a custom WolverineOptions
     /// </summary>
-
-    public string? ServiceName
-    {
-        get => _serviceName;
-        set => _serviceName = value ?? throw new InvalidOperationException("A non-null value is required");
-    }
-
-
     internal void Cancel()
     {
         _cancellation.Cancel();

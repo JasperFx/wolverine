@@ -117,6 +117,8 @@ public sealed partial class WolverineOptions
         get => _applicationAssembly;
         set
         {
+            deriveServiceName();
+            
             _applicationAssembly = value;
 
             if (value != null)
@@ -134,16 +136,6 @@ public sealed partial class WolverineOptions
     }
 
     internal HandlerGraph HandlerGraph { get; } = new();
-
-    /// <summary>
-    ///     Get or set the logical Wolverine service name. By default, this is
-    ///     derived from the name of a custom WolverineOptions
-    /// </summary>
-    public string? ServiceName
-    {
-        get => Durability.ServiceName;
-        set => Durability.ServiceName = value;
-    }
 
     /// <summary>
     ///     Override or get the default message serializer for the application. The default is based around Newtonsoft.Json
@@ -212,14 +204,19 @@ public sealed partial class WolverineOptions
     {
         if (GetType() == typeof(WolverineOptions))
         {
-            Durability.ServiceName = ApplicationAssembly?.GetName().Name ?? "WolverineService";
+            ServiceName = ApplicationAssembly?.GetName().Name ?? "WolverineService";
         }
         else
         {
-            Durability.ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
+            ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
                 .Replace("Options", "");
         }
     }
+
+    /// <summary>
+    /// Descriptive name of the running service. Used in Wolverine diagnostics and testing support
+    /// </summary>
+    public string ServiceName { get; set; } = Assembly.GetEntryAssembly().GetName().Name;
 
     private Assembly? determineCallingAssembly()
     {
