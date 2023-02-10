@@ -8,7 +8,7 @@ public class posting_json : IntegrationContext
     [Fact]
     public async Task post_json_happy_path()
     {
-        var response = await Host.Scenario(x =>
+        var response = await Scenario(x =>
         {
             x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
             x.WithRequestHeader("accepts", "application/json");
@@ -23,7 +23,7 @@ public class posting_json : IntegrationContext
     [Fact]
     public async Task post_json_garbage_get_400()
     {
-        var response = await Host.Scenario(x =>
+        var response = await Scenario(x =>
         {
             x.Post.Text("garbage").ToUrl("/question");
             x.WithRequestHeader("content-type", "application/json");
@@ -34,7 +34,7 @@ public class posting_json : IntegrationContext
     [Fact]
     public async Task post_text_get_415()
     {
-        var response = await Host.Scenario(x =>
+        var response = await Scenario(x =>
         {
             x.Post.Text("garbage").ToUrl("/question");
             x.WithRequestHeader("content-type", "text/plain");
@@ -45,7 +45,7 @@ public class posting_json : IntegrationContext
     [Fact]
     public async Task post_json_but_accept_text_get_406()
     {
-        var response = await Host.Scenario(x =>
+        var response = await Scenario(x =>
         {
             x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
             x.WithRequestHeader("accept", "text/plain");

@@ -1,48 +1,21 @@
 using Alba;
 using Marten;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
+using Shouldly;
 using Wolverine.Tracking;
 
 namespace Wolverine.Http.Tests;
 
 public class AppFixture : IAsyncLifetime
 {
-    public static int count = 0;
-    
+
     public async Task InitializeAsync()
     {
-        count++;
-
-        if (count > 1) throw new Exception("CALLED A SECOND TIME!!!!");
-        
         OaktonEnvironment.AutoStartHost = true;
-        
-        var delay = 0;
-        while (true)
-        {
-            if (delay > 1000) throw new Exception("Will not start up, don't know why!");
 
-            try
-            {
-                await bootstrap(delay);
-                break;
-            }
-            catch (Exception e)
-            {
-                delay += 100;
-                await Task.Delay(delay);
-
-                if (Host != null)
-                {
-                    await Host.GetAsText("/trace");
-                }
-
-                break;
-            }
-        }
+        await ResetHost();
     }
 
     private async Task bootstrap(int delay)
@@ -85,6 +58,33 @@ public class AppFixture : IAsyncLifetime
 
         return Task.CompletedTask;
     }
+
+    public async Task ResetHost()
+    {
+        var delay = 0;
+        while (true)
+        {
+            if (delay > 1000) throw new Exception("Will not start up, don't know why!");
+
+            try
+            {
+                await bootstrap(delay);
+                break;
+            }
+            catch (Exception e)
+            {
+                delay += 100;
+                await Task.Delay(delay);
+
+                if (Host != null)
+                {
+                    await Host.GetAsText("/trace");
+                }
+
+                break;
+            }
+        }
+    }
 }
 
 
@@ -104,6 +104,16 @@ public abstract class IntegrationContext : IAsyncLifetime
     protected IntegrationContext(AppFixture fixture)
     {
         _fixture = fixture;
+    }
+
+    protected Task reset()
+    {
+        return _fixture.ResetHost();
+    }
+
+    public async Task<IScenarioResult> Scenario(Action<Scenario> configure)
+    {
+        return await Host.Scenario(configure);
     }
 
     public EndpointGraph Endpoints => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;

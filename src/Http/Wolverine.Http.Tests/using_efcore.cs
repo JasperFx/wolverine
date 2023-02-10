@@ -21,7 +21,7 @@ public class using_efcore : IntegrationContext
         
         var command = new CreateItemCommand { Name = "Isaiah Pacheco" };
 
-        await Host.Scenario(x =>
+        await Scenario(x =>
         {
             x.Post.Json(command).ToUrl("/ef/create");
         });

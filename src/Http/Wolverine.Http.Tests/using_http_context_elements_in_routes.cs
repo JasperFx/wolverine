@@ -10,7 +10,7 @@ public class using_http_context_elements_in_routes : IntegrationContext
 
     protected async Task assertExecutesWithNoErrors(string url)
     {
-        await Host.Scenario(x =>
+        await Scenario(x =>
         {
             x.Get.Url(url);
             x.StatusCodeShouldBeOk();
@@ -40,7 +40,7 @@ public class using_http_context_elements_in_routes : IntegrationContext
     {
         var principal = new ClaimsPrincipal();
 
-        var body = await Host.Scenario(x =>
+        var body = await Scenario(x =>
         {
             x.ConfigureHttpContext(c => c.User = principal);
             x.Get.Url("/http/principal");
@@ -54,7 +54,7 @@ public class using_http_context_elements_in_routes : IntegrationContext
     {
         var identifier = Guid.NewGuid().ToString();
         
-        var body = await Host.Scenario(x =>
+        var body = await Scenario(x =>
         {
             x.ConfigureHttpContext(c => c.TraceIdentifier = identifier);
             x.Get.Url("/http/identifier");

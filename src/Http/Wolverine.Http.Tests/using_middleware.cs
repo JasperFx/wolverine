@@ -14,7 +14,7 @@ public class using_middleware : IntegrationContext
         var recorder = Host.Services.GetRequiredService<Recorder>();
         recorder.Actions.Clear();
 
-        await Host.Scenario(x =>
+        await Scenario(x =>
         {
             x.Get.Url("/middleware/simple");
 
@@ -29,7 +29,7 @@ public class using_middleware : IntegrationContext
         var recorder = Host.Services.GetRequiredService<Recorder>();
         recorder.Actions.Clear();
 
-        await Host.Scenario(x =>
+        await Scenario(x =>
         {
             x.Get.Url("/middleware/intrinsic");
 
@@ -41,7 +41,7 @@ public class using_middleware : IntegrationContext
     [Fact]
     public async Task middleware_with_iresult_filter_happy_path()
     {
-        await Host.Scenario(x =>
+        await Scenario(x =>
         {
             x.Post.Json(new AuthenticatedRequest{Authenticated = true}, JsonStyle.MinimalApi).ToUrl("/authenticated");
             x.StatusCodeShouldBeOk();
@@ -51,7 +51,7 @@ public class using_middleware : IntegrationContext
     [Fact]
     public async Task middleware_with_iresult_filter_sad_path()
     {
-        await Host.Scenario(x =>
+        await Scenario(x =>
         {
             x.Post.Json(new AuthenticatedRequest{Authenticated = false}).ToUrl("/authenticated");
             x.StatusCodeShouldBe(401);

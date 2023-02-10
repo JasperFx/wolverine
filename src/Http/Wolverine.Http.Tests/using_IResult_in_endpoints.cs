@@ -7,7 +7,7 @@ public class using_IResult_in_endpoints : IntegrationContext
     [Fact]
     public async Task use_as_return_value_sync()
     {
-        var result = await Host.Scenario(x =>
+        var result = await Scenario(x =>
         {
             x.Get.Url("/result");
             x.Header("content-type").SingleValueShouldEqual("text/plain");
@@ -19,7 +19,7 @@ public class using_IResult_in_endpoints : IntegrationContext
     [Fact]
     public async Task use_as_return_value_async()
     {
-        var result = await Host.Scenario(x =>
+        var result = await Scenario(x =>
         {
             x.Get.Url("/result/async");
             x.Header("content-type").SingleValueShouldEqual("text/plain");
