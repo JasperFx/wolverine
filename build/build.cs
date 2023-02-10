@@ -142,7 +142,8 @@ namespace build
                 "./src/Persistence/Wolverine.Marten",
                 "./src/Persistence/Wolverine.SqlServer",
                 "./src/Extensions/Wolverine.FluentValidation",
-                "./src/Extensions/Wolverine.MemoryPack"
+                "./src/Extensions/Wolverine.MemoryPack",
+                "./src/Http/Wolverine.Http",
             };
 
             Target("pack", DependsOn("compile"), ForEach(nugetProjects), project =>

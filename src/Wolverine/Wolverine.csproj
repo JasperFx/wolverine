@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <Description>In-memory command bus and asynchronous messaging framework</Description>
+        <Description>Next Generation .NET Mediator and Message Bus</Description>
         <DebugType>portable</DebugType>
         <PackageId>WolverineFx</PackageId>
         <LangVersion>latest</LangVersion>
