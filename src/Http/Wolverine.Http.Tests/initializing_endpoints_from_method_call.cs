@@ -17,7 +17,7 @@ namespace Wolverine.Http.Tests;
 public class initializing_endpoints_from_method_call : IntegrationContext, IDisposable
 {
     private readonly Container container;
-    private readonly EndpointGraph parent;
+    private readonly HttpGraph parent;
 
     public initializing_endpoints_from_method_call(AppFixture fixture) : base(fixture)
     {
@@ -27,7 +27,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         });
 
-        parent = new EndpointGraph(new WolverineOptions
+        parent = new HttpGraph(new WolverineOptions
         {
             ApplicationAssembly = GetType().Assembly
         }, container);
@@ -41,7 +41,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     [Fact]
     public void build_pattern_using_http_pattern_with_attribute()
     {
-        var endpoint = EndpointChain.ChainFor<FakeEndpoint>(x => x.SayHello());
+        var endpoint = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHello());
 
         endpoint.RoutePattern.RawText.ShouldBe("/hello");
         endpoint.RoutePattern.Parameters.Any().ShouldBeFalse();
@@ -50,7 +50,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     [Fact]
     public void capturing_the_http_method_metadata()
     {
-        var chain = EndpointChain.ChainFor<FakeEndpoint>(x => x.SayHello());
+        var chain = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHello());
         var endpoint = chain.BuildEndpoint();
 
         var metadata = endpoint.Metadata.OfType<HttpMethodMetadata>().Single();
@@ -60,7 +60,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     [Fact]
     public void capturing_accepts_metadata_for_request_type()
     {
-        var chain = EndpointChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
+        var chain = HttpChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
         chain.RequestType.ShouldBe(typeof(Question));
         
         var endpoint = chain.BuildEndpoint();
@@ -74,7 +74,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     [Fact]
     public void capturing_metadata_for_resource_type()
     {
-        var chain = EndpointChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
+        var chain = HttpChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
         chain.ResourceType.ShouldBe(typeof(Results));
         
         var endpoint = chain.BuildEndpoint();
@@ -107,7 +107,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     public void determine_resource_type(string methodName, Type? expectedType)
     {
         var method = new MethodCall(typeof(FakeEndpoint), methodName);
-        var endpoint = new EndpointChain(method, parent);
+        var endpoint = new HttpChain(method, parent);
 
         if (expectedType == null)
         {
@@ -122,7 +122,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     [Fact]
     public void pick_up_metadata_from_attribute_on_handler_type()
     {
-        var chain = EndpointChain.ChainFor<SecuredEndpoint>(x => x.Greetings());
+        var chain = HttpChain.ChainFor<SecuredEndpoint>(x => x.Greetings());
         var endpoint = chain.BuildEndpoint();
 
         endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
@@ -132,7 +132,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     [Fact]
     public void pick_up_metadata_from_attribute_on_method()
     {
-        var chain = EndpointChain.ChainFor<IndividualEndpoint>(x => x.Goodbypes());
+        var chain = HttpChain.ChainFor<IndividualEndpoint>(x => x.Goodbypes());
         var endpoint = chain.BuildEndpoint();
 
         endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
@@ -141,14 +141,14 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     [Fact]
     public void must_use_outbox_when_using_message_bus()
     {
-        var chain = EndpointChain.ChainFor<MaybeMessagingEndpoints>(x => x.Yes(null, null));
+        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.Yes(null, null));
         chain.RequiresOutbox().ShouldBeTrue();
     }
     
     [Fact]
     public void does_not_use_outbox_when_not_using_message_bus()
     {
-        var chain = EndpointChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null));
+        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null));
         chain.RequiresOutbox().ShouldBeFalse();
     }
 }

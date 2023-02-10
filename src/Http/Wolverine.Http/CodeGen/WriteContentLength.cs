@@ -17,7 +17,7 @@ public class WriteContentLength : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"{EndpointGraph.Context}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.ContentLength)} = {_stringVariable.Usage}.Length;");
+        writer.Write($"{HttpGraph.Context}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.ContentLength)} = {_stringVariable.Usage}.Length;");
         Next?.GenerateCode(method, writer);
     }
 }

@@ -8,7 +8,7 @@ namespace Wolverine.Http.CodeGen;
 
 internal class MessageBusStrategy : IParameterStrategy
 {
-    public bool TryMatch(EndpointChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
+    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
         if (parameter.ParameterType == typeof(IMessageBus))
         {

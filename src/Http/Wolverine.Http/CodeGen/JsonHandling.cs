@@ -28,7 +28,7 @@ internal class ReadJsonBody : AsyncFrame
 
 internal class JsonBodyParameterStrategy : IParameterStrategy
 {
-    public bool TryMatch(EndpointChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
+    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
         variable = default;
 

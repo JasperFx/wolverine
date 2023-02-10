@@ -25,9 +25,9 @@ public class smoke_test_code_generation_of_endpoints_with_no_service_dependencie
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         });
         
-        var parent = new EndpointGraph(new WolverineOptions{ApplicationAssembly = GetType().Assembly}, container);
+        var parent = new HttpGraph(new WolverineOptions{ApplicationAssembly = GetType().Assembly}, container);
         
-        var endpoint = new EndpointChain(new MethodCall(typeof(FakeEndpoint), method), parent);
+        var endpoint = new HttpChain(new MethodCall(typeof(FakeEndpoint), method), parent);
 
         
         endpoint.As<ICodeFile>().InitializeSynchronously(parent.Rules, parent, parent.Container);

@@ -129,7 +129,7 @@ public abstract class IntegrationContext : IAsyncLifetime
         }
     }
 
-    public EndpointGraph Endpoints => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
+    public HttpGraph HttpChains => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
 
     public IAlbaHost Host => _fixture.Host;
     public IDocumentStore Store => _fixture.Host.Services.GetRequiredService<IDocumentStore>();

@@ -16,7 +16,7 @@ public class WriteContentType : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"{EndpointGraph.Context}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.ContentType)} = \"{_contentType}\";");
+        writer.Write($"{HttpGraph.Context}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.ContentType)} = \"{_contentType}\";");
         Next?.GenerateCode(method, writer);
     }
 }

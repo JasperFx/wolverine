@@ -48,7 +48,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         configure?.Invoke(options);
         
         options.JsonSerializerOptions = container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
-        options.Endpoints = new EndpointGraph(runtime.Options, container);
+        options.Endpoints = new HttpGraph(runtime.Options, container);
         options.Endpoints.DiscoverEndpoints(options);
         
         container.GetInstance<WolverineSupplementalCodeFiles>().Collections.Add(options.Endpoints);

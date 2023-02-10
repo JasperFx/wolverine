@@ -7,5 +7,5 @@ namespace Wolverine.Http.CodeGen;
 
 public interface IParameterStrategy
 {
-    bool TryMatch(EndpointChain chain, IContainer container, ParameterInfo parameter, out Variable variable);
+    bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable);
 }

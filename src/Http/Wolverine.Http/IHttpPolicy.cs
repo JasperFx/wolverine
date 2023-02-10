@@ -6,7 +6,7 @@ namespace Wolverine.Http;
 /// <summary>
 /// Use to apply your own conventions or policies to HTTP endpoint handlers
 /// </summary>
-public interface IEndpointPolicy
+public interface IHttpPolicy
 {
     /// <summary>
     ///     Called during bootstrapping to alter how the message handlers are configured
@@ -14,19 +14,19 @@ public interface IEndpointPolicy
     /// <param name="chains"></param>
     /// <param name="rules"></param>
     /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(IReadOnlyList<EndpointChain> chains, GenerationRules rules, IContainer container);
+    void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container);
 }
 
-internal class LambdaEndpointPolicy : IEndpointPolicy
+internal class LambdaHttpPolicy : IHttpPolicy
 {
-    private readonly Action<EndpointChain, GenerationRules, IContainer> _action;
+    private readonly Action<HttpChain, GenerationRules, IContainer> _action;
 
-    public LambdaEndpointPolicy(Action<EndpointChain, GenerationRules, IContainer> action)
+    public LambdaHttpPolicy(Action<HttpChain, GenerationRules, IContainer> action)
     {
         _action = action;
     }
 
-    public void Apply(IReadOnlyList<EndpointChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
     {
         foreach (var chain in chains)
         {

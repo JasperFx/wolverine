@@ -9,12 +9,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Http;
 
-public abstract class EndpointHandler
+public abstract class HttpHandler
 {
     private readonly WolverineHttpOptions _options;
 
     // ReSharper disable once PublicConstructorInAbstractClass
-    public EndpointHandler(WolverineHttpOptions options)
+    public HttpHandler(WolverineHttpOptions options)
     {
         _options = options;
     }

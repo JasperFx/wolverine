@@ -33,7 +33,7 @@ public class using_policies_and_attributes_to_customize_handling : IntegrationCo
         
         endpoints.Any().ShouldBeTrue();
 
-        var testEndpoints = endpoints.Select(x => x.Metadata.GetMetadata<EndpointChain>())
+        var testEndpoints = endpoints.Select(x => x.Metadata.GetMetadata<HttpChain>())
             .Where(x => x != null).Where(x => x.Method.HandlerType == typeof(TestEndpoints));
 
         foreach (var endpoint in testEndpoints)
@@ -50,7 +50,7 @@ public class using_policies_and_attributes_to_customize_handling : IntegrationCo
         
         endpoints.Any().ShouldBeTrue();
 
-        var endpoint = endpoints.Select(x => x.Metadata.GetMetadata<EndpointChain>())
+        var endpoint = endpoints.Select(x => x.Metadata.GetMetadata<HttpChain>())
             .Where(x => x != null).Single(x => x.RoutePattern.RawText == "/data/{id}");
 
         endpoint.Middleware.OfType<CommentFrame>().Any().ShouldBeTrue();

@@ -6,7 +6,7 @@ namespace Wolverine.Http.Resources;
 
 internal class ResultWriterPolicy : IResourceWriterPolicy
 {
-    public bool TryApply(EndpointChain chain)
+    public bool TryApply(HttpChain chain)
     {
         if (chain.Method.ReturnType.CanBeCastTo<IResult>())
         {

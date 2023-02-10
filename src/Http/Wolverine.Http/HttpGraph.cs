@@ -9,7 +9,7 @@ using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
-public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IChangeToken
+public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChangeToken
 {
     public static readonly string Context = "httpContext";
     private readonly WolverineOptions _options;
@@ -21,11 +21,11 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
         new JsonResourceWriterPolicy()
     };
 
-    private readonly List<EndpointChain> _chains = new();
+    private readonly List<HttpChain> _chains = new();
     private readonly List<RouteEndpoint> _endpoints = new();
 
 
-    public EndpointGraph(WolverineOptions options, IContainer container)
+    public HttpGraph(WolverineOptions options, IContainer container)
     {
         _options = options;
         Container = container;
@@ -57,10 +57,10 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
 
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
     {
-        var source = new EndpointSource(_options.Assemblies);
+        var source = new HttpChainSource(_options.Assemblies);
         var calls = source.FindActions();
 
-        _chains.AddRange(calls.Select(x => new EndpointChain(x, this)));
+        _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
 
                 
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
@@ -84,7 +84,7 @@ public partial class EndpointGraph : EndpointDataSource, ICodeFileCollection, IC
         return this;
     }
 
-    public EndpointChain? ChainFor(string httpMethod, string urlPattern)
+    public HttpChain? ChainFor(string httpMethod, string urlPattern)
     {
         return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern.RawText == urlPattern);
     }

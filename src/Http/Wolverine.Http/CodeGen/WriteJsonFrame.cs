@@ -16,7 +16,7 @@ public class WriteJsonFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"await {nameof(EndpointHandler.WriteJsonAsync)}(httpContext, {_resourceVariable.Usage});");
+        writer.Write($"await {nameof(HttpHandler.WriteJsonAsync)}(httpContext, {_resourceVariable.Usage});");
         Next?.GenerateCode(method, writer);
     }
 }

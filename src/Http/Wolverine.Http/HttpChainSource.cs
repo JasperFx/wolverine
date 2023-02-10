@@ -8,11 +8,11 @@ using Wolverine.Attributes;
 
 namespace Wolverine.Http;
 
-internal class EndpointSource
+internal class HttpChainSource
 {
     private readonly IList<Assembly> _assemblies;
 
-    public EndpointSource(IEnumerable<Assembly> assemblies)
+    public HttpChainSource(IEnumerable<Assembly> assemblies)
     {
         _assemblies = assemblies.ToList();
         

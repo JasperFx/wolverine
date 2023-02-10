@@ -3,7 +3,7 @@ using Wolverine.Http.CodeGen;
 
 namespace Wolverine.Http;
 
-public partial class EndpointGraph
+public partial class HttpGraph
 {
     private readonly List<IParameterStrategy> _strategies = new()
     {
@@ -14,7 +14,7 @@ public partial class EndpointGraph
         new JsonBodyParameterStrategy()
     };
     
-    internal void ApplyParameterMatching(EndpointChain chain)
+    internal void ApplyParameterMatching(HttpChain chain)
     {
         var parameters = chain.Method.Method.GetParameters();
         for (int i = 0; i < parameters.Length; i++)
@@ -28,7 +28,7 @@ public partial class EndpointGraph
         }
     }
 
-    internal bool TryMatchParameter(EndpointChain chain, ParameterInfo parameter, int i)
+    internal bool TryMatchParameter(HttpChain chain, ParameterInfo parameter, int i)
     {
         foreach (var strategy in _strategies)
         {

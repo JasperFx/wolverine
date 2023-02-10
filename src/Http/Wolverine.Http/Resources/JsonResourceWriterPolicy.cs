@@ -4,7 +4,7 @@ namespace Wolverine.Http.Resources;
 
 internal class JsonResourceWriterPolicy : IResourceWriterPolicy
 {
-    public bool TryApply(EndpointChain chain)
+    public bool TryApply(HttpChain chain)
     {
         if (chain.HasResourceType())
         {

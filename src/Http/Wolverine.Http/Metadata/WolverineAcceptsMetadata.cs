@@ -4,7 +4,7 @@ namespace Wolverine.Http.Metadata;
 
 internal class WolverineAcceptsMetadata : IAcceptsMetadata
 {
-    public WolverineAcceptsMetadata(EndpointChain chain)
+    public WolverineAcceptsMetadata(HttpChain chain)
     {
         ContentTypes = new string[] { "application/json" };
         RequestType = chain.RequestType;

@@ -6,7 +6,7 @@ namespace Wolverine.Http.Resources;
 
 internal class StringResourceWriterPolicy : IResourceWriterPolicy
 {
-    public bool TryApply(EndpointChain chain)
+    public bool TryApply(HttpChain chain)
     {
         if (chain.ResourceType == typeof(string))
         {
@@ -32,7 +32,7 @@ internal class StringResourceWriterPolicy : IResourceWriterPolicy
         {
             var prefix = method.AsyncMode == AsyncMode.ReturnCompletedTask ? "return" : "await";  
             
-            writer.Write($"{prefix} {nameof(EndpointHandler.WriteString)}(httpContext, {_result.Usage});");
+            writer.Write($"{prefix} {nameof(HttpHandler.WriteString)}(httpContext, {_result.Usage});");
             
             Next?.GenerateCode(method, writer);
         }

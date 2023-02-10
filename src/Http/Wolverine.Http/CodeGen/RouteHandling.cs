@@ -87,7 +87,7 @@ internal class RouteParameterStrategy : IParameterStrategy
         return TypeOutputs.ContainsKey(argType);
     }
     
-    public bool TryMatch(EndpointChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
+    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
         var matches = chain.RoutePattern.Parameters.Any(x => x.Name == parameter.Name);
         if (matches)

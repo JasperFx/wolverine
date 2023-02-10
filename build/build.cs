@@ -36,6 +36,11 @@ namespace build
                 RunTests("CoreTests");
             });
             
+            Target("test-http", DependsOn("compile", "docker-up"), () =>
+            {
+                RunTests("Http", "Wolverine.Http.Tests");
+            });
+            
             Target("test-persistence", DependsOn("compile", "docker-up"), () =>
             {
                 RunTests("Persistence", "PersistenceTests");

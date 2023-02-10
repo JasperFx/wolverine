@@ -17,37 +17,37 @@ using Wolverine.Http.Metadata;
 
 namespace Wolverine.Http;
 
-public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICodeFile
+public class HttpChain : Chain<HttpChain, ModifyHttpAttribute>, ICodeFile
 {
     public static readonly Variable[] HttpContextVariables =
-        Variable.VariablesForProperties<HttpContext>(EndpointGraph.Context);
+        Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
     
-    private readonly EndpointGraph _parent;
+    private readonly HttpGraph _parent;
 
-    public static EndpointChain ChainFor<T>(Expression<Action<T>> expression, EndpointGraph? parent = null)
+    public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {
         var method = ReflectionHelper.GetMethod(expression);
         var call = new MethodCall(typeof(T), method);
 
-        return new EndpointChain(call, parent ?? new EndpointGraph(new WolverineOptions(), new Container(x =>
+        return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), new Container(x =>
         {
             x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         })));
     }
     
-    public static EndpointChain ChainFor(Type handlerType, string methodName, EndpointGraph? parent = null)
+    public static HttpChain ChainFor(Type handlerType, string methodName, HttpGraph? parent = null)
     {
         var call = new MethodCall(handlerType, methodName);
 
-        return new EndpointChain(call, parent ?? new EndpointGraph(new WolverineOptions(), new Container(x =>
+        return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), new Container(x =>
         {
             x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         })));
     }
     
-    private string _fileName;
+    private readonly string _fileName;
     
     // Make the assumption that the route argument has to match the parameter name
     private readonly List<ParameterInfo> _routeArguments = new();
@@ -62,7 +62,7 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
 
     public MethodCall Method { get; }
 
-    public EndpointChain(MethodCall method, EndpointGraph parent)
+    public HttpChain(MethodCall method, HttpGraph parent)
     {
         _parent = parent ?? throw new ArgumentNullException(nameof(parent));
         Method = method ?? throw new ArgumentNullException(nameof(method));
@@ -192,13 +192,13 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         assembly.UsingNamespaces.Fill("System.Linq");
         assembly.UsingNamespaces.Fill("System");
         
-        _generatedType = assembly.AddType(_fileName, typeof(EndpointHandler));
+        _generatedType = assembly.AddType(_fileName, typeof(HttpHandler));
 
         assembly.ReferenceAssembly(Method.HandlerType.Assembly);
         assembly.ReferenceAssembly(typeof(HttpContext).Assembly);
-        assembly.ReferenceAssembly(typeof(EndpointChain).Assembly);
+        assembly.ReferenceAssembly(typeof(HttpChain).Assembly);
         
-        var handleMethod = _generatedType.MethodFor(nameof(EndpointHandler.Handle));
+        var handleMethod = _generatedType.MethodFor(nameof(HttpHandler.Handle));
         
         handleMethod.DerivedVariables.AddRange(HttpContextVariables);
 
@@ -256,10 +256,10 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
     
     public RouteEndpoint BuildEndpoint()
     {
-        var handler = new Lazy<EndpointHandler>(() =>
+        var handler = new Lazy<HttpHandler>(() =>
         {
             this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
-            return (EndpointHandler)_parent.Container.QuickBuild(_handlerType);
+            return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
         });
         
         Endpoint = new RouteEndpoint(c => handler.Value.Handle(c), RoutePattern, Order, new EndpointMetadataCollection(buildMetadata()), DisplayName);
