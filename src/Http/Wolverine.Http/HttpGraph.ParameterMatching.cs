@@ -7,6 +7,7 @@ public partial class HttpGraph
 {
     private readonly List<IParameterStrategy> _strategies = new()
     {
+        new FromServicesParameterStrategy(),
         new MessageBusStrategy(),
         new HttpContextElements(),
         new RouteParameterStrategy(),
@@ -34,12 +35,15 @@ public partial class HttpGraph
         {
             if (strategy.TryMatch(chain, Container, parameter, out var variable))
             {
-                if (variable.Creator != null)
+                if (variable != null)
                 {
-                    chain.Middleware.Add(variable.Creator);    
-                }
+                    if (variable.Creator != null)
+                    {
+                        chain.Middleware.Add(variable.Creator);    
+                    }
                 
-                chain.Method.Arguments[i] = variable;
+                    chain.Method.Arguments[i] = variable;
+                }
                 return true;
             }
             
