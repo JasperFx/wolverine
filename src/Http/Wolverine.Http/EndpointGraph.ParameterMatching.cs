@@ -35,6 +35,11 @@ public partial class EndpointGraph
         {
             if (strategy.TryMatch(chain, Container, parameter, out var variable))
             {
+                if (variable.Creator != null)
+                {
+                    chain.Middleware.Add(variable.Creator);    
+                }
+                
                 chain.Method.Arguments[i] = variable;
                 return true;
             }

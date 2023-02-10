@@ -212,7 +212,10 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         {
             foreach (var writerPolicy in _parent.WriterPolicies)
             {
-                if (writerPolicy.TryApply(this)) break;
+                if (writerPolicy.TryApply(this))
+                {
+                    break;
+                }
             }
         }
 
