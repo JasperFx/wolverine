@@ -26,7 +26,7 @@ public class send_by_topics : IDisposable
         theSender = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRabbitMq().AutoProvision();
+                opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
                 opts.PublishAllMessages().ToRabbitTopics("wolverine.topics", exchange =>
                 {
                     exchange.BindTopic("color.green").ToQueue("green");

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using RabbitMQ.Client;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
@@ -9,6 +10,24 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 {
     public RabbitMqTransportExpression(RabbitMqTransport transport, WolverineOptions options) : base(transport, options)
     {
+    }
+
+    /// <summary>
+    /// Make any necessary customizations to the Rabbit MQ client's ConnectionFactory 
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public RabbitMqTransportExpression ConfigureConnection(Action<ConnectionFactory> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        configure(Transport.ConnectionFactory);
+
+        return this;
     }
 
     protected override RabbitMqListenerConfiguration createListenerExpression(RabbitMqQueue listenerEndpoint)
