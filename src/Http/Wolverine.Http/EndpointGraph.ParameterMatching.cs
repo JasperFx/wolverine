@@ -5,7 +5,6 @@ namespace Wolverine.Http;
 
 public partial class EndpointGraph
 {
-    // TODO -- make this pluggable later???
     private readonly List<IParameterStrategy> _strategies = new()
     {
         new MessageBusStrategy(),

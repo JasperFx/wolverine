@@ -1,8 +1,11 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Headers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Http;
 
@@ -60,8 +63,9 @@ public abstract class EndpointHandler
         }
         catch (Exception e)
         {
-            // TODO -- log exception
-
+            var logger = context.RequestServices.GetService<ILogger<T>>();
+            logger?.LogError(e, "Error trying to deserialize JSON from incoming HTTP body at {Url} to type {Type}", context.Request.Path, typeof(T).FullNameInCode());
+            
             context.Response.StatusCode = 400;
             return (default(T), HandlerContinuation.Stop);
         }
@@ -78,7 +82,7 @@ public abstract class EndpointHandler
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Task WriteJsonAsync<T>(HttpContext context, T body)
+    public Task WriteJsonAsync<T>(HttpContext context, T? body)
     {
         return context.Response.WriteAsJsonAsync(body, _options.JsonSerializerOptions, context.RequestAborted);
     }

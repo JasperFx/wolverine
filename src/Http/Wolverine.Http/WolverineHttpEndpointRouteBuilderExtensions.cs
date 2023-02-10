@@ -29,7 +29,6 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     {
         WolverineRuntime runtime;
 
-        // TODO -- unit test this behavior
         try
         {
             runtime = (WolverineRuntime)endpoints.ServiceProvider.GetRequiredService<IWolverineRuntime>();

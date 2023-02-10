@@ -34,9 +34,6 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
 
         if (chain.HttpMethods.Contains("GET")) return false;
         
-        // TODO -- use the [FromBody]????
-
-        // TODO -- filter out [FromOther] att when it exists
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
             variable = new ReadJsonBody(parameter).Variable;
