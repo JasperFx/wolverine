@@ -55,6 +55,12 @@ public interface IChain
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     bool HasAttribute<T>() where T : Attribute;
+
+    /// <summary>
+    /// The input type for this chain
+    /// </summary>
+    /// <returns></returns>
+    Type? InputType();
 }
 
 #endregion

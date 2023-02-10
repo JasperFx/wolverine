@@ -55,7 +55,7 @@ public interface IContinuationStrategy
     bool TryFindContinuationHandler(MethodCall call, out Frame? frame);
 }
 
-public class HandlerContinuationPolicy : IContinuationStrategy
+internal class HandlerContinuationPolicy : IContinuationStrategy
 {
     public bool TryFindContinuationHandler(MethodCall call, out Frame? frame)
     {

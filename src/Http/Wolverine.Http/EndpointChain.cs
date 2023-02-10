@@ -181,6 +181,11 @@ public class EndpointChain : Chain<EndpointChain, ModifyEndpointAttribute>, ICod
         return Method.HandlerType.HasAttribute<T>() || Method.Method.HasAttribute<T>();
     }
 
+    public override Type? InputType()
+    {
+        return RequestType;
+    }
+
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
         assembly.UsingNamespaces.Fill(typeof(RoutingHttpContextExtensions).Namespace);

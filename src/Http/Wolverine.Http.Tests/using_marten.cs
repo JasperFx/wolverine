@@ -38,4 +38,8 @@ public class using_marten : IntegrationContext
 
         loaded.ShouldNotBeNull();
     }
+
+    public using_marten(AppFixture fixture) : base(fixture)
+    {
+    }
 }

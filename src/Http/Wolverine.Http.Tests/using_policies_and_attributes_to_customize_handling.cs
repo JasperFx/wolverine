@@ -55,4 +55,8 @@ public class using_policies_and_attributes_to_customize_handling : IntegrationCo
 
         endpoint.Middleware.OfType<CommentFrame>().Any().ShouldBeTrue();
     }
+
+    public using_policies_and_attributes_to_customize_handling(AppFixture fixture) : base(fixture)
+    {
+    }
 }

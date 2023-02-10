@@ -20,4 +20,8 @@ public class using_container_services_as_method_arguments : IntegrationContext
         Host.Services.GetRequiredService<Recorder>()
             .Actions.ShouldContain("Got: hey");
     }
+
+    public using_container_services_as_method_arguments(AppFixture fixture) : base(fixture)
+    {
+    }
 }

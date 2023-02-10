@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
+using Wolverine.Http.CodeGen;
+using Wolverine.Middleware;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http;
@@ -38,6 +40,9 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         }
 
         var container = (IContainer)endpoints.ServiceProvider;
+        
+        // This let's Wolverine weave in middleware that might return IResult
+        runtime.Options.CodeGeneration.AddContinuationStrategy<ResultContinuationPolicy>();
         
         // Making sure this exists
         var options = container.GetInstance<WolverineHttpOptions>();

@@ -15,10 +15,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
     x => x.UseNpgsql(Servers.PostgresConnectionString));
@@ -57,8 +58,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
-app.MapControllers();
-
 app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>> (int orderId) 
     => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(orderId)));
 
@@ -72,6 +71,8 @@ app.MapWolverineEndpoints(opts =>
 
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware), chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
+    
+    opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 });
 
 await app.RunOaktonCommands(args);

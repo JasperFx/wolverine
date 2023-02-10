@@ -24,4 +24,8 @@ public class endpoint_discovery_and_construction : IntegrationContext
         var chain = Endpoints.ChainFor("GET", "/hello");
         chain.Endpoint.DisplayName.ShouldBe("The Hello Route!");
     }
+
+    public endpoint_discovery_and_construction(AppFixture fixture) : base(fixture)
+    {
+    }
 }

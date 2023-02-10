@@ -170,6 +170,7 @@ public class end_to_end : IntegrationContext
     }
 
 
-    
-    
+    public end_to_end(AppFixture fixture) : base(fixture)
+    {
+    }
 }

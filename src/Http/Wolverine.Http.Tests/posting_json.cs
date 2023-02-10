@@ -52,4 +52,8 @@ public class posting_json : IntegrationContext
             x.StatusCodeShouldBe(406);
         });
     }
+
+    public posting_json(AppFixture fixture) : base(fixture)
+    {
+    }
 }

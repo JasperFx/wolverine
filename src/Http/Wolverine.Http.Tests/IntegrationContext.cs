@@ -1,5 +1,7 @@
 using Alba;
 using Marten;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using Wolverine.Tracking;
@@ -8,17 +10,88 @@ namespace Wolverine.Http.Tests;
 
 public class AppFixture : IAsyncLifetime
 {
+    public static int count = 0;
+    
     public async Task InitializeAsync()
     {
+        count++;
 
+        if (count > 1) throw new Exception("CALLED A SECOND TIME!!!!");
+        
+        OaktonEnvironment.AutoStartHost = true;
+        
+        var delay = 0;
+        while (true)
+        {
+            if (delay > 1000) throw new Exception("Will not start up, don't know why!");
+
+            try
+            {
+                await bootstrap(delay);
+                break;
+            }
+            catch (Exception e)
+            {
+                delay += 100;
+                await Task.Delay(delay);
+
+                if (Host != null)
+                {
+                    await Host.GetAsText("/trace");
+                }
+
+                break;
+            }
+        }
     }
- 
+
+    private async Task bootstrap(int delay)
+    {
+        if (Host != null)
+        {
+            try
+            {
+                var endpoints = Host.Services.GetRequiredService<EndpointDataSource>().Endpoints;
+                if (endpoints.Count < 5)
+                {
+                    throw new Exception($"Only got {endpoints.Count} endpoints, something is missing!");
+                }
+                
+                await Host.GetAsText("/trace");
+                await Task.Delay(delay);
+                return;
+            }
+            catch (Exception e)
+            {
+                await Host.StopAsync();
+                Host = null;
+            }
+        }
+        
+        // This is bootstrapping the actual application using
+        // its implied Program.Main() set up
+        Host = await AlbaHost.For<Program>(x => { });
+        await Host.GetAsText("/trace");
+    }
+
     public IAlbaHost Host { get; private set; }
  
     public Task DisposeAsync()
     {
-        return Host.DisposeAsync().AsTask();
+        if (Host != null)
+        {
+            return Host.DisposeAsync().AsTask();
+        }
+
+        return Task.CompletedTask;
     }
+}
+
+
+[CollectionDefinition("integration")]
+public class IntegrationCollection : ICollectionFixture<AppFixture>
+{
+    
 }
 
 
@@ -26,32 +99,25 @@ public class AppFixture : IAsyncLifetime
 [Collection("integration")]
 public abstract class IntegrationContext : IAsyncLifetime
 {
-    public EndpointGraph Endpoints { get; set; }
+    private readonly AppFixture _fixture;
 
-    public IAlbaHost Host { get; private set; }
-    public IDocumentStore Store { get; private set; }
+    protected IntegrationContext(AppFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public EndpointGraph Endpoints => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
+
+    public IAlbaHost Host => _fixture.Host;
+    public IDocumentStore Store => _fixture.Host.Services.GetRequiredService<IDocumentStore>();
 
     async Task IAsyncLifetime.InitializeAsync()
     {
-        // Workaround for Oakton with WebApplicationBuilder
-        // lifecycle issues. Doesn't matter to you w/o Oakton
-        OaktonEnvironment.AutoStartHost = true;
-         
-        // This is bootstrapping the actual application using
-        // its implied Program.Main() set up
-        Host = await AlbaHost.For<Program>(x =>
-        {
-
-        });
-        
-        Store = Host.Services.GetRequiredService<IDocumentStore>();
-        Endpoints = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
-        
         // Using Marten, wipe out all data and reset the state
         // back to exactly what we described in InitialAccountData
         await Store.Advanced.ResetAllData();
     }
- 
+
     // This is required because of the IAsyncLifetime 
     // interface. Note that I do *not* tear down database
     // state after the test. That's purposeful

@@ -139,13 +139,12 @@ public class MiddlewarePolicy : IChainPolicy
         {
             if (MatchByMessageType)
             {
-                if (chain is HandlerChain c)
+                var inputType = chain.InputType();
+                var messageType = before.MessageType();
+                
+                if (messageType != null && inputType.CanBeCastTo(messageType))
                 {
-                    var messageType = before.MessageType();
-                    if (messageType != null && c.MessageType.CanBeCastTo(messageType))
-                    {
-                        return new MethodCallAgainstMessage(MiddlewareType, before, messageType);
-                    }
+                    return new MethodCallAgainstMessage(MiddlewareType, before, inputType);
                 }
             }
             else
@@ -190,13 +189,10 @@ public class MiddlewarePolicy : IChainPolicy
             {
                 if (MatchByMessageType)
                 {
-                    if (chain is HandlerChain c)
+                    var messageType = final.MessageType();
+                    if (messageType != null && chain.InputType().CanBeCastTo(messageType))
                     {
-                        var messageType = final.MessageType();
-                        if (messageType != null && c.MessageType.CanBeCastTo(messageType))
-                        {
-                            yield return new MethodCallAgainstMessage(MiddlewareType, final, messageType);
-                        }
+                        yield return new MethodCallAgainstMessage(MiddlewareType, final, chain.InputType()!);
                     }
                 }
                 else
@@ -232,13 +228,10 @@ public class MiddlewarePolicy : IChainPolicy
             {
                 if (MatchByMessageType)
                 {
-                    if (chain is HandlerChain c)
+                    var messageType = after.MessageType();
+                    if (messageType != null && chain.InputType().CanBeCastTo(messageType))
                     {
-                        var messageType = after.MessageType();
-                        if (messageType != null && c.MessageType.CanBeCastTo(messageType))
-                        {
-                            yield return new MethodCallAgainstMessage(MiddlewareType, after, messageType);
-                        }
+                        yield return new MethodCallAgainstMessage(MiddlewareType, after, chain.InputType()!);
                     }
                 }
                 else

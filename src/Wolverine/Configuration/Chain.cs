@@ -106,6 +106,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     }
 
     public abstract bool HasAttribute<T>() where T : Attribute;
+    public abstract Type? InputType();
 
     protected void applyImpliedMiddlewareFromHandlers()
     {

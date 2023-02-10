@@ -62,4 +62,8 @@ public class using_http_context_elements_in_routes : IntegrationContext
         
         body.ReadAsText().ShouldBe(identifier);
     }
+
+    public using_http_context_elements_in_routes(AppFixture fixture) : base(fixture)
+    {
+    }
 }

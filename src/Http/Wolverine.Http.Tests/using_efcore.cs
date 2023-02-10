@@ -73,4 +73,8 @@ public class using_efcore : IntegrationContext
         
 
     }
+
+    public using_efcore(AppFixture fixture) : base(fixture)
+    {
+    }
 }

@@ -27,4 +27,8 @@ public class using_IResult_in_endpoints : IntegrationContext
         
         result.ReadAsText().ShouldBe("Hello from async result");
     }
+
+    public using_IResult_in_endpoints(AppFixture fixture) : base(fixture)
+    {
+    }
 }

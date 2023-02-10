@@ -42,7 +42,7 @@ public class WolverineHttpOptions
     /// <param name="middlewareType"></param>
     public void AddMiddlewareByMessageType(Type middlewareType)
     {
-        Middleware.AddType(middlewareType, chain => chain is EndpointChain);
+        Middleware.AddType(middlewareType, chain => chain is EndpointChain).MatchByMessageType = true;
     }
 
     /// <summary>

@@ -1,3 +1,5 @@
+using Alba;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using TestingSupport;
 using WolverineWebApi;
@@ -34,5 +36,29 @@ public class using_middleware : IntegrationContext
         });
         
         recorder.Actions.ShouldHaveTheSameElementsAs("Before", "Action", "After");
+    }
+
+    [Fact]
+    public async Task middleware_with_iresult_filter_happy_path()
+    {
+        await Host.Scenario(x =>
+        {
+            x.Post.Json(new AuthenticatedRequest{Authenticated = true}, JsonStyle.MinimalApi).ToUrl("/authenticated");
+            x.StatusCodeShouldBeOk();
+        });
+    }
+    
+    [Fact]
+    public async Task middleware_with_iresult_filter_sad_path()
+    {
+        await Host.Scenario(x =>
+        {
+            x.Post.Json(new AuthenticatedRequest{Authenticated = false}).ToUrl("/authenticated");
+            x.StatusCodeShouldBe(401);
+        });
+    }
+
+    public using_middleware(AppFixture fixture) : base(fixture)
+    {
     }
 }
