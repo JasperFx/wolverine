@@ -54,6 +54,26 @@ internal static class ConnectionStringParser
             case "usetls":
                 Console.WriteLine("Wolverine does not respect the UseTLS flag, you will need to configure that directly on ConnectionFactory");
                 break;
+            
+            case "virtualhost":
+                factory.VirtualHost = value;
+                break;
+            
+            case "requestedheartbeat":
+                if (int.TryParse(value, out var heartbeat))
+                {
+                    factory.RequestedHeartbeat = heartbeat.Seconds();
+                }
+                else
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value),
+                        $"Supplied RequestedHeartbeat '{value}' is an invalid number");
+                }
+
+                break;
+            
+            default:
+                throw new ArgumentOutOfRangeException(nameof(key), $"Unknown connection string property '{key}'.");
         }
     }
 }

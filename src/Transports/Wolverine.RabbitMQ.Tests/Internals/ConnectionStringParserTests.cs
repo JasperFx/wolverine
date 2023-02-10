@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using RabbitMQ.Client;
 using Shouldly;
 using TestingSupport;
@@ -44,6 +45,20 @@ public class ConnectionStringParserTests
         ConnectionStringParser.Apply("username=foo;password=bar", theFactory);
         theFactory.UserName.ShouldBe("foo");
         theFactory.Password.ShouldBe("bar");
+    }
+
+    [Fact]
+    public void requested_heartbeat_happy_path()
+    {
+        ConnectionStringParser.Apply("requestedheartbeat=33", theFactory);
+        theFactory.RequestedHeartbeat.ShouldBe(33.Seconds());
+    }
+
+    [Fact]
+    public void virtual_host()
+    {
+        ConnectionStringParser.Apply("virtualhost=weird", theFactory);
+        theFactory.VirtualHost.ShouldBe("weird");
     }
 
 }
