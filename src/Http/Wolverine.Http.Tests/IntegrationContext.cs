@@ -113,7 +113,20 @@ public abstract class IntegrationContext : IAsyncLifetime
 
     public async Task<IScenarioResult> Scenario(Action<Scenario> configure)
     {
-        return await Host.Scenario(configure);
+        try
+        {
+            return await Host.Scenario(configure);
+        }
+        catch (Exception e)
+        {
+            if (e.Message.Contains("but was 404"))
+            {
+                await _fixture.ResetHost();
+                return await Host.Scenario(configure);
+            }
+
+            throw;
+        }
     }
 
     public EndpointGraph Endpoints => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;

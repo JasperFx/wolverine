@@ -14,12 +14,12 @@ using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
 
-public class initializing_endpoints_from_method_call : IDisposable
+public class initializing_endpoints_from_method_call : IntegrationContext, IDisposable
 {
     private readonly Container container;
     private readonly EndpointGraph parent;
 
-    public initializing_endpoints_from_method_call()
+    public initializing_endpoints_from_method_call(AppFixture fixture) : base(fixture)
     {
         container = new Container(x =>
         {

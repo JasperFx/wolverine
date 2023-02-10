@@ -11,7 +11,7 @@ using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
 
-public class smoke_test_code_generation_of_endpoints_with_no_service_dependencies
+public class smoke_test_code_generation_of_endpoints_with_no_service_dependencies : IntegrationContext
 {
     public static IEnumerable<object[]> Methods => typeof(FakeEndpoint).GetMethods().Where(x => x.DeclaringType == typeof(FakeEndpoint)).Select(x => new object[] { x });
 
@@ -31,5 +31,9 @@ public class smoke_test_code_generation_of_endpoints_with_no_service_dependencie
 
         
         endpoint.As<ICodeFile>().InitializeSynchronously(parent.Rules, parent, parent.Container);
+    }
+
+    public smoke_test_code_generation_of_endpoints_with_no_service_dependencies(AppFixture fixture) : base(fixture)
+    {
     }
 }
