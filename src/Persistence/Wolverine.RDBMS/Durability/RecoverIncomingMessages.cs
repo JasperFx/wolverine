@@ -46,7 +46,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
     {
         var sql = $"select {DatabaseConstants.ReceivedAt}, count(*) from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
         
-        return session.CreateCommand(sql).FetchList(async reader =>
+        return session.CreateCommand(sql).FetchListAsync(async reader =>
         {
             var address = new Uri(await reader.GetFieldValueAsync<string>(0, session.Cancellation).ConfigureAwait(false));
             var count = await reader.GetFieldValueAsync<int>(1, session.Cancellation).ConfigureAwait(false);

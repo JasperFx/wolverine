@@ -7,6 +7,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Marten" Version="6.0.0-alpha.7"/>
+        <PackageReference Include="Marten" Version="6.0.0-alpha.8"/>
     </ItemGroup>
 </Project>

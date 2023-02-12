@@ -65,9 +65,9 @@ public class using_efcore : IntegrationContext
         {
             await conn.OpenAsync();
 
-            await table.ApplyChanges(conn);
+            await table.ApplyChangesAsync(conn);
             
-            await conn.RunSql("delete from items");
+            await conn.RunSqlAsync("delete from items");
             await conn.CloseAsync();
         }
         
