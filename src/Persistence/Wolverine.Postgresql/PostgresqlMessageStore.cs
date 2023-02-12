@@ -188,7 +188,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             .CreateCommand(_findAtLargeEnvelopesSql)
             .With("address", listenerAddress.ToString())
             .With("limit", limit)
-            .FetchList(r => DatabasePersistence.ReadIncomingAsync(r));
+            .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 
     public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
@@ -205,6 +205,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             .CreateCommand(
                 $"select {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time LIMIT {Durability.RecoveryBatchSize}")
             .With("time", utcNow)
-            .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
+            .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 }

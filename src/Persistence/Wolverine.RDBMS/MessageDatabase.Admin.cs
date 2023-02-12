@@ -65,7 +65,7 @@ public abstract partial class MessageDatabase<T>
         return await conn
             .CreateCommand(
                 $"select {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable}")
-            .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
+            .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 
     public async Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
@@ -76,7 +76,7 @@ public abstract partial class MessageDatabase<T>
         return await conn
             .CreateCommand(
                 $"select {DatabaseConstants.OutgoingFields} from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
-            .FetchList(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
+            .FetchListAsync(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
     }
 
     public async Task ReleaseAllOwnershipAsync()
@@ -98,11 +98,11 @@ public abstract partial class MessageDatabase<T>
 
     private async Task migrateAsync(DbConnection conn)
     {
-        var migration = await SchemaMigration.Determine(conn, _cancellation, Objects);
+        var migration = await SchemaMigration.DetermineAsync(conn, _cancellation, Objects);
 
         if (migration.Difference != SchemaPatchDifference.None)
         {
-            await Migrator.ApplyAll(conn, migration, AutoCreate.CreateOrUpdate, ct: _cancellation);
+            await Migrator.ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate, ct: _cancellation);
         }
     }
 

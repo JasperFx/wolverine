@@ -87,7 +87,7 @@ select distinct owner_id from {databaseSettings.SchemaName}.{DatabaseConstants.O
 
         var list = await session.Transaction.CreateCommand(sql)
             .With("owner", durabilitySettings.UniqueNodeId)
-            .FetchList<int>(session.Cancellation);
+            .FetchListAsync<int>(session.Cancellation);
 
         return list.ToArray();
     }

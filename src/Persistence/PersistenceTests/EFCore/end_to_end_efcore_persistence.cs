@@ -240,10 +240,10 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
         {
             await conn.OpenAsync();
-            var migration = await SchemaMigration.Determine(conn, ItemsTable);
+            var migration = await SchemaMigration.DetermineAsync(conn, ItemsTable);
             if (migration.Difference != SchemaPatchDifference.None)
             {
-                await new SqlServerMigrator().ApplyAll(conn, migration, AutoCreate.CreateOrUpdate);
+                await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
             }
         }
     }

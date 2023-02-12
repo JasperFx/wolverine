@@ -34,14 +34,14 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 
-        await conn.DropSchema("receiver");
-        await conn.CreateSchema("receiver");
+        await conn.DropSchemaAsync("receiver");
+        await conn.CreateSchemaAsync("receiver");
 
         var table = new Table(new DbObjectName("receiver", "item_created"));
         table.AddColumn<Guid>("id").AsPrimaryKey();
         table.AddColumn<string>("name");
 
-        await table.Create(conn);
+        await table.CreateAsync(conn);
     }
 
     protected override ItemCreated loadItem(IHost receiver, Guid id)
