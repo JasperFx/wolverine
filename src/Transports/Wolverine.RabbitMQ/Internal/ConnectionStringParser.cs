@@ -1,5 +1,4 @@
 using JasperFx.Core;
-using Microsoft.CodeAnalysis;
 using RabbitMQ.Client;
 
 namespace Wolverine.RabbitMQ.Internal;

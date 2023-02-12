@@ -120,6 +120,17 @@ export default {
                     ]
                 },
                 {
+                    text: 'ASP.Net Core Integration',
+                    collapsible: true,
+                    collapsed: true,
+                    items: [
+                        {text: 'HTTP Services', link: '/guide/http/'},
+                        {text: 'Endpoints', link: '/guide/http/endpoints'},
+                        {text: 'Middleware', link: '/guide/http/middleware.md'},
+                        {text: 'Policies', link: '/guide/http/policies.md'}
+                    ]
+                },
+                {
                     text: 'Durability and Persistence',
                     collapsible: true,
                     collapsed: true,
