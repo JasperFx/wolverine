@@ -303,7 +303,6 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                                               Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
         {
             Envelope.Response = message;
-            return;
         }
 
         switch (message)
