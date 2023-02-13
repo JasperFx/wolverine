@@ -296,6 +296,18 @@ public class executing_with_middleware
         
         list.Last().ShouldBe("Called Finally");
     }
+
+    [Fact]
+    public async Task use_attributes_to_explicitly_opt_into_implied_middleware()
+    {
+        var list = await invokeMessage(new JumpBall("Go!"), _ => { });
+        
+        list.ShouldHaveTheSameElementsAs(
+            "line up",
+            "Jump Ball",
+            "Back on Defense"
+            );
+    }
 }
 
 public class SimpleBeforeAndAfter
@@ -568,4 +580,27 @@ public class BaseballHandler
     {
         recorder.Actions.Add($"{nameof(StrikeoutsMessage)}: {message.Pitcher}");
     }
+}
+
+public record JumpBall(string Name);
+
+public class BasketballHandler
+{
+    [WolverineBefore]
+    public static void LineUp(Recorder recorder)
+    {
+        recorder.Actions.Add("line up");
+    }
+
+    public static void Handle(JumpBall command, Recorder recorder)
+    {
+        recorder.Actions.Add("Jump Ball");
+    }
+
+    [WolverineAfter]
+    public static void BackOnDefense(Recorder recorder)
+    {
+        recorder.Actions.Add("Back on Defense");
+    }
+
 }

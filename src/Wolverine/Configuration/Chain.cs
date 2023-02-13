@@ -113,16 +113,18 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
         foreach (var handlerType in handlerTypes)
         {
-            var befores = handlerType.GetMethods().Where(x =>
-                MiddlewarePolicy.BeforeMethodNames.Contains(x.Name) && !x.HasAttribute<WolverineIgnoreAttribute>());
+            var befores = MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(handlerType.GetMethods(),
+                MiddlewarePolicy.BeforeMethodNames);
+            
             foreach (var before in befores)
             {
                 var frame = new MethodCall(handlerType, before);
                 Middleware.Add(frame);
             }
+            
+            var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(handlerType.GetMethods(),
+                MiddlewarePolicy.AfterMethodNames);
 
-            var afters = handlerType.GetMethods().Where(x =>
-                MiddlewarePolicy.AfterMethodNames.Contains(x.Name) && !x.HasAttribute<WolverineIgnoreAttribute>());
             foreach (var after in afters)
             {
                 var frame = new MethodCall(handlerType, after);

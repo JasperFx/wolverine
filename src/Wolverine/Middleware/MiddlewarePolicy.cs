@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Lamar;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 
@@ -49,6 +50,14 @@ public class MiddlewarePolicy : IChainPolicy
         return application;
     }
 
+    public static IEnumerable<MethodInfo> FilterMethods<T>(IEnumerable<MethodInfo> methods, string[] validNames)
+        where T : Attribute
+    {
+        return methods
+            .Where(x => !x.HasAttribute<WolverineIgnoreAttribute>())
+            .Where(x => validNames.Contains(x.Name) || x.HasAttribute<T>());
+    }
+
     public class Application
     {
         private readonly MethodInfo[] _afters;
@@ -79,9 +88,9 @@ public class MiddlewarePolicy : IChainPolicy
 
             var methods = middlewareType.GetMethods().ToArray();
 
-            _befores = methods.Where(x => BeforeMethodNames.Contains(x.Name)).ToArray();
-            _afters = methods.Where(x => AfterMethodNames.Contains(x.Name)).ToArray();
-            _finals = methods.Where(x => FinallyMethodNames.Contains(x.Name)).ToArray();
+            _befores = FilterMethods<WolverineBeforeAttribute>(methods, BeforeMethodNames).ToArray();
+            _afters = FilterMethods<WolverineAfterAttribute>(methods, AfterMethodNames).ToArray();
+            _finals = FilterMethods<WolverineFinallyAttribute>(methods, FinallyMethodNames).ToArray();
 
             if (!_befores.Any() && !_afters.Any() && !_finals.Any())
             {
