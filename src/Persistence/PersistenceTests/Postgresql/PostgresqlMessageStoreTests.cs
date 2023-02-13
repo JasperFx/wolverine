@@ -205,6 +205,38 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
     }
     
     [Fact]
+    public async Task discard_and_reassign_outgoing()
+    {
+        var list = new List<Envelope>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Outgoing;
+
+            list.Add(envelope);
+        }
+
+        await thePersistence.StoreOutgoingAsync(list.ToArray(), 111);
+
+        var toDiscard = new[] { list[2], list[3], list[7] };
+        var toReassign = new[] { list[1], list[4], list[6] };
+
+        await thePersistence.DiscardAndReassignOutgoingAsync(toDiscard, toReassign, 444);
+
+        var stored = await thePersistence.Admin.AllOutgoingAsync();
+        stored.Count.ShouldBe(7);
+
+        stored.Any(x => x.Id == list[2].Id).ShouldBeFalse();
+        stored.Any(x => x.Id == list[3].Id).ShouldBeFalse();
+        stored.Any(x => x.Id == list[7].Id).ShouldBeFalse();
+
+        stored.Single(x => x.Id == list[1].Id).OwnerId.ShouldBe(444);
+        stored.Single(x => x.Id == list[4].Id).OwnerId.ShouldBe(444);
+        stored.Single(x => x.Id == list[6].Id).OwnerId.ShouldBe(444);
+    }
+    
+    [Fact]
     public async Task move_replayable_error_messages_to_incoming()
     {
         /*
