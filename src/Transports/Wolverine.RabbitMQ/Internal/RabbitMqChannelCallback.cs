@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RabbitMQ.Client.Exceptions;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
@@ -16,7 +17,21 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable
     {
         _complete = new RetryBlock<RabbitMqEnvelope>((e, _) =>
         {
-            e.Complete();
+            // AlreadyClosedException: Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=406, text='PRECONDITION_FAILED - unknown delivery tag 1', classId=60, methodId=80
+
+            try
+            {
+                e.Complete();
+            }
+            catch (AlreadyClosedException exception)
+            {
+                if (exception.Message.Contains("'PRECONDITION_FAILED - unknown delivery tag'"))
+                {
+                    logger.LogDebug("Encountered an unknown delivery tag, discarding the envelope");
+                    return Task.CompletedTask;
+                }
+            }
+            
             return Task.CompletedTask;
         }, logger, cancellationToken);
 

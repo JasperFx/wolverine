@@ -17,6 +17,11 @@ internal class RabbitMqEnvelope : Envelope
 
     internal void Complete()
     {
+        // TEMP!!!!
+        if (new Random().Next(0, 100) < 5)
+        {
+            RabbitMqListener.Complete(1);
+        }
         RabbitMqListener.Complete(DeliveryTag);
         Acknowledged = true;
     }
