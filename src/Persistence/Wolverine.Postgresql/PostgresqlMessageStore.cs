@@ -151,7 +151,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         return Settings.CreateCommand(_discardAndReassignOutgoingSql)
             .WithEnvelopeIds("ids", discards)
             .With("node", nodeId)
-            .With("rids", reassigned)
+            .WithEnvelopeIds("rids", reassigned)
             .ExecuteOnce(_cancellation);
     }
 
