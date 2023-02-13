@@ -53,7 +53,7 @@ public sealed class HandlerSource
         return this;
     }
 
-    internal async Task<HandlerCall[]> FindCallsAsync(WolverineOptions options)
+    internal (Type, MethodInfo)[] FindCalls(WolverineOptions options)
     {
         if (_conventionalDiscoveryDisabled)
         {
@@ -62,37 +62,30 @@ public sealed class HandlerSource
 
         if (options.ApplicationAssembly == null)
         {
-            return Array.Empty<HandlerCall>();
+            return Array.Empty<(Type, MethodInfo)>();
         }
 
         Assemblies.Fill(options.ApplicationAssembly);
 
-
-        var types = await TypeRepository.FindTypes(Assemblies,
-                TypeClassification.Concretes | TypeClassification.Closed, type => _typeFilters.Matches(type))
-            .ConfigureAwait(false);
-
-
-        return types
+        var types = Assemblies.SelectMany(x => x.ExportedTypes)
+            .Where(x => x.IsStatic() || (x.IsConcrete() && !x.IsOpenGeneric()))
+            .Where(x => _typeFilters.Matches(x))
             .Where(x => !x.HasAttribute<WolverineIgnoreAttribute>())
             .Concat(_explicitTypes)
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
+
+        return types;
     }
 
-    private IEnumerable<HandlerCall> actionsFromType(Type type)
+    private IEnumerable<(Type, MethodInfo)> actionsFromType(Type type)
     {
         return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static)
             .Where(x => !x.HasAttribute<WolverineIgnoreAttribute>())
             .Where(x => x.DeclaringType != typeof(object)).ToArray()
             .Where(_methodFilters.Matches)
             .Where(HandlerCall.IsCandidate)
-            .Select(m => buildHandler(type, m));
-    }
-
-    private HandlerCall buildHandler(Type type, MethodInfo method)
-    {
-        return new HandlerCall(type, method);
+            .Select(m => (type, m));
     }
 
     /// <summary>

@@ -19,7 +19,7 @@ public partial class WolverineRuntime
         try
         {
             // Build up the message handlers
-            await Handlers.CompileAsync(Options, _container);
+            Handlers.Compile(Options, _container);
 
             if (Options.AutoBuildEnvelopeStorageOnStartup && Storage is not NullMessageStore)
             {

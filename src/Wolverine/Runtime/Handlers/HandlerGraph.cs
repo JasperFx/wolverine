@@ -162,12 +162,14 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
     }
 
 
-    internal async Task CompileAsync(WolverineOptions options, IContainer container)
+    internal void Compile(WolverineOptions options, IContainer container)
     {
         Rules = options.CodeGeneration;
-        var calls = await Source.FindCallsAsync(options);
+        var methods = Source.FindCalls(options);
 
-        if (calls.Any())
+        var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
+        
+        if (methods.Any())
         {
             AddRange(calls);
         }
@@ -179,7 +181,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         Container = container;
 
         var forwarders = new Forwarders();
-        await forwarders.FindForwardsAsync(options.ApplicationAssembly!);
+        forwarders.FindForwards(options.ApplicationAssembly!);
         AddForwarders(forwarders);
 
         foreach (var configuration in _configurations) configuration();

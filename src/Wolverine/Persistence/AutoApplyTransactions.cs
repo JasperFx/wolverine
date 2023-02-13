@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using JasperFx.CodeGeneration;
 using Lamar;
 using Wolverine.Attributes;
@@ -12,14 +13,21 @@ internal class AutoApplyTransactions : IChainPolicy
     {
         var providers = rules.PersistenceProviders();
         if (!providers.Any()) return;
-        
+
         foreach (var chain in chains.Where(x => !x.HasAttribute<TransactionalAttribute>()))
         {
+            if (chain.ToString().Contains("handled by"))
+            {
+                Debug.WriteLine("hi");
+            }
+            
             var potentials = providers.Where(x => x.CanApply(chain, container)).ToArray();
             if (potentials.Length == 1)
             {
                 potentials.Single().ApplyTransactionSupport(chain, container);
             }
         }
+        
+        Debug.WriteLine("done");
     }
 }
