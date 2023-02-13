@@ -24,7 +24,7 @@ public abstract partial class MessageDatabase<T>
 
         return Session.Transaction.CreateCommand(_outgoingEnvelopeSql)
             .With("destination", destination.ToString())
-            .FetchList(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
+            .FetchListAsync(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
     }
 
     public abstract Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);
@@ -42,7 +42,7 @@ public abstract partial class MessageDatabase<T>
     {
         var cmd = Session.CreateCommand(
             $"select distinct destination from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}");
-        var uris = await cmd.FetchList<string>(_cancellation);
+        var uris = await cmd.FetchListAsync<string>(_cancellation);
         return uris.Where(x => x != null).Select(x => x!.ToUri()).ToArray();
     }
 
