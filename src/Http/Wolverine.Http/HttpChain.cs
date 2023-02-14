@@ -92,7 +92,7 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
         applyAttributesAndConfigureMethods(_parent.Rules, _parent.Container);
 
         // Add Before/After methods from the current handler
-        applyImpliedMiddlewareFromHandlers();
+        applyImpliedMiddlewareFromHandlers(_parent.Rules);
     }
 
     /// <summary>

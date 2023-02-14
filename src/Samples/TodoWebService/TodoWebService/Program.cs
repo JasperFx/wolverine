@@ -16,7 +16,9 @@ builder.Services.AddMarten(opts =>
 
 builder.Host.UseWolverine(opts =>
 {
+    // Setting up the outbox
     opts.Policies.AutoApplyTransactions();
+    opts.Policies.UseDurableLocalQueues();
 });
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

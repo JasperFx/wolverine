@@ -52,6 +52,17 @@ public static class TodoEndpoints
         => session.Delete<Todo>(command.Id);
 }
 
+
+public static class TodoCreatedHandler
+{
+    // Do something in the background, like assign it to someone,
+    // send out emails or texts, alerts, whatever
+    public static void Handle(TodoCreated created, ILogger logger)
+    {
+        logger.LogInformation("Got a new TodoCreated event for " + created.Id);
+    }    
+}
+
 public static class UpdateTodoEndpoint
 {
     public static async Task<(Todo? todo, IResult result)> LoadAsync(UpdateTodo command, IDocumentSession session)

@@ -16,11 +16,6 @@ internal class AutoApplyTransactions : IChainPolicy
 
         foreach (var chain in chains.Where(x => !x.HasAttribute<TransactionalAttribute>()))
         {
-            if (chain.ToString().Contains("handled by"))
-            {
-                Debug.WriteLine("hi");
-            }
-            
             var potentials = providers.Where(x => x.CanApply(chain, container)).ToArray();
             if (potentials.Length == 1)
             {

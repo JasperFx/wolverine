@@ -229,7 +229,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
         }
 
-        applyImpliedMiddlewareFromHandlers();
+        applyImpliedMiddlewareFromHandlers(rules);
     }
 
     private IEnumerable<CaptureCascadingMessages> determineCascadingMessages()

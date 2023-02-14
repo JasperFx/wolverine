@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using Shouldly;
 using TodoWebService;
+using Wolverine.Tracking;
 
 namespace TodoWebServiceTests;
 
@@ -33,16 +34,38 @@ public class end_to_end : IAsyncLifetime
     [Fact]
     public async Task create_and_load()
     {
-        var results = await _host.Scenario(opts =>
+        string url = default;
+        
+        // I'm making Wolverine "wait" for all message activity that's started
+        // within the supplied action to finish
+        var tracked = await _host.ExecuteAndWaitAsync(async _ =>
         {
-            opts.Post.Json(new CreateTodo("Kadarious Toney")).ToUrl("/todoitems");
-            opts.StatusCodeShouldBe(201);
+            var results = await _host.Scenario(opts =>
+            {
+                opts.Post.Json(new CreateTodo("Kadarious Toney")).ToUrl("/todoitems");
+                opts.StatusCodeShouldBe(201);
+            });
+
+            url = results.Context.Response.Headers.Location;
         });
-
-        var url = results.Context.Response.Headers.Location;
-
+        
         var todo = await _host.GetAsJson<Todo>(url);
         todo.Name.ShouldBe("Kadarious Toney");
-        
+
+        // Now let's see if the message got kicked out
+        var @event = tracked.Executed.SingleMessage<TodoCreated>();
+        @event.Id.ShouldBe(todo.Id);
+    }
+
+    [Fact]
+    public async Task update_when_the_todo_does_not_exist()
+    {
+        await _host.Scenario(x =>
+        {
+            // This Todo does not exist because we wiped out the database in the test
+            // setup
+            x.Put.Json(new UpdateTodo(1, "Skyy Moore", false)).ToUrl("/todoitems");
+            x.StatusCodeShouldBe(404);
+        });
     }
 }

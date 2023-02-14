@@ -108,7 +108,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     public abstract bool HasAttribute<T>() where T : Attribute;
     public abstract Type? InputType();
 
-    protected void applyImpliedMiddlewareFromHandlers()
+    protected void applyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
     {
         var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
         foreach (var handlerType in handlerTypes)
@@ -120,6 +120,12 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             {
                 var frame = new MethodCall(handlerType, before);
                 Middleware.Add(frame);
+
+                // Potentially add handling for IResult or HandlerContinuation
+                if (generationRules.TryFindContinuationHandler(frame, out var continuation))
+                {
+                    Middleware.Add(continuation!);
+                }
             }
             
             var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(handlerType.GetMethods(),
