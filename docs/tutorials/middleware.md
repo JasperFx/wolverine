@@ -136,7 +136,7 @@ builder.Host.UseWolverine(opts =>
     // This middleware should be applied to all handlers where the 
     // command type implements the IAccountCommand interface that is the
     // "detected" message type of the middleware
-    opts.Handlers.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
+    opts.Policies.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
     
     opts.UseFluentValidation();
 

@@ -31,14 +31,14 @@ public class ValidMessageHandlers
     }
 
     // The parameter named "message" is assumed to be the message type
-    public Task Consume(Message1 message, IDocumentSession session)
+    public Task ConsumeAsync(Message1 message, IDocumentSession session)
     {
         return session.SaveChangesAsync();
     }
 
     // In this usage, we're "cascading" a new message of type
     // Message2
-    public Task<Message2> Handle(Message1 message, IDocumentSession session)
+    public Task<Message2> HandleAsync(Message1 message, IDocumentSession session)
     {
         return Task.FromResult(new Message2());
     }
@@ -66,7 +66,7 @@ public class ValidMessageHandlers
 
     // You can inject additional services directly into the handler
     // method
-    public ValueTask Consume(Message3 weirdName, IEmailService service)
+    public ValueTask ConsumeAsync(Message3 weirdName, IEmailService service)
     {
         return ValueTask.CompletedTask;
     }
@@ -112,7 +112,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // No automatic discovery of handlers
-        opts.Handlers.DisableConventionalDiscovery();
+        opts.DisableConventionalDiscovery();
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L213-L222' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicithandlerdiscovery' title='Start of snippet'>anchor</a></sup>
@@ -172,7 +172,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L160-L208' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L161-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -194,7 +194,7 @@ At a minimum, you can disable the built in discovery, add additional type filter
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.Handlers.Discovery(x =>
+        opts.Policies.Discovery(x =>
         {
             // Turn off the default handler conventions
             // altogether

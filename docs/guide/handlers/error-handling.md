@@ -55,7 +55,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // Don't retry, immediately send to the error queue
-        opts.Handlers.OnException<TimeoutException>().MoveToErrorQueue();
+        opts.OnException<TimeoutException>().MoveToErrorQueue();
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L110-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_error_queue' title='Start of snippet'>anchor</a></sup>
@@ -73,7 +73,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // Bad message, get this thing out of here!
-        opts.Handlers.OnException<InvalidMessageYouWillNeverBeAbleToProcessException>()
+        opts.OnException<InvalidMessageYouWillNeverBeAbleToProcessException>()
             .Discard();
     }).StartAsync();
 ```
@@ -100,7 +100,7 @@ using var host = await Host.CreateDefaultBuilder()
         // Retry the message again, but wait for the specified time
         // The message will be dead lettered if it exhausts the delay
         // attempts
-        opts.Handlers
+        opts
             .OnException<SqlException>()
             .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
     }).StartAsync();
@@ -144,7 +144,7 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // The failing message is requeued for later processing, then
         // the specific listener is paused for 10 minutes
-        opts.Handlers.OnException<SystemIsCompletelyUnusableException>()
+        opts.OnException<SystemIsCompletelyUnusableException>()
             .Requeue().AndPauseProcessing(10.Minutes());
     }).StartAsync();
 ```
@@ -185,7 +185,7 @@ public class AttributeUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L265-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_error_handling_with_attributes' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L264-L279' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_error_handling_with_attributes' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also use the fluent interface approach on a specific message type if you put a method with the signature `public static void Configure(HandlerChain chain)`
@@ -216,7 +216,7 @@ public class MyErrorCausingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L227-L252' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_error_handling_per_chain_with_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L226-L251' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_error_handling_per_chain_with_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To specify global error handling rules, use the fluent interface directly on `WolverineOptions.Handlers` as shown below:
@@ -227,12 +227,12 @@ To specify global error handling rules, use the fluent interface directly on `Wo
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.Handlers.OnException<TimeoutException>().ScheduleRetry(5.Seconds());
-        opts.Handlers.OnException<SecurityException>().MoveToErrorQueue();
+        opts.Policies.OnException<TimeoutException>().ScheduleRetry(5.Seconds());
+        opts.Policies.OnException<SecurityException>().MoveToErrorQueue();
 
         // You can also apply an additional filter on the
         // exception type for finer grained policies
-        opts.Handlers
+        opts.Policies
             .OnException<SocketException>(ex => ex.Message.Contains("not responding"))
             .ScheduleRetry(5.Seconds());
     }).StartAsync();
@@ -253,17 +253,16 @@ a sample policy that applies an error handling policy based on `SqlException` er
 // message handlers
 public class ErrorHandlingPolicy : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
-        var matchingChains = graph
-            .Chains
+        var matchingChains = chains
             .Where(x => x.MessageType.IsInNamespace("MyApp.Messages"));
 
         foreach (var chain in matchingChains) chain.OnException<SqlException>().Requeue(2);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L208-L225' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_errorhandlingpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L208-L224' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_errorhandlingpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Exception Filtering
@@ -303,7 +302,7 @@ theReceiver = await Host.CreateDefaultBuilder()
         opts.ListenAtPort(receiverPort);
         opts.ServiceName = "Receiver";
 
-        opts.Handlers.OnException<ShippingFailedException>()
+        opts.Policies.OnException<ShippingFailedException>()
             .Discard().And(async (_, context, _) =>
             {
                 if (context.Envelope?.Message is ShipOrder cmd)
@@ -354,7 +353,7 @@ theReceiver = await Host.CreateDefaultBuilder()
         opts.ListenAtPort(receiverPort);
         opts.ServiceName = "Receiver";
 
-        opts.Handlers.OnException<ShippingFailedException>()
+        opts.Policies.OnException<ShippingFailedException>()
             .Discard().And<ShippingOrderFailurePolicy>();
     }).StartAsync();
 ```
@@ -382,7 +381,7 @@ The usage of the Wolverine circuit breaker is shown below:
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.Handlers.OnException<InvalidOperationException>()
+        opts.Policies.OnException<InvalidOperationException>()
             .Discard();
 
         opts.ListenToRabbitQueue("incoming")

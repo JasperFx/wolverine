@@ -64,14 +64,14 @@ public class ValidMessageHandlers
     }
 
     // The parameter named "message" is assumed to be the message type
-    public Task Consume(Message1 message, IDocumentSession session)
+    public Task ConsumeAsync(Message1 message, IDocumentSession session)
     {
         return session.SaveChangesAsync();
     }
 
     // In this usage, we're "cascading" a new message of type
     // Message2
-    public Task<Message2> Handle(Message1 message, IDocumentSession session)
+    public Task<Message2> HandleAsync(Message1 message, IDocumentSession session)
     {
         return Task.FromResult(new Message2());
     }
@@ -99,7 +99,7 @@ public class ValidMessageHandlers
 
     // You can inject additional services directly into the handler
     // method
-    public ValueTask Consume(Message3 weirdName, IEmailService service)
+    public ValueTask ConsumeAsync(Message3 weirdName, IEmailService service)
     {
         return ValueTask.CompletedTask;
     }

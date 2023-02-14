@@ -71,7 +71,7 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Apply our new middleware to message handlers, but optionally 
         // filter it to only messages from a certain namespace
-        opts.Handlers
+        opts.Policies
             .AddMiddleware<StopwatchMiddleware>(chain => chain.MessageType.IsInNamespace("MyApp.Messages.Important"));
     }).StartAsync();
 ```
@@ -222,7 +222,7 @@ builder.Host.UseWolverine(opts =>
     // This middleware should be applied to all handlers where the 
     // command type implements the IAccountCommand interface that is the
     // "detected" message type of the middleware
-    opts.Handlers.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
+    opts.Policies.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
     
     opts.UseFluentValidation();
 
@@ -422,18 +422,18 @@ You can register user-defined policies that apply to all chains or some subset o
 /// <summary>
 ///     Use to apply your own conventions or policies to message handlers
 /// </summary>
-public interface IHandlerPolicy
+public interface IHandlerPolicy : IWolverinePolicy
 {
     /// <summary>
     ///     Called during bootstrapping to alter how the message handlers are configured
     /// </summary>
-    /// <param name="graph"></param>
+    /// <param name="chains"></param>
     /// <param name="rules"></param>
     /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(HandlerGraph graph, GenerationRules rules, IContainer container);
+    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L7-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's a simple sample that registers middleware on each handler chain:
@@ -443,9 +443,9 @@ Here's a simple sample that registers middleware on each handler chain:
 ```cs
 public class WrapWithSimple : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
-        foreach (var chain in graph.Chains) chain.Middleware.Add(new SimpleWrapper());
+        foreach (var chain in chains) chain.Middleware.Add(new SimpleWrapper());
     }
 }
 ```
@@ -458,7 +458,7 @@ Then register your custom `IHandlerPolicy` with a Wolverine application like thi
 <a id='snippet-sample_appwithhandlerpolicy'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts => { opts.Handlers.AddPolicy<WrapWithSimple>(); }).StartAsync();
+    .UseWolverine(opts => { opts.Policies.Add<WrapWithSimple>(); }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L15-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appwithhandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

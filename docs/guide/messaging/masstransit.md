@@ -8,6 +8,35 @@ At this point, the interoperability is only built and tested for the [Rabbit MQ 
 
 Here's a sample:
 
-snippet: sample_MassTransit_interoperability
+<!-- snippet: sample_MassTransit_interoperability -->
+<a id='snippet-sample_masstransit_interoperability'></a>
+```cs
+Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+{
+    opts.ApplicationAssembly = GetType().Assembly;
+
+    opts.UseRabbitMq()
+        .AutoProvision().AutoPurgeOnStartup()
+        .BindExchange("wolverine").ToQueue("wolverine")
+        .BindExchange("masstransit").ToQueue("masstransit");
+
+    opts.PublishAllMessages().ToRabbitExchange("masstransit")
+
+        // Tell Wolverine to make this endpoint send messages out in a format
+        // for MassTransit
+        .UseMassTransitInterop();
+
+    opts.ListenToRabbitQueue("wolverine")
+
+        // Tell Wolverine to make this endpoint interoperable with MassTransit
+        .UseMassTransitInterop(mt =>
+        {
+            // optionally customize the inner JSON serialization
+        })
+        .DefaultIncomingMessage<ResponseMessage>().UseForReplies();
+}).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Interop/MassTransit/MassTransitSpecs.cs#L23-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransit_interoperability' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 MORE SOON!

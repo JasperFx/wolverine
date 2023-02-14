@@ -102,7 +102,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.UseEntityFrameworkCoreTransactions();
         
         // Add the auto transaction middleware attachment policy
-        opts.Handlers.AutoApplyTransactions();
+        opts.Policies.AutoApplyTransactions();
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/EFCore/SampleUsageWithAutoApplyTransactions.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>

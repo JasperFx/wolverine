@@ -213,7 +213,7 @@ using var host = await Host.CreateDefaultBuilder()
             .IntegrateWithWolverine();
 
         // Opt into using "auto" transaction middleware
-        opts.Handlers.AutoApplyTransactions();
+        opts.Policies.AutoApplyTransactions();
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/Sample/BootstrapWithAutoTransactions.cs#L12-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_auto_apply_transactions_with_marten' title='Start of snippet'>anchor</a></sup>
@@ -296,18 +296,17 @@ with a handler policy like this:
 ```cs
 public class CommandsAreTransactional : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
         // Important! Create a brand new TransactionalFrame
         // for each chain
-        graph
-            .Chains
+        chains
             .Where(x => x.MessageType.Name.EndsWith("Command"))
             .Each(x => x.Middleware.Add(new TransactionalFrame()));
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L87-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L87-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
@@ -319,7 +318,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // And actually use the policy
-        opts.Handlers.AddPolicy<CommandsAreTransactional>();
+        opts.Policies.Add<CommandsAreTransactional>();
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L47-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
@@ -782,11 +781,11 @@ builder.Host.UseWolverine(opts =>
 
     // If we encounter a concurrency exception, just try it immediately
     // up to 3 times total
-    opts.Handlers.OnException<ConcurrencyException>().RetryTimes(3);
+    opts.Policies.OnException<ConcurrencyException>().RetryTimes(3);
 
     // It's an imperfect world, and sometimes transient connectivity errors
     // to the database happen
-    opts.Handlers.OnException<NpgsqlException>()
+    opts.Policies.OnException<NpgsqlException>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
 });
 ```
