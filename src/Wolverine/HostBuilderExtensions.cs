@@ -129,7 +129,7 @@ public static class HostBuilderExtensions
             services.AddOptions();
             services.AddLogging();
 
-            services.AddScoped<IMessageBus, MessageBus>();
+            services.AddScoped<IMessageBus, MessageContext>();
             services.AddScoped<IMessageContext, MessageContext>();
 
             services.AddSingleton<ObjectPoolProvider>(new DefaultObjectPoolProvider());
