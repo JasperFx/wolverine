@@ -31,6 +31,22 @@ public class end_to_end : IAsyncLifetime
         return _host.DisposeAsync().AsTask();
     }
 
+    #region sample_testing_hello_world_for_http
+
+    [Fact]
+    public async Task hello_world()
+    {
+        var result = await _host.Scenario(x =>
+        {
+            x.Get.Url("/");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        result.ReadAsText().ShouldBe("Hello.");
+    }
+
+    #endregion
+
     [Fact]
     public async Task create_and_load()
     {

@@ -4,12 +4,18 @@ using Wolverine.Http;
 
 namespace TodoWebService;
 
+
+
+#region sample_Todo
+
 public class Todo
 {
     public int Id { get; set; }
     public string? Name { get; set; }
     public bool IsComplete { get; set; }
 }
+
+#endregion
 
 public record CreateTodo(string Name);
 
@@ -21,19 +27,29 @@ public record TodoCreated(int Id);
 
 public static class TodoEndpoints
 {
+    #region sample_get_to_json
+
     [WolverineGet("/todoitems")]
     public static Task<IReadOnlyList<Todo>> Get(IQuerySession session) 
         => session.Query<Todo>().ToListAsync();
 
+    #endregion
+
     [WolverineGet("/todoitems/complete")]
     public static Task<IReadOnlyList<Todo>> GetComplete(IQuerySession session) =>
         session.Query<Todo>().Where(x => x.IsComplete).ToListAsync();
+
+    #region sample_GetTodo
 
     // Wolverine can infer the 200/404 status codes for you here
     // so there's no code noise just to satisfy OpenAPI tooling
     [WolverineGet("/todoitems/{id}")]
     public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation) 
         => session.LoadAsync<Todo>(id, cancellation);
+
+    #endregion
+
+    #region sample_posting_new_todo_with_middleware
 
     [WolverinePost("/todoitems")]
     public static async Task<IResult> Create(CreateTodo command, IDocumentSession session, IMessageBus bus)
@@ -46,6 +62,8 @@ public static class TodoEndpoints
         
         return Results.Created($"/todoitems/{todo.Id}", todo);
     }
+
+    #endregion
 
     [WolverineDelete("/todoitems")]
     public static void Delete(DeleteTodo command, IDocumentSession session) 
@@ -62,6 +80,8 @@ public static class TodoCreatedHandler
         logger.LogInformation("Got a new TodoCreated event for " + created.Id);
     }    
 }
+
+#region sample_UpdateTodoEndpoint
 
 public static class UpdateTodoEndpoint
 {
@@ -80,6 +100,7 @@ public static class UpdateTodoEndpoint
         todo.IsComplete = todo.IsComplete;
         session.Store(todo);
     }
-
 }
+
+#endregion
 
