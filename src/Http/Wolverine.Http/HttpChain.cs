@@ -17,7 +17,7 @@ using Wolverine.Http.Metadata;
 
 namespace Wolverine.Http;
 
-public class HttpChain : Chain<HttpChain, ModifyHttpAttribute>, ICodeFile
+public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
 {
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
@@ -70,12 +70,12 @@ public class HttpChain : Chain<HttpChain, ModifyHttpAttribute>, ICodeFile
         DisplayName = Method.ToString();
         
         // TODO -- need a helper for this in JasperFx.Core
-        var att = method.Method.GetAttribute<HttpMethodAttribute>();
+        var att = method.Method.GetAttribute<WolverineHttpMethodAttribute>();
         if (att != null)
         {
             RoutePattern = RoutePatternFactory.Parse(att.Template);
 
-            _httpMethods.AddRange(att.HttpMethods);
+            _httpMethods.Add(att.HttpMethod);
             Order = att.Order;
             DisplayName = att.Name ?? Method.ToString();
         }

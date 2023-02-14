@@ -54,7 +54,7 @@ internal class ActionMethodFilter : CompositeFilter<MethodInfo>
         Excludes += method => method.IsSpecialName;
         Excludes += method => method.HasAttribute<WolverineIgnoreAttribute>();
 
-        Includes += method => method.HasAttribute<HttpMethodAttribute>();
+        Includes += method => method.HasAttribute<WolverineHttpMethodAttribute>();
     }
 
     public void IgnoreMethodsDeclaredBy<T>()

@@ -1,18 +1,19 @@
 using Marten;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Http;
 
 namespace WolverineWebApi;
 
 [Special]
 public static class TestEndpoints
 {
-    [HttpGet("/hello")]
+    [WolverineGet("/hello")]
     public static string Speak()
     {
         return "Hello";
     }
 
-    [HttpGet("/results/static")]
+    [WolverineGet("/results/static")]
     public static Results FetchStaticResults()
     {
         return new Results
@@ -22,38 +23,38 @@ public static class TestEndpoints
         };
     }
 
-    [HttpGet("/name/{name}")]
+    [WolverineGet("/name/{name}")]
     public static string SimpleStringRouteArgument(string name)
     {
         return $"Name is {name}";
     }
     
-    [HttpGet("/age/{age}")]
+    [WolverineGet("/age/{age}")]
     public static string IntRouteArgument(int age)
     {
         return $"Age is {age}";
     }
 
-    [HttpGet("/querystring/string")]
+    [WolverineGet("/querystring/string")]
     public static string UsingQueryString(string name)
     {
         return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
     }
     
-    [HttpGet("/querystring/int")]
+    [WolverineGet("/querystring/int")]
     public static string UsingQueryStringParsing(int age)
     {
         return $"Age is {age}";
     }
     
-    [HttpGet("/querystring/int/nullable")]
+    [WolverineGet("/querystring/int/nullable")]
     public static string UsingQueryStringParsingNullable(int? age)
     {
         if (!age.HasValue) return "Age is missing";
         return $"Age is {age}";
     }
 
-    [HttpPost("/question")]
+    [WolverinePost("/question")]
     public static Results PostJson(Question question)
     {
         return new Results

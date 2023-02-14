@@ -4,7 +4,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi;
 
-public class SpecialAttribute : ModifyHttpAttribute
+public class SpecialAttribute : Attributes
 {
     public override void Modify(HttpChain chain, GenerationRules rules)
     {

@@ -155,13 +155,13 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
 
 public class MaybeMessagingEndpoints
 {
-    [HttpPost("/messaging/yes")]
+    [WolverinePost("/messaging/yes")]
     public Task Yes(Question question, IMessageBus bus)
     {
         return Task.CompletedTask;
     }
     
-    [HttpPost("/messaging/no")]
+    [WolverinePost("/messaging/no")]
     public Task No(Question question)
     {
         return Task.CompletedTask;
@@ -171,7 +171,7 @@ public class MaybeMessagingEndpoints
 [Authorize]
 public class SecuredEndpoint
 {
-    [HttpGet("/greetings")]
+    [WolverineGet("/greetings")]
     public string Greetings()
     {
         return "Salutations!";
@@ -180,7 +180,7 @@ public class SecuredEndpoint
 
 public class IndividualEndpoint
 {
-    [HttpGet("/goodbyes")]
+    [WolverineGet("/goodbyes")]
     [Authorize]
     public string Goodbypes()
     {

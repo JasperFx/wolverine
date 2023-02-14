@@ -1,30 +1,31 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Shouldly;
+using Wolverine.Http;
 
 namespace WolverineWebApi;
 
 public class HttpContextEndpoints
 {
-    [HttpGet("/http/context")]
+    [WolverineGet("/http/context")]
     public void UseHttpContext(HttpContext context)
     {
         context.ShouldNotBeNull();
     }
 
-    [HttpGet("/http/request")]
+    [WolverineGet("/http/request")]
     public void UseHttpRequest(HttpRequest request)
     {
         request.ShouldNotBeNull();
     }
     
-    [HttpGet("/http/response")]
+    [WolverineGet("/http/response")]
     public void UseHttpResponse(HttpResponse response)
     {
         response.ShouldNotBeNull();
     }
 
-    [HttpGet("/http/principal")]
+    [WolverineGet("/http/principal")]
     public void UseClaimsPrincipal(ClaimsPrincipal user)
     {
         User = user;
@@ -32,7 +33,7 @@ public class HttpContextEndpoints
 
     public static ClaimsPrincipal User { get; set; }
 
-    [HttpGet("/http/identifier")]
+    [WolverineGet("/http/identifier")]
     public string UseTraceIdentifier(string traceIdentifier)
     {
         return traceIdentifier;

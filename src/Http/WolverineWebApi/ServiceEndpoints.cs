@@ -2,26 +2,27 @@ using System.Diagnostics;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
+using Wolverine.Http;
 
 namespace WolverineWebApi;
 
 public class ServiceEndpoints
 {
     [Special]
-    [HttpGet("/data/{id}")]
+    [WolverineGet("/data/{id}")]
     public Task<Data?> GetData(Guid id, IDocumentSession session)
     {
         return session.LoadAsync<Data>(id);
     }
 
-    [HttpPost("/publish/marten/message")]
+    [WolverinePost("/publish/marten/message")]
     public async Task PublishData(Data data, IMessageBus bus, IDocumentSession session)
     {
         session.Store(data);
         await bus.PublishAsync(new Data { Id = data.Id, Name = data.Name });
     }
 
-    [HttpGet("/message/{message}")]
+    [WolverineGet("/message/{message}")]
     public string GetMessage(string message, Recorder recorder)
     {
         recorder.Actions.Add("Got: " + message);

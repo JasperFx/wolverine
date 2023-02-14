@@ -6,7 +6,7 @@ namespace WolverineWebApi;
 
 public class MiddlewareEndpoints
 {
-    [HttpGet("/middleware/simple")]
+    [WolverineGet("/middleware/simple")]
     public string GetRequest(Recorder recorder)
     {
         recorder.Actions.Add("Action");
@@ -40,7 +40,7 @@ public class BeforeAndAfterEndpoint
         recorder.Actions.Add("After");
     }
     
-    [HttpGet("/middleware/intrinsic")]
+    [WolverineGet("/middleware/intrinsic")]
     public string GetRequest(Recorder recorder)
     {
         recorder.Actions.Add("Action");
@@ -69,6 +69,6 @@ public class AuthenticatedRequest : IAmAuthenticated
 
 public class AuthenticatedEndpoint
 {
-    [HttpPost("/authenticated")]
+    [WolverinePost("/authenticated")]
     public string Get(AuthenticatedRequest request) => "All good.";
 }
