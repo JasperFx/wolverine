@@ -13,6 +13,7 @@ public sealed class HandlerSource
     private readonly IList<Type> _explicitTypes = new List<Type>();
 
     private readonly ActionMethodFilter _methodFilters;
+    private readonly HandlerTypeFilter _validTypeFilter = new();
     private readonly CompositeFilter<Type> _typeFilters = new();
 
     private readonly string[] _validMethods =
@@ -30,14 +31,16 @@ public sealed class HandlerSource
             .ToArray();
         
         _methodFilters = new ActionMethodFilter();
-        _methodFilters.Excludes += m => m.HasAttribute<WolverineIgnoreAttribute>();
 
         _methodFilters.Includes += m => validMethods.Contains(m.Name);
-
+        _methodFilters.Includes += m => m.HasAttribute<WolverineHandlerAttribute>();
+        
         IncludeClassesSuffixedWith(HandlerChain.HandlerSuffix);
         IncludeClassesSuffixedWith(HandlerChain.ConsumerSuffix);
 
         IncludeTypes(x => x.CanBeCastTo<Saga>());
+        IncludeTypes(x => x.CanBeCastTo<IWolverineHandler>());
+        IncludeTypes(x => x.HasAttribute<WolverineHandlerAttribute>());
 
         _typeFilters.Excludes += t => t.HasAttribute<WolverineIgnoreAttribute>();
     }
@@ -45,7 +48,8 @@ public sealed class HandlerSource
     internal IList<Assembly> Assemblies { get; } = new List<Assembly>();
 
     /// <summary>
-    ///     Disable all conventional discovery of message handlers
+    /// Disables *all* conventional discovery of message handlers from type scanning. This is mostly useful for
+    /// testing scenarios or folks who just really want to have full control over everything!
     /// </summary>
     public HandlerSource DisableConventionalDiscovery(bool value = true)
     {
@@ -68,9 +72,9 @@ public sealed class HandlerSource
         Assemblies.Fill(options.ApplicationAssembly);
 
         var types = Assemblies.SelectMany(x => x.ExportedTypes)
-            .Where(x => x.IsStatic() || (x.IsConcrete() && !x.IsOpenGeneric()))
-            .Where(x => _typeFilters.Matches(x))
+            .Where(x => _validTypeFilter.Matches(x))
             .Where(x => !x.HasAttribute<WolverineIgnoreAttribute>())
+            .Where(x => _typeFilters.Matches(x))
             .Concat(_explicitTypes)
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
@@ -81,7 +85,6 @@ public sealed class HandlerSource
     private IEnumerable<(Type, MethodInfo)> actionsFromType(Type type)
     {
         return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static)
-            .Where(x => !x.HasAttribute<WolverineIgnoreAttribute>())
             .Where(x => x.DeclaringType != typeof(object)).ToArray()
             .Where(_methodFilters.Matches)
             .Where(HandlerCall.IsCandidate)

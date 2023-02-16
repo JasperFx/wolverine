@@ -74,6 +74,38 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
         chainFor<CreateOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new CreateOrder()));
         chainFor<ShipOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new ShipOrder()));
     }
+    
+    [WolverineHandler]
+    public static class AttributeWorker
+    {
+        public static void Handle(AttributeMessage message)
+        {
+            Console.WriteLine("Got it");
+        }
+    }
+
+    public record AttributeMessage;
+
+    [Fact]
+    public void find_handlers_marked_with_wolverine_handler_attribute()
+    {
+        chainFor<AttributeMessage>().ShouldNotBeNull();
+    }
+
+    public record MarkedMessage;
+    public class MarkedWorker : IWolverineHandler
+    {
+        public void Handle(MarkedMessage message)
+        {
+            Console.WriteLine("Got it.");
+        }
+    }
+
+    [Fact]
+    public void finds_handlers_that_implement_IWolverineHandler()
+    {
+        chainFor<MarkedMessage>().ShouldHaveHandler<MarkedWorker>(x => x.Handle(null));
+    }
 }
 
 
@@ -97,6 +129,24 @@ public class customized_finding : IntegrationContext
         with(x => x.Policies.Discovery(d => d.IncludeTypesImplementing<IMovieThing>()));
 
         chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
+    }
+
+    public record DifferentNameMessage;
+
+    public class DifferentNameMessageHandler
+    {
+        [WolverineHandler] // This should force Wolverine into thinking
+                           // it's a handler
+        public void DoWork(DifferentNameMessage message)
+        {
+            
+        }
+    }
+
+    [Fact]
+    public void use_WolverineHandler_attribute_on_method()
+    {
+        chainFor<DifferentNameMessage>().ShouldHaveHandler<DifferentNameMessageHandler>(x => x.DoWork(null));
     }
 }
 
@@ -230,3 +280,4 @@ public class EventConsumer
     {
     }
 }
+
