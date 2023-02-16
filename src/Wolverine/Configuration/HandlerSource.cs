@@ -165,7 +165,7 @@ public sealed class HandlerSource
     /// <typeparam name="T"></typeparam>
     public void IncludeType<T>()
     {
-        _explicitTypes.Fill(typeof(T));
+        IncludeType(typeof(T));
     }
 
     /// <summary>
@@ -174,6 +174,18 @@ public sealed class HandlerSource
     /// <param name="type"></param>
     public void IncludeType(Type type)
     {
+        if (type.IsNotPublic)
+        {
+            throw new ArgumentOutOfRangeException(nameof(type),
+                "Handler types must be public, concrete, and closed (not generic) types");
+        }
+        
+        if (!type.IsStatic() && (type.IsNotConcrete() || type.IsOpenGeneric()))
+        {
+            throw new ArgumentOutOfRangeException(nameof(type),
+                "Handler types must be public, concrete, and closed (not generic) types");
+        }
+
         _explicitTypes.Fill(type);
     }
 }

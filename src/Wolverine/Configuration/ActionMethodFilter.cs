@@ -36,3 +36,4 @@ internal class HandlerTypeFilter : CompositeFilter<Type>
         Includes += t => t.IsConcrete();
     }
 }
+
