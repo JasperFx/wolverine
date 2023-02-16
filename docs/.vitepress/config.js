@@ -25,8 +25,8 @@ export default {
             {text: 'Guide', link: '/guide/basics'},
             {text: 'Tutorials', link: '/tutorials/'},
             {
-                text: 'Gitter | Join Chat',
-                link: 'https://gitter.im/JasperFx/wolverine?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge'
+                text: 'Discord | Join Chat',
+                link: 'https://discord.com/channels/1074998995086225460/1074999099855753317'
             }
         ],
 
