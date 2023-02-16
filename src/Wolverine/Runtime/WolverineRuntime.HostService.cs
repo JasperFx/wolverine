@@ -18,6 +18,8 @@ public partial class WolverineRuntime
     {
         try
         {
+            Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}", Options.ApplicationAssembly.GetName());
+            
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
@@ -86,7 +88,7 @@ public partial class WolverineRuntime
             }
             else
             {
-                Logger.LogInformation("'Stubbing' out all external transports for testing");
+                Logger.LogInformation("'Stubbing' out all external Wolverine transports for testing");
             }
             
             foreach (var endpoint in transport.Endpoints())

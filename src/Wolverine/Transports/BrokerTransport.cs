@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -72,11 +73,16 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
     public sealed override async ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
+        runtime.Logger.LogInformation("Initializing the Wolverine {TransportName}", GetType().Name);
+        
         tryBuildResponseQueueEndpoint(runtime);
 
         await ConnectAsync(runtime);
 
-        foreach (var endpoint in endpoints()) await endpoint.InitializeAsync(runtime.Logger);
+        foreach (var endpoint in endpoints())
+        {
+            await endpoint.InitializeAsync(runtime.Logger);
+        }
     }
 
 

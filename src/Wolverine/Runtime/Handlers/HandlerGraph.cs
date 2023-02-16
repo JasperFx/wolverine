@@ -11,6 +11,8 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
 using Lamar;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Middleware;
@@ -164,7 +166,15 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
     internal void Compile(WolverineOptions options, IContainer container)
     {
+        var logger = (ILogger)container.TryGetInstance<ILogger<HandlerSource>>() ?? NullLogger.Instance;
+        
         Rules = options.CodeGeneration;
+
+        foreach (var assembly in Source.Assemblies)
+        {
+            logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers", assembly.GetName());
+        }
+        
         var methods = Source.FindCalls(options);
 
         var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
