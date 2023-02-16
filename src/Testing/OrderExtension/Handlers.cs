@@ -1,6 +1,10 @@
-﻿using Wolverine.Attributes;
+﻿#region sample_using_wolverine_module_attribute
+
+using Wolverine.Attributes;
 
 [assembly: WolverineModule]
+
+#endregion
 
 namespace OrderExtension;
 

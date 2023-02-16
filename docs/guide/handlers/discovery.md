@@ -1,21 +1,61 @@
 # Message Handler Discovery
 
 Wolverine has built in mechanisms for automatically finding message handler methods in your application
-or the ability to explicitly add handler types. The conventional discovery can
-be disabled or customized as well.
+based on a set of naming conventions or using explicit interface or attribute markers. If you really wanted to, 
+you could also explicitly add handler types programmatically.
 
-## Default Conventional Discovery
+## Assembly Discovery
 
-Wolverine uses Lamar's type scanning (based on [StructureMap 4.0's type scanning support](http://structuremap.github.io/registration/auto-registration-and-conventions/)) to find
-handler classes and candidate methods from known assemblies based on naming conventions.
+:::
+The handler discovery uses the `JasperFx.TypeDiscovery` library for type scanning that is shared with several other JasperFx projects. 
+:::
 
-By default, Wolverine is looking for public classes in the main application assembly with names matching these rules:
+The first issue is which assemblies will Wolverine look through to find candidate handlers? By default, Wolverine is looking through what
+it calls the *application assembly*. When you call `IHostBuilder.UseWolverine()` to add Wolverine to an application, Wolverine looks up the call
+stack to find where the call to that method came from, and uses that to determine the application assembly. If you're using an idiomatic
+approach to bootstrap your application through `Program.Main(args)`, the application assembly is going to be the application's main assembly that holds the
+`Program.Main()` entrypoint.
 
+::: tip
+We highly recommend you use [WebApplicationFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-7.0) or [Alba](https://jasperfx.github.io/alba) (which uses `WebApplicationFactory` behind the covers)
+to bootstrap your application in integration tests to avoid any problems around Wolverine's application assembly determination.
+:::
+
+In testing scenarios, if you're bootstrapping the application independently somehow of the application's "official" configuration, you may have to help
+Wolverine out a little bit and explicitly tell it what the application assembly is:
+
+snippet: sample_overriding_application_assembly
+
+To pull in handlers from other assemblies, you can either decorate an assembly with this attribute:
+
+snippet: sample_using_wolverine_module_attribute
+
+Or you can programmatically add additional assemblies to the handler discovery with this syntax:
+
+snippet: sample_adding_extra_assemblies_to_type_discovery
+
+## Handler Type Discovery
+
+:::
+Wolverine does not support any kind of open generic types for message handlers and has no intentions of ever doing so.
+:::
+
+By default, Wolverine is looking for public, concrete classes that follow these rules:
+
+* Implements the `Wolverine.IWolverineHandler` interface
+* Is decorated with the `[Wolverine.WolverineHandler]` attribute
 * Type name ends with "Handler"
 * Type name ends with "Consumer"
 
-From the types, Wolverine looks for any public instance method that either accepts a single parameter that is assumed to be the message type, or **one** parameter with one of these names: *message*, *input*, *command*, or *@event*. In addition,
-Wolverine will also pick the first parameter as the input type regardless of parameter name if it is concrete, not a "simple" type like a string, date, or number, and not a "Settings" type.
+The original intention was to strictly use naming conventions to locate message handlers, but if you prefer a more explicit approach
+for discovery, feel free to utilize the `IWolverineHandler` interface or `[WolverineHandler]` (you'll have to use the attribute approach for static classes).
+
+From the types, by default, Wolverine looks for any public instance method that is:
+
+1. Is named `Handle`, `Handles`, `Consume`, `Consumes` or one of the names from [Wolverine's saga support](/guide/durability/sagas)
+2. Is decorated by the `[WolverineHandler]` attribute if you want to use a different, descriptive name
+
+In all cases, Wolverine assumes that the first argument is the incoming message.
 
 To make that concrete, here are some valid handler method signatures:
 
@@ -214,59 +254,3 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L129-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-
-
-## Subclass or Interface Handlers
-
-Wolverine will allow you to use handler methods that work against interfaces or abstract types to apply or reuse
-generic functionality across messages. Let's say that some subset of your messages implement some kind of
-`IMessage` interface like this one and an implementation of it below:
-
-<!-- snippet: sample_Handlers_IMessage -->
-<a id='snippet-sample_handlers_imessage'></a>
-```cs
-public interface IMessage
-{
-}
-
-public class MessageOne : IMessage
-{
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L52-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_imessage' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-You can handle the `MessageOne` specifically with a handler action like this:
-
-<!-- snippet: sample_Handlers_SpecificMessageHandler -->
-<a id='snippet-sample_handlers_specificmessagehandler'></a>
-```cs
-public class SpecificMessageHandler
-{
-    public void Consume(MessageOne message)
-    {
-    }
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L76-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_specificmessagehandler' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-You can also create a handler for `IMessage` like this one:
-
-<!-- snippet: sample_Handlers_GenericMessageHandler -->
-<a id='snippet-sample_handlers_genericmessagehandler'></a>
-```cs
-public class GenericMessageHandler
-{
-    public void Consume(IMessage messagem, Envelope envelope)
-    {
-        Console.WriteLine($"Got a message from {envelope.Source}");
-    }
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L64-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_genericmessagehandler' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-When Wolverine handles the `MessageOne` message, it first calls all the specific handlers for that message type,
-then will call any handlers that handle a more generic message type (interface or abstract class most likely) where
-the specific type can be cast to the generic type.

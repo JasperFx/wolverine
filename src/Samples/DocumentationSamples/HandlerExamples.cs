@@ -9,6 +9,7 @@ namespace DocumentationSamples
 {
     #region sample_ValidMessageHandlers
 
+    [WolverineHandler]
     public class ValidMessageHandlers
     {
         // There's only one argument, so we'll assume that
