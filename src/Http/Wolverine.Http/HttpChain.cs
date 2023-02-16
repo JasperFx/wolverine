@@ -104,6 +104,8 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     {
         // For diagnostics
         yield return this;
+
+        yield return Method.Method;
         
         // This is just to let the world know that the endpoint came from Wolverine
         yield return new WolverineMarker();

@@ -5,19 +5,19 @@ namespace WolverineWebApi;
 
 public class FakeEndpoint
 {
-    [WolverineGet("/hello", Order = 55, Name = "The Hello Route!")]
+    [WolverineGet("/fake/hello", Order = 55, Name = "The Hello Route!")]
     public string SayHello()
     {
         return "Hello";
     }
     
-    [WolverineGet("/hello/async")]
+    [WolverineGet("/fake/hello/async")]
     public Task<string> SayHelloAsync()
     {
         return Task.FromResult("Hello");
     }
     
-    [WolverineGet("/hello/async2")]
+    [WolverineGet("/fake/hello/async2")]
     public ValueTask<string> SayHelloAsync2()
     {
         return ValueTask.FromResult("Hello");

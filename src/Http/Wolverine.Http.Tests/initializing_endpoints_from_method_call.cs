@@ -43,7 +43,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     {
         var endpoint = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHello());
 
-        endpoint.RoutePattern.RawText.ShouldBe("/hello");
+        endpoint.RoutePattern.RawText.ShouldBe("/fake/hello");
         endpoint.RoutePattern.Parameters.Any().ShouldBeFalse();
     }
 

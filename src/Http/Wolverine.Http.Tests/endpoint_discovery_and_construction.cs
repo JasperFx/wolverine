@@ -14,14 +14,14 @@ public class endpoint_discovery_and_construction : IntegrationContext
     [Fact]
     public void read_order_from_attribute()
     {
-        var chain = HttpChains.ChainFor("GET", "/hello");
+        var chain = HttpChains.ChainFor("GET", "/fake/hello");
         chain.Endpoint.Order.ShouldBe(55);
     }
 
     [Fact]
     public void read_display_name_from_http_method_attribute()
     {
-        var chain = HttpChains.ChainFor("GET", "/hello");
+        var chain = HttpChains.ChainFor("GET", "/fake/hello");
         chain.Endpoint.DisplayName.ShouldBe("The Hello Route!");
     }
 
