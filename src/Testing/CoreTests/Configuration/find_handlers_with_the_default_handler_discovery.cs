@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Module2;
 using OrderExtension;
 using TestingSupport;
 using Wolverine.Attributes;
@@ -147,6 +148,23 @@ public class customized_finding : IntegrationContext
     public void use_WolverineHandler_attribute_on_method()
     {
         chainFor<DifferentNameMessage>().ShouldHaveHandler<DifferentNameMessageHandler>(x => x.DoWork(null));
+    }
+
+    [Fact]
+    public void find_handlers_from_included_assembly()
+    {
+        with(opts =>
+        {
+            opts.Policies.Discovery(s =>
+            {
+                s.IncludeAssembly(typeof(Module2Message1).Assembly);
+            });
+        });
+
+        chainFor<Module2Message1>().ShouldNotBeNull();
+        chainFor<Module2Message2>().ShouldNotBeNull();
+        chainFor<Module2Message3>().ShouldNotBeNull();
+        chainFor<Module2Message4>().ShouldNotBeNull();
     }
 }
 

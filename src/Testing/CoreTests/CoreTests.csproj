@@ -15,6 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Module2\Module2.csproj" />
         <ProjectReference Include="..\OrderExtension\OrderExtension.csproj" />
         <ProjectReference Include="..\Module1\Module1.csproj" />
         <ProjectReference Include="..\TestingSupport\TestingSupport.csproj" />
