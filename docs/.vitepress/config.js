@@ -26,7 +26,7 @@ export default {
             {text: 'Tutorials', link: '/tutorials/'},
             {
                 text: 'Discord | Join Chat',
-                link: 'https://discord.com/channels/1074998995086225460/1074999099855753317'
+                link: 'https://discord.gg/WMxrvegf8H'
             }
         ],
 
