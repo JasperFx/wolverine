@@ -163,9 +163,13 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         return null;
     }
 
+    private bool _hasCompiled = false;
 
     internal void Compile(WolverineOptions options, IContainer container)
     {
+        if (_hasCompiled) return;
+        _hasCompiled = true;
+        
         var logger = (ILogger)container.TryGetInstance<ILogger<HandlerSource>>() ?? NullLogger.Instance;
         
         Rules = options.CodeGeneration;

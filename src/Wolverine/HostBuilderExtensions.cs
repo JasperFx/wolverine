@@ -118,8 +118,7 @@ public static class HostBuilderExtensions
 
             services.MessagingRootService(x => x.MessageLogger);
 
-            services.AddSingleton<IDescribedSystemPart>(s => s.GetRequiredService<WolverineOptions>().HandlerGraph);
-            services.AddSingleton<IDescribedSystemPart>(s => s.GetRequiredService<WolverineOptions>());
+            services.AddSingleton<IDescribedSystemPartFactory>(s => (IDescribedSystemPartFactory)s.GetRequiredService<IWolverineRuntime>());
 
             services.TryAddSingleton<IMessageStore, NullMessageStore>();
             services.AddSingleton<InMemorySagaPersistor>();

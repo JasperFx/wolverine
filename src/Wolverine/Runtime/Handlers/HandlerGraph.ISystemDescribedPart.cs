@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Oakton.Descriptions;
 using Spectre.Console;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -31,7 +32,8 @@ public partial class HandlerGraph : IDescribedSystemPart, IWriteToConsole
         table.AddColumn("Message Name");
         table.AddColumn("[bold]Message Type[/]\n  [dim]namespace[/]", c => c.NoWrap = true);
         table.AddColumn("[bold]Handler.Method()[/]\n  [dim]namespace[/]", c => c.NoWrap = true);
-
+        table.AddColumn("Generated Type Name");
+        
         foreach (var chain in Chains)
         {
             var messageType = $"[bold]{chain.MessageType.NameInCode()}[/]\n  [dim]{chain.MessageType.Namespace}[/]";
@@ -40,7 +42,7 @@ public partial class HandlerGraph : IDescribedSystemPart, IWriteToConsole
                     $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
                 .Join("\n");
 
-            table.AddRow(chain.TypeName, messageType, handlerType);
+            table.AddRow(WolverineMessageNaming.ToMessageTypeName(chain.MessageType), messageType, handlerType, chain.TypeName);
         }
 
         AnsiConsole.Render(table);
