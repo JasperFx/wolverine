@@ -42,7 +42,7 @@ public partial class HandlerGraph : IDescribedSystemPart, IWriteToConsole
                     $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
                 .Join("\n");
 
-            table.AddRow(WolverineMessageNaming.ToMessageTypeName(chain.MessageType), messageType, handlerType, chain.TypeName);
+            table.AddRow(chain.MessageType.ToMessageTypeName(), messageType, handlerType, chain.TypeName);
         }
 
         AnsiConsole.Render(table);

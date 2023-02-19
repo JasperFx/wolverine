@@ -14,6 +14,8 @@ namespace Wolverine.Runtime;
 
 public partial class WolverineRuntime
 {
+    private bool _hasStarted;
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         try
@@ -33,6 +35,8 @@ public partial class WolverineRuntime
             startInMemoryScheduledJobs();
 
             await startDurabilityAgentAsync();
+
+            _hasStarted = true;
         }
         catch (Exception? e)
         {
@@ -139,8 +143,18 @@ public partial class WolverineRuntime
 
     private Task startDurabilityAgentAsync()
     {
+        if (!Options.Durability.DurabilityAgentEnabled) return Task.CompletedTask;
         var store = _container.GetInstance<IMessageStore>();
         Durability = store.BuildDurabilityAgent(this, _container);
         return Durability.StartAsync(Options.Durability.Cancellation);
+    }
+
+    internal async Task StartLightweightAsync()
+    {
+        if (_hasStarted) return;
+        Options.ExternalTransportsAreStubbed = true;
+        Options.Durability.DurabilityAgentEnabled = false;
+
+        await StartAsync(CancellationToken.None);
     }
 }

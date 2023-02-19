@@ -1,17 +1,17 @@
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Oakton.Descriptions;
+using Spectre.Console;
+using Spectre.Console.Rendering;
 using Wolverine.ErrorHandling;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -67,7 +67,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     private EndpointMode _mode = EndpointMode.BufferedInMemory;
     private string? _name;
     private ImHashMap<string, IMessageSerializer> _serializers = ImHashMap<string, IMessageSerializer>.Empty;
-    
+
     internal ImHashMap<Type, MessageRoute> Routes = ImHashMap<Type, MessageRoute>.Empty;
 
     protected Endpoint(Uri uri, EndpointRole role)
@@ -75,17 +75,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         Role = role;
         Uri = uri;
         EndpointName = uri.ToString();
-    }
-
-    internal MessageRoute RouteFor(Type messageType, IWolverineRuntime runtime)
-    {
-        if (Routes.TryFind(messageType, out var route)) return route;
-
-        route = new MessageRoute(messageType, this, runtime.Replies);
-
-        Routes = Routes.AddOrUpdate(messageType, route);
-
-        return route;
     }
 
     /// <summary>
@@ -231,6 +220,20 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return dict;
     }
 
+    internal MessageRoute RouteFor(Type messageType, IWolverineRuntime runtime)
+    {
+        if (Routes.TryFind(messageType, out var route))
+        {
+            return route;
+        }
+
+        route = new MessageRoute(messageType, this, runtime.Replies);
+
+        Routes = Routes.AddOrUpdate(messageType, route);
+
+        return route;
+    }
+
     internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
     {
         DelayedConfiguration.Add(configuration);
@@ -339,5 +342,53 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public virtual ValueTask InitializeAsync(ILogger logger)
     {
         return ValueTask.CompletedTask;
+    }
+
+    internal IRenderable SerializerDescription(WolverineOptions options)
+    {
+        var grid = new Grid();
+        grid.AddColumn();
+        grid.AddColumn();
+
+        var dict = options.ToSerializerDictionary();
+        foreach (var entry in _serializers.Enumerate())
+        {
+            dict[entry.Key] = entry.Value;
+        }
+
+        foreach (var pair in dict.OrderBy(x => x.Key))
+        {
+            if (pair.Value is EnvelopeReaderWriter) continue;
+            
+            if (pair.Value == DefaultSerializer)
+            {
+                grid.AddRow($"{pair.Key} (default)", pair.Value.GetType().ShortNameInCode());
+            }
+            else
+            {
+                grid.AddRow(pair.Key, pair.Value.GetType().FullNameInCode());
+            }
+            
+        }
+
+        return grid;
+    }
+
+    internal IRenderable NameDescription()
+    {
+        return Uri.ToString() == EndpointName 
+            ? new Markup(Uri.ToString()) 
+            : new Markup($"{Uri} ({EndpointName})".EscapeMarkup());
+    }
+
+    internal IRenderable ExecutionDescription()
+    {
+        if (Mode == EndpointMode.Inline)
+        {
+            return new Markup("");
+        }
+
+        var text = $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
+        return new Markup(text);
     }
 }

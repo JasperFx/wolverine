@@ -7,6 +7,7 @@ using JasperFx.Core;
 using Lamar.IoC.Diagnostics;
 using Oakton.Descriptions;
 using Spectre.Console;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine;
 
@@ -98,5 +99,10 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
             tree.AddNode(assembly);
         }
 
+    }
+
+    internal Dictionary<string, IMessageSerializer> ToSerializerDictionary()
+    {
+        return _serializers.ToDictionary(x => x.Key, x => x.Value);
     }
 }
