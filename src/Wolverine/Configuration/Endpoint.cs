@@ -391,4 +391,16 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         var text = $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
         return new Markup(text);
     }
+
+    internal IRenderable SubscriptionsDescription()
+    {
+        var grid = new Grid();
+        grid.AddColumn();
+        foreach (var subscription in Subscriptions)
+        {
+            grid.AddRow(subscription.ToString());
+        }
+
+        return grid;
+    }
 }
