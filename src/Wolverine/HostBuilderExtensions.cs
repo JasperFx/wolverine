@@ -251,11 +251,18 @@ public static class HostBuilderExtensions
     /// </summary>
     /// <param name="services"></param>
     /// <returns></returns>
+
+    #region sample_extension_method_to_disable_external_transports
+
     public static IServiceCollection DisableAllExternalWolverineTransports(this IServiceCollection services)
     {
         services.AddSingleton<IWolverineExtension, DisableExternalTransports>();
         return services;
     }
+
+    #endregion
+
+    #region sample_DisableExternalTransports
 
     internal class DisableExternalTransports : IWolverineExtension
     {
@@ -264,4 +271,6 @@ public static class HostBuilderExtensions
             options.ExternalTransportsAreStubbed = true;
         }
     }
+
+    #endregion
 }

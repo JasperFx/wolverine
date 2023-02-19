@@ -26,4 +26,8 @@ using Wolverine.Attributes;
 
 [assembly: Guid("4F18A2E4-5056-48C8-89BA-4837F6F983E4")]
 
+#region sample_using_wolverine_module_to_load_extension
+
 [assembly: WolverineModule(typeof(Module1Extension))]
+
+#endregion

@@ -254,7 +254,24 @@ The assemblies scanned are:
 2. Any assembly marked with the `[assembly: WolverineModule]` attribute
 3. Any assembly that is explicitly added in the `UseWolverine()` configuration as a handler assembly as shown in the following sample code:
 
-snippet: sample_programmatically_scan_assemblies
+<!-- snippet: sample_programmatically_scan_assemblies -->
+<a id='snippet-sample_programmatically_scan_assemblies'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // This gives you the option to programmatically
+        // add other assemblies to the discovery of HTTP endpoints
+        // or message handlers
+        opts.Policies.Discovery(x =>
+        {
+            var assembly = Assembly.Load("my other assembly name that holds HTTP endpoints or handlers");
+            x.IncludeAssembly(assembly);
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/DocumentationSamples.cs#L10-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatically_scan_assemblies' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ::: 
 Wolverine was originally going to use the out of the box `[HttpVerb]` attributes in MVC Core, but switched to custom
