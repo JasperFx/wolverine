@@ -60,7 +60,7 @@ internal class ParsedNullableQueryStringValue : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write($"{_alias}? {Variable.Usage} = null;");
-        writer.Write($"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var parsed)) {Variable.Usage} = parsed;");
+        writer.Write($"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
         
         Next?.GenerateCode(method, writer);
     }
