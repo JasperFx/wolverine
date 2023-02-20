@@ -51,11 +51,11 @@ public class AsyncHandler
 
 #region sample_Handlers_IMessage
 
-public interface IMessage
+public interface IMyMessage
 {
 }
 
-public class MessageOne : IMessage
+public class MyMessageOne : IMyMessage
 {
 }
 
@@ -65,7 +65,7 @@ public class MessageOne : IMessage
 
 public class GenericMessageHandler
 {
-    public void Consume(IMessage messagem, Envelope envelope)
+    public void Consume(IMyMessage messagem, Envelope envelope)
     {
         Console.WriteLine($"Got a message from {envelope.Source}");
     }
@@ -77,7 +77,7 @@ public class GenericMessageHandler
 
 public class SpecificMessageHandler
 {
-    public void Consume(MessageOne message)
+    public void Consume(MyMessageOne message)
     {
     }
 }

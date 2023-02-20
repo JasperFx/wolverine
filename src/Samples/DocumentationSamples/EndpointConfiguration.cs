@@ -13,7 +13,7 @@ public class EndpointConfiguration
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PublishMessage<MessageOne>().ToPort(3333)
+                opts.PublishMessage<MyMessageOne>().ToPort(3333)
 
                     // Override the endpoint name easier usage and diagnostics
                     .Named("threes")
