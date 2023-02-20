@@ -1,10 +1,4 @@
-using System.Data;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
-using JasperFx.Core;
-using Lamar.IoC.Diagnostics;
 using Oakton.Descriptions;
 using Spectre.Console;
 using Wolverine.Runtime.Serialization;
@@ -33,8 +27,10 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
 
     Task IWriteToConsole.WriteToConsole()
     {
+        AnsiConsole.WriteLine();
+
         var root = new Tree(new Markup($"[bold]Service Name: {ServiceName.EscapeMarkup()}[/]"));
-        
+
         writeAssemblies(root);
         writeExtensions(root);
         writeSerializers(root);
@@ -56,7 +52,7 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
         foreach (var pair in _serializers)
         {
             var contentType = pair.Key;
-            var serializer = pair.Value.GetType().FullNameInCode();
+            var serializer = pair.Value.GetType().ShortNameInCode();
             if (pair.Value == _defaultSerializer)
             {
                 serializer += " (default)";
@@ -73,16 +69,12 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
         var tree = root.AddNode("Extensions");
         if (_extensionTypes.Any())
         {
-            foreach (var extensionType in _extensionTypes)
-            {
-                tree.AddNode(extensionType.FullNameInCode());
-            }
+            foreach (var extensionType in _extensionTypes) tree.AddNode(extensionType.FullNameInCode());
         }
         else
         {
             tree.AddNode(new Markup("[gray]No applied extensions.[/]"));
         }
-        
     }
 
     private void writeAssemblies(Tree root)
@@ -94,11 +86,7 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
             .Where(x => x != ApplicationAssembly)
             .Select(x => x.GetName().Name)
             .OrderBy(x => x);
-        foreach (var assembly in assemblies)
-        {
-            tree.AddNode(assembly);
-        }
-
+        foreach (var assembly in assemblies) tree.AddNode(assembly);
     }
 
     internal Dictionary<string, IMessageSerializer> ToSerializerDictionary()

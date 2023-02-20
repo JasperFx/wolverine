@@ -1,4 +1,5 @@
 using System.Data;
+using FastExpressionCompiler;
 using JasperFx.CodeGeneration;
 using Oakton.Descriptions;
 using Spectre.Console;
@@ -94,7 +95,7 @@ internal class SenderDescription : IDescribedSystemPart, IWriteToConsole
         await writer.WriteLineAsync("Use the console output option.");
     }
 
-    public string Title => "Wolverine Subscribers";
+    public string Title => "Wolverine Sending Endpoints";
     public async Task WriteToConsole()
     {
         // "start" the Wolverine app in a lightweight way
@@ -117,9 +118,10 @@ internal class SenderDescription : IDescribedSystemPart, IWriteToConsole
     {
         var table = new Table();
 
-        table.AddColumn("Uri (Name)", c => c.NoWrap = true);
+        table.AddColumn("Uri", c => c.NoWrap = true);
+        table.AddColumn("Name");
         table.AddColumn("Mode");
-        table.AddColumn("Serializers", c => c.NoWrap = true);
+        table.AddColumn("Serializer(s)", c => c.NoWrap = true);
 
         var senders = _runtime
             .Options
@@ -130,8 +132,9 @@ internal class SenderDescription : IDescribedSystemPart, IWriteToConsole
         foreach (var endpoint in senders)
         {
             table.AddRow(
-                endpoint.NameDescription(),
-                new Markup(endpoint.Mode.ToString()),
+                endpoint.Uri.ToString(),
+                endpoint.EndpointName,
+                endpoint.Mode.ToString(),
                 endpoint.SerializerDescription(_runtime.Options)
             );
         }
@@ -167,7 +170,8 @@ internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
         // TODO -- add buffering
         // TODO -- circuit breaker
         
-        table.AddColumn("Uri (Name)");
+        table.AddColumn("Uri");
+        table.AddColumn("Name");
         table.AddColumn("Mode");
         table.AddColumn("Execution");
         table.AddColumn("Serializers");
@@ -182,8 +186,9 @@ internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
         foreach (var listener in listeners)
         {
             table.AddRow(
-                listener.NameDescription(),
-                new Markup(listener.Mode.ToString()),
+                listener.Uri.ToString(),
+                listener.EndpointName,
+                listener.Mode.ToString(),
                 listener.ExecutionDescription(),
                 listener.SerializerDescription(_runtime.Options)
             );

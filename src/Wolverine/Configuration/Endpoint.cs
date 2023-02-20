@@ -344,52 +344,30 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return ValueTask.CompletedTask;
     }
 
-    internal IRenderable SerializerDescription(WolverineOptions options)
+    internal string SerializerDescription(WolverineOptions options)
     {
-        var grid = new Grid();
-        grid.AddColumn();
-        grid.AddColumn();
-
         var dict = options.ToSerializerDictionary();
-        foreach (var entry in _serializers.Enumerate())
+        var overrides = _serializers.Enumerate().Select(x => x.Value)
+            .Where(x => !(x is EnvelopeReaderWriter));
+
+        foreach (var serializer in overrides)
         {
-            dict[entry.Key] = entry.Value;
+            dict[serializer.ContentType] = serializer;
         }
 
-        foreach (var pair in dict.OrderBy(x => x.Key))
-        {
-            if (pair.Value is EnvelopeReaderWriter) continue;
-            
-            if (pair.Value == DefaultSerializer)
-            {
-                grid.AddRow($"{pair.Key} (default)", pair.Value.GetType().ShortNameInCode());
-            }
-            else
-            {
-                grid.AddRow(pair.Key, pair.Value.GetType().ShortNameInCode());
-            }
-            
-        }
+        dict.Remove("binary/envelope");
 
-        return grid;
+        return dict.Select(x => $"{x.Value.GetType().ShortNameInCode()} ({x.Key})").Join(", ");
     }
-
-    internal IRenderable NameDescription()
-    {
-        return Uri.ToString() == EndpointName 
-            ? new Markup(Uri.ToString()) 
-            : new Markup($"{Uri} ({EndpointName})".EscapeMarkup());
-    }
-
-    internal IRenderable ExecutionDescription()
+    
+    internal string ExecutionDescription()
     {
         if (Mode == EndpointMode.Inline)
         {
-            return new Markup("");
+            return "";
         }
 
-        var text = $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
-        return new Markup(text);
+        return $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
     }
 
 }
