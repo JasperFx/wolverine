@@ -3,7 +3,7 @@ using Xunit;
 
 namespace CoreTests.Configuration;
 
-public class HandlerSourceTests
+public class HandlerDiscoveryTests
 {
     public class OpenGuy<T>{}
     public interface InterfaceGuy{}
