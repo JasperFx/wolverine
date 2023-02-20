@@ -15,6 +15,8 @@ public sealed class HandlerDiscovery
     private readonly HandlerTypeFilter _validTypeFilter = new();
     private readonly CompositeFilter<Type> _typeFilters = new();
 
+    private readonly CompositeFilter<Type> _messageFilter = new();
+
     private readonly string[] _validMethods =
     {
         HandlerChain.Handle, HandlerChain.Handles, HandlerChain.Consume, HandlerChain.Consumes, SagaChain.Orchestrate,
@@ -42,6 +44,13 @@ public sealed class HandlerDiscovery
         IncludeTypes(x => x.HasAttribute<WolverineHandlerAttribute>());
 
         _typeFilters.Excludes += t => t.HasAttribute<WolverineIgnoreAttribute>();
+
+        _messageFilter.Excludes += x => !x.IsPublic;
+        _messageFilter.Excludes += x => !x.IsConcrete();
+        _messageFilter.Excludes += x => x.IsStatic();
+
+        _messageFilter.Includes += x => x.CanBeCastTo<IMessage>();
+        _messageFilter.Includes += x => x.HasAttribute<WolverineMessageAttribute>();
     }
 
     internal IList<Assembly> Assemblies { get; } = new List<Assembly>();
@@ -54,6 +63,33 @@ public sealed class HandlerDiscovery
     {
         _conventionalDiscoveryDisabled = value;
         return this;
+    }
+
+    internal IReadOnlyList<Type> FindAllMessages(HandlerGraph handlers)
+    {
+        return findAllMessages(handlers).Distinct().ToList();
+    }
+
+    internal IEnumerable<Type> findAllMessages(HandlerGraph handlers)
+    {
+        foreach (var chain in handlers.Chains)
+        {
+            yield return chain.MessageType;
+
+            foreach (var publishedType in chain.PublishedTypes())
+            {
+                yield return publishedType;
+            }
+            
+        }
+
+        var discovered = Assemblies.SelectMany(x => x.ExportedTypes).Where(x => _messageFilter.Matches(x));
+        foreach (var type in discovered)
+        {
+            yield return type;
+        }
+
+        // TODO -- look for custom types
     }
 
     internal (Type, MethodInfo)[] FindCalls(WolverineOptions options)
@@ -184,6 +220,30 @@ public sealed class HandlerDiscovery
 
         _explicitTypes.Fill(type);
 
+        return this;
+    }
+
+    /// <summary>
+    /// Create a custom type filter for Wolverine to discover
+    /// message types within a Wolverine system's known assemblies
+    /// </summary>
+    /// <param name="includeFilter"></param>
+    /// <returns></returns>
+    public HandlerDiscovery IncludeTypesAsMessages(Func<Type, bool> includeFilter)
+    {
+        _messageFilter.Includes += includeFilter;
+        return this;
+    }
+    
+    /// <summary>
+    /// Create a custom type filter for Wolverine to ignore potential
+    /// message types within a Wolverine system's known assemblies
+    /// </summary>
+    /// <param name="includeFilter"></param>
+    /// <returns></returns>
+    public HandlerDiscovery ExcludeTypesAsMessages(Func<Type, bool> excludeFilter)
+    {
+        _messageFilter.Excludes += excludeFilter;
         return this;
     }
 }

@@ -182,6 +182,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiagnosticsApp", "src\Sampl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiagnosticsTests", "src\Samples\Diagnostics\DiagnosticsTests\DiagnosticsTests.csproj", "{73BAE655-BFE7-458F-B96E-E9FC054ADBA5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiagnosticsModule", "src\Samples\Diagnostics\DiagnosticsModule\DiagnosticsModule.csproj", "{D70EF204-4913-4007-9929-5EB49E2F578A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -471,6 +473,10 @@ Global
 		{73BAE655-BFE7-458F-B96E-E9FC054ADBA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{73BAE655-BFE7-458F-B96E-E9FC054ADBA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{73BAE655-BFE7-458F-B96E-E9FC054ADBA5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D70EF204-4913-4007-9929-5EB49E2F578A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D70EF204-4913-4007-9929-5EB49E2F578A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D70EF204-4913-4007-9929-5EB49E2F578A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D70EF204-4913-4007-9929-5EB49E2F578A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{902AD1EA-9C2D-4555-869F-83E3C497EF7E} = {96119B5E-B5F0-400A-9580-B342EBE26212}
@@ -551,5 +557,6 @@ Global
 		{DCF93293-FDC0-4483-9281-BFD5BD7B125C} = {D953D733-D154-4DF2-B2B9-30BF942E1B6B}
 		{47FF7E31-4AA1-48C1-B90C-916C42623629} = {DCF93293-FDC0-4483-9281-BFD5BD7B125C}
 		{73BAE655-BFE7-458F-B96E-E9FC054ADBA5} = {DCF93293-FDC0-4483-9281-BFD5BD7B125C}
+		{D70EF204-4913-4007-9929-5EB49E2F578A} = {DCF93293-FDC0-4483-9281-BFD5BD7B125C}
 	EndGlobalSection
 EndGlobal

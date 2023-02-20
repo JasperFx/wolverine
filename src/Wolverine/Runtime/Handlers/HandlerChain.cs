@@ -69,8 +69,30 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var create in handler.Creates)
             i = DisambiguateOutgoingVariableName(create, i);
     }
-    
-    
+
+    public IEnumerable<Type> PublishedTypes()
+    {
+        var ignoredTypes = new Type[]
+        {
+            typeof(object),
+            typeof(object[]),
+            typeof(IEnumerable<object>),
+            typeof(IList<object>),
+            typeof(IReadOnlyList<object>),
+        };
+        
+        foreach (var variable in Handlers.SelectMany(x => x.Creates))
+        {
+            if (ignoredTypes.Contains(variable.VariableType) ||
+                variable.VariableType.CanBeCastTo<IEnumerable<object>>())
+            {
+                continue;
+            }
+
+            yield return variable.VariableType;
+        }
+    }
+
 
     /// <summary>
     ///     A textual description of this HandlerChain

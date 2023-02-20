@@ -1,7 +1,7 @@
-﻿using IntegrationTests;
+﻿using DiagnosticsModule;
+using IntegrationTests;
+using JasperFx.Core.Reflection;
 using Marten;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
@@ -25,13 +25,14 @@ builder.Services.AddMarten(opts =>
 }).IntegrateWithWolverine();
 
 
-
 builder.Services.AddResourceSetupOnStartup();
 
 // Need this.
 builder.Host.UseWolverine(opts =>
 {
     opts.Policies.AutoApplyTransactions();
+
+    opts.Discovery.IncludeTypesAsMessages(type => type.CanBeCastTo<IDiagnosticsMessage>());
 });
 
 var app = builder.Build();
@@ -42,9 +43,6 @@ app.UseSwaggerUI();
 
 app.UseAuthorization();
 
-app.MapWolverineEndpoints(opts =>
-{
-
-});
+app.MapWolverineEndpoints(opts => { });
 
 await app.RunOaktonCommands(args);
