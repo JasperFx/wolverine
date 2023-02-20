@@ -33,7 +33,7 @@ public sealed partial class WolverineOptions
 
             if (value != null)
             {
-                HandlerGraph.Source.Assemblies.Add(value);
+                HandlerGraph.Discovery.Assemblies.Add(value);
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
                 if (CodeGeneration != null)
@@ -49,7 +49,7 @@ public sealed partial class WolverineOptions
     ///     All of the assemblies that Wolverine is searching for message handlers and
     ///     other Wolverine items
     /// </summary>
-    public IEnumerable<Assembly> Assemblies => HandlerGraph.Source.Assemblies;
+    public IEnumerable<Assembly> Assemblies => HandlerGraph.Discovery.Assemblies;
 
 
     private Assembly? determineCallingAssembly()
@@ -114,12 +114,12 @@ public sealed partial class WolverineOptions
             throw new InvalidOperationException("Unable to determine an application assembly");
         }
 
-        HandlerGraph.Source.Assemblies.Fill(ApplicationAssembly);
+        HandlerGraph.Discovery.Assemblies.Fill(ApplicationAssembly);
     }
 
 
     internal void IncludeExtensionAssemblies(Assembly[] assemblies)
     {
-        foreach (var assembly in assemblies) HandlerGraph.Source.IncludeAssembly(assembly);
+        foreach (var assembly in assemblies) HandlerGraph.Discovery.IncludeAssembly(assembly);
     }
 }

@@ -131,22 +131,22 @@ internal static class HandlerSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Policies.Discovery(x =>
-                {
+                
+                opts.Discovery
+
                     // Turn off the default handler conventions
                     // altogether
-                    x.DisableConventionalDiscovery();
+                    .DisableConventionalDiscovery()
 
                     // Include candidate actions by a user supplied
                     // type filter
-                    x.IncludeTypes(t => t.IsInNamespace("MyApp.Handlers"));
+                    .IncludeTypes(t => t.IsInNamespace("MyApp.Handlers"))
 
                     // Include candidate classes by suffix
-                    x.IncludeClassesSuffixedWith("Listener");
+                    .IncludeClassesSuffixedWith("Listener")
 
                     // Include a specific handler class with a generic argument
-                    x.IncludeType<SimpleHandler>();
-                });
+                    .IncludeType<SimpleHandler>();
             }).StartAsync();
 
         #endregion

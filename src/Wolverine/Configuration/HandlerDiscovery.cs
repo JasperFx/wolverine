@@ -1,14 +1,13 @@
 using System.Reflection;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using JasperFx.TypeDiscovery;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Configuration;
 
-public sealed class HandlerSource
+public sealed class HandlerDiscovery
 {
     private readonly IList<Type> _explicitTypes = new List<Type>();
 
@@ -25,7 +24,7 @@ public sealed class HandlerSource
 
     private bool _conventionalDiscoveryDisabled;
 
-    public HandlerSource()
+    public HandlerDiscovery()
     {
         var validMethods = _validMethods.Concat(_validMethods.Select(x => x + "Async"))
             .ToArray();
@@ -51,7 +50,7 @@ public sealed class HandlerSource
     /// Disables *all* conventional discovery of message handlers from type scanning. This is mostly useful for
     /// testing scenarios or folks who just really want to have full control over everything!
     /// </summary>
-    public HandlerSource DisableConventionalDiscovery(bool value = true)
+    public HandlerDiscovery DisableConventionalDiscovery(bool value = true)
     {
         _conventionalDiscoveryDisabled = value;
         return this;
@@ -96,83 +95,80 @@ public sealed class HandlerSource
     ///     assembly
     /// </summary>
     /// <param name="assembly"></param>
-    public void IncludeAssembly(Assembly assembly)
+    public HandlerDiscovery IncludeAssembly(Assembly assembly)
     {
         Assemblies.Add(assembly);
+        return this;
     }
 
     /// <summary>
     ///     Find Handlers from concrete classes whose names ends with the suffix
     /// </summary>
     /// <param name="suffix"></param>
-    public void IncludeClassesSuffixedWith(string suffix)
+    public HandlerDiscovery IncludeClassesSuffixedWith(string suffix)
     {
-        IncludeTypesNamed(x => x.EndsWith(suffix));
+        return IncludeTypesNamed(x => x.EndsWith(suffix));
     }
 
     /// <summary>
     ///     Find Handler classes based on the Type name filter supplied
     /// </summary>
     /// <param name="filter"></param>
-    public void IncludeTypesNamed(Func<string, bool> filter)
+    public HandlerDiscovery IncludeTypesNamed(Func<string, bool> filter)
     {
-        IncludeTypes(type => filter(type.Name));
+        return IncludeTypes(type => filter(type.Name));
     }
 
     /// <summary>
     ///     Find Handlers on types that match on the provided filter
     /// </summary>
-    public void IncludeTypes(Func<Type, bool> filter)
+    public HandlerDiscovery IncludeTypes(Func<Type, bool> filter)
     {
         _typeFilters.Includes += filter;
+        return this;
     }
 
     /// <summary>
     ///     Find Handlers on concrete types assignable to T
     /// </summary>
-    public void IncludeTypesImplementing<T>()
+    public HandlerDiscovery IncludeTypesImplementing<T>()
     {
         IncludeTypes(type => !type.IsOpenGeneric() && type.IsConcreteTypeOf<T>());
+        return this;
     }
 
     /// <summary>
     ///     Exclude types that match on the provided filter for finding Handlers
     /// </summary>
-    public void ExcludeTypes(Func<Type, bool> filter)
+    public HandlerDiscovery ExcludeTypes(Func<Type, bool> filter)
     {
         _typeFilters.Excludes += filter;
+        return this;
     }
 
     /// <summary>
     ///     Handlers that match on the provided filter will NOT be added to the runtime.
     /// </summary>
-    public void ExcludeMethods(Func<MethodInfo, bool> filter)
+    public HandlerDiscovery ExcludeMethods(Func<MethodInfo, bool> filter)
     {
         _methodFilters.Excludes += filter;
-    }
-
-    /// <summary>
-    ///     Exclude any types that are not concrete
-    /// </summary>
-    public void ExcludeNonConcreteTypes()
-    {
-        _typeFilters.Excludes += type => !type.IsConcrete();
+        return this;
     }
 
     /// <summary>
     ///     Include a single type "T"
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public void IncludeType<T>()
+    public HandlerDiscovery IncludeType<T>()
     {
-        IncludeType(typeof(T));
+        return IncludeType(typeof(T));
     }
 
     /// <summary>
     ///     Include a single handler type
     /// </summary>
     /// <param name="type"></param>
-    public void IncludeType(Type type)
+    public HandlerDiscovery IncludeType(Type type)
     {
         if (type.IsNotPublic)
         {
@@ -187,5 +183,7 @@ public sealed class HandlerSource
         }
 
         _explicitTypes.Fill(type);
+
+        return this;
     }
 }

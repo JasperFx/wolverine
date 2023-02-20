@@ -87,14 +87,6 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// <param name="middlewareType">The actual middleware type</param>
     /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
     void AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null);
-    
-    /// <summary>
-    ///     Configure how & where Wolverine discovers message handler classes to override or expand
-    ///     the built in conventions
-    /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    void Discovery(Action<HandlerSource> configure);
 
     /// <summary>
     /// For the purposes of interoperability with NServiceBus or MassTransit, register

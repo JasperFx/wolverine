@@ -119,7 +119,7 @@ public class customized_finding : IntegrationContext
     [Fact]
     public void extra_suffix()
     {
-        with(x => x.Policies.Discovery(d => d.IncludeClassesSuffixedWith("Watcher")));
+        with(x => x.Discovery.IncludeClassesSuffixedWith("Watcher"));
 
         chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null));
     }
@@ -127,7 +127,7 @@ public class customized_finding : IntegrationContext
     [Fact]
     public void handler_types_from_a_marker_interface()
     {
-        with(x => x.Policies.Discovery(d => d.IncludeTypesImplementing<IMovieThing>()));
+        with(x => x.Discovery.IncludeTypesImplementing<IMovieThing>());
 
         chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
     }
@@ -155,10 +155,7 @@ public class customized_finding : IntegrationContext
     {
         with(opts =>
         {
-            opts.Policies.Discovery(s =>
-            {
-                s.IncludeAssembly(typeof(Module2Message1).Assembly);
-            });
+            opts.Discovery.IncludeAssembly(typeof(Module2Message1).Assembly);
         });
 
         chainFor<Module2Message1>().ShouldNotBeNull();

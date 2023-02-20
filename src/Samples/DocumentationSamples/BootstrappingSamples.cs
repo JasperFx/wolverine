@@ -30,11 +30,8 @@ public class BootstrappingSamples
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Policies.Discovery(discovery =>
-                {
-                    // Add as many other assemblies as you need
-                    discovery.IncludeAssembly(typeof(MessageFromOtherAssembly).Assembly);
-                });
+                // Add as many other assemblies as you need
+                opts.Discovery.IncludeAssembly(typeof(MessageFromOtherAssembly).Assembly);
             }).StartAsync();
 
         #endregion

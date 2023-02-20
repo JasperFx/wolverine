@@ -41,7 +41,7 @@ internal class NoHandlerExecutor : IExecutor
         var handlerAssemblies = _runtime
             .Options
             .HandlerGraph
-            .Source
+            .Discovery
             .Assemblies
             .Select(x => x.FullName)
             .Join(", ");

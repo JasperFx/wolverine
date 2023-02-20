@@ -15,11 +15,8 @@ public class DocumentationSamples
                 // This gives you the option to programmatically
                 // add other assemblies to the discovery of HTTP endpoints
                 // or message handlers
-                opts.Policies.Discovery(x =>
-                {
-                    var assembly = Assembly.Load("my other assembly name that holds HTTP endpoints or handlers");
-                    x.IncludeAssembly(assembly);
-                });
+                var assembly = Assembly.Load("my other assembly name that holds HTTP endpoints or handlers");
+                opts.Discovery.IncludeAssembly(assembly);
             }).StartAsync();
 
         #endregion

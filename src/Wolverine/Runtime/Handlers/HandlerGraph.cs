@@ -36,7 +36,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
     private readonly object _groupingLock = new();
 
-    internal readonly HandlerSource Source = new();
+    internal readonly HandlerDiscovery Discovery = new();
 
     private ImHashMap<Type, HandlerChain> _chains = ImHashMap<Type, HandlerChain>.Empty;
 
@@ -64,7 +64,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
 
-    public IEnumerable<Assembly> ExtensionAssemblies => Source.Assemblies;
+    public IEnumerable<Assembly> ExtensionAssemblies => Discovery.Assemblies;
 
     public FailureRuleCollection Failures { get; set; } = new();
     
@@ -170,16 +170,16 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         if (_hasCompiled) return;
         _hasCompiled = true;
         
-        var logger = (ILogger)container.TryGetInstance<ILogger<HandlerSource>>() ?? NullLogger.Instance;
+        var logger = (ILogger)container.TryGetInstance<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
         
         Rules = options.CodeGeneration;
 
-        foreach (var assembly in Source.Assemblies)
+        foreach (var assembly in Discovery.Assemblies)
         {
             logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers", assembly.GetName());
         }
         
-        var methods = Source.FindCalls(options);
+        var methods = Discovery.FindCalls(options);
 
         var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
         

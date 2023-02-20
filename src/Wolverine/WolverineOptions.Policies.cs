@@ -164,11 +164,6 @@ public sealed partial class WolverineOptions : IPolicies
         });
     }
 
-    void IPolicies.Discovery(Action<HandlerSource> configure)
-    {
-        configure(HandlerGraph.Source);
-    }
-
     void IPolicies.AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
     {
         this.As<IPolicies>().AddMiddleware(typeof(T), filter);

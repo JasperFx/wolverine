@@ -16,7 +16,7 @@ public class HandlerSourceTests
     [InlineData(typeof(AbstractGuy))]
     public void assert_on_invalid_handler_types(Type candidateType)
     {
-        var source = new HandlerSource();
+        var source = new HandlerDiscovery();
         Should.Throw<ArgumentOutOfRangeException>(() =>
         {
             source.IncludeType(candidateType);

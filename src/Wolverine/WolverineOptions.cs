@@ -59,6 +59,15 @@ public sealed partial class WolverineOptions
 
 
     /// <summary>
+    ///     Configure how & where Wolverine discovers message handler classes and message types to override or expand
+    ///     the built in conventions. Register additional Wolverine module assemblies
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public HandlerDiscovery Discovery => HandlerGraph.Discovery;
+
+
+    /// <summary>
     ///     Options for applying conventional configuration to all or a subset of messaging endpoints
     /// </summary>
     public IPolicies Policies => this;

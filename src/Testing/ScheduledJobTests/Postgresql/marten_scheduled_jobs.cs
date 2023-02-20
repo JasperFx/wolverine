@@ -31,11 +31,7 @@ public class marten_scheduled_jobs : IAsyncLifetime
                 opts.Publish(x => x.MessagesFromAssemblyContaining<ScheduledMessageReceiver>()
                     .ToLocalQueue("incoming").UseDurableInbox());
 
-                opts.Policies.Discovery(x =>
-                {
-                    x.DisableConventionalDiscovery();
-                    x.IncludeType<ScheduledMessageCatcher>();
-                });
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<ScheduledMessageCatcher>();
 
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
