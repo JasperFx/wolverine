@@ -17,7 +17,7 @@ public class MessageRouter<T> : MessageRouterBase<T>
             route.Rules.Fill(HandlerRules);
     }
 
-    public MessageRoute[] Routes { get; }
+    public override MessageRoute[] Routes { get; }
 
     public override Envelope[] RouteForSend(T message, DeliveryOptions? options)
     {

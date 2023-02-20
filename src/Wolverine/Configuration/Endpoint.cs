@@ -366,7 +366,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             }
             else
             {
-                grid.AddRow(pair.Key, pair.Value.GetType().FullNameInCode());
+                grid.AddRow(pair.Key, pair.Value.GetType().ShortNameInCode());
             }
             
         }
@@ -392,15 +392,4 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return new Markup(text);
     }
 
-    internal IRenderable SubscriptionsDescription()
-    {
-        var grid = new Grid();
-        grid.AddColumn();
-        foreach (var subscription in Subscriptions)
-        {
-            grid.AddRow(subscription.ToString());
-        }
-
-        return grid;
-    }
 }

@@ -22,4 +22,6 @@ public class EmptyMessageRouter<T> : MessageRouterBase<T>
     {
         throw new IndeterminateRoutesException(typeof(T));
     }
+
+    public override MessageRoute[] Routes => Array.Empty<MessageRoute>();
 }

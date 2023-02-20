@@ -7,6 +7,7 @@ using Oakton.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
+using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +34,8 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 
     opts.Discovery.IncludeTypesAsMessages(type => type.CanBeCastTo<IDiagnosticsMessage>());
+
+    opts.UseRabbitMq().UseConventionalRouting();
 });
 
 var app = builder.Build();
