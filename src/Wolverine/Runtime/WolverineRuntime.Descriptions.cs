@@ -12,7 +12,21 @@ public sealed partial class WolverineRuntime : IDescribedSystemPartFactory
     {
         Handlers.Compile(Options, _container);
 
-        return new IDescribedSystemPart[] { Options, Handlers, new ListenersDescription(this), new MessageSubscriptions(this), new SenderDescription(this)};
+        return buildDescribedSystemParts().ToArray();
+    }
+
+    private IEnumerable<IDescribedSystemPart> buildDescribedSystemParts()
+    {
+        yield return Options;
+        yield return Handlers;
+        yield return new ListenersDescription(this);
+        yield return new MessageSubscriptions(this);
+        yield return new SenderDescription(this);
+
+        foreach (var systemPart in Options.Transports.OfType<IDescribedSystemPart>())
+        {
+            yield return systemPart;
+        }
     }
 }
 

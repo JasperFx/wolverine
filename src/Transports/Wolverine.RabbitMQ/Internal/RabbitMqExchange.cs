@@ -12,7 +12,7 @@ namespace Wolverine.RabbitMQ.Internal;
 
 public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 {
-    private readonly Dictionary<string, RabbitMqBinding> _bindings = new();
+    private readonly List<RabbitMqBinding> _bindings = new();
     private readonly RabbitMqTransport _parent;
 
     private bool _initialized;
@@ -55,16 +55,13 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             throw new ArgumentNullException(nameof(queueName));
         }
 
-        if (_bindings.TryGetValue(queueName, out var binding))
-        {
-            return binding;
-        }
+        var existing = _bindings.FirstOrDefault(x => x.Queue.QueueName == queueName && x.BindingKey == bindingKey);
+        if (existing != null) return existing;
 
         var queue = _parent.Queues[queueName];
 
-        binding = new RabbitMqBinding(Name, queue, bindingKey);
-        _bindings[queueName] = binding;
-
+        var binding = new RabbitMqBinding(Name, queue, bindingKey);
+        _bindings.Add(binding);
         return binding;
     }
 
@@ -126,7 +123,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             "Declared Rabbit Mq exchange '{Name}', type = {Type}, IsDurable = {IsDurable}, AutoDelete={AutoDelete}",
             DeclaredName, exchangeTypeName, IsDurable, AutoDelete);
 
-        foreach (var binding in _bindings.Values) binding.Declare(channel, logger);
+        foreach (var binding in _bindings) binding.Declare(channel, logger);
 
         HasDeclared = true;
     }
@@ -154,7 +151,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         }
         else
         {
-            foreach (var binding in _bindings.Values)
+            foreach (var binding in _bindings)
             {
                 logger.LogInformation("Removing binding {Key} from exchange {Exchange} to queue {Queue}",
                     binding.BindingKey, binding.ExchangeName, binding.Queue);
@@ -177,7 +174,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public IEnumerable<RabbitMqBinding> Bindings()
     {
-        return _bindings.Values;
+        return _bindings;
     }
 }
 
