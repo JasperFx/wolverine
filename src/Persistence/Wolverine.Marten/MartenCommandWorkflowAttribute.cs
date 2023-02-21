@@ -58,7 +58,7 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         CommandType = handlerChain.MessageType;
         AggregateType ??= DetermineAggregateType(chain);
         AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
-        VersionMember = DetermineVersionMember(AggregateType);
+        VersionMember = DetermineVersionMember(CommandType);
 
         var sessionCreator = MethodCall.For<OutboxedSessionFactory>(x => x.OpenSession(null!));
         chain.Middleware.Add(sessionCreator);
