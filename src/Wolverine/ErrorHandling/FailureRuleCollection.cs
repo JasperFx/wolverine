@@ -1,11 +1,12 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-public class FailureRuleCollection
+public class FailureRuleCollection : IEnumerable<FailureRule>
 {
     private readonly List<FailureRule> _rules = new();
 
@@ -85,5 +86,15 @@ public class FailureRuleCollection
     internal void Add(FailureRule rule)
     {
         _rules.Add(rule);
+    }
+
+    public IEnumerator<FailureRule> GetEnumerator()
+    {
+        return _rules.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
     }
 }

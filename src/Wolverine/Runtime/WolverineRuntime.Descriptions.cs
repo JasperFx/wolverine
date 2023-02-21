@@ -3,6 +3,8 @@ using FastExpressionCompiler;
 using JasperFx.CodeGeneration;
 using Oakton.Descriptions;
 using Spectre.Console;
+using Wolverine.ErrorHandling;
+using Wolverine.ErrorHandling.Matches;
 using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime;
@@ -23,6 +25,7 @@ public sealed partial class WolverineRuntime : IDescribedSystemPartFactory
         yield return new ListenersDescription(this);
         yield return new MessageSubscriptions(this);
         yield return new SenderDescription(this);
+        yield return new FailureRuleDescription(this);
 
         foreach (var systemPart in Options.Transports.OfType<IDescribedSystemPart>())
         {
@@ -195,5 +198,68 @@ internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
         }
 
         AnsiConsole.Write(table);
+    }
+}
+
+internal class FailureRuleDescription : IDescribedSystemPart, IWriteToConsole
+{
+    private readonly WolverineRuntime _runtime;
+
+    public FailureRuleDescription(WolverineRuntime runtime)
+    {
+        _runtime = runtime;
+    }
+
+    public async Task Write(TextWriter writer)
+    {
+        await writer.WriteLineAsync("Use the console output option.");
+    }
+
+    public string Title => "Wolverine Error Handling";
+    public async Task WriteToConsole()
+    {
+        // "start" the Wolverine app in a lightweight way
+        // to discover endpoints, but don't start the actual
+        // external endpoint listening or sending
+        await _runtime.StartLightweightAsync();
+        
+        AnsiConsole.WriteLine("Failure rules specific to a message type");
+        AnsiConsole.WriteLine("are applied before the global failure rules");
+        AnsiConsole.WriteLine();
+        
+        Action<FailureRuleCollection, string> writeTree = (rules, name) =>
+        {
+            var tree = new Tree(name);
+
+            if (rules.Any())
+            {
+                foreach (var failure in rules)
+                {
+                    var node = tree.AddNode(failure.Match.Description);
+                    foreach (var slot in failure)
+                    {
+                        node.AddNode(slot.Describe());
+                    }
+
+                    node.AddNode(new MoveToErrorQueue(new Exception()).ToString());
+                }
+            }
+            else
+            {
+                var node = tree.AddNode(new AlwaysMatches().Description);
+                node.AddNode(new MoveToErrorQueue(new Exception()).ToString());
+            }
+
+            AnsiConsole.Write(tree);
+        };
+
+        writeTree(_runtime.Options.HandlerGraph.Failures, "Global Failure Rules");
+
+        foreach (var chain in _runtime.Handlers.Chains.Where(x => x.Failures.Any()))
+        {
+            AnsiConsole.WriteLine();
+            writeTree(chain.Failures, $"Message: {chain.MessageType.FullNameInCode()}");
+        }
+        
     }
 }

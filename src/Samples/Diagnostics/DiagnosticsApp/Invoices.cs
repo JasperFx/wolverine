@@ -1,5 +1,7 @@
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ErrorHandling;
+using Wolverine.Runtime.Handlers;
 
 namespace IntegrationTests;
 
@@ -27,6 +29,11 @@ public static class StartInvoiceProcessingHandler
     {
         var returnValue = (new AssignUser(Guid.NewGuid(), command.Id), new OrderParts());
         return Task.FromResult(returnValue);
+    }
+
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnAnyException().Requeue(3);
     }
 }
 

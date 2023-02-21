@@ -1,10 +1,12 @@
 ﻿using DiagnosticsModule;
 using IntegrationTests;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
+using Wolverine.ErrorHandling;
 using Wolverine.Http;
 using Wolverine.Marten;
 using Wolverine.RabbitMQ;
@@ -36,6 +38,11 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeTypesAsMessages(type => type.CanBeCastTo<IDiagnosticsMessage>());
 
     opts.UseRabbitMq().UseConventionalRouting();
+
+    opts.Policies.OnException<BadImageFormatException>().Discard();
+    opts.Policies.OnException<InvalidOperationException>()
+        .ScheduleRetry(1.Minutes());
+    opts.Policies.OnAnyException().RetryOnce().Then.RetryWithCooldown(100.Milliseconds(), 250.Milliseconds());
 });
 
 var app = builder.Build();
