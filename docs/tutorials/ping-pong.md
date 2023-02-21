@@ -1,4 +1,4 @@
-# Ping/Pong Messaging with Rabbit MQ
+# Ping/Pong Messaging with TCP
 
 To show off some of the messaging, let's just build [a very simple "Ping/Pong" example](https://github.com/JasperFx/wolverine/tree/master/src/Samples/PingPong) that will exchange messages between two small .NET processes.
 
