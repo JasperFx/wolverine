@@ -126,7 +126,7 @@ public sealed partial class WolverineOptions : IPolicies
 
     ILocalMessageRoutingConvention IPolicies.ConfigureConventionalLocalRouting()
     {
-        return LocalRouting;
+        return Transports.GetOrCreate<LocalTransport>();
     }
     
     private MiddlewarePolicy findOrCreateMiddlewarePolicy()

@@ -9,6 +9,7 @@ using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
 
@@ -116,6 +117,8 @@ public sealed partial class WolverineOptions
     ///     to latch all outgoing message sending
     /// </summary>
     internal bool ExternalTransportsAreStubbed { get; set; }
+
+    internal LocalTransport LocalRouting => Transports.GetOrCreate<LocalTransport>();
 
     private void deriveServiceName()
     {
