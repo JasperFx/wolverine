@@ -42,8 +42,9 @@ public static class TestEndpoints
     }
     
     [WolverineGet("/querystring/int")]
-    public static string UsingQueryStringParsing(int age)
+    public static string UsingQueryStringParsing(Recorder recorder, int? age)
     {
+        recorder.Actions.Add("got through query string usage");
         return $"Age is {age}";
     }
     

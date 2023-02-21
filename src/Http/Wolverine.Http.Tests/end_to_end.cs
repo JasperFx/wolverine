@@ -118,7 +118,7 @@ public class end_to_end : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
         
-        body.ReadAsText().ShouldBe("Age is 0");
+        body.ReadAsText().ShouldBe("Age is ");
     }
     
     [Fact]
@@ -130,7 +130,7 @@ public class end_to_end : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
         
-        body.ReadAsText().ShouldBe("Age is 0");
+        body.ReadAsText().ShouldBe("Age is ");
     }
     
     [Fact]
