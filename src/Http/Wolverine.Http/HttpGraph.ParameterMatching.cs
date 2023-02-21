@@ -24,7 +24,7 @@ public partial class HttpGraph
 
             if (!TryMatchParameter(chain, parameter, i))
             {
-                return;
+                break;
             }
         }
     }
