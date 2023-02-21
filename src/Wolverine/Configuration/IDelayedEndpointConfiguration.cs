@@ -10,20 +10,31 @@ public interface IDelayedEndpointConfiguration
 
 public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpointConfiguration where TEndpoint : Endpoint
 {
+    private readonly Func<TEndpoint>? _source;
     private readonly List<Action<TEndpoint>> _configurations = new();
-    private readonly TEndpoint _queue;
+    private readonly TEndpoint? _endpoint;
 
-    protected DelayedEndpointConfiguration(TEndpoint queue)
+    protected DelayedEndpointConfiguration(TEndpoint endpoint)
     {
-        _queue = queue;
-        _queue.RegisterDelayedConfiguration(this);
+        _endpoint = endpoint;
+        _endpoint.RegisterDelayedConfiguration(this);
+    }
+
+    protected DelayedEndpointConfiguration(Func<TEndpoint> source)
+    {
+        _source = source;
     }
 
     void IDelayedEndpointConfiguration.Apply()
     {
-        foreach (var action in _configurations) action(_queue);
+        var endpoint = _endpoint ?? _source!();
+        
+        foreach (var action in _configurations) action(endpoint);
 
-        _queue.DelayedConfiguration.Remove(this);
+        if (_endpoint != null)
+        {
+            _endpoint.DelayedConfiguration.Remove(this);
+        }
     }
 
     protected void add(Action<TEndpoint> action)

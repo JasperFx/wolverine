@@ -9,7 +9,7 @@ public class
     AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<AzureServiceBusQueueListenerConfiguration,
         AzureServiceBusQueue>
 {
-    public AzureServiceBusQueueListenerConfiguration(AzureServiceBusQueue queue) : base(queue)
+    public AzureServiceBusQueueListenerConfiguration(AzureServiceBusQueue endpoint) : base(endpoint)
     {
     }
 

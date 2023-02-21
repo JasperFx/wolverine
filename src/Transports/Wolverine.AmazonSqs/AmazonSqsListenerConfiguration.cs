@@ -7,7 +7,7 @@ namespace Wolverine.AmazonSqs;
 
 public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsListenerConfiguration, AmazonSqsQueue>
 {
-    internal AmazonSqsListenerConfiguration(AmazonSqsQueue queue) : base(queue)
+    internal AmazonSqsListenerConfiguration(AmazonSqsQueue endpoint) : base(endpoint)
     {
     }
 

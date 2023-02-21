@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
@@ -15,21 +11,47 @@ namespace Wolverine.Transports.Local;
 internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingConvention
 {
     private readonly Cache<string, LocalQueue> _queues;
-    
+
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
     private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace("+", ".");
-
-    public Dictionary<Type, LocalQueue> Assignments { get; } = new();
+    private readonly List<IDelayedEndpointConfiguration> _delayedConfigurations = new();
 
 
     public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)")
     {
-        _queues = new(name => new LocalQueue(name));
+        _queues = new Cache<string, LocalQueue>(name => new LocalQueue(name));
 
         _queues.FillDefault(TransportConstants.Default);
         _queues.FillDefault(TransportConstants.Replies);
 
         _queues[TransportConstants.Durable].Mode = EndpointMode.Durable;
+    }
+
+    public Dictionary<Type, LocalQueue> Assignments { get; } = new();
+
+    /// <summary>
+    ///     Override the type to local queue naming. By default this is the MessageTypeName
+    ///     to lower case invariant
+    /// </summary>
+    /// <param name="determineName"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public ILocalMessageRoutingConvention Named(Func<Type, string> determineName)
+    {
+        _determineName = determineName ?? throw new ArgumentNullException(nameof(determineName));
+        return this;
+    }
+
+    /// <summary>
+    ///     Customize the endpoints
+    /// </summary>
+    /// <param name="customization"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public ILocalMessageRoutingConvention CustomizeQueues(Action<Type, IListenerConfiguration> customization)
+    {
+        _customization = customization ?? throw new ArgumentNullException(nameof(customization));
+        return this;
     }
 
     protected override IEnumerable<LocalQueue> endpoints()
@@ -45,16 +67,10 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         return settings;
     }
 
-    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
-    {
-        return ValueTask.CompletedTask;
-    }
-
     public override Endpoint ReplyEndpoint()
     {
         return _queues[TransportConstants.Replies];
     }
-
 
     public IEnumerable<LocalQueue> AllQueues()
     {
@@ -107,39 +123,59 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
         return new Uri(uri, queueName);
     }
-    
+
+    internal LocalQueue FindQueueForMessageType(Type messageType)
+    {
+        if (Assignments.TryGetValue(messageType, out var queue)) return queue;
+
+        return FindOrCreateQueueForMessageTypeByConvention(messageType);
+    }
+
     internal void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
-        var transport = runtime.Options.Transports.OfType<LocalTransport>().Single();
-
         foreach (var messageType in handledMessageTypes)
         {
-            var queueName = messageType.HasAttribute<LocalQueueAttribute>() 
-                ? messageType.GetAttribute<LocalQueueAttribute>()!.QueueName 
-                : _determineName(messageType);
-            
-            if (queueName.IsEmpty()) continue;
-            
-            var queue = transport.AllQueues().FirstOrDefault(x => x.EndpointName == queueName);
-
-            if (queue == null)
-            {
-                queue = transport.QueueFor(queueName);
-
-                if (_customization != null)
-                {
-                    var listener = new ListenerConfiguration(queue);
-                    _customization(messageType, listener);
-
-                    listener.As<IDelayedEndpointConfiguration>().Apply();
-                }
-            }
-
-            queue.HandledMessageTypes.Add(messageType);
-
-            Assignments[messageType] = queue;
-
+            FindOrCreateQueueForMessageTypeByConvention(messageType);
         }
+
+        // Apply individual queue configuration
+        foreach (var delayedConfiguration in _delayedConfigurations)
+        {
+            delayedConfiguration.Apply();
+        }
+    }
+
+    internal LocalQueue FindOrCreateQueueForMessageTypeByConvention(Type messageType)
+    {
+        var queueName = messageType.HasAttribute<LocalQueueAttribute>()
+            ? messageType.GetAttribute<LocalQueueAttribute>()!.QueueName
+            : _determineName(messageType);
+
+        if (queueName.IsEmpty())
+        {
+            return _queues[TransportConstants.Default];
+        }
+
+        var queue = AllQueues().FirstOrDefault(x => x.EndpointName == queueName);
+
+        if (queue == null)
+        {
+            queue = QueueFor(queueName);
+
+            if (_customization != null)
+            {
+                var listener = new ListenerConfiguration(queue);
+                _customization(messageType, listener);
+
+                listener.As<IDelayedEndpointConfiguration>().Apply();
+            }
+        }
+
+        queue.HandledMessageTypes.Add(messageType);
+
+        Assignments[messageType] = queue;
+
+        return queue;
     }
 
     internal IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime)
@@ -150,29 +186,11 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         }
     }
 
-    /// <summary>
-    ///     Override the type to local queue naming. By default this is the MessageTypeName
-    ///     to lower case invariant
-    /// </summary>
-    /// <param name="determineName"></param>
-    /// <returns></returns>
-    /// <exception cref="ArgumentNullException"></exception>
-    public ILocalMessageRoutingConvention Named(Func<Type, string> determineName)
+    internal LocalQueueConfiguration ConfigureQueueFor(Type messageType)
     {
-        _determineName = determineName ?? throw new ArgumentNullException(nameof(determineName));
-        return this;
-    }
+        var configuration = new LocalQueueConfiguration(() => FindQueueForMessageType(messageType));
+        _delayedConfigurations.Add(configuration);
 
-    /// <summary>
-    ///     Customize the endpoints
-    /// </summary>
-    /// <param name="customization"></param>
-    /// <returns></returns>
-    /// <exception cref="ArgumentNullException"></exception>
-    public ILocalMessageRoutingConvention CustomizeQueues(Action<Type, IListenerConfiguration> customization)
-    {
-        _customization = customization ?? throw new ArgumentNullException(nameof(customization));
-        return this;
+        return configuration;
     }
-    
 }
