@@ -10,7 +10,27 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Routing;
 
-public class LocalMessageRoutingConvention 
+public interface ILocalMessageRoutingConvention
+{
+    /// <summary>
+    ///     Override the type to local queue naming. By default this is the MessageTypeName
+    ///     to lower case invariant
+    /// </summary>
+    /// <param name="determineName"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    ILocalMessageRoutingConvention Named(Func<Type, string> determineName);
+
+    /// <summary>
+    ///     Customize the endpoints
+    /// </summary>
+    /// <param name="customization"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    ILocalMessageRoutingConvention CustomizeQueues(Action<Type, IListenerConfiguration> customization);
+}
+
+public class LocalMessageRoutingConvention : ILocalMessageRoutingConvention
 {
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
     private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace("+", ".");
@@ -66,7 +86,7 @@ public class LocalMessageRoutingConvention
     /// <param name="determineName"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public LocalMessageRoutingConvention Named(Func<Type, string> determineName)
+    public ILocalMessageRoutingConvention Named(Func<Type, string> determineName)
     {
         _determineName = determineName ?? throw new ArgumentNullException(nameof(determineName));
         return this;
@@ -78,7 +98,7 @@ public class LocalMessageRoutingConvention
     /// <param name="customization"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public LocalMessageRoutingConvention CustomizeQueues(Action<Type, IListenerConfiguration> customization)
+    public ILocalMessageRoutingConvention CustomizeQueues(Action<Type, IListenerConfiguration> customization)
     {
         _customization = customization ?? throw new ArgumentNullException(nameof(customization));
         return this;

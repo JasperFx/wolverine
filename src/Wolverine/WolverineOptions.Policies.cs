@@ -124,7 +124,7 @@ public sealed partial class WolverineOptions : IPolicies
         Transports.AddPolicy(policy);
     }
 
-    LocalMessageRoutingConvention IPolicies.ConfigureConventionalLocalRouting()
+    ILocalMessageRoutingConvention IPolicies.ConfigureConventionalLocalRouting()
     {
         return LocalRouting;
     }

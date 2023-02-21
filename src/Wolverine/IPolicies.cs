@@ -58,7 +58,7 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// Override the routing for locally handled messages
     /// </summary>
     /// <returns></returns>
-    LocalMessageRoutingConvention ConfigureConventionalLocalRouting();
+    ILocalMessageRoutingConvention ConfigureConventionalLocalRouting();
 
     
     /// <summary>
