@@ -19,6 +19,7 @@ Below is a sample of adding Wolverine to an ASP.NET Core application that is boo
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
+using Oakton;
 using Quickstart;
 using Wolverine;
 
@@ -43,9 +44,12 @@ app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeA
 // An endpoint to assign an issue to an existing user
 app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
-app.Run();
+// Opt into using Oakton for command line parsing
+// to unlock built in diagnostics and utility tools within
+// your Wolverine application
+return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## "Headless" Applications

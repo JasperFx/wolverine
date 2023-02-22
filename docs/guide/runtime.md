@@ -1,16 +1,9 @@
 # Message Handling Runtime
 
-
-
 Next, even though I said that Wolverine does not require an adapter interface in *your* code, Wolverine itself does actually need that for its own internal runtime pipeline. To that end
-Wolverine uses
-
-TODO -- link to new documentation on pre-generated adapter code
-
-
-2. Create a new instance of that handler class for a new message
-3. Execute the `Handle(MyMessage)` method against the `MyMessage` object passed in up above to `IMessageBus.PublishAsync()`
-
+Wolverine uses [dynamically generated code](./codegen) to "weave" adapter code around your message handler code. It also weaves in the calls to any middleware applied to your system.
+In ideal circumstances, Wolverine is able to completely remove the runtime usage of an IoC container for even better performance. The 
+end result is a runtime pipeline that is able to accomplish its tasks with potentially much less overhead than comparable .NET frameworks that depend on adapter interfaces.
 
 
 ## How Wolverine Consumes Your Message Handlers
@@ -39,8 +32,14 @@ public abstract class MessageHandler : IMessageHandler
 
 ## IoC Container Integration
 
+::: info
+Lamar started its life as "Blue Milk," and was originally built specifically to support the "Jasper" framework which was eventually renamed 
+and rebooted as "Wolverine." Even though Lamar was released many years before Wolverine, it was always intended to help make Wolverine possible. 
+:::
 
-## Code Generation
+Wolverine is only able to use [Lamar](https://jasperfx.github.io/lamar) as its IoC container, and actually quietly registers Lamar with your .NET application within
+any call to `UseWolverine()`. Wolverine actually uses Lamar's configuration model to help build out its dynamically generated code and can mostly go far enough to
+recreate what would be Lamar's "instance plan" with plain old C# as a way of making the runtime operations a little bit leaner.
 
 
 

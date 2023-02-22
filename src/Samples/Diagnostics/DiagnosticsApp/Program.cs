@@ -35,7 +35,11 @@ builder.Host.UseWolverine(opts =>
 {
     opts.Policies.AutoApplyTransactions();
 
+    #region sample_use_your_own_marker_type
+
     opts.Discovery.IncludeTypesAsMessages(type => type.CanBeCastTo<IDiagnosticsMessage>());
+
+    #endregion
 
     opts.UseRabbitMq().UseConventionalRouting();
 

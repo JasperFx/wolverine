@@ -81,6 +81,55 @@ public void message_alias_is_fullname_by_default()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageVersioning.cs#L63-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_message_alias' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Message Discovery
+
+::: tip
+Wolverine does not yet support the Async API standard, but the message discovery described in this section
+is also partially meant to enable that support later.
+:::
+
+Strictly for diagnostic purposes in Wolverine (like the message routing preview report in `dotnet run -- describe`), you can mark your message types to help Wolverine "discover" outgoing message 
+types that will be published by the application by either implementing one of these marker interfaces (all in the main `Wolverine` namespace):
+
+<!-- snippet: sample_message_type_discovery -->
+<a id='snippet-sample_message_type_discovery'></a>
+```cs
+public record CreateIssue(string Name) : IMessage;
+public record DeleteIssue(Guid Id) : ICommand;
+public record IssueCreated(Guid Id, string Name) : IEvent;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageDiscovery.cs#L6-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_type_discovery' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+The marker types shown above may be helpful in transitioning an existing codebase from NServiceBus to Wolverine.
+:::
+
+You can optionally use an attribute to mark a type as a message:
+
+<!-- snippet: sample_using_WolverineMessage_attribute -->
+<a id='snippet-sample_using_wolverinemessage_attribute'></a>
+```cs
+[WolverineMessage]
+public record CloseIssue(Guid Id);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageDiscovery.cs#L14-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverinemessage_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or lastly, make up your own criteria to find and mark message types within your system as shown below:
+
+<!-- snippet: sample_use_your_own_marker_type -->
+<a id='snippet-sample_use_your_own_marker_type'></a>
+```cs
+opts.Discovery.IncludeTypesAsMessages(type => type.CanBeCastTo<IDiagnosticsMessage>());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L38-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that only types that are in assemblies either marked with `[assembly: WolverineModule]` or the main application assembly
+or an explicitly registered assembly will be discovered. See [Handler Discovery](/guide/handlers/discovery) for more information about the assembly scanning.
+
+
 ## Versioning
 
 By default, Wolverine will just assume that any message is "V1" unless marked otherwise.

@@ -59,6 +59,7 @@ Let's jump right into the `Program.cs` file of our new web service:
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
+using Oakton;
 using Quickstart;
 using Wolverine;
 
@@ -83,9 +84,12 @@ app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeA
 // An endpoint to assign an issue to an existing user
 app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
-app.Run();
+// Opt into using Oakton for command line parsing
+// to unlock built in diagnostics and utility tools within
+// your Wolverine application
+return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -120,6 +124,10 @@ public class CreateIssueHandler
         _repository = repository;
     }
 
+    // The IssueCreated event message being returned will be
+    // published as a new "cascaded" message by Wolverine after
+    // the original message and any related middleware has
+    // succeeded
     public IssueCreated Handle(CreateIssue command)
     {
         var issue = new Issue
@@ -137,7 +145,7 @@ public class CreateIssueHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssueHandler.cs#L1-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_createissuehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssueHandler.cs#L1-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_createissuehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully that code is simple enough, but let's talk what you do not see in this code or

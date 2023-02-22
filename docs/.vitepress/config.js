@@ -70,6 +70,7 @@ export default {
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
                         {text: 'Runtime Architecture', link: '/guide/runtime'},
+                        {text: 'Code Generation', link: '/guide/codegen'},
                         {text: 'Extensions', link: '/guide/extensions'}
                     ]
                 },
