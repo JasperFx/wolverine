@@ -59,14 +59,11 @@ Or you can programmatically add additional assemblies to the handler discovery w
 using var host = Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.Policies.Discovery(discovery =>
-        {
-            // Add as many other assemblies as you need
-            discovery.IncludeAssembly(typeof(MessageFromOtherAssembly).Assembly);
-        });
+        // Add as many other assemblies as you need
+        opts.Discovery.IncludeAssembly(typeof(MessageFromOtherAssembly).Assembly);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L28-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_extra_assemblies_to_type_discovery' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L28-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_extra_assemblies_to_type_discovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Handler Type Discovery
@@ -248,7 +245,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L229-L277' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L226-L274' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -270,23 +267,23 @@ At a minimum, you can disable the built in discovery, add additional type filter
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.Policies.Discovery(x =>
-        {
+        
+        opts.Discovery
+
             // Turn off the default handler conventions
             // altogether
-            x.DisableConventionalDiscovery();
+            .DisableConventionalDiscovery()
 
             // Include candidate actions by a user supplied
             // type filter
-            x.IncludeTypes(t => t.IsInNamespace("MyApp.Handlers"));
+            .IncludeTypes(t => t.IsInNamespace("MyApp.Handlers"))
 
             // Include candidate classes by suffix
-            x.IncludeClassesSuffixedWith("Listener");
+            .IncludeClassesSuffixedWith("Listener")
 
             // Include a specific handler class with a generic argument
-            x.IncludeType<SimpleHandler>();
-        });
+            .IncludeType<SimpleHandler>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscovery.cs#L129-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L129-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

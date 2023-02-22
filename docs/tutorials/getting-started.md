@@ -11,6 +11,7 @@ can be used as:
 1. An [inline "mediator" pipeline](/tutorials/mediator) for executing commands
 2. A [local message bus](/guide/command-bus) within .NET applications
 3. A full fledged [asynchronous messaging framework](/guide/messaging/) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ, 
+4. With the [WolverineFx.Http](/guide/http/) library, Wolverine's execution pipeline can be used directly as an alternative ASP.Net Core Endpoint provider
 
 Wolverine tries very hard to be a good citizen within the .NET ecosystem and even when used in
 "headless" services, uses the idiomatic elements of .NET (logging, configuration, bootstrapping, hosted services)

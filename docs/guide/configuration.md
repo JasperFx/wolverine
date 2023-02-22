@@ -66,11 +66,7 @@ return await Host.CreateDefaultBuilder(args)
     {
         opts.ServiceName = "Subscriber1";
 
-        opts.Policies.Discovery(source =>
-        {
-            source.DisableConventionalDiscovery();
-            source.IncludeType<Subscriber1Handlers>();
-        });
+        opts.Discovery.DisableConventionalDiscovery().IncludeType<Subscriber1Handlers>();
 
         opts.ListenAtPort(MessagingConstants.Subscriber1Port);
 
@@ -96,5 +92,5 @@ return await Host.CreateDefaultBuilder(args)
     })
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

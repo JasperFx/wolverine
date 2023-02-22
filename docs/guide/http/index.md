@@ -263,14 +263,11 @@ using var host = await Host.CreateDefaultBuilder()
         // This gives you the option to programmatically
         // add other assemblies to the discovery of HTTP endpoints
         // or message handlers
-        opts.Policies.Discovery(x =>
-        {
-            var assembly = Assembly.Load("my other assembly name that holds HTTP endpoints or handlers");
-            x.IncludeAssembly(assembly);
-        });
+        var assembly = Assembly.Load("my other assembly name that holds HTTP endpoints or handlers");
+        opts.Discovery.IncludeAssembly(assembly);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/DocumentationSamples.cs#L10-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatically_scan_assemblies' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/DocumentationSamples.cs#L10-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatically_scan_assemblies' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: 
