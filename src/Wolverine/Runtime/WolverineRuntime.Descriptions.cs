@@ -11,6 +11,8 @@ namespace Wolverine.Runtime;
 
 public sealed partial class WolverineRuntime : IDescribedSystemPartFactory
 {
+    public List<IDescribedSystemPart> AdditionalDescribedParts { get; } = new();
+    
     IDescribedSystemPart[] IDescribedSystemPartFactory.Parts()
     {
         Handlers.Compile(Options, _container);
@@ -30,6 +32,11 @@ public sealed partial class WolverineRuntime : IDescribedSystemPartFactory
         foreach (var systemPart in Options.Transports.OfType<IDescribedSystemPart>())
         {
             yield return systemPart;
+        }
+
+        foreach (var describedPart in AdditionalDescribedParts)
+        {
+            yield return describedPart;
         }
     }
 }

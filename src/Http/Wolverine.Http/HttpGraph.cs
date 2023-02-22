@@ -1,15 +1,18 @@
 using System.Text.Json;
 using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using Lamar;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Primitives;
+using Oakton.Descriptions;
+using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Http.Resources;
 using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
-public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChangeToken
+public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChangeToken, IDescribedSystemPart, IWriteToConsole
 {
     public static readonly string Context = "httpContext";
     private readonly WolverineOptions _options;
@@ -87,6 +90,31 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
     public HttpChain? ChainFor(string httpMethod, string urlPattern)
     {
         return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern.RawText == urlPattern);
+    }
+
+    Task IDescribedSystemPart.Write(TextWriter writer)
+    {
+        return writer.WriteLineAsync("Use console output.");
+    }
+
+    string IDescribedSystemPart.Title => "Wolverine Http Endpoints";
+
+    Task IWriteToConsole.WriteToConsole()
+    {
+        var table = new Table()
+            .AddColumns("Route", "Http Method", "Handler Method", "Generated Type Name");
+
+        foreach (var chain in _chains.OrderBy(x => x.RoutePattern.RawText))
+        {
+            var handlerCode = $"{chain.Method.HandlerType.FullNameInCode()}.{chain.Method.Method.Name}()";
+            var verbs = chain.HttpMethods.Select(x => x.ToUpper()).Join("/");
+            
+            table.AddRow(chain.RoutePattern.RawText.EscapeMarkup(), verbs, handlerCode.EscapeMarkup(), chain.Description.EscapeMarkup());
+        }
+        
+        AnsiConsole.Write(table);
+        
+        return Task.CompletedTask;
     }
 }
 
