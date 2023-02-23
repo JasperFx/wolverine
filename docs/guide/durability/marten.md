@@ -500,6 +500,9 @@ public async Task Post(
     [FromServices] IMartenOutbox outbox
 )
 {
+    // This is important!
+    outbox.Enroll(session);
+    
     // Fetch the current value of the Order aggregate
     var stream = await session
         .Events
@@ -539,7 +542,7 @@ public async Task Post(
     await session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L73-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L73-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully that code is easy to understand, but there's some potentially repetitive code
@@ -579,7 +582,7 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L248-L275' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L251-L278' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, Wolverine is wrapping middleware around our basic command handler to

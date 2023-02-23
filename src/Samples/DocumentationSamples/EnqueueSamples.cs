@@ -25,7 +25,13 @@ public class EnqueueSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                // Explicit configuration
+                // Explicit configuration for the local queue
+                // by the message type it handles:
+                opts.LocalQueueFor<Message1>()
+                    .UseDurableInbox()
+                    .Sequential();
+                
+                // Explicit configuration by queue name
                 opts.LocalQueue("one")
                     .Sequential();
 

@@ -75,6 +75,9 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         Role = role;
         Uri = uri;
         EndpointName = uri.ToString();
+        
+        ExecutionOptions.MaxDegreeOfParallelism = Environment.ProcessorCount;
+        ExecutionOptions.EnsureOrdered = false;
     }
 
     /// <summary>

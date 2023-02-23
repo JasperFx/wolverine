@@ -4,7 +4,7 @@ Using the `Wolverine.IMessageBus` service that is automatically registered in yo
 the `IHostBuilder.UseWolverine()` extensions, you can either invoke message handlers inline, enqueue 
 messages to local, in process queues, or schedule message execution within the system. All known message
 handlers within a Wolverine application can be used from `IMessageBus` without any additional
-configuration as some other tools require.
+explicit configuration.
 
 
 ## Publishing Messages Locally
@@ -21,7 +21,7 @@ Some things to know about the local queues:
 * You can use any number of named local queues, and they don't even have to be declared upfront (might want to be careful with that though)
 * Local worker queues utilize Wolverine's [error handling](/guide/handlers/error-handling) policies to selectively handle any detected exceptions from the [message handlers](/guide/handlers/).
 * You can control the priority and parallelization of each individual local queue
-* Message types can be routed to particular queues
+* Message types can be routed to particular queues, **but by default Wolverine will route messages to an individual local queue for each message type that is named for the message type name**
 * [Cascading messages](/guide/handlers/cascading) can be used with the local queues
 * The local queues can be used like any other message transport and be the target of routing rules
 
@@ -81,20 +81,6 @@ public async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
 <!-- endSnippet -->
 
 
-## The Default Queue
-
-Out of the box, each Wolverine application has a default queue named "default". In the absence of any
-other routing rules, all messages enqueued to `IMessageBus` will be published to this queue. The default in memory
-queue can be configured like this:
-
-<!-- snippet: sample_ConfigureDefaultQueue -->
-<a id='snippet-sample_configuredefaultqueue'></a>
-```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts => { opts.DefaultLocalQueue.MaximumParallelMessages(3); }).StartAsync();
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ConfigureDurableLocalQueueApp.cs#L28-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuredefaultqueue' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 ## Explicit Local Message Routing
 
@@ -136,7 +122,8 @@ See [message routing rules](/guide/messaging/#routing-rules) for more informatio
 
 ## Conventional Local Messaging
 
-You can apply a conventional routing for message types to local queues using this syntax:
+Conventional local message routing is applied to every message type handled by the system that does not have some kind
+of explicit message type routing rule. You can override the message type to local queue configuration with this syntax:
 
 <!-- snippet: sample_local_queue_conventions -->
 <a id='snippet-sample_local_queue_conventions'></a>
@@ -160,6 +147,11 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 ## Configuring Local Queues
+
+::: warning
+The current default is for local queues to allow for parallel processing with the maximum number of parallel threads
+set at the number of processors for the current machine. Likewise, the queues are unordered by default.
+:::
 
 You can configure durability or parallelization rules on single queues or conventional
 configuration for queues with this usage:
