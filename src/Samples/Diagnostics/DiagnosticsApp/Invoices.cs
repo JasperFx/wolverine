@@ -37,6 +37,9 @@ public static class StartInvoiceProcessingHandler
     }
 }
 
+// These are all published messages that aren't
+// obvious to Wolverine from message handler endpoint
+// signatures
 public record InvoiceShipped(Guid Id) : IEvent;
 public record CreateShippingLabel(Guid Id) : ICommand;
 

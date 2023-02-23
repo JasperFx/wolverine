@@ -59,4 +59,9 @@ app.UseAuthorization();
 
 app.MapWolverineEndpoints(opts => { });
 
-await app.RunOaktonCommands(args);
+// This is an extension method within Oakton
+// And it's important to relay the exit code
+// from Oakton commands to the command line
+// if you want to use these tools in CI or CD
+// pipelines to denote success or failure
+return await app.RunOaktonCommands(args);

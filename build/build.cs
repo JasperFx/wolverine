@@ -146,7 +146,7 @@ namespace build
                 "./src/Http/Wolverine.Http",
             };
 
-            Target("pack", DependsOn("compile"), ForEach(nugetProjects), project =>
+            Target("pack", ForEach(nugetProjects), project =>
                 Run("dotnet", $"pack {project} -o ./artifacts --configuration Release"));
 
 
