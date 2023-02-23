@@ -48,7 +48,7 @@ public class GettingStarted
     [Fact]
     public async Task append_events()
     {
-// This would be an input
+        // This would be an input
         var boardId = Guid.NewGuid();
 
         var store = DocumentStore.For("connection string");
@@ -59,12 +59,12 @@ public class GettingStarted
             new ProviderReady()
         ).Id;
 
-// The ProviderShift aggregate will be
-// updated at this time
+        // The ProviderShift aggregate will be
+        // updated at this time
         await session.SaveChangesAsync();
 
-// Load the persisted ProviderShift right out
-// of the database
+        // Load the persisted ProviderShift right out
+        // of the database
         var shift = await session
             .LoadAsync<ProviderShift>(shiftId);
     }

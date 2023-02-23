@@ -10,6 +10,8 @@ using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddControllers();
+
 builder.Services.AddMarten(opts =>
 {
     // This would be from your configuration file in typical usage

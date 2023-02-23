@@ -1,3 +1,4 @@
+using System.Reflection;
 using FluentValidation;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
@@ -65,7 +66,7 @@ public class configuration_specs
             .As<WolverineRuntime>().Options;
         
         // Not proud of this code
-        var handlers = (HandlerGraph)typeof(WolverineOptions).GetProperty(nameof(HandlerGraph)).GetValue(wolverineOptions);
+        var handlers = (HandlerGraph)typeof(WolverineOptions).GetProperty(nameof(HandlerGraph), BindingFlags.NonPublic | BindingFlags.Instance).GetValue(wolverineOptions);
 
         handlers.ChainFor<Command1>().Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(FluentValidationExecutor) &&

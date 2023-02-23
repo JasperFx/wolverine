@@ -44,10 +44,7 @@ public class DeliveryOptions
     /// <summary>
     ///     Set the ScheduleTime to now plus the value of the supplied TimeSpan
     /// </summary>
-    public TimeSpan ScheduleDelay
-    {
-        set => ScheduledTime = DateTimeOffset.UtcNow.Add(value);
-    }
+    public TimeSpan? ScheduleDelay { get; set; }
 
     /// <summary>
     ///     Declare that this application is interested in receiving
@@ -82,6 +79,12 @@ public class DeliveryOptions
         if (ScheduledTime.HasValue)
         {
             envelope.ScheduledTime = ScheduledTime;
+            envelope.Status = EnvelopeStatus.Scheduled;
+        }
+
+        if (ScheduleDelay.HasValue)
+        {
+            envelope.ScheduleDelay = ScheduleDelay;
             envelope.Status = EnvelopeStatus.Scheduled;
         }
 
