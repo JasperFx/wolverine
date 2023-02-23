@@ -79,6 +79,9 @@ public class MarkItemController : ControllerBase
         [FromServices] IMartenOutbox outbox
     )
     {
+        // This is important!
+        outbox.Enroll(session);
+        
         // Fetch the current value of the Order aggregate
         var stream = await session
             .Events
