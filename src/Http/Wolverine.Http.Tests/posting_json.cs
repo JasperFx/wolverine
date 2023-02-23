@@ -5,9 +5,13 @@ namespace Wolverine.Http.Tests;
 
 public class posting_json : IntegrationContext
 {
+    #region sample_post_json_happy_path
+
     [Fact]
     public async Task post_json_happy_path()
     {
+        // This test is using Alba to run an end to end HTTP request
+        // and interrogate the results
         var response = await Scenario(x =>
         {
             x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
@@ -19,6 +23,8 @@ public class posting_json : IntegrationContext
         result.Product.ShouldBe(12);
         result.Sum.ShouldBe(7);
     }
+
+    #endregion
 
     [Fact]
     public async Task post_json_garbage_get_400()

@@ -72,7 +72,9 @@ public class end_to_end : IntegrationContext
             x.StatusCodeShouldBe(404);
         });
     }
-    
+
+    #region sample_query_string_usage
+
     [Fact]
     public async Task use_string_querystring_hit()
     {
@@ -96,6 +98,8 @@ public class end_to_end : IntegrationContext
         
         body.ReadAsText().ShouldBe("Name is missing");
     }
+
+    #endregion
     
     [Fact]
     public async Task use_parsed_querystring_hit()

@@ -49,6 +49,8 @@ internal class ParsedRouteArgumentFrame : SyncFrame
 
 internal class RouteParameterStrategy : IParameterStrategy
 {
+    #region sample_supported_route_parameter_types
+
     public static readonly Dictionary<Type, string> TypeOutputs = new Dictionary<Type, string>
     {
         {typeof(bool), "bool"},
@@ -68,6 +70,8 @@ internal class RouteParameterStrategy : IParameterStrategy
         {typeof(DateTime), typeof(DateTime).FullName},
         {typeof(DateTimeOffset), typeof(DateTimeOffset).FullName}
     };
+
+    #endregion
 
     public static readonly Dictionary<Type, string> TypeRouteConstraints = new Dictionary<Type, string>
     {

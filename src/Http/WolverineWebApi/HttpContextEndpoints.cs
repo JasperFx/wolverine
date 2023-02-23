@@ -33,9 +33,13 @@ public class HttpContextEndpoints
 
     public static ClaimsPrincipal User { get; set; }
 
+    #region sample_using_trace_identifier
+
     [WolverineGet("/http/identifier")]
     public string UseTraceIdentifier(string traceIdentifier)
     {
         return traceIdentifier;
     }
+
+    #endregion
 }
