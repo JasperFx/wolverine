@@ -11,7 +11,7 @@ public class ResultEndpoints
         return Microsoft.AspNetCore.Http.Results.Content("Hello from result", "text/plain");
     }
     
-    [WolverineGet("/result/async")]
+    [WolverineGet("/result-async")]
     public static Task<IResult> GetAsyncResult()
     {
         var result = Microsoft.AspNetCore.Http.Results.Content("Hello from async result", "text/plain");

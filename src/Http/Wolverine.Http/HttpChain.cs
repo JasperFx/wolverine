@@ -82,7 +82,7 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
 
         ResourceType = method.ReturnType;
 
-        _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_").Replace("{", "").Replace("}", "");
+        _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_").Replace("{", "").Replace("}", "").Replace("-", "_");
 
         Description = _fileName;
         

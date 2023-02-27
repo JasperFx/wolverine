@@ -21,7 +21,7 @@ public class using_IResult_in_endpoints : IntegrationContext
     {
         var result = await Scenario(x =>
         {
-            x.Get.Url("/result/async");
+            x.Get.Url("/result-async");
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
         
