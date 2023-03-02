@@ -181,6 +181,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         Handler = (MessageHandler)services.As<IContainer>().QuickBuild(_handlerType);
         Handler.Chain = this;
+        
+        Debug.WriteLine(_generatedType?.SourceCode);
 
         return true;
     }
