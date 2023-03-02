@@ -19,9 +19,12 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
 
+    private bool _hasFlushed;
 
     public async Task FlushOutgoingMessagesAsync()
     {
+        if (_hasFlushed) return;
+
         if (Envelope != null && Envelope.ReplyRequested.IsNotEmpty() &&
             Outstanding.All(x => x.MessageType != Envelope.ReplyRequested))
         {
@@ -64,6 +67,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
 
         _outstanding.Clear();
+
+        _hasFlushed = true;
     }
 
     public ValueTask CompleteAsync()
@@ -340,6 +345,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             d.SafeDispose();
         }
+
+        _hasFlushed = false;
         
         _outstanding.Clear();
         Scheduled.Clear();
