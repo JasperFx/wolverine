@@ -191,5 +191,6 @@ public sealed partial class WolverineOptions : IPolicies
     void IPolicies.RegisterInteropMessageAssembly(Assembly assembly)
     {
         HandlerGraph.InteropAssemblies.Add(assembly);
+        WolverineMessageNaming.AddMessageInterfaceAssembly(assembly);
     }
 }

@@ -83,4 +83,25 @@ public class NServiceBusSpecs : IClassFixture<NServiceBusFixture>
             .Any(x => x.Id == id)
             .ShouldBeTrue();
     }
+
+    [Fact]
+    public async Task wolverine_sends_message_to_nservice_bus_as_concretion_nservice_bus_receives_as_interface()
+    {
+        ToExternalInterfaceMessageConsumer.Received.Clear();
+
+        var waiter = ToExternalInterfaceMessageConsumer.WaitForReceipt();
+
+        var id = Guid.NewGuid();
+        await theFixture.Wolverine.SendAsync(new ConcreteToExternalMessage { Id = id });
+
+        await waiter;
+        
+        ToExternalInterfaceMessageConsumer.Received.Single()
+            .Id.ShouldBe(id);
+    }
+}
+
+public class ConcreteToExternalMessage : IToExternalMessage
+{
+    public Guid Id { get; set; }
 }
