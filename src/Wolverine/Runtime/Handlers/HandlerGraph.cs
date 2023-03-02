@@ -67,7 +67,8 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
     public IEnumerable<Assembly> ExtensionAssemblies => Discovery.Assemblies;
 
     public FailureRuleCollection Failures { get; set; } = new();
-    
+    public List<Assembly> InteropAssemblies { get; } = new();
+
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
     {
         ConfigureHandlerForMessage(typeof(T), configure);
@@ -204,7 +205,17 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
             _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
 
         foreach (var chain in Chains)
+        {
             _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
+
+            foreach (var @interface in chain.MessageType.GetInterfaces())
+            {
+                if (InteropAssemblies.Contains(@interface.Assembly))
+                {
+                    _messageTypes = _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
+                }
+            }
+        }
     }
 
     private IEnumerable<IHandlerPolicy> handlerPolicies(WolverineOptions options)

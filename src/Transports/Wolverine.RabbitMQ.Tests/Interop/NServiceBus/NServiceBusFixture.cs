@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using NServiceBusRabbitMqService;
 using Xunit;
@@ -32,7 +33,14 @@ public class NServiceBusFixture : IAsyncLifetime
 
             opts.ListenToRabbitQueue("wolverine")
                 .UseNServiceBusInterop()
-                .DefaultIncomingMessage<ResponseMessage>().UseForReplies();
+                
+                //.DefaultIncomingMessage<ResponseMessage>()
+                
+                .UseForReplies();
+            
+            // This facilitates messaging from NServiceBus (or MassTransit) sending as interface
+            // types, whereas Wolverine only wants to deal with concrete types
+            opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
         }).StartAsync();
 
         #endregion

@@ -249,9 +249,15 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             return;
         }
 
-        foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
+        foreach (var policy in runtime.Options.Transports.EndpointPolicies)
+        {
+            policy.Apply(this, runtime);
+        }
 
-        foreach (var configuration in DelayedConfiguration.ToArray()) configuration.Apply();
+        foreach (var configuration in DelayedConfiguration.ToArray())
+        {
+            configuration.Apply();
+        }
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 

@@ -14,6 +14,18 @@ public class ResponseHandler
 
         return context.RespondToSenderAsync(new ToExternal { Id = message.Id });
     }
+    
+    public static ValueTask Handle(ConcreteMessage message, Envelope envelope, IMessageContext context)
+    {
+        Received.Add(envelope);
+
+        return context.RespondToSenderAsync(new ToExternal { Id = message.Id });
+    }
+}
+
+public class ConcreteMessage : IInterfaceMessage
+{
+    public Guid Id { get; set; }
 }
 
 public class ToWolverineHandler
