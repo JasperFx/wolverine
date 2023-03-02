@@ -1,6 +1,7 @@
 using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Wolverine.RabbitMQ.Internal;
 using Wolverine.Util;
 using Xunit;
 
@@ -34,7 +35,9 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq();
-                opts.ListenToRabbitQueue(queueName).BufferedInMemory();
+                
+                // TODO -- take in the parallel listener count within ProcessInline()? Just sugar, but still?
+                opts.ListenToRabbitQueue(queueName).ProcessInline().ListenerCount(5);
             }).StartAsync();
 
         await waiter;
@@ -56,8 +59,16 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
             return _source.Task.TimeoutAfterAsync(millisecondTimeout);
         }
 
-        public static void Handle(Bug189 bug)
+        public static void Handle(Bug189 bug, Envelope envelope)
         {
+            if (envelope is RabbitMqEnvelope rabbit)
+            {
+                if (new Random().Next(0, 100) < 5)
+                {
+                    rabbit.OverrideDeliveryTag(1);
+                }
+            }
+            
             _count++;
 
             if (_count >= _expected)
