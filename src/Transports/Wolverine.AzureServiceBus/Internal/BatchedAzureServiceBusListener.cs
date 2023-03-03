@@ -31,8 +31,7 @@ public class BatchedAzureServiceBusListener : IListener
 
         _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) =>
         {
-            return _receiver.DeferMessageAsync(e.AzureMessage,
-                new Dictionary<string, object> { { EnvelopeConstants.AttemptsKey, e.Attempts + 1 } });
+            return _receiver.CompleteMessageAsync(e.AzureMessage);
         }, _logger, _cancellation.Token);
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>((e, _) =>
