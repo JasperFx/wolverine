@@ -1,4 +1,5 @@
 using System;
+using System.Linq.Expressions;
 using System.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -95,4 +96,13 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// </summary>
     /// <param name="assembly"></param>
     void RegisterInteropMessageAssembly(Assembly assembly);
+
+    /// <summary>
+    /// Specify that the following members on every message that can be cast
+    /// to type T should be audited as part of telemetry, logging, and metrics
+    /// data exported from this application
+    /// </summary>
+    /// <param name="members"></param>
+    /// <typeparam name="T"></typeparam>
+    void Audit<T>(params Expression<Func<T, object>>[] members);
 }
