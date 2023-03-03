@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
@@ -202,5 +203,10 @@ public sealed partial class WolverineOptions : IPolicies
 
         var policy = new AuditMembersPolicy<T>(members);
         RegisteredPolicies.Insert(0, policy);
+    }
+
+    public void LogMessageStarting(LogLevel logLevel)
+    {
+        RegisteredPolicies.Insert(0, new LogStartingActivityPolicy(logLevel));
     }
 }

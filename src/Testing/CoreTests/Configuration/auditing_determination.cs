@@ -1,8 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace CoreTests.Configuration;
@@ -23,6 +27,43 @@ public class auditing_determination : IntegrationContext
         
         chain.AuditedMembers.Single(x => x.Member.Name == nameof(AuditedMessage.AccountId))
             .Heading.ShouldBe("AccountIdentifier");
+    }
+
+    [Fact]
+    public void adds_the_audit_to_activity_code()
+    {
+        var chain = chainFor<AuditedMessage>();
+        var lines = chain.SourceCode.ReadLines();
+
+        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"Name\", auditedMessage.Name)")).ShouldBeTrue();
+        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"AccountId\", auditedMessage.AccountId)")).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void adds_the_log_start_message_to_code()
+    {
+        with(opts =>
+        {
+            opts.Policies.LogMessageStarting(LogLevel.Information);
+        });
+        
+        var chain = chainFor<AuditedMessage>();
+        var lines = chain.SourceCode.ReadLines();
+
+        var expected = "Log(Microsoft.Extensions.Logging.LogLevel.Information, \"Starting to process CoreTests.Configuration.AuditedMessage ({Id}) with Name: {Name}, AccountIdentifier: {AccountId}\", context.Envelope.Id, auditedMessage.Name, auditedMessage.AccountId)";
+        
+        lines.Any(x => x.Contains(expected)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task execute_to_prove_it_does_not_blow_up()
+    {
+        with(opts =>
+        {
+            opts.Policies.LogMessageStarting(LogLevel.Information);
+        });
+        
+        await Host.InvokeMessageAndWaitAsync(new AuditedMessage());
     }
 
     [Fact]
@@ -50,7 +91,16 @@ public class AuditedHandler
 {
     public void Handle(AuditedMessage message) => Console.WriteLine("Hello");
 
-    public void Handle(DebitAccount message) => Console.WriteLine("Got a debit");
+    public void Handle(DebitAccount message, ILogger logger, Envelope envelope)
+    {
+        logger.Log(LogLevel.Information, "Starting to process DebitAccount ({Id}) with AccountId {AccountId}", envelope.Id, message.Amount);
+        
+        var activity = Activity.Current;
+        if (activity != null)
+        {
+            activity.SetTag(nameof(DebitAccount.AccountId), message.AccountId);
+        }
+    }
 }
 
 // Marker interface

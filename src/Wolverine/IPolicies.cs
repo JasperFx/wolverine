@@ -1,6 +1,7 @@
 using System;
 using System.Linq.Expressions;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
@@ -105,4 +106,11 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// <param name="members"></param>
     /// <typeparam name="T"></typeparam>
     void Audit<T>(params Expression<Func<T, object>>[] members);
+
+    /// <summary>
+    /// Write a log message with the given log level when message execution starts.
+    /// This would also include any audited members of the message
+    /// </summary>
+    /// <param name="logLevel"></param>
+    void LogMessageStarting(LogLevel logLevel);
 }

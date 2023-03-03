@@ -243,6 +243,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                                                 MessageType.FullName);
         }
 
+        if (AuditedMembers.Any())
+        {
+            Middleware.Insert(0, new AuditToActivityFrame(this));
+        }
+
         applyCustomizations(rules, container);
 
         var cascadingHandlers = determineCascadingMessages().ToArray();
