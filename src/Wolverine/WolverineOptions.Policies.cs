@@ -1,8 +1,11 @@
 using System.Collections;
+using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Logging;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Runtime.Handlers;
@@ -192,5 +195,18 @@ public sealed partial class WolverineOptions : IPolicies
     {
         HandlerGraph.InteropAssemblies.Add(assembly);
         WolverineMessageNaming.AddMessageInterfaceAssembly(assembly);
+    }
+
+    public void Audit<T>(params Expression<Func<T, object>>[] memberExpressions)
+    {
+        var members = memberExpressions.Select(expr => FindMembers.Determine(expr).First()).ToArray();
+
+        var policy = new AuditMembersPolicy<T>(members);
+        RegisteredPolicies.Insert(0, policy);
+    }
+
+    public void LogMessageStarting(LogLevel logLevel)
+    {
+        RegisteredPolicies.Insert(0, new LogStartingActivityPolicy(logLevel));
     }
 }

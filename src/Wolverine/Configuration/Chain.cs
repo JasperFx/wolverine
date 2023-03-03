@@ -7,6 +7,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Attributes;
+using Wolverine.Logging;
 using Wolverine.Middleware;
 
 namespace Wolverine.Configuration;
@@ -27,6 +28,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         Capacity = 0
     };
     public abstract string Description { get; }
+    public List<AuditedMember> AuditedMembers { get; } = new();
     public abstract bool ShouldFlushOutgoingMessages();
     public abstract bool RequiresOutbox();
 
@@ -137,5 +139,15 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 Postprocessors.Add(frame);
             }
         }
+    }
+
+    /// <summary>
+    /// Add a member of the message type to be audited during execution
+    /// </summary>
+    /// <param name="member"></param>
+    /// <param name="heading"></param>
+    public void Audit(MemberInfo member, string? heading = null)
+    {
+        AuditedMembers.Add(new AuditedMember(member, heading ?? member.Name));
     }
 }

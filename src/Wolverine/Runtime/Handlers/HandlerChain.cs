@@ -14,6 +14,7 @@ using Lamar;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Logging;
 using Wolverine.Middleware;
 
 namespace Wolverine.Runtime.Handlers;
@@ -44,6 +45,22 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         TypeName = messageType.ToSuffixedTypeName(HandlerSuffix);
 
         Description = "Message Handler for " + MessageType.FullNameInCode();
+
+        foreach (var property in messageType.GetProperties())
+        {
+            if (property.TryGetAttribute<AuditAttribute>(out var att))
+            {
+                Audit(property, att.Heading);
+            }
+        }
+        
+        foreach (var field in messageType.GetFields())
+        {
+            if (field.TryGetAttribute<AuditAttribute>(out var att))
+            {
+                Audit(field, att.Heading);
+            }
+        }
     }
 
 
@@ -224,6 +241,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             throw new InvalidOperationException("No method handlers configured for message type " +
                                                 MessageType.FullName);
+        }
+
+        if (AuditedMembers.Any())
+        {
+            Middleware.Insert(0, new AuditToActivityFrame(this));
         }
 
         applyCustomizations(rules, container);

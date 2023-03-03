@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using Lamar;
+using Wolverine.Logging;
 
 namespace Wolverine.Configuration;
 
@@ -29,6 +31,8 @@ public interface IChain
     ///     A description of this frame
     /// </summary>
     string Description { get; }
+
+    List<AuditedMember> AuditedMembers { get; }
 
     /// <summary>
     ///     Used internally by Wolverine for "outbox" mechanics
@@ -61,6 +65,13 @@ public interface IChain
     /// </summary>
     /// <returns></returns>
     Type? InputType();
+
+    /// <summary>
+    /// Add a member of the message type to be audited during execution
+    /// </summary>
+    /// <param name="member"></param>
+    /// <param name="heading"></param>
+    void Audit(MemberInfo member, string? heading = null);
 }
 
 #endregion
