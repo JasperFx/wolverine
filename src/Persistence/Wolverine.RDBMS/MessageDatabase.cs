@@ -30,7 +30,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Durability = settings;
         _cancellation = settings.Cancellation;
 
-        var transaction = new DurableStorageSession(databaseSettings, settings.Cancellation);
+        var transaction = new DurableStorageSession(databaseSettings, settings.Cancellation, logger);
 
         Session = transaction;
 
