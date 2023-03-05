@@ -22,7 +22,7 @@ internal class SqlConnectionInstance : Instance
         Name = Variable.DefaultArgName(serviceType);
     }
 
-    public override bool RequiresServiceProvider => false;
+    public override bool RequiresServiceProvider(IMethodVariables method) => false;
 
     public override Func<Scope, object> ToResolver(Scope topScope)
     {

@@ -14,9 +14,4 @@
             <Link>Servers.cs</Link>
         </Compile>
     </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="JasperFx.CodeGeneration.Commands" Version="1.1.0" />
-    </ItemGroup>
-
 </Project>
