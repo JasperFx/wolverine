@@ -24,16 +24,3 @@ internal class ActionMethodFilter : CompositeFilter<MethodInfo>
     }
 }
 
-internal class HandlerTypeFilter : CompositeFilter<Type>
-{
-    public HandlerTypeFilter()
-    {
-        Excludes += t => !t.IsStatic() && t.IsOpenGeneric();
-        Excludes += t => t.IsNotPublic;
-        Excludes += t => !t.IsStatic() && t.IsNotConcrete();
-
-        Includes += t => t.IsStatic();
-        Includes += t => t.IsConcrete();
-    }
-}
-

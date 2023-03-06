@@ -80,6 +80,10 @@ public class CompositeTypeFilter : ITypeFilter
         Filters.Add(new CanCastToFilter(type));
     }
 
+    public void IsPublic()
+    {
+        WithUserDefinedCondition("Is Public", t => t.IsPublic);
+    }
 
     public bool Matches(Type type)
     {
@@ -96,6 +100,16 @@ public class CompositeTypeFilter : ITypeFilter
     public void WithUserDefinedCondition(string description, Func<Type,bool> filter)
     {
         Filters.Add(new LambdaFilter(description, filter));
+    }
+
+    public void IsNotPublic()
+    {
+        Filters.Add(new LambdaFilter("Is not Public", t => t.IsPublic));
+    }
+
+    public void IsStatic()
+    {
+        Filters.Add(new LambdaFilter("Is Static", t => t.IsStatic()));
     }
 }
 
