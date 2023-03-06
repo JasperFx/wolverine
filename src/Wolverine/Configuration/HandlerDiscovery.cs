@@ -1,6 +1,7 @@
 using System.Reflection;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.TypeDiscovery;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Handlers;
@@ -99,22 +100,17 @@ public sealed class HandlerDiscovery
             return _explicitTypes.SelectMany(actionsFromType).ToArray();
         }
 
-        if (options.ApplicationAssembly == null)
+        if (options.ApplicationAssembly != null)
         {
-            return Array.Empty<(Type, MethodInfo)>();
+            Assemblies.Fill(options.ApplicationAssembly);
         }
-
-        Assemblies.Fill(options.ApplicationAssembly);
-
-        var types = Assemblies.SelectMany(x => x.ExportedTypes)
-            .Where(x => _validTypeFilter.Matches(x))
+        
+        return TypeRepository.FindTypes(Assemblies, TypeClassification.Closed | TypeClassification.Concretes, t => _validTypeFilter.Matches(t))
             .Where(x => !x.HasAttribute<WolverineIgnoreAttribute>())
             .Where(x => _typeFilters.Matches(x))
             .Concat(_explicitTypes)
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
-
-        return types;
     }
 
     private IEnumerable<(Type, MethodInfo)> actionsFromType(Type type)
@@ -247,3 +243,4 @@ public sealed class HandlerDiscovery
         return this;
     }
 }
+
