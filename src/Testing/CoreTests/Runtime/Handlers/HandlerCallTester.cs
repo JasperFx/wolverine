@@ -30,35 +30,6 @@ public class HandlerCallTester
 
 
     [Fact]
-    public void handler_call_should_not_match_property_setters()
-    {
-        var handlerType = typeof(ITargetHandler);
-        var property = handlerType.GetTypeInfo().GetProperty("Message");
-        var method = property.GetSetMethod();
-        HandlerCall.IsCandidate(method).ShouldBeFalse();
-    }
-
-
-    [Fact]
-    public void is_candidate()
-    {
-        HandlerCall.IsCandidate(ReflectionHelper.GetMethod<ITargetHandler>(x => x.ZeroInZeroOut())).ShouldBeFalse();
-        HandlerCall.IsCandidate(ReflectionHelper.GetMethod<ITargetHandler>(x => x.OneInOneOut(null)))
-            .ShouldBeTrue();
-
-
-        HandlerCall.IsCandidate(ReflectionHelper.GetMethod<ITargetHandler>(x => x.OneInZeroOut(null)))
-            .ShouldBeTrue();
-
-
-        HandlerCall.IsCandidate(ReflectionHelper.GetMethod<ITargetHandler>(x => x.ManyIn(null, null)))
-            .ShouldBeTrue();
-
-        HandlerCall.IsCandidate(ReflectionHelper.GetMethod<ITargetHandler>(x => x.ReturnsValueType(null)))
-            .ShouldBeFalse();
-    }
-
-    [Fact]
     public void throws_chunks_if_you_try_to_use_a_method_with_no_inputs()
     {
         Should.Throw<ArgumentOutOfRangeException>(

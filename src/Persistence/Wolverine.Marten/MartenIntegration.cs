@@ -22,7 +22,7 @@ internal class MartenIntegration : IWolverineExtension
         options.CodeGeneration.Sources.Add(new SessionVariableSource());
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
-        
-        options.Discovery.IncludeTypes(type => type.HasAttribute<MartenCommandWorkflowAttribute>());
+
+        options.Discovery.CustomizeHandlerDiscovery(x => x.Includes.WithAttribute<MartenCommandWorkflowAttribute>());
     }
 }

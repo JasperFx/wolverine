@@ -1,17 +1,24 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Module2;
 using OrderExtension;
 using TestingSupport;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace CoreTests.Configuration;
 
 public class find_handlers_with_the_default_handler_discovery : IntegrationContext
 {
-    public find_handlers_with_the_default_handler_discovery(DefaultApp @default) : base(@default)
+    private readonly ITestOutputHelper _output;
+
+    public find_handlers_with_the_default_handler_discovery(DefaultApp @default, ITestOutputHelper output) : base(@default)
     {
+        _output = output;
         @default.RecycleIfNecessary();
     }
 
@@ -72,6 +79,8 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void find_handlers_from_wolverine_module_extensions()
     {
+        _output.WriteLine(Host.Services.GetRequiredService<IWolverineRuntime>().Options.DescribeHandlerMatch(typeof(OrderHandler)));
+        
         chainFor<CreateOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new CreateOrder()));
         chainFor<ShipOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new ShipOrder()));
     }
@@ -116,10 +125,18 @@ public class customized_finding : IntegrationContext
     {
     }
 
+    private void withTypeDiscovery(Action<TypeQuery> customize)
+    {
+        with(opts =>
+        {
+            opts.Discovery.CustomizeHandlerDiscovery(customize);
+        });
+    }
+
     [Fact]
     public void extra_suffix()
     {
-        with(x => x.Discovery.IncludeClassesSuffixedWith("Watcher"));
+        withTypeDiscovery(x => x.Includes.WithNameSuffix("Watcher"));
 
         chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null));
     }
@@ -127,7 +144,7 @@ public class customized_finding : IntegrationContext
     [Fact]
     public void handler_types_from_a_marker_interface()
     {
-        with(x => x.Discovery.IncludeTypesImplementing<IMovieThing>());
+        withTypeDiscovery(x => x.Includes.Implements<IMovieThing>());
 
         chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
     }

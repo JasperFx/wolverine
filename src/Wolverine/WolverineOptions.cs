@@ -147,4 +147,16 @@ public sealed partial class WolverineOptions
         ProductionTypeLoadMode = productionMode;
         Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>();
     }
+
+    /// <summary>
+    /// Produce a report of why or why not this Wolverine application
+    /// is finding or not finding methods from this handlerType
+    /// USE THIS TO TROUBLESHOOT HANDLER DISCOVERY ISSUES 
+    /// </summary>
+    /// <param name="handlerType"></param>
+    /// <returns></returns>
+    public string DescribeHandlerMatch(Type handlerType)
+    {
+        return Discovery.DescribeHandlerMatch(this, handlerType);
+    }
 }

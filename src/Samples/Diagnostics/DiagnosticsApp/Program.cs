@@ -37,7 +37,7 @@ builder.Host.UseWolverine(opts =>
 
     #region sample_use_your_own_marker_type
 
-    opts.Discovery.IncludeTypesAsMessages(type => type.CanBeCastTo<IDiagnosticsMessage>());
+    opts.Discovery.CustomizeHandlerDiscovery(types => types.Includes.Implements<IDiagnosticsMessageHandler>());
 
     #endregion
 

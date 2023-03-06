@@ -5,7 +5,7 @@ using Wolverine.Attributes;
 
 namespace DiagnosticsModule;
 
-public interface IDiagnosticsMessage{}
+public interface IDiagnosticsMessageHandler{}
 
 public record DiagnosticsMessage1 : IMessage;
 
@@ -14,4 +14,4 @@ public record DiagnosticsMessage2;
 
 public record NotDiagnosticsMessage3;
 
-public record DiagnosticsMessage4 : IDiagnosticsMessage;
+public record DiagnosticsMessage4 : IDiagnosticsMessageHandler;
