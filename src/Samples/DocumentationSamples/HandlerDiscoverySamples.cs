@@ -140,10 +140,12 @@ internal static class HandlerSamples
 
                     // Include candidate actions by a user supplied
                     // type filter
-                    .IncludeTypes(t => t.IsInNamespace("MyApp.Handlers"))
-
-                    // Include candidate classes by suffix
-                    .IncludeClassesSuffixedWith("Listener")
+                    .CustomizeHandlerDiscover(x =>
+                    {
+                        x.Includes.WithNameSuffix("Worker");
+                        x.Includes.WithNameSuffix("Listener");
+                        
+                    })
 
                     // Include a specific handler class with a generic argument
                     .IncludeType<SimpleHandler>();

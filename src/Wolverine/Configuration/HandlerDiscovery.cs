@@ -13,8 +13,6 @@ public sealed class HandlerDiscovery
     private readonly IList<Type> _explicitTypes = new List<Type>();
 
     private readonly ActionMethodFilter _methodFilters;
-    private readonly HandlerTypeFilter _validTypeFilter = new();
-    private readonly CompositeFilter<Type> _typeFilters = new();
 
     private readonly CompositeFilter<Type> _messageFilter = new();
 
@@ -27,6 +25,8 @@ public sealed class HandlerDiscovery
 
     private bool _conventionalDiscoveryDisabled;
 
+    private readonly TypeQuery _handlerQuery = new TypeQuery(TypeClassification.Concretes | TypeClassification.Closed);
+
     public HandlerDiscovery()
     {
         var validMethods = _validMethods.Concat(_validMethods.Select(x => x + "Async"))
@@ -37,14 +37,13 @@ public sealed class HandlerDiscovery
         _methodFilters.Includes += m => validMethods.Contains(m.Name);
         _methodFilters.Includes += m => m.HasAttribute<WolverineHandlerAttribute>();
         
-        IncludeClassesSuffixedWith(HandlerChain.HandlerSuffix);
-        IncludeClassesSuffixedWith(HandlerChain.ConsumerSuffix);
-
-        IncludeTypes(x => x.CanBeCastTo<Saga>());
-        IncludeTypes(x => x.CanBeCastTo<IWolverineHandler>());
-        IncludeTypes(x => x.HasAttribute<WolverineHandlerAttribute>());
-
-        _typeFilters.Excludes += t => t.HasAttribute<WolverineIgnoreAttribute>();
+        _handlerQuery.Includes.WithNameSuffix(HandlerChain.HandlerSuffix);
+        _handlerQuery.Includes.WithNameSuffix(HandlerChain.ConsumerSuffix);
+        _handlerQuery.Includes.Implements<Saga>();
+        _handlerQuery.Includes.Implements<IWolverineHandler>();
+        _handlerQuery.Includes.WithAttribute<WolverineHandlerAttribute>();
+        
+        _handlerQuery.Excludes.WithAttribute<WolverineIgnoreAttribute>();
 
         _messageFilter.Excludes += x => !x.IsPublic;
         _messageFilter.Excludes += x => !x.IsConcrete();
@@ -56,6 +55,23 @@ public sealed class HandlerDiscovery
 
     internal IList<Assembly> Assemblies { get; } = new List<Assembly>();
 
+    /// <summary>
+    /// Customize the conventional filtering on the handler type discovery 
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public HandlerDiscovery CustomizeHandlerDiscover(Action<TypeQuery> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        configure(_handlerQuery);
+        return this;
+    }
+    
     /// <summary>
     /// Disables *all* conventional discovery of message handlers from type scanning. This is mostly useful for
     /// testing scenarios or folks who just really want to have full control over everything!
@@ -105,9 +121,7 @@ public sealed class HandlerDiscovery
             Assemblies.Fill(options.ApplicationAssembly);
         }
         
-        return TypeRepository.FindTypes(Assemblies, TypeClassification.Closed | TypeClassification.Concretes, t => _validTypeFilter.Matches(t))
-            .Where(x => !x.HasAttribute<WolverineIgnoreAttribute>())
-            .Where(x => _typeFilters.Matches(x))
+        return _handlerQuery.Find(Assemblies)
             .Concat(_explicitTypes)
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
@@ -130,51 +144,6 @@ public sealed class HandlerDiscovery
     public HandlerDiscovery IncludeAssembly(Assembly assembly)
     {
         Assemblies.Add(assembly);
-        return this;
-    }
-
-    /// <summary>
-    ///     Find Handlers from concrete classes whose names ends with the suffix
-    /// </summary>
-    /// <param name="suffix"></param>
-    public HandlerDiscovery IncludeClassesSuffixedWith(string suffix)
-    {
-        return IncludeTypesNamed(x => x.EndsWith(suffix));
-    }
-
-    /// <summary>
-    ///     Find Handler classes based on the Type name filter supplied
-    /// </summary>
-    /// <param name="filter"></param>
-    public HandlerDiscovery IncludeTypesNamed(Func<string, bool> filter)
-    {
-        return IncludeTypes(type => filter(type.Name));
-    }
-
-    /// <summary>
-    ///     Find Handlers on types that match on the provided filter
-    /// </summary>
-    public HandlerDiscovery IncludeTypes(Func<Type, bool> filter)
-    {
-        _typeFilters.Includes += filter;
-        return this;
-    }
-
-    /// <summary>
-    ///     Find Handlers on concrete types assignable to T
-    /// </summary>
-    public HandlerDiscovery IncludeTypesImplementing<T>()
-    {
-        IncludeTypes(type => !type.IsOpenGeneric() && type.IsConcreteTypeOf<T>());
-        return this;
-    }
-
-    /// <summary>
-    ///     Exclude types that match on the provided filter for finding Handlers
-    /// </summary>
-    public HandlerDiscovery ExcludeTypes(Func<Type, bool> filter)
-    {
-        _typeFilters.Excludes += filter;
         return this;
     }
 

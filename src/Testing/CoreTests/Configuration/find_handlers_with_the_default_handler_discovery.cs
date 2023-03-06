@@ -4,6 +4,7 @@ using Module2;
 using OrderExtension;
 using TestingSupport;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
 using Xunit;
 
 namespace CoreTests.Configuration;
@@ -116,10 +117,18 @@ public class customized_finding : IntegrationContext
     {
     }
 
+    private void withTypeDiscovery(Action<TypeQuery> customize)
+    {
+        with(opts =>
+        {
+            opts.Discovery.CustomizeHandlerDiscover(customize);
+        });
+    }
+
     [Fact]
     public void extra_suffix()
     {
-        with(x => x.Discovery.IncludeClassesSuffixedWith("Watcher"));
+        withTypeDiscovery(x => x.Includes.WithNameSuffix("Watcher"));
 
         chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null));
     }
@@ -127,7 +136,7 @@ public class customized_finding : IntegrationContext
     [Fact]
     public void handler_types_from_a_marker_interface()
     {
-        with(x => x.Discovery.IncludeTypesImplementing<IMovieThing>());
+        withTypeDiscovery(x => x.Includes.Implements<IMovieThing>());
 
         chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
     }

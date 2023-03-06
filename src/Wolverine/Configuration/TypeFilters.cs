@@ -31,6 +31,102 @@ public class CanCastToFilter : ITypeFilter
         : $"Inherits from {_baseType.FullNameInCode()}";
 }
 
+public class CompositeTypeFilter : ITypeFilter
+{
+    public List<ITypeFilter> Filters { get; } = new();
+    
+    /// <summary>
+    /// Match types that have the designated attribute
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void WithAttribute<T>() where T : Attribute
+    {
+        Filters.Add(new HasAttributeFilter<T>());
+    }
+
+    /// <summary>
+    /// Match types with the given suffix in the type name. This is case sensitive!
+    /// </summary>
+    /// <param name="suffix"></param>
+    public void WithNameSuffix(string suffix)
+    {
+        Filters.Add(new NameSuffixFilter(suffix));
+    }
+
+    /// <summary>
+    /// Match types within the given namespace
+    /// </summary>
+    /// <param name="ns"></param>
+    public void InNamespace(string ns)
+    {
+        Filters.Add(new NamespaceFilter(ns));
+    }
+
+    /// <summary>
+    /// Match types that implement or inherit from type T
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void Implements<T>()
+    {
+        Filters.Add(new CanCastToFilter(typeof(T)));
+    }
+
+    /// <summary>
+    /// Match types that implement or inherit from the designated type
+    /// </summary>
+    /// <param name="type"></param>
+    public void Implements(Type type)
+    {
+        Filters.Add(new CanCastToFilter(type));
+    }
+
+
+    public bool Matches(Type type)
+    {
+        return Filters.Any(x => x.Matches(type));
+    }
+
+    public string Description => Filters.Select(x => x.Description).Join(" or ");
+
+    /// <summary>
+    /// User defined matching condition
+    /// </summary>
+    /// <param name="description">Diagnostic description of this condition</param>
+    /// <param name="filter"></param>
+    public void WithUserDefinedCondition(string description, Func<Type,bool> filter)
+    {
+        Filters.Add(new LambdaFilter(description, filter));
+    }
+}
+
+public class TypeQuery
+{
+    private readonly TypeClassification _classification;
+    public CompositeTypeFilter Includes { get; } = new();
+    public CompositeTypeFilter Excludes { get; } = new();
+
+    public TypeQuery(TypeClassification classification)
+    {
+        _classification = classification;
+    }
+
+    public TypeQuery(TypeClassification classification, Func<Type, bool> filter) : this(classification)
+    {
+        Includes.WithUserDefinedCondition("User-defined", filter);
+    }
+
+    public IEnumerable<Type> Find(AssemblyTypes assembly)
+    {
+        return assembly.FindTypes(_classification).Where(type => Includes.Matches(type) && !Excludes.Matches(type));
+    }
+
+    public IEnumerable<Type> Find(IEnumerable<Assembly> assemblies)
+    {
+        return assemblies.Select(TypeRepository.ForAssembly)
+            .SelectMany(Find);
+    }
+}
+
 public class NamespaceFilter : ITypeFilter
 {
     private readonly string _ns;
@@ -177,7 +273,8 @@ public static class TypeRepository
     public static IEnumerable<Type> FindTypes(IEnumerable<Assembly> assemblies,
         TypeClassification classification, Func<Type, bool>? filter = null)
     {
-        var query = new TypeQuery(classification, filter);
+        var query = new TypeQuery(classification);
+        query.Includes.WithUserDefinedCondition("User defined", filter);
         return assemblies.Select(ForAssembly).SelectMany(query.Find);
     }
 
