@@ -1,12 +1,34 @@
 # Message Handler Discovery
 
+::: warning
+The handler type scanning and discovery is done against an allow list of assemblies rather than
+running through your entire application's dependency tree. Watch for this if handlers are missing.
+:::
+
 Wolverine has built in mechanisms for automatically finding message handler methods in your application
 based on a set of naming conventions or using explicit interface or attribute markers. If you really wanted to, 
 you could also explicitly add handler types programmatically.
 
+## Troubleshooting Handler Discovery
+
+It's an imperfect world and sometimes Wolverine isn't finding handler methods for some reason or another -- or
+seems to be using types and methods you'd rather it didn't. Not to fear, there's some diagnostic tools
+to help Wolverine explain what's going on.
+
+Directly on `WolverineOptions` itself is a diagnostic method named `DescribeHandlerMatch` that will give
+you a full textual report on why or why not Wolverine is identifying that type as a handler type, then if
+it is found by Wolverine to be a handler type, 
+also giving you a full report on each public method about why or why not Wolverine considers it to be a valid
+handler method.
+
+snippet: sample_describe_handler_match
+
+Even if the report itself isn't exactly clear to you, using this textual report in a Wolverine issue or
+within the [Critter Stack Discord](https://discord.gg/wBkZGpe3) group will help the Wolverine team be able to assist you much quicker. 
+
 ## Assembly Discovery
 
-:::
+::: tip
 The handler discovery uses the `JasperFx.TypeDiscovery` library for type scanning that is shared with several other JasperFx projects. 
 :::
 

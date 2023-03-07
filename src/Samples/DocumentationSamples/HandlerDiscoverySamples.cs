@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport.Compliance;
@@ -153,4 +154,28 @@ internal static class HandlerSamples
 
         #endregion
     }
+
+    public static async Task explain_handler()
+    {
+        #region sample_describe_handler_match
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Surely plenty of other configuration for Wolverine...
+
+                // This *temporary* line of code will write out a full report about why or 
+                // why not Wolverine is finding this handler and its candidate handler messages
+                Console.WriteLine(opts.DescribeHandlerMatch(typeof(MyMissingMessageHandler)));
+            }).StartAsync();
+
+        #endregion
+    }
+    
+    
+}
+
+public class MyMissingMessageHandler
+{
+    public void Handle(){}
 }
