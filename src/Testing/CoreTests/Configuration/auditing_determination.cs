@@ -71,13 +71,20 @@ public class auditing_determination : IntegrationContext
     {
         with(opts =>
         {
+            #region sample_explicit_registration_of_audit_properties
+
+            // opts is WolverineOptions inside of a UseWolverine() call
             opts.Policies.Audit<IAccountMessage>(x => x.AccountId);
+
+            #endregion
         });
         
         var chain = chainFor<DebitAccount>();
         chain.AuditedMembers.Single().Member.Name.ShouldBe(nameof(IAccountMessage.AccountId));
     }
 }
+
+#region sample_using_audit_attribute
 
 public class AuditedMessage
 {
@@ -86,6 +93,8 @@ public class AuditedMessage
 
     [Audit("AccountIdentifier")] public int AccountId;
 }
+
+#endregion
 
 public class AuditedHandler
 {
@@ -103,10 +112,15 @@ public class AuditedHandler
     }
 }
 
+#region sample_account_message_for_auditing
+
 // Marker interface
 public interface IAccountMessage
 {
     public int AccountId { get; }
 }
 
+// A possible command that uses our marker interface above
 public record DebitAccount(int AccountId, decimal Amount) : IAccountMessage;
+
+#endregion
