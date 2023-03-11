@@ -1,7 +1,7 @@
 # Wolverine as Mediator
 
 ::: tip
-All of the code on this page is from [the InMemoryMediator sample project](https://github.com/JasperFx/wolverine/tree/master/src/Samples/InMemoryMediator).
+All of the code on this page is from [the InMemoryMediator sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/InMemoryMediator).
 :::
 
 Recently there's been some renewed interest in the old [Gof Mediator pattern](https://en.wikipedia.org/wiki/Mediator_pattern) as a way to isolate

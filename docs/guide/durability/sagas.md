@@ -12,7 +12,7 @@ in Wolverine consists of a couple parts:
 
 ## Your First Saga
 
-*See the [OrderSagaSample](https://github.com/JasperFx/wolverine/tree/master/src/Samples/OrderSagaSample) project in GitHub for all the
+*See the [OrderSagaSample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderSagaSample) project in GitHub for all the
 sample code in this section.*
 
 Jumping right into an example, consider a very simple order management service that will have steps to:
