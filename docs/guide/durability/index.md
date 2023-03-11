@@ -63,7 +63,7 @@ and slow [distributed transactions](https://en.wikipedia.org/wiki/Distributed_tr
 also includes a separate *message relay* process that will send the persisted outgoing messages in background processes (it's done by marshalling the outgoing message envelopes through [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) queues if you're curious.)
 
 If any node of a Wolverine system that uses durable messaging goes down before all the messages are processed, the persisted messages will be loaded from
-storage and processed when the system is restarted. Wolverine does this through its [DurabilityAgent](https://github.com/JasperFx/wolverine/blob/master/src/Wolverine/Persistence/Durability/DurabilityAgent.cs) that will run within your application through Wolverine's
+storage and processed when the system is restarted. Wolverine does this through its [DurabilityAgent](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Persistence/Durability/DurabilityAgent.cs) that will run within your application through Wolverine's
 [IHostedService](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-6.0&tabs=visual-studio) runtime that is automatically registered in your system through the `UseWolverine()` extension method.
 
 ::: tip
