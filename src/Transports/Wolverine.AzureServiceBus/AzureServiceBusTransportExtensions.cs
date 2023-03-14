@@ -1,3 +1,5 @@
+using Azure;
+using Azure.Core;
 using Azure.Messaging.ServiceBus;
 using JasperFx.Core.Reflection;
 using Wolverine.AzureServiceBus.Internal;
@@ -25,6 +27,39 @@ public static class AzureServiceBusTransportExtensions
     {
         var transport = endpoints.AzureServiceBusTransport();
         transport.ConnectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        configure?.Invoke(transport.ClientOptions);
+
+        return new AzureServiceBusConfiguration(transport, endpoints);
+    }
+
+    public static AzureServiceBusConfiguration UseAzureServiceBus(this WolverineOptions endpoints,
+        string fullyQualifiedNamespace, TokenCredential tokenCredential, Action<ServiceBusClientOptions>? configure = null)
+    {
+        var transport = endpoints.AzureServiceBusTransport();
+        transport.FullyQualifiedNamespace = fullyQualifiedNamespace ?? throw new ArgumentNullException(nameof(fullyQualifiedNamespace));
+        transport.TokenCredential = tokenCredential ?? throw new ArgumentNullException(nameof(tokenCredential));
+        configure?.Invoke(transport.ClientOptions);
+
+        return new AzureServiceBusConfiguration(transport, endpoints);
+    }
+
+    public static AzureServiceBusConfiguration UseAzureServiceBus(this WolverineOptions endpoints,
+        string fullyQualifiedNamespace, AzureNamedKeyCredential namedKeyCredential, Action<ServiceBusClientOptions>? configure = null)
+    {
+        var transport = endpoints.AzureServiceBusTransport();
+        transport.FullyQualifiedNamespace = fullyQualifiedNamespace ?? throw new ArgumentNullException(nameof(fullyQualifiedNamespace));
+        transport.NamedKeyCredential = namedKeyCredential ?? throw new ArgumentNullException(nameof(namedKeyCredential));
+        configure?.Invoke(transport.ClientOptions);
+
+        return new AzureServiceBusConfiguration(transport, endpoints);
+    }
+
+    public static AzureServiceBusConfiguration UseAzureServiceBus(this WolverineOptions endpoints,
+        string fullyQualifiedNamespace, AzureSasCredential sasCredential, Action<ServiceBusClientOptions>? configure = null)
+    {
+        var transport = endpoints.AzureServiceBusTransport();
+        transport.FullyQualifiedNamespace = fullyQualifiedNamespace ?? throw new ArgumentNullException(nameof(fullyQualifiedNamespace));
+        transport.SasCredential = sasCredential ?? throw new ArgumentNullException(nameof(sasCredential));
         configure?.Invoke(transport.ClientOptions);
 
         return new AzureServiceBusConfiguration(transport, endpoints);

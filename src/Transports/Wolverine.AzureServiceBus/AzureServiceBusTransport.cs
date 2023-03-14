@@ -1,3 +1,5 @@
+using Azure;
+using Azure.Core;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
@@ -21,8 +23,8 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         Topics = new(name => new AzureServiceBusTopic(this, name));
 
         _managementClient =
-            new Lazy<ServiceBusAdministrationClient>(() => new ServiceBusAdministrationClient(ConnectionString));
-        _busClient = new Lazy<ServiceBusClient>(() => new ServiceBusClient(ConnectionString, ClientOptions));
+            new Lazy<ServiceBusAdministrationClient>(CreateServiceBusAdministrationClient);
+        _busClient = new Lazy<ServiceBusClient>(CreateServiceBusClient);
 
         IdentifierDelimiter = ".";
     }
@@ -31,6 +33,11 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
     public LightweightCache<string, AzureServiceBusTopic> Topics { get; }
 
     public string? ConnectionString { get; set; }
+
+    public string? FullyQualifiedNamespace { get; set; }
+    public TokenCredential? TokenCredential { get; set; }
+    public AzureNamedKeyCredential? NamedKeyCredential { get; set; }
+    public AzureSasCredential? SasCredential { get; set; }
 
     public ServiceBusClientOptions ClientOptions { get; } = new()
     {
@@ -101,5 +108,40 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
     {
         yield return new PropertyColumn("Queue", "Name");
         yield return new PropertyColumn(nameof(QueueProperties.Status));
+    }
+
+    private ServiceBusClient CreateServiceBusClient()
+    {
+        if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && TokenCredential != null)
+        {
+            return new ServiceBusClient(FullyQualifiedNamespace, TokenCredential, ClientOptions);
+        }
+        else if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && NamedKeyCredential != null)
+        {
+            return new ServiceBusClient(FullyQualifiedNamespace, NamedKeyCredential, ClientOptions);
+        }
+        else if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && SasCredential != null)
+        {
+            return new ServiceBusClient(FullyQualifiedNamespace, SasCredential, ClientOptions);
+        }
+
+        return new ServiceBusClient(ConnectionString, ClientOptions);
+    }
+    private ServiceBusAdministrationClient CreateServiceBusAdministrationClient()
+    {
+        if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && TokenCredential != null)
+        {
+            return new ServiceBusAdministrationClient(FullyQualifiedNamespace, TokenCredential);
+        }
+        else if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && NamedKeyCredential != null)
+        {
+            return new ServiceBusAdministrationClient(FullyQualifiedNamespace, NamedKeyCredential);
+        }
+        else if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && SasCredential != null)
+        {
+            return new ServiceBusAdministrationClient(FullyQualifiedNamespace, SasCredential);
+        }
+
+        return new ServiceBusAdministrationClient(ConnectionString);
     }
 }
