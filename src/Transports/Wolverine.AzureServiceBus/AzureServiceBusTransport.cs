@@ -23,8 +23,8 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         Topics = new(name => new AzureServiceBusTopic(this, name));
 
         _managementClient =
-            new Lazy<ServiceBusAdministrationClient>(CreateServiceBusAdministrationClient);
-        _busClient = new Lazy<ServiceBusClient>(CreateServiceBusClient);
+            new Lazy<ServiceBusAdministrationClient>(createServiceBusAdministrationClient);
+        _busClient = new Lazy<ServiceBusClient>(createServiceBusClient);
 
         IdentifierDelimiter = ".";
     }
@@ -110,34 +110,38 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         yield return new PropertyColumn(nameof(QueueProperties.Status));
     }
 
-    private ServiceBusClient CreateServiceBusClient()
+    private ServiceBusClient createServiceBusClient()
     {
-        if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && TokenCredential != null)
+        if (FullyQualifiedNamespace.IsNotEmpty() && TokenCredential != null)
         {
             return new ServiceBusClient(FullyQualifiedNamespace, TokenCredential, ClientOptions);
         }
-        else if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && NamedKeyCredential != null)
+
+        if (FullyQualifiedNamespace.IsNotEmpty() && NamedKeyCredential != null)
         {
             return new ServiceBusClient(FullyQualifiedNamespace, NamedKeyCredential, ClientOptions);
         }
-        else if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && SasCredential != null)
+
+        if (FullyQualifiedNamespace.IsNotEmpty() && SasCredential != null)
         {
             return new ServiceBusClient(FullyQualifiedNamespace, SasCredential, ClientOptions);
         }
 
         return new ServiceBusClient(ConnectionString, ClientOptions);
     }
-    private ServiceBusAdministrationClient CreateServiceBusAdministrationClient()
+    private ServiceBusAdministrationClient createServiceBusAdministrationClient()
     {
-        if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && TokenCredential != null)
+        if (FullyQualifiedNamespace.IsNotEmpty() && TokenCredential != null)
         {
             return new ServiceBusAdministrationClient(FullyQualifiedNamespace, TokenCredential);
         }
-        else if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && NamedKeyCredential != null)
+
+        if (FullyQualifiedNamespace.IsNotEmpty() && NamedKeyCredential != null)
         {
             return new ServiceBusAdministrationClient(FullyQualifiedNamespace, NamedKeyCredential);
         }
-        else if (!string.IsNullOrEmpty(FullyQualifiedNamespace) && SasCredential != null)
+
+        if (FullyQualifiedNamespace.IsNotEmpty() && SasCredential != null)
         {
             return new ServiceBusAdministrationClient(FullyQualifiedNamespace, SasCredential);
         }
