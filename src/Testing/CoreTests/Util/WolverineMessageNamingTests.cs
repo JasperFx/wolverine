@@ -42,6 +42,13 @@ public class WolverineMessageNamingTests
         typeof(DifferentMessage).ToMessageTypeName()
             .ShouldBe("MyThing");
     }
+
+    [Fact]
+    public void respect_the_interop_attribute()
+    {
+        typeof(InteropAttributedMessage).ToMessageTypeName()
+            .ShouldBe(typeof(IMessageInterface).ToMessageTypeName());
+    }
 }
 
 public class ConcreteMessage : IInterfaceMessage
@@ -69,3 +76,8 @@ public class AliasedMessage2
 public class MySpecialMessage
 {
 }
+
+public interface IMessageInterface{}
+
+[InteropMessage(typeof(IMessageInterface))]
+public class InteropAttributedMessage : IMessageInterface{}

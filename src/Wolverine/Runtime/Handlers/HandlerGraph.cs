@@ -13,6 +13,7 @@ using JasperFx.RuntimeCompiler;
 using Lamar;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Middleware;
@@ -201,6 +202,11 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
         foreach (var configuration in _configurations) configuration();
 
+        registerMessageTypes();
+    }
+
+    private void registerMessageTypes()
+    {
         _messageTypes =
             _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
 
@@ -208,11 +214,18 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         {
             _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
 
-            foreach (var @interface in chain.MessageType.GetInterfaces())
+            if (chain.MessageType.TryGetAttribute<InteropMessageAttribute>(out var att))
             {
-                if (InteropAssemblies.Contains(@interface.Assembly))
+                _messageTypes = _messageTypes.AddOrUpdate(att.InteropType.ToMessageTypeName(), chain.MessageType);
+            }
+            else
+            {
+                foreach (var @interface in chain.MessageType.GetInterfaces())
                 {
-                    _messageTypes = _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
+                    if (InteropAssemblies.Contains(@interface.Assembly))
+                    {
+                        _messageTypes = _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
+                    }
                 }
             }
         }

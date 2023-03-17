@@ -12,6 +12,21 @@ public interface IMessageTypeNaming
     bool TryDetermineName(Type messageType, out string messageTypeName);
 }
 
+internal class InteropAttributeForwardingNaming : IMessageTypeNaming
+{
+    public bool TryDetermineName(Type messageType, out string messageTypeName)
+    {
+        if (messageType.TryGetAttribute<InteropMessageAttribute>(out var att))
+        {
+            messageTypeName = att.InteropType.ToMessageTypeName();
+            return true;
+        }
+
+        messageTypeName = default;
+        return false;
+    }
+}
+
 internal class MessageIdentityAttributeNaming : IMessageTypeNaming
 {
     public bool TryDetermineName(Type messageType, out string messageTypeName)
@@ -88,16 +103,14 @@ internal class InteropAssemblyInterfaces : IMessageTypeNaming
     }
 }
 
-
-
 public static class WolverineMessageNaming
 {
     private static ImHashMap<Type, string> _typeNames = ImHashMap<Type, string>.Empty;
 
     private static readonly List<IMessageTypeNaming> _namingStrategies = new()
     {
-        
         new MessageIdentityAttributeNaming(),
+        new InteropAttributeForwardingNaming(),
         new ForwardNaming(),
         new InteropAssemblyInterfaces(),
         new FullTypeNaming()

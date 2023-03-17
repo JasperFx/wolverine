@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using CoreTests.Util;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Module1;
+using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Util;
 using Xunit;
@@ -28,10 +30,24 @@ public class HandlerGraphTests
         var interfaceTypeName = typeof(IMessageAbstraction).ToMessageTypeName();
         graph.TryFindMessageType(interfaceTypeName, out var toBeSerializedType).ShouldBeTrue();
         toBeSerializedType.ShouldBe(typeof(ConcreteMessage));
+        
+        // And same using the attribute
+        graph.TryFindMessageType(typeof(IMessageMarker).ToMessageTypeName(), out var markedType).ShouldBeTrue();
+        markedType.ShouldBe(typeof(MarkedMessage));
     }
+    
+    
 }
 
+public interface IMessageMarker{}
 
+[InteropMessage(typeof(IMessageMarker))]
+public class MarkedMessage : IMessageMarker{}
+
+public class MarkedMessageHandler
+{
+    public static void Handle(MarkedMessage message){}
+}
 
 public class ConcreteMessage : IMessageAbstraction
 {
