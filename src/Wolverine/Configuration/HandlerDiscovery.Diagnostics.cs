@@ -29,13 +29,13 @@ public sealed partial class HandlerDiscovery
         }
 
         bool typeNotFound = false;
-        if (!_handlerQuery.Includes.Matches(candidateType))
+        if (!HandlerQuery.Includes.Matches(candidateType))
         {
             writeTypeIncludeMiss(candidateType, writer);
             typeNotFound = true;
         }
 
-        if (_handlerQuery.Excludes.Matches(candidateType))
+        if (HandlerQuery.Excludes.Matches(candidateType))
         {
             writeTypeExcludeMatch(candidateType, writer);
             typeNotFound = true;
@@ -57,7 +57,7 @@ public sealed partial class HandlerDiscovery
         {
             writer.WriteLine($"Method: {method.Name}({method.GetParameters().Select(x => x.ParameterType.ShortNameInCode()).Join(", ")})" );
             
-            foreach (var filter in _methodIncludes)
+            foreach (var filter in MethodIncludes)
             {
                 if (filter.Matches(method))
                 {
@@ -69,7 +69,7 @@ public sealed partial class HandlerDiscovery
                 }
             }
 
-            foreach (var filter in _methodExcludes)
+            foreach (var filter in MethodExcludes)
             {
                 if (filter.Matches(method))
                 {
@@ -90,7 +90,7 @@ public sealed partial class HandlerDiscovery
 
     private void writeTypeExcludeMatch(Type candidateType, StringWriter writer)
     {
-        foreach (var filter in _handlerQuery.Excludes)
+        foreach (var filter in HandlerQuery.Excludes)
         {
             if (filter.Matches(candidateType))
             {
@@ -105,7 +105,7 @@ public sealed partial class HandlerDiscovery
 
     private void writeTypeIncludeMiss(Type candidateType, StringWriter writer)
     {
-        foreach (var filter in _handlerQuery.Includes)
+        foreach (var filter in HandlerQuery.Includes)
         {
             if (filter.Matches(candidateType))
             {

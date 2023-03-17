@@ -13,9 +13,6 @@ public sealed partial class HandlerDiscovery
 {
     private readonly IList<Type> _explicitTypes = new List<Type>();
 
-    private readonly CompositeFilter<MethodInfo> _methodIncludes = new();
-    private readonly CompositeFilter<MethodInfo> _methodExcludes = new();
-
     private readonly string[] _validMethods =
     {
         HandlerChain.Handle, HandlerChain.Handles, HandlerChain.Consume, HandlerChain.Consumes, SagaChain.Orchestrate,
@@ -25,7 +22,6 @@ public sealed partial class HandlerDiscovery
 
     private bool _conventionalDiscoveryDisabled;
 
-    private readonly TypeQuery _handlerQuery = new(TypeClassification.Concretes | TypeClassification.Closed);
     private readonly TypeQuery _messageQuery = new(TypeClassification.Concretes | TypeClassification.Closed);
 
     public HandlerDiscovery()
@@ -40,47 +36,53 @@ public sealed partial class HandlerDiscovery
         _messageQuery.Excludes.IsNotPublic();
     }
 
+    internal CompositeFilter<MethodInfo> MethodIncludes { get; } = new();
+
+    internal CompositeFilter<MethodInfo> MethodExcludes { get; } = new();
+
     private void specifyHandlerMethodRules()
     {
         foreach (var methodName in _validMethods)
         {
-            _methodIncludes.WithCondition($"Method name is '{methodName}' (case sensitive)", m => m.Name == methodName);
+            MethodIncludes.WithCondition($"Method name is '{methodName}' (case sensitive)", m => m.Name == methodName);
 
             var asyncName = methodName + "Async";
-            _methodIncludes.WithCondition($"Method name is '{asyncName}' (case sensitive)", m => m.Name == asyncName);
+            MethodIncludes.WithCondition($"Method name is '{asyncName}' (case sensitive)", m => m.Name == asyncName);
         }
 
-        _methodIncludes.WithCondition("Has attribute [WolverineHandler]", m => m.HasAttribute<WolverineHandlerAttribute>());
+        MethodIncludes.WithCondition("Has attribute [WolverineHandler]", m => m.HasAttribute<WolverineHandlerAttribute>());
 
-        _methodExcludes.WithCondition("Method is declared by object", method => method.DeclaringType == typeof(object));
-        _methodExcludes.WithCondition("IDisposable.Dispose()", method => method.Name == nameof(IDisposable.Dispose));
-        _methodExcludes.WithCondition("IAsyncDisposable.DisposeAsync()",
+        MethodExcludes.WithCondition("Method is declared by object", method => method.DeclaringType == typeof(object));
+        MethodExcludes.WithCondition("IDisposable.Dispose()", method => method.Name == nameof(IDisposable.Dispose));
+        MethodExcludes.WithCondition("IAsyncDisposable.DisposeAsync()",
             method => method.Name == nameof(IAsyncDisposable.DisposeAsync));
-        _methodExcludes.WithCondition("Contains Generic Parameters", method => method.ContainsGenericParameters);
-        _methodExcludes.WithCondition("Special Name", method => method.IsSpecialName);
-        _methodExcludes.WithCondition("Has attribute [WolverineIgnore]",
+        MethodExcludes.WithCondition("Contains Generic Parameters", method => method.ContainsGenericParameters);
+        MethodExcludes.WithCondition("Special Name", method => method.IsSpecialName);
+        MethodExcludes.WithCondition("Has attribute [WolverineIgnore]",
             method => method.HasAttribute<WolverineIgnoreAttribute>());
         
         
         
-        _methodExcludes.WithCondition("Has no arguments", m => !m.GetParameters().Any());
+        MethodExcludes.WithCondition("Has no arguments", m => !m.GetParameters().Any());
         
-        _methodExcludes.WithCondition("Cannot determine a valid message type",m => m.MessageType() == null);
+        MethodExcludes.WithCondition("Cannot determine a valid message type",m => m.MessageType() == null);
         
-        _methodExcludes.WithCondition("Returns a primitive type", m => m.ReturnType != typeof(void) && m.ReturnType.IsPrimitive);
+        MethodExcludes.WithCondition("Returns a primitive type", m => m.ReturnType != typeof(void) && m.ReturnType.IsPrimitive);
     }
 
     private void specifyHandlerDiscovery()
     {
-        _handlerQuery.Includes.WithNameSuffix(HandlerChain.HandlerSuffix);
-        _handlerQuery.Includes.WithNameSuffix(HandlerChain.ConsumerSuffix);
-        _handlerQuery.Includes.Implements<Saga>();
-        _handlerQuery.Includes.Implements<IWolverineHandler>();
-        _handlerQuery.Includes.WithAttribute<WolverineHandlerAttribute>();
+        HandlerQuery.Includes.WithNameSuffix(HandlerChain.HandlerSuffix);
+        HandlerQuery.Includes.WithNameSuffix(HandlerChain.ConsumerSuffix);
+        HandlerQuery.Includes.Implements<Saga>();
+        HandlerQuery.Includes.Implements<IWolverineHandler>();
+        HandlerQuery.Includes.WithAttribute<WolverineHandlerAttribute>();
 
-        _handlerQuery.Excludes.WithCondition("Is not a public type", t => isNotPublicType(t));
-        _handlerQuery.Excludes.WithAttribute<WolverineIgnoreAttribute>();
+        HandlerQuery.Excludes.WithCondition("Is not a public type", t => isNotPublicType(t));
+        HandlerQuery.Excludes.WithAttribute<WolverineIgnoreAttribute>();
     }
+
+    internal TypeQuery HandlerQuery { get; } = new(TypeClassification.Concretes | TypeClassification.Closed);
 
     private static bool isNotPublicType(Type type)
     {
@@ -106,7 +108,7 @@ public sealed partial class HandlerDiscovery
             throw new ArgumentNullException(nameof(configure));
         }
 
-        configure(_handlerQuery);
+        configure(HandlerQuery);
         return this;
     }
     
@@ -156,7 +158,7 @@ public sealed partial class HandlerDiscovery
             Assemblies.Fill(options.ApplicationAssembly);
         }
         
-        return _handlerQuery.Find(Assemblies)
+        return HandlerQuery.Find(Assemblies)
             .Concat(_explicitTypes)
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
@@ -166,7 +168,7 @@ public sealed partial class HandlerDiscovery
     {
         return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static)
             .Where(x => x.DeclaringType != typeof(object)).ToArray()
-            .Where(m => _methodIncludes.Matches(m) && !_methodExcludes.Matches(m))
+            .Where(m => MethodIncludes.Matches(m) && !MethodExcludes.Matches(m))
             .Select(m => (type, m));
     }
 
