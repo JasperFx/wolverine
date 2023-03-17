@@ -53,7 +53,10 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var method =
             dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
 
-        return new MethodCall(dbContextType, method);
+        var call = new MethodCall(dbContextType, method);
+        call.ReturnVariable.OverrideName(call.ReturnVariable.Usage + "1");
+
+        return call;
     }
 
     public Frame DetermineUpdateFrame(Variable saga, IContainer container)
@@ -75,9 +78,6 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
         }
-
-        
-
 
         var saveChangesAsync =
             dbType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
@@ -147,8 +147,13 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return contextType;
     }
 
-    public static Type DetermineDbContextType(IChain chain, IContainer container)
+    public Type DetermineDbContextType(IChain chain, IContainer container)
     {
+        if (chain is SagaChain saga)
+        {
+            return DetermineDbContextType(saga.SagaType, container);
+        }
+        
         var contextTypes = chain.ServiceDependencies(container).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
 
         if (contextTypes.Length == 0)
