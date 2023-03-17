@@ -89,7 +89,7 @@ public class MessageBus : IMessageBus
 
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
     {
-        return Runtime.RoutingFor(message.GetType()).RouteForSend(message, null);
+        return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, null);
     }
 
     public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)

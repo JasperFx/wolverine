@@ -28,6 +28,20 @@ public class routing_precedence
         bus.PreviewSubscriptions(new BlueMessage())
             .Single().Destination.ShouldBe(new Uri("local://blue"));
     }
+
+    [Fact]
+    public async Task can_disable_local_routing_convention()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Policies.DisableConventionalLocalRouting();
+            }).StartAsync();
+
+        var bus = host.Services.GetRequiredService<IMessageBus>();
+        bus.PreviewSubscriptions(new BlueMessage())
+            .Any().ShouldBeFalse();
+    }
     
     
     [Fact]

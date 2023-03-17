@@ -19,7 +19,9 @@ public sealed partial class WolverineOptions : IPolicies
 {
     internal List<IWolverinePolicy> RegisteredPolicies { get; } = new();
 
-    public void AutoApplyTransactions()
+
+
+    void IPolicies.AutoApplyTransactions()
     {
         this.As<IPolicies>().Add(new AutoApplyTransactions());
     }
@@ -130,6 +132,11 @@ public sealed partial class WolverineOptions : IPolicies
     ILocalMessageRoutingConvention IPolicies.ConfigureConventionalLocalRouting()
     {
         return Transports.GetOrCreate<LocalTransport>();
+    }
+    
+    void IPolicies.DisableConventionalLocalRouting()
+    {
+        LocalRoutingConventionDisabled = true;
     }
     
     private MiddlewarePolicy findOrCreateMiddlewarePolicy()

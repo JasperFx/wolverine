@@ -133,9 +133,12 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     internal void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
-        foreach (var messageType in handledMessageTypes)
+        if (!runtime.Options.LocalRoutingConventionDisabled)
         {
-            FindOrCreateQueueForMessageTypeByConvention(messageType);
+            foreach (var messageType in handledMessageTypes)
+            {
+                FindOrCreateQueueForMessageTypeByConvention(messageType);
+            }
         }
 
         // Apply individual queue configuration

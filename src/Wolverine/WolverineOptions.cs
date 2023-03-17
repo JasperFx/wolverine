@@ -119,6 +119,7 @@ public sealed partial class WolverineOptions
     internal bool ExternalTransportsAreStubbed { get; set; }
 
     internal LocalTransport LocalRouting => Transports.GetOrCreate<LocalTransport>();
+    internal bool LocalRoutingConventionDisabled { get; set; }
 
     private void deriveServiceName()
     {

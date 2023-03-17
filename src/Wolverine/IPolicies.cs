@@ -62,6 +62,13 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// <returns></returns>
     ILocalMessageRoutingConvention ConfigureConventionalLocalRouting();
 
+    /// <summary>
+    /// Opt out of Wolverine's default convention of routing messages to the local node's queues
+    /// Use this to force messages without explicit routing rules to be sent to external transports
+    /// even if the node has a message handler for the message type
+    /// </summary>
+    void DisableConventionalLocalRouting();
+
     
     /// <summary>
     /// In place of using [Transactional] attributes, apply transactional middleware
