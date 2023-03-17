@@ -1,7 +1,7 @@
 # Marten Integration
 
 [Marten](https://martendb.io) and Wolverine are sibling projects under the [JasperFx organization](https://github.com/wolverinefx), and as such, have quite a bit of synergy when
-used together. At this point, adding the `WolverineFx.Marten`*` Nuget dependency to your application adds the capability to combine Marten and Wolverine to:
+used together. At this point, adding the `WolverineFx.Marten` Nuget dependency to your application adds the capability to combine Marten and Wolverine to:
 
 * Simplify persistent handler coding with transactional middleware
 * Use Marten and Postgresql as a persistent inbox or outbox with Wolverine messaging
@@ -196,6 +196,13 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 
 
 ## Transactional Middleware
+
+::: warning
+When using the transactional middleware with Marten, Wolverine is assuming that there will be a single, 
+atomic transaction for the entire message handler. Because of the integration with Wolverine's outbox and 
+the Marten `IDocumentSession`, it is **very strongly** recommended that you do not call `IDocumentSession.SaveChangesAsync()`
+yourself as that may result in unexpected behavior in terms of outgoing messages.
+:::
 
 ::: tip
 You will need to make the `IServiceCollection.AddMarten(...).IntegrateWithWolverine()` call to add this middleware to a Wolverine application.
