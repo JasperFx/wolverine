@@ -15,7 +15,7 @@ internal class LoggerVariableSource : IVariableSource
         _messageType = messageType;
         _loggerType = typeof(ILogger<>).MakeGenericType(messageType);
 
-        _field = new InjectedField(_loggerType);
+        _field = new InjectedField(_loggerType, "loggerForMessage");
     }
 
     public bool Matches(Type type)
