@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Description>Azure Service Bus transport for Wolverine applications</Description>
+        <AssemblyName>Wolverine.Postgresql.Transport</AssemblyName>
+        <PackageId>WolverineFx.Postgresql.Transport</PackageId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Npgsql" Version="7.0.2" />
+    </ItemGroup>
+
+</Project>
