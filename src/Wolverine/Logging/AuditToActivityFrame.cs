@@ -28,7 +28,7 @@ internal class AuditToActivityFrame : SyncFrame
     {
         foreach (var member in _members)
         {
-            writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{member.Member.Name}\", {_input.Usage}.{member.Member.Name});");
+            writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input.Usage}.{member.Member.Name});");
         }
         
         Next?.GenerateCode(method, writer);

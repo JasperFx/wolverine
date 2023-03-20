@@ -40,7 +40,7 @@ internal class LogStartingActivity : SyncFrame
         var template = $"Starting to process {_inputType.FullNameInCode()} ({{Id}})";
         if (_members.Any())
         {
-            template += " with " + _members.Select(m => $"{m.Heading}: {{{m.Member.Name}}}").Join(", ");
+            template += " with " + _members.Select(m => $"{m.MemberName}: {{{m.Member.Name}}}").Join(", ");
         }
 
         var args = new string[] { $"{_envelope.Usage}.{nameof(Envelope.Id)}" };

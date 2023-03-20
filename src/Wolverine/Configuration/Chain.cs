@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Attributes;
@@ -148,6 +149,6 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     /// <param name="heading"></param>
     public void Audit(MemberInfo member, string? heading = null)
     {
-        AuditedMembers.Add(new AuditedMember(member, heading ?? member.Name));
+        AuditedMembers.Add(new AuditedMember(member, heading ?? member.Name, member.Name.SplitPascalCase().Replace(" ", ".").ToLowerInvariant()));
     }
 }

@@ -78,7 +78,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         var envelope = theSession.Received.SingleEnvelope<TcpMessage1>();
 
         envelope.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
-        envelope.Source.ShouldBe("WebApi");
+        envelope.Source.ShouldBe("OtelWebApi");
         envelope.ConversationId.ShouldBe(theOriginalEnvelope.Id);
     }
 

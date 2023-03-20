@@ -94,14 +94,14 @@ public partial class Envelope
         {
             return new[]
             {
-                new KeyValuePair<string, object?>(nameof(MessageType), MessageType)
+                new KeyValuePair<string, object?>(MetricsConstants.MessageTypeKey, MessageType)
             };
         }
 
         return new[]
         {
-            new(nameof(Destination), Destination.ToString()),
-            new KeyValuePair<string, object?>(nameof(MessageType), MessageType)
+            new(MetricsConstants.MessageDestinationKey, Destination.ToString()),
+            new KeyValuePair<string, object?>(MetricsConstants.MessageTypeKey, MessageType)
         };
     }
 

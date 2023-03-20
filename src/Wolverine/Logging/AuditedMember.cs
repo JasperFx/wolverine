@@ -7,5 +7,5 @@ namespace Wolverine.Logging;
 /// in instrumentation
 /// </summary>
 /// <param name="Member"></param>
-/// <param name="Heading"></param>
-public record AuditedMember(MemberInfo Member, string Heading);
+/// <param name="OpenTelemetryName"></param>
+public record AuditedMember(MemberInfo Member, string MemberName, string OpenTelemetryName);

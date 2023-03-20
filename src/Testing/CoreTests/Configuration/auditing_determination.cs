@@ -23,10 +23,13 @@ public class auditing_determination : IntegrationContext
         var chain = chainFor<AuditedMessage>();
         
         chain.AuditedMembers.Single(x => x.Member.Name == nameof(AuditedMessage.Name))
-            .Heading.ShouldBe(nameof(AuditedMessage.Name));
+            .MemberName.ShouldBe(nameof(AuditedMessage.Name));
+        
+        chain.AuditedMembers.Single(x => x.Member.Name == nameof(AuditedMessage.Name))
+            .OpenTelemetryName.ShouldBe("name");
         
         chain.AuditedMembers.Single(x => x.Member.Name == nameof(AuditedMessage.AccountId))
-            .Heading.ShouldBe("AccountIdentifier");
+            .OpenTelemetryName.ShouldBe("account.id");
     }
 
     [Fact]
@@ -35,8 +38,8 @@ public class auditing_determination : IntegrationContext
         var chain = chainFor<AuditedMessage>();
         var lines = chain.SourceCode.ReadLines();
 
-        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"Name\", auditedMessage.Name)")).ShouldBeTrue();
-        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"AccountId\", auditedMessage.AccountId)")).ShouldBeTrue();
+        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"name\", auditedMessage.Name)")).ShouldBeTrue();
+        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"account.id\", auditedMessage.AccountId)")).ShouldBeTrue();
     }
 
     [Fact]
