@@ -90,19 +90,14 @@ public partial class Envelope
 
     internal KeyValuePair<string, object?>[] ToHeaders()
     {
-        if (Destination == null)
-        {
-            return new[]
-            {
-                new KeyValuePair<string, object?>(MetricsConstants.MessageTypeKey, MessageType)
-            };
-        }
+        return toHeaders().ToArray();
+    }
 
-        return new[]
-        {
-            new(MetricsConstants.MessageDestinationKey, Destination.ToString()),
-            new KeyValuePair<string, object?>(MetricsConstants.MessageTypeKey, MessageType)
-        };
+    private IEnumerable<KeyValuePair<string, object?>> toHeaders()
+    {
+        yield return new(MetricsConstants.MessageTypeKey, MessageType);
+
+        if (Destination != null) yield return new(MetricsConstants.MessageDestinationKey, Destination.ToString());
     }
 
     internal void MarkReceived(IListener listener, DateTimeOffset now, DurabilitySettings settings)
