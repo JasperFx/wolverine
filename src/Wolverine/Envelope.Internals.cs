@@ -102,6 +102,23 @@ public partial class Envelope
         yield return new(MetricsConstants.MessageTypeKey, MessageType);
 
         if (Destination != null) yield return new(MetricsConstants.MessageDestinationKey, Destination.ToString());
+
+        if (_metricHeaders != null)
+        {
+            foreach (var header in _metricHeaders)
+            {
+                yield return header;
+            }
+        }
+    }
+
+    private List<KeyValuePair<string, object?>> _metricHeaders;
+
+    public void SetMetricsTag(string tagName, object value)
+    {
+        _metricHeaders ??= new();
+        
+        _metricHeaders.Add(new KeyValuePair<string, object>(tagName, value));
     }
 
     internal void MarkReceived(IListener listener, DateTimeOffset now, DurabilitySettings settings)

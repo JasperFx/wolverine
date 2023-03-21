@@ -413,6 +413,18 @@ public class EnvelopeTests
         var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
         dict[MetricsConstants.MessageTypeKey].ShouldBe(typeof(Message1).ToMessageTypeName());
         dict[MetricsConstants.MessageDestinationKey].ShouldBe(envelope.Destination);
+        
+        dict.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void add_custom_metrics_header()
+    {
+        var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1()};
+        envelope.SetMetricsTag("org.unit", "foo");
+        
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+        dict["org.unit"].ShouldBe("foo");
     }
 
     public class when_building_an_envelope_for_scheduled_send

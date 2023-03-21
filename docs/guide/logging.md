@@ -75,5 +75,7 @@ TODO -- Soon. This is going to be tedious
 
 ## Metrics
 
+TODO -- talk about extending metrics headers
+
 TODO -- there's quite a bit built in that's published through System.Diagnostics.Metrics that should be available through open telemetry exports,
 but some more experimentation and actual docs are forthcoming.
