@@ -362,6 +362,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         ConversationId = originalEnvelope.Id;
         _channel = channel;
         _sagaId = originalEnvelope.SagaId;
+        TenantId = originalEnvelope.TenantId;
 
         Transaction = this;
 

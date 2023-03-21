@@ -198,4 +198,11 @@ public class serialization_and_deserialization_of_single_message
         outgoing.Source = "something";
         incoming.Source.ShouldBe(outgoing.Source);
     }
+
+    [Fact]
+    public void tenant_id()
+    {
+        outgoing.TenantId = "tenant2";
+        incoming.TenantId.ShouldBe("tenant2");
+    }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using JasperFx.Core;
 using Wolverine.Util;
 
 namespace Wolverine;
@@ -57,6 +58,11 @@ public class DeliveryOptions
     ///     the underlying saga state object
     /// </summary>
     public string? SagaId { get; internal set; }
+    
+    /// <summary>
+    /// Override the tenant id metadata for a single envelope
+    /// </summary>
+    public string? TenantId { get; set; }
 
     /// <summary>
     ///     Mimetype of the serialized data
@@ -101,6 +107,11 @@ public class DeliveryOptions
         if (SagaId != null)
         {
             envelope.SagaId = SagaId;
+        }
+
+        if (TenantId.IsNotEmpty())
+        {
+            envelope.TenantId = TenantId;
         }
 
         if (ContentType != null)

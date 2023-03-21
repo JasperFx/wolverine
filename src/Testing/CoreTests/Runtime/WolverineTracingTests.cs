@@ -46,9 +46,16 @@ public class when_creating_an_execution_activity
         theEnvelope.MessageType = "FooMessage";
         theEnvelope.CorrelationId = Guid.NewGuid().ToString();
         theEnvelope.Destination = new Uri("tcp://localhost:6666");
+        theEnvelope.TenantId = "tenant3";
 
         theActivity = new Activity("process");
         theEnvelope.WriteTags(theActivity);
+    }
+
+    [Fact]
+    public void should_set_the_tenant_id()
+    {
+        theActivity.GetTagItem(MetricsConstants.TenantIdKey).ShouldBe(theEnvelope.TenantId);
     }
 
     [Fact]

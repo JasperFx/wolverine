@@ -418,6 +418,19 @@ public class EnvelopeTests
     }
 
     [Fact]
+    public void tenant_id_is_part_of_metrics()
+    {
+        var envelope = new Envelope
+        {
+            Destination = new Uri("local://one"), 
+            Message = new Message1(),
+            TenantId = "tenant1"
+        };
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+        dict[MetricsConstants.TenantIdKey].ShouldBe("tenant1");
+    }
+
+    [Fact]
     public void add_custom_metrics_header()
     {
         var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1()};
@@ -425,6 +438,20 @@ public class EnvelopeTests
         
         var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
         dict["org.unit"].ShouldBe("foo");
+    }
+
+    [Fact]
+    public void propagate_tenant_id_in_ForSend()
+    {
+        var envelope = new Envelope
+        {
+            Destination = new Uri("local://one"), 
+            Message = new Message1(),
+            TenantId = "tenant1"
+        };
+
+        var send = envelope.ForSend(new Message2());
+        send.TenantId.ShouldBe(envelope.TenantId);
     }
 
     public class when_building_an_envelope_for_scheduled_send

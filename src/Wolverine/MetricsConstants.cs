@@ -17,4 +17,5 @@ public class MetricsConstants
 
     public const string MessageTypeKey = "message.type";
     public const string MessageDestinationKey = "message.destination";
+    public const string TenantIdKey = "tenant.id";
 }

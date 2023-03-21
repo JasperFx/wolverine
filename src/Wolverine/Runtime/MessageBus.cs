@@ -29,6 +29,8 @@ public class MessageBus : IMessageBus
     }
 
     public string? CorrelationId { get; set; }
+    
+    public string? TenantId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
     public IMessageStore Storage { get; }
@@ -173,7 +175,10 @@ public class MessageBus : IMessageBus
 
     private void trackEnvelopeCorrelation(Envelope[] outgoing)
     {
-        foreach (var outbound in outgoing) TrackEnvelopeCorrelation(outbound);
+        foreach (var outbound in outgoing)
+        {
+            TrackEnvelopeCorrelation(outbound);
+        }
     }
 
     internal virtual void TrackEnvelopeCorrelation(Envelope outbound)
@@ -181,6 +186,7 @@ public class MessageBus : IMessageBus
         outbound.Source = Runtime.Options.ServiceName;
         outbound.CorrelationId = CorrelationId;
         outbound.ConversationId = outbound.Id; // the message chain originates here
+        outbound.TenantId = TenantId;
     }
 
     internal async ValueTask PersistOrSendAsync(params Envelope[] outgoing)

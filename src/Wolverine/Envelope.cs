@@ -197,6 +197,12 @@ public partial class Envelope
     ///     activity across services
     /// </summary>
     public string? ParentId { get; internal set; }
+    
+    /// <summary>
+    /// User defined tenant identifier for multi-tenancy strategies. This is
+    /// part of metrics reporting and message correlation
+    /// </summary>
+    public string? TenantId { get; set; }
 
     /// <summary>
     ///     Specifies the accepted content types for the requested reply

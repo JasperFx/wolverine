@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
@@ -25,6 +22,8 @@ public enum EnvelopeStatus
 public partial class Envelope
 {
     private bool _enqueued;
+
+    private List<KeyValuePair<string, object?>> _metricHeaders;
     private Stopwatch? _timer;
 
     internal Envelope(object message, ISendingAgent agent)
@@ -89,7 +88,6 @@ public partial class Envelope
     }
 
     /// <summary>
-    /// 
     /// </summary>
     /// <returns></returns>
     internal KeyValuePair<string, object?>[] ToMetricsHeaders()
@@ -99,25 +97,35 @@ public partial class Envelope
 
     private IEnumerable<KeyValuePair<string, object?>> toHeaders()
     {
-        yield return new(MetricsConstants.MessageTypeKey, MessageType);
+        yield return new KeyValuePair<string, object?>(MetricsConstants.MessageTypeKey, MessageType);
 
-        if (Destination != null) yield return new(MetricsConstants.MessageDestinationKey, Destination.ToString());
+        if (Destination != null)
+        {
+            yield return new KeyValuePair<string, object?>(MetricsConstants.MessageDestinationKey,
+                Destination.ToString());
+        }
+
+        if (TenantId != null)
+        {
+            yield return new KeyValuePair<string, object?>(MetricsConstants.TenantIdKey, TenantId);
+        }
 
         if (_metricHeaders != null)
         {
-            foreach (var header in _metricHeaders)
-            {
-                yield return header;
-            }
+            foreach (var header in _metricHeaders) yield return header;
         }
     }
 
-    private List<KeyValuePair<string, object?>> _metricHeaders;
-
+    /// <summary>
+    ///     Add an additional tag for information written to metrics. This is purposely
+    ///     kept separate from open telemetry activity tracking
+    /// </summary>
+    /// <param name="tagName"></param>
+    /// <param name="value"></param>
     public void SetMetricsTag(string tagName, object value)
     {
-        _metricHeaders ??= new();
-        
+        _metricHeaders ??= new List<KeyValuePair<string, object?>>();
+
         _metricHeaders.Add(new KeyValuePair<string, object>(tagName, value));
     }
 
@@ -165,7 +173,8 @@ public partial class Envelope
             Message = message,
             CorrelationId = Id.ToString(),
             ConversationId = Id,
-            SagaId = SagaId
+            SagaId = SagaId,
+            TenantId = TenantId
         };
     }
 
@@ -245,7 +254,7 @@ public partial class Envelope
         activity.SetTag(WolverineTracing.MessagingConversationId, CorrelationId);
         activity.SetTag(WolverineTracing.MessageType, MessageType); // Wolverine specific
         activity.MaybeSetTag(WolverineTracing.PayloadSizeBytes, MessagePayloadSize);
-
+        activity.MaybeSetTag(MetricsConstants.TenantIdKey, TenantId);
         activity.MaybeSetTag(WolverineTracing.MessagingConversationId, ConversationId);
     }
 

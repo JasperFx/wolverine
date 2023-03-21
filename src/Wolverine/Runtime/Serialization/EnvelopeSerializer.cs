@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Xml;
 
 namespace Wolverine.Runtime.Serialization;
@@ -89,6 +85,10 @@ public static class EnvelopeSerializer
 
                 case EnvelopeConstants.DeliverByKey:
                     env.DeliverBy = DateTime.Parse(value);
+                    break;
+                
+                case EnvelopeConstants.TenantIdKey:
+                    env.TenantId = value;
                     break;
 
                 default:
@@ -198,7 +198,8 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.DestinationKey, env.Destination);
         writer.WriteProp(ref count, EnvelopeConstants.SagaIdKey, env.SagaId);
         writer.WriteProp(ref count, EnvelopeConstants.ParentIdKey, env.ParentId);
-
+        writer.WriteProp(ref count, EnvelopeConstants.TenantIdKey, env.TenantId);
+        
         if (env.AcceptedContentTypes.Any())
         {
             writer.WriteProp(ref count, EnvelopeConstants.AcceptedContentTypesKey,

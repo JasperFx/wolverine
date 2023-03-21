@@ -25,16 +25,40 @@ public class MessageContextTests
     public MessageContextTests()
     {
         theRuntime = new MockWolverineRuntime();
+        theRuntime.Options.ServiceName = "MyService";
 
         var original = ObjectMother.Envelope();
         original.Id = Guid.NewGuid();
         original.CorrelationId = Guid.NewGuid().ToString();
+        original.ConversationId = Guid.NewGuid();
+        original.TenantId = "some tenant";
+        original.SagaId = "some saga";
 
         var context = new MessageContext(theRuntime);
         context.ReadEnvelope(original, InvocationCallback.Instance);
         theContext = context.As<MessageContext>();
 
         theEnvelope = ObjectMother.Envelope();
+    }
+
+    [Fact]
+    public void track_envelope_correlation()
+    {
+        theContext.TrackEnvelopeCorrelation(theEnvelope);
+        
+        theEnvelope.TenantId.ShouldBe(theContext.TenantId);
+        
+        theEnvelope.SagaId.ShouldBe("some saga");
+        theEnvelope.ConversationId.ShouldBe(theContext.Envelope.ConversationId);
+        
+        theEnvelope.Source.ShouldBe("MyService");
+        theEnvelope.CorrelationId.ShouldBe(theContext.CorrelationId);
+    }
+
+    [Fact]
+    public void reads_tenant_id_from_envelope()
+    {
+        theContext.TenantId.ShouldBe("some tenant");
     }
 
     [Fact]

@@ -44,6 +44,21 @@ public class DeliveryOptionsTests
     }
 
     [Fact]
+    public void override_tenant_id()
+    {
+        var options = new DeliveryOptions
+        {
+            TenantId = "tenant4"
+        };
+
+        var envelope = new Envelope();
+        
+        options.Override(envelope);
+        
+        envelope.TenantId.ShouldBe("tenant4");
+    }
+
+    [Fact]
     public void override_ack_requested()
     {
         var options = new DeliveryOptions
