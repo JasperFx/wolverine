@@ -12,11 +12,11 @@ using Xunit.Abstractions;
 
 namespace CoreTests.Acceptance;
 
-public class executing_with_middleware
+public class middleware_usage
 {
     private readonly ITestOutputHelper _output;
 
-    public executing_with_middleware(ITestOutputHelper output)
+    public middleware_usage(ITestOutputHelper output)
     {
         _output = output;
     }
@@ -264,6 +264,17 @@ public class executing_with_middleware
     }
 
     [Fact]
+    public async Task use_middleware_that_creates_type_in_before_that_is_used_in_after()
+    {
+        var list = await invokeMessage(new RunsScoredMessage { Number = 5, Batter = "Willie Mays" },
+            handlers => handlers.AddMiddleware<BeforeProducesUsedInAfter>());
+        
+        list.ShouldHaveTheSameElementsAs(
+            "RunsScoredMessage: Willie Mays", 
+            "Got activity with name = Created from Middleware");
+    }
+
+    [Fact]
     public async Task explicitly_added_middleware_by_attribute()
     {
         var list = await invokeMessage(new ExplicitMiddlewareMessage("Steve Balboni"), _ => { });
@@ -307,6 +318,25 @@ public class executing_with_middleware
             "Jump Ball",
             "Back on Defense"
             );
+    }
+}
+
+public class MiddlewareActivity
+{
+    public string Name { get; set; }
+    public bool Finished { get; set; }
+}
+
+public class BeforeProducesUsedInAfter
+{
+    public MiddlewareActivity Before()
+    {
+        return new MiddlewareActivity { Name = "Created from Middleware" };
+    }
+
+    public void After(MiddlewareActivity activity, Recorder recorder)
+    {
+        recorder.Actions.Add($"Got activity with name = {activity.Name}");
     }
 }
 
