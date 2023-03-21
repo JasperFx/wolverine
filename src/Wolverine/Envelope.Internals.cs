@@ -88,7 +88,11 @@ public partial class Envelope
         return _timer.ElapsedMilliseconds;
     }
 
-    internal KeyValuePair<string, object?>[] ToHeaders()
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    internal KeyValuePair<string, object?>[] ToMetricsHeaders()
     {
         return toHeaders().ToArray();
     }

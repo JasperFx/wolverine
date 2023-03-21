@@ -406,6 +406,15 @@ public class EnvelopeTests
         envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
     }
 
+    [Fact]
+    public void build_headers_for_metrics()
+    {
+        var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1()};
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+        dict[MetricsConstants.MessageTypeKey].ShouldBe(typeof(Message1).ToMessageTypeName());
+        dict[MetricsConstants.MessageDestinationKey].ShouldBe(envelope.Destination);
+    }
+
     public class when_building_an_envelope_for_scheduled_send
     {
         private readonly ISendingAgent theSubscriber;
@@ -464,5 +473,7 @@ public class EnvelopeTests
         {
             theScheduledEnvelope.ContentType.ShouldBe(TransportConstants.SerializedEnvelope);
         }
+        
+        
     }
 }

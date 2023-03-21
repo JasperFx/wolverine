@@ -73,7 +73,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
 
     public void Sent(Envelope envelope)
     {
-        _sentCounter.Add(1, envelope.ToHeaders());
+        _sentCounter.Add(1, envelope.ToMetricsHeaders());
         ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId);
         _sent(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty,
             null);
@@ -98,7 +98,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
         var time = envelope.StopTiming();
         if (time > 0)
         {
-            _executionCounter.Record(time, envelope.ToHeaders());
+            _executionCounter.Record(time, envelope.ToMetricsHeaders());
         }
 
         ActiveSession?.Record(EventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
@@ -108,9 +108,9 @@ public sealed partial class WolverineRuntime : IMessageLogger
     public void MessageSucceeded(Envelope envelope)
     {
         var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-        _effectiveTime.Record(time, envelope.ToHeaders());
+        _effectiveTime.Record(time, envelope.ToMetricsHeaders());
 
-        _successCounter.Add(1, envelope.ToHeaders());
+        _successCounter.Add(1, envelope.ToMetricsHeaders());
 
         ActiveSession?.Record(EventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
         _messageSucceeded(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), null);
@@ -119,9 +119,9 @@ public sealed partial class WolverineRuntime : IMessageLogger
     public void MessageFailed(Envelope envelope, Exception ex)
     {
         var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-        _effectiveTime.Record(time, envelope.ToHeaders());
+        _effectiveTime.Record(time, envelope.ToMetricsHeaders());
 
-        _deadLetterQueueCounter.Add(1, envelope.ToHeaders());
+        _deadLetterQueueCounter.Add(1, envelope.ToMetricsHeaders());
 
         ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
         _messageFailed(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), ex);
