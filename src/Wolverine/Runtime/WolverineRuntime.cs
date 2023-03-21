@@ -45,6 +45,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         Environment = environment;
         
         Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
+        logger.LogInformation("Exporting Open Telemetry metrics from Wolverine with name {Name}, version {Version}", Meter.Name, Meter.Version);
 
         Logger = logger;
 
