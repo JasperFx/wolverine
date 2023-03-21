@@ -73,15 +73,17 @@ internal class Executor : IExecutor
             // TODO -- Harden the inline sender. Feel good about buffered
             await context.FlushOutgoingMessagesAsync();
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
+            _logger.ExecutionFinished(envelope);
         }
         catch (Exception e)
         {
             Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            _logger.ExecutionFinished(envelope, e);
             throw;
         }
         finally
         {
-            _logger.ExecutionFinished(envelope);
+            
             _contextPool.Return(context);
             activity?.Stop();
         }
@@ -132,7 +134,7 @@ internal class Executor : IExecutor
         {
             _logger.LogException(e, context.Envelope!.Id, "Failure during message processing execution");
             _logger
-                .ExecutionFinished(context.Envelope); // Need to do this to make the MessageHistory complete
+                .ExecutionFinished(context.Envelope, e); // Need to do this to make the MessageHistory complete
 
             await context.ClearAllAsync();
 

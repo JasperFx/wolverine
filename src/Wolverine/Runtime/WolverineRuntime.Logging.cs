@@ -34,6 +34,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
     private readonly Histogram<long> _executionCounter;
     private readonly Counter<int> _sentCounter;
     private readonly Counter<int> _successCounter;
+    private readonly Counter<int> _failureCounter;
 
     static WolverineRuntime()
     {
@@ -103,6 +104,13 @@ public sealed partial class WolverineRuntime : IMessageLogger
 
         ActiveSession?.Record(EventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
         _executionFinished(Logger, envelope.GetMessageTypeName(), envelope.Id, null);
+    }
+
+    public void ExecutionFinished(Envelope envelope, Exception exception)
+    {
+        ExecutionFinished(envelope);
+        var tags = envelope.ToMetricsHeaders().Append(new (MetricsConstants.ExceptionType, exception.GetType().Name)).ToArray();
+        _failureCounter.Add(1, tags);
     }
 
     public void MessageSucceeded(Envelope envelope)

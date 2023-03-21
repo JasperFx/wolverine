@@ -33,6 +33,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
     private bool _hasStopped;
+    
 
 
     public WolverineRuntime(WolverineOptions options,
@@ -77,6 +78,10 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             "Execution time in seconds");
         _successCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSucceeded, MetricsConstants.Messages,
             "Number of messages successfully processed");
+
+        _failureCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesFailed, MetricsConstants.Messages,
+            "Number of message execution failures");
+        
         _deadLetterQueueCounter = Meter.CreateCounter<int>(MetricsConstants.DeadLetterQueue, MetricsConstants.Messages,
             "Number of messages moved to dead letter queues");
 
