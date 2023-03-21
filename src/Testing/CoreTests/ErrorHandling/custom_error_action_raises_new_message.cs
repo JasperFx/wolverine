@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
@@ -82,7 +83,7 @@ public class ShippingOrderFailurePolicy : UserDefinedContinuation
     }
 
     public override async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime,
-        DateTimeOffset now)
+        DateTimeOffset now, Activity activity)
     {
         if (lifecycle.Envelope?.Message is ShipOrder cmd)
         {

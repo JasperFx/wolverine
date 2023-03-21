@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.Core;
@@ -71,6 +72,12 @@ internal class Executor : IExecutor
 
             // TODO -- Harden the inline sender. Feel good about buffered
             await context.FlushOutgoingMessagesAsync();
+            Activity.Current?.SetStatus(ActivityStatusCode.Ok);
+        }
+        catch (Exception e)
+        {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            throw;
         }
         finally
         {
@@ -118,6 +125,7 @@ internal class Executor : IExecutor
         try
         {
             await _handler.HandleAsync(context, combined.Token);
+            Activity.Current?.SetStatus(ActivityStatusCode.Ok);
             return MessageSucceededContinuation.Instance;
         }
         catch (Exception e)
@@ -128,6 +136,7 @@ internal class Executor : IExecutor
 
             await context.ClearAllAsync();
 
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             return _rules.DetermineExecutionContinuation(e, context.Envelope);
         }
     }

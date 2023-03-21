@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
@@ -15,7 +16,7 @@ public class DiscardEnvelope : IContinuation, IContinuationSource
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
-        DateTimeOffset now)
+        DateTimeOffset now, Activity? activity)
     {
         try
         {

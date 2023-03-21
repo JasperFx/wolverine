@@ -64,9 +64,8 @@ public class HandlerPipeline : IHandlerPipeline
 
             try
             {
-                // TODO -- pass the activity into IContinuation?
-                var continuation = await executeAsync(context, envelope);
-                await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.Now);
+                var continuation = await executeAsync(context, envelope, activity);
+                await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.Now, activity);
             }
             catch (Exception e)
             {
@@ -75,6 +74,8 @@ public class HandlerPipeline : IHandlerPipeline
                 // Gotta get the message out of here because it's something that
                 // could never be handled
                 Logger.LogException(e, envelope.Id);
+
+                activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             }
             finally
             {
@@ -138,7 +139,7 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
-    private async Task<IContinuation> executeAsync(MessageContext context, Envelope envelope)
+    private async Task<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
     {
         if (envelope.IsExpired())
         {
@@ -149,6 +150,7 @@ public class HandlerPipeline : IHandlerPipeline
         {
             if (!tryDeserializeEnvelope(envelope, out var serializationError))
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
                 return serializationError;
             }
         }

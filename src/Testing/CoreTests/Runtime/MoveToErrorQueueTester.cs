@@ -25,7 +25,7 @@ public class MoveToErrorQueueTester
     [Fact]
     public async Task should_send_a_failure_ack()
     {
-        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now);
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
 
         await theLifecycle
                 .Received()
@@ -36,7 +36,7 @@ public class MoveToErrorQueueTester
     [Fact]
     public async Task logging_calls()
     {
-        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now);
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
 
         theRuntime.MessageLogger.Received().MessageFailed(theEnvelope, theException);
         theRuntime.MessageLogger.Received().MovedToErrorQueue(theEnvelope, theException);

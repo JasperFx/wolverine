@@ -21,7 +21,7 @@ public class MessageSucceededContinuationTester
         theLifecycle.Envelope.Returns(theEnvelope);
 
         MessageSucceededContinuation.Instance
-            .ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now);
+            .ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class MessageSucceededContinuation_failure_handling_Tester
         theLifecycle.Envelope.Returns(theEnvelope);
 
         MessageSucceededContinuation.Instance
-            .ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now);
+            .ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
     }
 
     [Fact]

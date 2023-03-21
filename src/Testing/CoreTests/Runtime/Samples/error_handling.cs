@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -302,7 +303,7 @@ public class RaiseAlert : IContinuation
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
-        DateTimeOffset now)
+        DateTimeOffset now, Activity activity)
     {
         await lifecycle.SendAsync(new RescheduledAlert
         {

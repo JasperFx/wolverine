@@ -19,7 +19,7 @@ public class RequeueContinuationTester
         context.Envelope.Returns(envelope);
 
 
-        await RequeueContinuation.Instance.ExecuteAsync(context, new MockWolverineRuntime(), DateTime.Now);
+        await RequeueContinuation.Instance.ExecuteAsync(context, new MockWolverineRuntime(), DateTime.Now, null);
 
         await context.Received(1).DeferAsync();
     }
