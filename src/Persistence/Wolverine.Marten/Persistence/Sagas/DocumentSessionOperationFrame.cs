@@ -26,6 +26,8 @@ internal class DocumentSessionOperationFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteLine("");
+        writer.WriteComment("Register the document operation with the current session");
         writer.Write($"{_session!.Usage}.{_methodName}({_saga.Usage});");
         Next?.GenerateCode(method, writer);
     }

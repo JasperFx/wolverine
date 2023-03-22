@@ -23,8 +23,10 @@ internal class ConditionalSagaInsertFrame : Frame
     {
         writer.Write($"BLOCK:if (!{_saga.Usage}.{nameof(Saga.IsCompleted)}())");
         _insert.GenerateCode(method, writer);
-        _commit.GenerateCode(method, writer);
+
         writer.FinishBlock();
+        
+        _commit.GenerateCode(method, writer);
 
         Next?.GenerateCode(method, writer);
     }
