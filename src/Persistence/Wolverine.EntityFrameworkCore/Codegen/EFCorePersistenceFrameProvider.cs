@@ -54,6 +54,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
 
         var call = new MethodCall(dbContextType, method);
+        call.CommentText = "Committing any pending entity changes to the database";
         call.ReturnVariable.OverrideName(call.ReturnVariable.Usage + "1");
 
         return call;
@@ -191,6 +192,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
+            writer.WriteLine("");
             writer.WriteComment(
                 "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
             writer.Write(
@@ -261,6 +263,8 @@ internal class DbContextOperationFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteLine("");
+        writer.WriteComment("Registering the Saga entity change");
         writer.Write($"{_context!.Usage}.{_methodName}({_saga.Usage});");
         Next?.GenerateCode(method, writer);
     }
@@ -294,6 +298,8 @@ internal class LoadEntityFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteLine("");
+        writer.WriteComment("Trying to load the existing Saga data");
         writer.Write(
             $"var {Saga.Usage} = await {_context!.Usage}.{nameof(DbContext.FindAsync)}<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);

@@ -45,7 +45,9 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame CommitUnitOfWorkFrame(Variable saga, IContainer container)
     {
-        return MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
+        var call = MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
+        call.CommentText = "Commit all pending changes";
+        return call;
     }
 
     public Frame DetermineUpdateFrame(Variable saga, IContainer container)

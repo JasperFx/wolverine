@@ -83,30 +83,33 @@ public class SagaChain : HandlerChain
 
         Handlers.Clear();
 
+        var list = new List<Frame>();
+
         if (!ExistingCalls.Any())
         {
-            generateForOnlyStartingSaga(container, frameProvider);
+            generateForOnlyStartingSaga(container, frameProvider, list);
         }
         else
         {
-            generateCodeForMaybeExisting(container, frameProvider);
+            generateCodeForMaybeExisting(container, frameProvider, list);
         }
 
-        return Middleware.Concat(Postprocessors).ToList();
+        return Middleware.Concat(list).Concat(Postprocessors).ToList();
     }
 
-    private void generateCodeForMaybeExisting(IContainer container, IPersistenceFrameProvider frameProvider)
+    private void generateCodeForMaybeExisting(IContainer container, IPersistenceFrameProvider frameProvider,
+        List<Frame> frames)
     {
         var findSagaId = SagaIdMember == null
             ? (Frame)new PullSagaIdFromEnvelopeFrame(frameProvider.DetermineSagaIdType(SagaType, container))
             : new PullSagaIdFromMessageFrame(MessageType, SagaIdMember);
-        Postprocessors.Insert(0, findSagaId);
+        frames.Add(findSagaId);
 
         var sagaId = findSagaId.Creates.Single();
 
         var load = frameProvider.DetermineLoadFrame(container, SagaType, sagaId);
         var saga = load.Creates.Single();
-        Postprocessors.Add(load);
+        frames.Add(load);
 
 
         var startingFrames = DetermineSagaDoesNotExistSteps(sagaId, saga, frameProvider, container).ToArray();
@@ -114,22 +117,26 @@ public class SagaChain : HandlerChain
         var ifNullBlock = new IfNullGuard(saga, startingFrames,
             existingFrames);
 
-        Postprocessors.Add(ifNullBlock);
+        frames.Add(ifNullBlock);
     }
 
-    private void generateForOnlyStartingSaga(IContainer container, IPersistenceFrameProvider frameProvider)
+    private void generateForOnlyStartingSaga(IContainer container, IPersistenceFrameProvider frameProvider,
+        List<Frame> frames)
     {
         var creator = new CreateNewSagaFrame(SagaType);
-        Postprocessors.Add(creator);
+        frames.Add(creator);
 
         foreach (var call in StartingCalls)
         {
-            Postprocessors.Add(call);
-            foreach (var create in call.Creates) Postprocessors.Add(new CaptureCascadingMessages(create));
+            frames.Add(call);
+            foreach (var create in call.Creates)
+            {
+                frames.Add(new CaptureCascadingMessages(create));
+            }
         }
 
         var ifNotCompleted = buildFrameForConditionalInsert(creator.Saga, frameProvider, container);
-        Postprocessors.Add(ifNotCompleted);
+        frames.Add(ifNotCompleted);
     }
 
     internal IEnumerable<Frame> DetermineSagaDoesNotExistSteps(Variable sagaId, Variable saga,

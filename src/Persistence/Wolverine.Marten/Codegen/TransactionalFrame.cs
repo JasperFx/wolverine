@@ -70,7 +70,9 @@ internal class TransactionalFrame : Frame
 
 
         foreach (var saved in _saved)
+        {
             writer.Write($"{Session!.Usage}.{nameof(IDocumentSession.Store)}({saved.Usage});");
+        }
 
         writer.BlankLine();
         writer.WriteComment("Commit the unit of work");
