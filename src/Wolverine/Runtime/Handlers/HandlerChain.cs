@@ -149,10 +149,19 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         var handleMethod = _generatedType.MethodFor(nameof(MessageHandler.HandleAsync));
         handleMethod.Sources.Add(new MessageHandlerVariableSource(MessageType));
         handleMethod.Sources.Add(new LoggerVariableSource(MessageType));
-        handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules, _parent.Container!));
-
-        // TODO -- this is temporary, but there's a bug in LamarCodeGeneration that uses await using
-        // when the method returns IAsyncDisposable
+        var frames = DetermineFrames(assembly.Rules, _parent.Container!);
+        var index = 0;
+        foreach (var variable in frames.SelectMany(x => x.Creates))
+        {
+            // TODO -- make this more generic later
+            if (variable.Usage == "context")
+            {
+                variable.OverrideName("context" + ++index);
+            }
+        }
+        
+        handleMethod.Frames.AddRange(frames);
+        
         handleMethod.AsyncMode = AsyncMode.AsyncTask;
 
         handleMethod.DerivedVariables.Add(new Variable(typeof(IMessageContext), "context"));
