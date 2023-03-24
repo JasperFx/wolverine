@@ -261,11 +261,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         applyCustomizations(rules, container);
 
-        var cascadingHandlers = determineCascadingMessages().ToArray();
+        var handlerReturnValueFrames = determineHandlerReturnValueFrames().ToArray();
 
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
-        return Middleware.Concat(Handlers).Concat(cascadingHandlers).Concat(Postprocessors).ToList();
+        return Middleware.Concat(Handlers).Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
     }
 
     protected void applyCustomizations(GenerationRules rules, IContainer container)
@@ -287,7 +287,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         applyImpliedMiddlewareFromHandlers(rules);
     }
 
-    private IEnumerable<CaptureCascadingMessages> determineCascadingMessages()
+    private IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         foreach (var handler in Handlers)
         foreach (var create in handler.Creates)
