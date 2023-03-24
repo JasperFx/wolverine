@@ -6,6 +6,8 @@
         <Nullable>enable</Nullable>
 
         <IsPackable>false</IsPackable>
+
+        <LangVersion>10</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
@@ -24,6 +26,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj" />
       <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
 
