@@ -76,17 +76,6 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         // Use the active document session as an IQuerySession instead of creating a new one
         firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable.Usage));
 
-        firstCall.ReturnVariable?.MarkAsNotCascaded(); // Don't automatically cascade the methods
-        validateMethodSignatureForEmittedEvents(chain, firstCall, handlerChain);
-        relayAggregateToHandlerMethod(loader, firstCall);
-        captureEventsAndPersistSession(chain, firstCall);
-
-        handlerChain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
-    }
-
-    private void captureEventsAndPersistSession(IChain chain, MethodCall firstCall)
-    {
-        // Capture and events
         if (firstCall.ReturnVariable != null)
         {
             var register =
@@ -94,8 +83,13 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
             
             var ifBlock = new IfNotNullFrame(firstCall.ReturnVariable, register);
 
-            chain.Postprocessors.Add(ifBlock);
+            firstCall.ReturnVariable.UseReturnValueHandlingFrame(ifBlock);
         }
+
+        validateMethodSignatureForEmittedEvents(chain, firstCall, handlerChain);
+        relayAggregateToHandlerMethod(loader, firstCall);
+
+        handlerChain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
     }
 
     private void relayAggregateToHandlerMethod(MethodCall loader, MethodCall firstCall)

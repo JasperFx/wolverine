@@ -286,18 +286,20 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         applyImpliedMiddlewareFromHandlers(rules);
     }
-
+    
     private IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         foreach (var handler in Handlers)
         foreach (var create in handler.Creates)
         {
-            if (!create.ShouldBeCascaded())
+            if (create.TryGetReturnValueHandlingFrame(out var frame))
             {
-                continue;
+                yield return frame;
             }
-
-            yield return new CaptureCascadingMessages(create);
+            else
+            {
+                yield return new CaptureCascadingMessages(create);
+            }
         }
     }
 

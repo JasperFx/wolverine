@@ -1,16 +1,24 @@
-﻿using JasperFx.CodeGeneration.Model;
+﻿using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 
 namespace Wolverine.Runtime.Handlers;
 
 internal static class VariableExtensions
 {
-    public static bool ShouldBeCascaded(this Variable variable)
+    public static void UseReturnValueHandlingFrame(this Variable variable, Frame frame)
     {
-        return !variable.Properties.ContainsKey(HandlerChain.NotCascading);
+        variable.Properties[HandlerChain.NotCascading] = frame;
     }
 
-    public static void MarkAsNotCascaded(this Variable variable)
+    public static bool TryGetReturnValueHandlingFrame(this Variable variable, out Frame frame)
     {
-        variable.Properties[HandlerChain.NotCascading] = true;
+        if (variable.Properties.TryGetValue(HandlerChain.NotCascading, out var raw))
+        {
+            frame = (Frame)raw;
+            return true;
+        }
+        
+        frame = default!;
+        return false;
     }
 }
