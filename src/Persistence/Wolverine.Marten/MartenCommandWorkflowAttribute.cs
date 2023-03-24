@@ -16,6 +16,7 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
+using Wolverine.Middleware;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten;
@@ -90,7 +91,8 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         {
             var register =
                 typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(firstCall.ReturnVariable, AggregateType!);
-            var ifBlock = new IfBlock($"{firstCall.ReturnVariable.Usage} != null", register);
+            
+            var ifBlock = new IfNotNullFrame(firstCall.ReturnVariable, register);
 
             chain.Postprocessors.Add(ifBlock);
         }
