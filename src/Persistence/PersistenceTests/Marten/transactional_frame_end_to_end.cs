@@ -93,8 +93,8 @@ public class CommandsAreTransactional : IHandlerPolicy
         // Important! Create a brand new TransactionalFrame
         // for each chain
         chains
-            .Where(x => x.MessageType.Name.EndsWith("Command"))
-            .Each(x => x.Middleware.Add(new TransactionalFrame()));
+            .Where(chain => chain.MessageType.Name.EndsWith("Command"))
+            .Each(chain => chain.Middleware.Add(new TransactionalFrame(chain)));
     }
 }
 

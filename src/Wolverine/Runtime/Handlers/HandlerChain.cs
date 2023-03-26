@@ -286,7 +286,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         applyImpliedMiddlewareFromHandlers(rules);
     }
-    
+
     private IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         foreach (var handler in Handlers)

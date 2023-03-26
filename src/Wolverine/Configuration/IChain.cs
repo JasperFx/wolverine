@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Logging;
 
@@ -72,6 +74,15 @@ public interface IChain
     /// <param name="member"></param>
     /// <param name="heading"></param>
     void Audit(MemberInfo member, string? heading = null);
+
+    /// <summary>
+    /// Find all variables returned by any handler call in this chain
+    /// that can be cast to T
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public IEnumerable<Variable> ReturnVariablesOfType<T>() =>
+        HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo<T>());
 }
 
 #endregion

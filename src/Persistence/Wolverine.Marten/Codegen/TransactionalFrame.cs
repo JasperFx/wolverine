@@ -6,8 +6,11 @@ using JasperFx.CodeGeneration.Model;
 using Marten;
 using Wolverine.Configuration;
 using Wolverine.Marten.Publishing;
+using Wolverine.Middleware;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten.Codegen;
+
 
 internal class TransactionalFrame : Frame
 {
@@ -17,10 +20,19 @@ internal class TransactionalFrame : Frame
     private Variable? _context;
     private bool _createsSession;
     private Variable? _factory;
-    private Variable _cancellation;
+    private Variable? _cancellation;
 
-    public TransactionalFrame() : base(true)
+    public TransactionalFrame(IChain chain) : base(true)
     {
+        var actions = chain.ReturnVariablesOfType<IMartenAction>();
+        foreach (var action in actions)
+        {
+            var methodCall = MethodCall.For<IMartenAction>(x => x.Apply(null));
+            methodCall.Target = action;
+
+            var ifBlock = new IfNotNullFrame(action, methodCall);
+            action.UseReturnValueHandlingFrame(ifBlock);
+        }
     }
 
     public Variable? Session { get; private set; }

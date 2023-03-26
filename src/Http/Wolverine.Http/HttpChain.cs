@@ -187,7 +187,7 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     {
         return RequestType;
     }
-
+    
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
         assembly.UsingNamespaces.Fill(typeof(RoutingHttpContextExtensions).Namespace);
