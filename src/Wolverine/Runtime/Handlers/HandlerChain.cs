@@ -15,7 +15,6 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
-using Wolverine.Middleware;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -27,7 +26,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public const string Handles = "Handles";
     public const string Consume = "Consume";
     public const string Consumes = "Consumes";
-    public const string NotCascading = "NotCascading";
 
     private readonly HandlerGraph _parent;
 
@@ -289,18 +287,9 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     private IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
-        foreach (var handler in Handlers)
-        foreach (var create in handler.Creates)
-        {
-            if (create.TryGetReturnValueHandlingFrame(out var frame))
-            {
-                yield return frame;
-            }
-            else
-            {
-                yield return new CaptureCascadingMessages(create);
-            }
-        }
+        return Handlers.SelectMany(x => x.Creates)
+            .Select(x => x.ReturnAction())
+            .SelectMany(x => x.Frames());
     }
 
     internal static int DisambiguateOutgoingVariableName(Variable create, int i)

@@ -24,14 +24,18 @@ internal class TransactionalFrame : Frame
 
     public TransactionalFrame(IChain chain) : base(true)
     {
-        var actions = chain.ReturnVariablesOfType<IMartenAction>();
-        foreach (var action in actions)
+        var martenActions = chain.ReturnVariablesOfType<IMartenAction>();
+        foreach (var action in martenActions)
         {
-            var methodCall = MethodCall.For<IMartenAction>(x => x.Apply(null));
-            methodCall.Target = action;
+            var returnAction = action.UseReturnAction(v =>
+            {
+                var methodCall = MethodCall.For<IMartenAction>(x => x.Apply(null));
+                methodCall.Target = action;
 
-            var ifBlock = new IfNotNullFrame(action, methodCall);
-            action.UseReturnValueHandlingFrame(ifBlock);
+                return methodCall.WrapIfNotNull(action);
+            }, "Execute action against Marten IDocumentSession");
+            
+            returnAction.Dependencies.Add(typeof(IDocumentSession));
         }
     }
 

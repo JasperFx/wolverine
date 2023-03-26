@@ -1,6 +1,8 @@
 ﻿using System.Linq.Expressions;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
+using Wolverine.Middleware;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -8,29 +10,17 @@ public static class VariableExtensions
 {
     internal static readonly string ReturnActionKey = "ReturnAction";
     
-    public static void UseReturnValueHandlingFrame(this Variable variable, Frame frame)
-    {
-        variable.Properties[HandlerChain.NotCascading] = frame;
-    }
-
-    public static bool TryGetReturnValueHandlingFrame(this Variable variable, out Frame frame)
-    {
-        if (variable.Properties.TryGetValue(HandlerChain.NotCascading, out var raw))
-        {
-            frame = (Frame)raw;
-            return true;
-        }
-        
-        frame = default!;
-        return false;
-    }
-
-    public static ReturnVariableAction UseReturnAction(this Variable variable, Func<Variable, Frame> frameSource)
+    public static ReturnVariableAction UseReturnAction(this Variable variable, Func<Variable, Frame> frameSource, string? description = null)
     {
         var frame = frameSource(variable);
         var action = new ReturnVariableAction();
         action.Frames.Add(frame);
         variable.Properties[ReturnActionKey] = action;
+
+        if (description.IsNotEmpty())
+        {
+            action.Description = description;
+        }
 
         return action;
     }
@@ -65,6 +55,17 @@ public static class VariableExtensions
         var action = new ReturnVariableAction { Description = "Do nothing" };
         action.Frames.Add(new CommentFrame(description ?? $"Variable {variable.Usage} was explicitly ignored"));
         variable.Properties[ReturnActionKey] = action;
+    }
+
+    /// <summary>
+    /// Wrap the current frame in an if (variable != null) block
+    /// </summary>
+    /// <param name="frame"></param>
+    /// <param name="variable"></param>
+    /// <returns></returns>
+    public static IfNotNullFrame WrapIfNotNull(this Frame frame, Variable variable)
+    {
+        return new IfNotNullFrame(variable, frame);
     }
     
     

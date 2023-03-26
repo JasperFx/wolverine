@@ -70,20 +70,16 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         if (AggregateType == firstCall.HandlerType)
         {
             chain.Middleware.Add(new MissingAggregateCheckFrame(AggregateType, CommandType, AggregateIdMember,
-                loader.ReturnVariable));
+                loader.ReturnVariable!));
         }
 
         // Use the active document session as an IQuerySession instead of creating a new one
-        firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable.Usage));
-
-        if (firstCall.ReturnVariable != null)
+        firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
+        
+        var eventsVariable = firstCall.Creates.FirstOrDefault();
+        if (eventsVariable != null)
         {
-            var register =
-                typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(firstCall.ReturnVariable, AggregateType!);
-            
-            var ifBlock = new IfNotNullFrame(firstCall.ReturnVariable, register);
-
-            firstCall.ReturnVariable.UseReturnValueHandlingFrame(ifBlock);
+            var action = eventsVariable.UseReturnAction(v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, AggregateType!).WrapIfNotNull(v), "Append events to the Marten event stream");
         }
 
         validateMethodSignatureForEmittedEvents(chain, firstCall, handlerChain);
