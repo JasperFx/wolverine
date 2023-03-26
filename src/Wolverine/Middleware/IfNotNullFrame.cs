@@ -15,7 +15,11 @@ public class IfNotNullFrame : CompositeFrame
     {
         _variable = variable ?? throw new ArgumentNullException(nameof(variable));
         uses.Add(variable);
+
+        Inners = inner;
     }
+    
+    public IReadOnlyList<Frame> Inners { get; }
 
     protected override void generateCode(GeneratedMethod method, ISourceWriter writer, Frame inner)
     {

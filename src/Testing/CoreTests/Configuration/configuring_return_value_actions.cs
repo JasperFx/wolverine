@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using TestingSupport;
+using Wolverine.Middleware;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
@@ -150,7 +151,57 @@ public class configuring_return_value_actions
         }
     }
     
-    
+    public class when_calling_method_on_return_variable_if_not_null
+    {
+        private readonly Variable theVariable = Variable.For<WriteFile>();
+        private readonly IReturnVariableAction theVariableAction;
+        private readonly MethodCall theMethodCall;
+
+        public when_calling_method_on_return_variable_if_not_null()
+        {
+            theVariable.CallMethodOnReturnVariableIfNotNull<WriteFile>(x => x.Execute(null), "some description" );
+
+            theVariableAction = theVariable.ReturnAction();
+            
+            var wrapper = theVariableAction.ShouldBeOfType<CallMethodReturnVariableAction<WriteFile>>().Frames().Single().ShouldBeOfType<IfNotNullFrame>();
+            theMethodCall = wrapper.Inners.Single()
+                
+                .ShouldBeOfType<MethodCall>();
+        }
+
+        [Fact]
+        public void targets_the_return_variable()
+        {
+            theMethodCall.Target.ShouldBe(theVariable);
+        }
+
+        [Fact]
+        public void return_dependencies_from_method()
+        {
+            theVariableAction.Dependencies().ShouldContain(typeof(IFileService));
+        }
+
+        [Fact]
+        public void should_serve_up_method_call_for_frame()
+        {
+            var call = theMethodCall;
+            
+            call.Method.Name.ShouldBe(nameof(WriteFile.Execute));
+            call.HandlerType.ShouldBe(typeof(WriteFile));
+        }
+
+        [Fact]
+        public void pass_the_description_to_action()
+        {
+            theVariableAction.Description.ShouldBe("some description");
+        }
+
+        [Fact]
+        public void pass_a_non_null_description_to_comment_text_of_method()
+        {
+            theMethodCall.CommentText.ShouldBe("some description");
+        }
+    }
 }
 
 public class WriteFile

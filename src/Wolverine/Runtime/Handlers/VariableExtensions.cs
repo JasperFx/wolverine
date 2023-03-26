@@ -9,7 +9,25 @@ namespace Wolverine.Runtime.Handlers;
 public static class VariableExtensions
 {
     internal static readonly string ReturnActionKey = "ReturnAction";
+
+    /// <summary>
+    /// Override how Wolverine will generate code to handle this value returned from a handler call
+    /// </summary>
+    /// <param name="variable"></param>
+    /// <param name="action"></param>
+    public static void UseReturnAction(this Variable variable, IReturnVariableAction action)
+    {
+        variable.Properties[ReturnActionKey] = action;
+    }
     
+    
+    /// <summary>
+    /// Override how Wolverine will generate code to handle this value returned from a handler call
+    /// </summary>
+    /// <param name="variable"></param>
+    /// <param name="frameSource"></param>
+    /// <param name="description"></param>
+    /// <returns></returns>
     public static ReturnVariableAction UseReturnAction(this Variable variable, Func<Variable, Frame> frameSource, string? description = null)
     {
         var frame = frameSource(variable);
@@ -25,6 +43,11 @@ public static class VariableExtensions
         return action;
     }
 
+    /// <summary>
+    /// Fetch the code generation handling strategy for this variable
+    /// </summary>
+    /// <param name="variable"></param>
+    /// <returns></returns>
     public static IReturnVariableAction ReturnAction(this Variable variable)
     {
         if (variable.Properties.TryGetValue(ReturnActionKey, out var raw))
@@ -35,15 +58,44 @@ public static class VariableExtensions
         return new CascadeMessage(variable);
     }
     
+    /// <summary>
+    /// Override how Wolverine generates code to handle this return value by calling a method on the
+    /// value returned
+    /// </summary>
+    /// <param name="variable"></param>
+    /// <param name="expression"></param>
+    /// <param name="description"></param>
+    /// <typeparam name="T"></typeparam>
     public static void CallMethodOnReturnVariable<T>(this Variable variable, Expression<Action<T>> expression, string? description = null)
     {
         var action = new CallMethodReturnVariableAction<T>(variable, expression);
         action.Description = description ?? action.MethodCall.ToString();
         action.MethodCall.CommentText = description;
 
-        variable.Properties[ReturnActionKey] = action;
+        variable.UseReturnAction(action);
 
     }
+    
+    /// <summary>
+    /// Override how Wolverine generates code to handle this return value by calling a method on the
+    /// value returned
+    /// </summary>
+    /// <param name="variable"></param>
+    /// <param name="expression"></param>
+    /// <param name="description"></param>
+    /// <typeparam name="T"></typeparam>
+    public static void CallMethodOnReturnVariableIfNotNull<T>(this Variable variable, Expression<Action<T>> expression, string? description = null)
+    {
+        var action = new CallMethodReturnVariableAction<T>(variable, expression);
+        action.Description = description ?? action.MethodCall.ToString();
+        action.MethodCall.CommentText = description;
+        action.IfNotNullChecking = true;
+        
+        variable.UseReturnAction(action);
+
+    }
+    
+    // TODO -- create an overload of the method up above for if not null
 
     /// <summary>
     /// Mark this return variable as being ignored as a cascaded message.
@@ -54,7 +106,7 @@ public static class VariableExtensions
     {
         var action = new ReturnVariableAction { Description = "Do nothing" };
         action.Frames.Add(new CommentFrame(description ?? $"Variable {variable.Usage} was explicitly ignored"));
-        variable.Properties[ReturnActionKey] = action;
+        variable.UseReturnAction(action);
     }
 
     /// <summary>
@@ -120,17 +172,20 @@ public class CallMethodReturnVariableAction<T> : IReturnVariableAction
 
     public string Description { get; set; }
     public MethodCall MethodCall { get; }
+    public bool IfNotNullChecking { get; set; }
+
     public IEnumerable<Type> Dependencies()
     {
         foreach (var parameter in MethodCall.Method.GetParameters())
         {
+            
             yield return parameter.ParameterType;
         }
     }
 
     public IEnumerable<Frame> Frames()
     {
-        yield return MethodCall;
+        yield return IfNotNullChecking ? MethodCall.WrapIfNotNull(MethodCall.Target) : MethodCall;
     }
 }
 
