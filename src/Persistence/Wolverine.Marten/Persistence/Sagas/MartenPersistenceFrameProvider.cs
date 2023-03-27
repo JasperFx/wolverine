@@ -1,8 +1,5 @@
-﻿using System;
-using System.Linq;
-using JasperFx.CodeGeneration.Frames;
+﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
 using Lamar;
 using Marten;
 using Wolverine.Configuration;
@@ -30,11 +27,15 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public bool CanApply(IChain chain, IContainer container)
     {
-        if (chain is SagaChain) return true;
-        
+        if (chain is SagaChain)
+        {
+            return true;
+        }
+
         // TODO -- get smarter to understand that there's a return value of Saga later
 
-        return chain.ReturnVariablesOfType<IMartenAction>().Any() || chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession));
+        return chain.ReturnVariablesOfType<IMartenAction>().Any() ||
+               chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession));
     }
 
     public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)

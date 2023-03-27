@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Marten;

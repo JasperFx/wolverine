@@ -20,13 +20,12 @@ public class CodegenUsage
                 // Never generate types at runtime, but instead try to locate
                 // the generated types from the main application assembly
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
-                
+
                 // Hybrid approach that first tries to locate the types
                 // from the application assembly, but falls back to
                 // generating the code and dynamic type. Also writes the 
                 // generated source code file to disk
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-
             }).StartAsync();
 
         #endregion

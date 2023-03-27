@@ -6,22 +6,22 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
-    
+
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
-      <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-      <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
-      <ProjectReference Include="..\DiagnosticsModule\DiagnosticsModule.csproj" />
+        <ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj"/>
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\DiagnosticsModule\DiagnosticsModule.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Include="..\..\..\Servers.cs">
-        <Link>Servers.cs</Link>
-      </Compile>
+        <Compile Include="..\..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
     </ItemGroup>
 
 </Project>

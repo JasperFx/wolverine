@@ -95,12 +95,11 @@ public class remote_invocation : IAsyncLifetime
         await using var nested = _sender.Get<IContainer>().GetNestedContainer();
         var publisher = nested.GetInstance<IMessageBus>();
 
-        var ex = await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
+        var ex = await Should.ThrowAsync<MultipleSubscribersException>(async () =>
         {
             await publisher.InvokeAsync(new Request4());
         });
 
-        ex.Message.ShouldContain("There are multiple subscribing endpoints");
     }
 
     [Fact]

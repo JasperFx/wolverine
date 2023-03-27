@@ -1,10 +1,13 @@
-using JasperFx.Core.Reflection;
 using Shouldly;
 
 namespace Wolverine.Http.Tests;
 
 public class endpoint_discovery_and_construction : IntegrationContext
 {
+    public endpoint_discovery_and_construction(AppFixture fixture) : base(fixture)
+    {
+    }
+
     [Fact]
     public void discover_and_built_endpoints()
     {
@@ -23,9 +26,5 @@ public class endpoint_discovery_and_construction : IntegrationContext
     {
         var chain = HttpChains.ChainFor("GET", "/fake/hello");
         chain.Endpoint.DisplayName.ShouldBe("The Hello Route!");
-    }
-
-    public endpoint_discovery_and_construction(AppFixture fixture) : base(fixture)
-    {
     }
 }

@@ -9,11 +9,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="MemoryPack" Version="1.9.10" />
+        <PackageReference Include="MemoryPack" Version="1.9.10"/>
     </ItemGroup>
 
 </Project>

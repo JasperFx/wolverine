@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
@@ -53,8 +50,9 @@ internal class NodeReassignment : IDurabilityAction
             }
         }
     }
-    
-    public static Task ReassignDormantNodeToAnyNodeAsync(IDurableStorageSession session, int nodeId, DatabaseSettings databaseSettings)
+
+    public static Task ReassignDormantNodeToAnyNodeAsync(IDurableStorageSession session, int nodeId,
+        DatabaseSettings databaseSettings)
     {
         var sql = $@"
 update {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable}
@@ -72,8 +70,9 @@ where
             .With("owner", nodeId)
             .ExecuteNonQueryAsync(session.Cancellation);
     }
-    
-    public static async Task<int[]> FindUniqueOwnersAsync(IDurableStorageSession session, DurabilitySettings durabilitySettings, DatabaseSettings databaseSettings)
+
+    public static async Task<int[]> FindUniqueOwnersAsync(IDurableStorageSession session,
+        DurabilitySettings durabilitySettings, DatabaseSettings databaseSettings)
     {
         if (session.Transaction == null)
         {

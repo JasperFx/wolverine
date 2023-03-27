@@ -1,5 +1,4 @@
 using Marten;
-using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -52,18 +51,22 @@ public static class TestEndpoints
     }
 
     #endregion
-    
+
     [WolverineGet("/querystring/int")]
     public static string UsingQueryStringParsing(Recorder recorder, int? age)
     {
         recorder.Actions.Add("got through query string usage");
         return $"Age is {age}";
     }
-    
+
     [WolverineGet("/querystring/int/nullable")]
     public static string UsingQueryStringParsingNullable(int? age)
     {
-        if (!age.HasValue) return "Age is missing";
+        if (!age.HasValue)
+        {
+            return "Age is missing";
+        }
+
         return $"Age is {age}";
     }
 
@@ -80,12 +83,12 @@ public static class TestEndpoints
     }
 
     #endregion
-    
+
     #region sample_simple_wolverine_http_endpoint_async
 
     [WolverinePost("/question2")]
     public static Task<Results> PostJsonAsync(Question question)
-    { 
+    {
         var results = new Results
         {
             Sum = question.One + question.Two,

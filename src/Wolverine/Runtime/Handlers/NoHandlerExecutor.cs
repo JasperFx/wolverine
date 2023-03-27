@@ -23,7 +23,7 @@ internal class NoHandlerExecutor : IExecutor
         _continuation = new NoHandlerContinuation(handlers, runtime);
     }
 
-    public string? ExceptionText { get; set; }
+    public Exception? Exception { get; set; }
 
     public Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
     {
@@ -56,6 +56,11 @@ internal class NoHandlerExecutor : IExecutor
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        throw new IndeterminateRoutesException(message.GetType(), ExceptionText);
+        if (Exception != null)
+        {
+            throw Exception;
+        }
+
+        return Task.CompletedTask;
     }
 }

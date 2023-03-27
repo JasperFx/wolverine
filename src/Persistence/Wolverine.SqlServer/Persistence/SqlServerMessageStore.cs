@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.IO;
-using System.Threading.Tasks;
+﻿using System.Data;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
@@ -95,7 +91,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         counts.Outgoing = (int)(await conn
             .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteScalarAsync())!;
-        
+
         counts.DeadLetter = (int)(await conn
             .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
             .ExecuteScalarAsync())!;

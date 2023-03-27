@@ -4,7 +4,6 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Lamar;
-using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -14,7 +13,7 @@ internal class ReadStringQueryStringValue : SyncFrame
     {
         Variable = new Variable(typeof(string), name, this);
     }
-    
+
     public Variable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -31,7 +30,7 @@ internal class ParsedQueryStringValue : SyncFrame
     {
         Variable = new Variable(parameter.ParameterType, parameter.Name, this);
     }
-    
+
     public Variable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -39,10 +38,9 @@ internal class ParsedQueryStringValue : SyncFrame
         var alias = Variable.VariableType.ShortNameInCode();
         writer.Write($"{alias} {Variable.Usage} = default;");
         writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
-        
+
         Next?.GenerateCode(method, writer);
     }
-
 }
 
 internal class ParsedNullableQueryStringValue : SyncFrame
@@ -54,17 +52,17 @@ internal class ParsedNullableQueryStringValue : SyncFrame
         Variable = new Variable(parameter.ParameterType, parameter.Name, this);
         _alias = parameter.ParameterType.GetInnerTypeFromNullable().ShortNameInCode();
     }
-    
+
     public Variable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write($"{_alias}? {Variable.Usage} = null;");
-        writer.Write($"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-        
+        writer.Write(
+            $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+
         Next?.GenerateCode(method, writer);
     }
-
 }
 
 internal class QueryStringParameterStrategy : IParameterStrategy
@@ -72,7 +70,7 @@ internal class QueryStringParameterStrategy : IParameterStrategy
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
         variable = null;
-        
+
         if (parameter.ParameterType == typeof(string))
         {
             variable = new ReadStringQueryStringValue(parameter.Name).Variable;

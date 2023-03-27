@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;

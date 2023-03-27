@@ -1,5 +1,4 @@
 using System.Diagnostics.Metrics;
-using System.Threading.Tasks;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 

@@ -32,7 +32,6 @@ builder.Services.AddMarten(opts =>
 }).IntegrateWithWolverine();
 
 
-
 builder.Services.AddResourceSetupOnStartup();
 
 builder.Services.AddSingleton<Recorder>();
@@ -43,7 +42,7 @@ builder.Host.UseWolverine(opts =>
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
-    
+
     opts.Policies.AutoApplyTransactions();
 });
 
@@ -55,10 +54,10 @@ app.UseSwaggerUI();
 
 app.UseAuthorization();
 
-app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>> (int orderId) 
+app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>>(int orderId)
     => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(orderId)));
 
-app.MapPost("/orders", Results<BadRequest, Ok<Order>> (CreateOrder command) 
+app.MapPost("/orders", Results<BadRequest, Ok<Order>>(CreateOrder command)
     => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(command.OrderId)));
 
 app.MapWolverineEndpoints(opts =>
@@ -67,8 +66,9 @@ app.MapWolverineEndpoints(opts =>
     opts.ConfigureEndpoints(c => c.Metadata.Add(new CustomMetadata()));
 
     // Only want this middleware on endpoints on this one handler
-    opts.AddMiddleware(typeof(BeforeAndAfterMiddleware), chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
-    
+    opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
+        chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
+
     opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 });
 

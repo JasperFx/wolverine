@@ -5,8 +5,6 @@ namespace DocumentationSamples;
 
 public class BootstrappingSamples
 {
-    
-    
     public async Task set_application_assembly()
     {
         #region sample_overriding_application_assembly

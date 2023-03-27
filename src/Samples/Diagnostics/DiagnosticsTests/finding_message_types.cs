@@ -66,6 +66,4 @@ public class finding_message_types : IntegrationContext
         // is tagged as a message in the Program file
         theMessages.ShouldContain(typeof(DiagnosticsMessage4));
     }
-    
-    
 }

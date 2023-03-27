@@ -2,8 +2,6 @@ namespace WolverineWebApi;
 
 public class Order
 {
-    public int OrderId { get; set; }
-
     public Order(int orderId)
     {
         OrderId = orderId;
@@ -12,6 +10,8 @@ public class Order
     public Order()
     {
     }
+
+    public int OrderId { get; set; }
 }
 
 public record CreateOrder(int OrderId);

@@ -64,9 +64,11 @@ public class configuration_specs
 
         var wolverineOptions = host.Services.GetRequiredService<IWolverineRuntime>()
             .As<WolverineRuntime>().Options;
-        
+
         // Not proud of this code
-        var handlers = (HandlerGraph)typeof(WolverineOptions).GetProperty(nameof(HandlerGraph), BindingFlags.NonPublic | BindingFlags.Instance).GetValue(wolverineOptions);
+        var handlers = (HandlerGraph)typeof(WolverineOptions)
+            .GetProperty(nameof(HandlerGraph), BindingFlags.NonPublic | BindingFlags.Instance)
+            .GetValue(wolverineOptions);
 
         handlers.ChainFor<Command1>().Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(FluentValidationExecutor) &&
@@ -120,13 +122,13 @@ public class DataService : IDataService
 {
     public async Task<bool> IsUniqueEmail(string email)
     {
-        bool isUnique = email.Equals("new@email.me");
+        var isUnique = email.Equals("new@email.me");
         return await Task.FromResult(isUnique);
     }
 
     public async Task<bool> IsUniqueUsername(string userName)
     {
-        bool isUnique = userName.Equals("UniqueUsername");
+        var isUnique = userName.Equals("UniqueUsername");
         return await Task.FromResult(isUnique);
     }
 }
@@ -160,7 +162,7 @@ public class Command4Validator : AbstractValidator<Command4>
 {
     public Command4Validator(IDataService dataService)
     {
-        RuleFor(x => x.Email).MustAsync(async (email, cancelation) 
+        RuleFor(x => x.Email).MustAsync(async (email, cancelation)
             => await dataService.IsUniqueEmail(email));
     }
 }
@@ -175,9 +177,9 @@ public class Command5ValidatorAsync : AbstractValidator<Command5>
 {
     public Command5ValidatorAsync(IDataService dataService)
     {
-        RuleFor(x => x.Email).MustAsync(async (email, cancelation) 
+        RuleFor(x => x.Email).MustAsync(async (email, cancelation)
             => await dataService.IsUniqueEmail(email));
-        RuleFor(x => x.Username).MustAsync(async (userName, cancelation) 
+        RuleFor(x => x.Username).MustAsync(async (userName, cancelation)
             => await dataService.IsUniqueUsername(userName));
     }
 }
@@ -187,7 +189,8 @@ public class Command5Validator : AbstractValidator<Command5>
     public Command5Validator(IDataService dataService)
     {
         RuleFor(x => x.Email).NotNull().NotEmpty();
-        RuleFor(x => x.Username).NotNull().NotEmpty();;
+        RuleFor(x => x.Username).NotNull().NotEmpty();
+        ;
     }
 }
 
@@ -204,12 +207,12 @@ public class CommandHandler
     public void Handle(Command3 command)
     {
     }
-    
-    
+
+
     public void Handle(Command4 command)
     {
     }
-    
+
     public void Handle(Command5 command)
     {
     }

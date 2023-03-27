@@ -47,7 +47,7 @@ internal class MaybeEndWithResultFrame : AsyncFrame
         writer.Write($"await {_result.Usage}.{nameof(IResult.ExecuteAsync)}({_context!.Usage}).ConfigureAwait(false);");
         writer.Write("return;");
         writer.FinishBlock();
-        
+
         Next?.GenerateCode(method, writer);
     }
 }

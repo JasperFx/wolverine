@@ -8,16 +8,16 @@ namespace DiagnosticsTests;
 
 public class AppFixture : IAsyncLifetime
 {
+    public IAlbaHost? Host { get; private set; }
+
     public async Task InitializeAsync()
     {
         OaktonEnvironment.AutoStartHost = true;
-        
+
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
         Host = await AlbaHost.For<Program>(x => { });
     }
-    
-    public IAlbaHost? Host { get; private set; }
 
     public Task DisposeAsync()
     {
@@ -28,7 +28,6 @@ public class AppFixture : IAsyncLifetime
 [CollectionDefinition("integration")]
 public class IntegrationCollection : ICollectionFixture<AppFixture>
 {
-    
 }
 
 [Collection("integration")]
@@ -42,17 +41,12 @@ public abstract class IntegrationContext : IAsyncLifetime
         Runtime = (WolverineRuntime)fixture.Host!.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    public Task<IScenarioResult> Scenario(Action<Scenario> configure)
-    {
-        return Host.Scenario(configure);
-    }
-
     public WolverineRuntime Runtime { get; }
-    
+
     public IAlbaHost Host => _fixture.Host!;
     public IDocumentStore Store => _fixture.Host!.Services.GetRequiredService<IDocumentStore>();
-    
-    
+
+
     async Task IAsyncLifetime.InitializeAsync()
     {
         // Using Marten, wipe out all data and reset the state
@@ -67,6 +61,9 @@ public abstract class IntegrationContext : IAsyncLifetime
     {
         return Task.CompletedTask;
     }
-    
 
+    public Task<IScenarioResult> Scenario(Action<Scenario> configure)
+    {
+        return Host.Scenario(configure);
+    }
 }

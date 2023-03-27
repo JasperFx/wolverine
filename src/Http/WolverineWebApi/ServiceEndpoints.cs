@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Marten;
-using Microsoft.AspNetCore.Mvc;
 using Wolverine;
 using Wolverine.Http;
 

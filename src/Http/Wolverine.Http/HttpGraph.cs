@@ -1,4 +1,3 @@
-using System.Text.Json;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Lamar;
@@ -12,9 +11,13 @@ using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
-public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChangeToken, IDescribedSystemPart, IWriteToConsole
+public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChangeToken, IDescribedSystemPart,
+    IWriteToConsole
 {
     public static readonly string Context = "httpContext";
+
+    private readonly List<HttpChain> _chains = new();
+    private readonly List<RouteEndpoint> _endpoints = new();
     private readonly WolverineOptions _options;
 
     private readonly List<IResourceWriterPolicy> _writerPolicies = new()
@@ -23,9 +26,6 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         new StringResourceWriterPolicy(),
         new JsonResourceWriterPolicy()
     };
-
-    private readonly List<HttpChain> _chains = new();
-    private readonly List<RouteEndpoint> _endpoints = new();
 
 
     public HttpGraph(WolverineOptions options, IContainer container)
@@ -58,40 +58,6 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
     public string ChildNamespace => "WolverineHandlers";
     public GenerationRules Rules { get; }
 
-    public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
-    {
-        var source = new HttpChainSource(_options.Assemblies);
-        var calls = source.FindActions();
-
-        _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
-
-                
-        wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
-
-        var policies = _options.Policies.OfType<IChainPolicy>();
-        foreach (var policy in policies)
-        {
-            policy.Apply(_chains, Rules, Container);
-        }
-
-        foreach (var policy in wolverineHttpOptions.Policies)
-        {
-            policy.Apply(_chains, Rules, Container);
-        }
-
-        _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint()));
-    }
-
-    public override IChangeToken GetChangeToken()
-    {
-        return this;
-    }
-
-    public HttpChain? ChainFor(string httpMethod, string urlPattern)
-    {
-        return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern.RawText == urlPattern);
-    }
-
     Task IDescribedSystemPart.Write(TextWriter writer)
     {
         return writer.WriteLineAsync("Use console output.");
@@ -108,13 +74,41 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         {
             var handlerCode = $"{chain.Method.HandlerType.FullNameInCode()}.{chain.Method.Method.Name}()";
             var verbs = chain.HttpMethods.Select(x => x.ToUpper()).Join("/");
-            
-            table.AddRow(chain.RoutePattern.RawText.EscapeMarkup(), verbs, handlerCode.EscapeMarkup(), chain.Description.EscapeMarkup());
+
+            table.AddRow(chain.RoutePattern.RawText.EscapeMarkup(), verbs, handlerCode.EscapeMarkup(),
+                chain.Description.EscapeMarkup());
         }
-        
+
         AnsiConsole.Write(table);
-        
+
         return Task.CompletedTask;
     }
-}
 
+    public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
+    {
+        var source = new HttpChainSource(_options.Assemblies);
+        var calls = source.FindActions();
+
+        _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
+
+
+        wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
+
+        var policies = _options.Policies.OfType<IChainPolicy>();
+        foreach (var policy in policies) policy.Apply(_chains, Rules, Container);
+
+        foreach (var policy in wolverineHttpOptions.Policies) policy.Apply(_chains, Rules, Container);
+
+        _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint()));
+    }
+
+    public override IChangeToken GetChangeToken()
+    {
+        return this;
+    }
+
+    public HttpChain? ChainFor(string httpMethod, string urlPattern)
+    {
+        return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern.RawText == urlPattern);
+    }
+}

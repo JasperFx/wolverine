@@ -4,6 +4,6 @@
         <LangVersion>10</LangVersion>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 </Project>

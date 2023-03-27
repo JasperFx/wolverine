@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data.Common;
-using System.Threading.Tasks;
+﻿using System.Data.Common;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Serialization;
@@ -99,7 +96,7 @@ public abstract partial class MessageDatabase<T>
         {
             return null;
         }
-        
+
         var body = await reader.GetFieldValueAsync<byte[]>(2, _cancellation);
         var envelope = EnvelopeSerializer.Deserialize(body);
 

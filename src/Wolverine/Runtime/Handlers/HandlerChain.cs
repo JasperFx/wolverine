@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -51,7 +47,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 Audit(property, att.Heading);
             }
         }
-        
+
         foreach (var field in messageType.GetFields())
         {
             if (field.TryGetAttribute<AuditAttribute>(out var att))
@@ -67,13 +63,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handlers.Add(call);
     }
 
-    public override bool HasAttribute<T>()
-    {
-        return Handlers.Any(x => x.Method.HasAttribute<T>() || x.HandlerType.HasAttribute<T>());
-    }
-
-    public override Type? InputType() => MessageType;
-
     public HandlerChain(IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
     {
         Handlers.AddRange(grouping);
@@ -83,29 +72,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var handler in Handlers)
         foreach (var create in handler.Creates)
             i = DisambiguateOutgoingVariableName(create, i);
-    }
-
-    public IEnumerable<Type> PublishedTypes()
-    {
-        var ignoredTypes = new Type[]
-        {
-            typeof(object),
-            typeof(object[]),
-            typeof(IEnumerable<object>),
-            typeof(IList<object>),
-            typeof(IReadOnlyList<object>),
-        };
-        
-        foreach (var variable in Handlers.SelectMany(x => x.Creates))
-        {
-            if (ignoredTypes.Contains(variable.VariableType) ||
-                variable.VariableType.CanBeCastTo<IEnumerable<object>>())
-            {
-                continue;
-            }
-
-            yield return variable.VariableType;
-        }
     }
 
 
@@ -133,11 +99,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     string ICodeFile.FileName => TypeName + ".cs";
 
-    /// <summary>
-    ///     Configure the retry policies and error handling for this chain
-    /// </summary>
-    public FailureRuleCollection Failures { get; } = new();
-
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
         _generatedType = assembly.AddType(TypeName, typeof(MessageHandler));
@@ -157,9 +118,9 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 variable.OverrideName("context" + ++index);
             }
         }
-        
+
         handleMethod.Frames.AddRange(frames);
-        
+
         handleMethod.AsyncMode = AsyncMode.AsyncTask;
 
         handleMethod.DerivedVariables.Add(new Variable(typeof(IMessageContext), "context"));
@@ -188,10 +149,48 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         Handler = (MessageHandler)services.As<IContainer>().QuickBuild(_handlerType);
         Handler.Chain = this;
-        
+
         Debug.WriteLine(_generatedType?.SourceCode);
 
         return true;
+    }
+
+    /// <summary>
+    ///     Configure the retry policies and error handling for this chain
+    /// </summary>
+    public FailureRuleCollection Failures { get; } = new();
+
+    public override bool HasAttribute<T>()
+    {
+        return Handlers.Any(x => x.Method.HasAttribute<T>() || x.HandlerType.HasAttribute<T>());
+    }
+
+    public override Type? InputType()
+    {
+        return MessageType;
+    }
+
+    public IEnumerable<Type> PublishedTypes()
+    {
+        var ignoredTypes = new[]
+        {
+            typeof(object),
+            typeof(object[]),
+            typeof(IEnumerable<object>),
+            typeof(IList<object>),
+            typeof(IReadOnlyList<object>)
+        };
+
+        foreach (var variable in Handlers.SelectMany(x => x.Creates))
+        {
+            if (ignoredTypes.Contains(variable.VariableType) ||
+                variable.VariableType.CanBeCastTo<IEnumerable<object>>())
+            {
+                continue;
+            }
+
+            yield return variable.VariableType;
+        }
     }
 
     public static HandlerChain For<T>(Expression<Action<T>> expression, HandlerGraph parent)
@@ -329,5 +328,4 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         return options.DefaultExecutionTimeout;
     }
-
 }

@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -38,7 +35,7 @@ internal class DurabilityAgent : IDurabilityAgent
         ILogger<DurabilityAgent> trace,
         ILocalQueue locals,
         IMessageDatabase database,
-        DurabilitySettings settings, 
+        DurabilitySettings settings,
         DatabaseSettings databaseSettings)
 #pragma warning restore CS8618)
     {
@@ -156,7 +153,8 @@ internal class DurabilityAgent : IDurabilityAgent
             await _database.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
 
             // Release all envelopes tagged to this node in message persistence to any node
-            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_database.Session, _settings.UniqueNodeId, DatabaseSettings);
+            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_database.Session, _settings.UniqueNodeId,
+                DatabaseSettings);
         }
         catch (Exception e)
         {
@@ -196,7 +194,7 @@ internal class DurabilityAgent : IDurabilityAgent
                 }
 
                 // TODO -- eliminate the downcast!
-                await action.ExecuteAsync((IMessageDatabase)_database, this, _database.Session);
+                await action.ExecuteAsync(_database, this, _database.Session);
             }
             catch (Exception e)
             {

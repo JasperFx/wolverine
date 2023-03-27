@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,7 +6,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using TestingSupport;
-using Weasel.Core;
 using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
@@ -121,7 +116,8 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             -1000);
         await thePersistence.Session.BeginAsync();
         var settings = theHost.Services.GetRequiredService<SqlServerSettings>();
-        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session, DateTimeOffset.UtcNow.Add(1.Hours()), settings);
+        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session,
+            DateTimeOffset.UtcNow.Add(1.Hours()), settings);
 
         await thePersistence.Session.CommitAsync();
 
@@ -131,7 +127,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
     }
-    
+
     [Fact]
     public async Task move_replayable_error_messages_to_incoming()
     {
@@ -141,7 +137,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
          * Run the DurabilityAction
          * Replayable message should be moved back to Inbox
          */
-        
+
         var unReplayableEnvelope = ObjectMother.Envelope();
         var replayableEnvelope = ObjectMother.Envelope();
         await thePersistence.StoreIncomingAsync(unReplayableEnvelope);
@@ -550,7 +546,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         await thePersistence.Session.BeginAsync();
         var settings = theHost.Services.GetRequiredService<SqlServerSettings>();
         var counts = await RecoverIncomingMessages.LoadAtLargeIncomingCountsAsync(thePersistence.Session, settings);
-
 
 
         counts[0].Destination.ShouldBe(localOne);

@@ -16,7 +16,7 @@ public class WolverineHttpOptions
     public List<IHttpPolicy> Policies { get; } = new();
 
     /// <summary>
-    /// Add a new IEndpointPolicy for the Wolverine endpoints
+    ///     Add a new IEndpointPolicy for the Wolverine endpoints
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public void AddPolicy<T>() where T : IHttpPolicy, new()
@@ -25,8 +25,8 @@ public class WolverineHttpOptions
     }
 
     /// <summary>
-    /// Apply user-defined customizations to how endpoints are handled
-    /// by Wolverine
+    ///     Apply user-defined customizations to how endpoints are handled
+    ///     by Wolverine
     /// </summary>
     /// <param name="configure"></param>
     public void ConfigureEndpoints(Action<HttpChain> configure)
@@ -67,9 +67,7 @@ public class WolverineHttpOptions
         {
             chainFilter = c => c is HttpChain e && filter!(e);
         }
-        
+
         Middleware.AddType(middlewareType, chainFilter);
     }
-
 }
-

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -79,10 +77,12 @@ public class RecoverIncomingMessagesTests
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, theSettings);
+        var shouldFetchMore =
+            await action.TryRecoverIncomingMessagesAsync(persistence, persistence.Session, count, theSettings);
         shouldFetchMore.ShouldBeFalse();
 
-        await action.DidNotReceive().RecoverMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, Arg.Any<int>(), theAgent, theSettings);
+        await action.DidNotReceive().RecoverMessagesAsync(persistence, persistence.Session, count, Arg.Any<int>(),
+            theAgent, theSettings);
     }
 
     [Fact]
@@ -98,10 +98,12 @@ public class RecoverIncomingMessagesTests
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, theSettings);
+        var shouldFetchMore =
+            await action.TryRecoverIncomingMessagesAsync(persistence, persistence.Session, count, theSettings);
         shouldFetchMore.ShouldBeFalse();
 
-        await action.Received().RecoverMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, 11, theAgent, theSettings);
+        await action.Received()
+            .RecoverMessagesAsync(persistence, persistence.Session, count, 11, theAgent, theSettings);
     }
 
 
@@ -118,9 +120,11 @@ public class RecoverIncomingMessagesTests
         theEndpoints.FindListeningAgent(count.Destination)
             .Returns(theAgent);
 
-        var shouldFetchMore = await action.TryRecoverIncomingMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, theSettings);
+        var shouldFetchMore =
+            await action.TryRecoverIncomingMessagesAsync(persistence, persistence.Session, count, theSettings);
         shouldFetchMore.ShouldBeTrue();
 
-        await action.Received().RecoverMessagesAsync((IMessageDatabase)persistence, persistence.Session, count, 11, theAgent, theSettings);
+        await action.Received()
+            .RecoverMessagesAsync(persistence, persistence.Session, count, 11, theAgent, theSettings);
     }
 }

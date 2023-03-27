@@ -5,11 +5,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Marten.AspNetCore" Version="6.0.0-alpha.8" />
+        <PackageReference Include="Marten.AspNetCore" Version="6.0.0-alpha.8"/>
     </ItemGroup>
 
 </Project>

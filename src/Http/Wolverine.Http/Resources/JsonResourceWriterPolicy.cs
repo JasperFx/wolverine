@@ -15,4 +15,3 @@ internal class JsonResourceWriterPolicy : IResourceWriterPolicy
         return false;
     }
 }
-

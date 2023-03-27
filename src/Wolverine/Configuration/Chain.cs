@@ -123,6 +123,8 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             foreach (var before in befores)
             {
                 var frame = new MethodCall(handlerType, before);
+                MiddlewarePolicy.AssertMethodDoesNotHaveDuplicateReturnValues(frame);
+                
                 Middleware.Add(frame);
 
                 // Potentially add handling for IResult or HandlerContinuation

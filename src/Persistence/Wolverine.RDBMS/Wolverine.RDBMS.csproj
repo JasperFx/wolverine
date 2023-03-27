@@ -13,14 +13,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.Data.Common" Version="4.3.0" />
-        <PackageReference Include="Weasel.CommandLine" Version="6.0.0-alpha.10" />
-        <PackageReference Include="Weasel.Core" Version="6.0.0-alpha.10" />
+        <PackageReference Include="System.Data.Common" Version="4.3.0"/>
+        <PackageReference Include="Weasel.CommandLine" Version="6.0.0-alpha.10"/>
+        <PackageReference Include="Weasel.Core" Version="6.0.0-alpha.10"/>
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../Analysis.Build.props"/>
 </Project>

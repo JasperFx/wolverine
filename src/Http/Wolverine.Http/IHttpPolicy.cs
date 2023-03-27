@@ -4,7 +4,7 @@ using Lamar;
 namespace Wolverine.Http;
 
 /// <summary>
-/// Use to apply your own conventions or policies to HTTP endpoint handlers
+///     Use to apply your own conventions or policies to HTTP endpoint handlers
 /// </summary>
 public interface IHttpPolicy
 {
@@ -28,9 +28,6 @@ internal class LambdaHttpPolicy : IHttpPolicy
 
     public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
     {
-        foreach (var chain in chains)
-        {
-            _action(chain, rules, container);
-        }
+        foreach (var chain in chains) _action(chain, rules, container);
     }
 }

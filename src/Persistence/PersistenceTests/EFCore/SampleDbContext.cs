@@ -14,7 +14,7 @@ public class SampleDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
+
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {
@@ -36,7 +36,7 @@ public class CleanDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
+
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {
@@ -46,7 +46,6 @@ public class CleanDbContext : DbContext
         });
     }
 }
-
 
 #region sample_mapping_envelope_storage_to_dbcontext
 
@@ -63,7 +62,7 @@ public class SampleMappedDbContext : DbContext
         // This enables your DbContext to map the incoming and
         // outgoing messages as part of the outbox
         modelBuilder.MapWolverineEnvelopeStorage();
-        
+
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {

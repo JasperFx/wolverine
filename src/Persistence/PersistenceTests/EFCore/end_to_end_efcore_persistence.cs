@@ -1,7 +1,4 @@
-using System;
 using System.Data.SqlClient;
-using System.Linq;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -89,7 +86,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             .Transaction.ShouldBeOfType<RawDatabaseEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
-    
+
     [Fact]
     public void outbox_for_specific_db_context_maped()
     {
@@ -121,7 +118,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             .Transaction.ShouldBeOfType<RawDatabaseEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
-    
+
     [Fact]
     public void outbox_for_db_context_mapped()
     {
@@ -186,7 +183,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         loadedEnvelope.OwnerId.ShouldBe(envelope.OwnerId);
     }
-    
+
     [Fact]
     public async Task persist_an_outgoing_envelope_mapped()
     {
@@ -316,7 +313,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         }
     }
 
-    
+
     [Fact]
     public async Task use_generic_outbox_raw()
     {
@@ -347,7 +344,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
     }
-    
+
     [Fact]
     public async Task use_generic_outbox_mapped()
     {
@@ -425,7 +422,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         loadedEnvelope.OwnerId.ShouldBe(envelope.OwnerId);
         loadedEnvelope.Attempts.ShouldBe(envelope.Attempts);
     }
-    
+
     [Fact]
     public async Task persist_an_incoming_envelope_mapped()
     {

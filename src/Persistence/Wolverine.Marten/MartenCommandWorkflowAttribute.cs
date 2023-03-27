@@ -1,7 +1,4 @@
-using System;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -16,7 +13,6 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
-using Wolverine.Middleware;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten;
@@ -75,11 +71,13 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
 
         // Use the active document session as an IQuerySession instead of creating a new one
         firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
-        
+
         var eventsVariable = firstCall.Creates.FirstOrDefault();
         if (eventsVariable != null)
         {
-            var action = eventsVariable.UseReturnAction(v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, AggregateType!).WrapIfNotNull(v), "Append events to the Marten event stream");
+            var action = eventsVariable.UseReturnAction(
+                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, AggregateType!)
+                    .WrapIfNotNull(v), "Append events to the Marten event stream");
         }
 
         validateMethodSignatureForEmittedEvents(chain, firstCall, handlerChain);

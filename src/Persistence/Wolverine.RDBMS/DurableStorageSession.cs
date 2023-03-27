@@ -1,8 +1,5 @@
-using System;
 using System.Data;
 using System.Data.Common;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 
@@ -10,8 +7,8 @@ namespace Wolverine.RDBMS;
 
 public class DurableStorageSession : IDurableStorageSession
 {
-    private readonly DatabaseSettings _settings;
     private readonly ILogger _logger;
+    private readonly DatabaseSettings _settings;
 
     public DurableStorageSession(DatabaseSettings settings, CancellationToken cancellation, ILogger logger)
     {
@@ -20,9 +17,9 @@ public class DurableStorageSession : IDurableStorageSession
         Cancellation = cancellation;
     }
 
-    public CancellationToken Cancellation { get; }
-
     public DbConnection? Connection { get; private set; }
+
+    public CancellationToken Cancellation { get; }
 
     public DbTransaction? Transaction { get; private set; }
 
@@ -159,7 +156,8 @@ public class DurableStorageSession : IDurableStorageSession
         }
         catch (ObjectDisposedException)
         {
-            _logger.LogDebug("Tried to use a disposed object while releasing a global lock, this is normally due to shutdown procedures");
+            _logger.LogDebug(
+                "Tried to use a disposed object while releasing a global lock, this is normally due to shutdown procedures");
         }
     }
 
@@ -211,7 +209,8 @@ public class DurableStorageSession : IDurableStorageSession
         }
         catch (ObjectDisposedException)
         {
-            _logger.LogDebug("Tried to use a disposed object while releasing a global lock, this is normally due to shutdown procedures");
+            _logger.LogDebug(
+                "Tried to use a disposed object while releasing a global lock, this is normally due to shutdown procedures");
         }
     }
 

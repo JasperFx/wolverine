@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Weasel.Core;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -22,7 +21,7 @@ public class Bug_191_marten_aggregate_handler_command_should_not_require_version
             {
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(UpdateThingAggregateHandler));
-                
+
                 opts.Services.AddMarten(marten =>
                 {
                     marten.Connection(Servers.PostgresConnectionString);
@@ -49,7 +48,7 @@ public class Bug_191_marten_aggregate_handler_command_should_not_require_version
 
         await _host.InvokeMessageAndWaitAsync(new UpdateThing(id, "new stuff"));
     }
-    
+
     public record ThingStarted(Guid ThingId, string ThingStuff);
 
     public record UpdateThing(Guid ThingId, string StuffToUpdate);

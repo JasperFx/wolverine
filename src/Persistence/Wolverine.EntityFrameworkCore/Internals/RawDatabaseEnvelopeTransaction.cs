@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Wolverine.Persistence.Durability;
@@ -11,7 +8,7 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 
 // ReSharper disable once InconsistentNaming
 /// <summary>
-/// Envelope transaction for raw database access for DbContexts w/o the explicit wolverine mappings
+///     Envelope transaction for raw database access for DbContexts w/o the explicit wolverine mappings
 /// </summary>
 public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 {
@@ -19,8 +16,6 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 
     public RawDatabaseEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
-        
-        
         if (messaging.Storage is IMessageDatabase persistence)
         {
             _settings = persistence.Settings;
@@ -42,7 +37,7 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
         {
             await DbContext.Database.BeginTransactionAsync();
         }
-        
+
         var conn = DbContext.Database.GetDbConnection();
         var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
         var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _settings);
@@ -96,7 +91,7 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 
         return ValueTask.CompletedTask;
     }
-    
+
     public ValueTask CommitAsync()
     {
         if (DbContext.Database.CurrentTransaction != null)

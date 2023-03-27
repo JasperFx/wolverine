@@ -13,11 +13,10 @@ internal class ResultWriterPolicy : IResourceWriterPolicy
             var call = MethodCall.For<IResult>(x => x.ExecuteAsync(null));
             call.Target = chain.Method.ReturnVariable;
             chain.Postprocessors.Add(call);
-            
+
             return true;
         }
 
         return false;
     }
 }
-

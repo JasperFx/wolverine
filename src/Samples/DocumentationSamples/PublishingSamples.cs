@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Transports.Tcp;
-using Uri = System.Uri;
 
 namespace DocumentationSamples;
 
@@ -67,11 +66,11 @@ public class PublishingSamples
             .GetRequiredService<IMessageBus>();
 
         // Explicitly send a message to a named endpoint
-        await bus.EndpointFor("One").SendAsync( new SomeMessage());
-        
+        await bus.EndpointFor("One").SendAsync(new SomeMessage());
+
         // Or invoke remotely
         await bus.EndpointFor("One").InvokeAsync(new SomeMessage());
-        
+
         // Or request/reply
         var answer = bus.EndpointFor("One")
             .InvokeAsync<Answer>(new Question());
@@ -87,10 +86,6 @@ public class PublishingSamples
 
         #endregion
     }
-
-    public record Question;
-
-    public record Answer;
 
 
     #region sample_IServiceBus.Invoke
@@ -223,6 +218,10 @@ public class PublishingSamples
 
     #endregion
 
+    public record Question;
+
+    public record Answer;
+
     public class InvoiceCreated
     {
         public DateTimeOffset Time { get; set; }
@@ -248,7 +247,7 @@ public class PublishingSamples
             Item = "Cookbook"
         };
 
-        await bus.EndpointFor(new Uri("tcp://server1:2222")).SendAsync( @event);
+        await bus.EndpointFor(new Uri("tcp://server1:2222")).SendAsync(@event);
     }
 
 

@@ -8,16 +8,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.CodeGen;
 
-
 internal class HttpContextElements : IParameterStrategy
 {
     private readonly List<PropertyInfo> _properties;
-
-    public static Variable For(Expression<Func<HttpContext, object>> expression)
-    {
-        var property = ReflectionHelper.GetProperty(expression);
-        return new Variable(property.PropertyType, $"httpContext.{property.Name}");
-    }
 
     public HttpContextElements()
     {
@@ -43,7 +36,7 @@ internal class HttpContextElements : IParameterStrategy
             variable = new Variable(parameter.ParameterType, $"httpContext.{nameof(HttpContext.TraceIdentifier)}");
             return true;
         }
-        
+
         if (parameter.ParameterType == typeof(CancellationToken))
         {
             variable = For(x => x.RequestAborted);
@@ -57,7 +50,12 @@ internal class HttpContextElements : IParameterStrategy
         }
 
 
-
         return false;
+    }
+
+    public static Variable For(Expression<Func<HttpContext, object>> expression)
+    {
+        var property = ReflectionHelper.GetProperty(expression);
+        return new Variable(property.PropertyType, $"httpContext.{property.Name}");
     }
 }

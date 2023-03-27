@@ -14,17 +14,16 @@ public partial class HttpGraph
         new QueryStringParameterStrategy(),
         new JsonBodyParameterStrategy()
     };
-    
+
     internal void ApplyParameterMatching(HttpChain chain)
     {
         var parameters = chain.Method.Method.GetParameters();
-        for (int i = 0; i < parameters.Length; i++)
+        for (var i = 0; i < parameters.Length; i++)
         {
             var parameter = parameters[i];
 
             if (!TryMatchParameter(chain, parameter, i))
             {
-                continue;
             }
         }
     }
@@ -39,15 +38,14 @@ public partial class HttpGraph
                 {
                     if (variable.Creator != null)
                     {
-                        chain.Middleware.Add(variable.Creator);    
+                        chain.Middleware.Add(variable.Creator);
                     }
-                
+
                     chain.Method.Arguments[i] = variable;
                 }
+
                 return true;
             }
-            
-            
         }
 
         return false;

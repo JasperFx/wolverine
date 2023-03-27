@@ -1,6 +1,7 @@
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Attributes;
@@ -16,6 +17,21 @@ public class MiddlewarePolicy : IChainPolicy
     public static readonly string[] FinallyMethodNames = {"Finally", "FinallyAsync"};
 
     private readonly List<Application> _applications = new();
+    
+    
+    public static void AssertMethodDoesNotHaveDuplicateReturnValues(MethodCall call)
+    {
+        if (call.Method.ReturnType.IsValueType)
+        {
+            var duplicates = call.Method.ReturnType.GetGenericArguments().GroupBy(x => x);
+            if (duplicates.Any(x => x.Count() > 1))
+            {
+                throw new InvalidWolverineMiddlewareException(
+                    $"Wolverine middleware cannot support multiple 'creates' variables of the same type. Method {call}, arguments {duplicates.Select(x => x.Key.Name).Join(", ")}");
+            }
+        }
+
+    }
 
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
@@ -184,6 +200,8 @@ public class MiddlewarePolicy : IChainPolicy
                 var call = buildCallForBefore(chain, before);
                 if (call != null)
                 {
+                    AssertMethodDoesNotHaveDuplicateReturnValues(call);
+
                     foreach (var frame in wrapBeforeFrame(call, rules))
                     {
                         yield return frame;
@@ -191,6 +209,7 @@ public class MiddlewarePolicy : IChainPolicy
                 }
             }
         }
+
 
         private IEnumerable<Frame> buildFinals(IChain chain)
         {

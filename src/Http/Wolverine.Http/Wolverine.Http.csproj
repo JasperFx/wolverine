@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <Description>High Performance ASP.Net Core HTTP endpoints using the Wolverine runtime</Description>
-        
+
         <!-- Leave this be, needing to override the Directory defaults -->
         <TargetFrameworks>net7.0</TargetFrameworks>
         <DebugType>portable</DebugType>
@@ -13,8 +13,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
 </Project>

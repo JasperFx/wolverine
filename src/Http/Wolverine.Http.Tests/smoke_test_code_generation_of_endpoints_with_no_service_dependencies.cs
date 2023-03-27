@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.Reflection;
-using System.Text.Json;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -13,7 +11,12 @@ namespace Wolverine.Http.Tests;
 
 public class smoke_test_code_generation_of_endpoints_with_no_service_dependencies : IntegrationContext
 {
-    public static IEnumerable<object[]> Methods => typeof(FakeEndpoint).GetMethods().Where(x => x.DeclaringType == typeof(FakeEndpoint)).Select(x => new object[] { x });
+    public smoke_test_code_generation_of_endpoints_with_no_service_dependencies(AppFixture fixture) : base(fixture)
+    {
+    }
+
+    public static IEnumerable<object[]> Methods => typeof(FakeEndpoint).GetMethods()
+        .Where(x => x.DeclaringType == typeof(FakeEndpoint)).Select(x => new object[] { x });
 
     [Theory]
     [MemberData(nameof(Methods))]
@@ -24,16 +27,12 @@ public class smoke_test_code_generation_of_endpoints_with_no_service_dependencie
             x.For<WolverineHttpOptions>().Use<WolverineHttpOptions>();
             x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
         });
-        
-        var parent = new HttpGraph(new WolverineOptions{ApplicationAssembly = GetType().Assembly}, container);
-        
+
+        var parent = new HttpGraph(new WolverineOptions { ApplicationAssembly = GetType().Assembly }, container);
+
         var endpoint = new HttpChain(new MethodCall(typeof(FakeEndpoint), method), parent);
 
-        
-        endpoint.As<ICodeFile>().InitializeSynchronously(parent.Rules, parent, parent.Container);
-    }
 
-    public smoke_test_code_generation_of_endpoints_with_no_service_dependencies(AppFixture fixture) : base(fixture)
-    {
+        endpoint.As<ICodeFile>().InitializeSynchronously(parent.Rules, parent, parent.Container);
     }
 }

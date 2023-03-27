@@ -11,7 +11,7 @@ public class AttributeEndpoints
         recorder.Actions.Add("Called AttributesEndpoints.Post()");
         return "all good";
     }
-    
+
     [WolverinePost("/notbody")]
     public string PostNotBody([NotBody] Recorder recorder)
     {

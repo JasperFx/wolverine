@@ -11,13 +11,10 @@ public class swashbuckle_integration : IntegrationContext
     [Fact]
     public async Task wolverine_stuff_is_in_the_document()
     {
-        var results = await Scenario(x =>
-        {
-            x.Get.Url("/swagger/v1/swagger.json");
-        });
+        var results = await Scenario(x => { x.Get.Url("/swagger/v1/swagger.json"); });
 
         var doc = results.ReadAsText();
-        
+
         doc.ShouldContain("/fromservice");
     }
 }

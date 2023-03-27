@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -10,31 +9,30 @@ public class FakeEndpoint
     {
         return "Hello";
     }
-    
+
     [WolverineGet("/fake/hello/async")]
     public Task<string> SayHelloAsync()
     {
         return Task.FromResult("Hello");
     }
-    
+
     [WolverineGet("/fake/hello/async2")]
     public ValueTask<string> SayHelloAsync2()
     {
         return ValueTask.FromResult("Hello");
     }
-    
+
     [WolverinePost("/go")]
     public void Go()
     {
-        
     }
-    
+
     [WolverinePost("/go/async")]
     public Task GoAsync()
     {
         return Task.CompletedTask;
     }
-    
+
     [WolverinePost("/go/async2")]
     public ValueTask GoAsync2()
     {
@@ -46,14 +44,14 @@ public class FakeEndpoint
     {
         return new BigResponse();
     }
-    
+
     [WolverineGet("/response2")]
     public Task<BigResponse> GetResponseAsync()
     {
         return Task.FromResult(new BigResponse());
     }
-    
-        
+
+
     [WolverineGet("/response3")]
     public ValueTask<BigResponse> GetResponseAsync2()
     {

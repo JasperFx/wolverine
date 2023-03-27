@@ -1,8 +1,4 @@
-using System;
 using System.Data.Common;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Lamar;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
@@ -42,8 +38,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         // ReSharper disable once VirtualMemberCallInConstructor
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(databaseSettings, settings);
-
-
     }
 
     public DurabilitySettings Durability { get; }

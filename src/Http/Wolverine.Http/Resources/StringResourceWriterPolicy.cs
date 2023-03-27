@@ -30,10 +30,10 @@ internal class StringResourceWriterPolicy : IResourceWriterPolicy
 
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
-            var prefix = method.AsyncMode == AsyncMode.ReturnCompletedTask ? "return" : "await";  
-            
+            var prefix = method.AsyncMode == AsyncMode.ReturnCompletedTask ? "return" : "await";
+
             writer.Write($"{prefix} {nameof(HttpHandler.WriteString)}(httpContext, {_result.Usage});");
-            
+
             Next?.GenerateCode(method, writer);
         }
     }

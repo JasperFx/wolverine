@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
@@ -28,7 +25,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
     private DocumentStore _receiverStore;
     private LightweightCache<string, IHost> _senders;
     private DocumentStore _sendingStore;
-    
+
     public async Task InitializeAsync()
     {
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");

@@ -154,7 +154,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             return DetermineDbContextType(saga.SagaType, container);
         }
-        
+
         var contextTypes = chain.ServiceDependencies(container).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
 
         if (contextTypes.Length == 0)
@@ -197,7 +197,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
             writer.Write(
                 $"var {_envelopeTransaction.Usage} = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction({_dbContext!.Usage}, {_context!.Usage});");
-            writer.Write($"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
+            writer.Write(
+                $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
 
             Next?.GenerateCode(method, writer);
         }

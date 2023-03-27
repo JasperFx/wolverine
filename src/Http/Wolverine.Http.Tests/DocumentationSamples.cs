@@ -37,14 +37,14 @@ public class ConditionalRedirectHandler
         {
             case "Red":
                 return Results.Redirect("/red");
-            
+
             case "Green":
                 return Results.Redirect("/green");
 
             default:
                 return Results.Content("Choose red or green!");
         }
-    } 
+    }
 
     #endregion
 }

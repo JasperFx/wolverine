@@ -5,6 +5,10 @@ namespace Wolverine.Http.Tests;
 
 public class posting_json : IntegrationContext
 {
+    public posting_json(AppFixture fixture) : base(fixture)
+    {
+    }
+
     #region sample_post_json_happy_path
 
     [Fact]
@@ -19,7 +23,7 @@ public class posting_json : IntegrationContext
         });
 
         var result = await response.ReadAsJsonAsync<Results>();
-        
+
         result.Product.ShouldBe(12);
         result.Sum.ShouldBe(7);
     }
@@ -36,7 +40,7 @@ public class posting_json : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
     }
-    
+
     [Fact]
     public async Task post_text_get_415()
     {
@@ -57,9 +61,5 @@ public class posting_json : IntegrationContext
             x.WithRequestHeader("accept", "text/plain");
             x.StatusCodeShouldBe(406);
         });
-    }
-
-    public posting_json(AppFixture fixture) : base(fixture)
-    {
     }
 }

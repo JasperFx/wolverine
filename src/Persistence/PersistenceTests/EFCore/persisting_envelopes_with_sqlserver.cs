@@ -1,12 +1,7 @@
-using System;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
@@ -34,7 +29,8 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddDbContext<SampleMappedDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
+                opts.Services.AddDbContext<SampleMappedDbContext>(
+                    x => x.UseSqlServer(Servers.SqlServerConnectionString));
                 opts.Services.AddDbContext<SampleDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
@@ -48,7 +44,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
             OwnerId = 5,
             ScheduledTime = new DateTimeOffset(DateTime.Today.AddHours(5)),
             Attempts = 2,
-            Data = new byte[]{1,2,3,4},
+            Data = new byte[] { 1, 2, 3, 4 },
             ConversationId = Guid.NewGuid(),
             CorrelationId = Guid.NewGuid().ToString(),
             ParentId = Guid.NewGuid().ToString(),
@@ -70,7 +66,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
             OwnerId = 5,
             ScheduledTime = new DateTimeOffset(DateTime.Today.AddHours(5)),
             Attempts = 2,
-            Data = new byte[]{1,2,3,4},
+            Data = new byte[] { 1, 2, 3, 4 },
             ConversationId = Guid.NewGuid(),
             CorrelationId = Guid.NewGuid().ToString(),
             ParentId = Guid.NewGuid().ToString(),
@@ -92,7 +88,6 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         context.Add(new OutgoingMessage(theOutgoingEnvelope));
 
         await context.SaveChangesAsync();
-
     }
 
     public async Task DisposeAsync()
@@ -115,9 +110,11 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         using var nested = _host.Services.As<IContainer>().GetNestedContainer();
         var runtime = _host.GetRuntime();
         var context = new MessageContext(runtime);
-        
-        nested.GetInstance<SampleDbContext>().BuildTransaction(context).ShouldBeOfType<RawDatabaseEnvelopeTransaction>();
-        nested.GetInstance<SampleMappedDbContext>().BuildTransaction(context).ShouldBeOfType<MappedEnvelopeTransaction>();
+
+        nested.GetInstance<SampleDbContext>().BuildTransaction(context)
+            .ShouldBeOfType<RawDatabaseEnvelopeTransaction>();
+        nested.GetInstance<SampleMappedDbContext>().BuildTransaction(context)
+            .ShouldBeOfType<MappedEnvelopeTransaction>();
     }
 
     [Fact]
@@ -128,7 +125,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
 
         var envelope = envelopes.FirstOrDefault(x => x.Id == theIncomingEnvelope.Id);
         envelope.ShouldNotBeNull();
-        
+
         envelope.Status.ShouldBe(theIncomingEnvelope.Status);
         envelope.OwnerId.ShouldBe(theIncomingEnvelope.OwnerId);
         envelope.ScheduledTime.ShouldBe(theIncomingEnvelope.ScheduledTime);
@@ -146,7 +143,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         envelope.Destination.ShouldBe(theIncomingEnvelope.Destination);
         envelope.SentAt.ShouldBe(theIncomingEnvelope.SentAt);
     }
-    
+
     [Fact]
     public async Task mapping_to_outgoing_envelopes()
     {
@@ -155,7 +152,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
 
         var envelope = envelopes.FirstOrDefault(x => x.Id == theOutgoingEnvelope.Id);
         envelope.ShouldNotBeNull();
-        
+
         envelope.OwnerId.ShouldBe(theOutgoingEnvelope.OwnerId);
         envelope.Attempts.ShouldBe(theOutgoingEnvelope.Attempts);
         envelope.Data.ShouldBe(theOutgoingEnvelope.Data);

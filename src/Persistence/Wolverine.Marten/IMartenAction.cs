@@ -21,7 +21,7 @@ public class StoreDocument<T> : StoreDocument
     {
         Document = document;
     }
-    
+
     public T Document { get; }
 
     public void Apply(IDocumentSession session)
@@ -37,6 +37,3 @@ public interface StoreDocument : IMartenAction
 {
     object Document { get; }
 }
-    
-
-

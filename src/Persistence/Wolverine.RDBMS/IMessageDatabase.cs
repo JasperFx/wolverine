@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Data.Common;
-using System.Threading.Tasks;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 
@@ -9,7 +6,6 @@ namespace Wolverine.RDBMS;
 
 public interface IMessageDatabase : IMessageStore
 {
-    
     public DurabilitySettings Durability { get; }
 
     public DatabaseSettings Settings { get; }
@@ -17,7 +13,7 @@ public interface IMessageDatabase : IMessageStore
 
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
-    
+
     Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);
     Task<Uri[]> FindAllDestinationsAsync();
 
@@ -31,7 +27,6 @@ public interface IMessageDatabase : IMessageStore
     /// </summary>
     /// <returns></returns>
     Task<PersistedCounts> FetchCountsAsync();
-    
-    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 
+    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 }

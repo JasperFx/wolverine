@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
 using Wolverine;
 using Wolverine.Http;
 
@@ -11,7 +10,7 @@ public class EfCoreEndpoints
     {
         db.Items.Add(new Item { Name = command.Name });
     }
-    
+
     [WolverinePost("/ef/publish")]
     public async Task PublishItem(CreateItemCommand command, ItemsDbContext db, IMessageBus bus)
     {

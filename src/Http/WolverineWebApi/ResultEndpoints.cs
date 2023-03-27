@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -10,7 +9,7 @@ public class ResultEndpoints
     {
         return Microsoft.AspNetCore.Http.Results.Content("Hello from result", "text/plain");
     }
-    
+
     [WolverineGet("/result-async")]
     public static Task<IResult> GetAsyncResult()
     {
@@ -18,4 +17,3 @@ public class ResultEndpoints
         return Task.FromResult(result);
     }
 }
-

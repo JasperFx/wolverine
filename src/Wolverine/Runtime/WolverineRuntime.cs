@@ -106,7 +106,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         catch (Exception e)
         {
             Logger.LogError(e, "Failed to create a message handler for {MessageType}", messageType.FullNameInCode());
-            return new NoHandlerExecutor(messageType, this){ExceptionText = e.ToString()};
+            return new NoHandlerExecutor(messageType, this){Exception = e};
         }
     }
     

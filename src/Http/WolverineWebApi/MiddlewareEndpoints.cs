@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -14,14 +13,13 @@ public class MiddlewareEndpoints
     }
 }
 
-
 public static class BeforeAndAfterMiddleware
 {
     public static void Before(Recorder recorder)
     {
         recorder.Actions.Add("Before");
     }
-    
+
     public static void After(Recorder recorder)
     {
         recorder.Actions.Add("After");
@@ -34,12 +32,12 @@ public class BeforeAndAfterEndpoint
     {
         recorder.Actions.Add("Before");
     }
-    
+
     public static void After(Recorder recorder)
     {
         recorder.Actions.Add("After");
     }
-    
+
     [WolverineGet("/middleware/intrinsic")]
     public string GetRequest(Recorder recorder)
     {
@@ -63,12 +61,14 @@ public class FakeAuthenticationMiddleware
 
 public class AuthenticatedRequest : IAmAuthenticated
 {
-    [JsonPropertyName("authenticated")]
-    public bool Authenticated { get; set; }
+    [JsonPropertyName("authenticated")] public bool Authenticated { get; set; }
 }
 
 public class AuthenticatedEndpoint
 {
     [WolverinePost("/authenticated")]
-    public string Get(AuthenticatedRequest request) => "All good.";
+    public string Get(AuthenticatedRequest request)
+    {
+        return "All good.";
+    }
 }

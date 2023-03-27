@@ -95,18 +95,21 @@ public class Bug_252_codegen_issue
         var chain = host.Services.GetRequiredService<HandlerGraph>().ChainFor<CreateOrder>();
 
         var lines = chain.SourceCode.ReadLines();
-        
+
         // Just proving that the code generation did NOT opt to use a nested container
         // for creating the handler
-        lines.Any(x => x.Contains("var createOrderHandler = new PersistenceTests.EFCore.CreateOrderHandler(orderRepository, context);")).ShouldBeTrue();
-        
-        
+        lines.Any(x =>
+                x.Contains(
+                    "var createOrderHandler = new PersistenceTests.EFCore.CreateOrderHandler(orderRepository, context);"))
+            .ShouldBeTrue();
     }
 }
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    {
+    }
 
     public DbSet<ProcessOrderSaga> OrderSagas { get; set; }
 }
@@ -148,8 +151,8 @@ public class OrderRepository : IOrderRepository
 
 public class CreateOrderHandler
 {
-    private readonly IOrderRepository _repository;
     private readonly IMessageBus _messageBus;
+    private readonly IOrderRepository _repository;
 
     public CreateOrderHandler(IOrderRepository repository, IMessageBus messageBus)
     {
@@ -159,7 +162,7 @@ public class CreateOrderHandler
 
     public ValueTask HandleAsync(CreateOrder command)
     {
-        _repository.Add(new ProcessOrderSaga{Id = command.Id});
+        _repository.Add(new ProcessOrderSaga { Id = command.Id });
         return _messageBus.PublishAsync(new OrderCreated(command.Id));
     }
 }

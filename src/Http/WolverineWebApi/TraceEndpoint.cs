@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -6,5 +5,8 @@ namespace WolverineWebApi;
 public class TraceEndpoint
 {
     [WolverineGet("/trace")]
-    public string Hey() => "hey";
+    public string Hey()
+    {
+        return "hey";
+    }
 }

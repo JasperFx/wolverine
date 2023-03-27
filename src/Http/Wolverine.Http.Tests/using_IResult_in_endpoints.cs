@@ -4,6 +4,10 @@ namespace Wolverine.Http.Tests;
 
 public class using_IResult_in_endpoints : IntegrationContext
 {
+    public using_IResult_in_endpoints(AppFixture fixture) : base(fixture)
+    {
+    }
+
     [Fact]
     public async Task use_as_return_value_sync()
     {
@@ -12,10 +16,10 @@ public class using_IResult_in_endpoints : IntegrationContext
             x.Get.Url("/result");
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
-        
+
         result.ReadAsText().ShouldBe("Hello from result");
     }
-    
+
     [Fact]
     public async Task use_as_return_value_async()
     {
@@ -24,11 +28,7 @@ public class using_IResult_in_endpoints : IntegrationContext
             x.Get.Url("/result-async");
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
-        
-        result.ReadAsText().ShouldBe("Hello from async result");
-    }
 
-    public using_IResult_in_endpoints(AppFixture fixture) : base(fixture)
-    {
+        result.ReadAsText().ShouldBe("Hello from async result");
     }
 }

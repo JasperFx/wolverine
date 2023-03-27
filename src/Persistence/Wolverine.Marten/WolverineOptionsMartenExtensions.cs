@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using Marten;
+﻿using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;

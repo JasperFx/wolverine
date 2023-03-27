@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -38,7 +36,7 @@ internal class OpenMartenSessionFrame : AsyncFrame
     {
         // Do a Try/Find here
         _context = chain.TryFindVariable(typeof(IMessageContext), VariableSource.NotServices)
-            ?? chain.TryFindVariable(typeof(IMessageBus), VariableSource.NotServices);
+                   ?? chain.TryFindVariable(typeof(IMessageBus), VariableSource.NotServices);
         if (_context != null)
         {
             yield return _context;
@@ -50,8 +48,5 @@ internal class OpenMartenSessionFrame : AsyncFrame
             _martenFactory = chain.FindVariable(typeof(ISessionFactory));
             yield return _martenFactory;
         }
-        
-        
-
     }
 }

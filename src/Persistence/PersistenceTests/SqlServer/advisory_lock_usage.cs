@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using Microsoft.Data.SqlClient;
 using Shouldly;
 using Wolverine.SqlServer;

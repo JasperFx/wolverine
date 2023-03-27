@@ -7,6 +7,9 @@ namespace Wolverine.Http.Tests;
 
 public class using_http_context_elements_in_routes : IntegrationContext
 {
+    public using_http_context_elements_in_routes(AppFixture fixture) : base(fixture)
+    {
+    }
 
     protected async Task assertExecutesWithNoErrors(string url)
     {
@@ -28,7 +31,7 @@ public class using_http_context_elements_in_routes : IntegrationContext
     {
         await assertExecutesWithNoErrors("/http/request");
     }
-    
+
     [Fact]
     public async Task can_use_http_response()
     {
@@ -45,7 +48,7 @@ public class using_http_context_elements_in_routes : IntegrationContext
             x.ConfigureHttpContext(c => c.User = principal);
             x.Get.Url("/http/principal");
         });
-        
+
         HttpContextEndpoints.User.ShouldBeSameAs(principal);
     }
 
@@ -53,17 +56,13 @@ public class using_http_context_elements_in_routes : IntegrationContext
     public async Task using_the_trace_identifier()
     {
         var identifier = Guid.NewGuid().ToString();
-        
+
         var body = await Scenario(x =>
         {
             x.ConfigureHttpContext(c => c.TraceIdentifier = identifier);
             x.Get.Url("/http/identifier");
         });
-        
-        body.ReadAsText().ShouldBe(identifier);
-    }
 
-    public using_http_context_elements_in_routes(AppFixture fixture) : base(fixture)
-    {
+        body.ReadAsText().ShouldBe(identifier);
     }
 }

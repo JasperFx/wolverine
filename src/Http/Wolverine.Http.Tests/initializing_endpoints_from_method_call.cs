@@ -1,14 +1,11 @@
 using System.Text.Json;
-using FastExpressionCompiler;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Metadata;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Shouldly;
-using Wolverine.Configuration;
 using Wolverine.Http.Metadata;
 using WolverineWebApi;
 
@@ -62,11 +59,11 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     {
         var chain = HttpChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
         chain.RequestType.ShouldBe(typeof(Question));
-        
+
         var endpoint = chain.BuildEndpoint();
         var metadata = endpoint.Metadata.OfType<WolverineAcceptsMetadata>()
             .Single();
-        
+
         metadata.RequestType.ShouldBe(chain.RequestType);
         metadata.ContentTypes.Single().ShouldBe("application/json");
     }
@@ -76,7 +73,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     {
         var chain = HttpChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
         chain.ResourceType.ShouldBe(typeof(Results));
-        
+
         var endpoint = chain.BuildEndpoint();
         var metadata = endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().ToArray();
         metadata.Length.ShouldBeGreaterThanOrEqualTo(3);
@@ -88,12 +85,12 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
         var badRequest = metadata.FirstOrDefault(x => x.StatusCode == 400);
         badRequest.ContentTypes.Any().ShouldBeFalse();
         badRequest.Type.ShouldBeNull();
-        
+
         var noValue = metadata.FirstOrDefault(x => x.StatusCode == 404);
         noValue.ContentTypes.Any().ShouldBeFalse();
         noValue.Type.ShouldBeNull();
     }
-    
+
     [Theory]
     [InlineData(nameof(FakeEndpoint.SayHello), typeof(string))]
     [InlineData(nameof(FakeEndpoint.SayHelloAsync), typeof(string))]
@@ -127,8 +124,8 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
 
         endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
     }
-    
-    
+
+
     [Fact]
     public void pick_up_metadata_from_attribute_on_method()
     {
@@ -144,7 +141,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
         var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.Yes(null, null));
         chain.RequiresOutbox().ShouldBeTrue();
     }
-    
+
     [Fact]
     public void does_not_use_outbox_when_not_using_message_bus()
     {
@@ -160,7 +157,7 @@ public class MaybeMessagingEndpoints
     {
         return Task.CompletedTask;
     }
-    
+
     [WolverinePost("/messaging/no")]
     public Task No(Question question)
     {
@@ -187,4 +184,3 @@ public class IndividualEndpoint
         return "Until later";
     }
 }
-

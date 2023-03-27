@@ -1,11 +1,9 @@
 using Marten;
-using Wolverine;
 
 namespace DocumentationSamples;
 
 public class CompoundHandlerSamples
 {
-    
 }
 
 public class Order
@@ -38,7 +36,10 @@ public static class ShipOrderHandler
     public static async Task<(Order, Customer)> LoadAsync(ShipOrder command, IDocumentSession session)
     {
         var order = await session.LoadAsync<Order>(command.OrderId);
-        if (order == null) throw new MissingOrderException(command.OrderId);
+        if (order == null)
+        {
+            throw new MissingOrderException(command.OrderId);
+        }
 
         var customer = await session.LoadAsync<Customer>(command.CustomerId);
 

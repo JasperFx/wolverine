@@ -6,7 +6,7 @@ internal class WolverineAcceptsMetadata : IAcceptsMetadata
 {
     public WolverineAcceptsMetadata(HttpChain chain)
     {
-        ContentTypes = new string[] { "application/json" };
+        ContentTypes = new[] { "application/json" };
         RequestType = chain.RequestType;
         IsOptional = false;
     }

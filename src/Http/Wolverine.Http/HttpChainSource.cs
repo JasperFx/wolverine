@@ -2,8 +2,6 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using JasperFx.TypeDiscovery;
-using Microsoft.AspNetCore.Mvc.Routing;
 using Wolverine.Attributes;
 
 namespace Wolverine.Http;
@@ -12,18 +10,17 @@ internal class HttpChainSource
 {
     private readonly IList<Assembly> _assemblies;
 
+    private readonly ActionMethodFilter _methodFilters = new();
+    private readonly CompositeFilter<Type> _typeFilters = new();
+
     public HttpChainSource(IEnumerable<Assembly> assemblies)
     {
         _assemblies = assemblies.ToList();
-        
+
         _typeFilters.Includes += type =>
             type.Name.EndsWith("Endpoint", StringComparison.OrdinalIgnoreCase) ||
             type.Name.EndsWith("Endpoints", StringComparison.OrdinalIgnoreCase);
-
     }
-    
-    private readonly ActionMethodFilter _methodFilters = new();
-    private readonly CompositeFilter<Type> _typeFilters = new();
 
     internal MethodCall[] FindActions()
     {

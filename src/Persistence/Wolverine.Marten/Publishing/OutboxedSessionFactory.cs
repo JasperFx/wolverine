@@ -1,4 +1,3 @@
-using System;
 using JasperFx.Core.Reflection;
 using Marten;
 using Wolverine.Runtime;
@@ -47,7 +46,7 @@ public class OutboxedSessionFactory
 
         return session;
     }
-    
+
     /// <summary>Build new instances of IDocumentSession on demand</summary>
     /// <returns></returns>
     public IDocumentSession OpenSession(IMessageBus bus)

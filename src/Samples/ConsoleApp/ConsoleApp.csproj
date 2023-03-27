@@ -3,9 +3,9 @@
         <OutputType>Exe</OutputType>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\Transports\Wolverine.Pulsar\Wolverine.Pulsar.csproj" />
-        <ProjectReference Include="..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
+        <ProjectReference Include="..\..\Transports\Wolverine.Pulsar\Wolverine.Pulsar.csproj"/>
+        <ProjectReference Include="..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
     </ItemGroup>
 </Project>

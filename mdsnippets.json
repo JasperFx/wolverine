@@ -1,8 +1,10 @@
 {
-    "Convention": "InPlaceOverwrite",
-    "LinkFormat": "GitHub",
-    "UrlPrefix": "https://github.com/JasperFx/wolverine/blob/main",
-    "ExcludeMarkdownDirectories": ["documentation"],
-    "ExcludeSnippetDirectories": [],
-    "TreatMissingAsWarning": false
+  "Convention": "InPlaceOverwrite",
+  "LinkFormat": "GitHub",
+  "UrlPrefix": "https://github.com/JasperFx/wolverine/blob/main",
+  "ExcludeMarkdownDirectories": [
+    "documentation"
+  ],
+  "ExcludeSnippetDirectories": [],
+  "TreatMissingAsWarning": false
 }

@@ -19,33 +19,33 @@ public abstract class Attributes : Attribute, IModifyChain<HttpChain>
 }
 
 /// <summary>
-/// Base class that marks a method as a Wolverine.Http route handler
+///     Base class that marks a method as a Wolverine.Http route handler
 /// </summary>
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Method)]
 public abstract class WolverineHttpMethodAttribute : Attribute
 {
-    public string HttpMethod { get; }
-    public string Template { get; }
-
     protected WolverineHttpMethodAttribute(string httpMethod, string template)
     {
         HttpMethod = httpMethod;
         Template = template;
     }
 
+    public string HttpMethod { get; }
+    public string Template { get; }
+
     /// <summary>
-    /// Override the routing order of this method as necessary to disambiguate routes
+    ///     Override the routing order of this method as necessary to disambiguate routes
     /// </summary>
     public int Order { get; set; }
-    
+
     /// <summary>
-    /// Name for the route in ASP.Net Core
+    ///     Name for the route in ASP.Net Core
     /// </summary>
     public string Name { get; set; }
 }
 
 /// <summary>
-/// Marks a method on a Wolverine endpoint as being a GET route
+///     Marks a method on a Wolverine endpoint as being a GET route
 /// </summary>
 public class WolverineGetAttribute : WolverineHttpMethodAttribute
 {
@@ -55,7 +55,7 @@ public class WolverineGetAttribute : WolverineHttpMethodAttribute
 }
 
 /// <summary>
-/// Marks a method on a Wolverine endpoint as being a POST route
+///     Marks a method on a Wolverine endpoint as being a POST route
 /// </summary>
 public class WolverinePostAttribute : WolverineHttpMethodAttribute
 {
@@ -65,7 +65,7 @@ public class WolverinePostAttribute : WolverineHttpMethodAttribute
 }
 
 /// <summary>
-/// Marks a method on a Wolverine endpoint as being a PUT route
+///     Marks a method on a Wolverine endpoint as being a PUT route
 /// </summary>
 public class WolverinePutAttribute : WolverineHttpMethodAttribute
 {
@@ -75,7 +75,7 @@ public class WolverinePutAttribute : WolverineHttpMethodAttribute
 }
 
 /// <summary>
-/// Marks a method on a Wolverine endpoint as being a PUT route
+///     Marks a method on a Wolverine endpoint as being a PUT route
 /// </summary>
 public class WolverineHeadAttribute : WolverineHttpMethodAttribute
 {
@@ -85,7 +85,7 @@ public class WolverineHeadAttribute : WolverineHttpMethodAttribute
 }
 
 /// <summary>
-/// Marks a method on a Wolverine endpoint as being a DELETE route
+///     Marks a method on a Wolverine endpoint as being a DELETE route
 /// </summary>
 public class WolverineDeleteAttribute : WolverineHttpMethodAttribute
 {
@@ -94,9 +94,8 @@ public class WolverineDeleteAttribute : WolverineHttpMethodAttribute
     }
 }
 
-
 /// <summary>
-/// Marks a method on a Wolverine endpoint as being a PATCH route
+///     Marks a method on a Wolverine endpoint as being a PATCH route
 /// </summary>
 public class WolverinePatchAttribute : WolverineHttpMethodAttribute
 {
@@ -105,10 +104,8 @@ public class WolverinePatchAttribute : WolverineHttpMethodAttribute
     }
 }
 
-
-
 /// <summary>
-/// Marks a method on a Wolverine endpoint as being a OPTIONS route
+///     Marks a method on a Wolverine endpoint as being a OPTIONS route
 /// </summary>
 public class WolverineOptionsAttribute : WolverineHttpMethodAttribute
 {
@@ -116,4 +113,3 @@ public class WolverineOptionsAttribute : WolverineHttpMethodAttribute
     {
     }
 }
-

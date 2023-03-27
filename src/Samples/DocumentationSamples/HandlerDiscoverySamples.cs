@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport.Compliance;
 using Wolverine;
@@ -132,7 +130,6 @@ internal static class HandlerSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                
                 opts.Discovery
 
                     // Turn off the default handler conventions
@@ -145,7 +142,6 @@ internal static class HandlerSamples
                     {
                         x.Includes.WithNameSuffix("Worker");
                         x.Includes.WithNameSuffix("Listener");
-                        
                     })
 
                     // Include a specific handler class with a generic argument
@@ -171,11 +167,11 @@ internal static class HandlerSamples
 
         #endregion
     }
-    
-    
 }
 
 public class MyMissingMessageHandler
 {
-    public void Handle(){}
+    public void Handle()
+    {
+    }
 }

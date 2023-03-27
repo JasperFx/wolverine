@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using JasperFx.CodeGeneration.Frames;
+﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
 using Npgsql;
@@ -26,8 +24,13 @@ internal class PostgresqlPersistenceFrameProvider : IPersistenceFrameProvider
 
     public bool CanApply(IChain chain, IContainer container)
     {
-        if (chain is SagaChain) return false;
-        return chain.ServiceDependencies(container).Any(x => x == typeof(NpgsqlConnection) || x == typeof(NpgsqlTransaction));
+        if (chain is SagaChain)
+        {
+            return false;
+        }
+
+        return chain.ServiceDependencies(container)
+            .Any(x => x == typeof(NpgsqlConnection) || x == typeof(NpgsqlTransaction));
     }
 
     public Type DetermineSagaIdType(Type sagaType, IContainer container)

@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Mvc;
 using Shouldly;
 using Wolverine.Http;
 
@@ -7,6 +6,8 @@ namespace WolverineWebApi;
 
 public class HttpContextEndpoints
 {
+    public static ClaimsPrincipal User { get; set; }
+
     [WolverineGet("/http/context")]
     public void UseHttpContext(HttpContext context)
     {
@@ -18,7 +19,7 @@ public class HttpContextEndpoints
     {
         request.ShouldNotBeNull();
     }
-    
+
     [WolverineGet("/http/response")]
     public void UseHttpResponse(HttpResponse response)
     {
@@ -30,8 +31,6 @@ public class HttpContextEndpoints
     {
         User = user;
     }
-
-    public static ClaimsPrincipal User { get; set; }
 
     #region sample_using_trace_identifier
 

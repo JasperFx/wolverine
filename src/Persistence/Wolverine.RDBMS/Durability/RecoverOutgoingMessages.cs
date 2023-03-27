@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Logging;
@@ -15,9 +10,9 @@ namespace Wolverine.RDBMS.Durability;
 
 internal class RecoverOutgoingMessages : IDurabilityAction
 {
+    private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
     private readonly IWolverineRuntime _runtime;
-    private readonly CancellationToken _cancellation;
 
     public RecoverOutgoingMessages(IWolverineRuntime runtime, ILogger logger)
     {
@@ -82,7 +77,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
             await session.ReleaseGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
         }
     }
-    
+
     internal Task DeleteByDestinationAsync(IDurableStorageSession session, Uri? destination,
         DatabaseSettings databaseSettings)
     {

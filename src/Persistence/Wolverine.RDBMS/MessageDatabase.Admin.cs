@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Data.Common;
-using System.Threading;
-using System.Threading.Tasks;
 using Weasel.Core;
 using Wolverine.Logging;
 
@@ -14,23 +10,26 @@ namespace Wolverine.RDBMS;
 /// <typeparam name="T"></typeparam>
 public abstract partial class MessageDatabase<T>
 {
+    public abstract Task<PersistedCounts> FetchCountsAsync();
+
     public async Task ClearAllAsync()
     {
         await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
         await truncateEnvelopeDataAsync(conn);
     }
-    
+
     public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
     {
         await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
-        var sql = $"update {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay";
+        var sql =
+            $"update {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay";
 
         if (!string.IsNullOrEmpty(exceptionType))
         {
-            sql = $"{sql} where {DatabaseConstants.ExceptionType} = @extype";   
+            sql = $"{sql} where {DatabaseConstants.ExceptionType} = @extype";
         }
 
         return await conn.CreateCommand(sql).With("replay", true).With("extype", exceptionType)
@@ -54,8 +53,6 @@ public abstract partial class MessageDatabase<T>
 
         await migrateAsync(conn);
     }
-
-    public abstract Task<PersistedCounts> FetchCountsAsync();
 
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {

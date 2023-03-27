@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
 using Wolverine.Tracking;
@@ -18,7 +17,7 @@ public class end_to_end : IAsyncLifetime
     {
         // Arrange
         var messageNameContent = "Message test";
-        
+
         // Act
         var actual = await _publishingHost
             .TrackActivity()
@@ -33,16 +32,17 @@ public class end_to_end : IAsyncLifetime
     }
 
     #region Test setup
+
     public async Task InitializeAsync()
     {
         var receivingTcpPort = PortFinder.GetAvailablePort();
-        
+
         _publishingHost = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.UseMemoryPackSerialization();
             opts.PublishMessage<MemoryPackMessage>().ToPort(receivingTcpPort);
         }).StartAsync();
-        
+
         _receivingHost = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.UseMemoryPackSerialization();
@@ -55,5 +55,6 @@ public class end_to_end : IAsyncLifetime
         await _receivingHost.StopAsync();
         await _publishingHost.StopAsync();
     }
+
     #endregion
 }

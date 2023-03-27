@@ -13,12 +13,13 @@ public static class CreateInvoiceHandler
 {
     public static InvoiceCreated Handle(CreateInvoice command)
     {
-        Guid id = Guid.NewGuid();
+        var id = Guid.NewGuid();
         return new InvoiceCreated(id, command.Name);
     }
 }
 
 public record AssignUser(Guid UserId, Guid InvoiceId);
+
 public record OrderParts;
 
 public record StartInvoiceProcessing(Guid Id);
@@ -33,7 +34,7 @@ public static class StartInvoiceProcessingHandler
 
     public static void Configure(HandlerChain chain)
     {
-        chain.OnAnyException().Requeue(3);
+        chain.OnAnyException().Requeue();
     }
 }
 
@@ -41,6 +42,7 @@ public static class StartInvoiceProcessingHandler
 // obvious to Wolverine from message handler endpoint
 // signatures
 public record InvoiceShipped(Guid Id) : IEvent;
+
 public record CreateShippingLabel(Guid Id) : ICommand;
 
 [WolverineMessage]

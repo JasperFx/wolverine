@@ -1,4 +1,3 @@
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using TestMessages;
 using Wolverine;
@@ -7,7 +6,6 @@ namespace DocumentationSamples;
 
 public class EnqueueSamples
 {
-
     #region sample_invoke_locally
 
     public static async Task invoke_locally(IMessageBus bus)
@@ -30,7 +28,7 @@ public class EnqueueSamples
                 opts.LocalQueueFor<Message1>()
                     .UseDurableInbox()
                     .Sequential();
-                
+
                 // Explicit configuration by queue name
                 opts.LocalQueue("one")
                     .Sequential();

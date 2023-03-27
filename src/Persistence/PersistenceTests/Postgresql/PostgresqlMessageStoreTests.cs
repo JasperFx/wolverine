@@ -1,20 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NSubstitute;
 using Oakton.Resources;
 using PersistenceTests.Marten;
 using PersistenceTests.Marten.Persistence;
 using Shouldly;
 using TestingSupport;
-using Weasel.Core;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
@@ -193,7 +187,8 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         await thePersistence.Session.BeginAsync();
 
         var settings = theHost.Services.GetRequiredService<PostgresqlSettings>();
-        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session, DateTimeOffset.UtcNow.Add(1.Hours()), settings);
+        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session,
+            DateTimeOffset.UtcNow.Add(1.Hours()), settings);
 
         await thePersistence.Session.CommitAsync();
 
@@ -203,7 +198,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
     }
-    
+
     [Fact]
     public async Task discard_and_reassign_outgoing()
     {
@@ -235,7 +230,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         stored.Single(x => x.Id == list[4].Id).OwnerId.ShouldBe(444);
         stored.Single(x => x.Id == list[6].Id).OwnerId.ShouldBe(444);
     }
-    
+
     [Fact]
     public async Task move_replayable_error_messages_to_incoming()
     {
@@ -245,7 +240,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
          * Run the DurabilityAction
          * Replayable message should be moved back to Inbox
          */
-        
+
         var unReplayableEnvelope = ObjectMother.Envelope();
         var replayableEnvelope = ObjectMother.Envelope();
         await thePersistence.StoreIncomingAsync(unReplayableEnvelope);
@@ -262,7 +257,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
             .Admin
             .MarkDeadLetterEnvelopesAsReplayableAsync(divideByZeroException.GetType().FullName!);
-        
+
         await thePersistence.Session.BeginAsync();
 
         // run the action

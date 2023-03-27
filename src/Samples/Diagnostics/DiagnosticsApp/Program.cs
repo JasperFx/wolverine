@@ -1,7 +1,6 @@
 ﻿using DiagnosticsModule;
 using IntegrationTests;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Marten;
 using Oakton;
 using Oakton.Resources;

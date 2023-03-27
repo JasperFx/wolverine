@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using IntegrationTests;
 using Lamar;
 using Marten;
@@ -25,8 +23,8 @@ namespace PersistenceTests;
 public class application_of_transaction_middleware : IAsyncLifetime
 {
     private IHost _host;
-    private HandlerGraph theHandlers;
     private IContainer theContainer;
+    private HandlerGraph theHandlers;
 
     public async Task InitializeAsync()
     {
@@ -35,10 +33,10 @@ public class application_of_transaction_middleware : IAsyncLifetime
             opts.Services.AddMarten(Servers.PostgresConnectionString);
             opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
                 x.UseSqlServer(Servers.SqlServerConnectionString));
-            
+
             opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
-            
+
             opts.Policies.AutoApplyTransactions();
 
             opts.Services.AddScoped<ISomeService, SomeService>();
@@ -66,10 +64,10 @@ public class application_of_transaction_middleware : IAsyncLifetime
     {
         var provider = new SqlServerPersistenceFrameProvider();
         var chain = theHandlers.ChainFor(messageType);
-        
+
         provider.CanApply(chain, theContainer).ShouldBe(expected);
     }
-    
+
     [Theory]
     [InlineData(typeof(T1), false)]
     [InlineData(typeof(T2), true)]
@@ -80,10 +78,10 @@ public class application_of_transaction_middleware : IAsyncLifetime
     {
         var provider = new PostgresqlPersistenceFrameProvider();
         var chain = theHandlers.ChainFor(messageType);
-        
+
         provider.CanApply(chain, theContainer).ShouldBe(expected);
     }
-    
+
     [Theory]
     [InlineData(typeof(T1), false)]
     [InlineData(typeof(T2), false)]
@@ -94,10 +92,10 @@ public class application_of_transaction_middleware : IAsyncLifetime
     {
         var provider = new MartenPersistenceFrameProvider();
         var chain = theHandlers.ChainFor(messageType);
-        
+
         provider.CanApply(chain, theContainer).ShouldBe(expected);
     }
-    
+
     [Theory]
     [InlineData(typeof(T1), false)]
     [InlineData(typeof(T2), false)]
@@ -110,7 +108,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
         var chain = theHandlers.ChainFor(messageType);
 
         chain.ShouldNotBeNull();
-        
+
         provider.CanApply(chain, theContainer).ShouldBe(expected);
     }
 }
@@ -126,13 +124,11 @@ public class T5Handler
 
     public void Handle(T5 message)
     {
-        
     }
 }
 
 public interface ISomeService
 {
-    
 }
 
 public class SomeService : ISomeService
@@ -146,27 +142,27 @@ public static class TransactionHandler
 {
     public static void Handle(T1 t, SqlConnection connection)
     {
-        
     }
-    
+
     public static void Handle(T2 t, NpgsqlTransaction connection)
     {
-        
     }
-    
+
     public static void Handle(T3 t, IDocumentSession session)
     {
-        
     }
 
     public static void Handle(T4 t, SampleDbContext context)
     {
-        
     }
 }
 
 public record T1;
+
 public record T2;
+
 public record T3;
+
 public record T4;
+
 public record T5;

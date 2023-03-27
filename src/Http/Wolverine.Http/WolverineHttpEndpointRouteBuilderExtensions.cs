@@ -12,7 +12,9 @@ namespace Wolverine.Http;
 
 public class WolverineRequiredException : Exception
 {
-    public WolverineRequiredException(Exception? innerException) : base("Wolverine is either not added to this application through IHostBuilder.UseWolverine() or is invalid", innerException)
+    public WolverineRequiredException(Exception? innerException) : base(
+        "Wolverine is either not added to this application through IHostBuilder.UseWolverine() or is invalid",
+        innerException)
     {
     }
 }
@@ -20,12 +22,13 @@ public class WolverineRequiredException : Exception
 public static class WolverineHttpEndpointRouteBuilderExtensions
 {
     /// <summary>
-    /// Discover and add Wolverine HTTP endpoints to your ASP.Net Core system
+    ///     Discover and add Wolverine HTTP endpoints to your ASP.Net Core system
     /// </summary>
     /// <param name="endpoints"></param>
     /// <param name="configure"></param>
     /// <exception cref="WolverineRequiredException"></exception>
-    public static void MapWolverineEndpoints(this IEndpointRouteBuilder endpoints, Action<WolverineHttpOptions>? configure = null)
+    public static void MapWolverineEndpoints(this IEndpointRouteBuilder endpoints,
+        Action<WolverineHttpOptions>? configure = null)
     {
         WolverineRuntime runtime;
 
@@ -39,19 +42,20 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         }
 
         var container = (IContainer)endpoints.ServiceProvider;
-        
+
         // This let's Wolverine weave in middleware that might return IResult
         runtime.Options.CodeGeneration.AddContinuationStrategy<ResultContinuationPolicy>();
-        
+
         // Making sure this exists
         var options = container.GetInstance<WolverineHttpOptions>();
         configure?.Invoke(options);
-        
-        options.JsonSerializerOptions = container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
+
+        options.JsonSerializerOptions =
+            container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
         options.Endpoints = new HttpGraph(runtime.Options, container);
         options.Endpoints.DiscoverEndpoints(options);
         runtime.AdditionalDescribedParts.Add(options.Endpoints);
-        
+
         container.GetInstance<WolverineSupplementalCodeFiles>().Collections.Add(options.Endpoints);
 
         endpoints.DataSources.Add(options.Endpoints);

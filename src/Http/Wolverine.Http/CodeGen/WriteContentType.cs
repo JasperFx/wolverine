@@ -1,4 +1,3 @@
-using System.Text;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.AspNetCore.Http;
@@ -16,7 +15,8 @@ public class WriteContentType : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"{HttpGraph.Context}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.ContentType)} = \"{_contentType}\";");
+        writer.Write(
+            $"{HttpGraph.Context}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.ContentType)} = \"{_contentType}\";");
         Next?.GenerateCode(method, writer);
     }
 }

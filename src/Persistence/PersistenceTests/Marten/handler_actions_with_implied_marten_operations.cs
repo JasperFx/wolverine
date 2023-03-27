@@ -10,7 +10,6 @@ using Xunit;
 
 namespace PersistenceTests.Marten;
 
-
 public class handler_actions_with_implied_marten_operations : PostgresqlContext, IAsyncLifetime
 {
     private IHost _host;
@@ -24,7 +23,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
                 opts.Services
                     .AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
-                
+
                 opts.Policies.AutoApplyTransactions();
             }).StartAsync();
 
@@ -42,20 +41,26 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
     public async Task add_marten_transaction_behavior_and_op_handling()
     {
         var tracked = await _host.InvokeMessageAndWaitAsync(new CreateMartenDocument("Aubrey"));
-        
+
         tracked.Sent.MessagesOf<StoreDocument>().ShouldHaveNoMessages();
         tracked.Sent.SingleMessage<MartenMessage2>().Name.ShouldBe("Aubrey");
     }
 }
 
 public record CreateMartenDocument(string Name);
+
 public record MartenMessage2(string Name);
+
 public record MartenMessage3(string Name);
+
 public record MartenMessage4(string Name);
 
 public record MartenCommand1(string Name);
+
 public record MartenCommand2(string Name);
+
 public record MartenCommand3(string Name);
+
 public record MartenCommand4(string Name);
 
 public static class MartenCommandHandler

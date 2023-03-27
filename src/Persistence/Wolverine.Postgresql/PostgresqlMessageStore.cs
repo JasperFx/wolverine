@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
 using Weasel.Core;
@@ -108,7 +103,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             .ExecuteScalarAsync();
 
         counts.Outgoing = Convert.ToInt32(longCount);
-        
+
         var deadLetterCount = await conn
             .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
             .ExecuteScalarAsync();
@@ -163,7 +158,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     }
 
 
-    protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, DurabilitySettings settings)
+    protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings,
+        DurabilitySettings settings)
     {
         return
             $"select {DatabaseConstants.OutgoingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";

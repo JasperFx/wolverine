@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using Wolverine;
+﻿using Wolverine;
 using Wolverine.Attributes;
 
 namespace PersistenceTests.SqlServer.Persistence;

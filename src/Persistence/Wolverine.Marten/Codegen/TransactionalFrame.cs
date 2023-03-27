@@ -1,26 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using JasperFx.CodeGeneration;
+﻿using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Marten;
 using Wolverine.Configuration;
 using Wolverine.Marten.Publishing;
-using Wolverine.Middleware;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten.Codegen;
-
 
 internal class TransactionalFrame : Frame
 {
     private readonly IList<Loaded> _loadedDocs = new List<Loaded>();
 
     private readonly IList<Variable> _saved = new List<Variable>();
+    private Variable? _cancellation;
     private Variable? _context;
     private bool _createsSession;
     private Variable? _factory;
-    private Variable? _cancellation;
 
     public TransactionalFrame(IChain chain) : base(true)
     {
@@ -34,18 +30,18 @@ internal class TransactionalFrame : Frame
 
                 return methodCall.WrapIfNotNull(action);
             }, "Execute action against Marten IDocumentSession");
-            
+
             returnAction.Dependencies.Add(typeof(IDocumentSession));
         }
     }
 
     public Variable? Session { get; private set; }
-    
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _cancellation = chain.FindVariable(typeof(CancellationToken));
         yield return _cancellation;
-        
+
         Session = chain.TryFindVariable(typeof(IDocumentSession), VariableSource.NotServices);
         if (Session == null)
         {
@@ -86,9 +82,7 @@ internal class TransactionalFrame : Frame
 
 
         foreach (var saved in _saved)
-        {
             writer.Write($"{Session!.Usage}.{nameof(IDocumentSession.Store)}({saved.Usage});");
-        }
 
         writer.BlankLine();
         writer.WriteComment("Commit the unit of work");
