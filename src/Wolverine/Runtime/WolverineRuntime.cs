@@ -75,7 +75,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         _sentCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSent, MetricsConstants.Messages,
             "Number of messages sent");
         _executionCounter = Meter.CreateHistogram<long>(MetricsConstants.ExecutionTime, MetricsConstants.Milliseconds,
-            "Execution time in seconds");
+            "Execution time in milliseconds");
         _successCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSucceeded, MetricsConstants.Messages,
             "Number of messages successfully processed");
 
@@ -87,7 +87,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime,
             MetricsConstants.Milliseconds,
-            "Effective time between a message being sent and being completely handled");
+            "Effective time between a message being sent and being completely handled in milliseconds");
         
         _invokers = new(findInvoker);
     }
