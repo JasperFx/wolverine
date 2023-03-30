@@ -1,10 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 
@@ -24,7 +20,14 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+      <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj" />
       <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Include="..\..\Servers.cs">
+        <Link>Servers.cs</Link>
+      </Compile>
+    </ItemGroup>
 </Project>
