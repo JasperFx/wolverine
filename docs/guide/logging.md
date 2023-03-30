@@ -79,3 +79,10 @@ TODO -- talk about extending metrics headers
 
 TODO -- there's quite a bit built in that's published through System.Diagnostics.Metrics that should be available through open telemetry exports,
 but some more experimentation and actual docs are forthcoming.
+
+
+snippet: sample_organization_tagging_middleware
+
+snippet: sample_using_organization_tagging_middleware
+
+snippet: sample_tenant_id_tagging
