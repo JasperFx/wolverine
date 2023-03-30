@@ -86,7 +86,7 @@ public static class WolverineEntityCoreExtensions
             eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt);
         });
 
-        modelBuilder.Entity<ConfiguredMessage>(eb =>
+        modelBuilder.Entity<OutgoingMessage>(eb =>
         {
             eb.ToTable(DatabaseConstants.OutgoingTable, databaseSchema, x => x.ExcludeFromMigrations());
             eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
