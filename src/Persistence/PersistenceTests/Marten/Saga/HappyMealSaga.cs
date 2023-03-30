@@ -1,7 +1,6 @@
-using Wolverine;
 using Wolverine.Persistence.Sagas;
 
-namespace SagaTests;
+namespace PersistenceTests.Marten.Saga;
 
 public class SodaRequested
 {
@@ -20,7 +19,7 @@ public class SodaHandler
     )
     {
         // get the soda, then return the update message
-        return new SodaFetched() { OrderId = requested.OrderId };
+        return new SodaFetched { OrderId = requested.OrderId };
     }
 }
 
@@ -56,7 +55,7 @@ public class BurgerReady
     public int SagaId { get; set; }
 }
 
-public class HappyMealSaga3 : Saga
+public class HappyMealSaga3 : Wolverine.Saga
 {
     private int _orderIdSequence;
 

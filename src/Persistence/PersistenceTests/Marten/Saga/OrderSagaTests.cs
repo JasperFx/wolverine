@@ -1,6 +1,6 @@
 using System.Reflection;
-using Alba;
 using IntegrationTests;
+using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OrderSagaSample;
@@ -8,14 +8,14 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;
-using Marten;
+using Xunit;
 
-namespace SagaTests;
+namespace PersistenceTests.Marten.Saga;
 
-public class When_starting_an_order : IAsyncLifetime
+public class When_starting_an_order : PostgresqlContext, IAsyncLifetime
 {
+    private IHost? _host;
     private Order? _order;
-    private IAlbaHost? _host;
 
     public async Task InitializeAsync()
     {
@@ -27,7 +27,7 @@ public class When_starting_an_order : IAsyncLifetime
                         services.AddMarten(
                                 opts =>
                                 {
-                                    opts.Connection((string?)Servers.PostgresConnectionString);
+                                    opts.Connection(Servers.PostgresConnectionString);
                                     opts.DatabaseSchemaName = "orders";
                                 }
                             )
@@ -42,7 +42,7 @@ public class When_starting_an_order : IAsyncLifetime
                         options.Discovery.IncludeAssembly(Assembly.GetAssembly(typeof(Order)));
                     }
                 )
-                .StartAlbaAsync();
+                .StartAsync();
 
         var orderId = Guid.NewGuid()
             .ToString();
@@ -51,17 +51,26 @@ public class When_starting_an_order : IAsyncLifetime
             new StartOrder(orderId)
         );
 
-        var session = _host.Services.GetService<IQuerySession>();
-        _order = session?.Load<Order>(orderId);
+        var session = _host.Services.GetRequiredService<IQuerySession>();
+        _order = await session.LoadAsync<Order>(orderId);
+    }
+
+
+    public async Task DisposeAsync()
+    {
+        await _host.StopAsync();
     }
 
     [Fact]
-    public void should_exist() => _order.ShouldNotBeNull();
+    public void should_exist()
+    {
+        _order.ShouldNotBeNull();
+    }
 
     [Fact]
-    public void should_not_be_completed() => _order?.IsCompleted()
-        .ShouldBeFalse();
-
-
-    public async Task DisposeAsync() => await _host.DisposeAsync();
+    public void should_not_be_completed()
+    {
+        _order?.IsCompleted()
+            .ShouldBeFalse();
+    }
 }

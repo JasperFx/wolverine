@@ -1,14 +1,14 @@
-using Alba;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Tracking;
+using Xunit;
 
-namespace SagaTests;
+namespace PersistenceTests.Marten.Saga;
 
-public class When_ordering_a_happy_meal : IAsyncLifetime
+public class When_ordering_a_happy_meal : PostgresqlContext, IAsyncLifetime
 {
-    private IAlbaHost? _host;
+    private IHost? _host;
     private SodaRequested? _sodaRequested;
 
     public async Task InitializeAsync()
@@ -16,15 +16,22 @@ public class When_ordering_a_happy_meal : IAsyncLifetime
         _host = await
             Host.CreateDefaultBuilder()
                 .UseWolverine()
-                .StartAlbaAsync();
+                .StartAsync();
 
         var session = await _host.InvokeMessageAndWaitAsync(new HappyMealOrder { Drink = "Soda" });
 
         _sodaRequested = session.Sent.SingleMessage<SodaRequested>();
     }
 
-    [Fact]
-    public void should_be_complete() => _sodaRequested.ShouldNotBeNull();
+    public Task DisposeAsync()
+    {
+        _host?.Dispose();
+        return Task.CompletedTask;
+    }
 
-    public async Task DisposeAsync() => await _host.DisposeAsync();
+    [Fact]
+    public void should_be_complete()
+    {
+        _sodaRequested.ShouldNotBeNull();
+    }
 }
