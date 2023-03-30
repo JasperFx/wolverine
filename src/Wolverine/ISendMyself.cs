@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Wolverine.Runtime;
 
 namespace Wolverine;
 
@@ -31,3 +32,20 @@ public abstract record DelayedMessage(TimeSpan DelayTime) : ISendMyself
 ///     if the underlying saga does not exist
 /// </summary>
 public abstract record TimeoutMessage(TimeSpan DelayTime) : DelayedMessage(DelayTime);
+
+public class ConfiguredMessage : ISendMyself
+{
+    public object Message { get; }
+    public DeliveryOptions Options { get; }
+
+    public ConfiguredMessage(object message, DeliveryOptions options)
+    {
+        Message = message;
+        Options = options;
+    }
+
+    ValueTask ISendMyself.ApplyAsync(IMessageContext context)
+    {
+        return context.PublishAsync(Message, Options);
+    }
+}
