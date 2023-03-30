@@ -18,15 +18,14 @@ public class When_handling_messages_in_saga
 
     var subscriptionId = Guid.NewGuid();
 
-    await Should.NotThrowAsync(
-      () => host.InvokeMessageAndWaitAsync(
-        new Registered(
-          "ACME, Inc",
-          "Jane",
-          "Doe",
-          "jd@acme.inc",
-          subscriptionId.ToString()
-        )
+
+    await host.InvokeMessageAndWaitAsync(
+      new Registered(
+        "ACME, Inc",
+        "Jane",
+        "Doe",
+        "jd@acme.inc",
+        subscriptionId.ToString()
       )
     );
   }

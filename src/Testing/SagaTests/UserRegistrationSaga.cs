@@ -7,14 +7,13 @@ public class UserRegistrationSaga : Saga
 {
   public string? Id { get; set; }
 
-  public async Task Start(
-    Registered registered,
-    IMessageBus bus
+  public Subscribed Start(
+    Registered registered
   )
   {
     var (companyName, _, _, _, subscriptionId) = registered;
     Id = subscriptionId;
-    await bus.InvokeAsync(new Subscribed(companyName, subscriptionId));
+    return new Subscribed(companyName, subscriptionId);
   }
 
   public void Handle(
