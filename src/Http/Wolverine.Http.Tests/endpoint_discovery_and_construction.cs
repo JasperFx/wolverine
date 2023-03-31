@@ -1,4 +1,5 @@
 using Shouldly;
+using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
 
@@ -26,5 +27,14 @@ public class endpoint_discovery_and_construction : IntegrationContext
     {
         var chain = HttpChains.ChainFor("GET", "/fake/hello");
         chain.Endpoint.DisplayName.ShouldBe("The Hello Route!");
+    }
+
+    [Fact]
+    public void ability_to_discern_cascaded_messages_in_tuple_return_values()
+    {
+        var chain = HttpChains.ChainFor("POST", "/spawn");
+        
+        chain.InputType().ShouldBe(typeof(SpawnInput));
+        chain.ResourceType.ShouldBe(typeof(string));
     }
 }

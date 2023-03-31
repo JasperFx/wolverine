@@ -299,13 +299,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     public async Task EnqueueCascadingAsync(object? message)
     {
-        if (Envelope == null)
-        {
-            throw new InvalidOperationException("No Envelope attached to this context");
-        }
-
-        if (Envelope.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
-                                              Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
+        if (Envelope?.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
+                                               Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
         {
             Envelope.Response = message;
         }
@@ -329,7 +324,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                 return;
         }
 
-        if (message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
+        if (Envelope != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
             await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
             return;

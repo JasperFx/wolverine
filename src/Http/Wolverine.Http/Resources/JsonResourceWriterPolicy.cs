@@ -8,7 +8,7 @@ internal class JsonResourceWriterPolicy : IResourceWriterPolicy
     {
         if (chain.HasResourceType())
         {
-            chain.Postprocessors.Add(new WriteJsonFrame(chain.Method.ReturnVariable));
+            chain.Postprocessors.Add(new WriteJsonFrame(chain.Method.Creates.First()));
             return true;
         }
 

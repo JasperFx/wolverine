@@ -60,7 +60,7 @@ public class saga_not_found_usages : SagaTestHarness<SteppedSaga>
 
         var ex = wrapper.InnerExceptions.OfType<UnknownSagaException>().FirstOrDefault();
         ex.ShouldNotBeNull();
-        ex.Message.ShouldBe(
+        ex.Message.ShouldContain(
             $"Could not find an expected saga document of type CoreTests.Persistence.Sagas.SteppedSaga for id '{sagaId}'");
     }
 

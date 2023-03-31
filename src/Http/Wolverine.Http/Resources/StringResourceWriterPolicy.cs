@@ -10,7 +10,7 @@ internal class StringResourceWriterPolicy : IResourceWriterPolicy
     {
         if (chain.ResourceType == typeof(string))
         {
-            chain.Postprocessors.Add(new WriteStringFrame(chain.Method.ReturnVariable));
+            chain.Postprocessors.Add(new WriteStringFrame(chain.Method.Creates.First()));
 
             return true;
         }

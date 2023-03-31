@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
 using Wolverine.Http.Metadata;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
 
@@ -38,9 +39,7 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
 
         DisplayName = Method.ToString();
 
-        // TODO -- need a helper for this in JasperFx.Core
-        var att = method.Method.GetAttribute<WolverineHttpMethodAttribute>();
-        if (att != null)
+        if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
         {
             RoutePattern = RoutePatternFactory.Parse(att.Template);
 
@@ -49,7 +48,7 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
             DisplayName = att.Name ?? Method.ToString();
         }
 
-        ResourceType = method.ReturnType;
+        ResourceType = method.Creates.FirstOrDefault()?.VariableType;
 
         _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_")
             .Replace("{", "").Replace("}", "").Replace("-", "_");
@@ -241,6 +240,12 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
         foreach (var frame in Middleware) yield return frame;
 
         yield return Method;
+
+        var actionsOnOtherReturnValues = Method.Creates.Skip(1).Select(x => x.ReturnAction()).SelectMany(x => x.Frames());
+        foreach (var frame in actionsOnOtherReturnValues)
+        {
+            yield return frame;
+        }
 
         foreach (var frame in Postprocessors) yield return frame;
     }

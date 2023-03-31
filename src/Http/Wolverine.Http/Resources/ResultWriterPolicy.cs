@@ -11,7 +11,7 @@ internal class ResultWriterPolicy : IResourceWriterPolicy
         if (chain.Method.ReturnType.CanBeCastTo<IResult>())
         {
             var call = MethodCall.For<IResult>(x => x.ExecuteAsync(null));
-            call.Target = chain.Method.ReturnVariable;
+            call.Target = chain.Method.Creates.First();
             chain.Postprocessors.Add(call);
 
             return true;
