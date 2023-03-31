@@ -32,6 +32,12 @@ internal class SqlServerPersistenceFrameProvider : IPersistenceFrameProvider
         return chain.ServiceDependencies(container).Any(x => x == typeof(SqlConnection) || x == typeof(SqlTransaction));
     }
 
+    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    {
+        persistenceService = default;
+        return false;
+    }
+
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
         throw new NotSupportedException();

@@ -81,6 +81,14 @@ public interface IChain
     /// <returns></returns>
     public IEnumerable<Variable> ReturnVariablesOfType<T>() =>
         HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo<T>());
+
+    /// <summary>
+    /// Help out the code generation a little bit by telling this chain
+    /// about a service dependency that will be used. Helps connect
+    /// transactional middleware
+    /// </summary>
+    /// <param name="type"></param>
+    public void AddDependencyType(Type type);
 }
 
 #endregion

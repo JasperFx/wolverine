@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
@@ -50,6 +51,8 @@ public sealed partial class WolverineOptions
         deriveServiceName();
 
         LocalQueue(TransportConstants.Durable).UseDurableInbox();
+
+        Policies.Add<SagaPersistenceChainPolicy>();
     }
     
     

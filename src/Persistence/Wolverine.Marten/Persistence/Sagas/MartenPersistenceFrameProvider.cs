@@ -11,6 +11,12 @@ namespace Wolverine.Marten.Persistence.Sagas;
 
 internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 {
+    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    {
+        persistenceService = typeof(IDocumentSession);
+        return true;
+    }
+
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
         var store = container.GetInstance<IDocumentStore>();

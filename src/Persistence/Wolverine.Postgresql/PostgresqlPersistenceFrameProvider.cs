@@ -33,6 +33,12 @@ internal class PostgresqlPersistenceFrameProvider : IPersistenceFrameProvider
             .Any(x => x == typeof(NpgsqlConnection) || x == typeof(NpgsqlTransaction));
     }
 
+    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    {
+        persistenceService = default;
+        return false;
+    }
+
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
         throw new NotSupportedException();

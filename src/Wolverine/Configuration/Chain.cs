@@ -29,12 +29,20 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     {
         Capacity = 0
     };
+
+    private readonly List<Type> _dependencies = new();
+    
     public abstract string Description { get; }
     public List<AuditedMember> AuditedMembers { get; } = new();
     public abstract bool ShouldFlushOutgoingMessages();
     public abstract bool RequiresOutbox();
 
     public abstract MethodCall[] HandlerCalls();
+
+    public void AddDependencyType(Type type)
+    {
+        _dependencies.Add(type);
+    }
 
     /// <summary>
     ///     Find all of the service dependencies of the current chain
@@ -44,7 +52,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     /// <returns></returns>
     public IEnumerable<Type> ServiceDependencies(IContainer container)
     {
-        return serviceDependencies(container).Distinct();
+        return serviceDependencies(container).Concat(_dependencies).Distinct();
     }
 
     private bool isConfigureMethod(MethodInfo method)

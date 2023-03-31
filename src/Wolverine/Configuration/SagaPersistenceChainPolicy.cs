@@ -1,0 +1,48 @@
+﻿using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
+using Lamar;
+using Wolverine.Persistence;
+using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Handlers;
+
+namespace Wolverine.Configuration;
+
+internal class SagaPersistenceChainPolicy : IChainPolicy
+{
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    {
+        var providers = rules.PersistenceProviders();
+        
+        foreach (var chain in chains)
+        {
+            var returnedSagas = chain.ReturnVariablesOfType<Saga>();
+            foreach (var saga in returnedSagas)
+            {
+                if (!attachSagaPersistenceFrame(container, providers, saga, chain))
+                {
+                    throw new InvalidSagaException(
+                        "No known Saga persistence provider 'knows' how to insert an entity of type " +
+                        saga.VariableType.FullNameInCode() + " referenced in chain " + chain);
+                }
+                
+            }
+        }
+    }
+
+    private static bool attachSagaPersistenceFrame(IContainer container, List<IPersistenceFrameProvider> providers, Variable saga, IChain chain)
+    {
+        foreach (var provider in providers)
+        {
+            if (provider.CanPersist(saga.VariableType, container, out var serviceType))
+            {
+                chain.AddDependencyType(serviceType);
+
+                saga.UseReturnAction(v => provider.DetermineInsertFrame(v, container),
+                    "Persisting the new Saga entity");
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

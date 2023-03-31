@@ -18,6 +18,13 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 {
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
 
+    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    {
+        var dbContextType = TryDetermineDbContextType(entityType, container);
+        persistenceService = dbContextType;
+        return dbContextType != null;
+    }
+
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
         var dbContextType = DetermineDbContextType(sagaType, container);
