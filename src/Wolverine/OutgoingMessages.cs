@@ -25,6 +25,6 @@ public class OutgoingMessages : List<object>
 
     public void Add(object message, DeliveryOptions options)
     {
-        Add(new ConfiguredMessage(message, options));
+        Add(new DeliveryMessage(message, options));
     }
 }

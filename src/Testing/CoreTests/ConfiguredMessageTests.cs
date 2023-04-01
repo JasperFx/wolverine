@@ -13,7 +13,7 @@ public class ConfiguredMessageTests
         var context = Substitute.For<IMessageContext>();
 
         var inner = new Message1();
-        var message = new ConfiguredMessage(inner, new DeliveryOptions());
+        var message = new DeliveryMessage(inner, new DeliveryOptions());
 
         await message.As<ISendMyself>().ApplyAsync(context);
 

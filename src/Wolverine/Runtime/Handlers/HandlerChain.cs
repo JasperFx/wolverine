@@ -73,8 +73,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var create in handler.Creates)
             i = DisambiguateOutgoingVariableName(create, i);
     }
-
-
+    
     /// <summary>
     ///     A textual description of this HandlerChain
     /// </summary>
@@ -101,6 +100,14 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
+        foreach (var handler in Handlers)
+        {
+            if (handler.Creates.Any(x => x.VariableType == typeof(Envelope)))
+            {
+                throw new InvalidHandlerException($"Invalid Wolverine handler signature. Method {handler} creates a {typeof(Envelope).FullNameInCode()}");
+            }
+        }
+        
         _generatedType = assembly.AddType(TypeName, typeof(MessageHandler));
 
         foreach (var handler in Handlers) assembly.ReferenceAssembly(handler.HandlerType.Assembly);

@@ -33,12 +33,37 @@ public abstract record DelayedMessage(TimeSpan DelayTime) : ISendMyself
 /// </summary>
 public abstract record TimeoutMessage(TimeSpan DelayTime) : DelayedMessage(DelayTime);
 
-public class ConfiguredMessage : ISendMyself
+public static class ConfiguredMessageExtensions
+{
+    /// <summary>
+    /// Schedule the inner outgoing message to be sent at the specified time
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="time"></param>
+    /// <returns></returns>
+    public static DeliveryMessage ScheduledAt(this object message, DateTimeOffset time)
+    {
+        return new DeliveryMessage(message, new DeliveryOptions { ScheduledTime = time });
+    }
+
+    /// <summary>
+    /// Schedule the inner outgoing message to be sent after the specified delay
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="delay"></param>
+    /// <returns></returns>
+    public static DeliveryMessage DelayedFor(this object message, TimeSpan delay)
+    {
+        return new DeliveryMessage(message, new DeliveryOptions { ScheduleDelay = delay });
+    }
+}
+
+public class DeliveryMessage : ISendMyself
 {
     public object Message { get; }
     public DeliveryOptions Options { get; }
 
-    public ConfiguredMessage(object message, DeliveryOptions options)
+    public DeliveryMessage(object message, DeliveryOptions options)
     {
         Message = message;
         Options = options;
