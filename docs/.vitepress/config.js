@@ -41,6 +41,13 @@ export default {
             text: 'Suggest changes to this page'
         },
 
+        socialLinks: [
+            { 
+                icon: 'github', 
+                link: 'https://github.com/JasperFx/wolverine' 
+            },
+        ],
+
         footer: {
             message: 'Released under the MIT License.',
             copyright: 'Copyright © Jeremy D. Miller and contributors.',
