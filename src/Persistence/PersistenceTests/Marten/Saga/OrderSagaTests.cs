@@ -32,26 +32,19 @@ public class When_starting_an_order : PostgresqlContext, IAsyncLifetime
                                 }
                             )
                             .IntegrateWithWolverine();
-                        ;
                     }
                 )
-                .UseWolverine(
-                    options =>
-                    {
-                        // TODO -- this should not be necessary
-                        options.Discovery.IncludeAssembly(Assembly.GetAssembly(typeof(Order)));
-                    }
-                )
+                .UseWolverine(options =>
+                {
+                    options.Discovery.IncludeAssembly(Assembly.GetAssembly(typeof(Order)));
+                })
                 .StartAsync();
 
-        var orderId = Guid.NewGuid()
-            .ToString();
+        var orderId = Guid.NewGuid().ToString();
 
-        await _host.InvokeMessageAndWaitAsync(
-            new StartOrder(orderId)
-        );
+        await _host.InvokeMessageAndWaitAsync(new StartOrder(orderId));
 
-        var session = _host.Services.GetRequiredService<IQuerySession>();
+        using var session = _host.Services.GetRequiredService<IQuerySession>();
         _order = await session.LoadAsync<Order>(orderId);
     }
 

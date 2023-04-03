@@ -39,6 +39,8 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
 
                 saga.UseReturnAction(v => provider.DetermineInsertFrame(v, container),
                     "Persisting the new Saga entity");
+                
+                provider.ApplyTransactionSupport(chain, container);
                 return true;
             }
         }

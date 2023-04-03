@@ -267,7 +267,8 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
     private HandlerChain buildHandlerChain(IGrouping<Type, HandlerCall> group)
     {
-        if (group.Any(x => x.HandlerType.CanBeCastTo<Saga>()))
+        // If the SagaChain handler method is a static, then it's valid to be a "Start" method
+        if (group.Any(x => x.HandlerType.CanBeCastTo<Saga>() && !x.Method.IsStatic))
         {
             return new SagaChain(group, this);
         }
