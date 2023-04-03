@@ -30,6 +30,8 @@ internal class RetryInlineContinuation : IContinuation, IContinuationSource
             await Task.Delay(_delay.Value).ConfigureAwait(false);
         }
 
+        activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeRetry));
+
         await lifecycle.RetryExecutionNowAsync().ConfigureAwait(false);
     }
 

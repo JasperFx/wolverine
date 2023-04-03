@@ -19,6 +19,7 @@ internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
     public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity)
     {
+        activity?.AddEvent(new ActivityEvent(WolverineTracing.ScheduledRetry));
         var scheduledTime = now.Add(_delay);
 
         return new ValueTask(lifecycle.ReScheduleAsync(scheduledTime));

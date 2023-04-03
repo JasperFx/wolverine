@@ -23,6 +23,14 @@ internal static class WolverineTracing
     public const string MessagingTempDestination = "messaging.temp_destination"; // boolean if this is temporary
     public const string PayloadSizeBytes = "messaging.message_payload_size_bytes";
 
+    public const string EnvelopeDiscarded = "wolverine.envelope.discarded";
+    public const string MovedToErrorQueue = "wolverine.error.queued";
+    public const string NoHandler = "wolverine.no.handler";
+    public const string PausedListener = "wolverine.paused.listener";
+    public const string EnvelopeRequeued = "wolverine.envelope.requeued";
+    public const string EnvelopeRetry = "wolverine.envelope.retried";
+    public const string ScheduledRetry = "wolverine.envelope.rescheduled";
+
 
     // Transport specific things
     // messaging.consumer_id

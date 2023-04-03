@@ -28,6 +28,8 @@ internal class NoHandlerContinuation : IContinuation
             throw new InvalidOperationException("Context does not have an Envelope");
         }
 
+        activity?.AddEvent(new ActivityEvent(WolverineTracing.NoHandler));
+
         runtime.MessageLogger.NoHandlerFor(lifecycle.Envelope!);
 
         foreach (var handler in _handlers)
