@@ -37,7 +37,7 @@ public abstract class HttpHandler
             return true; // Sure, we'll just go with this.
         }
 
-        if (contentType.EqualsIgnoreCase("application/json") || contentType.EqualsIgnoreCase("text/json"))
+        if (contentType.StartsWith("application/json") || contentType.StartsWith("text/json"))
         {
             return true;
         }
