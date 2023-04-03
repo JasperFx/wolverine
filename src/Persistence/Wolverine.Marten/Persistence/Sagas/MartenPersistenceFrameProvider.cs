@@ -1,7 +1,9 @@
 ﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Marten;
+using Marten.Events;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
@@ -38,10 +40,8 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
             return true;
         }
 
-        // TODO -- get smarter to understand that there's a return value of Saga later
-
         return chain.ReturnVariablesOfType<IMartenAction>().Any() ||
-               chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession));
+               chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
     }
 
     public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)
