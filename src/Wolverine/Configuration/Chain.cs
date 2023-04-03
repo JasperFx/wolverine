@@ -25,12 +25,11 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 {
     public List<Frame> Middleware { get; } = new();
 
-    public List<Frame> Postprocessors { get; } = new List<Frame>
-    {
-        Capacity = 0
-    };
+    public List<Frame> Postprocessors { get; } = new();
 
     private readonly List<Type> _dependencies = new();
+
+    public Dictionary<string, object> Tags { get; } = new();
     
     public abstract string Description { get; }
     public List<AuditedMember> AuditedMembers { get; } = new();

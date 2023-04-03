@@ -16,6 +16,7 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
 // ReSharper disable once InconsistentNaming
 internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 {
+    public const string UsingEfCoreTransaction = "uses_efcore_transaction";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
 
     public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
@@ -80,6 +81,9 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
     public void ApplyTransactionSupport(IChain chain, IContainer container)
     {
+        if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
+        chain.Tags.Add(UsingEfCoreTransaction, true);
+        
         var dbType = DetermineDbContextType(chain, container);
 
         if (chain.RequiresOutbox())

@@ -33,6 +33,7 @@ public interface IChain
     string Description { get; }
 
     List<AuditedMember> AuditedMembers { get; }
+    Dictionary<string, object> Tags { get; }
 
     /// <summary>
     ///     Used internally by Wolverine for "outbox" mechanics
