@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Commands;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -240,6 +241,23 @@ public static class HostBuilderExtensions
     public static Task InvokeAsync<T>(this IHost host, T command)
     {
         return host.Get<IMessageBus>().InvokeAsync(command!);
+    }
+
+    /// <summary>
+    /// Validate all of the Wolverine configuration of this Wolverine application.
+    /// This:
+    /// 1. Checks that all of the known generated code elements are valid
+    /// 2. Does an assertion of the Lamar container configuration
+    /// </summary>
+    /// <param name="host"></param>
+    public static void AssertWolverineConfigurationIsValid(this IHost host)
+    {
+        host.AssertAllGeneratedCodeCanCompile();
+        
+        if (host.Services is IContainer c)
+        {
+            c.AssertConfigurationIsValid();
+        }
     }
 
 
