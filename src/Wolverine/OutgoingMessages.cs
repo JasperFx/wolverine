@@ -13,18 +13,18 @@ public class OutgoingMessages : List<object>
         Add(Respond.ToSender(response));
     }
 
-    public void Schedule(object message, TimeSpan delay)
+    public void Schedule<T>(T message, TimeSpan delay)
     {
         Add(message, new DeliveryOptions{ScheduleDelay = delay});
     }
 
-    public void Schedule(object message, DateTimeOffset time)
+    public void Schedule<T>(T message, DateTimeOffset time)
     {
         Add(message, new DeliveryOptions{ScheduledTime = time});
     }
 
-    public void Add(object message, DeliveryOptions options)
+    public void Add<T>(T message, DeliveryOptions options)
     {
-        Add(new DeliveryMessage(message, options));
+        Add(new DeliveryMessage<T>(message, options));
     }
 }

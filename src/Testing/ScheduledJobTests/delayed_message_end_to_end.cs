@@ -35,7 +35,7 @@ public class delayed_message_end_to_end
     }
 }
 
-public record EnforcedTimeout(int Number) : DelayedMessage(3.Seconds());
+public record EnforcedTimeout(int Number) : TimeoutMessage(3.Seconds());
 
 public record KickOffMessage(int Number);
 

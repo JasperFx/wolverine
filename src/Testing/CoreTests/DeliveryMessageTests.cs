@@ -5,7 +5,7 @@ using Xunit;
 
 namespace CoreTests;
 
-public class ConfiguredMessageTests
+public class DeliveryMessageTests
 {
     [Fact]
     public async Task send_with_delivery_options()
@@ -13,7 +13,7 @@ public class ConfiguredMessageTests
         var context = Substitute.For<IMessageContext>();
 
         var inner = new Message1();
-        var message = new DeliveryMessage(inner, new DeliveryOptions());
+        var message = inner.WithDeliveryOptions(new DeliveryOptions());
 
         await message.As<ISendMyself>().ApplyAsync(context);
 

@@ -27,7 +27,7 @@ public class OutgoingMessagesTests
         
         theMessages.Schedule(inner, delay);
 
-        var configured = theMessages.ShouldHaveMessageOfType<DeliveryMessage>();
+        var configured = theMessages.ShouldHaveMessageOfType<DeliveryMessage<Message1>>();
         configured.Options.ScheduleDelay.ShouldBe(delay);
         configured.Message.ShouldBe(inner);
     }
@@ -40,7 +40,7 @@ public class OutgoingMessagesTests
         
         theMessages.Schedule(inner, time);
 
-        var configured = theMessages.ShouldHaveMessageOfType<DeliveryMessage>();
+        var configured = theMessages.ShouldHaveMessageOfType<DeliveryMessage<Message1>>();
         configured.Options.ScheduledTime.ShouldBe(time);
         configured.Message.ShouldBe(inner);
     }
