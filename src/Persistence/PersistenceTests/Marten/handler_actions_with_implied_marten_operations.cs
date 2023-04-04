@@ -67,7 +67,7 @@ public static class MartenCommandHandler
 {
     public static (MartenMessage2, StoreDocument) Handle(CreateMartenDocument command)
     {
-        return (new MartenMessage2(command.Name), MartenOperations.Store(new NamedDocument { Id = command.Name }));
+        return (new MartenMessage2(command.Name), MartenOps.Store(new NamedDocument { Id = command.Name }));
     }
 
     public static void Handle(MartenMessage2 message)

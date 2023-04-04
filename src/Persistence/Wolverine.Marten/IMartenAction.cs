@@ -7,15 +7,15 @@ public interface IMartenAction : ISideEffect
     void Execute(IDocumentSession session);
 }
 
-public static class MartenOperations
+public static class MartenOps
 {
-    public static StoreDocument Store<T>(T document)
+    public static StoreDocument Store<T>(T document) where T : notnull
     {
         return new StoreDocument<T>(document);
     }
 }
 
-public class StoreDocument<T> : StoreDocument
+public class StoreDocument<T> : StoreDocument where T : notnull
 {
     public StoreDocument(T document)
     {
