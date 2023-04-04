@@ -21,6 +21,13 @@ public record SpawnInput(string Name);
 
 public static class MessageSpawnerEndpoint
 {
+    [NoContent]
+    [WolverinePost("/spawn2")]
+    public static (HttpMessage1, HttpMessage2) Post()
+    {
+        return new(new HttpMessage1("foo"), new HttpMessage2("bar"));
+    }
+    
     [WolverinePost("/spawn")]
     public static (string, OutgoingMessages) Post(SpawnInput input)
     {

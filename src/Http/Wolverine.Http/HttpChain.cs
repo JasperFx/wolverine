@@ -9,6 +9,7 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
@@ -45,7 +46,15 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
             DisplayName = att.Name ?? Method.ToString();
         }
 
-        ResourceType = method.Creates.FirstOrDefault()?.VariableType;
+        if (method.Method.HasAttribute<NoContentAttribute>() || method.HandlerType.HasAttribute<NoContentAttribute>())
+        {
+            NoContent = true;
+            ResourceType = typeof(void);
+        }
+        else
+        {
+            ResourceType = method.Creates.FirstOrDefault()?.VariableType;
+        }
 
         _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_")
             .Replace("{", "").Replace("}", "").Replace("-", "_");
@@ -63,6 +72,8 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
         Metadata = new RouteHandlerBuilder(new[] { this });
         applyMetadata();
     }
+    
+    public bool NoContent { get; }
 
     public MethodCall Method { get; }
     
