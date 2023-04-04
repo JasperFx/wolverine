@@ -17,7 +17,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
 
-public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
+public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
 {
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
@@ -86,48 +86,7 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     public override string Description { get; }
 
     internal RouteEndpoint? Endpoint { get; private set; }
-    public string SourceCode => _generatedType.SourceCode;
 
-    void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
-    {
-        assembly.UsingNamespaces.Fill(typeof(RoutingHttpContextExtensions).Namespace);
-        assembly.UsingNamespaces.Fill("System.Linq");
-        assembly.UsingNamespaces.Fill("System");
-
-        _generatedType = assembly.AddType(_fileName, typeof(HttpHandler));
-
-        assembly.ReferenceAssembly(Method.HandlerType.Assembly);
-        assembly.ReferenceAssembly(typeof(HttpContext).Assembly);
-        assembly.ReferenceAssembly(typeof(HttpChain).Assembly);
-
-        var handleMethod = _generatedType.MethodFor(nameof(HttpHandler.Handle));
-
-        handleMethod.DerivedVariables.AddRange(HttpContextVariables);
-
-        handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
-    }
-
-    Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider services,
-        string containingNamespace)
-    {
-        var found = this.As<ICodeFile>().AttachTypesSynchronously(rules, assembly, services, containingNamespace);
-        return Task.FromResult(found);
-    }
-
-    bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider services,
-        string containingNamespace)
-    {
-        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName);
-
-        if (_handlerType == null)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    string ICodeFile.FileName => _fileName;
 
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {
@@ -157,52 +116,6 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
         return ResourceType != null && ResourceType != typeof(void);
     }
 
-    private IEnumerable<object> buildMetadata()
-    {
-        // For diagnostics
-        yield return this;
-
-        yield return Method.Method;
-
-        // This is just to let the world know that the endpoint came from Wolverine
-        yield return new WolverineMarker();
-
-        // Custom metadata
-        foreach (var metadata in Metadata) yield return metadata;
-
-        // TODO -- figure out how to get at the Cors preflight stuff
-        yield return new HttpMethodMetadata(_httpMethods);
-
-        if (RequestType != null)
-        {
-            yield return new WolverineAcceptsMetadata(this);
-            yield return new WolverineProducesResponse { StatusCode = 400 };
-        }
-
-        if (ResourceType != null)
-        {
-            yield return new WolverineProducesResponse
-            {
-                StatusCode = 200,
-                Type = ResourceType,
-                ContentTypes = new[] { "application/json" }
-            };
-
-            yield return new WolverineProducesResponse
-            {
-                StatusCode = 404
-            };
-        }
-        else
-        {
-            yield return new WolverineProducesResponse { StatusCode = 200 };
-        }
-
-        foreach (var attribute in Method.HandlerType.GetCustomAttributes()) yield return attribute;
-
-        foreach (var attribute in Method.Method.GetCustomAttributes()) yield return attribute;
-    }
-
     public override bool ShouldFlushOutgoingMessages()
     {
         return true;
@@ -221,47 +134,6 @@ public class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     public override Type? InputType()
     {
         return RequestType;
-    }
-
-    internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
-    {
-        // Add frames for any writers
-        if (ResourceType != typeof(void))
-        {
-            foreach (var writerPolicy in _parent.WriterPolicies)
-            {
-                if (writerPolicy.TryApply(this))
-                {
-                    break;
-                }
-            }
-        }
-
-        foreach (var frame in Middleware) yield return frame;
-
-        yield return Method;
-
-        var actionsOnOtherReturnValues = Method.Creates.Skip(1).Select(x => x.ReturnAction()).SelectMany(x => x.Frames());
-        foreach (var frame in actionsOnOtherReturnValues)
-        {
-            yield return frame;
-        }
-
-        foreach (var frame in Postprocessors) yield return frame;
-    }
-
-    public RouteEndpoint BuildEndpoint()
-    {
-        var handler = new Lazy<HttpHandler>(() =>
-        {
-            this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
-            return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
-        });
-
-        Endpoint = new RouteEndpoint(c => handler.Value.Handle(c), RoutePattern, Order,
-            new EndpointMetadataCollection(buildMetadata()), DisplayName);
-
-        return Endpoint;
     }
 
     public override string ToString()
