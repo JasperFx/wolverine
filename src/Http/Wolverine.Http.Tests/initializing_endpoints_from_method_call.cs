@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Shouldly;
-using Wolverine.Http.Metadata;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
@@ -61,9 +60,10 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
         chain.RequestType.ShouldBe(typeof(Question));
 
         var endpoint = chain.BuildEndpoint();
-        var metadata = endpoint.Metadata.OfType<WolverineAcceptsMetadata>()
-            .Single();
 
+        var metadata = endpoint.Metadata.OfType<IAcceptsMetadata>()
+            .Single();
+        
         metadata.RequestType.ShouldBe(chain.RequestType);
         metadata.ContentTypes.Single().ShouldBe("application/json");
     }
@@ -84,11 +84,11 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
 
         var badRequest = metadata.FirstOrDefault(x => x.StatusCode == 400);
         badRequest.ContentTypes.Any().ShouldBeFalse();
-        badRequest.Type.ShouldBeNull();
+        badRequest.Type.ShouldBe(typeof(void));
 
         var noValue = metadata.FirstOrDefault(x => x.StatusCode == 404);
         noValue.ContentTypes.Any().ShouldBeFalse();
-        noValue.Type.ShouldBeNull();
+        noValue.Type.ShouldBe(typeof(void));
     }
 
     [Theory]

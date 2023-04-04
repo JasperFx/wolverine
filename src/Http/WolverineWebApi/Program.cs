@@ -65,8 +65,13 @@ app.MapPost("/orders", Results<BadRequest, Ok<Order>>(CreateOrder command)
 app.MapWolverineEndpoints(opts =>
 {
     // This is strictly to test the endpoint policy
-    opts.ConfigureEndpoints(c => c.Metadata.Add(new CustomMetadata()));
-
+    opts.ConfigureEndpoints(c =>
+    {
+        // This adds metadata for OpenAPI
+        c.WithMetadata(new CustomMetadata());
+        c.WithTags("wolverine");
+    });
+    
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));

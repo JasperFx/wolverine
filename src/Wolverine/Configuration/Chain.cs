@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
+﻿using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
-using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -23,14 +19,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     where TChain : Chain<TChain, TModifyAttribute>
     where TModifyAttribute : Attribute, IModifyChain<TChain>
 {
+    private readonly List<Type> _dependencies = new();
     public List<Frame> Middleware { get; } = new();
 
     public List<Frame> Postprocessors { get; } = new();
 
-    private readonly List<Type> _dependencies = new();
-
     public Dictionary<string, object> Tags { get; } = new();
-    
+
     public abstract string Description { get; }
     public List<AuditedMember> AuditedMembers { get; } = new();
     public abstract bool ShouldFlushOutgoingMessages();
@@ -52,6 +47,20 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     public IEnumerable<Type> ServiceDependencies(IContainer container)
     {
         return serviceDependencies(container).Concat(_dependencies).Distinct();
+    }
+
+    public abstract bool HasAttribute<T>() where T : Attribute;
+    public abstract Type? InputType();
+
+    /// <summary>
+    ///     Add a member of the message type to be audited during execution
+    /// </summary>
+    /// <param name="member"></param>
+    /// <param name="heading"></param>
+    public void Audit(MemberInfo member, string? heading = null)
+    {
+        AuditedMembers.Add(new AuditedMember(member, heading ?? member.Name,
+            member.Name.SplitPascalCase().Replace(" ", ".").ToLowerInvariant()));
     }
 
     private bool isConfigureMethod(MethodInfo method)
@@ -109,15 +118,15 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             foreach (var parameter in handlerCall.Method.GetParameters()) yield return parameter.ParameterType;
 
             // Don't have to consider dependencies of a static handler
-            if (handlerCall.HandlerType.IsStatic()) continue;
-            
+            if (handlerCall.HandlerType.IsStatic())
+            {
+                continue;
+            }
+
             var @default = container.Model.For(handlerCall.HandlerType).Default;
             foreach (var dependency in @default.Instance.Dependencies) yield return dependency.ServiceType;
         }
     }
-
-    public abstract bool HasAttribute<T>() where T : Attribute;
-    public abstract Type? InputType();
 
     protected void applyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
     {
@@ -126,12 +135,12 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         {
             var befores = MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(handlerType.GetMethods(),
                 MiddlewarePolicy.BeforeMethodNames);
-            
+
             foreach (var before in befores)
             {
                 var frame = new MethodCall(handlerType, before);
                 MiddlewarePolicy.AssertMethodDoesNotHaveDuplicateReturnValues(frame);
-                
+
                 Middleware.Add(frame);
 
                 // Potentially add handling for IResult or HandlerContinuation
@@ -140,7 +149,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                     Middleware.Add(continuation!);
                 }
             }
-            
+
             var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(handlerType.GetMethods(),
                 MiddlewarePolicy.AfterMethodNames);
 
@@ -151,15 +160,4 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             }
         }
     }
-
-    /// <summary>
-    /// Add a member of the message type to be audited during execution
-    /// </summary>
-    /// <param name="member"></param>
-    /// <param name="heading"></param>
-    public void Audit(MemberInfo member, string? heading = null)
-    {
-        AuditedMembers.Add(new AuditedMember(member, heading ?? member.Name, member.Name.SplitPascalCase().Replace(" ", ".").ToLowerInvariant()));
-    }
-
 }

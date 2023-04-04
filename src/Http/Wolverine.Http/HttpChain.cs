@@ -6,14 +6,12 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using JasperFx.RuntimeCompiler;
 using Lamar;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
-using Wolverine.Http.Metadata;
-using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
 
@@ -62,15 +60,13 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
 
         // Add Before/After methods from the current handler
         applyImpliedMiddlewareFromHandlers(_parent.Rules);
+
+        Metadata = new RouteHandlerBuilder(new[] { this });
+        applyMetadata();
     }
 
     public MethodCall Method { get; }
-
-    /// <summary>
-    ///     Additional ASP.Net Core metadata for the endpoint
-    /// </summary>
-    public List<object> Metadata { get; } = new();
-
+    
     public string? DisplayName { get; set; }
 
     public int Order { get; set; }
@@ -144,5 +140,34 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     public override bool RequiresOutbox()
     {
         return ServiceDependencies(_parent.Container).Contains(typeof(IMessageBus));
+    }
+
+    private void applyMetadata()
+    {
+        Metadata
+            .WithMetadata(this)
+            .WithMetadata(new WolverineMarker())
+            .WithMetadata(new HttpMethodMetadata(_httpMethods))
+            .WithMetadata(Method.Method);
+
+        if (RequestType != null)
+        {
+            Metadata.Accepts(RequestType, false, "application/json");
+            Metadata.Produces(400);
+        }
+
+        if (ResourceType != null)
+        {
+            Metadata.Produces(200, ResourceType, "application/json");
+            Metadata.Produces(404);
+        }
+        else
+        {
+            Metadata.Produces(200);
+        }
+
+        foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
+
+        foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
     }
 }

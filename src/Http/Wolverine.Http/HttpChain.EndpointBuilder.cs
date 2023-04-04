@@ -1,59 +1,24 @@
-using System.Reflection;
 using JasperFx.RuntimeCompiler;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
-using Wolverine.Http.Metadata;
 
 namespace Wolverine.Http;
 
-public partial class HttpChain
+public partial class HttpChain : IEndpointConventionBuilder
 {
-    private IEnumerable<object> buildMetadata()
+    private readonly List<Action<EndpointBuilder>> _builderConfigurations = new();
+
+    /// <summary>
+    /// Configure ASP.Net Core endpoint metadata
+    /// </summary>
+    // ReSharper disable once InconsistentNaming
+    public RouteHandlerBuilder Metadata { get; }
+
+    public void Add(Action<EndpointBuilder> convention)
     {
-        // For diagnostics
-        yield return this;
-
-        yield return Method.Method;
-
-        // This is just to let the world know that the endpoint came from Wolverine
-        yield return new WolverineMarker();
-
-        // Custom metadata
-        foreach (var metadata in Metadata) yield return metadata;
-
-        // TODO -- figure out how to get at the Cors preflight stuff
-        yield return new HttpMethodMetadata(_httpMethods);
-
-        if (RequestType != null)
-        {
-            yield return new WolverineAcceptsMetadata(this);
-            yield return new WolverineProducesResponse { StatusCode = 400 };
-        }
-
-        if (ResourceType != null)
-        {
-            yield return new WolverineProducesResponse
-            {
-                StatusCode = 200,
-                Type = ResourceType,
-                ContentTypes = new[] { "application/json" }
-            };
-
-            yield return new WolverineProducesResponse
-            {
-                StatusCode = 404
-            };
-        }
-        else
-        {
-            yield return new WolverineProducesResponse { StatusCode = 200 };
-        }
-
-        foreach (var attribute in Method.HandlerType.GetCustomAttributes()) yield return attribute;
-
-        foreach (var attribute in Method.Method.GetCustomAttributes()) yield return attribute;
+        _builderConfigurations.Add(convention);
     }
-    
+
     public RouteEndpoint BuildEndpoint()
     {
         var handler = new Lazy<HttpHandler>(() =>
@@ -62,8 +27,17 @@ public partial class HttpChain
             return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
         });
 
-        Endpoint = new RouteEndpoint(c => handler.Value.Handle(c), RoutePattern, Order,
-            new EndpointMetadataCollection(buildMetadata()), DisplayName);
+        var builder = new RouteEndpointBuilder(c => handler.Value.Handle(c), RoutePattern, Order)
+        {
+            DisplayName = DisplayName
+        };
+        
+        foreach (var configuration in _builderConfigurations)
+        {
+            configuration(builder);
+        }
+
+        Endpoint = (RouteEndpoint?)builder.Build();
 
         return Endpoint;
     }
