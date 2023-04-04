@@ -47,6 +47,13 @@ public class MiddlewarePolicy : IChainPolicy
     {
         var befores = applications.SelectMany(x => x.BuildBeforeCalls(chain, rules)).ToArray();
 
+        if (chain.InputType() != null &&
+            befores.SelectMany(x => x.Creates).Any(x => x.VariableType == chain.InputType()))
+        {
+            throw new InvalidWolverineMiddlewareException(
+                "It's not currently legal in Wolverine to return the message type from middleware");
+        }
+
         for (var i = 0; i < befores.Length; i++)
         {
             chain.Middleware.Insert(i, befores[i]);
