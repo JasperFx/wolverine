@@ -144,7 +144,10 @@ public class middleware_usage
     public async Task apply_by_message_type_middleware_positive1()
     {
         var list = await invokeMessage(new StrikeoutsMessage { Number = 3, Pitcher = "Bret Saberhagen" },
-            handlers => { handlers.AddMiddlewareByMessageType(typeof(MessageMatchingMiddleware)); });
+            handlers =>
+            {
+                handlers.ForMessagesOfType<NumberedMessage>().AddMiddleware(typeof(MessageMatchingMiddleware));
+            });
 
         list.ShouldHaveTheSameElementsAs(
             "Before number 3",
@@ -158,7 +161,10 @@ public class middleware_usage
     public async Task apply_by_message_type_middleware_positive2()
     {
         var list = await invokeMessage(new RunsScoredMessage { Number = 5, Batter = "George Brett" },
-            handlers => { handlers.AddMiddlewareByMessageType(typeof(MessageMatchingMiddleware)); });
+            handlers =>
+            {
+                handlers.ForMessagesOfType<NumberedMessage>().AddMiddleware(typeof(MessageMatchingMiddleware));
+            });
 
         list.ShouldHaveTheSameElementsAs(
             "Before number 5",
@@ -172,7 +178,10 @@ public class middleware_usage
     public async Task apply_by_message_type_middleware_negative_match()
     {
         var list = await invokeMessage(new TracedMessage(),
-            handlers => { handlers.AddMiddlewareByMessageType(typeof(MessageMatchingMiddleware)); });
+            handlers =>
+            {
+                handlers.ForMessagesOfType<NumberedMessage>().AddMiddleware(typeof(MessageMatchingMiddleware));
+            });
 
         list.ShouldHaveTheSameElementsAs(
             "Handled TracedMessage"
@@ -185,8 +194,9 @@ public class middleware_usage
         var list = await invokeMessage(new RunsScoredMessage { Number = 3, Batter = "George Brett" },
             handlers =>
             {
-                handlers.AddMiddlewareByMessageType(typeof(StopIfGreaterThan5));
-                handlers.AddMiddlewareByMessageType(typeof(StopIfGreaterThan20));
+                handlers.ForMessagesOfType<NumberedMessage>()
+                    .AddMiddleware(typeof(StopIfGreaterThan5))
+                    .AddMiddleware(typeof(StopIfGreaterThan20));
             });
 
         list.ShouldHaveTheSameElementsAs(
@@ -201,7 +211,10 @@ public class middleware_usage
     public async Task conditional_filter_stop_sync()
     {
         var list = await invokeMessage(new RunsScoredMessage { Number = 20, Batter = "George Brett" },
-            handlers => { handlers.AddMiddlewareByMessageType(typeof(StopIfGreaterThan5)); });
+            handlers =>
+            {
+                handlers.ForMessagesOfType<NumberedMessage>().AddMiddleware(typeof(StopIfGreaterThan5));
+            });
 
         list.ShouldHaveTheSameElementsAs(
             "Evaluated Number"
@@ -212,7 +225,10 @@ public class middleware_usage
     public async Task conditional_filter_continue_async()
     {
         var list = await invokeMessage(new RunsScoredMessage { Number = 3, Batter = "George Brett" },
-            handlers => { handlers.AddMiddlewareByMessageType(typeof(StopIfGreaterThan5Async)); });
+            handlers =>
+            {
+                handlers.ForMessagesOfType<NumberedMessage>().AddMiddleware(typeof(StopIfGreaterThan5Async));
+            });
 
         list.ShouldHaveTheSameElementsAs(
             "Evaluated Number",
@@ -225,7 +241,10 @@ public class middleware_usage
     public async Task conditional_filter_stop_async()
     {
         var list = await invokeMessage(new RunsScoredMessage { Number = 20, Batter = "George Brett" },
-            handlers => { handlers.AddMiddlewareByMessageType(typeof(StopIfGreaterThan5Async)); });
+            handlers =>
+            {
+                handlers.ForMessagesOfType<NumberedMessage>().AddMiddleware(typeof(StopIfGreaterThan5Async));
+            });
 
         list.ShouldHaveTheSameElementsAs(
             "Evaluated Number"

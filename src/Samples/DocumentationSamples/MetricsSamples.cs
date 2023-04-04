@@ -14,7 +14,7 @@ public class MetricsSamples
             {
                 // Add this middleware to all handlers where the message can be cast to
                 // IOrganizationRelated
-                opts.Policies.AddMiddlewareByMessageType(typeof(OrganizationTaggingMiddleware));
+                opts.Policies.ForMessagesOfType<IOrganizationRelated>().AddMiddleware(typeof(OrganizationTaggingMiddleware));
             }).StartAsync();
 
         #endregion

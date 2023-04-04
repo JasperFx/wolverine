@@ -75,13 +75,6 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// to every message handler that uses transactional services
     /// </summary>
     void AutoApplyTransactions();
-    
-    /// <summary>
-    ///     Add middleware only on handlers where the message type can be cast to the message
-    ///     type of the middleware type
-    /// </summary>
-    /// <param name="middlewareType"></param>
-    void AddMiddlewareByMessageType(Type middlewareType);
 
     /// <summary>
     ///     Add Wolverine middleware to message handlers
@@ -106,18 +99,17 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void RegisterInteropMessageAssembly(Assembly assembly);
 
     /// <summary>
-    /// Specify that the following members on every message that can be cast
-    /// to type T should be audited as part of telemetry, logging, and metrics
-    /// data exported from this application
-    /// </summary>
-    /// <param name="members"></param>
-    /// <typeparam name="T"></typeparam>
-    void Audit<T>(params Expression<Func<T, object>>[] members);
-
-    /// <summary>
     /// Write a log message with the given log level when message execution starts.
     /// This would also include any audited members of the message
     /// </summary>
     /// <param name="logLevel"></param>
     void LogMessageStarting(LogLevel logLevel);
+
+    /// <summary>
+    /// Specify policies for the handling of every message type that can
+    /// be cast to T
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    MessageTypePolicies<T> ForMessagesOfType<T>();
 }

@@ -69,7 +69,10 @@ public class configuring_middleware
     public async Task find_message_type_of_middleware()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.Policies.AddMiddlewareByMessageType(typeof(MiddlewareWithMessage)); })
+            .UseWolverine(opts =>
+            {
+                opts.Policies.ForMessagesOfType<SomeBaseMessage>().AddMiddleware(typeof(MiddlewareWithMessage));
+            })
             .StartAsync();
 
         var chain = host.GetRuntime().Handlers.ChainFor<MiddlewareMessage>();

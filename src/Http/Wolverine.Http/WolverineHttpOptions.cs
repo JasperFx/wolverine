@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Lamar;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
 using Wolverine.Middleware;
 

@@ -77,7 +77,7 @@ public class auditing_determination : IntegrationContext
             #region sample_explicit_registration_of_audit_properties
 
             // opts is WolverineOptions inside of a UseWolverine() call
-            opts.Policies.Audit<IAccountMessage>(x => x.AccountId);
+            opts.Policies.ForMessagesOfType<IAccountMessage>().Audit(x => x.AccountId);
 
             #endregion
         });

@@ -26,7 +26,6 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     private readonly HttpGraph _parent;
 
     // Make the assumption that the route argument has to match the parameter name
-    private readonly List<ParameterInfo> _routeArguments = new();
     private GeneratedType _generatedType;
     private Type? _handlerType;
 
@@ -75,7 +74,15 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
 
     public Type? ResourceType { get; }
 
-    public RoutePattern RoutePattern { get; }
+    internal void MapToRoute(string method, string url, int? order = null, string? displayName = null)
+    {
+        RoutePattern = RoutePatternFactory.Parse(url);
+        _httpMethods.Add(method);
+        if (order != null) Order = order.Value;
+        if (displayName.IsNotEmpty()) DisplayName = displayName;
+    }
+    
+    public RoutePattern RoutePattern { get; internal set; }
 
     public Type? RequestType { get; internal set; }
 

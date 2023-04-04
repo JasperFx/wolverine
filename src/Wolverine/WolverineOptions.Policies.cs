@@ -139,7 +139,7 @@ public sealed partial class WolverineOptions : IPolicies
         LocalRoutingConventionDisabled = true;
     }
     
-    private MiddlewarePolicy findOrCreateMiddlewarePolicy()
+    internal MiddlewarePolicy FindOrCreateMiddlewarePolicy()
     {
         var policy = RegisteredPolicies.OfType<MiddlewarePolicy>().FirstOrDefault();
         if (policy == null)
@@ -151,17 +151,9 @@ public sealed partial class WolverineOptions : IPolicies
         return policy;
     }
 
-    void IPolicies.AddMiddlewareByMessageType(Type middlewareType)
-    {
-        var policy = findOrCreateMiddlewarePolicy();
-
-        var application = policy.AddType(middlewareType);
-        application.MatchByMessageType = true;
-    }
-
     void IPolicies.AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null)
     {
-        findOrCreateMiddlewarePolicy().AddType(middlewareType, chain =>
+        FindOrCreateMiddlewarePolicy().AddType(middlewareType, chain =>
         {
             if (filter == null) return true;
 
@@ -204,12 +196,9 @@ public sealed partial class WolverineOptions : IPolicies
         WolverineMessageNaming.AddMessageInterfaceAssembly(assembly);
     }
 
-    public void Audit<T>(params Expression<Func<T, object>>[] memberExpressions)
+    MessageTypePolicies<T> IPolicies.ForMessagesOfType<T>()
     {
-        var members = memberExpressions.Select(expr => FindMembers.Determine(expr).First()).ToArray();
-
-        var policy = new AuditMembersPolicy<T>(members);
-        RegisteredPolicies.Insert(0, policy);
+        return new MessageTypePolicies<T>(this);
     }
 
     public void LogMessageStarting(LogLevel logLevel)
