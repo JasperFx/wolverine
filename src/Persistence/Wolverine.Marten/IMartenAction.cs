@@ -2,9 +2,9 @@
 
 namespace Wolverine.Marten;
 
-public interface IMartenAction
+public interface IMartenAction : ISideEffect
 {
-    void Apply(IDocumentSession session);
+    void Execute(IDocumentSession session);
 }
 
 public static class MartenOperations
@@ -24,7 +24,7 @@ public class StoreDocument<T> : StoreDocument
 
     public T Document { get; }
 
-    public void Apply(IDocumentSession session)
+    public void Execute(IDocumentSession session)
     {
         session.Store(Document);
     }

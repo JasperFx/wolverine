@@ -53,6 +53,7 @@ public sealed partial class WolverineOptions
         LocalQueue(TransportConstants.Durable).UseDurableInbox();
 
         Policies.Add<SagaPersistenceChainPolicy>();
+        Policies.Add<SideEffectPolicy>();
     }
     
     

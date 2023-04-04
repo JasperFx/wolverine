@@ -25,7 +25,7 @@ internal class TransactionalFrame : Frame
         {
             var returnAction = action.UseReturnAction(v =>
             {
-                var methodCall = MethodCall.For<IMartenAction>(x => x.Apply(null));
+                var methodCall = MethodCall.For<IMartenAction>(x => x.Execute(null));
                 methodCall.Target = action;
 
                 return methodCall.WrapIfNotNull(action);

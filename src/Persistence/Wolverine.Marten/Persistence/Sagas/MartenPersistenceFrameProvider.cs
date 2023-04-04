@@ -40,7 +40,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
             return true;
         }
 
-        return chain.ReturnVariablesOfType<IMartenAction>().Any() ||
+        return 
                chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
     }
 
