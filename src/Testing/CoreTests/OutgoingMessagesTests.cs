@@ -25,7 +25,7 @@ public class OutgoingMessagesTests
         var delay = 5.Minutes();
         var inner = new Message1();
         
-        theMessages.Schedule(inner, delay);
+        theMessages.Delay(inner, delay);
 
         var configured = theMessages.ShouldHaveMessageOfType<DeliveryMessage<Message1>>();
         configured.Options.ScheduleDelay.ShouldBe(delay);

@@ -62,6 +62,22 @@ The response types of your message handlers can be:
 1. `IEnumerable<object>` or `object[]` to make multiple responses
 1. A [Tuple](https://docs.microsoft.com/en-us/dotnet/csharp/tuples) type to express the exact kinds of responses your message handler returns
 
+## Using OutgoingMessages
+
+::: TIP
+In the case of mixing different return values from a handler (side effects, Marten events, etc.), it might well make
+your code more intention revealing to use `OutgoingMessages`
+:::
+
+You can return a value from your handlers called `OutgoingMessages` that is just a collection of outgoing messages. This
+helps Wolverine "know" that these messages should be cascaded after the initial message is successful.
+
+The usage of this is shown below:
+
+snippet: sample_using_OutgoingMessage
+
+Do note that the value of `OutgoingMessages` is probably greatest when being used in a tuple response from a handler that's a mix
+of cascading messages and other side effects.
 
 ## Request/Reply Scenarios
 
