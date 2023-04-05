@@ -18,6 +18,12 @@ using Wolverine.Runtime.Handlers;
 namespace Wolverine.Marten;
 
 /// <summary>
+/// Tells Wolverine handlers that this value contains a
+/// list of events to be appended to the current stream
+/// </summary>
+public class Events : List<object>{}
+
+/// <summary>
 ///     Applies middleware to Wolverine message actions to apply a workflow with concurrency protections for
 ///     "command" messages that use a Marten projected aggregate to "decide" what
 ///     on new events to persist to the aggregate stream.
@@ -51,6 +57,9 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
 
     public override void Modify(IChain chain, GenerationRules rules, IContainer container)
     {
+        if (chain.Tags.ContainsKey(nameof(MartenCommandWorkflowAttribute))) return;
+        chain.Tags.Add(nameof(MartenCommandWorkflowAttribute),"true");
+
         var handlerChain = (HandlerChain)chain;
         CommandType = handlerChain.MessageType;
         AggregateType ??= DetermineAggregateType(chain);
@@ -72,7 +81,7 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         // Use the active document session as an IQuerySession instead of creating a new one
         firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
 
-        var eventsVariable = firstCall.Creates.FirstOrDefault();
+        var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ?? firstCall.Creates.FirstOrDefault(x => x.VariableType.CanBeCastTo<IEnumerable<object>>() && x.VariableType != typeof(OutgoingMessages));
         if (eventsVariable != null)
         {
             var action = eventsVariable.UseReturnAction(

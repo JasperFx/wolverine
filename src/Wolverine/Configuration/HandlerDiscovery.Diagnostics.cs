@@ -16,7 +16,7 @@ public sealed partial class HandlerDiscovery
             return writer.ToString();
         }
 
-        if (candidateType.IsInterface || candidateType.IsAbstract)
+        if (!candidateType.IsStatic() && (candidateType.IsInterface || candidateType.IsAbstract))
         {
             writer.WriteLine("MISS -- Handler types can only be concrete types");
             return writer.ToString();
