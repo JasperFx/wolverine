@@ -22,6 +22,31 @@ public record BookReservation(string Id);
 
 public record ReservationTimeout(string Id) : TimeoutMessage(1.Minutes());
 
+#region sample_return_saga_from_handler
+
+public class StartReservationHandler
+{
+    public static (
+        // Outgoing message
+        ReservationBooked, 
+        
+        // Starts a new Saga
+        Reservation, 
+        
+        // Additional message cascading for the new saga
+        ReservationTimeout) Handle(StartReservation start)
+    {
+        return (
+            new ReservationBooked(start.ReservationId, DateTimeOffset.UtcNow), 
+            new Reservation { Id = start.ReservationId }, 
+            new ReservationTimeout(start.ReservationId)
+            );
+    }
+}
+#endregion
+
+#region sample_reservation_saga
+
 public class Reservation : Saga
 {
     public string? Id { get; set; }
@@ -45,3 +70,5 @@ public class Reservation : Saga
         MarkCompleted();
     }
 }
+
+#endregion

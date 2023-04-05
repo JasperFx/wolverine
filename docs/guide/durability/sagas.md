@@ -66,7 +66,7 @@ public class Order : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A few explanatory notes on this code before we move on to detailed documentation:
@@ -277,7 +277,89 @@ public record CompleteOrder(string Id);
 
 ## Starting a Saga
 
-TODO -- do this first: https://github.com/JasperFx/wolverine/issues/751
+::: Tip
+In all the cases where you return a `Saga` object from a handler method to denote the start of a new `Saga`, your code should
+set the identity for the new `Saga`.
+:::
+
+To start a new saga, you have a couple options. You can use a static `Start()` or `StartAsync()` handler method on the `Saga` type itself
+like this one on an `OrderSaga`:
+
+<!-- snippet: sample_starting_a_saga_inside_a_handler -->
+<a id='snippet-sample_starting_a_saga_inside_a_handler'></a>
+```cs
+// This method would be called when a StartOrder message arrives
+// to start a new Order
+public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
+{
+    logger.LogInformation("Got a new order with id {Id}", order.OrderId);
+
+    // creating a timeout message for the saga
+    return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L18-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+You can also simply return one or more `Saga` type objects from a handler method as shown below where `Reservation` is a Wolverine saga:
+
+<!-- snippet: sample_reservation_saga -->
+<a id='snippet-sample_reservation_saga'></a>
+```cs
+public class Reservation : Saga
+{
+    public string? Id { get; set; }
+    
+    // Apply the CompleteReservation to the saga
+    public void Handle(BookReservation book, ILogger<Reservation> logger)
+    {
+        logger.LogInformation("Completing Reservation {Id}", book.Id);
+
+        // That's it, we're done. Delete the saga state after the message is done.
+        MarkCompleted();
+    }
+
+    // Delete this Reservation if it has not already been deleted to enforce a "timeout"
+    // condition
+    public void Handle(ReservationTimeout timeout, ILogger<Reservation> logger)
+    {
+        logger.LogInformation("Applying timeout to Reservation {Id}", timeout.Id);
+
+        // That's it, we're done. Delete the saga state after the message is done.
+        MarkCompleted();
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L48-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+and the handler that would start the new saga:
+
+<!-- snippet: sample_return_saga_from_handler -->
+<a id='snippet-sample_return_saga_from_handler'></a>
+```cs
+public class StartReservationHandler
+{
+    public static (
+        // Outgoing message
+        ReservationBooked, 
+        
+        // Starts a new Saga
+        Reservation, 
+        
+        // Additional message cascading for the new saga
+        ReservationTimeout) Handle(StartReservation start)
+    {
+        return (
+            new ReservationBooked(start.ReservationId, DateTimeOffset.UtcNow), 
+            new Reservation { Id = start.ReservationId }, 
+            new ReservationTimeout(start.ReservationId)
+            );
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Method Conventions
 
