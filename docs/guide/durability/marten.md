@@ -477,7 +477,7 @@ public class Order
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L18-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_event_sourced_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L19-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_event_sourced_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At a minimum, we're going to want a command handler for this command message that marks an order item as ready to ship and then evaluates whether
@@ -489,7 +489,7 @@ or not based on the current state of the `Order` aggregate whether or not the lo
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L64-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L65-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above we're also utilizing Wolverine's [outbox messaging](/guide/durability/) support to both order and guarantee the delivery of a `ShipOrder` message when
@@ -549,7 +549,7 @@ public async Task Post(
     await session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L73-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L74-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully that code is easy to understand, but there's some potentially repetitive code
@@ -589,7 +589,7 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L251-L278' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L252-L279' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, Wolverine is wrapping middleware around our basic command handler to
@@ -687,6 +687,61 @@ Just as in other Wolverine [message handlers](/guide/handlers/), you can use
 additional method arguments for registered services ("method injection"), the `CancellationToken`
 for the message, and the message `Envelope` if you need access to message metadata.
 
+As for the return values from these handler methods, you can use:
+
+* It's legal to have **no** return values if you are directly using `IEventStream<T>` to append events
+* `IEnumerable<object>` or `object[]` to denote that a value is events to append to the current event stream
+* `Wolverine.Events` to denote a list of events. You *may* find this to lead to more readable code in some cases
+* `OutgoingMessages` to refer to additional command messages to be published that should *not* be captured as events
+* `ISideEffect` objects
+* Any other type would be considered to be a cascading message
+
+Here's an alternative of the `MarkItemReady` handler that uses `Events`:
+
+<!-- snippet: sample_using_events_and_messages_from_MartenCommandWorkflow -->
+<a id='snippet-sample_using_events_and_messages_from_martencommandworkflow'></a>
+```cs
+[MartenCommandWorkflow]
+public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
+{
+    // All contrived, let's say we need to call some 
+    // kind of service to get data so this handler has to be
+    // async
+    var data = await service.FindDataAsync();
+
+    var messages = new OutgoingMessages();
+    var events = new Events();
+    
+    if (order.Items.TryGetValue(command.ItemName, out var item))
+    {
+        // Not doing this in a purist way here, but just
+        // trying to illustrate the Wolverine mechanics
+        item.Ready = true;
+
+        // Mark that the this item is ready
+        events += new ItemReady(command.ItemName);
+    }
+    else
+    {
+        // Some crude validation
+        throw new InvalidOperationException($"Item {command.ItemName} does not exist in this order");
+    }
+
+    // If the order is ready to ship, also emit an OrderReady event
+    if (order.IsReadyToShip())
+    {
+        events += new OrderReady();
+        messages.Add(new ShipOrder(order.Id));
+    }
+
+    // This results in both new events being captured
+    // and potentially the ShipOrder message going out
+    return (events, messages);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L293-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_martencommandworkflow' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ### Determining the Aggregate Identity
 
 Wolverine is trying to determine a public member on the command type that refers to the identity
@@ -700,7 +755,7 @@ by appending "Id" to the aggregate type name (it's not case sensitive if you wer
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L64-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Order.cs#L65-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you want to use a different member, bypass the convention, or just don't like conventional
@@ -721,6 +776,9 @@ public class MarkItemReady
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderEventSourcingSample/Alternatives/Signatures.cs#L8-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+
+
 
 ## Publishing Events
 

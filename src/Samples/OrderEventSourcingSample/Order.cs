@@ -1,6 +1,7 @@
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine;
 using Wolverine.Marten;
 
 namespace OrderEventSourcingSample;
@@ -276,4 +277,59 @@ public static class MarkItemReadyHandler
     }
 
     #endregion
+}
+
+public record Data;
+
+public interface ISomeService
+{
+    Task<Data> FindDataAsync();
+}
+
+
+public static class MarkItemReadyHandler2
+{
+
+    #region sample_using_events_and_messages_from_MartenCommandWorkflow
+
+    [MartenCommandWorkflow]
+    public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
+    {
+        // All contrived, let's say we need to call some 
+        // kind of service to get data so this handler has to be
+        // async
+        var data = await service.FindDataAsync();
+
+        var messages = new OutgoingMessages();
+        var events = new Events();
+        
+        if (order.Items.TryGetValue(command.ItemName, out var item))
+        {
+            // Not doing this in a purist way here, but just
+            // trying to illustrate the Wolverine mechanics
+            item.Ready = true;
+
+            // Mark that the this item is ready
+            events += new ItemReady(command.ItemName);
+        }
+        else
+        {
+            // Some crude validation
+            throw new InvalidOperationException($"Item {command.ItemName} does not exist in this order");
+        }
+
+        // If the order is ready to ship, also emit an OrderReady event
+        if (order.IsReadyToShip())
+        {
+            events += new OrderReady();
+            messages.Add(new ShipOrder(order.Id));
+        }
+
+        // This results in both new events being captured
+        // and potentially the ShipOrder message going out
+        return (events, messages);
+    }
+
+    #endregion
+
 }

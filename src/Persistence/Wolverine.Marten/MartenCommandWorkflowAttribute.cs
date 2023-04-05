@@ -21,7 +21,14 @@ namespace Wolverine.Marten;
 /// Tells Wolverine handlers that this value contains a
 /// list of events to be appended to the current stream
 /// </summary>
-public class Events : List<object>{}
+public class Events : List<object>
+{
+    public static Events operator +(Events events, object @event)
+    {
+        events.Add(@event);
+        return events;
+    }
+}
 
 /// <summary>
 ///     Applies middleware to Wolverine message actions to apply a workflow with concurrency protections for
