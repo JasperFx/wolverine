@@ -38,13 +38,12 @@ public class Order : Saga
 
     // This method would be called when a StartOrder message arrives
     // to start a new Order
-    public OrderTimeout Start(StartOrder order, ILogger<Order> logger)
+    public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
     {
-        Id = order.OrderId; // defining the Saga Id.
-
         logger.LogInformation("Got a new order with id {Id}", order.OrderId);
+    
         // creating a timeout message for the saga
-        return new OrderTimeout(order.OrderId);
+        return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
     }
 
     // Apply the CompleteOrder to the saga
@@ -67,7 +66,7 @@ public class Order : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A few explanatory notes on this code before we move on to detailed documentation:
@@ -137,6 +136,105 @@ return await app.RunOaktonCommands(args);
 
 The call to `IServiceCollection.AddMarten().IntegrateWithWolverine()` adds the Marten backed saga persistence to your application. No other configuration
 is necessary. See the [Marten integration](/guide/durability/marten.html#saga-storage) for a little more information about using Marten backed sagas.
+
+## How it works
+
+::: Warning
+Do not call `IMessageBus.InvokeAsync()` within a `Saga` related handler to execute a command on that same `Saga`. You will be acting
+on old or missing data. Utilize cascading messages for subsequent work. 
+:::
+
+Wolverine is wrapping some generated code around your `Saga.Start()` and `Saga.Handle()` methods for loading and persisting the state. Here's a (mildly cleaned up) version
+of the generated code for starting the `Order` saga shown above:
+
+<!-- snippet: sample_generated_code_for_start_order_handler -->
+<a id='snippet-sample_generated_code_for_start_order_handler'></a>
+```cs
+public class StartOrderHandler133227374 : MessageHandler
+{
+    private readonly OutboxedSessionFactory _outboxedSessionFactory;
+    private readonly ILogger<Order> _logger;
+
+    public StartOrderHandler133227374(OutboxedSessionFactory outboxedSessionFactory, ILogger<Order> logger)
+    {
+        _outboxedSessionFactory = outboxedSessionFactory;
+        _logger = logger;
+    }
+
+    public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
+    {
+        var startOrder = (StartOrder)context.Envelope.Message;
+        await using var documentSession = _outboxedSessionFactory.OpenSession(context);
+        (var outgoing1, var outgoing2) = Order.Start(startOrder, _logger);
+        
+        // Register the document operation with the current session
+        documentSession.Insert(outgoing1);
+        
+        // Outgoing, cascaded message
+        await context.EnqueueCascadingAsync(outgoing2).ConfigureAwait(false);
+        
+        // Commit the unit of work
+        await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Internal/Generated/WolverineHandlers/StartOrderHandler133227374.cs.cs#L11-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_code_for_start_order_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And here's the code that's generated for the `CompleteOrder` command from the sample above:
+
+<!-- snippet: sample_generated_code_for_CompleteOrder -->
+<a id='snippet-sample_generated_code_for_completeorder'></a>
+```cs
+public class CompleteOrderHandler1228388417 : MessageHandler
+{
+    private readonly OutboxedSessionFactory _outboxedSessionFactory;
+    private readonly ILogger<Order> _logger;
+
+    public CompleteOrderHandler1228388417(OutboxedSessionFactory outboxedSessionFactory, ILogger<Order> logger)
+    {
+        _outboxedSessionFactory = outboxedSessionFactory;
+        _logger = logger;
+    }
+    
+    public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
+    {
+        await using var documentSession = _outboxedSessionFactory.OpenSession(context);
+        var completeOrder = (CompleteOrder)context.Envelope.Message;
+        string sagaId = context.Envelope.SagaId ?? completeOrder.Id;
+        if (string.IsNullOrEmpty(sagaId)) throw new IndeterminateSagaStateIdException(context.Envelope);
+        
+        // Try to load the existing saga document
+        var order = await documentSession.LoadAsync<Order>(sagaId, cancellation).ConfigureAwait(false);
+        if (order == null)
+        {
+            throw new UnknownSagaException(typeof(Order), sagaId);
+        }
+
+        else
+        {
+            order.Handle(completeOrder, _logger);
+            if (order.IsCompleted())
+            {
+                // Register the document operation with the current session
+                documentSession.Delete(order);
+            }
+            else
+            {
+                
+                // Register the document operation with the current session
+                documentSession.Update(order);
+            }
+            
+            // Commit all pending changes
+            await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
+        }
+
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Internal/Generated/WolverineHandlers/CompleteOrderHandler1228388417.cs.cs#L12-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_code_for_completeorder' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Saga Message Identity
 

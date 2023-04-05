@@ -26,9 +26,9 @@ public static async Task testing_setup_or_teardown(IHost host)
     // also tries to clear out any messages held
     // by message brokers connected to your Wolverine app
     await host.ResetResourceState();
-    
+
     var store = host.Services.GetRequiredService<IMessageStore>();
-    
+
     // Rebuild the database schema objects
     // and delete existing message data
     // This is good for testing
@@ -38,7 +38,7 @@ public static async Task testing_setup_or_teardown(IHost host)
     await store.Admin.ClearAllAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L19-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_management_of_message_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L18-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_management_of_message_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

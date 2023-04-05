@@ -5062,7 +5062,7 @@ function createHydrationFunctions(rendererInternals) {
       if (node) {
         node = hydrateNode(node, vnode, parentComponent, parentSuspense, slotScopeIds, optimized);
       } else if (vnode.type === Text && !vnode.children) {
-        continue;
+        
       } else {
         hasMismatch = true;
         if (!hasWarned2) {
@@ -5570,7 +5570,7 @@ function baseCreateRenderer(options, createHydrationFns) {
         if (true) {
           popWarningContext();
         }
-        return;
+        
       } else {
         instance.next = n2;
         invalidateJob(instance.update);

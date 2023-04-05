@@ -11,7 +11,19 @@ is built in and will always give you the activity span for message execution sta
 message execution to be logged as well. Rather than force your development teams to write repetitive logging statements for every single
 message handler method, you can ask Wolverine to do that for you:
 
-snippet: sample_log_message_starting
+<!-- snippet: sample_log_message_starting -->
+<a id='snippet-sample_log_message_starting'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Opt into having Wolverine add a log message at the beginning
+        // of the message execution
+        opts.Policies.LogMessageStarting(LogLevel.Information);
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_log_message_starting' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 With only the defaults, Wolverine is logging the type of message and the message id. As shown in the next section, you can also add
 additional context to these log messages.
@@ -32,16 +44,48 @@ next section.
 
 To explicitly mark members as "audited", you *can* use attributes within your message types (and these are inherited) like so:
 
-snippet: sample_using_audit_attribute
+<!-- snippet: sample_using_audit_attribute -->
+<a id='snippet-sample_using_audit_attribute'></a>
+```cs
+public class AuditedMessage
+{
+    [Audit]
+    public string Name { get; set; }
+
+    [Audit("AccountIdentifier")] public int AccountId;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L90-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Or if you are okay using a common message interface for common identification like "this message targets an account/organization/tenant/client"
 like the `IAccountCommand` shown below:
 
-snippet: sample_account_message_for_auditing
+<!-- snippet: sample_account_message_for_auditing -->
+<a id='snippet-sample_account_message_for_auditing'></a>
+```cs
+// Marker interface
+public interface IAccountMessage
+{
+    public int AccountId { get; }
+}
+
+// A possible command that uses our marker interface above
+public record DebitAccount(int AccountId, decimal Amount) : IAccountMessage;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L118-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 You can specify audited members through this syntax:
 
-snippet: sample_explicit_registration_of_audit_properties
+<!-- snippet: sample_explicit_registration_of_audit_properties -->
+<a id='snippet-sample_explicit_registration_of_audit_properties'></a>
+```cs
+// opts is WolverineOptions inside of a UseWolverine() call
+opts.Policies.ForMessagesOfType<IAccountMessage>().Audit(x => x.AccountId);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L77-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_registration_of_audit_properties' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Open Telemetry
 
@@ -81,8 +125,51 @@ TODO -- there's quite a bit built in that's published through System.Diagnostics
 but some more experimentation and actual docs are forthcoming.
 
 
-snippet: sample_organization_tagging_middleware
+<!-- snippet: sample_organization_tagging_middleware -->
+<a id='snippet-sample_organization_tagging_middleware'></a>
+```cs
+// Common interface on message types within our system
+public interface IOrganizationRelated
+{
+    string OrganizationCode { get; }
+}
 
-snippet: sample_using_organization_tagging_middleware
+// Middleware just to add a metrics tag for the organization code
+public static class OrganizationTaggingMiddleware
+{
+    public static void Before(IOrganizationRelated command, Envelope envelope)
+    {
+        envelope.SetMetricsTag("org.code", command.OrganizationCode);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L46-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
-snippet: sample_tenant_id_tagging
+<!-- snippet: sample_using_organization_tagging_middleware -->
+<a id='snippet-sample_using_organization_tagging_middleware'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Add this middleware to all handlers where the message can be cast to
+        // IOrganizationRelated
+        opts.Policies.ForMessagesOfType<IOrganizationRelated>().AddMiddleware(typeof(OrganizationTaggingMiddleware));
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample_tenant_id_tagging -->
+<a id='snippet-sample_tenant_id_tagging'></a>
+```cs
+public static async Task publish_operation(IMessageBus bus, string tenantId, string name)
+{
+    // All outgoing messages or executed messages from this 
+    // IMessageBus object will be tagged with the tenant id
+    bus.TenantId = tenantId;
+    await bus.PublishAsync(new SomeMessage(name));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L33-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tenant_id_tagging' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

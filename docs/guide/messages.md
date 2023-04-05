@@ -95,10 +95,12 @@ types that will be published by the application by either implementing one of th
 <a id='snippet-sample_message_type_discovery'></a>
 ```cs
 public record CreateIssue(string Name) : IMessage;
+
 public record DeleteIssue(Guid Id) : ICommand;
+
 public record IssueCreated(Guid Id, string Name) : IEvent;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageDiscovery.cs#L6-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_type_discovery' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageDiscovery.cs#L6-L14' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_type_discovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -113,7 +115,7 @@ You can optionally use an attribute to mark a type as a message:
 [WolverineMessage]
 public record CloseIssue(Guid Id);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageDiscovery.cs#L14-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverinemessage_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageDiscovery.cs#L16-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverinemessage_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or lastly, make up your own criteria to find and mark message types within your system as shown below:
@@ -121,9 +123,9 @@ Or lastly, make up your own criteria to find and mark message types within your 
 <!-- snippet: sample_use_your_own_marker_type -->
 <a id='snippet-sample_use_your_own_marker_type'></a>
 ```cs
-opts.Discovery.IncludeTypesAsMessages(type => type.CanBeCastTo<IDiagnosticsMessage>());
+opts.Discovery.CustomizeHandlerDiscovery(types => types.Includes.Implements<IDiagnosticsMessageHandler>());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L38-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L37-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that only types that are in assemblies either marked with `[assembly: WolverineModule]` or the main application assembly

@@ -98,9 +98,9 @@ using var host = await Host.CreateDefaultBuilder()
         {
             x.UseSqlServer(connectionString);
         });
-        
+
         opts.UseEntityFrameworkCoreTransactions();
-        
+
         // Add the auto transaction middleware attachment policy
         opts.Policies.AutoApplyTransactions();
     }).StartAsync();
@@ -156,7 +156,7 @@ public class SampleMappedDbContext : DbContext
         // This enables your DbContext to map the incoming and
         // outgoing messages as part of the outbox
         modelBuilder.MapWolverineEnvelopeStorage();
-        
+
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {
@@ -167,7 +167,7 @@ public class SampleMappedDbContext : DbContext
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/EFCore/SampleDbContext.cs#L51-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/EFCore/SampleDbContext.cs#L50-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

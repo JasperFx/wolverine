@@ -307,7 +307,10 @@ public static class ShipOrderHandler
     public static async Task<(Order, Customer)> LoadAsync(ShipOrder command, IDocumentSession session)
     {
         var order = await session.LoadAsync<Order>(command.OrderId);
-        if (order == null) throw new MissingOrderException(command.OrderId);
+        if (order == null)
+        {
+            throw new MissingOrderException(command.OrderId);
+        }
 
         var customer = await session.LoadAsync<Customer>(command.CustomerId);
 
@@ -326,7 +329,7 @@ public static class ShipOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L33-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L31-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

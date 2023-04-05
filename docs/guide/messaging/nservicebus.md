@@ -27,10 +27,17 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
 
     opts.ListenToRabbitQueue("wolverine")
         .UseNServiceBusInterop()
-        .DefaultIncomingMessage<ResponseMessage>().UseForReplies();
+        
+        //.DefaultIncomingMessage<ResponseMessage>()
+        
+        .UseForReplies();
+    
+    // This facilitates messaging from NServiceBus (or MassTransit) sending as interface
+    // types, whereas Wolverine only wants to deal with concrete types
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Interop/NServiceBus/NServiceBusFixture.cs#L17-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_interoperability' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Interop/NServiceBus/NServiceBusFixture.cs#L18-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_interoperability' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 MORE SOON!

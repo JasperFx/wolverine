@@ -21,7 +21,21 @@ it is found by Wolverine to be a handler type,
 also giving you a full report on each public method about why or why not Wolverine considers it to be a valid
 handler method.
 
-snippet: sample_describe_handler_match
+<!-- snippet: sample_describe_handler_match -->
+<a id='snippet-sample_describe_handler_match'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Surely plenty of other configuration for Wolverine...
+
+        // This *temporary* line of code will write out a full report about why or 
+        // why not Wolverine is finding this handler and its candidate handler messages
+        Console.WriteLine(opts.DescribeHandlerMatch(typeof(MyMissingMessageHandler)));
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L156-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_describe_handler_match' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Even if the report itself isn't exactly clear to you, using this textual report in a Wolverine issue or
 within the [Critter Stack Discord](https://discord.gg/wBkZGpe3) group will help the Wolverine team be able to assist you much quicker. 
@@ -58,7 +72,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.ApplicationAssembly = typeof(Program).Assembly;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L12-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_application_assembly' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L10-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_application_assembly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To pull in handlers from other assemblies, you can either decorate an assembly with this attribute:
@@ -85,7 +99,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.Discovery.IncludeAssembly(typeof(MessageFromOtherAssembly).Assembly);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L28-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_extra_assemblies_to_type_discovery' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L26-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_extra_assemblies_to_type_discovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Handler Type Discovery
@@ -267,7 +281,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L226-L274' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L243-L291' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -289,7 +303,6 @@ At a minimum, you can disable the built in discovery, add additional type filter
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        
         opts.Discovery
 
             // Turn off the default handler conventions
@@ -298,14 +311,15 @@ using var host = await Host.CreateDefaultBuilder()
 
             // Include candidate actions by a user supplied
             // type filter
-            .IncludeTypes(t => t.IsInNamespace("MyApp.Handlers"))
-
-            // Include candidate classes by suffix
-            .IncludeClassesSuffixedWith("Listener")
+            .CustomizeHandlerDiscovery(x =>
+            {
+                x.Includes.WithNameSuffix("Worker");
+                x.Includes.WithNameSuffix("Listener");
+            })
 
             // Include a specific handler class with a generic argument
             .IncludeType<SimpleHandler>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L129-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L128-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

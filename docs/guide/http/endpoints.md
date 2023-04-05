@@ -21,7 +21,7 @@ public static Results PostJson(Question question)
     };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L70-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L73-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the method signature above, `Question` is the "request" type (the payload sent from the client to the server) and `Answer` is the "resource" type (what is being returned to the client).
@@ -32,7 +32,7 @@ If instead that method were asynchronous like this:
 ```cs
 [WolverinePost("/question2")]
 public static Task<Results> PostJsonAsync(Question question)
-{ 
+{
     var results = new Results
     {
         Sum = question.One + question.Two,
@@ -42,7 +42,7 @@ public static Task<Results> PostJsonAsync(Question question)
     return Task.FromResult(results);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L87-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The resource type is still `Answer`. Likewise, if an endpoint returns `ValueTask<Answer>`, the resource type
@@ -77,7 +77,7 @@ public static string IntRouteArgument(int age)
     return $"Age is {age}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L36-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L35-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The following code snippet from `WolverineFx.Http` itself shows the valid route
@@ -86,24 +86,24 @@ parameter types that are supported at this time:
 <!-- snippet: sample_supported_route_parameter_types -->
 <a id='snippet-sample_supported_route_parameter_types'></a>
 ```cs
-public static readonly Dictionary<Type, string> TypeOutputs = new Dictionary<Type, string>
+public static readonly Dictionary<Type, string> TypeOutputs = new()
 {
-    {typeof(bool), "bool"},
-    {typeof(byte), "byte"},
-    {typeof(sbyte), "sbyte"},
-    {typeof(char), "char"},
-    {typeof(decimal), "decimal"},
-    {typeof(float), "float"},
-    {typeof(short), "short"},
-    {typeof(int), "int"},
-    {typeof(double), "double"},
-    {typeof(long), "long"},
-    {typeof(ushort), "ushort"},
-    {typeof(uint), "uint"},
-    {typeof(ulong), "ulong"},
-    {typeof(Guid), typeof(Guid).FullName},
-    {typeof(DateTime), typeof(DateTime).FullName},
-    {typeof(DateTimeOffset), typeof(DateTimeOffset).FullName}
+    { typeof(bool), "bool" },
+    { typeof(byte), "byte" },
+    { typeof(sbyte), "sbyte" },
+    { typeof(char), "char" },
+    { typeof(decimal), "decimal" },
+    { typeof(float), "float" },
+    { typeof(short), "short" },
+    { typeof(int), "int" },
+    { typeof(double), "double" },
+    { typeof(long), "long" },
+    { typeof(ushort), "ushort" },
+    { typeof(uint), "uint" },
+    { typeof(ulong), "ulong" },
+    { typeof(Guid), typeof(Guid).FullName },
+    { typeof(DateTime), typeof(DateTime).FullName },
+    { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName }
 };
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L52-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
@@ -142,7 +142,7 @@ public static string UsingQueryString(string name) // name is from the query str
     return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L46-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_query_string' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L45-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_query_string' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the corresponding tests:
@@ -158,7 +158,7 @@ public async Task use_string_querystring_hit()
         x.Get.Url("/querystring/string?name=Magic");
         x.Header("content-type").SingleValueShouldEqual("text/plain");
     });
-    
+
     body.ReadAsText().ShouldBe("Name is Magic");
 }
 
@@ -170,11 +170,11 @@ public async Task use_string_querystring_miss()
         x.Get.Url("/querystring/string");
         x.Header("content-type").SingleValueShouldEqual("text/plain");
     });
-    
+
     body.ReadAsText().ShouldBe("Name is missing");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/end_to_end.cs#L76-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/end_to_end.cs#L149-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -215,12 +215,12 @@ public async Task post_json_happy_path()
     });
 
     var result = await response.ReadAsJsonAsync<Results>();
-    
+
     result.Product.ShouldBe(12);
     result.Sum.ShouldBe(7);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/posting_json.cs#L8-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_post_json_happy_path' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/posting_json.cs#L12-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_post_json_happy_path' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Returning Strings
@@ -258,7 +258,7 @@ public IResult Redirect(GoToColor request)
     {
         case "Red":
             return Results.Redirect("/red");
-        
+
         case "Green":
             return Results.Redirect("/green");
 
@@ -302,6 +302,6 @@ public string UseTraceIdentifier(string traceIdentifier)
     return traceIdentifier;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HttpContextEndpoints.cs#L36-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_trace_identifier' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HttpContextEndpoints.cs#L35-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_trace_identifier' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

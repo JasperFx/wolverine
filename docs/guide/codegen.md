@@ -65,16 +65,15 @@ using var host = await Host.CreateDefaultBuilder()
         // Never generate types at runtime, but instead try to locate
         // the generated types from the main application assembly
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
-        
+
         // Hybrid approach that first tries to locate the types
         // from the application assembly, but falls back to
         // generating the code and dynamic type. Also writes the 
         // generated source code file to disk
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L11-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_codegen_type_load_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L11-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_codegen_type_load_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or as a short hand option, use this:
@@ -90,7 +89,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.OptimizeArtifactWorkflow();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L37-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L36-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which will use:
