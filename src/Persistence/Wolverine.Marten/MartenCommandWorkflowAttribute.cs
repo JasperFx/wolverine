@@ -67,8 +67,11 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         if (chain.Tags.ContainsKey(nameof(MartenCommandWorkflowAttribute))) return;
         chain.Tags.Add(nameof(MartenCommandWorkflowAttribute),"true");
 
-        var handlerChain = (HandlerChain)chain;
-        CommandType = handlerChain.MessageType;
+        CommandType = chain.InputType();
+        if (CommandType == null)
+            throw new InvalidOperationException(
+                $"Cannot apply Marten command workflow to chain {chain} because it has no input type");
+        
         AggregateType ??= DetermineAggregateType(chain);
         AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
         VersionMember = DetermineVersionMember(CommandType);
@@ -76,7 +79,7 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         var sessionCreator = MethodCall.For<OutboxedSessionFactory>(x => x.OpenSession(null!));
         chain.Middleware.Add(sessionCreator);
 
-        var firstCall = handlerChain.Handlers.First();
+        var firstCall = chain.HandlerCalls().First();
 
         var loader = generateLoadAggregateCode(chain);
         if (AggregateType == firstCall.HandlerType)
@@ -96,10 +99,10 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
                     .WrapIfNotNull(v), "Append events to the Marten event stream");
         }
 
-        validateMethodSignatureForEmittedEvents(chain, firstCall, handlerChain);
+        validateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         relayAggregateToHandlerMethod(loader, firstCall);
 
-        handlerChain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
+        chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
     }
 
     private void relayAggregateToHandlerMethod(MethodCall loader, MethodCall firstCall)
@@ -119,7 +122,7 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
     }
 
     private static void validateMethodSignatureForEmittedEvents(IChain chain, MethodCall firstCall,
-        HandlerChain handlerChain)
+        IChain handlerChain)
     {
         if (firstCall.Method.ReturnType == typeof(Task) || firstCall.Method.ReturnType == typeof(void))
         {
