@@ -24,7 +24,11 @@ internal class ResultContinuationPolicy : IContinuationStrategy
     }
 }
 
-internal class MaybeEndWithResultFrame : AsyncFrame
+/// <summary>
+/// Used to potentially stop the execution of an Http request
+/// based on whether the IResult is a WolverineContinue or something else
+/// </summary>
+public class MaybeEndWithResultFrame : AsyncFrame
 {
     private readonly Variable _result;
     private Variable? _context;

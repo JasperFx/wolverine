@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_publish_marten_message : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _options;
-        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_publish_marten_message(Wolverine.Http.WolverineHttpOptions options, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(options)
+        public POST_publish_marten_message(Wolverine.Http.WolverineHttpOptions options, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(options)
         {
             _options = options;
-            _wolverineRuntime = wolverineRuntime;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _wolverineRuntime = wolverineRuntime;
         }
 
 

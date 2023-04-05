@@ -1,9 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Description>Fluent Validation middleware for Wolverine Applications</Description>
+        <!-- Leave this be, needing to override the Directory defaults -->
+        <TargetFrameworks>net7.0</TargetFrameworks>
+        
+        <Description>Fluent Validation middleware for Wolverine HTTP Endpoints</Description>
         <DebugType>portable</DebugType>
-        <PackageId>WolverineFx.FluentValidation</PackageId>
+        <PackageId>WolverineFx.Http.FluentValidation</PackageId>
         <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
         <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
@@ -13,11 +16,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="FluentValidation" Version="11.3.0" />
+      <ProjectReference Include="..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj" />
+      <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
     </ItemGroup>
 
 </Project>

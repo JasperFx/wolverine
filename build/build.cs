@@ -144,6 +144,7 @@ namespace build
                 "./src/Extensions/Wolverine.FluentValidation",
                 "./src/Extensions/Wolverine.MemoryPack",
                 "./src/Http/Wolverine.Http",
+                "./src/Http/Wolverine.Http.FluentValidation",
             };
 
             Target("pack", ForEach(nugetProjects), project =>

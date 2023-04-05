@@ -7,7 +7,9 @@ using Oakton;
 using Oakton.Resources;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.FluentValidation;
 using Wolverine.Http;
+using Wolverine.Http.FluentValidation;
 using Wolverine.Marten;
 using WolverineWebApi;
 
@@ -44,6 +46,8 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
 
     opts.Policies.AutoApplyTransactions();
+
+    opts.UseFluentValidation();
     
     opts.OptimizeArtifactWorkflow();
 });
@@ -71,6 +75,10 @@ app.MapWolverineEndpoints(opts =>
         c.WithMetadata(new CustomMetadata());
         c.WithTags("wolverine");
     });
+    
+    // Opting into the Fluent Validation middleware from
+    // Wolverine.Http.FluentValidation
+    opts.UseFluentValidationProblemDetailMiddleware();
     
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
