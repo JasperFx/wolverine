@@ -33,6 +33,26 @@ public class OutgoingMessageHandler
     }
 
     #endregion
+
+    #region sample_customized_cascaded_messages
+
+    public IEnumerable<object> Consume(Incoming incoming)
+    {
+        // Delay the message delivery
+        yield return new Message1().DelayedFor(10.Minutes());
+        
+        // Schedule the message delivery
+        yield return new Message2().ScheduledAt(new DateTimeOffset(DateTime.Today.AddDays(2)));
+        
+        // Customize the message delivery however you please...
+        yield return new Message3()
+            .WithDeliveryOptions(new DeliveryOptions().WithHeader("foo", "bar"));
+        
+        // Send back to the original sender
+        yield return Respond.ToSender(new Message4());
+    }
+
+    #endregion
 }
 
 public record Incoming;
