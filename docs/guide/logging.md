@@ -119,11 +119,78 @@ TODO -- Soon. This is going to be tedious
 
 ## Metrics
 
-TODO -- talk about extending metrics headers
+Wolverine is automatically tracking several performance related metrics through the [System.Diagnostics.Metrics](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics?view=net-8.0) types, 
+which sets Wolverine users up for being able to export their system’s performance metrics to third party observability tools like Honeycomb or Datadog that support Open Telemetry metrics. The current set of metrics in Wolverine are shown below:
 
-TODO -- there's quite a bit built in that's published through System.Diagnostics.Metrics that should be available through open telemetry exports,
-but some more experimentation and actual docs are forthcoming.
 
+| Metric Name                  | Metric Type                                                                                               | Description                                                                                                                                                                                                                                                                            |
+|------------------------------|-----------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| wolverine-messages-sent      | [Counter](https://opentelemetry.io/docs/reference/specification/metrics/api/#counter)                     | Number of messages sent                                                                                                                                                                                                                                                                |
+| wolverine-execution-time     | [Histogram](https://opentelemetry.io/docs/reference/specification/metrics/api/#histogram)                 | Execution time in milliseconds                                                                                                                                                                                                                                                         |
+| wolverine-messages-succeeded | Counter                                                                                                   | Number of messages successfully processed                                                                                                                                                                                                                                              |
+| wolverine-dead-letter-queue  | Counter                                                                                                   | Number of messages moved to dead letter queues                                                                                                                                                                                                                                         |
+| wolverine-effective-time     | Histogram                                                                                                 | Effective time between a message being sent and being completely handled in milliseconds. Right now this works between Wolverine to Wolverine application sending and from NServiceBus applications sending to Wolverine applications through Wolverine’s NServiceBus interoperability. |
+| wolverine-execution-failure  | Counter                                                                                                   | Number of message execution failures. Tagged by exception type                                                                                                                                                                                                                         |
+| wolverine-inbox-count        | [Observable Gauge](https://opentelemetry.io/docs/reference/specification/metrics/api/#asynchronous-gauge) | Samples the number of pending envelopes in the durable inbox (likely to change)                                                                                                                                                                                                        |
+| wolverine-outbox-count       | Observable Gauge                                                                                          | Samples the number of pending envelopes in the durable outbox (likely to change)                                                                                                                                                                                                       |
+| wolverine-scheduled-count    | Observable Gauge                                                                                          | Samples the number of pending scheduled envelopes in the durable inbox (likely to change)                                                                                                                                                                                              |
+
+As a sample set up for publishing metrics, here's a proof of concept built with Honeycomb as the metrics collector:
+
+```csharp
+var host = Host.CreateDefaultBuilder(args)
+    .UseWolverine((context, opts) =>
+    {
+        opts.ServiceName = "Metrics";
+ 
+        // Open Telemetry *should* cover this anyway, but
+        // if you want Wolverine to log a message for *beginning*
+        // to execute a message, try this
+        opts.Policies.LogMessageStarting(LogLevel.Debug);
+         
+        // For both Open Telemetry span tracing and the "log message starting..."
+        // option above, add the AccountId as a tag for any command that implements
+        // the IAccountCommand interface
+        opts.Policies.ForMessagesOfType<IAccountCommand>().Audit(x => x.AccountId);
+         
+        // Setting up metrics and Open Telemetry activity tracing
+        // to Honeycomb
+        var honeycombOptions = context.Configuration.GetHoneycombOptions();
+        honeycombOptions.MetricsDataset = "Wolverine:Metrics";
+         
+        opts.Services.AddOpenTelemetry()
+            // enable metrics
+            .WithMetrics(x =>
+            {
+                // Export metrics to Honeycomb
+                x.AddHoneycomb(honeycombOptions);
+            })
+             
+            // enable Otel span tracing
+            .WithTracing(x =>
+            {
+                x.AddHoneycomb(honeycombOptions);
+                x.AddSource("Wolverine");
+            });
+ 
+    })
+    .UseResourceSetupOnStartup()
+    .Build();
+ 
+await host.RunAsync();
+```
+
+### Additional Metrics Tags
+
+You can add additional tags to the performance metrics per message type for system specific correlation in tooling like Datadog, Grafana, or Honeycomb. From
+an example use case that I personally work with, let's say that our system handles multiple message types that all refer to a specific client entity we're going
+to call "Organization Code." For the sake of performance correlation and troubleshooting later, we would like to have an idea about how the system performance
+varies between organizations. To do that, we will be adding the "Organization Code" as a tag to the performance metrics.
+
+First, let's start by using a common interface called `IOrganizationRelated` interface that just provides a common way
+of exposing the `OrganizationCode` for these message types handled by Wolverine. Next, the mechanism to adding the "Organization Code" to the metrics is to use the `Envelope.SetMetricsTag()` method
+to tag the current message being processed. Going back to the `IOrganizationRelated` marker interface, we can add some middleware that acts on
+`IOrganizationRelated` messages to add the metrics tag as shown below:
 
 <!-- snippet: sample_organization_tagging_middleware -->
 <a id='snippet-sample_organization_tagging_middleware'></a>
@@ -146,6 +213,8 @@ public static class OrganizationTaggingMiddleware
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L46-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+Finally, we'll add the new middleware to all message handlers where the message implements the `IOrganizationRelated` interface like so:
+
 <!-- snippet: sample_using_organization_tagging_middleware -->
 <a id='snippet-sample_using_organization_tagging_middleware'></a>
 ```cs
@@ -159,6 +228,8 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+### Tenant Id Tagging
 
 <!-- snippet: sample_tenant_id_tagging -->
 <a id='snippet-sample_tenant_id_tagging'></a>
