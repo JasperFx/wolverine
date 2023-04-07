@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -184,6 +185,22 @@ public class DocumentationSamples
         // Using Oakton opens up command line utilities for managing
         // the message storage
         return await app.RunOaktonCommands(args);
+
+        #endregion
+    }
+
+    public static async Task configure_inbox_keeping()
+    {
+        #region sample_configuring_KeepAfterMessageHandling
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // The default is 5 minutes, but if you want to keep
+                // messages around longer (or shorter) in case of duplicates,
+                // this is how you do it
+                opts.Durability.KeepAfterMessageHandling = 10.Minutes();
+            }).StartAsync();
 
         #endregion
     }

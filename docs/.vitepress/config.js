@@ -141,7 +141,8 @@ export default {
                         {text: 'Marten Integration', link: '/guide/durability/marten'},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
-                        {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'}
+                        {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},
+                        {text: 'Idempotent Message Delivery', link:'/guide/durability/idempotency'}
                     ]
                 },
 
