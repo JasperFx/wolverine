@@ -96,7 +96,7 @@ public class ImportanceMessage
 {
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L5-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_routed_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L7-L14' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_routed_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Otherwise, you can take advantage of Wolverine's message routing rules like this:
@@ -144,6 +144,30 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L50-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_conventions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Disable Conventional Local Routing
+
+Sometimes you'll want to disable the conventional routing to local queues, especially if you want to evenly distribute work across active
+nodes in an application. To do so, use this syntax:
+
+<!-- snippet: sample_disable_local_queue_routing -->
+<a id='snippet-sample_disable_local_queue_routing'></a>
+```cs
+public static async Task disable_queue_routing()
+{
+    using var host = await Host.CreateDefaultBuilder()
+        .UseWolverine(opts =>
+        {
+            // This will disable the conventional local queue
+            // routing that would take precedence over other conventional
+            // routing
+            opts.Policies.DisableConventionalLocalRouting();
+            
+            // Other routing conventions. Rabbit MQ? SQS?
+        }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L18-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_local_queue_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Configuring Local Queues

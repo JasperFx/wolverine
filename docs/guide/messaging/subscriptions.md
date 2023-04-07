@@ -1,4 +1,4 @@
-# Subscriptions
+# Subscriptions & Message Routing
 
 When you publish a message using `IMessageBus` or `IMessageContext`, Wolverine uses its concept of subscriptions to know how and where to send the message. Consider this code that publishes a
 `PingMessage`:
@@ -23,7 +23,7 @@ a series of rules to determine what endpoint(s) subscribes to the message type. 
 are:
 
 1. Explicit subscription rules
-2. Use a local subscription using the conventional local queue routing if the message type has a known message handler within the application
+2. Use a local subscription using the conventional local queue routing if the message type has a known message handler within the application. This [conventional routing to local queues can be disabled](/guide/messaging/transports/local.html#disable-conventional-local-routing). 
 3. Any registered message routing conventions like the Rabbit MQ or Amazon SQS routing conventions
 
 ## Explicit Subscriptions

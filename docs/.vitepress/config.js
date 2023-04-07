@@ -98,7 +98,7 @@ export default {
                     collapsed: true,
                     items: [
                         {text: 'Working with IMessageBus', link: '/guide/messaging/message-bus'},
-                        {text: 'Subscriptions', link: '/guide/messaging/subscriptions'},
+                        {text: 'Subscriptions & Message Routing', link: '/guide/messaging/subscriptions'},
                         {text: 'Message Listeners', link: '/guide/messaging/listeners'},
                         {
                             text: 'Transports',
