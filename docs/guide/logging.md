@@ -115,7 +115,33 @@ builder.Services.AddOpenTelemetryTracing(x =>
 
 ## Message Correlation
 
-TODO -- Soon. This is going to be tedious
+::: tip
+Each individual message transport technology like Rabbit MQ, Azure Service Bus, or Amazon SQS has its own flavor of *Envelope Wrapper*, but Wolverine
+uses its own `Envelope` structure internally and maps between its canonical representation and the transport specific envelope wrappers at runtime.
+:::
+
+As part of Wolverine's instrumentation, it tracks the causality between messages received and published by Wolverine. It also enables you to correlate Wolverine
+activity back to inputs from outside of Wolverine like ASP.Net Core request ids. The key item here is Wolverine's `Envelope` class (see the [Envelope Wrapper](https://www.enterpriseintegrationpatterns.com/patterns/messaging/EnvelopeWrapper.html) pattern discussed in the venerable Enterprise Integration Patterns) that holds messages
+the message and all the metadata for the message within Wolverine handling. 
+
+| Property       | Type                | Source                                                           | Description                                                                              |
+|----------------|---------------------|------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Id             | `Guid` (Sequential) | Assigned by Wolverine                                            | Identifies a specific Wolverine message                                                  |
+| CorrelationId  | `string`            | See the following discussion                                     | Correlating identifier for the logical workflow or system action across multiple actions |
+| ConversationId | `Guid`              | Assigned by Wolverine                                            | Id of the immediate message or workflow that caused this envelope to be sent             |
+| SagaId         | `string`            | Assigned by Wolverine                                            | Identifies the current stateful saga that this message refers to, if part of a stateful saga |
+| TenantId       | `string`            | Assigned by user on IMessageBus, but transmitted across messages | User defined tenant identifier for multi-tenancy strategies |
+
+Correlation is a little bit complicated. The correlation id is originally owned at the `IMessageBus` or `IMessageContext` level. By default,
+the `IMessageBus.CorrelationId` is set to be the [root id of the current System.Diagnostics.Activity](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.activity.rootid?view=net-7.0#system-diagnostics-activity-rootid).
+That's convenient, because it would hopefully, automatically tie your Wolverine behavior to outside activity like ASP.Net Core HTTP requests. 
+
+If you are publishing messages within the context of a Wolverine handler -- either with `IMessageBus` / `IMessageContext` or through cascading messages -- the correlation id of any outgoing
+messages will be the correlation id of the original message that is being currently handled. 
+
+If there is no existing correlation id from either a current activity or a previous message, Wolverine will assign a new correlation id
+as a `Guid` value converted to a string.
+
 
 ## Metrics
 
