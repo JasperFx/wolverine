@@ -1,5 +1,10 @@
 # Durable Inbox and Outbox Messaging
 
+::: tip
+The database schema objects for durable inbox or outbox usage within Wolverine require just a little bit of
+explicit configuration or explicit action on your part. See the [Managing Message Storage](./managing) for more detail.
+:::
+
 See the blog post [Transactional Outbox/Inbox with Wolverine and why you care](https://jeremydmiller.com/2022/12/15/transactional-outbox-inbox-with-wolverine-and-why-you-care/) for more context.
 
 One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](/guide/messaging/transports/tcp) and external transports like the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq).
@@ -135,8 +140,7 @@ successfully processed, expires, discarded due to error conditions, or moved to 
 To enroll individual listening endpoints or all listening endpoints in the Wolverine inbox mechanics, use
 one of these options:
 
-sample_configuring_durable_inbox
-
+snippet: sample_configuring_durable_inbox
 
 ## Local Queues
 
