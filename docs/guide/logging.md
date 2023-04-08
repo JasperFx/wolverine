@@ -25,6 +25,12 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_log_message_starting' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+This will append log entries looking like this:
+
+```text
+[09:41:00 INF] Starting to process <MessageType> (<MessageId>)
+```
+
 With only the defaults, Wolverine is logging the type of message and the message id. As shown in the next section, you can also add
 additional context to these log messages.
 
