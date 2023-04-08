@@ -93,6 +93,12 @@ opts.Policies.ForMessagesOfType<IAccountMessage>().Audit(x => x.AccountId);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L77-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_registration_of_audit_properties' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+This will extend your log entries to like this:
+
+```text
+[09:41:00 INFO] Starting to process IAccountMessage ("018761ad-8ed2-4bc9-bde5-c3cbb643f9f3") with AccountId: "c446fa0b-7496-42a5-b6c8-dd53c65c96c8"
+```
+
 ## Open Telemetry
 
 Wolverine also supports the [Open Telemetry](https://opentelemetry.io/docs/instrumentation/net/) standard for distributed tracing. To enable
