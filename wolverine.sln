@@ -192,6 +192,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BankingService.Tests", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http.FluentValidation", "src\Http\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj", "{02FAB18B-BD65-4F93-9B76-BCE0A8111FB8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChaosTesting", "src\Testing\ChaosTesting\ChaosTesting.csproj", "{22188269-C62C-444D-B0A9-7BAF01ACD034}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -497,6 +499,10 @@ Global
 		{02FAB18B-BD65-4F93-9B76-BCE0A8111FB8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{02FAB18B-BD65-4F93-9B76-BCE0A8111FB8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{02FAB18B-BD65-4F93-9B76-BCE0A8111FB8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22188269-C62C-444D-B0A9-7BAF01ACD034}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22188269-C62C-444D-B0A9-7BAF01ACD034}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22188269-C62C-444D-B0A9-7BAF01ACD034}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22188269-C62C-444D-B0A9-7BAF01ACD034}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{902AD1EA-9C2D-4555-869F-83E3C497EF7E} = {96119B5E-B5F0-400A-9580-B342EBE26212}
@@ -582,5 +588,6 @@ Global
 		{5B541CD6-7982-4BE3-9999-E950E0A73F10} = {29803A34-9F89-456D-AD67-C80CF43A5E7E}
 		{07EC869F-89F4-4277-94FC-6CFFA391FF63} = {29803A34-9F89-456D-AD67-C80CF43A5E7E}
 		{02FAB18B-BD65-4F93-9B76-BCE0A8111FB8} = {4B0BC1E5-17F9-4DD0-AC93-DDC522E1BE3C}
+		{22188269-C62C-444D-B0A9-7BAF01ACD034} = {96119B5E-B5F0-400A-9580-B342EBE26212}
 	EndGlobalSection
 EndGlobal
