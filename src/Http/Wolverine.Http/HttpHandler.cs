@@ -21,6 +21,16 @@ public abstract class HttpHandler
 
     public abstract Task Handle(HttpContext httpContext);
 
+    public static string? ReadSingleHeaderValue(HttpContext context, string headerKey)
+    {
+        return context.Request.Headers[headerKey].SingleOrDefault();
+    }
+
+    public static string[] ReadManyHeaderValues(HttpContext context, string headerKey)
+    {
+        return context.Request.Headers[headerKey].ToArray();
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Task WriteString(HttpContext context, string text)
     {

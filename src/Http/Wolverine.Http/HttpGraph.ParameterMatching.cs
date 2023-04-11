@@ -11,6 +11,7 @@ public partial class HttpGraph
         new MessageBusStrategy(),
         new HttpContextElements(),
         new RouteParameterStrategy(),
+        new FromHeaderStrategy(),
         new QueryStringParameterStrategy(),
         new JsonBodyParameterStrategy()
     };
