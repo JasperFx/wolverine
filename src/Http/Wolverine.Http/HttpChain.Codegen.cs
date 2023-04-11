@@ -5,6 +5,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
@@ -28,6 +29,11 @@ public partial class HttpChain
         var handleMethod = _generatedType.MethodFor(nameof(HttpHandler.Handle));
 
         handleMethod.DerivedVariables.AddRange(HttpContextVariables);
+
+        var loggedType = InputType() ?? (Method.HandlerType.IsStatic() ? typeof(HttpGraph) : Method.HandlerType);
+        var loggerType = typeof(ILogger<>).MakeGenericType(loggedType);
+        
+        handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
 
         handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
     }

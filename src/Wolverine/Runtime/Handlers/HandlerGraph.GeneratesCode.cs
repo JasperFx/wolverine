@@ -6,7 +6,7 @@ namespace Wolverine.Runtime.Handlers;
 
 public partial class HandlerGraph
 {
-    string ICodeFileCollection.ChildNamespace { get; } = "WolverineHandlers";
+    string ICodeFileCollection.ChildNamespace => "WolverineHandlers";
 
     public GenerationRules? Rules { get; internal set; }
 

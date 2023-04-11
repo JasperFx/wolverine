@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Handlers;
 
-internal class LoggerVariableSource : IVariableSource
+public class LoggerVariableSource : IVariableSource
 {
     private readonly Type _messageType;
     private readonly Type _loggerType;
