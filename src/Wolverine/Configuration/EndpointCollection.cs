@@ -25,6 +25,7 @@ public interface IEndpointCollection : IAsyncDisposable
     IListeningAgent? FindListeningAgent(Uri uri);
     IListeningAgent? FindListeningAgent(string endpointName);
     Task StartListenersAsync();
+    LocalQueue? LocalQueueForMessageType(Type messageType);
 }
 
 public class EndpointCollection : IEndpointCollection
@@ -173,6 +174,12 @@ public class EndpointCollection : IEndpointCollection
             await agent.StartAsync().ConfigureAwait(false);
             _listeners[agent.Uri] = agent;
         }
+    }
+
+    public LocalQueue? LocalQueueForMessageType(Type messageType)
+    {
+        return _runtime.RoutingFor(messageType).Routes.FirstOrDefault(x => x.IsLocal)
+            ?.Sender.Endpoint as LocalQueue;
     }
 
     private ISendingAgent buildSendingAgent(ISender sender, Endpoint endpoint)

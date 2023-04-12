@@ -6,11 +6,11 @@ using Spectre.Console.Rendering;
 
 namespace Wolverine.Persistence.Durability;
 
-internal class EnvelopeStorageResource : IStatefulResource
+internal class MessageStoreResource : IStatefulResource
 {
     private readonly IMessageStore _persistence;
 
-    public EnvelopeStorageResource(IMessageStore persistence)
+    public MessageStoreResource(IMessageStore persistence)
     {
         _persistence = persistence;
     }

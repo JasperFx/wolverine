@@ -2,6 +2,8 @@ using Marten;
 
 namespace ChaosTesting;
 
+public record SendMessages(int Number);
+
 public class SendMessageHandler
 {
     private static T send<T>(IDocumentSession session) where T : ITrackedMessage
@@ -12,7 +14,7 @@ public class SendMessageHandler
 
         return message;
     }
-    
+
     public static IEnumerable<object> Handle(SendMessages command, IDocumentSession session)
     {
         var count = 0;
@@ -20,23 +22,23 @@ public class SendMessageHandler
         {
             yield return send<Tracked1>(session);
             count++;
-            if (count == command.Number) break;
-            
+            if (count >= command.Number) break;
+
             yield return send<Tracked2>(session);
             count++;
-            if (count == command.Number) break;
-            
+            if (count >= command.Number) break;
+
             yield return send<Tracked3>(session);
             count++;
-            if (count == command.Number) break;
-            
+            if (count >= command.Number) break;
+
             yield return send<Tracked4>(session);
             count++;
-            if (count == command.Number) break;
-            
+            if (count >= command.Number) break;
+
             yield return send<Tracked5>(session);
             count++;
-            if (count == command.Number) break;
+            if (count >= command.Number) break;
         }
     }
 }

@@ -74,7 +74,7 @@ public static class HostBuilderExtensions
             services.AddSingleton<WolverineSupplementalCodeFiles>();
             services.AddSingleton<ICodeFileCollection>(x => x.GetRequiredService<WolverineSupplementalCodeFiles>());
 
-            services.AddSingleton<IStatefulResource, EnvelopeStorageResource>();
+            services.AddSingleton<IStatefulResource, MessageStoreResource>();
 
             services.AddSingleton(s => s.GetRequiredService<IContainer>().CreateServiceVariableSource());
 
