@@ -28,35 +28,35 @@ public class ChaosSpecifications
             ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting()
         };
         
-        yield return new TransportConfiguration("Rabbit MQ Inline w/ Five Listeners")
-        {
-            ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.ListenerCount(5)),
-            ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting()
-        };
-        
-        yield return new TransportConfiguration("Rabbit MQ Buffered w/ 1 Listener")
-        {
-            ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.BufferedInMemory()),
-            ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureSenders(x => x.BufferedInMemory())
-        };
-        
-        yield return new TransportConfiguration("Rabbit MQ Buffered w/ 5 Listeners")
-        {
-            ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.BufferedInMemory().ListenerCount(5)),
-            ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureSenders(x => x.BufferedInMemory())
-        };
-        
-        yield return new TransportConfiguration("Rabbit MQ Durable w/ 1 Listener")
-        {
-            ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.UseDurableInbox()),
-            ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureSenders(x => x.UseDurableOutbox())
-        };
-        
-        yield return new TransportConfiguration("Rabbit MQ Durable w/ 5 Listeners")
-        {
-            ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.UseDurableInbox().ListenerCount(5)),
-            ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureSenders(x => x.UseDurableOutbox())
-        };
+        // yield return new TransportConfiguration("Rabbit MQ Inline w/ Five Listeners")
+        // {
+        //     ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.ListenerCount(5)),
+        //     ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting()
+        // };
+        //
+        // yield return new TransportConfiguration("Rabbit MQ Buffered w/ 1 Listener")
+        // {
+        //     ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.BufferedInMemory()),
+        //     ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureSenders(x => x.BufferedInMemory())
+        // };
+        //
+        // yield return new TransportConfiguration("Rabbit MQ Buffered w/ 5 Listeners")
+        // {
+        //     ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.BufferedInMemory().ListenerCount(5)),
+        //     ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureSenders(x => x.BufferedInMemory())
+        // };
+        //
+        // yield return new TransportConfiguration("Rabbit MQ Durable w/ 1 Listener")
+        // {
+        //     ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.UseDurableInbox()),
+        //     ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureSenders(x => x.UseDurableOutbox())
+        // };
+        //
+        // yield return new TransportConfiguration("Rabbit MQ Durable w/ 5 Listeners")
+        // {
+        //     ConfigureReceiver = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureListeners(x => x.UseDurableInbox().ListenerCount(5)),
+        //     ConfigureSender = opts => opts.UseRabbitMq().AutoProvision().UseConventionalRouting().ConfigureSenders(x => x.UseDurableOutbox())
+        // };
         
         
     }

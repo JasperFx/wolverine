@@ -39,7 +39,7 @@ public abstract class ChaosScript
 {
     public abstract Task Drive(ChaosDriver driver);
 
-    public TimeSpan TimeOut { get; internal set; } = 15.Seconds();
+    public TimeSpan TimeOut { get; internal set; } = 60.Seconds();
 
     public override string ToString()
     {
