@@ -13,9 +13,11 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable
 {
     private readonly RetryBlock<RabbitMqEnvelope> _complete;
     private readonly RetryBlock<RabbitMqEnvelope> _defer;
+    private readonly ILogger _logger;
 
     internal RabbitMqChannelCallback(ILogger logger, CancellationToken cancellationToken)
     {
+        _logger = logger;
         _complete = new RetryBlock<RabbitMqEnvelope>((e, _) =>
         {
             // AlreadyClosedException: Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=406, text='PRECONDITION_FAILED - unknown delivery tag 1', classId=60, methodId=80
@@ -28,7 +30,7 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable
             {
                 if (exception.Message.Contains("'PRECONDITION_FAILED - unknown delivery tag'"))
                 {
-                    logger.LogDebug("Encountered an unknown delivery tag, discarding the envelope");
+                    logger.LogInformation("Encountered an unknown delivery tag, discarding the envelope");
                     return Task.CompletedTask;
                 }
             }
@@ -46,6 +48,8 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable
             return new ValueTask(_complete.PostAsync(e));
         }
 
+        _logger.LogDebug("Attempting to complete and ack a message to a Rabbit MQ queue, but envelope {Id} is not a RabbitMqEnvelope", envelope.Id);
+
         return ValueTask.CompletedTask;
     }
 
@@ -55,6 +59,8 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable
         {
             return new ValueTask(_defer.PostAsync(e));
         }
+        
+        _logger.LogDebug("Attempting to complete and nack a message to a Rabbit MQ queue, but envelope {Id} is not a RabbitMqEnvelope", envelope.Id);
 
         return ValueTask.CompletedTask;
     }

@@ -33,6 +33,8 @@ internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
     {
         _latched = true;
     }
+    
+    
 
     public override void HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered,
         string exchange, string routingKey,

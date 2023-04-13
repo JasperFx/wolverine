@@ -134,6 +134,18 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         return ValueTask.FromResult(dict);
     }
 
+    /// <summary>
+    /// Mostly for testing
+    /// </summary>
+    /// <returns></returns>
+    public long QueuedCount()
+    {
+        using var channel = _parent.ListeningConnection.CreateModel();
+
+        var result = channel.QueueDeclarePassive(QueueName);
+        return result.MessageCount;
+    }
+
     public string QueueName { get; }
 
     /// <summary>

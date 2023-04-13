@@ -44,7 +44,6 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
             _cancellation);
 
         Channel!.BasicQos(Queue.PreFetchSize, Queue.PreFetchCount, false);
-
         Channel.BasicConsume(_consumer, _routingKey);
 
         _callback = transport.Callback;
