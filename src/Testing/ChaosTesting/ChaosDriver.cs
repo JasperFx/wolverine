@@ -37,21 +37,13 @@ public class TransportConfiguration
 
 public abstract class ChaosScript
 {
-    protected ChaosScript(string description, TimeSpan timeOut)
-    {
-        Description = description;
-        TimeOut = timeOut;
-    }
-
-    public string Description { get; }
-
     public abstract Task Drive(ChaosDriver driver);
-    
-    public TimeSpan TimeOut { get; }
+
+    public TimeSpan TimeOut { get; internal set; } = 15.Seconds();
 
     public override string ToString()
     {
-        return $"{nameof(Description)}: {Description}";
+        return GetType().Name;
     }
 }
 
