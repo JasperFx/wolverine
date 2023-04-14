@@ -4,10 +4,12 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
+using Xunit.Abstractions;
 
 namespace ChaosTesting;
 
@@ -49,14 +51,16 @@ public abstract class ChaosScript
 
 public class ChaosDriver : IAsyncDisposable, IDisposable
 {
+    private readonly ITestOutputHelper _output;
     private readonly IMessageStorageStrategy _storage;
     private readonly TransportConfiguration _transportConfiguration;
     private readonly Dictionary<string, IHost> _senders = new();
     private readonly Dictionary<string, IHost> _receivers = new();
 
 
-    public ChaosDriver(IMessageStorageStrategy storage, TransportConfiguration transportConfiguration)
+    public ChaosDriver(ITestOutputHelper output, IMessageStorageStrategy storage, TransportConfiguration transportConfiguration)
     {
+        _output = output;
         _storage = storage;
         _transportConfiguration = transportConfiguration;
     }
@@ -143,10 +147,6 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
             }
         }
     }
-    
-    // TODO -- check the queue counts
-    
-    
 
     public async Task<bool> WaitForAllMessagingToComplete(TimeSpan time)
     {
@@ -200,6 +200,8 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
 
                 opts.Services.AddResourceSetupOnStartup();
 
+                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
+
                 _transportConfiguration.ConfigureReceiver(opts);
             }).StartAsync();
 
@@ -226,6 +228,8 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<SendMessageHandler>();
 
                 opts.PublishMessage<SendMessages>().ToLocalQueue("SendMessages").MaximumParallelMessages(10);
+                
+                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
                 _transportConfiguration.ConfigureSender(opts);
             }).StartAsync();

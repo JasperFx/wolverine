@@ -1,8 +1,12 @@
 ﻿using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
+using Weasel.Core;
 using Wolverine;
+using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 
 namespace ChaosTesting;
@@ -20,7 +24,11 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         {
             m.Connection(Servers.PostgresConnectionString);
             m.DatabaseSchemaName = "chaos";
-        }).IntegrateWithWolverine("chaos_receiver");
+            
+            m.RegisterDocumentType<MessageRecord>();
+
+            m.AutoCreateSchemaObjects = AutoCreate.None;
+        }).IntegrateWithWolverine("chaos_receiver").ApplyAllDatabaseChangesOnStartup();
         
         opts.Policies.AutoApplyTransactions();
 
@@ -29,11 +37,18 @@ public class MartenStorageStrategy : IMessageStorageStrategy
 
     public void ConfigureSenderPersistence(WolverineOptions opts)
     {
+        opts.Policies.OnException<PostgresException>()
+            .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+
         opts.Services.AddMarten(m =>
         {
             m.Connection(Servers.PostgresConnectionString);
             m.DatabaseSchemaName = "chaos";
-        }).IntegrateWithWolverine("chaos_sender");
+            
+            m.RegisterDocumentType<MessageRecord>();
+            
+            m.AutoCreateSchemaObjects = AutoCreate.None;
+        }).IntegrateWithWolverine("chaos_sender").ApplyAllDatabaseChangesOnStartup();
                 
         opts.Policies.AutoApplyTransactions();
         

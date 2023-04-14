@@ -13,6 +13,7 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
     private readonly Func<TEndpoint>? _source;
     private readonly List<Action<TEndpoint>> _configurations = new();
     private readonly TEndpoint? _endpoint;
+    private readonly object _locker = new ();
 
     protected DelayedEndpointConfiguration(TEndpoint endpoint)
     {
@@ -27,13 +28,16 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
 
     void IDelayedEndpointConfiguration.Apply()
     {
-        var endpoint = _endpoint ?? _source!();
-        
-        foreach (var action in _configurations) action(endpoint);
-
-        if (_endpoint != null)
+        lock (_locker)
         {
-            _endpoint.DelayedConfiguration.Remove(this);
+            var endpoint = _endpoint ?? _source!();
+        
+            foreach (var action in _configurations) action(endpoint);
+
+            if (_endpoint != null)
+            {
+                _endpoint.DelayedConfiguration.Remove(this);
+            }
         }
     }
 
