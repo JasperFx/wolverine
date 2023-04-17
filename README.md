@@ -6,6 +6,10 @@ Wolverine
 Wolverine is a *Next Generation .NET Mediator and Message Bus*. Check out
 the [documentation website at https://wolverine.netlify.app](https://wolverine.netlify.app).
 
+## Help us keep working on this project 💚
+
+[Become a Sponsor on GitHub](https://github.com/sponsors/JasperFX)
+
 ## Working with the Code
 
 To work with the code, just open the `wolverine.sln` file in the root of the repository and go. If you want to run
