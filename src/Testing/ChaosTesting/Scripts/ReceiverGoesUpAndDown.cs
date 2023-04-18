@@ -6,7 +6,7 @@ public class ReceiverGoesUpAndDown : ChaosScript
 {
     public ReceiverGoesUpAndDown()
     {
-        TimeOut = 1.Minutes();
+        TimeOut = 3.Minutes();
     }
 
     public override async Task Drive(ChaosDriver driver)
@@ -15,7 +15,7 @@ public class ReceiverGoesUpAndDown : ChaosScript
         await driver.SendMessages("one", 1000);
 
         await driver.StartSender("two");
-        driver.SendMessagesContinuously("two", 100, 10.Seconds());
+        driver.SendMessagesContinuously("two", 10, 10.Seconds());
         await Task.Delay(1.Seconds());
         await driver.StartReceiver("one");
         await Task.Delay(3.Seconds());

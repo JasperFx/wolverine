@@ -1,4 +1,5 @@
 ﻿using ChaosTesting.Scripts;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Shouldly;
 using Wolverine.RabbitMQ;
@@ -65,6 +66,9 @@ public class ChaosSpecifications
         var completed = await driver.WaitForAllMessagingToComplete(script.TimeOut);
 
         completed.ShouldBeTrue();
+        
+        // COOLDOWN!!!!
+        await Task.Delay(5.Seconds());
     }
 
     [Fact]
@@ -108,28 +112,28 @@ public class ChaosSpecifications
     
     [Fact]
     public Task RabbitMqOneInlineListener_Marten_ReceiverStartsLater() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqOneInlineListener);
+        execute<MartenStorageStrategy, ReceiverStartsLater>(RabbitMqOneInlineListener);
     
     [Fact]
     public Task RabbitMqFiveParallelInlineListeners_Marten_ReceiverStartsLater() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqFiveParallelInlineListeners);
+        execute<MartenStorageStrategy, ReceiverStartsLater>(RabbitMqFiveParallelInlineListeners);
     
     [Fact]
     public Task RabbitMqBufferedListener_Marten_ReceiverStartsLater() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqBufferedListener);
+        execute<MartenStorageStrategy, ReceiverStartsLater>(RabbitMqBufferedListener);
     
     [Fact]
     public Task RabbitMqFiveBufferedListeners_Marten_ReceiverStartsLater() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqFiveBufferedListeners);
+        execute<MartenStorageStrategy, ReceiverStartsLater>(RabbitMqFiveBufferedListeners);
     
         
     [Fact]
     public Task RabbitMqDurableListener_Marten_ReceiverStartsLater() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqDurableListener);
+        execute<MartenStorageStrategy, ReceiverStartsLater>(RabbitMqDurableListener);
     
     [Fact]
     public Task RabbitMqFiveDurableListeners_Marten_ReceiverStartsLater() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqFiveDurableListeners);
+        execute<MartenStorageStrategy, ReceiverStartsLater>(RabbitMqFiveDurableListeners);
 
     
     
@@ -138,28 +142,28 @@ public class ChaosSpecifications
 
     [Fact]
     public Task RabbitMqOneInlineListener_Marten_ReceiverGoesUpAndDown() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqOneInlineListener);
+        execute<MartenStorageStrategy, ReceiverGoesUpAndDown>(RabbitMqOneInlineListener);
     
     [Fact]
     public Task RabbitMqFiveParallelInlineListeners_Marten_ReceiverGoesUpAndDown() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqFiveParallelInlineListeners);
+        execute<MartenStorageStrategy, ReceiverGoesUpAndDown>(RabbitMqFiveParallelInlineListeners);
     
     [Fact]
     public Task RabbitMqBufferedListener_Marten_ReceiverGoesUpAndDown() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqBufferedListener);
+        execute<MartenStorageStrategy, ReceiverGoesUpAndDown>(RabbitMqBufferedListener);
     
     [Fact]
     public Task RabbitMqFiveBufferedListeners_Marten_ReceiverGoesUpAndDown() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqFiveBufferedListeners);
+        execute<MartenStorageStrategy, ReceiverGoesUpAndDown>(RabbitMqFiveBufferedListeners);
     
         
     [Fact]
     public Task RabbitMqDurableListener_Marten_ReceiverGoesUpAndDown() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqDurableListener);
+        execute<MartenStorageStrategy, ReceiverGoesUpAndDown>(RabbitMqDurableListener);
     
     [Fact]
     public Task RabbitMqFiveDurableListeners_Marten_ReceiverGoesUpAndDown() =>
-        execute<MartenStorageStrategy, Simplistic>(RabbitMqFiveDurableListeners);
+        execute<MartenStorageStrategy, ReceiverGoesUpAndDown>(RabbitMqFiveDurableListeners);
 
 
     

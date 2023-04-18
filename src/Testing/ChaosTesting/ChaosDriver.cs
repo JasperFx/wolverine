@@ -121,6 +121,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
             while (DateTimeOffset.UtcNow < endingDate)
             {
                 await bus.PublishAsync(new SendMessages(batchSize));
+                await Task.Delay(100.Milliseconds());
             }
         });
     }

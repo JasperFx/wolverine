@@ -31,12 +31,14 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
         lock (_locker)
         {
             var endpoint = _endpoint ?? _source!();
-        
-            foreach (var action in _configurations) action(endpoint);
-
-            if (_endpoint != null)
+            if (endpoint.DelayedConfiguration.ToArray().Contains(this))
             {
-                _endpoint.DelayedConfiguration.Remove(this);
+                foreach (var action in _configurations) action(endpoint);
+
+                if (endpoint.DelayedConfiguration.ToArray().Contains(this))
+                {
+                    endpoint.DelayedConfiguration.Remove(this);
+                }
             }
         }
     }
