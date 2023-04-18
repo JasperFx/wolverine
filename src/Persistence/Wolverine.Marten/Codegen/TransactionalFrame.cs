@@ -18,21 +18,9 @@ internal class TransactionalFrame : Frame
     private bool _createsSession;
     private Variable? _factory;
 
-    public TransactionalFrame(IChain chain) : base(true)
+    public TransactionalFrame() : base(true)
     {
-        var martenActions = chain.ReturnVariablesOfType<IMartenAction>();
-        foreach (var action in martenActions)
-        {
-            var returnAction = action.UseReturnAction(v =>
-            {
-                var methodCall = MethodCall.For<IMartenAction>(x => x.Execute(null));
-                methodCall.Target = action;
 
-                return methodCall.WrapIfNotNull(action);
-            }, "Execute action against Marten IDocumentSession");
-
-            returnAction.Dependencies.Add(typeof(IDocumentSession));
-        }
     }
 
     public Variable? Session { get; private set; }
