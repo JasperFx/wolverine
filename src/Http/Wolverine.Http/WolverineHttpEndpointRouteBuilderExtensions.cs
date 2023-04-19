@@ -48,11 +48,13 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
 
         // Making sure this exists
         var options = container.GetInstance<WolverineHttpOptions>();
+        options.Endpoints = new HttpGraph(runtime.Options, container);
+        
         configure?.Invoke(options);
 
         options.JsonSerializerOptions =
             container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
-        options.Endpoints = new HttpGraph(runtime.Options, container);
+        
         options.Endpoints.DiscoverEndpoints(options);
         runtime.AdditionalDescribedParts.Add(options.Endpoints);
 

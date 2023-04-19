@@ -1,4 +1,5 @@
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using Lamar;
 using Microsoft.AspNetCore.Routing;
@@ -112,5 +113,13 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
     public HttpChain? ChainFor(string httpMethod, string urlPattern)
     {
         return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern.RawText == urlPattern);
+    }
+
+    public HttpChain Add(MethodCall method, HttpMethod httpMethod, string url)
+    {
+        var chain = new HttpChain(method, this);
+        chain.MapToRoute(httpMethod.ToString(), url);
+        _chains.Add(chain);
+        return chain;
     }
 }

@@ -85,6 +85,9 @@ app.MapWolverineEndpoints(opts =>
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
 
     opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
+
+    opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1");
+    opts.PublishMessage<HttpMessage2>("/publish/message2");
 });
 
 await app.RunOaktonCommands(args);

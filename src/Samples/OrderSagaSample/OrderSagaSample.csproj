@@ -11,6 +11,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <InternalsVisibleTo Include="SagaTests" />
+        <InternalsVisibleTo Include="SagaTests"/>
     </ItemGroup>
 </Project>

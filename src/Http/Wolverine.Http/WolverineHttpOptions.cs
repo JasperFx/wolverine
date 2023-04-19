@@ -1,8 +1,11 @@
 using System.Text.Json;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using Lamar;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
+using Wolverine.Http.Runtime;
 using Wolverine.Middleware;
 
 namespace Wolverine.Http;
@@ -76,5 +79,27 @@ public class WolverineHttpOptions
         }
 
         Middleware.AddType(middlewareType, chainFilter);
+    }
+
+    /// <summary>
+    /// From this url, forward a JSON serialized message by publishing through Wolverine
+    /// </summary>
+    /// <param name="httpMethod"></param>
+    /// <param name="url"></param>
+    /// <param name="customize">Optionally customize the HttpChain handling for elements like validation</param>
+    /// <typeparam name="T"></typeparam>
+    public void PublishMessage<T>(HttpMethod httpMethod, string url, Action<HttpChain>? customize = null)
+    {
+        var method = MethodCall.For<PublishingEndpoint<T>>(x => x.PublishAsync(default, null, null));
+        var chain = Endpoints.Add(method, httpMethod, url);
+        
+        chain.MapToRoute(httpMethod.ToString(), url);
+        chain.DisplayName = $"Forward {typeof(T).FullNameInCode()} to Wolverine";
+        customize?.Invoke(chain);
+    }
+    
+    public void PublishMessage<T>(string url, Action<HttpChain>? customize = null)
+    {
+        PublishMessage<T>(HttpMethod.Post, url, customize);
     }
 }

@@ -27,9 +27,9 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var createEndpoint = new WolverineWebApi.CreateEndpoint();
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+            var createEndpoint = new WolverineWebApi.CreateEndpoint();
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.CreateIssue>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             (var issueCreated, var insertDoc) = createEndpoint.Create(command);

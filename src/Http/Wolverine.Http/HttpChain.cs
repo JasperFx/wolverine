@@ -21,7 +21,7 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
 
-    private readonly string _fileName;
+    private string _fileName;
     private readonly List<string> _httpMethods = new();
 
     private readonly HttpGraph _parent;
@@ -29,9 +29,11 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType _generatedType;
     private Type? _handlerType;
+    private string _description;
 
     public HttpChain(MethodCall method, HttpGraph parent)
     {
+        _description = method.ToString();
         _parent = parent ?? throw new ArgumentNullException(nameof(parent));
         Method = method ?? throw new ArgumentNullException(nameof(method));
 
@@ -39,11 +41,8 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
 
         if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
         {
-            RoutePattern = RoutePatternFactory.Parse(att.Template);
-
-            _httpMethods.Add(att.HttpMethod);
-            Order = att.Order;
-            DisplayName = att.Name ?? Method.ToString();
+            MapToRoute(att.HttpMethod, att.Template, att.Order);
+            if (att.Name.IsNotEmpty()) DisplayName = att.Name;
         }
 
         if (method.Method.HasAttribute<NoContentAttribute>() || method.HandlerType.HasAttribute<NoContentAttribute>())
@@ -55,13 +54,8 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
         {
             ResourceType = method.Creates.FirstOrDefault()?.VariableType;
         }
-
-        _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_")
-            .Replace("{", "").Replace("}", "").Replace("-", "_");
-
-        Description = _fileName;
-
-        _parent.ApplyParameterMatching(this);
+        
+        Metadata = new RouteHandlerBuilder(new[] { this });
 
         // Apply attributes and the Configure() method if that exists too
         applyAttributesAndConfigureMethods(_parent.Rules, _parent.Container);
@@ -69,7 +63,6 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
         // Add Before/After methods from the current handler
         applyImpliedMiddlewareFromHandlers(_parent.Rules);
 
-        Metadata = new RouteHandlerBuilder(new[] { this });
         applyMetadata();
     }
     
@@ -88,16 +81,23 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
     internal void MapToRoute(string method, string url, int? order = null, string? displayName = null)
     {
         RoutePattern = RoutePatternFactory.Parse(url);
-        _httpMethods.Add(method);
+        _httpMethods.Fill(method);
         if (order != null) Order = order.Value;
         if (displayName.IsNotEmpty()) DisplayName = displayName;
+
+        _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_")
+            .Replace("{", "").Replace("}", "").Replace("-", "_");
+
+        _description = _fileName;
+        
+        _parent.ApplyParameterMatching(this);
     }
     
     public RoutePattern RoutePattern { get; internal set; }
 
     public Type? RequestType { get; internal set; }
 
-    public override string Description { get; }
+    public override string Description => _description;
 
     internal RouteEndpoint? Endpoint { get; private set; }
 
