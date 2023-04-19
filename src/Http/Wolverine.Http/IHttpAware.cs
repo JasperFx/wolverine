@@ -42,6 +42,15 @@ internal class HttpAwarePolicy : IHttpPolicy
     }
 }
 
+public static class EndpointBuilderExtensions
+{
+    public static EndpointBuilder RemoveStatusCodeResponse(this EndpointBuilder builder, int statusCode)
+    {
+        builder.Metadata.RemoveAll(x => x is IProducesResponseTypeMetadata m && m.StatusCode == statusCode);
+        return builder;
+    }
+}
+
 /// <summary>
 /// Base class for resource types that denote some kind of resource being created
 /// in the system. Wolverine specific, and more efficient, version of Created<T> from ASP.Net Core
@@ -50,7 +59,7 @@ public abstract record CreationResponse : IHttpAware
 {
     public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
     {
-        builder.Metadata.RemoveAll(x => x is IProducesResponseTypeMetadata m && m.StatusCode == 200);
+        builder.RemoveStatusCodeResponse(200);
         
         var create = new MethodCall(method.DeclaringType, method).Creates.FirstOrDefault()?.VariableType;
         var metadata = new Metadata { Type = create, StatusCode = 201 };
