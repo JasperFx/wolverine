@@ -93,7 +93,7 @@ public class SagaChain : HandlerChain
         {
             generateCodeForMaybeExisting(container, frameProvider, list);
         }
-
+// .Concat(handlerReturnValueFrames)
         return Middleware.Concat(list).Concat(Postprocessors).ToList();
     }
 
@@ -111,7 +111,6 @@ public class SagaChain : HandlerChain
         var saga = load.Creates.Single();
         frames.Add(load);
 
-
         var startingFrames = DetermineSagaDoesNotExistSteps(sagaId, saga, frameProvider, container).ToArray();
         var existingFrames = DetermineSagaExistsSteps(sagaId, saga, frameProvider, container).ToArray();
         var ifNullBlock = new IfNullGuard(saga, startingFrames,
@@ -126,12 +125,12 @@ public class SagaChain : HandlerChain
         var creator = new CreateNewSagaFrame(SagaType);
         frames.Add(creator);
 
-        foreach (var call in StartingCalls)
+        foreach (var startingCall in StartingCalls)
         {
-            frames.Add(call);
-            foreach (var create in call.Creates)
+            frames.Add(startingCall);
+            foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction().Frames()))
             {
-                frames.Add(new CaptureCascadingMessages(create));
+                frames.Add(frame);
             }
         }
 
@@ -155,7 +154,13 @@ public class SagaChain : HandlerChain
             foreach (var call in StartingCalls)
             {
                 yield return call;
-                foreach (var create in call.Creates) yield return new CaptureCascadingMessages(create);
+                foreach (var create in call.Creates)
+                {
+                    foreach (var frame in create.ReturnAction().Frames())
+                    {
+                        yield return frame;
+                    }
+                }
             }
 
             var ifNotCompleted = buildFrameForConditionalInsert(saga, frameProvider, container);
@@ -167,7 +172,7 @@ public class SagaChain : HandlerChain
             {
                 call.TrySetArgument(sagaId);
                 yield return call;
-                foreach (var create in call.Creates) yield return new CaptureCascadingMessages(create);
+                foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction().Frames())) yield return frame;
             }
         }
         else
@@ -190,7 +195,7 @@ public class SagaChain : HandlerChain
         foreach (var call in ExistingCalls)
         {
             yield return call;
-            foreach (var create in call.Creates) yield return new CaptureCascadingMessages(create);
+            foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction().Frames())) yield return frame;
         }
 
         var update = frameProvider.DetermineUpdateFrame(saga, container);

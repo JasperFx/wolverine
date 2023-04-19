@@ -291,7 +291,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         applyImpliedMiddlewareFromHandlers(rules);
     }
 
-    private IEnumerable<Frame> determineHandlerReturnValueFrames()
+    protected IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         return Handlers.SelectMany(x => x.Creates)
             .Select(x => x.ReturnAction())
