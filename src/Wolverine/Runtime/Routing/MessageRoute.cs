@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -124,7 +125,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         envelope.DeliverWithin = timeout.Value;
         envelope.Sender = Sender;
 
-        bus.TrackEnvelopeCorrelation(envelope);
+        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
 
         var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout!.Value);
 

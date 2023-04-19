@@ -103,7 +103,7 @@ public class MessageBus : IMessageBus
 
         // Cannot trust the T here. Can be "object"
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
-        trackEnvelopeCorrelation(outgoing);
+        trackEnvelopeCorrelation(Activity.Current, outgoing);
 
         return PersistOrSendAsync(outgoing);
     }
@@ -117,7 +117,7 @@ public class MessageBus : IMessageBus
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
-        trackEnvelopeCorrelation(outgoing);
+        trackEnvelopeCorrelation(Activity.Current, outgoing);
 
         if (outgoing.Any())
         {
@@ -173,20 +173,21 @@ public class MessageBus : IMessageBus
         return Task.CompletedTask;
     }
 
-    private void trackEnvelopeCorrelation(Envelope[] outgoing)
+    private void trackEnvelopeCorrelation(Activity? activity, Envelope[] outgoing)
     {
         foreach (var outbound in outgoing)
         {
-            TrackEnvelopeCorrelation(outbound);
+            TrackEnvelopeCorrelation(outbound, activity);
         }
     }
 
-    internal virtual void TrackEnvelopeCorrelation(Envelope outbound)
+    internal virtual void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
         outbound.Source = Runtime.Options.ServiceName;
         outbound.CorrelationId = CorrelationId;
         outbound.ConversationId = outbound.Id; // the message chain originates here
         outbound.TenantId = TenantId;
+        outbound.ParentId = activity?.Id;
     }
 
     internal async ValueTask PersistOrSendAsync(params Envelope[] outgoing)

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Transactions;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -150,7 +151,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         var envelope = Runtime.RoutingFor(typeof(Acknowledgement))
             .RouteToDestination(acknowledgement, Envelope.ReplyUri, null);
 
-        TrackEnvelopeCorrelation(envelope);
+        TrackEnvelopeCorrelation(envelope, Activity.Current);
         envelope.SagaId = Envelope.SagaId;
         // TODO -- reevaluate the metadata. Causation, Originator, all that
 
@@ -181,7 +182,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         var envelope = Runtime.RoutingFor(typeof(FailureAcknowledgement))
             .RouteToDestination(acknowledgement, Envelope.ReplyUri, null);
 
-        TrackEnvelopeCorrelation(envelope);
+        TrackEnvelopeCorrelation(envelope, Activity.Current);
         envelope.SagaId = Envelope.SagaId;
         // TODO -- reevaluate the metadata. Causation, ORiginator, all that
 
@@ -366,7 +367,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             var ack = new Acknowledgement { RequestId = Envelope.Id };
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
                 .RouteToDestination(ack, Envelope.ReplyUri, null);
-            TrackEnvelopeCorrelation(ackEnvelope);
+            TrackEnvelopeCorrelation(ackEnvelope, Activity.Current);
             _outstanding.Add(ackEnvelope);
         }
     }
@@ -386,9 +387,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         Scheduled.Clear();
     }
 
-    internal override void TrackEnvelopeCorrelation(Envelope outbound)
+    internal override void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
-        base.TrackEnvelopeCorrelation(outbound);
+        base.TrackEnvelopeCorrelation(outbound, activity);
         outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
 
         if (Envelope != null)

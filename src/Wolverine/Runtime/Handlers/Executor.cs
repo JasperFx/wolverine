@@ -98,7 +98,7 @@ internal class Executor : IExecutor
             ResponseType = typeof(T)
         };
         
-        bus.TrackEnvelopeCorrelation(envelope);
+        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         
         await InvokeInlineAsync(envelope, cancellation);
 
@@ -113,7 +113,7 @@ internal class Executor : IExecutor
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
         var envelope = new Envelope(message);
-        bus.TrackEnvelopeCorrelation(envelope);
+        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         return InvokeInlineAsync(envelope, cancellation);
     }
 

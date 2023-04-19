@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace Wolverine.Configuration;
 
@@ -14,6 +15,7 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
     private readonly List<Action<TEndpoint>> _configurations = new();
     private readonly TEndpoint? _endpoint;
     private readonly object _locker = new ();
+    private bool _haveApplied;
 
     protected DelayedEndpointConfiguration(TEndpoint endpoint)
     {
@@ -28,16 +30,24 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
 
     void IDelayedEndpointConfiguration.Apply()
     {
+        if (_haveApplied) return;
         lock (_locker)
         {
+            if (_haveApplied) return;
             var endpoint = _endpoint ?? _source!();
-            if (endpoint.DelayedConfiguration.ToArray().Contains(this))
-            {
-                foreach (var action in _configurations) action(endpoint);
+        
+            foreach (var action in _configurations) action(endpoint);
 
-                if (endpoint.DelayedConfiguration.ToArray().Contains(this))
+            if (_endpoint != null)
+            {
+                try
                 {
-                    endpoint.DelayedConfiguration.Remove(this);
+                    _endpoint.DelayedConfiguration.Remove(this);
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine("Problem while trying to apply delayed configuration");
+                    Debug.WriteLine(e.ToString());
                 }
             }
         }

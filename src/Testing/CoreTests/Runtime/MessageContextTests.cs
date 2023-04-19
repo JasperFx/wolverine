@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using CoreTests.Messaging;
@@ -44,7 +45,10 @@ public class MessageContextTests
     [Fact]
     public void track_envelope_correlation()
     {
-        theContext.TrackEnvelopeCorrelation(theEnvelope);
+        using var activity = new Activity("DoWork");
+        activity.Start();
+        
+        theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
         
         theEnvelope.TenantId.ShouldBe(theContext.TenantId);
         
@@ -53,6 +57,9 @@ public class MessageContextTests
         
         theEnvelope.Source.ShouldBe("MyService");
         theEnvelope.CorrelationId.ShouldBe(theContext.CorrelationId);
+
+        activity.Id.ShouldNotBeNull();
+        theEnvelope.ParentId.ShouldBe(activity.Id);
     }
 
     [Fact]
