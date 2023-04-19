@@ -23,6 +23,8 @@ namespace Internal.Generated.WolverineHandlers
         {
             var httpContextEndpoints = new WolverineWebApi.HttpContextEndpoints();
             httpContextEndpoints.UseHttpResponse(httpContext.Response);
+            // Wolverine automatically sets the status code to 204 for empty responses
+            httpContext.Response.StatusCode = 204;
             return System.Threading.Tasks.Task.CompletedTask;
         }
 

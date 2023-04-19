@@ -29,6 +29,8 @@ namespace Internal.Generated.WolverineHandlers
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.CreateItemCommand>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             efCoreEndpoints.CreateItem(command, itemsDbContext);
+            // Wolverine automatically sets the status code to 204 for empty responses
+            httpContext.Response.StatusCode = 204;
             
             // Added by EF Core Transaction Middleware
             var result_of_SaveChangesAsync = await itemsDbContext.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);

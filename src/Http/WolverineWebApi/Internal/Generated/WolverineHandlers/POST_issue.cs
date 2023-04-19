@@ -13,23 +13,23 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_issue : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _options;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_issue(Wolverine.Http.WolverineHttpOptions options, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(options)
+        public POST_issue(Wolverine.Http.WolverineHttpOptions options, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(options)
         {
             _options = options;
-            _outboxedSessionFactory = outboxedSessionFactory;
             _wolverineRuntime = wolverineRuntime;
+            _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
+            var createEndpoint = new WolverineWebApi.CreateEndpoint();
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            var createEndpoint = new WolverineWebApi.CreateEndpoint();
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.CreateIssue>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             (var issueCreated, var insertDoc) = createEndpoint.Create(command);

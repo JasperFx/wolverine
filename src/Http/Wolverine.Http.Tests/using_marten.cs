@@ -31,7 +31,11 @@ public class using_marten : IntegrationContext
     {
         var input = new Data { Id = Guid.NewGuid(), Name = "Jaylen Watson" };
 
-        var (tracked, _) = await TrackedHttpCall(x => { x.Post.Json(input).ToUrl("/publish/marten/message"); });
+        var (tracked, _) = await TrackedHttpCall(x =>
+        {
+            x.Post.Json(input).ToUrl("/publish/marten/message");
+            x.StatusCodeShouldBe(204);
+        });
 
         var published = tracked.Sent.SingleMessage<Data>();
         published.Id.ShouldBe(input.Id);

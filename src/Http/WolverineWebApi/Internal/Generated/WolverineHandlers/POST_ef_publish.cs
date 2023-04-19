@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_ef_publish : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _options;
-        private readonly Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> _dbContextOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
+        private readonly Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> _dbContextOptions;
 
-        public POST_ef_publish(Wolverine.Http.WolverineHttpOptions options, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(options)
+        public POST_ef_publish(Wolverine.Http.WolverineHttpOptions options, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions) : base(options)
         {
             _options = options;
-            _dbContextOptions = dbContextOptions;
             _wolverineRuntime = wolverineRuntime;
+            _dbContextOptions = dbContextOptions;
         }
 
 
@@ -37,6 +37,8 @@ namespace Internal.Generated.WolverineHandlers
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.CreateItemCommand>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             await efCoreEndpoints.PublishItem(command, itemsDbContext, ((Wolverine.IMessageBus)messageContext)).ConfigureAwait(false);
+            // Wolverine automatically sets the status code to 204 for empty responses
+            httpContext.Response.StatusCode = 204;
             
             // Added by EF Core Transaction Middleware
             var result_of_SaveChangesAsync = await itemsDbContext.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);

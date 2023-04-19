@@ -15,6 +15,7 @@ public class bug_298_variable_named_event : IntegrationContext
         var (tracked, result) = await TrackedHttpCall(x =>
         {
             x.Post.Json(new TelegramUpdated("foo")).ToUrl("/convert-book");
+            x.StatusCodeShouldBe(204);
         });
         
         tracked.Executed.SingleMessage<TelegramUpdated>()

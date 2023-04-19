@@ -24,7 +24,11 @@ public class using_efcore : IntegrationContext
 
         var command = new CreateItemCommand { Name = "Isaiah Pacheco" };
 
-        await Scenario(x => { x.Post.Json(command).ToUrl("/ef/create"); });
+        await Scenario(x =>
+        {
+            x.Post.Json(command).ToUrl("/ef/create");
+            x.StatusCodeShouldBe(204);
+        });
 
         using var nested = Host.Services.As<IContainer>().GetNestedContainer();
         var context = nested.GetInstance<ItemsDbContext>();
@@ -40,7 +44,11 @@ public class using_efcore : IntegrationContext
 
         var command = new CreateItemCommand { Name = "Jerick McKinnon" };
 
-        var (tracked, _) = await TrackedHttpCall(x => { x.Post.Json(command).ToUrl("/ef/publish"); });
+        var (tracked, _) = await TrackedHttpCall(x =>
+        {
+            x.Post.Json(command).ToUrl("/ef/publish");
+            x.StatusCodeShouldBe(204);
+        });
 
         using var nested = Host.Services.As<IContainer>().GetNestedContainer();
         var context = nested.GetInstance<ItemsDbContext>();

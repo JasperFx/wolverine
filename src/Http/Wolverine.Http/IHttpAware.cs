@@ -8,6 +8,7 @@ using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
+using Wolverine.Http.Resources;
 
 namespace Wolverine.Http;
 
@@ -62,7 +63,7 @@ public abstract record CreationResponse : IHttpAware
         builder.RemoveStatusCodeResponse(200);
         
         var create = new MethodCall(method.DeclaringType, method).Creates.FirstOrDefault()?.VariableType;
-        var metadata = new Metadata { Type = create, StatusCode = 201 };
+        var metadata = new ProducesResponseTypeMetadata { Type = create, StatusCode = 201 };
         builder.Metadata.Add(metadata);
     }
 
@@ -72,12 +73,5 @@ public abstract record CreationResponse : IHttpAware
     {
         context.Response.Headers.Location = Url();
         context.Response.StatusCode = 201;
-    }
-
-    internal class Metadata : IProducesResponseTypeMetadata
-    {
-        public Type? Type { get; init; }
-        public int StatusCode { get; init; }
-        public IEnumerable<string> ContentTypes => new string[] { "application/json" };
     }
 }

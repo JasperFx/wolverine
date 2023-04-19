@@ -33,6 +33,8 @@ namespace Internal.Generated.WolverineHandlers
             var (data, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Data>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             await serviceEndpoints.PublishData(data, ((Wolverine.IMessageBus)messageContext), documentSession).ConfigureAwait(false);
+            // Wolverine automatically sets the status code to 204 for empty responses
+            httpContext.Response.StatusCode = 204;
 
             // Commit the unit of work
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);

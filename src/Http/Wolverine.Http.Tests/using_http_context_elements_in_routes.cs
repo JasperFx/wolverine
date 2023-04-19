@@ -16,7 +16,7 @@ public class using_http_context_elements_in_routes : IntegrationContext
         await Scenario(x =>
         {
             x.Get.Url(url);
-            x.StatusCodeShouldBeOk();
+            x.StatusCodeShouldBe(204);
         });
     }
 
@@ -47,6 +47,7 @@ public class using_http_context_elements_in_routes : IntegrationContext
         {
             x.ConfigureHttpContext(c => c.User = principal);
             x.Get.Url("/http/principal");
+            x.StatusCodeShouldBe(204);
         });
 
         HttpContextEndpoints.User.ShouldBeSameAs(principal);

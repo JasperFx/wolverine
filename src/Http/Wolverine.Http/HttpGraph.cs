@@ -22,6 +22,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
 
     private readonly List<IResourceWriterPolicy> _writerPolicies = new()
     {
+        new EmptyBody204Policy(),
         new StatusCodePolicy(),
         new ResultWriterPolicy(),
         new StringResourceWriterPolicy(),

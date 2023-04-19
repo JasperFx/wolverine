@@ -4,6 +4,7 @@ using JasperFx.RuntimeCompiler;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
+using Wolverine.Http.Resources;
 
 namespace Wolverine.Http;
 
@@ -45,6 +46,12 @@ public partial class HttpChain : IEndpointConventionBuilder
         {
             var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(ResourceType);
             applier.Apply(builder, Method.Method);
+        }
+
+        if (ResourceType == null)
+        {
+            builder.RemoveStatusCodeResponse(200);
+            builder.Metadata.Add(new ProducesResponseTypeMetadata{StatusCode = 204, Type = null});
         }
 
         Endpoint = (RouteEndpoint?)builder.Build();

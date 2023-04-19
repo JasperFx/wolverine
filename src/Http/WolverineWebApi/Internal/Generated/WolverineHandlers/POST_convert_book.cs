@@ -28,6 +28,8 @@ namespace Internal.Generated.WolverineHandlers
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             await WolverineWebApi.Bugs.ConvertBookEndpoint.Post(@event, ((Wolverine.IMessageBus)messageContext), httpContext.RequestAborted).ConfigureAwait(false);
+            // Wolverine automatically sets the status code to 204 for empty responses
+            httpContext.Response.StatusCode = 204;
         }
 
     }

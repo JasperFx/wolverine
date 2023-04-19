@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_validate_customer : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _options;
-        private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> _problemDetailSource;
         private readonly FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> _validator;
+        private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> _problemDetailSource;
 
-        public POST_validate_customer(Wolverine.Http.WolverineHttpOptions options, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> problemDetailSource, FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> validator) : base(options)
+        public POST_validate_customer(Wolverine.Http.WolverineHttpOptions options, FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> validator, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> problemDetailSource) : base(options)
         {
             _options = options;
-            _problemDetailSource = problemDetailSource;
             _validator = validator;
+            _problemDetailSource = problemDetailSource;
         }
 
 
