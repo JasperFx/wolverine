@@ -38,6 +38,8 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
         
             foreach (var action in _configurations) action(endpoint);
 
+            _haveApplied = true;
+
             if (_endpoint != null)
             {
                 try
