@@ -5,6 +5,7 @@ using Lamar;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
+using Wolverine.Http.CodeGen;
 using Wolverine.Http.Runtime;
 using Wolverine.Middleware;
 
@@ -24,6 +25,24 @@ public class WolverineHttpOptions
     internal MiddlewarePolicy Middleware { get; } = new();
 
     public List<IHttpPolicy> Policies { get; } = new();
+
+    /// <summary>
+    /// Customize Wolverine's handling of parameters to HTTP endpoint methods
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void AddParameterHandlingStrategy<T>() where T : IParameterStrategy, new() =>
+        AddParameterHandlingStrategy(new T());
+
+    /// <summary>
+    /// Customize Wolverine's handling of parameters to HTTP endpoint methods
+    /// </summary>
+    /// <param name="strategy"></param>
+    /// <exception cref="NotImplementedException"></exception>
+    public void AddParameterHandlingStrategy(IParameterStrategy strategy)
+    {
+        Endpoints.InsertParameterStrategy(strategy);
+    }
+
 
     /// <summary>
     ///     Add a new IEndpointPolicy for the Wolverine endpoints

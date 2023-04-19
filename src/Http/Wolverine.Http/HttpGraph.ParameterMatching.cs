@@ -51,4 +51,9 @@ public partial class HttpGraph
 
         return false;
     }
+
+    public void InsertParameterStrategy(IParameterStrategy strategy)
+    {
+        _strategies.Insert(0, strategy);
+    }
 }
