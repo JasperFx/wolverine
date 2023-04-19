@@ -90,4 +90,12 @@ app.MapWolverineEndpoints(opts =>
     opts.PublishMessage<HttpMessage2>("/publish/message2");
 });
 
+app.MapPostToWolverine<HttpMessage1>("/wolverine");
+app.MapPutToWolverine<HttpMessage2>("/wolverine");
+app.MapDeleteToWolverine<HttpMessage3>("/wolverine");
+
+app.MapPostToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+app.MapDeleteToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+app.MapPutToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+
 await app.RunOaktonCommands(args);
