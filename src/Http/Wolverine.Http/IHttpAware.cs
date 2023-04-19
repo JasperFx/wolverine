@@ -1,0 +1,74 @@
+﻿using System.Reflection;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using Lamar;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
+
+namespace Wolverine.Http;
+
+/// <summary>
+/// Interface for resource types in Wolverine.Http that need to modify
+/// how the HTTP response is formatted. Use this for additional headers
+/// or customized status codes
+/// </summary>
+public interface IHttpAware : IEndpointMetadataProvider
+{
+    void Apply(HttpContext context);
+}
+
+internal class HttpAwarePolicy : IHttpPolicy
+{
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    {
+        var matching = chains.Where(x => x.ResourceType != null && x.ResourceType.CanBeCastTo(typeof(IHttpAware)));
+        foreach (var chain in matching)
+        {
+            var resource = chain.Method.Creates.FirstOrDefault(x => x.VariableType == chain.ResourceType);
+            if (resource == null) return;
+
+            var apply = new MethodCall(typeof(IHttpAware), nameof(IHttpAware.Apply))
+            {
+                Target = new CastVariable(resource, typeof(IHttpAware))
+            };
+
+            // This will have to run before any kind of resource writing
+            chain.Postprocessors.Insert(0, apply);
+        }
+    }
+}
+
+/// <summary>
+/// Base class for resource types that denote some kind of resource being created
+/// in the system. Wolverine specific, and more efficient, version of Created<T> from ASP.Net Core
+/// </summary>
+public abstract record CreationResponse : IHttpAware
+{
+    public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
+    {
+        builder.Metadata.RemoveAll(x => x is IProducesResponseTypeMetadata m && m.StatusCode == 200);
+        
+        var create = new MethodCall(method.DeclaringType, method).Creates.FirstOrDefault()?.VariableType;
+        var metadata = new Metadata { Type = create, StatusCode = 201 };
+        builder.Metadata.Add(metadata);
+    }
+
+    protected virtual string Url() => string.Empty;
+
+    void IHttpAware.Apply(HttpContext context)
+    {
+        context.Response.Headers.Location = Url();
+        context.Response.StatusCode = 201;
+    }
+
+    internal class Metadata : IProducesResponseTypeMetadata
+    {
+        public Type? Type { get; init; }
+        public int StatusCode { get; init; }
+        public IEnumerable<string> ContentTypes => new string[] { "application/json" };
+    }
+}

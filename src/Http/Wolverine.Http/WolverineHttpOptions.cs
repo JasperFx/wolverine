@@ -10,6 +10,11 @@ namespace Wolverine.Http;
 [Singleton]
 public class WolverineHttpOptions
 {
+    public WolverineHttpOptions()
+    {
+        Policies.Add(new HttpAwarePolicy());
+    }
+
     internal JsonSerializerOptions JsonSerializerOptions { get; set; } = new();
     internal HttpGraph? Endpoints { get; set; }
 

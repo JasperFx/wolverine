@@ -7,7 +7,7 @@
         <TargetFrameworks>net7.0</TargetFrameworks>
         <DebugType>portable</DebugType>
         <PackageId>WolverineFx.Http</PackageId>
-        <LangVersion>latest</LangVersion>
+        <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>
         <OutputType>library</OutputType>
     </PropertyGroup>

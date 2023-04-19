@@ -1,5 +1,8 @@
+using System.Reflection;
+using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 
 namespace Wolverine.Http;
@@ -31,14 +34,31 @@ public partial class HttpChain : IEndpointConventionBuilder
         {
             DisplayName = DisplayName
         };
+
         
         foreach (var configuration in _builderConfigurations)
         {
             configuration(builder);
         }
+        
+        if (ResourceType != null && ResourceType.CanBeCastTo(typeof(IEndpointMetadataProvider)))
+        {
+            var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(ResourceType);
+            applier.Apply(builder, Method.Method);
+        }
 
         Endpoint = (RouteEndpoint?)builder.Build();
 
         return Endpoint;
+    }
+
+    internal interface IApplier
+    {
+        void Apply(EndpointBuilder builder, MethodInfo method);
+    }
+    
+    internal class Applier<T> : IApplier where T : IEndpointMetadataProvider
+    {
+        public void Apply(EndpointBuilder builder, MethodInfo method) => T.PopulateMetadata(method, builder);
     }
 }
