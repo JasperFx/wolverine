@@ -23,6 +23,15 @@ public partial class HttpChain : IEndpointConventionBuilder
         _builderConfigurations.Add(convention);
     }
 
+    private void tryApplyAsEndpointMetadataProvider(Type type, RouteEndpointBuilder builder)
+    {
+        if (type != null && type.CanBeCastTo(typeof(IEndpointMetadataProvider)))
+        {
+            var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(type);
+            applier.Apply(builder, Method.Method);
+        }
+    }
+
     public RouteEndpoint BuildEndpoint()
     {
         var handler = new Lazy<HttpHandler>(() =>
@@ -42,11 +51,12 @@ public partial class HttpChain : IEndpointConventionBuilder
             configuration(builder);
         }
         
-        if (ResourceType != null && ResourceType.CanBeCastTo(typeof(IEndpointMetadataProvider)))
+        tryApplyAsEndpointMetadataProvider(ResourceType, builder);
+        foreach (var parameter in Method.Method.GetParameters())
         {
-            var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(ResourceType);
-            applier.Apply(builder, Method.Method);
+            tryApplyAsEndpointMetadataProvider(parameter.ParameterType, builder);
         }
+        
 
         if (ResourceType == null)
         {
