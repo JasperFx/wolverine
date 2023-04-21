@@ -24,7 +24,7 @@ public static class MarkItemReadyHandler
 
     #region sample_MarkItemReadyHandler_with_explicit_stream
 
-    [MartenCommandWorkflow]
+    [AggregateHandler]
     public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEventStream<Order> stream)
     {
         var order = stream.Aggregate;

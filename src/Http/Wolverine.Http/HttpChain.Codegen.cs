@@ -78,7 +78,7 @@ public partial class HttpChain
 
         yield return Method;
 
-        var actionsOnOtherReturnValues = (NoContent ? Method.Creates : Method.Creates.Skip(1)).Select(x => x.ReturnAction()).SelectMany(x => x.Frames());
+        var actionsOnOtherReturnValues = (NoContent ? Method.Creates : Method.Creates.Skip(1)).Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames());
         foreach (var frame in actionsOnOtherReturnValues)
         {
             yield return frame;

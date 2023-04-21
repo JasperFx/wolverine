@@ -42,7 +42,7 @@ public class ProviderShiftController : ControllerBase
 public class CompleteChartingHandler
 {
     // Decider pattern
-    [MartenCommandWorkflow(ConcurrencyStyle.Exclusive)] // this opts into some Wolverine middleware
+    [AggregateHandler(ConcurrencyStyle.Exclusive)] // this opts into some Wolverine middleware
     public ChartingFinished Handle(CompleteCharting charting, ProviderShift shift)
     {
         if (shift.Status != ProviderStatus.Charting)

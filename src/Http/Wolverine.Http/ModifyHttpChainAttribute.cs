@@ -8,7 +8,7 @@ namespace Wolverine.Http;
 ///     middleware or error handling rules
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public abstract class Attributes : Attribute, IModifyChain<HttpChain>
+public abstract class ModifyHttpChainAttribute : Attribute, IModifyChain<HttpChain>
 {
     /// <summary>
     ///     Called by Wolverine during bootstrapping before message handlers are generated and compiled
@@ -41,7 +41,7 @@ public abstract class WolverineHttpMethodAttribute : Attribute
     /// <summary>
     ///     Name for the route in ASP.Net Core
     /// </summary>
-    public string Name { get; set; }
+    public string? Name { get; set; }
 }
 
 /// <summary>

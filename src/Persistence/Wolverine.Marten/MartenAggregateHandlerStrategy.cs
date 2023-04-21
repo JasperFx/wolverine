@@ -12,12 +12,12 @@ internal class MartenAggregateHandlerStrategy : IHandlerPolicy
         foreach (var chain in chains.Where(x =>
                      x.Handlers.Any(call => call.HandlerType.Name.EndsWith("AggregateHandler"))))
         {
-            if (chain.HasAttribute<MartenCommandWorkflowAttribute>())
+            if (chain.HasAttribute<AggregateHandlerAttribute>())
             {
                 continue;
             }
 
-            new MartenCommandWorkflowAttribute(ConcurrencyStyle.Optimistic).Modify(chain, rules, container);
+            new AggregateHandlerAttribute(ConcurrencyStyle.Optimistic).Modify(chain, rules, container);
         }
     }
 }

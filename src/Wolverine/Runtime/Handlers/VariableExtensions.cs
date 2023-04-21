@@ -2,6 +2,7 @@
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
+using Wolverine.Configuration;
 using Wolverine.Middleware;
 
 namespace Wolverine.Runtime.Handlers;
@@ -47,9 +48,15 @@ public static class VariableExtensions
     /// Fetch the code generation handling strategy for this variable
     /// </summary>
     /// <param name="variable"></param>
+    /// <param name="chain"></param>
     /// <returns></returns>
-    public static IReturnVariableAction ReturnAction(this Variable variable)
+    public static IReturnVariableAction ReturnAction(this Variable variable, IChain chain)
     {
+        if (chain == null)
+        {
+            throw new ArgumentNullException(nameof(chain));
+        }
+
         if (variable.Properties.TryGetValue(ReturnActionKey, out var raw))
         {
             if (raw is IReturnVariableAction action) return action;

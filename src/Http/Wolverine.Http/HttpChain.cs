@@ -16,7 +16,7 @@ using Wolverine.Configuration;
 
 namespace Wolverine.Http;
 
-public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
+public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICodeFile
 {
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
@@ -45,7 +45,7 @@ public partial class HttpChain : Chain<HttpChain, Attributes>, ICodeFile
             if (att.Name.IsNotEmpty()) DisplayName = att.Name;
         }
 
-        if (method.Method.HasAttribute<NoContentAttribute>() || method.HandlerType.HasAttribute<NoContentAttribute>())
+        if (method.Method.HasAttribute<EmptyResponseAttribute>() || method.HandlerType.HasAttribute<EmptyResponseAttribute>())
         {
             NoContent = true;
             ResourceType = typeof(void);

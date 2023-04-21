@@ -185,7 +185,7 @@ public static class ResponseHandler
 
 }
 
-[MartenCommandWorkflow]
+[AggregateHandler]
 public static class RaiseLetterHandler
 {
 

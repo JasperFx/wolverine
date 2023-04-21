@@ -128,7 +128,7 @@ public class SagaChain : HandlerChain
         foreach (var startingCall in StartingCalls)
         {
             frames.Add(startingCall);
-            foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction().Frames()))
+            foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
             {
                 frames.Add(frame);
             }
@@ -156,7 +156,7 @@ public class SagaChain : HandlerChain
                 yield return call;
                 foreach (var create in call.Creates)
                 {
-                    foreach (var frame in create.ReturnAction().Frames())
+                    foreach (var frame in create.ReturnAction(this).Frames())
                     {
                         yield return frame;
                     }
@@ -172,7 +172,7 @@ public class SagaChain : HandlerChain
             {
                 call.TrySetArgument(sagaId);
                 yield return call;
-                foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction().Frames())) yield return frame;
+                foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
             }
         }
         else
@@ -195,7 +195,7 @@ public class SagaChain : HandlerChain
         foreach (var call in ExistingCalls)
         {
             yield return call;
-            foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction().Frames())) yield return frame;
+            foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
         }
 
         var update = frameProvider.DetermineUpdateFrame(saga, container);

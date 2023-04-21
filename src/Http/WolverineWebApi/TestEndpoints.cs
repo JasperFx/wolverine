@@ -3,7 +3,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi;
 
-[Special]
+[SpecialModifyHttpChain]
 public static class TestEndpoints
 {
     [WolverineGet("/hello")]

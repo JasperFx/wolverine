@@ -80,7 +80,7 @@ public static class MarkItemEndpoint
         return new OrderStatus(orderId, false);
     }
     
-    [MartenCommandWorkflow]
+    [AggregateHandler]
     [WolverinePost("/orders/itemready")]
     public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
     {

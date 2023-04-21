@@ -251,7 +251,7 @@ public static class MarkItemReadyHandler
 {
     #region sample_MarkItemReadyHandler
 
-    [MartenCommandWorkflow]
+    [AggregateHandler]
     public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     {
         if (order.Items.TryGetValue(command.ItemName, out var item))
@@ -292,7 +292,7 @@ public static class MarkItemReadyHandler2
 
     #region sample_using_events_and_messages_from_MartenCommandWorkflow
 
-    [MartenCommandWorkflow]
+    [AggregateHandler]
     public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
     {
         // All contrived, let's say we need to call some 

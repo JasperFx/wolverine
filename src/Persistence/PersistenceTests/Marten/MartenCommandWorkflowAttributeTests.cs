@@ -15,7 +15,7 @@ public class MartenCommandWorkflowAttributeTests
     [Fact]
     public void determine_version_member_for_aggregate()
     {
-        var att = new MartenCommandWorkflowAttribute();
+        var att = new AggregateHandlerAttribute();
         att.DetermineVersionMember(typeof(Invoice))
             .Name.ShouldBe(nameof(Invoice.Version));
     }
@@ -23,7 +23,7 @@ public class MartenCommandWorkflowAttributeTests
     [Fact]
     public void determine_aggregate_type_when_it_is_explicitly_passed_in()
     {
-        new MartenCommandWorkflowAttribute { AggregateType = typeof(Invoice) }
+        new AggregateHandlerAttribute { AggregateType = typeof(Invoice) }
             .DetermineAggregateType(Substitute.For<IChain>())
             .ShouldBe(typeof(Invoice));
     }
@@ -33,7 +33,7 @@ public class MartenCommandWorkflowAttributeTests
     {
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(ApproveInvoice), default),
             new HandlerGraph());
-        new MartenCommandWorkflowAttribute().DetermineAggregateType(chain)
+        new AggregateHandlerAttribute().DetermineAggregateType(chain)
             .ShouldBe(typeof(Invoice));
     }
 
@@ -43,7 +43,7 @@ public class MartenCommandWorkflowAttributeTests
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
-            new MartenCommandWorkflowAttribute().DetermineAggregateType(chain);
+            new AggregateHandlerAttribute().DetermineAggregateType(chain);
         });
     }
 
@@ -53,7 +53,7 @@ public class MartenCommandWorkflowAttributeTests
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(Invalid1), default), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
-            new MartenCommandWorkflowAttribute().Modify(chain, new GenerationRules(), Container.Empty());
+            new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), Container.Empty());
         });
     }
 
@@ -63,21 +63,21 @@ public class MartenCommandWorkflowAttributeTests
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(Invalid2), default), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
-            new MartenCommandWorkflowAttribute().Modify(chain, new GenerationRules(), Container.Empty());
+            new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), Container.Empty());
         });
     }
 
     [Fact]
     public void determine_aggregate_id_from_command_type()
     {
-        MartenCommandWorkflowAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(ApproveInvoice))
+        AggregateHandlerAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(ApproveInvoice))
             .Name.ShouldBe(nameof(ApproveInvoice.InvoiceId));
     }
 
     [Fact]
     public void determine_aggregate_id_with_identity_attribute_help()
     {
-        MartenCommandWorkflowAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(RejectInvoice))
+        AggregateHandlerAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(RejectInvoice))
             .Name.ShouldBe(nameof(RejectInvoice.Something));
     }
 
@@ -86,7 +86,7 @@ public class MartenCommandWorkflowAttributeTests
     {
         Should.Throw<InvalidOperationException>(() =>
         {
-            MartenCommandWorkflowAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(BadCommand));
+            AggregateHandlerAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(BadCommand));
         });
     }
 }

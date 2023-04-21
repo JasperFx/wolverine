@@ -237,7 +237,7 @@ public static class SpecialLetterHandler
     // This can be done as a policy at the application level and not
     // on a handler by handler basis too
     [ScheduleRetry(typeof(ConcurrencyException), 1, 2, 5)]
-    [MartenCommandWorkflow(ConcurrencyStyle.Exclusive)]
+    [AggregateHandler(ConcurrencyStyle.Exclusive)]
     public static IEnumerable<object> Handle(IncrementAB command, LetterAggregate aggregate)
     {
         command.LetterAggregateId.ShouldBe(aggregate.Id);

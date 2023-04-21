@@ -1,4 +1,6 @@
 ﻿using System.Data.Common;
+using System.Diagnostics;
+using CoreTests.Runtime.Handlers;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
@@ -13,12 +15,16 @@ namespace CoreTests.Configuration;
 
 public class configuring_return_value_actions
 {
+    private readonly HandlerChain
+        theChain = HandlerChain.For<finding_service_dependencies_of_a_chain.FakeDudeWithAction>(x => x.Handle(null, null, null), null);
+
 
     public class ReturnVariableActionTests
     {
         private readonly CommentFrame comment1;
         private readonly CommentFrame comment2;
         private readonly ReturnVariableAction theAction;
+        
 
         public ReturnVariableActionTests()
         {
@@ -70,14 +76,14 @@ public class configuring_return_value_actions
 
         var action = variable.UseReturnAction(v => comment);
         
-        variable.ReturnAction().ShouldBeSameAs(action);
+        variable.ReturnAction(theChain).ShouldBeSameAs(action);
     }
 
     [Fact]
     public void find_variable_action_miss_returns_cascading_message()
     {
         var variable = Variable.For<string>();
-        variable.ReturnAction().ShouldBeOfType<CascadeMessage>()
+        variable.ReturnAction(theChain).ShouldBeOfType<CascadeMessage>()
             .Variable.ShouldBeSameAs(variable);
     }
 
@@ -87,11 +93,18 @@ public class configuring_return_value_actions
         var variable = Variable.For<string>();
         variable.DoNothingWithReturnValue();
 
-        var action = variable.ReturnAction();
+        var action = variable.ReturnAction(theChain);
 
         action.Frames().Single().ShouldBeOfType<CommentFrame>();
         action.Description.ShouldBe("Do nothing");
         action.Dependencies().ShouldBeEmpty();
+    }
+
+    public record Foo;
+
+    public class FooHandler
+    {
+        public void Handle(Foo foo) => Debug.WriteLine("Got a foo");
     }
 
     public class when_calling_method_on_return_variable
@@ -103,7 +116,8 @@ public class configuring_return_value_actions
         {
             theVariable.CallMethodOnReturnVariable<WriteFile>(x => x.Execute(null), "some description" );
 
-            theVariableAction = theVariable.ReturnAction();
+            var chain = HandlerChain.For<FooHandler>(x => x.Handle(null), new HandlerGraph());
+            theVariableAction = theVariable.ReturnAction(chain);
         }
 
         [Fact]
@@ -161,7 +175,8 @@ public class configuring_return_value_actions
         {
             theVariable.CallMethodOnReturnVariableIfNotNull<WriteFile>(x => x.Execute(null), "some description" );
 
-            theVariableAction = theVariable.ReturnAction();
+            var chain = HandlerChain.For<FooHandler>(x => x.Handle(null), new HandlerGraph());
+            theVariableAction = theVariable.ReturnAction(chain);
             
             var wrapper = theVariableAction.ShouldBeOfType<CallMethodReturnVariableAction<WriteFile>>().Frames().Single().ShouldBeOfType<IfNotNullFrame>();
             theMethodCall = wrapper.Inners.Single()

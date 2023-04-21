@@ -36,17 +36,17 @@ public class Events : List<object>
 ///     on new events to persist to the aggregate stream.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class MartenCommandWorkflowAttribute : ModifyChainAttribute
+public class AggregateHandlerAttribute : ModifyChainAttribute
 {
     private static readonly Type _versioningBaseType =
         typeof(IAggregateVersioning).Assembly.DefinedTypes.Single(x => x.Name.StartsWith("AggregateVersioning"));
 
-    public MartenCommandWorkflowAttribute(ConcurrencyStyle loadStyle)
+    public AggregateHandlerAttribute(ConcurrencyStyle loadStyle)
     {
         LoadStyle = loadStyle;
     }
 
-    public MartenCommandWorkflowAttribute() : this(ConcurrencyStyle.Optimistic)
+    public AggregateHandlerAttribute() : this(ConcurrencyStyle.Optimistic)
     {
     }
 
@@ -64,8 +64,8 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
 
     public override void Modify(IChain chain, GenerationRules rules, IContainer container)
     {
-        if (chain.Tags.ContainsKey(nameof(MartenCommandWorkflowAttribute))) return;
-        chain.Tags.Add(nameof(MartenCommandWorkflowAttribute),"true");
+        if (chain.Tags.ContainsKey(nameof(AggregateHandlerAttribute))) return;
+        chain.Tags.Add(nameof(AggregateHandlerAttribute),"true");
 
         CommandType = chain.InputType();
         if (CommandType == null)
@@ -173,13 +173,13 @@ public class MartenCommandWorkflowAttribute : ModifyChainAttribute
         }
 
         // Assume that the handler type itself is the aggregate
-        if (firstCall.HandlerType.HasAttribute<MartenCommandWorkflowAttribute>())
+        if (firstCall.HandlerType.HasAttribute<AggregateHandlerAttribute>())
         {
             return firstCall.HandlerType;
         }
 
         throw new InvalidOperationException(
-            $"Unable to determine a Marten aggregate type for {chain}. You may need to explicitly specify the aggregate type in a {nameof(MartenCommandWorkflowAttribute)} attribute");
+            $"Unable to determine a Marten aggregate type for {chain}. You may need to explicitly specify the aggregate type in a {nameof(AggregateHandlerAttribute)} attribute");
     }
 
     internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)

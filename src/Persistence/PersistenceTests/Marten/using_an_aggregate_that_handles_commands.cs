@@ -105,7 +105,7 @@ public record IncrementC2(Guid SelfLetteredAggregateId);
 
 public record IncrementMany2(Guid SelfLetteredAggregateId, string[] Letters);
 
-[MartenCommandWorkflow]
+[AggregateHandler]
 public class SelfLetteredAggregate
 {
     public SelfLetteredAggregate()
