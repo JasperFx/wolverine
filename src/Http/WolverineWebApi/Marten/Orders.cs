@@ -60,6 +60,7 @@ public class Order
     {
         return Shipped == null && Items.Values.All(x => x.Ready);
     }
+
 }
 
 public record OrderStatus(Guid OrderId, bool IsReady);
@@ -68,8 +69,17 @@ public record OrderStarted;
 
 public record StartOrder(string[] Items);
 
+
 public static class MarkItemEndpoint
 {
+    [AggregateHandler]
+    [WolverinePost("/orders/ship"), EmptyResponse]
+    public static OrderShipped Ship(ShipOrder command, Order order)
+    {
+        return new OrderShipped();
+    }
+    
+    // TODO -- return the StartStream? Mark whole class w/ AggregateHandler. Don't do anything w/ StartStream
     [Transactional]
     [WolverinePost("/orders/create")]
     public static OrderStatus StartOrder(StartOrder command, IDocumentSession session)

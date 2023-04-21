@@ -327,11 +327,10 @@ public class LetterAggregateHandler
         yield return new CEvent();
     }
 
-    public IEnumerable<object> Handle(IncrementCD command, LetterAggregate aggregate)
+    public (CEvent, DEvent) Handle(IncrementCD command, LetterAggregate aggregate)
     {
         command.LetterAggregateId.ShouldBe(aggregate.Id);
-        yield return new CEvent();
-        yield return new DEvent();
+        return (new CEvent(), new DEvent());
     }
 }
 

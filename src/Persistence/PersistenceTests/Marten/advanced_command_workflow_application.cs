@@ -172,6 +172,17 @@ public class advanced_command_workflow_application: PostgresqlContext, IAsyncLif
             a.ACount.ShouldBe(3);
         });
     }
+
+    [Fact]
+    public async Task return_one_event_as_only_return_value()
+    {
+        await GivenAggregate();
+        var tracked = await theHost.InvokeMessageAndWaitAsync(new RaiseOnlyD(theStreamId));
+        tracked.Sent.MessagesOf<DEvent>().Any().ShouldBeFalse();
+        tracked.Sent.MessagesOf<LetterAggregate>().Any().ShouldBeFalse();
+
+        await OnAggregate(a => a.DCount.ShouldBe(1));
+    }
 }
 
 public record LetterMessage1;
@@ -221,9 +232,11 @@ public static class RaiseLetterHandler
         stream.AppendOne(new AEvent());    
         return new Response { CCount = 11 };
     }
+    
+    public static DEvent Handle(RaiseOnlyD command, LetterAggregate aggregate) => new DEvent();
 }
 
-   
+public record RaiseOnlyD(Guid LetterAggregateId);
     
 public record RaiseABC(Guid LetterAggregateId);
 public record RaiseAAA(Guid LetterAggregateId);

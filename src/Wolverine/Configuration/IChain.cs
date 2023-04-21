@@ -94,7 +94,7 @@ public interface IChain
     /// <summary>
     /// Strategy for dealing with any return values from the handler methods
     /// </summary>
-    IReturnVariableFrameSource ReturnVariableFrameSource { get; set; }
+    IReturnVariableActionSource ReturnVariableActionSource { get; set; }
 }
 
 #endregion

@@ -62,7 +62,7 @@ public static class VariableExtensions
             if (raw is IReturnVariableAction action) return action;
         }
 
-        return chain.ReturnVariableFrameSource.Build(chain, variable);
+        return chain.ReturnVariableActionSource.Build(chain, variable);
     }
     
     /// <summary>

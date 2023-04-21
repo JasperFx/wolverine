@@ -76,6 +76,8 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
         VersionMember = DetermineVersionMember(CommandType);
 
+        
+
         var sessionCreator = MethodCall.For<OutboxedSessionFactory>(x => x.OpenSession(null!));
         chain.Middleware.Add(sessionCreator);
 
@@ -97,6 +99,13 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
             var action = eventsVariable.UseReturnAction(
                 v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, AggregateType!)
                     .WrapIfNotNull(v), "Append events to the Marten event stream");
+        }
+        
+        // If there's no return value of Events or IEnumerable<object>, and there's also no parameter of IEventStream<Aggregate>,
+        // then assume that the default behavior of each return value is to be an event
+        else if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
+        {
+            chain.ReturnVariableActionSource = new EventCaptureActionSource(AggregateType);
         }
 
         validateMethodSignatureForEmittedEvents(chain, firstCall, chain);
@@ -195,5 +204,52 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         }
 
         return member;
+    }
+}
+
+internal class EventCaptureActionSource : IReturnVariableActionSource
+{
+    private readonly Type _aggregateType;
+
+    public EventCaptureActionSource(Type aggregateType)
+    {
+        _aggregateType = aggregateType;
+    }
+
+    public IReturnVariableAction Build(IChain chain, Variable variable)
+    {
+        
+        return new ActionSource(_aggregateType, variable);
+    }
+
+    internal class ActionSource : IReturnVariableAction
+    {
+        private readonly Type _aggregateType;
+        private readonly Variable _variable;
+
+        public ActionSource(Type aggregateType, Variable variable)
+        {
+            _aggregateType = aggregateType;
+            _variable = variable;
+        }
+
+        public string Description => "Append event to event stream for aggregate " + _aggregateType.FullNameInCode();
+        public IEnumerable<Type> Dependencies()
+        {
+            yield break;
+        }
+
+        public IEnumerable<Frame> Frames()
+        {
+            var streamType = typeof(IEventStream<>).MakeGenericType(_aggregateType);
+
+            yield return new MethodCall(streamType, nameof(IEventStream<string>.AppendOne))
+            {
+                Arguments =
+                {
+                    [0] = _variable
+                }
+            };
+        }
     }
 }
