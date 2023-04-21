@@ -323,6 +323,14 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                 foreach (var o in enumerable) await EnqueueCascadingAsync(o);
 
                 return;
+            
+            case IAsyncEnumerable<object> asyncEnumerable:
+                await foreach (var o in asyncEnumerable)
+                {
+                    await EnqueueCascadingAsync(o);
+                };
+
+                return;
         }
 
         if (Envelope != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
@@ -397,4 +405,5 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             outbound.ConversationId = Envelope.ConversationId == Guid.Empty ? Envelope.Id : Envelope.ConversationId;
         }
     }
+
 }
