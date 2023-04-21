@@ -18,6 +18,15 @@ namespace Wolverine.Http;
 
 public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICodeFile
 {
+    public static bool IsValidResponseType(Type type)
+    {
+        if (type.CanBeCastTo<IEnumerable<object>>()) return false;
+        if (type.CanBeCastTo<IWolverineReturnType>()) return false;
+        if (type.CanBeCastTo<IAsyncEnumerable<object>>()) return false;
+
+        return true;
+    }
+    
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
 
@@ -45,16 +54,17 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (att.Name.IsNotEmpty()) DisplayName = att.Name;
         }
 
-        if (method.Method.HasAttribute<EmptyResponseAttribute>() || method.HandlerType.HasAttribute<EmptyResponseAttribute>())
+        if (tryFindResourceType(method, out var responseType))
+        {
+            NoContent = false;
+            ResourceType = responseType;
+        }
+        else
         {
             NoContent = true;
             ResourceType = typeof(void);
         }
-        else
-        {
-            ResourceType = method.Creates.FirstOrDefault()?.VariableType;
-        }
-        
+
         Metadata = new RouteHandlerBuilder(new[] { this });
 
         // Apply attributes and the Configure() method if that exists too
@@ -64,6 +74,24 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         applyImpliedMiddlewareFromHandlers(_parent.Rules);
 
         applyMetadata();
+    }
+
+    private bool tryFindResourceType(MethodCall method, out Type resourceType)
+    {
+        resourceType = typeof(void);
+
+        if (!method.Creates.Any())
+        {
+            return false;
+        }
+        
+        if (method.Method.HasAttribute<EmptyResponseAttribute>() || method.HandlerType.HasAttribute<EmptyResponseAttribute>())
+        {
+            return false;
+        }
+
+        resourceType = method.Creates.First().VariableType;
+        return IsValidResponseType(resourceType);
     }
     
     public bool NoContent { get; }

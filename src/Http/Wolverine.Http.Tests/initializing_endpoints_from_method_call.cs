@@ -108,7 +108,8 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
 
         if (expectedType == null)
         {
-            endpoint.ResourceType.ShouldBeNull();
+            endpoint.ResourceType.ShouldBe(typeof(void));
+            endpoint.NoContent.ShouldBeTrue();
         }
         else
         {
