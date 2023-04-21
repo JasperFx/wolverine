@@ -62,7 +62,7 @@ public static class VariableExtensions
             if (raw is IReturnVariableAction action) return action;
         }
 
-        return new CascadeMessage(variable);
+        return chain.ReturnVariableFrameSource.Build(chain, variable);
     }
     
     /// <summary>

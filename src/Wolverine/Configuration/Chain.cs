@@ -38,6 +38,8 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         _dependencies.Add(type);
     }
 
+    public IReturnVariableFrameSource ReturnVariableFrameSource { get; set; } = new CascadingMessageActionSource();
+
     /// <summary>
     ///     Find all of the service dependencies of the current chain
     /// </summary>

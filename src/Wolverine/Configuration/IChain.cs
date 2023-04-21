@@ -90,6 +90,11 @@ public interface IChain
     /// </summary>
     /// <param name="type"></param>
     public void AddDependencyType(Type type);
+    
+    /// <summary>
+    /// Strategy for dealing with any return values from the handler methods
+    /// </summary>
+    IReturnVariableFrameSource ReturnVariableFrameSource { get; set; }
 }
 
 #endregion
