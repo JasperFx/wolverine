@@ -93,25 +93,52 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         // Use the active document session as an IQuerySession instead of creating a new one
         firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
 
-        var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ?? firstCall.Creates.FirstOrDefault(x => x.VariableType.CanBeCastTo<IEnumerable<object>>() && x.VariableType != typeof(OutgoingMessages));
-        if (eventsVariable != null)
-        {
-            var action = eventsVariable.UseReturnAction(
-                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, AggregateType!)
-                    .WrapIfNotNull(v), "Append events to the Marten event stream");
-        }
-        
-        // If there's no return value of Events or IEnumerable<object>, and there's also no parameter of IEventStream<Aggregate>,
-        // then assume that the default behavior of each return value is to be an event
-        else if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
-        {
-            chain.ReturnVariableActionSource = new EventCaptureActionSource(AggregateType);
-        }
+        determineEventCaptureHandling(chain, firstCall);
 
         validateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         relayAggregateToHandlerMethod(loader, firstCall);
 
         chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
+    }
+
+    private void determineEventCaptureHandling(IChain chain, MethodCall firstCall)
+    {
+        
+        var asyncEnumerable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(IAsyncEnumerable<object>));
+        if (asyncEnumerable != null)
+        {
+            asyncEnumerable.UseReturnAction(v =>
+            {
+                return typeof(ApplyEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(asyncEnumerable,
+                    AggregateType!);
+            });
+
+            return;
+        }
+
+        
+        var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ??
+                             firstCall.Creates.FirstOrDefault(x =>
+                                 x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
+                                 x.VariableType != typeof(OutgoingMessages));
+        
+        if (eventsVariable != null)
+        {
+            var action = eventsVariable.UseReturnAction(
+                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, AggregateType!)
+                    .WrapIfNotNull(v), "Append events to the Marten event stream");
+
+            return;
+        }
+
+
+        
+        // If there's no return value of Events or IEnumerable<object>, and there's also no parameter of IEventStream<Aggregate>,
+        // then assume that the default behavior of each return value is to be an event
+        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
+        {
+            chain.ReturnVariableActionSource = new EventCaptureActionSource(AggregateType);
+        }
     }
 
     private void relayAggregateToHandlerMethod(MethodCall loader, MethodCall firstCall)
@@ -204,6 +231,45 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         }
 
         return member;
+    }
+}
+
+internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVariableAction
+{
+    private readonly Variable _returnValue;
+    private Variable? _stream;
+
+    public ApplyEventsFromAsyncEnumerableFrame(Variable returnValue)
+    {
+        _returnValue = returnValue;
+        uses.Add(_returnValue);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _stream = chain.FindVariable(typeof(IEventStream<T>));
+        yield return _stream;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var variableName = (typeof(T).Name + "Event").ToCamelCase();
+        
+        writer.WriteComment(Description);
+        writer.Write($"await foreach (var {variableName} in {_returnValue.Usage}) {_stream.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public string Description => "Apply events to Marten event stream";
+
+    public IEnumerable<Type> Dependencies()
+    {
+        yield break;
+    }
+
+    public IEnumerable<Frame> Frames()
+    {
+        yield return this;
     }
 }
 

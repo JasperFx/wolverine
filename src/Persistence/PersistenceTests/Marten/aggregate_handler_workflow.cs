@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using Marten;
 using Marten.Events;
 using Marten.Events.Projections;
@@ -14,7 +15,7 @@ using Xunit;
 
 namespace PersistenceTests.Marten;
 
-public class advanced_command_workflow_application: PostgresqlContext, IAsyncLifetime
+public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
 {
     private IHost theHost;
     private IDocumentStore theStore;
@@ -183,6 +184,21 @@ public class advanced_command_workflow_application: PostgresqlContext, IAsyncLif
 
         await OnAggregate(a => a.DCount.ShouldBe(1));
     }
+
+    [Fact]
+    public async Task append_events_from_async_enumerable()
+    {
+        await GivenAggregate();
+        var tracked = await theHost.InvokeMessageAndWaitAsync(new RaiseLotsAsync(theStreamId));
+        
+        await OnAggregate(a =>
+        {
+            a.ACount.ShouldBe(4);
+            a.BCount.ShouldBe(2);
+            a.CCount.ShouldBe(3);
+            a.DCount.ShouldBe(0);
+        });
+    }
 }
 
 public record LetterMessage1;
@@ -234,7 +250,23 @@ public static class RaiseLetterHandler
     }
     
     public static DEvent Handle(RaiseOnlyD command, LetterAggregate aggregate) => new DEvent();
+
+    public static async IAsyncEnumerable<object> Handle(RaiseLotsAsync command, LetterAggregate aggregate)
+    {
+        yield return new AEvent();
+        yield return new AEvent();
+        yield return new AEvent();
+        yield return new AEvent();
+        yield return new BEvent();
+        await Task.Delay(25.Milliseconds());
+        yield return new BEvent();
+        yield return new CEvent();
+        yield return new CEvent();
+        yield return new CEvent();
+    }
 }
+
+public record RaiseLotsAsync(Guid LetterAggregateId);
 
 public record RaiseOnlyD(Guid LetterAggregateId);
     
