@@ -23,6 +23,8 @@ public class MessageBus : IMessageBus
 
     public MessageBus(IWolverineRuntime runtime, string? correlationId)
     {
+        Runtime?.AssertHasStarted();
+        
         Runtime = runtime;
         Storage = runtime.Storage;
         CorrelationId = correlationId;

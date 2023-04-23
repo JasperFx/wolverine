@@ -51,6 +51,7 @@ public interface IWolverineRuntime
     void RegisterMessageType(Type messageType);
 
     IMessageInvoker FindInvoker(Type messageType);
+    void AssertHasStarted();
 }
 
 internal interface IExecutorFactory

@@ -115,6 +115,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         return _invokers[messageType];
     }
 
+    public void AssertHasStarted()
+    {
+        if (!_hasStarted)
+            throw new InvalidOperationException(
+                "WolverineRuntime has not been started. Check that you've called Start/StartAsync() to start your IHost for the application");
+    }
+
     public Meter Meter { get; }
 
     public ObjectPool<MessageContext> ExecutionPool { get; }

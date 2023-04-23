@@ -71,6 +71,11 @@ public class MockWolverineRuntime : IWolverineRuntime
         throw new NotImplementedException();
     }
 
+    public void AssertHasStarted()
+    {
+
+    }
+
     public bool TryFindMessageType(string? messageTypeName, out Type messageType)
     {
         throw new NotSupportedException();
