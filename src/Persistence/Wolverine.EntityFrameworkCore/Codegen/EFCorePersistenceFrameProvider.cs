@@ -5,6 +5,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
@@ -119,7 +120,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             return TryDetermineDbContextType(sagaType, container) != null;
         }
 
-        return chain.ServiceDependencies(container).Any(x => x.CanBeCastTo<DbContext>());
+        return chain.ServiceDependencies(container, Type.EmptyTypes).Any(x => x.CanBeCastTo<DbContext>());
     }
 
     internal Type? TryDetermineDbContextType(Type entityType, IContainer container)
@@ -136,10 +137,18 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         foreach (var candidate in candidates)
         {
             var dbContext = (DbContext)nested.GetInstance(candidate);
-            if (dbContext.Model.FindEntityType(entityType) != null)
+            try
             {
-                _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
-                return candidate;
+                if (dbContext.Model.FindEntityType(entityType) != null)
+                {
+                    _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
+                    return candidate;
+                }
+            }
+            catch (InvalidOperationException e)
+            {
+                var logger = container.TryGetInstance<ILogger<EFCorePersistenceFrameProvider>>();
+                logger?.LogError(e, "Error trying to use DbContext type {DbContextType}", candidate.FullNameInCode());
             }
         }
 
@@ -166,7 +175,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             return DetermineDbContextType(saga.SagaType, container);
         }
 
-        var contextTypes = chain.ServiceDependencies(container).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
+        var contextTypes = chain.ServiceDependencies(container, Type.EmptyTypes).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
 
         if (contextTypes.Length == 0)
         {

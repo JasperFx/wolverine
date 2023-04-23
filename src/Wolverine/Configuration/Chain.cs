@@ -43,12 +43,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     /// <summary>
     ///     Find all of the service dependencies of the current chain
     /// </summary>
-    /// <param name="chain"></param>
     /// <param name="container"></param>
+    /// <param name="stopAtTypes"></param>
+    /// <param name="chain"></param>
     /// <returns></returns>
-    public IEnumerable<Type> ServiceDependencies(IContainer container)
+    public IEnumerable<Type> ServiceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes)
     {
-        return serviceDependencies(container).Concat(_dependencies).Distinct();
+        return serviceDependencies(container, stopAtTypes).Concat(_dependencies).Distinct();
     }
 
     public abstract bool HasAttribute<T>() where T : Attribute;
@@ -111,13 +112,25 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             attribute.Modify(this, rules, container);
     }
 
-    private IEnumerable<Type> serviceDependencies(IContainer container)
+    private IEnumerable<Type> serviceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes)
     {
         foreach (var handlerCall in HandlerCalls())
         {
             yield return handlerCall.HandlerType;
 
-            foreach (var parameter in handlerCall.Method.GetParameters()) yield return parameter.ParameterType;
+            foreach (var parameter in handlerCall.Method.GetParameters())
+            {
+                yield return parameter.ParameterType;
+
+                if (!parameter.ParameterType.IsPrimitive || parameter.ParameterType.Assembly == GetType().Assembly || !stopAtTypes.Contains(parameter.ParameterType))
+                {
+                    var candidate = container.Model.For(parameter.ParameterType).Default;
+                    if (candidate != null)
+                    {
+                        foreach (var dependency in candidate.Instance.Dependencies) yield return dependency.ServiceType;
+                    }
+                }
+            }
 
             // Don't have to consider dependencies of a static handler
             if (handlerCall.HandlerType.IsStatic())
@@ -126,7 +139,10 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             }
 
             var @default = container.Model.For(handlerCall.HandlerType).Default;
-            foreach (var dependency in @default.Instance.Dependencies) yield return dependency.ServiceType;
+            if (@default != null)
+            {
+                foreach (var dependency in @default.Instance.Dependencies) yield return dependency.ServiceType;
+            }
         }
     }
 

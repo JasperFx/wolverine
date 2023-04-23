@@ -51,7 +51,12 @@ internal class NoHandlerExecutor : IExecutor
 
     public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        throw new IndeterminateRoutesException(typeof(T));
+        if (Exception != null)
+        {
+            throw Exception;
+        }
+        
+        throw new IndeterminateRoutesException(_messageType);
     }
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)

@@ -25,7 +25,7 @@ public class finding_service_dependencies_of_a_chain
     [Fact]
     public void find_dependencies_in_parameter_list()
     {
-        var dependencies = theChain.ServiceDependencies(theContainer).ToArray();
+        var dependencies = theChain.ServiceDependencies(theContainer, Type.EmptyTypes).ToArray();
 
         dependencies.ShouldContain(typeof(IService1));
         dependencies.ShouldContain(typeof(IService2));
@@ -34,7 +34,7 @@ public class finding_service_dependencies_of_a_chain
     [Fact]
     public void find_dependencies_of_ctor()
     {
-        var dependencies = theChain.ServiceDependencies(theContainer).ToArray();
+        var dependencies = theChain.ServiceDependencies(theContainer, Type.EmptyTypes).ToArray();
 
         dependencies.ShouldContain(typeof(IService3));
         dependencies.ShouldContain(typeof(IService5));
@@ -43,7 +43,7 @@ public class finding_service_dependencies_of_a_chain
     [Fact]
     public void find_dependencies_deep()
     {
-        var dependencies = theChain.ServiceDependencies(theContainer).ToArray();
+        var dependencies = theChain.ServiceDependencies(theContainer, Type.EmptyTypes).ToArray();
 
         dependencies.ShouldContain(typeof(IService5));
     }

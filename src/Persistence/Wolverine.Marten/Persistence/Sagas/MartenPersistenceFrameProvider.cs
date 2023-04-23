@@ -41,7 +41,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         return 
-               chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
+               chain.ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession)}).Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
     }
 
     public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)

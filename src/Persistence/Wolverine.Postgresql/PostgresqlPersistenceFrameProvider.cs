@@ -29,7 +29,7 @@ internal class PostgresqlPersistenceFrameProvider : IPersistenceFrameProvider
             return false;
         }
 
-        return chain.ServiceDependencies(container)
+        return chain.ServiceDependencies(container, Type.EmptyTypes)
             .Any(x => x == typeof(NpgsqlConnection) || x == typeof(NpgsqlTransaction));
     }
 

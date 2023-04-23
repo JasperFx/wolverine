@@ -185,7 +185,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override bool RequiresOutbox()
     {
-        return ServiceDependencies(_parent.Container).Contains(typeof(IMessageBus));
+        return ServiceDependencies(_parent.Container, Type.EmptyTypes).Contains(typeof(IMessageBus));
     }
 
     private void applyMetadata()

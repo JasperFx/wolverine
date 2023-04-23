@@ -48,10 +48,11 @@ public interface IChain
     /// <summary>
     ///     Find all of the service dependencies of the current chain
     /// </summary>
-    /// <param name="chain"></param>
     /// <param name="container"></param>
+    /// <param name="stopAtTypes"></param>
+    /// <param name="chain"></param>
     /// <returns></returns>
-    IEnumerable<Type> ServiceDependencies(IContainer container);
+    IEnumerable<Type> ServiceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes);
 
     /// <summary>
     /// Does this chain have the designated attribute type anywhere in

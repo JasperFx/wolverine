@@ -29,7 +29,7 @@ internal class SqlServerPersistenceFrameProvider : IPersistenceFrameProvider
             return false;
         }
 
-        return chain.ServiceDependencies(container).Any(x => x == typeof(SqlConnection) || x == typeof(SqlTransaction));
+        return chain.ServiceDependencies(container, Type.EmptyTypes).Any(x => x == typeof(SqlConnection) || x == typeof(SqlTransaction));
     }
 
     public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
