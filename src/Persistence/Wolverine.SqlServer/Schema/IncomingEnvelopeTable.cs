@@ -17,7 +17,7 @@ internal class IncomingEnvelopeTable : Table
         AddColumn(DatabaseConstants.Body, "varbinary(max)").NotNull();
 
         AddColumn(DatabaseConstants.MessageType, "varchar(250)").NotNull();
-        AddColumn<string>(DatabaseConstants.ReceivedAt);
+        AddColumn(DatabaseConstants.ReceivedAt, "varchar(250)");
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
     }
 }

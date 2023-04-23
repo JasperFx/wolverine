@@ -13,8 +13,8 @@ internal class DeadLettersTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.ExecutionTime).DefaultValueByExpression("NULL");
         AddColumn(DatabaseConstants.Body, "varbinary(max)").NotNull();
 
-        AddColumn<string>(DatabaseConstants.MessageType).NotNull();
-        AddColumn<string>(DatabaseConstants.ReceivedAt);
+        AddColumn(DatabaseConstants.MessageType, "varchar(250)").NotNull();
+        AddColumn(DatabaseConstants.ReceivedAt, "varchar(250)");
 
         AddColumn(DatabaseConstants.Source, "varchar(250)");
         AddColumn(DatabaseConstants.ExceptionType, "varchar(max)");
