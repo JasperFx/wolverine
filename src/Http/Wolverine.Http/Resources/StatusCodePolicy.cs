@@ -39,8 +39,7 @@ internal class WriteStatusCodeFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"{_context.Usage}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.StatusCode)} = {_statusCode.Usage};");
+        writer.Write(
+            $"{_context.Usage}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.StatusCode)} = {_statusCode.Usage};");
     }
-    
-    
 }

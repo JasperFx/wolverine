@@ -19,6 +19,6 @@ public struct WolverineContinue : IResult
 
     public static WolverineContinue Result()
     {
-        return new();
+        return new WolverineContinue();
     }
 }

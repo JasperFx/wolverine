@@ -23,6 +23,5 @@ public class determining_valid_response_types
 
     public class SpecialReturnType : IWolverineReturnType
     {
-        
     }
 }

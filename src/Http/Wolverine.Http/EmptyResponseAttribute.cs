@@ -7,5 +7,4 @@ namespace Wolverine.Http;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class EmptyResponseAttribute : Attribute
 {
-    
 }

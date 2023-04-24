@@ -36,9 +36,11 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
-        return endpoints.MapPost(url, ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!, new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+        return endpoints.MapPost(url,
+            ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!,
+                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
     }
-    
+
     /// <summary>
     /// Use the request body of type T to immediately invoke the incoming command with Wolverine
     /// </summary>
@@ -50,9 +52,11 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
-        return endpoints.MapPut(url, ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!, new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+        return endpoints.MapPut(url,
+            ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!,
+                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
     }
-    
+
     /// <summary>
     /// Use the request body of type T to immediately invoke the incoming command with Wolverine
     /// </summary>
@@ -64,56 +68,66 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
-        return endpoints.MapDelete(url, ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!, new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+        return endpoints.MapDelete(url,
+            ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!,
+                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
     }
-    
-    /// <summary>
-    /// Use the request body of type TRequest to immediately invoke the incoming command with Wolverine and return
-    /// the response TResponse back to the caller
-    /// </summary>
-    /// <param name="endpoints"></param>
-    /// <param name="url"></param>
-    /// <typeparam name="TRequest"></typeparam>
-    /// <returns></returns>
-    public static RouteHandlerBuilder MapPostToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints, string url)
-    {
-        var runtime = GetWolverineRuntime(endpoints);
-        var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
-        return endpoints.MapPost(url, ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!, new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
-    }
-    
-    /// <summary>
-    /// Use the request body of type TRequest to immediately invoke the incoming command with Wolverine and return
-    /// the response TResponse back to the caller
-    /// </summary>
-    /// <param name="endpoints"></param>
-    /// <param name="url"></param>
-    /// <typeparam name="TRequest"></typeparam>
-    /// <returns></returns>
-    public static RouteHandlerBuilder MapPutToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints, string url)
-    {
-        var runtime = GetWolverineRuntime(endpoints);
-        var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
-        return endpoints.MapPut(url, ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!, new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
-    }
-    
-    /// <summary>
-    /// Use the request body of type TRequest to immediately invoke the incoming command with Wolverine and return
-    /// the response TResponse back to the caller
-    /// </summary>
-    /// <param name="endpoints"></param>
-    /// <param name="url"></param>
-    /// <typeparam name="TRequest"></typeparam>
-    /// <returns></returns>
-    public static RouteHandlerBuilder MapDeleteToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints, string url)
-    {
-        var runtime = GetWolverineRuntime(endpoints);
-        var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
-        return endpoints.MapDelete(url, ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!, new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
-    }
-    
 
-    
+    /// <summary>
+    /// Use the request body of type TRequest to immediately invoke the incoming command with Wolverine and return
+    /// the response TResponse back to the caller
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="url"></param>
+    /// <typeparam name="TRequest"></typeparam>
+    /// <returns></returns>
+    public static RouteHandlerBuilder MapPostToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
+        string url)
+    {
+        var runtime = GetWolverineRuntime(endpoints);
+        var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
+        return endpoints.MapPost(url,
+            ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!,
+                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+    }
+
+    /// <summary>
+    /// Use the request body of type TRequest to immediately invoke the incoming command with Wolverine and return
+    /// the response TResponse back to the caller
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="url"></param>
+    /// <typeparam name="TRequest"></typeparam>
+    /// <returns></returns>
+    public static RouteHandlerBuilder MapPutToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
+        string url)
+    {
+        var runtime = GetWolverineRuntime(endpoints);
+        var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
+        return endpoints.MapPut(url,
+            ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!,
+                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+    }
+
+    /// <summary>
+    /// Use the request body of type TRequest to immediately invoke the incoming command with Wolverine and return
+    /// the response TResponse back to the caller
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="url"></param>
+    /// <typeparam name="TRequest"></typeparam>
+    /// <returns></returns>
+    public static RouteHandlerBuilder MapDeleteToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
+        string url)
+    {
+        var runtime = GetWolverineRuntime(endpoints);
+        var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
+        return endpoints.MapDelete(url,
+            ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!,
+                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+    }
+
+
     /// <summary>
     ///     Discover and add Wolverine HTTP endpoints to your ASP.Net Core system
     /// </summary>
@@ -133,12 +147,12 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         // Making sure this exists
         var options = container.GetInstance<WolverineHttpOptions>();
         options.Endpoints = new HttpGraph(runtime.Options, container);
-        
+
         configure?.Invoke(options);
 
         options.JsonSerializerOptions =
             container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
-        
+
         options.Endpoints.DiscoverEndpoints(options);
         runtime.AdditionalDescribedParts.Add(options.Endpoints);
 

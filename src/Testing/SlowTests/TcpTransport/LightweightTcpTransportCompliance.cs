@@ -1,11 +1,10 @@
-using System.Threading.Tasks;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 using Xunit;
 
-namespace CoreTests.Transports.Tcp;
+namespace SlowTests.TcpTransport;
 
 public class LightweightTcpFixture : TransportComplianceFixture, IAsyncLifetime
 {

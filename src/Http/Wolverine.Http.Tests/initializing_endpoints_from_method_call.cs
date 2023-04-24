@@ -63,7 +63,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
 
         var metadata = endpoint.Metadata.OfType<IAcceptsMetadata>()
             .Single();
-        
+
         metadata.RequestType.ShouldBe(chain.RequestType);
         metadata.ContentTypes.Single().ShouldBe("application/json");
     }

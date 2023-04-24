@@ -40,12 +40,9 @@ public class using_aggregate_handler_workflow : IntegrationContext
         });
 
         var status1 = result1.ReadAsJson<OrderStatus>();
-        
-        await Scenario(x =>
-        {
-            x.Post.Json(new ShipOrder(status1.OrderId)).ToUrl("/orders/ship");
-        });
-        
+
+        await Scenario(x => { x.Post.Json(new ShipOrder(status1.OrderId)).ToUrl("/orders/ship"); });
+
         using var session = Store.LightweightSession();
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
         order.Shipped.HasValue.ShouldBeTrue();

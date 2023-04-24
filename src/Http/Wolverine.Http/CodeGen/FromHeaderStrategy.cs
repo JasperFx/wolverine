@@ -29,7 +29,6 @@ public class FromHeaderStrategy : IParameterStrategy
             }
 
 
-            
             return true;
         }
 
@@ -48,7 +47,7 @@ internal class FromHeaderValue : SyncFrame
         Variable = new Variable(parameter.ParameterType, parameter.Name, this);
         _header = header.Name ?? parameter.Name;
     }
-    
+
     public Variable Variable { get; }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
@@ -59,7 +58,8 @@ internal class FromHeaderValue : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Variable.Usage} = {nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext.Usage}, \"{_header}\");");
+        writer.Write(
+            $"var {Variable.Usage} = {nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext.Usage}, \"{_header}\");");
         Next?.GenerateCode(method, writer);
     }
 }
@@ -74,7 +74,7 @@ internal class ParsedHeaderValue : SyncFrame
         _header = header.Name ?? parameter.Name!;
         Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
     }
-    
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _httpContext = chain.FindVariable(typeof(HttpContext));
@@ -87,7 +87,8 @@ internal class ParsedHeaderValue : SyncFrame
     {
         var alias = Variable.VariableType.ShortNameInCode();
         writer.Write($"{alias} {Variable.Usage} = default;");
-        writer.Write($"{alias}.TryParse({nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext!.Usage}, \"{_header}\"), out {Variable.Usage});");
+        writer.Write(
+            $"{alias}.TryParse({nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext!.Usage}, \"{_header}\"), out {Variable.Usage});");
 
         Next?.GenerateCode(method, writer);
     }

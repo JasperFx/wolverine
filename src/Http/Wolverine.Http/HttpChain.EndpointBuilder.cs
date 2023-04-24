@@ -45,23 +45,18 @@ public partial class HttpChain : IEndpointConventionBuilder
             DisplayName = DisplayName
         };
 
-        
-        foreach (var configuration in _builderConfigurations)
-        {
-            configuration(builder);
-        }
-        
+
+        foreach (var configuration in _builderConfigurations) configuration(builder);
+
         tryApplyAsEndpointMetadataProvider(ResourceType, builder);
         foreach (var parameter in Method.Method.GetParameters())
-        {
             tryApplyAsEndpointMetadataProvider(parameter.ParameterType, builder);
-        }
-        
+
 
         if (ResourceType == null)
         {
             builder.RemoveStatusCodeResponse(200);
-            builder.Metadata.Add(new ProducesResponseTypeMetadata{StatusCode = 204, Type = null});
+            builder.Metadata.Add(new ProducesResponseTypeMetadata { StatusCode = 204, Type = null });
         }
 
         Endpoint = (RouteEndpoint?)builder.Build();
@@ -73,9 +68,12 @@ public partial class HttpChain : IEndpointConventionBuilder
     {
         void Apply(EndpointBuilder builder, MethodInfo method);
     }
-    
+
     internal class Applier<T> : IApplier where T : IEndpointMetadataProvider
     {
-        public void Apply(EndpointBuilder builder, MethodInfo method) => T.PopulateMetadata(method, builder);
+        public void Apply(EndpointBuilder builder, MethodInfo method)
+        {
+            T.PopulateMetadata(method, builder);
+        }
     }
 }

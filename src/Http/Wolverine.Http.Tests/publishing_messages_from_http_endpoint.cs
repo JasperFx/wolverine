@@ -17,7 +17,7 @@ public class publishing_messages_from_http_endpoint : IntegrationContext
             x.Post.Json(new HttpMessage1("Glenn Frey")).ToUrl("/publish/message1");
             x.StatusCodeShouldBe(202);
         });
-        
+
         tracked.Sent.SingleMessage<HttpMessage1>()
             .Name.ShouldBe("Glenn Frey");
     }

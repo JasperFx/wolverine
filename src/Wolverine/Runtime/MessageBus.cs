@@ -24,14 +24,14 @@ public class MessageBus : IMessageBus
     public MessageBus(IWolverineRuntime runtime, string? correlationId)
     {
         Runtime?.AssertHasStarted();
-        
+
         Runtime = runtime;
         Storage = runtime.Storage;
         CorrelationId = correlationId;
     }
 
     public string? CorrelationId { get; set; }
-    
+
     public string? TenantId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
@@ -170,17 +170,17 @@ public class MessageBus : IMessageBus
         var original = Transaction;
         Transaction = transaction;
 
-        if (original is MessageContext c) return c.CopyToAsync(transaction);
+        if (original is MessageContext c)
+        {
+            return c.CopyToAsync(transaction);
+        }
 
         return Task.CompletedTask;
     }
 
     private void trackEnvelopeCorrelation(Activity? activity, Envelope[] outgoing)
     {
-        foreach (var outbound in outgoing)
-        {
-            TrackEnvelopeCorrelation(outbound, activity);
-        }
+        foreach (var outbound in outgoing) TrackEnvelopeCorrelation(outbound, activity);
     }
 
     internal virtual void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)

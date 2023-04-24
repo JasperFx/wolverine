@@ -30,7 +30,10 @@ internal class HttpAwarePolicy : IHttpPolicy
         foreach (var chain in matching)
         {
             var resource = chain.Method.Creates.FirstOrDefault(x => x.VariableType == chain.ResourceType);
-            if (resource == null) return;
+            if (resource == null)
+            {
+                return;
+            }
 
             var apply = new MethodCall(typeof(IHttpAware), nameof(IHttpAware.Apply))
             {
@@ -61,13 +64,16 @@ public abstract record CreationResponse : IHttpAware
     public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
     {
         builder.RemoveStatusCodeResponse(200);
-        
+
         var create = new MethodCall(method.DeclaringType, method).Creates.FirstOrDefault()?.VariableType;
         var metadata = new ProducesResponseTypeMetadata { Type = create, StatusCode = 201 };
         builder.Metadata.Add(metadata);
     }
 
-    protected virtual string Url() => string.Empty;
+    protected virtual string Url()
+    {
+        return string.Empty;
+    }
 
     void IHttpAware.Apply(HttpContext context)
     {

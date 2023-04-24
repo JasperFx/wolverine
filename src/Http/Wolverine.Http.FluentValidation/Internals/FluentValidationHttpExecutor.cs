@@ -22,7 +22,7 @@ public static class FluentValidationHttpExecutor
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static async Task<IResult> ExecuteMany<T>(
         IReadOnlyList<IValidator<T>> validators,
-        IProblemDetailSource<T> source, 
+        IProblemDetailSource<T> source,
         T message)
     {
         var validationFailureTasks = validators
@@ -37,7 +37,7 @@ public static class FluentValidationHttpExecutor
             var problems = source.Create(message, failures);
             return Results.Problem(problems);
         }
-        
+
         return WolverineContinue.Result();
     }
 }

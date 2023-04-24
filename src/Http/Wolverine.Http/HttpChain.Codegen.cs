@@ -32,7 +32,7 @@ public partial class HttpChain
 
         var loggedType = InputType() ?? (Method.HandlerType.IsStatic() ? typeof(HttpGraph) : Method.HandlerType);
         var loggerType = typeof(ILogger<>).MakeGenericType(loggedType);
-        
+
         handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
 
         handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
@@ -59,7 +59,7 @@ public partial class HttpChain
     }
 
     string ICodeFile.FileName => _fileName;
-    
+
     internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
     {
         // Add frames for any writers
@@ -78,11 +78,9 @@ public partial class HttpChain
 
         yield return Method;
 
-        var actionsOnOtherReturnValues = (NoContent ? Method.Creates : Method.Creates.Skip(1)).Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames());
-        foreach (var frame in actionsOnOtherReturnValues)
-        {
-            yield return frame;
-        }
+        var actionsOnOtherReturnValues = (NoContent ? Method.Creates : Method.Creates.Skip(1))
+            .Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames());
+        foreach (var frame in actionsOnOtherReturnValues) yield return frame;
 
         foreach (var frame in Postprocessors) yield return frame;
     }

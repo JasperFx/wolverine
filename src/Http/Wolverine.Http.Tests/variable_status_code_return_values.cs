@@ -16,7 +16,7 @@ public class variable_status_code_return_values : IntegrationContext
             x.Post.Json(new StatusCodeRequest(202)).ToUrl("/status");
             x.StatusCodeShouldBe(202);
         });
-        
+
         await Scenario(x =>
         {
             x.Post.Json(new StatusCodeRequest(205)).ToUrl("/status");

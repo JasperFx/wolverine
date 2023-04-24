@@ -18,7 +18,7 @@ public class header_binding : IntegrationContext
             x.ContentShouldBe("one");
         });
     }
-    
+
     [Fact]
     public async Task read_single_parsed_header_with_explicit_name_mapping()
     {

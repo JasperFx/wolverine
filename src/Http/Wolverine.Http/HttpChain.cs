@@ -20,13 +20,24 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 {
     public static bool IsValidResponseType(Type type)
     {
-        if (type.CanBeCastTo<IEnumerable<object>>()) return false;
-        if (type.CanBeCastTo<IWolverineReturnType>()) return false;
-        if (type.CanBeCastTo<IAsyncEnumerable<object>>()) return false;
+        if (type.CanBeCastTo<IEnumerable<object>>())
+        {
+            return false;
+        }
+
+        if (type.CanBeCastTo<IWolverineReturnType>())
+        {
+            return false;
+        }
+
+        if (type.CanBeCastTo<IAsyncEnumerable<object>>())
+        {
+            return false;
+        }
 
         return true;
     }
-    
+
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
 
@@ -51,7 +62,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
         {
             MapToRoute(att.HttpMethod, att.Template, att.Order);
-            if (att.Name.IsNotEmpty()) DisplayName = att.Name;
+            if (att.Name.IsNotEmpty())
+            {
+                DisplayName = att.Name;
+            }
         }
 
         if (tryFindResourceType(method, out var responseType))
@@ -84,8 +98,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             return false;
         }
-        
-        if (method.Method.HasAttribute<EmptyResponseAttribute>() || method.HandlerType.HasAttribute<EmptyResponseAttribute>())
+
+        if (method.Method.HasAttribute<EmptyResponseAttribute>() ||
+            method.HandlerType.HasAttribute<EmptyResponseAttribute>())
         {
             return false;
         }
@@ -93,11 +108,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         resourceType = method.Creates.First().VariableType;
         return IsValidResponseType(resourceType);
     }
-    
+
     public bool NoContent { get; }
 
     public MethodCall Method { get; }
-    
+
     public string? DisplayName { get; set; }
 
     public int Order { get; set; }
@@ -110,17 +125,24 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         RoutePattern = RoutePatternFactory.Parse(url);
         _httpMethods.Fill(method);
-        if (order != null) Order = order.Value;
-        if (displayName.IsNotEmpty()) DisplayName = displayName;
+        if (order != null)
+        {
+            Order = order.Value;
+        }
+
+        if (displayName.IsNotEmpty())
+        {
+            DisplayName = displayName;
+        }
 
         _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_")
             .Replace("{", "").Replace("}", "").Replace("-", "_");
 
         _description = _fileName;
-        
+
         _parent.ApplyParameterMatching(this);
     }
-    
+
     public RoutePattern RoutePattern { get; internal set; }
 
     public Type? RequestType { get; internal set; }

@@ -33,7 +33,7 @@ public class endpoint_discovery_and_construction : IntegrationContext
     public void ability_to_discern_cascaded_messages_in_tuple_return_values()
     {
         var chain = HttpChains.ChainFor("POST", "/spawn");
-        
+
         chain.InputType().ShouldBe(typeof(SpawnInput));
         chain.ResourceType.ShouldBe(typeof(string));
     }

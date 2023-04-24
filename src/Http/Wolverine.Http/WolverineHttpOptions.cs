@@ -30,8 +30,10 @@ public class WolverineHttpOptions
     /// Customize Wolverine's handling of parameters to HTTP endpoint methods
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public void AddParameterHandlingStrategy<T>() where T : IParameterStrategy, new() =>
+    public void AddParameterHandlingStrategy<T>() where T : IParameterStrategy, new()
+    {
         AddParameterHandlingStrategy(new T());
+    }
 
     /// <summary>
     /// Customize Wolverine's handling of parameters to HTTP endpoint methods
@@ -111,12 +113,12 @@ public class WolverineHttpOptions
     {
         var method = MethodCall.For<PublishingEndpoint<T>>(x => x.PublishAsync(default, null, null));
         var chain = Endpoints.Add(method, httpMethod, url);
-        
+
         chain.MapToRoute(httpMethod.ToString(), url);
         chain.DisplayName = $"Forward {typeof(T).FullNameInCode()} to Wolverine";
         customize?.Invoke(chain);
     }
-    
+
     public void PublishMessage<T>(string url, Action<HttpChain>? customize = null)
     {
         PublishMessage<T>(HttpMethod.Post, url, customize);

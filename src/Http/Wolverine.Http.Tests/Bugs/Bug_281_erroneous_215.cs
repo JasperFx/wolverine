@@ -15,7 +15,7 @@ public class Bug_281_erroneous_215 : IntegrationContext
     public async Task should_get_a_204_happy_as_you_please()
     {
         var signUpRequest = new SignUpRequest("test@email.com", "P4$$w0rd123123!");
-        
+
         await Scenario(x =>
         {
             x.Post.Json(signUpRequest).ToUrl("/users/sign-up");

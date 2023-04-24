@@ -7,10 +7,10 @@ public class ProblemDetailSource<T> : IProblemDetailSource<T>
 {
     public ProblemDetails Create(T message, IReadOnlyList<ValidationFailure> failures)
     {
-        var dict = 
+        var dict =
             failures.GroupBy(x => x.PropertyName)
                 .ToDictionary(x => x.Key, x => x.Select(i => i.ErrorMessage).ToArray());
 
-        return new ValidationProblemDetails(dict){Status = 400};
+        return new ValidationProblemDetails(dict) { Status = 400 };
     }
 }

@@ -5,7 +5,7 @@ using Wolverine.FluentValidation.Internals;
 using Wolverine.Http.FluentValidation;
 using Wolverine.Http.FluentValidation.Internals;
 
-[assembly:WolverineModule(typeof(FluentValidationExtension))]
+[assembly: WolverineModule(typeof(FluentValidationExtension))]
 
 namespace Wolverine.Http.FluentValidation;
 

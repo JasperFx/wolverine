@@ -27,10 +27,7 @@ public class respecting_fromservices_attribute : IntegrationContext
         var recorder = Host.Services.GetRequiredService<Recorder>();
         recorder.Actions.Clear();
 
-        await Scenario(x =>
-        {
-            x.Post.Url("/notbody");
-        });
+        await Scenario(x => { x.Post.Url("/notbody"); });
 
         recorder.Actions.Single().ShouldBe("Called AttributesEndpoints.Post()");
     }
