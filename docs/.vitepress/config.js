@@ -73,7 +73,8 @@ export default {
                     items: [
                         {text: 'Basic Concepts', link: '/guide/basics'},
                         {text: 'Configuration', link: '/guide/configuration'},
-                        {text: 'Instrumentation, Diagnostics, and Logging', link: '/guide/logging'},
+                        {text: 'Instrumentation and Metrics', link: '/guide/logging'},
+                        {text: 'Diagnostics', link: '/guide/diagnostics'},
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
                         {text: 'Runtime Architecture', link: '/guide/runtime'},

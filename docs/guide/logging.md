@@ -1,4 +1,4 @@
-# Logging, Diagnostics, and Metrics
+# Instrumentation and Metrics
 
 Wolverine logs through the standard .NET `ILogger` abstraction, and there's nothing special you need to do
 to enable that logging other than using one of the standard approaches for bootstrapping a .NET application

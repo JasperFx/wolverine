@@ -309,7 +309,7 @@ public class CommandsAreTransactional : IHandlerPolicy
         // for each chain
         chains
             .Where(chain => chain.MessageType.Name.EndsWith("Command"))
-            .Each(chain => chain.Middleware.Add(new TransactionalFrame(chain)));
+            .Each(chain => chain.Middleware.Add(new TransactionalFrame()));
     }
 }
 ```
@@ -564,7 +564,7 @@ Using that middleware, we get this slimmer code:
 <!-- snippet: sample_MarkItemReadyHandler -->
 <a id='snippet-sample_markitemreadyhandler'></a>
 ```cs
-[MartenCommandWorkflow]
+[AggregateHandler]
 public static IEnumerable<object> Handle(MarkItemReady command, Order order)
 {
     if (order.Items.TryGetValue(command.ItemName, out var item))
@@ -653,7 +653,7 @@ The Marten workflow command handler method signature needs to follow these rules
 <!-- snippet: sample_MarkItemReadyHandler_with_explicit_stream -->
 <a id='snippet-sample_markitemreadyhandler_with_explicit_stream'></a>
 ```cs
-[MartenCommandWorkflow]
+[AggregateHandler]
 public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEventStream<Order> stream)
 {
     var order = stream.Aggregate;
@@ -701,7 +701,7 @@ Here's an alternative of the `MarkItemReady` handler that uses `Events`:
 <!-- snippet: sample_using_events_and_messages_from_MartenCommandWorkflow -->
 <a id='snippet-sample_using_events_and_messages_from_martencommandworkflow'></a>
 ```cs
-[MartenCommandWorkflow]
+[AggregateHandler]
 public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
 {
     // All contrived, let's say we need to call some 
