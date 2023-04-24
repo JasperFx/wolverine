@@ -34,7 +34,10 @@ namespace build
             Target("test", DependsOn("compile"),() =>
             {
                 RunTests("CoreTests");
-                RunTests("PolicyTests");
+
+                RunTests("Extensions", "Wolverine.FluentValidation.Tests");
+                RunTests("Extensions", "Wolverine.MemoryPack.Tests");
+                RunTests("Extensions", "Wolverine.MessagePack.Tests");
             });
             
             Target("test-http", DependsOn("compile", "docker-up"), () =>

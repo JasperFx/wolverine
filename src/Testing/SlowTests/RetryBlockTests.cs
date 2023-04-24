@@ -1,14 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Shouldly;
 using Wolverine.Util.Dataflow;
 using Xunit;
 
-namespace CoreTests.Util;
+namespace SlowTests;
 
 public class RetryBlockTests
 {
