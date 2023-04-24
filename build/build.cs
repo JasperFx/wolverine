@@ -143,6 +143,7 @@ namespace build
                 "./src/Persistence/Wolverine.SqlServer",
                 "./src/Extensions/Wolverine.FluentValidation",
                 "./src/Extensions/Wolverine.MemoryPack",
+                "./src/Extensions/Wolverine.MessagePack",
                 "./src/Http/Wolverine.Http",
                 "./src/Http/Wolverine.Http.FluentValidation",
             };
