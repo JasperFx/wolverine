@@ -136,8 +136,13 @@ export default {
                     items: [
                         {text: 'HTTP Services', link: '/guide/http/'},
                         {text: 'Endpoints', link: '/guide/http/endpoints'},
+                        {text: 'Headers', link: '/guide/http/headers'},
                         {text: 'Middleware', link: '/guide/http/middleware.md'},
-                        {text: 'Policies', link: '/guide/http/policies.md'}
+                        {text: 'Policies', link: '/guide/http/policies.md'},
+                        {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
+                        {text: 'Publishing Messages', link: '/guide/http/messaging'},
+                        {text: 'Integration with Sagas', link: '/guide/http/sagas'},
+                        {text: 'Integration with Marten', link: '/guide/http/marten'},
                     ]
                 },
                 {
@@ -148,7 +153,8 @@ export default {
                         {text: 'Durable Inbox and Outbox Messaging', link: '/guide/durability/'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
                         {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
-                                {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'}
+                                {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'},
+                                {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/aggregates'}
                             ]},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
