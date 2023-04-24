@@ -121,6 +121,25 @@ public static class MartenOps
     {
         return new StartStream<T>(streamKey, events);
     }
+    
+    /// <summary>
+    /// As it says, do nothing
+    /// </summary>
+    /// <returns></returns>
+    public static NoOp Nothing() => new NoOp();
+}
+
+
+/// <summary>
+/// Represents a "do nothing" action in cases where you do not need
+/// to make any Marten action
+/// </summary>
+public class NoOp : IMartenOp
+{
+    public void Execute(IDocumentSession session)
+    {
+        // nothing
+    }
 }
 
 public interface StartStream : IMartenOp

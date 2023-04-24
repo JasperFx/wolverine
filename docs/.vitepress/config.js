@@ -93,6 +93,7 @@ export default {
                                 {text: 'Discovery', link: '/guide/handlers/discovery'},
                                 {text: 'Error Handling', link: '/guide/handlers/error-handling'},
                                 {text: 'Cascading Messages', link: '/guide/handlers/cascading'},
+                                {text: 'Side Effects', link: '/guide/handlers/side-effects'},
                                 {text: 'Middleware', link: '/guide/handlers/middleware'},
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'}
@@ -146,7 +147,9 @@ export default {
                     items: [
                         {text: 'Durable Inbox and Outbox Messaging', link: '/guide/durability/'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
-                        {text: 'Marten Integration', link: '/guide/durability/marten'},
+                        {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
+                                {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'}
+                            ]},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},

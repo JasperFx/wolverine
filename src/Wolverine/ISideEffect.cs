@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine;
 
@@ -39,12 +40,15 @@ internal class SideEffectPolicy : IChainPolicy
                 {
                     chain.AddDependencyType(parameter.ParameterType);
                 }
-                
-                chain.Postprocessors.Add(new MethodCall(effect.VariableType, method)
+
+                effect.UseReturnAction(v =>
                 {
-                    Target = effect,
-                    CommentText = $"Placed by Wolverine's {nameof(ISideEffect)} policy"
-                });
+                    return new MethodCall(effect.VariableType, method)
+                    {
+                        Target = effect,
+                        CommentText = $"Placed by Wolverine's {nameof(ISideEffect)} policy"
+                    };
+                }, "Side Effect Policy");
             }
         }
     }
