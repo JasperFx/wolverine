@@ -69,15 +69,50 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        Callback = new RabbitMqChannelCallback(runtime.LoggerFactory.CreateLogger<RabbitMqTransport>(), runtime.DurabilitySettings.Cancellation);
+        var logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();   
+        Callback = new RabbitMqChannelCallback(logger, runtime.DurabilitySettings.Cancellation);
 
         ConnectionFactory.DispatchConsumersAsync = true;
 
         // TODO -- log the connection
-        _listenerConnection ??= BuildConnection();
-        _sendingConnection ??= BuildConnection();
+        if (_listenerConnection == null)
+        {
+            _listenerConnection = BuildConnection();
+            listenToEvents("Listener", _listenerConnection, logger);
+        }
+
+        if (_sendingConnection == null)
+        {
+            _sendingConnection = BuildConnection();
+            listenToEvents("Sender", _listenerConnection, logger);
+        }
 
         return ValueTask.CompletedTask;
+    }
+
+    private void listenToEvents(string connectionName, IConnection connection, ILogger logger)
+    {
+        connection.CallbackException += (sender, args) =>
+        {
+            logger.LogError(args.Exception, "Rabbit Mq connection callback exception on {Name} connection", connectionName);
+        };
+
+        connection.ConnectionBlocked += (sender, args) =>
+        {
+            logger.LogInformation("Rabbit Mq {Name} connection was blocked with reason {Reason}", connectionName, args.Reason);
+        };
+
+        connection.ConnectionShutdown += (sender, args) =>
+        {
+            logger.LogInformation("Rabbit Mq connection {Name} was shutdown with Cause {Cause}, Initiator {Initiator}, ClassId {ClassId}, MethodId {MethodId}, ReplyCode {ReplyCode}, and ReplyText {ReplyText}"
+                , connectionName, args.Cause, args.Initiator, args.ClassId, args.MethodId, args.ReplyCode, args.ReplyText);
+        };
+
+        connection.ConnectionUnblocked += (sender, args) =>
+        {
+            logger.LogInformation("Rabbit Mq connection {Name} was un-blocked");
+        };
+        
     }
 
     protected override IEnumerable<RabbitMqEndpoint> endpoints()
