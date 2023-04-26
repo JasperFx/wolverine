@@ -75,7 +75,7 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     {
         runtime.Logger.LogInformation("Initializing the Wolverine {TransportName}", GetType().Name);
         
-        tryBuildResponseQueueEndpoint(runtime);
+        tryBuildSystemEndpoints(runtime);
 
         await ConnectAsync(runtime);
 
@@ -86,8 +86,12 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     }
 
 
-    //public abstract ValueTask ConnectAsync();
-    protected virtual void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
+    /// <summary>
+    /// Template method hook to build dedicated response endpoints
+    /// or dead letter queue endpoints for the transport
+    /// </summary>
+    /// <param name="runtime"></param>
+    protected virtual void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
     }
 }

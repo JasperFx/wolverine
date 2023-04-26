@@ -24,6 +24,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         _parent = parent;
         QueueName = EndpointName = queueName;
         Mode = EndpointMode.Inline;
+        DeadLetterQueue = _parent.DeadLetterQueue;
     }
 
     internal bool HasDeclared { get; private set; }
@@ -117,7 +118,16 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         }
 
         using var channel = _parent.ListeningConnection.CreateModel();
-        channel.QueuePurge(QueueName);
+        try
+        {
+            channel.QueuePurge(QueueName);
+        }
+        catch (Exception e)
+        {
+            if (e.Message.Contains("NOT_FOUND - no queue")) return ValueTask.CompletedTask;
+
+            throw;
+        }
 
         return ValueTask.CompletedTask;
     }
@@ -147,6 +157,11 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     }
 
     public string QueueName { get; }
+    
+    /// <summary>
+    /// Use to override the dead letter queue for this queue
+    /// </summary>
+    public DeadLetterQueue? DeadLetterQueue { get; set; }
 
     /// <summary>
     ///     If true, this queue will be deleted when the connection is closed. This is mostly useful
@@ -249,6 +264,15 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         if (HasDeclared)
         {
             return;
+        }
+
+        if (DeadLetterQueue != null && DeadLetterQueue.Enabled)
+        {
+            Arguments[RabbitMqTransport.DeadLetterQueueHeader] = DeadLetterQueue.ExchangeName;
+        }
+        else
+        {
+            Arguments.Remove(RabbitMqTransport.DeadLetterQueueHeader);
         }
 
         try

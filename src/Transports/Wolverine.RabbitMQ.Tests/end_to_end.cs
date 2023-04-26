@@ -67,10 +67,10 @@ public class end_to_end
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_durable_transport_option()
     {
-        var queueName = RabbitTesting.NextQueueName();
+        var queueName = "durable_test_queue";
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+            opts.UseRabbitMq().DisableDeadLetterQueueConfiguration().AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
                 .ToRabbitQueue(queueName)
@@ -89,7 +89,7 @@ public class end_to_end
 
         using var receiver = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().AutoProvision();
+            opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueConfiguration();
 
             opts.ListenToRabbitQueue(queueName);
             opts.Services.AddSingleton<ColorHistory>();

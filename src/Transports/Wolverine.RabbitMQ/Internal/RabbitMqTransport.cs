@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Spectre.Console;
@@ -16,6 +12,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 {
     public const string ProtocolName = "rabbitmq";
     public const string ResponseEndpointName = "RabbitMqResponses";
+    public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
+    public const string DeadLetterQueueHeader = "x-dead-letter-exchange";
 
     private IConnection? _listenerConnection;
     private IConnection? _sendingConnection;
@@ -23,11 +21,10 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     public RabbitMqTransport() : base(ProtocolName, "Rabbit MQ")
     {
         ConnectionFactory.AutomaticRecoveryEnabled = true;
-        Queues = new(name => new RabbitMqQueue(name, this));
+        Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
+        Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
 
-        Exchanges = new(name => new RabbitMqExchange(name, this));
-
-        Topics = new(uri =>
+        Topics = new LightweightCache<Uri, RabbitMqTopicEndpoint>(uri =>
         {
             if (uri.Host != RabbitMqEndpoint.TopicSegment)
             {
@@ -40,6 +37,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
             return new RabbitMqTopicEndpoint(uri.Segments.Last(), exchange, this);
         });
     }
+
+    public DeadLetterQueue DeadLetterQueue { get; } = new DeadLetterQueue(DeadLetterQueueName);
 
     internal RabbitMqChannelCallback Callback { get; private set; }
 
@@ -65,11 +64,10 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
         Callback?.SafeDispose();
     }
-
-
+    
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        var logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();   
+        var logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();
         Callback = new RabbitMqChannelCallback(logger, runtime.DurabilitySettings.Cancellation);
 
         ConnectionFactory.DispatchConsumersAsync = true;
@@ -94,25 +92,28 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     {
         connection.CallbackException += (sender, args) =>
         {
-            logger.LogError(args.Exception, "Rabbit Mq connection callback exception on {Name} connection", connectionName);
+            logger.LogError(args.Exception, "Rabbit Mq connection callback exception on {Name} connection",
+                connectionName);
         };
 
         connection.ConnectionBlocked += (sender, args) =>
         {
-            logger.LogInformation("Rabbit Mq {Name} connection was blocked with reason {Reason}", connectionName, args.Reason);
+            logger.LogInformation("Rabbit Mq {Name} connection was blocked with reason {Reason}", connectionName,
+                args.Reason);
         };
 
         connection.ConnectionShutdown += (sender, args) =>
         {
-            logger.LogInformation("Rabbit Mq connection {Name} was shutdown with Cause {Cause}, Initiator {Initiator}, ClassId {ClassId}, MethodId {MethodId}, ReplyCode {ReplyCode}, and ReplyText {ReplyText}"
-                , connectionName, args.Cause, args.Initiator, args.ClassId, args.MethodId, args.ReplyCode, args.ReplyText);
+            logger.LogInformation(
+                "Rabbit Mq connection {Name} was shutdown with Cause {Cause}, Initiator {Initiator}, ClassId {ClassId}, MethodId {MethodId}, ReplyCode {ReplyCode}, and ReplyText {ReplyText}"
+                , connectionName, args.Cause, args.Initiator, args.ClassId, args.MethodId, args.ReplyCode,
+                args.ReplyText);
         };
 
         connection.ConnectionUnblocked += (sender, args) =>
         {
             logger.LogInformation("Rabbit Mq connection {Name} was un-blocked");
         };
-        
     }
 
     protected override IEnumerable<RabbitMqEndpoint> endpoints()
@@ -148,7 +149,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         }
     }
 
-    protected override void tryBuildResponseQueueEndpoint(IWolverineRuntime runtime)
+    protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
         var queueName = $"wolverine.response.{runtime.DurabilitySettings.UniqueNodeId}";
 
@@ -163,6 +164,36 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         };
 
         Queues[queueName] = queue;
+
+        // Have to do this early to get everything together for the dead letter queues
+        foreach (var rabbitMqQueue in Queues)
+        {
+            rabbitMqQueue.Compile(runtime);
+        }
+
+        foreach (var deadLetterQueue in enabledDeadLetterQueues().Distinct().ToArray())
+        {
+            var dlq = Queues[deadLetterQueue.QueueName];
+            deadLetterQueue.ConfigureQueue?.Invoke(dlq);
+
+            var dlqExchange = Exchanges[deadLetterQueue.ExchangeName];
+            deadLetterQueue.ConfigureExchange?.Invoke(dlqExchange);
+
+            dlqExchange.BindQueue(deadLetterQueue.QueueName, deadLetterQueue.BindingName);
+        }
+    }
+
+    private IEnumerable<DeadLetterQueue> enabledDeadLetterQueues()
+    {
+        if (DeadLetterQueue.Enabled) yield return DeadLetterQueue;
+
+        foreach (var queue in Queues)
+        {
+            if (queue.IsDurable && queue.Role == EndpointRole.Application && queue.DeadLetterQueue != null && queue.DeadLetterQueue.Enabled)
+            {
+                yield return queue.DeadLetterQueue;
+            }
+        }
     }
 
     internal IConnection BuildConnection()

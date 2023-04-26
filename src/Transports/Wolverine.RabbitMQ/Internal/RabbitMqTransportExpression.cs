@@ -100,6 +100,19 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
         return this;
     }
+    
+    /// <summary>
+    /// Disable Wolverine's automatic dead letter queue setup, so it will not override
+    /// dead letter queue exchange usage per queue or try to create Rabbit Mq objects for
+    /// dead letter queueing
+    /// </summary>
+    /// <returns></returns>
+    /// <exception cref="NotImplementedException"></exception>
+    public RabbitMqTransportExpression DisableDeadLetterQueueConfiguration()
+    {
+        Transport.DeadLetterQueue.Enabled = false;
+        return this;
+    }
 
     public class BindingExpression
     {
@@ -147,5 +160,23 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
             return _parent;
         }
+    }
+
+    /// <summary>
+    /// Customize the dead letter queueing to override the exchange or queue setup
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public RabbitMqTransportExpression CustomizeDeadLetterQueueing(Action<DeadLetterQueue> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        configure(Transport.DeadLetterQueue);
+        
+        return this;
     }
 }

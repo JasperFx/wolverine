@@ -40,4 +40,6 @@ public interface IRabbitMqQueue
     /// </summary>
     /// <param name="limit"></param>
     void TimeToLive(TimeSpan limit);
+
+
 }

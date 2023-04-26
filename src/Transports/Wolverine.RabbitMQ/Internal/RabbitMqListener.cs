@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
+internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDeadLetterQueue
 {
     private readonly RabbitMqChannelCallback _callback;
     private readonly CancellationToken _cancellation = CancellationToken.None;
@@ -97,6 +97,11 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
     public ValueTask DeferAsync(Envelope envelope)
     {
         return _callback.DeferAsync(envelope);
+    }
+
+    public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        return _callback.MoveToErrorsAsync(envelope, exception);
     }
 
     public void Stop()

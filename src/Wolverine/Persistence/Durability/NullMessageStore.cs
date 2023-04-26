@@ -11,9 +11,12 @@ using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Persistence.Durability;
 
-internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
+/// <summary>
+/// Nullo implementation of a message store
+/// </summary>
+public class NullMessageStore : IMessageStore, IMessageStoreAdmin
 {
-    public IScheduledJobProcessor? ScheduledJobs { get; set; }
+    internal IScheduledJobProcessor? ScheduledJobs { get; set; }
     public IMessageStoreAdmin Admin => this;
 
     public Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
