@@ -66,9 +66,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         Callback?.SafeDispose();
     }
 
+
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         Callback = new RabbitMqChannelCallback(runtime.LoggerFactory.CreateLogger<RabbitMqTransport>(), runtime.DurabilitySettings.Cancellation);
+
+        ConnectionFactory.DispatchConsumersAsync = true;
 
         // TODO -- log the connection
         _listenerConnection ??= BuildConnection();

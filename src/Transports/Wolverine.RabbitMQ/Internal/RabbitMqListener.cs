@@ -53,7 +53,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
         var mapper = queue.BuildMapper(runtime);
 
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
-        _consumer = new WorkerQueueMessageConsumer(receiver, Logger, this, mapper, Address,
+        _consumer = new WorkerQueueMessageConsumer(Channel, receiver, Logger, this, mapper, Address,
             _cancellation);
 
         Channel!.BasicQos(Queue.PreFetchSize, Queue.PreFetchCount, false);
