@@ -26,7 +26,7 @@ internal class SqsListener : IListener
         }
 
         _mapper = new AmazonSqsMapper(queue, runtime);
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<SqsListener>();
         _queue = queue;
         _transport = transport;
 

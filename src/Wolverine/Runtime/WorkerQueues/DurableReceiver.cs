@@ -30,7 +30,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     {
         _settings = runtime.DurabilitySettings;
         _persistence = runtime.Storage;
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<DurableReceiver>();
 
         Uri = endpoint.Uri;
 

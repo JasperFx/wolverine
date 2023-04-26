@@ -15,7 +15,7 @@ internal class InlineReceiver : IReceiver
     public InlineReceiver(IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _pipeline = pipeline;
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<InlineReceiver>();
         _settings = runtime.DurabilitySettings;
     }
 

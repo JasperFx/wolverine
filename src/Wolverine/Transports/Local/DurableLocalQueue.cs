@@ -42,7 +42,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         Endpoint = endpoint;
         ReplyUri = TransportConstants.RepliesUri;
 
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<DurableLocalQueue>();
 
         if (endpoint.CircuitBreakerOptions != null)
         {

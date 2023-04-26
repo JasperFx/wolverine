@@ -79,21 +79,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
         await Should.ThrowAsync<DivideByZeroException>(() => Publisher.InvokeAsync(message));
     }
 
-    [Fact]
-    public async Task will_log_an_exception()
-    {
-        configure();
-
-        try
-        {
-            await Publisher.InvokeAsync(new Message5 { FailThisManyTimes = 1 });
-        }
-        catch (Exception)
-        {
-        }
-
-        Exceptions.Any().ShouldBeTrue();
-    }
 
     [Fact]
     public async Task will_process_inline()

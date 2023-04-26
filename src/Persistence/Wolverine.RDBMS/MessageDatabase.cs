@@ -81,7 +81,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         // TODO -- use the worker queue for Retries?
         var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
-        return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, this,
+        return new DurabilityAgent(runtime, runtime.LoggerFactory.CreateLogger<DurabilityAgent>(), durabilityLogger, worker, this,
             runtime.Options.Durability, Settings);
     }
 

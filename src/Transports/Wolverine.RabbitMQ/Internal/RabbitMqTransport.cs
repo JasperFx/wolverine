@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Spectre.Console;
 using Wolverine.Configuration;
@@ -67,7 +68,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        Callback = new RabbitMqChannelCallback(runtime.Logger, runtime.DurabilitySettings.Cancellation);
+        Callback = new RabbitMqChannelCallback(runtime.LoggerFactory.CreateLogger<RabbitMqTransport>(), runtime.DurabilitySettings.Cancellation);
 
         // TODO -- log the connection
         _listenerConnection ??= BuildConnection();

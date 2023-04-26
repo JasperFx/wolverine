@@ -48,7 +48,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         Endpoint = endpoint;
         _runtime = runtime;
         Uri = endpoint.Uri;
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<ListeningAgent>();
 
         if (endpoint.CircuitBreakerOptions != null)
         {

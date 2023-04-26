@@ -288,7 +288,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        await InitializeAsync(runtime.Logger);
+        await InitializeAsync(runtime.LoggerFactory.CreateLogger<RabbitMqQueue>());
 
         return ListenerCount > 1
             ? new ParallelRabbitMqListener(runtime, this, _parent, receiver)

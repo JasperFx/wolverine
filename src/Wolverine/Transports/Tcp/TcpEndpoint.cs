@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
@@ -49,22 +50,24 @@ public class TcpEndpoint : Endpoint
 
         var hostNameType = Uri.CheckHostName(HostName);
 
+        var logger = runtime.LoggerFactory.CreateLogger<TcpEndpoint>();
+
         if (hostNameType != UriHostNameType.IPv4 && hostNameType != UriHostNameType.IPv6)
         {
             var listener = HostName == "localhost"
-                ? new SocketListener(this, receiver, runtime.Logger, IPAddress.Loopback, Port, cancellation)
-                : new SocketListener(this, receiver, runtime.Logger, IPAddress.Any, Port, cancellation);
+                ? new SocketListener(this, receiver, logger, IPAddress.Loopback, Port, cancellation)
+                : new SocketListener(this, receiver, logger, IPAddress.Any, Port, cancellation);
 
             return ValueTask.FromResult<IListener>(listener);
         }
 
         var ipaddr = IPAddress.Parse(HostName);
-        return ValueTask.FromResult<IListener>(new SocketListener(this, receiver, runtime.Logger, ipaddr, Port,
+        return ValueTask.FromResult<IListener>(new SocketListener(this, receiver, logger, ipaddr, Port,
             cancellation));
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new BatchedSender(Uri, new SocketSenderProtocol(), runtime.DurabilitySettings.Cancellation, runtime.Logger);
+        return new BatchedSender(Uri, new SocketSenderProtocol(), runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<SocketSenderProtocol>());
     }
 }

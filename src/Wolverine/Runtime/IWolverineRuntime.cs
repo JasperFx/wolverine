@@ -29,6 +29,7 @@ public interface IWolverineRuntime
     IReplyTracker Replies { get; }
     IEndpointCollection Endpoints { get; }
     Meter Meter { get; }
+    ILoggerFactory LoggerFactory { get; }
 
     /// <summary>
     ///     Schedule an envelope for later execution in memory

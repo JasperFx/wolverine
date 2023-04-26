@@ -38,17 +38,18 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public WolverineRuntime(WolverineOptions options,
         IContainer container,
-        ILogger<WolverineRuntime> logger, IHostEnvironment environment)
+        ILoggerFactory loggers, IHostEnvironment environment)
     {
         DurabilitySettings = options.Durability;
         Options = options;
         Handlers = options.HandlerGraph;
         Environment = environment;
+
+        LoggerFactory = loggers;
+        Logger = loggers.CreateLogger<WolverineRuntime>();
         
         Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
-        logger.LogInformation("Exporting Open Telemetry metrics from Wolverine with name {Name}, version {Version}", Meter.Name, Meter.Version);
-
-        Logger = logger;
+        Logger.LogInformation("Exporting Open Telemetry metrics from Wolverine with name {Name}, version {Version}", Meter.Name, Meter.Version);
 
         _uniqueNodeId = options.Durability.UniqueNodeId;
         _serviceName = options.ServiceName ?? "WolverineService";
@@ -64,11 +65,11 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         Cancellation = DurabilitySettings.Cancellation;
 
-        ListenerTracker = new ListenerTracker(logger);
+        ListenerTracker = new ListenerTracker(Logger);
 
         _endpoints = new EndpointCollection(this);
 
-        Replies = new ReplyTracker(logger);
+        Replies = new ReplyTracker(loggers.CreateLogger<ReplyTracker>());
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
         Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies));
 
@@ -121,6 +122,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             throw new InvalidOperationException(
                 "WolverineRuntime has not been started. Check that you've called Start/StartAsync() to start your IHost for the application");
     }
+    
+    public ILoggerFactory LoggerFactory { get; }
 
     public Meter Meter { get; }
 

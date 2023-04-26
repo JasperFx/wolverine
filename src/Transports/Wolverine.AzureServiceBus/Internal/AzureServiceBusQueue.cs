@@ -118,7 +118,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
     {
         var messageReceiver = Parent.BusClient.CreateReceiver(QueueName);
         var mapper = BuildMapper(runtime);
-        var listener = new BatchedAzureServiceBusListener(this, runtime.Logger, receiver, messageReceiver, mapper);
+        var listener = new BatchedAzureServiceBusListener(this, runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper);
 
         return ValueTask.FromResult<IListener>(listener);
     }
@@ -129,6 +129,6 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         var sender = Parent.BusClient.CreateSender(QueueName);
         var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
 
-        return new BatchedSender(Uri, protocol, runtime.DurabilitySettings.Cancellation, runtime.Logger);
+        return new BatchedSender(Uri, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
     }
 }

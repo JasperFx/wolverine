@@ -12,6 +12,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocol
     private readonly IOutgoingMapper<ServiceBusMessage> _mapper;
     private readonly IWolverineRuntime _runtime;
     private readonly ServiceBusSender _sender;
+    private readonly ILogger<AzureServiceBusSenderProtocol> _logger;
 
     public AzureServiceBusSenderProtocol(IWolverineRuntime runtime, AzureServiceBusEndpoint endpoint,
         IOutgoingMapper<ServiceBusMessage> mapper, ServiceBusSender sender)
@@ -20,11 +21,12 @@ public class AzureServiceBusSenderProtocol : ISenderProtocol
         _endpoint = endpoint;
         _mapper = mapper;
         _sender = sender;
+        _logger = runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>();
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
-        await _endpoint.InitializeAsync(_runtime.Logger);
+        await _endpoint.InitializeAsync(_runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
 
         var messages = new List<ServiceBusMessage>();
 
@@ -39,7 +41,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocol
             }
             catch (Exception e)
             {
-                _runtime.Logger.LogError(e,
+                _logger.LogError(e,
                     "Error trying to translate envelope {Envelope} to a ServiceBusMessage object. Message will be discarded.",
                     envelope);
             }

@@ -29,6 +29,7 @@ public class MockWolverineRuntime : IWolverineRuntime
 
     public IEndpointCollection Endpoints { get; } = Substitute.For<IEndpointCollection>();
     public Meter Meter { get; } = new Meter("Wolverine");
+    public ILoggerFactory LoggerFactory { get; } = new LoggerFactory();
 
     public WolverineOptions Options { get; } = new();
 

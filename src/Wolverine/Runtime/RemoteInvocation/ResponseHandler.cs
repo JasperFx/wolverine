@@ -21,9 +21,9 @@ internal class ReplyTracker : IReplyTracker
 {
     // TODO -- occasionally sweep this for orphans?
     private readonly ConcurrentDictionary<Guid, IReplyListener> _listeners = new();
-    private readonly ILogger<WolverineRuntime> _logger;
+    private readonly ILogger<ReplyTracker> _logger;
 
-    public ReplyTracker(ILogger<WolverineRuntime> logger)
+    public ReplyTracker(ILogger<ReplyTracker> logger)
     {
         _logger = logger;
     }

@@ -188,7 +188,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
         if (QueueUrl.IsEmpty())
         {
-            await InitializeAsync(runtime.Logger);
+            await InitializeAsync(runtime.LoggerFactory.CreateLogger<AmazonSqsQueue>());
         }
 
         return new SqsListener(runtime, this, _parent, receiver);
@@ -199,7 +199,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
         var protocol = new SqsSenderProtocol(runtime, this,
             _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
         return new BatchedSender(Uri, protocol, runtime.Cancellation,
-            runtime.Logger);
+            runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>());
     }
 
     protected override bool supportsMode(EndpointMode mode)

@@ -21,7 +21,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         Uri = endpoint.Uri;
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<BufferedReceiver>();
         _settings = runtime.DurabilitySettings;
         Pipeline = pipeline;
 

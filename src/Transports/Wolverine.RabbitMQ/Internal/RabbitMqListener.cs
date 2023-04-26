@@ -18,7 +18,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
 
     public RabbitMqListener(IWolverineRuntime runtime,
         RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection,
-        runtime.Logger)
+        runtime.LoggerFactory.CreateLogger<RabbitMqListener>())
     {
         Queue = queue;
         Address = queue.Uri;
@@ -33,7 +33,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
 
         if (queue.AutoDelete || transport.AutoProvision)
         {
-            queue.Declare(Channel!, runtime.Logger);
+            queue.Declare(Channel!, Logger);
         }
 
         try

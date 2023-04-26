@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -25,7 +26,7 @@ internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
 
     public RabbitMqSender(RabbitMqEndpoint queue, RabbitMqTransport transport,
         RoutingMode routingType, IWolverineRuntime runtime) : base(
-        transport.SendingConnection, runtime.Logger)
+        transport.SendingConnection, runtime.LoggerFactory.CreateLogger<RabbitMqSender>())
     {
         Destination = queue.Uri;
 
