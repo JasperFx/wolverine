@@ -1,6 +1,5 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -11,11 +10,11 @@ namespace Wolverine.RabbitMQ.Internal;
 internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
 {
     private readonly RabbitMqChannelCallback _callback;
-    private readonly string _routingKey;
-    private readonly RabbitMqSender _sender;
     private readonly CancellationToken _cancellation = CancellationToken.None;
     private readonly WorkerQueueMessageConsumer? _consumer;
     private readonly IReceiver _receiver;
+    private readonly string _routingKey;
+    private readonly RabbitMqSender _sender;
 
     public RabbitMqListener(IWolverineRuntime runtime,
         RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection,
@@ -35,6 +34,20 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
         if (queue.AutoDelete || transport.AutoProvision)
         {
             queue.Declare(Channel!, runtime.Logger);
+        }
+
+        try
+        {
+            var result = Channel.QueueDeclarePassive(queue.QueueName);
+            Logger.LogInformation("{Count} messages in queue {QueueName}", result.MessageCount, queue.QueueName);
+            if (result.MessageCount > 0)
+            {
+                Debug.WriteLine("Here");
+            }
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "Unable to check the queued count for {QueueName}", queue.QueueName);
         }
 
         var mapper = queue.BuildMapper(runtime);

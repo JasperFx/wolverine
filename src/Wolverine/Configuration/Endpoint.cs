@@ -4,10 +4,7 @@ using System.Threading.Tasks.Dataflow;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Oakton.Descriptions;
-using Spectre.Console;
-using Spectre.Console.Rendering;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -75,7 +72,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         Role = role;
         Uri = uri;
         EndpointName = uri.ToString();
-        
+
         ExecutionOptions.MaxDegreeOfParallelism = Environment.ProcessorCount;
         ExecutionOptions.EnsureOrdered = false;
     }
@@ -249,15 +246,9 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             return;
         }
 
-        foreach (var policy in runtime.Options.Transports.EndpointPolicies)
-        {
-            policy.Apply(this, runtime);
-        }
+        foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
 
-        foreach (var configuration in DelayedConfiguration.ToArray())
-        {
-            configuration.Apply();
-        }
+        foreach (var configuration in DelayedConfiguration.ToArray()) configuration?.Apply();
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 
@@ -359,16 +350,13 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         var overrides = _serializers.Enumerate().Select(x => x.Value)
             .Where(x => !(x is EnvelopeReaderWriter));
 
-        foreach (var serializer in overrides)
-        {
-            dict[serializer.ContentType] = serializer;
-        }
+        foreach (var serializer in overrides) dict[serializer.ContentType] = serializer;
 
         dict.Remove("binary/envelope");
 
         return dict.Select(x => $"{x.Value.GetType().ShortNameInCode()} ({x.Key})").Join(", ");
     }
-    
+
     internal string ExecutionDescription()
     {
         if (Mode == EndpointMode.Inline)
@@ -376,7 +364,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             return "";
         }
 
-        return $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
+        return
+            $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
     }
-
 }

@@ -34,6 +34,11 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable
                     return Task.CompletedTask;
                 }
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(e.ToString());
+                throw;
+            }
 
             return Task.CompletedTask;
         }, logger, cancellationToken);
