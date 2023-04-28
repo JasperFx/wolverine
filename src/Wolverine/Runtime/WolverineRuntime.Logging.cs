@@ -163,7 +163,6 @@ public sealed partial class WolverineRuntime : IMessageLogger
         string message = "Exception detected:")
     {
         ActiveSession?.LogException(ex, _serviceName);
-        // TODO -- bring back: _metrics.LogException(ex);
         Logger.LogError(ex, message);
     }
 }

@@ -15,7 +15,6 @@ internal static class WolverineTracing
     public const string MessagingSystem = "messaging.system"; // Use the destination Uri scheme
     public const string MessagingDestination = "messaging.destination"; // Use the destination Uri
 
-    // TODO -- transport specific tracing
     public const string
         MessagingDestinationKind =
             "messaging.destination_kind"; // Not sure this is going to be helpful. queue or topic. Maybe port if TCP basically.
@@ -30,12 +29,6 @@ internal static class WolverineTracing
     public const string EnvelopeRequeued = "wolverine.envelope.requeued";
     public const string EnvelopeRetry = "wolverine.envelope.retried";
     public const string ScheduledRetry = "wolverine.envelope.rescheduled";
-
-
-    // Transport specific things
-    // messaging.consumer_id
-    // messaging.rabbitmq.routing_key
-
 
     internal static ActivitySource ActivitySource { get; } = new(
         "Wolverine",

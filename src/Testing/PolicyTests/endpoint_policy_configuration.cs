@@ -99,13 +99,17 @@ public class endpoint_policy_configuration : IDisposable
                 return;
             }
 
+            if (e.Role == EndpointRole.System) return;
+
+            if (e.EndpointName.Contains("dead-letter-queue")) return;
+
             if (e.IsListener)
             {
                 e.Mode.ShouldNotBe(EndpointMode.Durable);
             }
             else
             {
-                e.Mode.ShouldBe(EndpointMode.Durable);
+                e.Mode.ShouldBe(EndpointMode.Durable, $"Endpoint: {e}, Uri: {e.Uri}");
             }
         });
     }

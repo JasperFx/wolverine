@@ -23,8 +23,6 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
 
     protected internal WolverineOptions Options { get; }
 
-    // TODO -- both options with environment = Development
-
     /// <summary>
     ///     Use the current machine name as the broker object identifier prefix
     ///     Note, this might use illegal characters for some brokers :(

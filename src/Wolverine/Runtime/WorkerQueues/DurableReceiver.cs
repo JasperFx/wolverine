@@ -51,7 +51,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             }
             catch (Exception? e)
             {
-                // TODO -- how does this get recovered?
+                _receiver?.Post(envelope);
 
                 // This *should* never happen, but of course it will
                 _logger.LogError(e, "Unexpected pipeline invocation error");

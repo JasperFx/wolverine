@@ -86,7 +86,6 @@ public abstract partial class MessageDatabase<T>
         await using var conn = Settings.CreateConnection();
         await conn.OpenAsync(_cancellation);
 
-        // TODO -- only fetch what you need here
         var cmd = conn.CreateCommand(
             $"select {DatabaseConstants.DeadLetterFields} from {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id");
         cmd.With("id", id);

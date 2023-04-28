@@ -43,9 +43,6 @@ internal class TrackedSession : ITrackedSession
 
     public bool AssertNoExceptions { get; set; } = true;
 
-    // TODO -- do something with this?
-    public bool AssertNoTimeout { get; set; } = true;
-
     public Func<IMessageContext, Task> Execution { get; set; } = _ => Task.CompletedTask;
 
     public bool AlwaysTrackExternalTransports { get; set; }

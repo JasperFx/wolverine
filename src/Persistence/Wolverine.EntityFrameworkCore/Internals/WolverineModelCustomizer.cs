@@ -13,7 +13,6 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
     {
         base.Customize(modelBuilder, context);
 
-        // TODO -- allow the database schema name to be poked in somehow
         modelBuilder.MapWolverineEnvelopeStorage();
     }
 }

@@ -121,7 +121,6 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         _sender.Dispose();
     }
 
-    // TODO -- need to put a retry on this!!!!
     public ValueTask RequeueAsync(RabbitMqEnvelope envelope)
     {
         if (!envelope.Acknowledged)

@@ -28,8 +28,7 @@ internal class MessagePackMessageSerializer : IMessageSerializer
 
     public object ReadFromData(byte[] data)
     {
-        // TODO: Maybe we should't allow this?
-        return MessagePackSerializer.Deserialize(typeof(object), data, _options)!;
+        throw new NotSupportedException();
     }
 
     public object ReadFromData(Type messageType, Envelope envelope)

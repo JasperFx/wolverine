@@ -70,7 +70,6 @@ internal class Executor : IExecutor
                 envelope.Attempts++;
             }
 
-            // TODO -- Harden the inline sender. Feel good about buffered
             await context.FlushOutgoingMessagesAsync();
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
             _logger.ExecutionFinished(envelope);
@@ -143,7 +142,6 @@ internal class Executor : IExecutor
         }
     }
 
-    // TODO -- make this external, and remove from IExecutor interface?
     public async Task<InvokeResult> InvokeAsync(MessageContext context, CancellationToken cancellation)
     {
         if (context.Envelope == null)

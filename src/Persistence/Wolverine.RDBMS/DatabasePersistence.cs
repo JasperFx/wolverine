@@ -74,8 +74,6 @@ public static class DatabasePersistence
             builder.AddParameter(envelope.Destination?.ToString())
         };
 
-        // TODO -- this seems like a good thing to generalize and move to Weasel
-
 
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
@@ -85,8 +83,6 @@ public static class DatabasePersistence
 
     public static async Task<Envelope> ReadIncomingAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
-        // TODO -- don't fetch columns that aren't read here.
-
         var body = await reader.GetFieldValueAsync<byte[]>(0, cancellation);
         var envelope = EnvelopeSerializer.Deserialize(body);
         envelope.Status = Enum.Parse<EnvelopeStatus>(await reader.GetFieldValueAsync<string>(2, cancellation));
@@ -129,7 +125,6 @@ public static class DatabasePersistence
 
     public static async Task<Envelope> ReadOutgoingAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
-        // TODO -- don't use all the columns
         var body = await reader.GetFieldValueAsync<byte[]>(0, cancellation);
         var envelope = EnvelopeSerializer.Deserialize(body);
         envelope.OwnerId = await reader.GetFieldValueAsync<int>(2, cancellation);

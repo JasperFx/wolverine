@@ -7,11 +7,14 @@ namespace Wolverine.Runtime.Handlers;
 internal class ForwardingHandler<T, TDestination> : MessageHandler where T : IForwardsTo<TDestination>
 {
     private readonly HandlerGraph _graph;
+    private readonly Lazy<MessageHandler> _inner;
 
     public ForwardingHandler(HandlerGraph graph)
     {
         _graph = graph;
         Chain = new HandlerChain(typeof(T), graph);
+        
+        _inner = new Lazy<MessageHandler>(() => graph.HandlerFor(typeof(TDestination))!);
     }
 
     public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
@@ -19,9 +22,6 @@ internal class ForwardingHandler<T, TDestination> : MessageHandler where T : IFo
         var innerMessage = context.Envelope!.Message!.As<T>();
         context.Envelope.Message = innerMessage.Transform();
 
-        // TODO -- this should be memoized
-        var inner = _graph.HandlerFor(typeof(TDestination));
-
-        return inner!.HandleAsync(context, cancellation);
+        return _inner.Value.HandleAsync(context, cancellation);
     }
 }

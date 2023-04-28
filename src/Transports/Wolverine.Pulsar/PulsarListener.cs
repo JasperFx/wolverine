@@ -9,39 +9,36 @@ using Wolverine.Transports;
 
 namespace Wolverine.Pulsar;
 
-internal class PulsarListener : IListener, IAsyncDisposable
+internal class PulsarListener : IListener
 {
     private readonly CancellationToken _cancellation;
     private readonly CancellationTokenSource _localCancellation;
-    private readonly PulsarEnvelopeMapper _mapper;
     private readonly Task? _receivingLoop;
     private readonly PulsarSender _sender;
     private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
-    private IReceiver _receiver;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
         CancellationToken cancellation)
     {
+        if (receiver == null)
+        {
+            throw new ArgumentNullException(nameof(receiver));
+        }
+
         _cancellation = cancellation;
 
         Address = endpoint.Uri;
 
         _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
-        _mapper = endpoint.BuildMapper(runtime);
-
-        _receiver = receiver;
+        var mapper = endpoint.BuildMapper(runtime);
 
         _localCancellation = new CancellationTokenSource();
 
         var combined = CancellationTokenSource.CreateLinkedTokenSource(_cancellation, _localCancellation.Token);
 
-        _receiver = receiver;
-
         _consumer = transport.Client!.NewConsumer()
             .SubscriptionName("Wolverine")
-            // TODO -- more options here. Give the user complete
-            // control over the Pulsar usage. Maybe expose ConsumerOptions on endpoint
             .Topic(endpoint.PulsarTopic())
             .Create();
 
@@ -49,15 +46,14 @@ internal class PulsarListener : IListener, IAsyncDisposable
         {
             await foreach (var message in _consumer.Messages(combined.Token))
             {
-                var envelope = new PulsarEnvelope(message);
+                var envelope = new PulsarEnvelope(message)
+                {
+                    Data = message.Data.ToArray()
+                };
 
-                // TODO -- invoke the deserialization here. A
-                envelope.Data = message.Data.ToArray();
-                _mapper.MapIncomingToEnvelope(envelope, message);
-
-                // TODO -- the worker queue should already have the Uri,
-                // so just take in envelope
-                await receiver!.ReceivedAsync(this, envelope);
+                mapper.MapIncomingToEnvelope(envelope, message);
+                
+                await receiver.ReceivedAsync(this, envelope);
             }
         }, combined.Token);
     }

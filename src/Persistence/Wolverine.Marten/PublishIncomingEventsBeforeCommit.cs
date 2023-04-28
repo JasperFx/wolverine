@@ -15,7 +15,6 @@ internal class PublishIncomingEventsBeforeCommit : DocumentSessionListenerBase
 
     public override async Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
     {
-        // TODO -- SMELLY. Add something in Marten itself for this
         var events = session.PendingChanges.As<IChangeSet>().GetEvents().Select(x => x.Data).ToArray();
 
         if (events.Any())

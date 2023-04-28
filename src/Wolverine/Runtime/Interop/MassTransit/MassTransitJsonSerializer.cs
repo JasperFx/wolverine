@@ -80,7 +80,6 @@ internal class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInter
 
     public object ReadFromData(byte[] data)
     {
-        // TODO -- IS there a default message type we could use?
         throw new NotSupportedException();
     }
 

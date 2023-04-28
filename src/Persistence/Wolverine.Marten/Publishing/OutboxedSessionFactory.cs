@@ -51,7 +51,6 @@ public class OutboxedSessionFactory
     /// <returns></returns>
     public IDocumentSession OpenSession(IMessageBus bus)
     {
-        // TODO -- need to vary this for HTTP. Get conversation id / correlation id from HTTP
         var context = bus.As<MessageContext>();
         return OpenSession(context);
     }

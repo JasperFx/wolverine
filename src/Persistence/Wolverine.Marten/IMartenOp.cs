@@ -152,7 +152,6 @@ public interface StartStream : IMartenOp
     IReadOnlyList<object> Events { get; }
 }
 
-// TODO -- try to eliminate the generic. Will need Marten changes to do so
 public class StartStream<T> : StartStream where T : class
 {
     public string StreamKey { get; }

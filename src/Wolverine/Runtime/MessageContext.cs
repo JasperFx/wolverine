@@ -153,7 +153,6 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         TrackEnvelopeCorrelation(envelope, Activity.Current);
         envelope.SagaId = Envelope.SagaId;
-        // TODO -- reevaluate the metadata. Causation, Originator, all that
 
         try
         {
@@ -161,7 +160,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         catch (Exception e)
         {
-            // TODO -- any kind of retry? Only an issue for inline senders anyway
+            // This should never happen because all the sending agents catch errors, but you know...
             Runtime.Logger.LogError(e, "Failure while sending an acknowledgement for envelope {Id}", envelope.Id);
         }
     }
@@ -184,7 +183,6 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         TrackEnvelopeCorrelation(envelope, Activity.Current);
         envelope.SagaId = Envelope.SagaId;
-        // TODO -- reevaluate the metadata. Causation, ORiginator, all that
 
         try
         {
@@ -192,7 +190,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         catch (Exception e)
         {
-            // TODO -- any kind of retry? Only an issue for inline senders anyway
+            // Should never happen, but still.
             Runtime.Logger.LogError(e, "Failure while sending a failure acknowledgement for envelope {Id}",
                 envelope.Id);
         }

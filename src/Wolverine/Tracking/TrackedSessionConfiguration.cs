@@ -72,16 +72,6 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
-    ///     USE CAUTIOUSLY! This will disable all timeout conditions
-    /// </summary>
-    /// <returns></returns>
-    public TrackedSessionConfiguration DoNotAssertTimeout()
-    {
-        _session.AssertNoTimeout = false;
-        return this;
-    }
-
-    /// <summary>
     ///     Continue tracking until an expected message is received at this host
     /// </summary>
     /// <param name="host"></param>

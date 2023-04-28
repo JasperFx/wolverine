@@ -34,8 +34,6 @@ internal class StoreIncomingEnvelope : IStorageOperation
             builder.AddParameter(Envelope.Destination?.ToString())
         };
 
-        // TODO -- this seems like a good thing to generalize and move to Weasel
-
         var parameterList = list.Select(x => $":{x.ParameterName}").Join(", ");
 
         builder.Append(

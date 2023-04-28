@@ -183,9 +183,4 @@ public static class WolverineMessageNaming
         return type.Name;
     }
 
-    [Obsolete("moved into Core")]
-    public static bool IsValueTuple(this Type? type)
-    {
-        return type is { IsGenericType: true } && _tupleTypes.Contains(type.GetGenericTypeDefinition());
-    }
 }

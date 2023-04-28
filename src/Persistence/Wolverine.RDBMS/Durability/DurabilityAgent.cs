@@ -155,6 +155,8 @@ internal class DurabilityAgent : IDurabilityAgent
             // Release all envelopes tagged to this node in message persistence to any node
             await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_database.Session, _settings.UniqueNodeId,
                 DatabaseSettings);
+
+            await _database.ReleaseIncomingAsync(_settings.UniqueNodeId);
         }
         catch (Exception e)
         {
@@ -193,7 +195,6 @@ internal class DurabilityAgent : IDurabilityAgent
                     _trace.LogDebug("Running action {Action}", action.Description);
                 }
 
-                // TODO -- eliminate the downcast!
                 await action.ExecuteAsync(_database, this, _database.Session);
             }
             catch (Exception e)

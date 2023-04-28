@@ -177,9 +177,6 @@ internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
         
         var table = new Table();
 
-        // TODO -- add buffering
-        // TODO -- circuit breaker
-        
         table.AddColumn("Uri");
         table.AddColumn("Name");
         table.AddColumn("Mode");

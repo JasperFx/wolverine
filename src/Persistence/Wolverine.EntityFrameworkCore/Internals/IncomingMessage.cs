@@ -10,7 +10,6 @@ public class IncomingMessage
 
     public IncomingMessage(Envelope envelope)
     {
-        // TODO -- thin this down!
         Id = envelope.Id;
         Status = envelope.Status.ToString();
         OwnerId = envelope.OwnerId;

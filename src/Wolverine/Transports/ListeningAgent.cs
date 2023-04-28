@@ -185,7 +185,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _circuitBreaker?.Reset();
 
         _logger.LogInformation("Pausing message listening at {Uri}", Uri);
-        // TODO -- publish through the ListenerTracker here
+        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
         _restarter = new Restarter(this, pauseTime);
     }
 

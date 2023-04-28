@@ -132,7 +132,6 @@ internal class SqsListener : IListener
 
     private Task tryMoveToDeadLetterQueue(IAmazonSQS client, Message message)
     {
-        // TODO -- figure out how to do this
         return Task.CompletedTask;
     }
 
@@ -146,13 +145,11 @@ internal class SqsListener : IListener
 
     public Task CompleteAsync(Message sqsMessage)
     {
-        // TODO -- harden this like crazy
         return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
     }
 
     public Task DeferAsync(Message sqsMessage)
     {
-        // TODO -- harden this like crazy
         // TODO -- the visibility timeout needs to be configurable by timeout
         return _transport.Client!.ChangeMessageVisibilityAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle, 1000);
     }

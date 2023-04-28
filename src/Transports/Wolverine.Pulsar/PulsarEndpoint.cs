@@ -87,7 +87,6 @@ public class PulsarEndpoint : Endpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        // TODO -- parallel listener option????
         var listener = new PulsarListener(runtime, this, receiver, _parent, runtime.Cancellation);
         return ValueTask.FromResult<IListener>(listener);
     }

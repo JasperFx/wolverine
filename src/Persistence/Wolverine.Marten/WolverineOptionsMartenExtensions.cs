@@ -35,7 +35,6 @@ public static class WolverineOptionsMartenExtensions
 
             return new PostgresqlSettings
             {
-                // TODO -- this won't work with multi-tenancy
                 ConnectionString = store.Storage.Database.CreateConnection().ConnectionString,
                 SchemaName = schemaName ?? store.Options.DatabaseSchemaName
             };

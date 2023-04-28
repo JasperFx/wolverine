@@ -19,7 +19,6 @@ public interface IReplyTracker : IDisposable
 
 internal class ReplyTracker : IReplyTracker
 {
-    // TODO -- occasionally sweep this for orphans?
     private readonly ConcurrentDictionary<Guid, IReplyListener> _listeners = new();
     private readonly ILogger<ReplyTracker> _logger;
 

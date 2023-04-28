@@ -72,7 +72,6 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
         ConnectionFactory.DispatchConsumersAsync = true;
 
-        // TODO -- log the connection
         if (_listenerConnection == null)
         {
             _listenerConnection = BuildConnection();
@@ -90,6 +89,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     private void listenToEvents(string connectionName, IConnection connection, ILogger logger)
     {
+        logger.LogInformation("Opened new Rabbit MQ connection '{Name}'", connectionName);
+        
         connection.CallbackException += (sender, args) =>
         {
             logger.LogError(args.Exception, "Rabbit Mq connection callback exception on {Name} connection",

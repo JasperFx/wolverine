@@ -73,7 +73,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
 
         try
         {
-            envelope.Data = body.ToArray(); // TODO -- use byte sequence instead!
+            envelope.Data = body.ToArray(); 
             _mapper.MapIncomingToEnvelope(envelope, properties);
         }
         catch (Exception e)

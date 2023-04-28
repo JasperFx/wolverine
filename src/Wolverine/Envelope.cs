@@ -118,7 +118,6 @@ public partial class Envelope
                 throw new InvalidOperationException("No data or writer is known for this envelope");
             }
 
-            // TODO -- this is messy!
             _data = Serializer.Write(this);
 
             return _data;

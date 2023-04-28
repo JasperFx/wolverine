@@ -119,7 +119,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         var index = 0;
         foreach (var variable in frames.SelectMany(x => x.Creates))
         {
-            // TODO -- make this more generic later
+            // Might wanna make this more generic later. Some kind of "reserved" variable names?
             if (variable.Usage == "context")
             {
                 variable.OverrideName("context" + ++index);
