@@ -8,20 +8,20 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="FluentValidation" Version="11.3.0"/>
-        <PackageReference Include="Lamar.Diagnostics" Version="11.1.2"/>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.1"/>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.1"/>
-        <PackageReference Include="Shouldly" Version="4.1.0"/>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
+        <PackageReference Include="FluentValidation" Version="11.3.0" />
+        <PackageReference Include="Lamar.Diagnostics" Version="11.1.2" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.1" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.1" />
+        <PackageReference Include="Shouldly" Version="4.1.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-        <ProjectReference Include="..\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj"/>
-        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj"/>
+        <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj" />
+        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
     </ItemGroup>
 
     <ItemGroup>

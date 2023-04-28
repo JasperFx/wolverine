@@ -28,13 +28,33 @@ public record SpawnInput(string Name);
 
 public static class MessageSpawnerEndpoint
 {
+    #region sample_publishing_cascading_messages_from_Http_endpoint_with_IMessageBus
+    
+    // This would have an empty response and a 204 status code
+    [WolverinePost("/spawn3")]
+    public static async ValueTask SendViaMessageBus(IMessageBus bus)
+    {
+        await bus.PublishAsync(new HttpMessage1("foo"));
+        await bus.PublishAsync(new HttpMessage2("bar"));
+    }
+
+    #endregion
+    
+    #region sample_publishing_cascading_messages_from_Http_endpoint
+
+    // This would have an empty response and a 204 status code
     [EmptyResponse]
     [WolverinePost("/spawn2")]
     public static (HttpMessage1, HttpMessage2) Post()
     {
         return new(new HttpMessage1("foo"), new HttpMessage2("bar"));
     }
-    
+
+    #endregion
+
+    #region sample_spawning_messages_from_http_endpoint_via_OutgoingMessages
+
+    // This would have a string response and a 200 status code
     [WolverinePost("/spawn")]
     public static (string, OutgoingMessages) Post(SpawnInput input)
     {
@@ -48,4 +68,6 @@ public static class MessageSpawnerEndpoint
 
         return ("got it", messages);
     }
+
+    #endregion
 }

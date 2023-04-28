@@ -86,6 +86,7 @@ app.MapWolverineEndpoints(opts =>
 
     opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 
+    // Publish messages coming from 
     opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1");
     opts.PublishMessage<HttpMessage2>("/publish/message2");
 });
