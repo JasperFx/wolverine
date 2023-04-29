@@ -67,7 +67,7 @@ internal class MessageSubscriptions : IDescribedSystemPart, IWriteToConsole
 
         if (!messageTypes.Any())
         {
-            AnsiConsole.Markup("[gray]No message routes[/gray]");
+            AnsiConsole.Markup("[gray]No message routes[/]");
             return;
         }
         
