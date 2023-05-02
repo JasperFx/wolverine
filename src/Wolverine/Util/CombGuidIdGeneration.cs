@@ -7,6 +7,7 @@ namespace Wolverine.Util;
 /// <summary>
 ///     Comb Guid Id Generation. More info http://www.informit.com/articles/article.aspx?p=25862
 /// </summary>
+[Obsolete("Moved to Core")]
 public class CombGuidIdGeneration
 {
     /*

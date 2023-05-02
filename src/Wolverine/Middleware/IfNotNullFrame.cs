@@ -7,6 +7,7 @@ namespace Wolverine.Middleware;
 /// <summary>
 /// Execute a series of inner frames if the specified variable is not null
 /// </summary>
+[Obsolete("Replace w/ JasperFx.CodeGeneration version")]
 public class IfNotNullFrame : CompositeFrame
 {
     private readonly Variable _variable;
