@@ -4,6 +4,7 @@ using JasperFx.Core;
 
 namespace Wolverine.Util;
 
+[Obsolete("Replaced with JasperFx.Core")]
 public static class StringExtensions
 {
     public static Uri ToUri(this string uriString)
@@ -29,7 +30,7 @@ public static class StringExtensions
     }
 
     // Taken from https://andrewlock.net/why-is-string-gethashcode-different-each-time-i-run-my-program-in-net-core/#a-deterministic-gethashcode-implementation
-    internal static int GetDeterministicHashCode(this string stringValue)
+    public static int GetDeterministicHashCode(this string stringValue)
     {
         unchecked
         {
