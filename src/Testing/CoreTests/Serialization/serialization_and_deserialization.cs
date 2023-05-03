@@ -1,4 +1,5 @@
 ﻿using System;
+using JasperFx.Core;
 using TestingSupport;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;

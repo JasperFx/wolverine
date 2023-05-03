@@ -39,7 +39,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         });
 
         await _receiverStore.Advanced.Clean.CompletelyRemoveAllAsync();
-        await _receiverStore.Schema.ApplyAllConfiguredChangesToDatabaseAsync();
+        await _receiverStore.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
 
         _sendingStore = DocumentStore.For(opts =>
         {
@@ -61,7 +61,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
             .RebuildAsync();
 
         await _sendingStore.Advanced.Clean.CompletelyRemoveAllAsync();
-        await _sendingStore.Schema.ApplyAllConfiguredChangesToDatabaseAsync();
+        await _sendingStore.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
 
         _receivers = new LightweightCache<string, IHost>(key =>
         {

@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using TestingSupport;
 using TestingSupport.Compliance;

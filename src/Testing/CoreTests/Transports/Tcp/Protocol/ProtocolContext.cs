@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using TestingSupport;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;

@@ -5,6 +5,7 @@ using System.Reflection;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Internal.PulsarApi;
+using JasperFx.Core;
 using NSubstitute;
 using Shouldly;
 using TestingSupport;

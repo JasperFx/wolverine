@@ -1,4 +1,5 @@
 using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 using Oakton.Descriptions;
 using Spectre.Console;
 using Wolverine.Runtime.Serialization;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;

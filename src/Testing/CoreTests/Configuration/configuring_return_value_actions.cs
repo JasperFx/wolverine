@@ -178,7 +178,7 @@ public class configuring_return_value_actions
             var chain = HandlerChain.For<FooHandler>(x => x.Handle(null), new HandlerGraph());
             theVariableAction = theVariable.ReturnAction(chain);
             
-            var wrapper = theVariableAction.ShouldBeOfType<CallMethodReturnVariableAction<WriteFile>>().Frames().Single().ShouldBeOfType<IfNotNullFrame>();
+            var wrapper = theVariableAction.ShouldBeOfType<CallMethodReturnVariableAction<WriteFile>>().Frames().Single().ShouldBeOfType<IfElseNullGuardFrame.IfNullGuardFrame>();
             theMethodCall = wrapper.Inners.Single()
                 
                 .ShouldBeOfType<MethodCall>();
@@ -218,6 +218,7 @@ public class configuring_return_value_actions
         }
     }
 }
+
 
 public class WriteFile
 {

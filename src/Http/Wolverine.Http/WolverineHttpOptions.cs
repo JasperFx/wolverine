@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Oakton.Descriptions;
 using Spectre.Console;
 using Wolverine.Util;

@@ -10,7 +10,7 @@ services:
       - POSTGRES_PASSWORD=postgres
   
   rabbitmq:
-    image: "rabbitmq:3-management"
+    image: "rabbitmq:3"
     ports:
      - "5672:5672"
      - "15672:15672"

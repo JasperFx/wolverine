@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Routing;
 

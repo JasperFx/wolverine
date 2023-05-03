@@ -113,7 +113,7 @@ public class SagaChain : HandlerChain
 
         var startingFrames = DetermineSagaDoesNotExistSteps(sagaId, saga, frameProvider, container).ToArray();
         var existingFrames = DetermineSagaExistsSteps(sagaId, saga, frameProvider, container).ToArray();
-        var ifNullBlock = new IfNullGuard(saga, startingFrames,
+        var ifNullBlock = new IfElseNullGuardFrame(saga, startingFrames,
             existingFrames);
 
         frames.Add(ifNullBlock);

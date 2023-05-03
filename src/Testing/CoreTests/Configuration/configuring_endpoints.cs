@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Configuration;
 using Wolverine.Runtime;

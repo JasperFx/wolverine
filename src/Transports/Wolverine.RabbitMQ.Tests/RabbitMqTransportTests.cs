@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Shouldly;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Util;

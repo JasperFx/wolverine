@@ -3,6 +3,7 @@
 using System.Threading.Tasks.Dataflow;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Oakton.Descriptions;
 using Wolverine.ErrorHandling;

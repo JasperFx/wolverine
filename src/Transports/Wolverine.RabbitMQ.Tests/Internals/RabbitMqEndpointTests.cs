@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using NSubstitute;
 using Shouldly;
 using Wolverine.Configuration;

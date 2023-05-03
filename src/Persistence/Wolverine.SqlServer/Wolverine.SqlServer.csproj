@@ -12,13 +12,13 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
-        <EmbeddedResource Include="Schema/*.sql"/>
+        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
+        <EmbeddedResource Include="Schema/*.sql" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Weasel.SqlServer" Version="6.0.0-alpha.10"/>
+        <PackageReference Include="Weasel.SqlServer" Version="6.0.0-rc.3" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props"/>
+    <Import Project="../../../Analysis.Build.props" />
 </Project>

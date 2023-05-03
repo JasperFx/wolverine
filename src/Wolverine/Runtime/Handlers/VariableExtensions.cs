@@ -122,9 +122,9 @@ public static class VariableExtensions
     /// <param name="frame"></param>
     /// <param name="variable"></param>
     /// <returns></returns>
-    public static IfNotNullFrame WrapIfNotNull(this Frame frame, Variable variable)
+    public static Frame WrapIfNotNull(this Frame frame, Variable variable)
     {
-        return new IfNotNullFrame(variable, frame);
+        return new IfElseNullGuardFrame.IfNullGuardFrame(variable, frame);
     }
     
     

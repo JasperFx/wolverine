@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Shouldly;
 using TestMessages;
 using Wolverine.AmazonSqs.Internal;

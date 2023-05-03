@@ -2,6 +2,7 @@ using System.Diagnostics;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 
 namespace Wolverine.Logging;
