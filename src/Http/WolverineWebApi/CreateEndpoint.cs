@@ -21,13 +21,7 @@ public class CreateEndpoint
 
 public record CreateIssue(string Title);
 
-public record IssueCreated(Guid Id) : CreationResponse
-{
-    protected override string Url()
-    {
-        return "/issue/" + Id;
-    }
-}
+public record IssueCreated(Guid Id) : CreationResponse($"/issue/{Id}");
 
 public class Issue
 {

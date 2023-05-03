@@ -59,7 +59,7 @@ public static class EndpointBuilderExtensions
 /// Base class for resource types that denote some kind of resource being created
 /// in the system. Wolverine specific, and more efficient, version of Created<T> from ASP.Net Core
 /// </summary>
-public abstract record CreationResponse : IHttpAware
+public record CreationResponse(string Url) : IHttpAware
 {
     public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
     {
@@ -70,14 +70,9 @@ public abstract record CreationResponse : IHttpAware
         builder.Metadata.Add(metadata);
     }
 
-    protected virtual string Url()
-    {
-        return string.Empty;
-    }
-
     void IHttpAware.Apply(HttpContext context)
     {
-        context.Response.Headers.Location = Url();
+        context.Response.Headers.Location = Url;
         context.Response.StatusCode = 201;
     }
 }
