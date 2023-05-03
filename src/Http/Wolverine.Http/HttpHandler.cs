@@ -114,6 +114,12 @@ public abstract class HttpHandler
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Task WriteJsonAsync<T>(HttpContext context, T? body)
     {
+        if (body == null)
+        {
+            context.Response.StatusCode = 404;
+            return Task.CompletedTask;
+        }
+        
         return context.Response.WriteAsJsonAsync(body, _options.JsonSerializerOptions, context.RequestAborted);
     }
 }

@@ -74,6 +74,28 @@ public class end_to_end : IAsyncLifetime
     }
 
     [Fact]
+    public async Task fetch_empty_collection()
+    {
+        var result = await _host.Scenario(x =>
+        {
+            x.Get.Url("/todoitems");
+        });
+
+        var results = result.ReadAsJson<Todo[]>();
+        results.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task try_to_load_non_existent_todo()
+    {
+        await _host.Scenario(x =>
+        {
+            x.Get.Url("/todoitems/2222222");
+            x.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
     public async Task update_when_the_todo_does_not_exist()
     {
         await _host.Scenario(x =>

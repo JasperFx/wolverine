@@ -20,7 +20,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 {
     public static bool IsValidResponseType(Type type)
     {
-        if (type.CanBeCastTo<IEnumerable<object>>())
+        if (type == typeof(IEnumerable<object>) || type == typeof(object[]))
         {
             return false;
         }
