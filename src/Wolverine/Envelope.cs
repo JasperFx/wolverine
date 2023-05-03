@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using JasperFx.Core;
 using Wolverine.Attributes;
 using Wolverine.Util;
 
@@ -258,6 +259,12 @@ public partial class Envelope
     public override string ToString()
     {
         var text = $"Envelope #{Id}";
+
+        if (CorrelationId.IsNotEmpty())
+        {
+            text += $"/CorrelationId={CorrelationId}";
+        }
+        
         if (Message != null)
         {
             text += $" ({Message.GetType().Name})";

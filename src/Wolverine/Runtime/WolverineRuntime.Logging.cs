@@ -18,16 +18,16 @@ public sealed partial class WolverineRuntime : IMessageLogger
     public const int NoRoutesEventId = 107;
     public const int MovedToErrorQueueId = 108;
     public const int UndeliverableEventId = 108;
-    private static readonly Action<ILogger, string, Guid, Exception?> _executionFinished;
-    private static readonly Action<ILogger, string, Guid, Exception?> _executionStarted;
+    private static readonly Action<ILogger, string, string, Guid, Exception?> _executionFinished;
+    private static readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
 
     private static readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
     private static readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
     private static readonly Action<ILogger, Envelope, Exception?> _movedToErrorQueue;
-    private static readonly Action<ILogger, string, Guid, string, Exception?> _noHandler;
+    private static readonly Action<ILogger, string?, string, Guid, string, Exception?> _noHandler;
     private static readonly Action<ILogger, Envelope, Exception?> _noRoutes;
-    private static readonly Action<ILogger, string, Guid, string, string, Exception?> _received;
-    private static readonly Action<ILogger, string, Guid, string, Exception?> _sent;
+    private static readonly Action<ILogger, string, string, Guid, string, string, Exception?> _received;
+    private static readonly Action<ILogger, string, string, Guid, string, Exception?> _sent;
     private static readonly Action<ILogger, Envelope, Exception?> _undeliverable;
     private readonly Counter<int> _deadLetterQueueCounter;
     private readonly Histogram<double> _effectiveTime;
@@ -38,17 +38,17 @@ public sealed partial class WolverineRuntime : IMessageLogger
 
     static WolverineRuntime()
     {
-        _sent = LoggerMessage.Define<string, Guid, string>(LogLevel.Debug, SentEventId,
-            "Enqueued for sending {Name}#{Id} to {Destination}");
+        _sent = LoggerMessage.Define<string, string, Guid, string>(LogLevel.Debug, SentEventId,
+            "{CorrelationId}: Enqueued for sending {Name}#{Id} to {Destination}");
 
-        _received = LoggerMessage.Define<string, Guid, string, string>(LogLevel.Debug, ReceivedEventId,
-            "Received {Name}#{Id} at {Destination} from {ReplyUri}");
+        _received = LoggerMessage.Define<string, string, Guid, string, string>(LogLevel.Debug, ReceivedEventId,
+            "{CorrelationId}: Received {Name}#{Id} at {Destination} from {ReplyUri}");
 
-        _executionStarted = LoggerMessage.Define<string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
-            "Started processing {Name}#{Id}");
+        _executionStarted = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
+            "{CorrelationId}: Started processing {Name}#{Id}");
 
-        _executionFinished = LoggerMessage.Define<string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
-            "Finished processing {Name}#{Id}");
+        _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
+            "{CorrelationId}: Finished processing {Name}#{Id}");
 
         _messageSucceeded =
             LoggerMessage.Define<string, Guid, string>(LogLevel.Information, MessageSucceededEventId,
@@ -57,8 +57,8 @@ public sealed partial class WolverineRuntime : IMessageLogger
         _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
-        _noHandler = LoggerMessage.Define<string, Guid, string>(LogLevel.Information, NoHandlerEventId,
-            "No known handler for {Name}#{Id} from {ReplyUri}");
+        _noHandler = LoggerMessage.Define<string?, string, Guid, string>(LogLevel.Information, NoHandlerEventId,
+            "{CorrelationId}: No known handler for {Name}#{Id} from {ReplyUri}");
 
         _noRoutes = LoggerMessage.Define<Envelope>(LogLevel.Information, NoRoutesEventId,
             "No routes can be determined for {envelope}");
@@ -76,14 +76,14 @@ public sealed partial class WolverineRuntime : IMessageLogger
     {
         _sentCounter.Add(1, envelope.ToMetricsHeaders());
         ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId);
-        _sent(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty,
+        _sent(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty,
             null);
     }
 
     public void Received(Envelope envelope)
     {
         ActiveSession?.Record(EventType.Received, envelope, _serviceName, _uniqueNodeId);
-        _received(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty,
+        _received(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty,
             envelope.ReplyUri?.ToString() ?? string.Empty, null);
     }
 
@@ -91,7 +91,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
     {
         envelope.StartTiming();
         ActiveSession?.Record(EventType.ExecutionStarted, envelope, _serviceName, _uniqueNodeId);
-        _executionStarted(Logger, envelope.GetMessageTypeName(), envelope.Id, null);
+        _executionStarted(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
     public void ExecutionFinished(Envelope envelope)
@@ -103,7 +103,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
         }
 
         ActiveSession?.Record(EventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
-        _executionFinished(Logger, envelope.GetMessageTypeName(), envelope.Id, null);
+        _executionFinished(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
     public void ExecutionFinished(Envelope envelope, Exception exception)
@@ -138,7 +138,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
     public void NoHandlerFor(Envelope envelope)
     {
         ActiveSession?.Record(EventType.NoHandlers, envelope, _serviceName, _uniqueNodeId);
-        _noHandler(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.ReplyUri?.ToString() ?? string.Empty,
+        _noHandler(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, envelope.ReplyUri?.ToString() ?? string.Empty,
             null);
     }
 
