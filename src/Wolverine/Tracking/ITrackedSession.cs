@@ -46,7 +46,7 @@ public interface ITrackedSession
     /// <param name="eventType"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    T FindSingleTrackedMessageOfType<T>(EventType eventType);
+    T FindSingleTrackedMessageOfType<T>(MessageEventType eventType);
 
     /// <summary>
     ///     Finds the processing history for any messages of type T and
@@ -55,7 +55,7 @@ public interface ITrackedSession
     /// <param name="eventType"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    EnvelopeRecord[] FindEnvelopesWithMessageType<T>(EventType eventType);
+    EnvelopeRecord[] FindEnvelopesWithMessageType<T>(MessageEventType eventType);
 
     /// <summary>
     ///     Find all envelope records where the message type is T
@@ -76,7 +76,7 @@ public interface ITrackedSession
     ///     were logged for the given EventType
     /// </summary>
     /// <returns></returns>
-    EnvelopeRecord[] AllRecordsInOrder(EventType eventType);
+    EnvelopeRecord[] AllRecordsInOrder(MessageEventType eventType);
 
     /// <summary>
     ///     All exceptions thrown during the lifetime of this

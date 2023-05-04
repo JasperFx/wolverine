@@ -1,11 +1,8 @@
-﻿using System;
-
+﻿
 namespace Wolverine;
 
 public class ErrorReport
 {
-    public const string ExceptionDetected = "Exception Detected";
-
     public ErrorReport(Envelope envelope)
     {
         Envelope = envelope;
@@ -15,12 +12,13 @@ public class ErrorReport
     {
         ExceptionMessage = ex.Message;
         ExceptionType = ex.GetType().FullName;
-
+        Exception = ex;
         Envelope = envelope;
     }
 
     public Envelope Envelope { get; }
 
+    public Exception? Exception { get; set; }
 
     public Guid Id => Envelope.Id;
 

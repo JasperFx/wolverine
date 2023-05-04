@@ -1,6 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
-using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime.Scheduled;
@@ -21,6 +18,6 @@ internal class ScheduledSendEnvelopeHandler : MessageHandler
 
         var scheduled = (Envelope)context.Envelope!.Message!;
 
-        return context.As<MessageContext>().ForwardScheduledEnvelopeAsync(scheduled).AsTask();
+        return context.ForwardScheduledEnvelopeAsync(scheduled).AsTask();
     }
 }

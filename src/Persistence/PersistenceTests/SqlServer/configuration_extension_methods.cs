@@ -28,14 +28,15 @@ public class configuration_extension_methods : SqlServerContext
                 options.PersistMessagesWithSqlServer(context.Configuration["connection"]);
             });
 
-
         using var host = builder.Build();
-        host.Services.GetRequiredService<SqlServerSettings>()
-            .ConnectionString.ShouldBe(Servers.SqlServerConnectionString);
+        host.Services.GetRequiredService<SqlServerMessageStore>()
+            .Settings.ConnectionString.ShouldBe(Servers.SqlServerConnectionString);
 
         var databases = host.Services.GetServices<IDatabase>();
-        databases.OfType<SqlServerMessageStore>()
-            .Count().ShouldBe(1);
+        var store = databases.OfType<SqlServerMessageStore>().Single();
+        
+        // only one, so should be master
+        store.Settings.IsMaster.ShouldBeTrue();
     }
 
 
@@ -44,7 +45,7 @@ public class configuration_extension_methods : SqlServerContext
     {
         using var runtime = WolverineHost.For(x =>
             x.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString));
-        runtime.Get<SqlServerSettings>()
-            .ConnectionString.ShouldBe(Servers.SqlServerConnectionString);
+        runtime.Get<SqlServerMessageStore>()
+            .Settings.ConnectionString.ShouldBe(Servers.SqlServerConnectionString);
     }
 }

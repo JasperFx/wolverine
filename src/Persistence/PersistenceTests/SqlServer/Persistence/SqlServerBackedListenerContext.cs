@@ -19,7 +19,6 @@ public class SqlServerBackedListenerContext : SqlServerContext
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
-    protected SqlServerSettings mssqlSettings;
     protected IMessageDatabase thePersistence;
     internal DurableReceiver theReceiver;
     protected DurabilitySettings theSettings;
@@ -29,13 +28,8 @@ public class SqlServerBackedListenerContext : SqlServerContext
     {
         theSettings = new DurabilitySettings();
 
-        mssqlSettings = new SqlServerSettings
-        {
-            ConnectionString = Servers.SqlServerConnectionString
-        };
-
         thePersistence =
-            new SqlServerMessageStore(mssqlSettings, theSettings,
+            new SqlServerMessageStore(new DatabaseSettings{ConnectionString = Servers.SqlServerConnectionString}, theSettings,
                 new NullLogger<SqlServerMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();

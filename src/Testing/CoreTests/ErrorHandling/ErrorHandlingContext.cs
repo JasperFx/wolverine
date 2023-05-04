@@ -36,7 +36,7 @@ public class ErrorHandlingContext
 
         return _session.AllRecordsInOrder().Where(x => !(x.Envelope.Message is FailureAcknowledgement)).LastOrDefault(
             x =>
-                x.EventType == EventType.MessageSucceeded || x.EventType == EventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
     }
 
     protected async Task shouldSucceedOnAttempt(int attempt)
@@ -49,21 +49,21 @@ public class ErrorHandlingContext
 
         var record = session.AllRecordsInOrder().Where(x => !(x.Envelope.Message is FailureAcknowledgement))
             .LastOrDefault(x =>
-                x.EventType == EventType.MessageSucceeded || x.EventType == EventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
         if (record == null)
         {
             throw new Exception("No ending activity detected");
         }
 
-        if (record.EventType == EventType.MessageSucceeded && record.AttemptNumber == attempt)
+        if (record.MessageEventType == MessageEventType.MessageSucceeded && record.AttemptNumber == attempt)
         {
             return;
         }
 
         var writer = new StringWriter();
 
-        writer.WriteLine($"Actual ending was '{record.EventType}' on attempt {record.AttemptNumber}");
+        writer.WriteLine($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
         foreach (var envelopeRecord in session.AllRecordsInOrder())
         {
             writer.WriteLine(envelopeRecord);
@@ -86,21 +86,21 @@ public class ErrorHandlingContext
 
         var record = session.AllRecordsInOrder().Where(x => !(x.Envelope.Message is FailureAcknowledgement))
             .LastOrDefault(x =>
-                x.EventType == EventType.MessageSucceeded || x.EventType == EventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
         if (record == null)
         {
             throw new Exception("No ending activity detected");
         }
 
-        if (record.EventType == EventType.MovedToErrorQueue && record.AttemptNumber == attempt)
+        if (record.MessageEventType == MessageEventType.MovedToErrorQueue && record.AttemptNumber == attempt)
         {
             return;
         }
 
         var writer = new StringWriter();
 
-        writer.WriteLine($"Actual ending was '{record.EventType}' on attempt {record.AttemptNumber}");
+        writer.WriteLine($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
         foreach (var envelopeRecord in session.AllRecordsInOrder())
         {
             writer.WriteLine(envelopeRecord);

@@ -2,6 +2,7 @@
 
 using Marten;
 using Oakton;
+using Oakton.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -14,8 +15,9 @@ builder.Services.AddMarten(opts =>
         opts.Connection(builder.Configuration.GetConnectionString("Marten"));
         opts.DatabaseSchemaName = "todo";
     })
-    .IntegrateWithWolverine()
-    .ApplyAllDatabaseChangesOnStartup();
+    .IntegrateWithWolverine();
+
+builder.Services.AddResourceSetupOnStartup();
 
 // Wolverine usage is required for WolverineFx.Http
 builder.Host.UseWolverine(opts =>

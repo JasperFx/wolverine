@@ -34,31 +34,6 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         _latched = true;
     }
 
-    public override Task HandleBasicCancel(string consumerTag)
-    {
-        return base.HandleBasicCancel(consumerTag);
-    }
-
-    public override Task HandleBasicCancelOk(string consumerTag)
-    {
-        return base.HandleBasicCancelOk(consumerTag);
-    }
-
-    public override Task HandleBasicConsumeOk(string consumerTag)
-    {
-        return base.HandleBasicConsumeOk(consumerTag);
-    }
-
-    public override Task HandleModelShutdown(object model, ShutdownEventArgs reason)
-    {
-        return base.HandleModelShutdown(model, reason);
-    }
-
-    public override Task OnCancel(params string[] consumerTags)
-    {
-        return base.OnCancel(consumerTags);
-    }
-
     public override async Task HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered,
         string exchange, string routingKey,
         IBasicProperties properties, ReadOnlyMemory<byte> body)

@@ -79,6 +79,8 @@ public class EfCoreSagaHost : ISagaHost
         var migration = await SchemaMigration.DetermineAsync(conn, tables);
         await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
 
+        await conn.CloseAsync();
+
         await _host.ResetResourceState();
     }
 }

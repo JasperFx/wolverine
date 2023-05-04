@@ -37,7 +37,7 @@ public class EnvelopeRecordTests
 
         child.ShouldNotBeNull();
 
-        var record = new EnvelopeRecord(EventType.Sent, ObjectMother.Envelope(), 1000, null);
+        var record = new EnvelopeRecord(MessageEventType.Sent, ObjectMother.Envelope(), 1000, null);
 
         root.Id.ShouldContain(record.RootId);
         record.ParentId.ShouldContain(parent.Id);

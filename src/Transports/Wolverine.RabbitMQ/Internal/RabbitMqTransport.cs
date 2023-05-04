@@ -152,7 +152,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
-        var queueName = $"wolverine.response.{runtime.DurabilitySettings.UniqueNodeId}";
+        var queueName = $"wolverine.response.{runtime.DurabilitySettings.NodeLockId}";
 
         var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
         {

@@ -8,12 +8,12 @@ namespace Wolverine.Tracking;
 
 public class RecordCollection
 {
-    private readonly EventType _eventType;
+    private readonly MessageEventType _messageEventType;
     private readonly TrackedSession _parent;
 
-    internal RecordCollection(EventType eventType, TrackedSession parent)
+    internal RecordCollection(MessageEventType eventType, TrackedSession parent)
     {
-        _eventType = eventType;
+        _messageEventType = eventType;
         _parent = parent;
     }
 
@@ -71,7 +71,7 @@ public class RecordCollection
 
     public IEnumerable<EnvelopeRecord> RecordsInOrder()
     {
-        return _parent.AllRecordsInOrder().Where(x => x.EventType == _eventType);
+        return _parent.AllRecordsInOrder().Where(x => x.MessageEventType == _messageEventType);
     }
 
     public IEnumerable<Envelope> Envelopes()

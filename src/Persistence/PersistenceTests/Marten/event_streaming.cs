@@ -29,6 +29,8 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             {
                 services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine("receiver");
+
+                services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         await theReceiver.ResetResourceState();
@@ -43,6 +45,8 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             {
                 services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine("sender").EventForwardingToWolverine();
+                
+                services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         await theSender.ResetResourceState();

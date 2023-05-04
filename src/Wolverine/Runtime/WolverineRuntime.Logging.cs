@@ -75,14 +75,14 @@ public sealed partial class WolverineRuntime : IMessageLogger
     public void Sent(Envelope envelope)
     {
         _sentCounter.Add(1, envelope.ToMetricsHeaders());
-        ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
         _sent(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty,
             null);
     }
 
     public void Received(Envelope envelope)
     {
-        ActiveSession?.Record(EventType.Received, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.Record(MessageEventType.Received, envelope, _serviceName, _uniqueNodeId);
         _received(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination?.ToString() ?? string.Empty,
             envelope.ReplyUri?.ToString() ?? string.Empty, null);
     }
@@ -90,7 +90,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
     public void ExecutionStarted(Envelope envelope)
     {
         envelope.StartTiming();
-        ActiveSession?.Record(EventType.ExecutionStarted, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.Record(MessageEventType.ExecutionStarted, envelope, _serviceName, _uniqueNodeId);
         _executionStarted(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
@@ -102,7 +102,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
             _executionCounter.Record(time, envelope.ToMetricsHeaders());
         }
 
-        ActiveSession?.Record(EventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.Record(MessageEventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
         _executionFinished(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
@@ -120,7 +120,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
 
         _successCounter.Add(1, envelope.ToMetricsHeaders());
 
-        ActiveSession?.Record(EventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
         _messageSucceeded(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), null);
     }
 
@@ -131,26 +131,26 @@ public sealed partial class WolverineRuntime : IMessageLogger
 
         _deadLetterQueueCounter.Add(1, envelope.ToMetricsHeaders());
 
-        ActiveSession?.Record(EventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
+        ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
         _messageFailed(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), ex);
     }
 
     public void NoHandlerFor(Envelope envelope)
     {
-        ActiveSession?.Record(EventType.NoHandlers, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.Record(MessageEventType.NoHandlers, envelope, _serviceName, _uniqueNodeId);
         _noHandler(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, envelope.ReplyUri?.ToString() ?? string.Empty,
             null);
     }
 
     public void NoRoutesFor(Envelope envelope)
     {
-        ActiveSession?.Record(EventType.NoRoutes, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.Record(MessageEventType.NoRoutes, envelope, _serviceName, _uniqueNodeId);
         _noRoutes(Logger, envelope, null);
     }
 
     public void MovedToErrorQueue(Envelope envelope, Exception ex)
     {
-        ActiveSession?.Record(EventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
         _movedToErrorQueue(Logger, envelope, ex);
     }
 

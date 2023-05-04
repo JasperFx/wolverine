@@ -21,11 +21,29 @@ using Wolverine.Util;
 
 namespace CoreTests.Runtime;
 
-public class MockWolverineRuntime : IWolverineRuntime
+public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent>
 {
-    public HandlerGraph Handlers { get; } = new();
+    public List<IWolverineEvent> ReceivedEvents { get; } = new();
 
-    public IHostEnvironment Environment { get; } = Substitute.For<IHostEnvironment>();
+    public MockWolverineRuntime()
+    {
+        Tracker.Subscribe(this);
+    }
+
+    void IObserver<IWolverineEvent>.OnCompleted()
+    {
+    }
+
+    void IObserver<IWolverineEvent>.OnError(Exception error)
+    {
+    }
+
+    void IObserver<IWolverineEvent>.OnNext(IWolverineEvent value)
+    {
+        ReceivedEvents.Add(value);
+    }
+
+    public HandlerGraph Handlers { get; } = new();
 
     public IEndpointCollection Endpoints { get; } = Substitute.For<IEndpointCollection>();
     public Meter Meter { get; } = new Meter("Wolverine");
@@ -40,7 +58,7 @@ public class MockWolverineRuntime : IWolverineRuntime
     public IHandlerPipeline Pipeline { get; } = Substitute.For<IHandlerPipeline>();
     public IMessageLogger MessageLogger { get; } = Substitute.For<IMessageLogger>();
 
-    public ListenerTracker ListenerTracker { get; } = new(NullLogger.Instance);
+    public WolverineTracker Tracker { get; } = new(NullLogger.Instance);
 
     public IMessageRouter RoutingFor(Type messageType)
     {
@@ -76,6 +94,8 @@ public class MockWolverineRuntime : IWolverineRuntime
     {
 
     }
+
+    public IAgentRuntime Agents { get; } = Substitute.For<IAgentRuntime>();
 
     public bool TryFindMessageType(string? messageTypeName, out Type messageType)
     {

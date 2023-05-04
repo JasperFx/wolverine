@@ -1,11 +1,9 @@
-﻿using System;
-using System.Diagnostics.Metrics;
-using System.Threading;
-using Microsoft.Extensions.Hosting;
+﻿using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
@@ -14,8 +12,6 @@ namespace Wolverine.Runtime;
 
 public interface IWolverineRuntime
 {
-    IHostEnvironment Environment { get; }
-
     IHandlerPipeline Pipeline { get; }
     IMessageLogger MessageLogger { get; }
     WolverineOptions Options { get; }
@@ -24,7 +20,7 @@ public interface IWolverineRuntime
     ILogger Logger { get; }
     DurabilitySettings DurabilitySettings { get; }
     CancellationToken Cancellation { get; }
-    ListenerTracker ListenerTracker { get; }
+    WolverineTracker Tracker { get; }
 
     IReplyTracker Replies { get; }
     IEndpointCollection Endpoints { get; }
@@ -53,6 +49,20 @@ public interface IWolverineRuntime
 
     IMessageInvoker FindInvoker(Type messageType);
     void AssertHasStarted();
+    
+    
+    IAgentRuntime Agents { get; }
+
+}
+
+public interface IAgentRuntime
+{
+    Task StartLocallyAsync(Uri agentUri);
+    Task StopLocallyAsync(Uri agentUri);
+
+    Task InvokeAsync(Guid nodeId, IAgentCommand command);
+
+    Task<T> InvokeAsync<T>(Guid nodeId, IAgentCommand command) where T : class;
 }
 
 internal interface IExecutorFactory

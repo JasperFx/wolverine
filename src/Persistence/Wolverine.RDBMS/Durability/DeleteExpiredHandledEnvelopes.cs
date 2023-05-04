@@ -3,6 +3,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS.Durability;
 
+[Obsolete("Eliminate w/ DurabilityAgent rewrite")]
 public class DeleteExpiredHandledEnvelopes : IDurabilityAction
 {
     public string Description => "Deleting Expired, Handled Envelopes";
@@ -11,11 +12,11 @@ public class DeleteExpiredHandledEnvelopes : IDurabilityAction
         IDurableStorageSession session)
     {
         return session.WithinTransactionAsync(() =>
-            DeleteExpiredHandledEnvelopesAsync(session, DateTimeOffset.UtcNow, database.Settings));
+            DeleteExpiredHandledEnvelopesAsync(session, DateTimeOffset.UtcNow, database));
     }
 
     public Task DeleteExpiredHandledEnvelopesAsync(IDurableStorageSession session, DateTimeOffset utcNow,
-        DatabaseSettings databaseSettings)
+        IMessageDatabase wolverineDatabase)
     {
         if (session.Transaction == null)
         {
@@ -23,7 +24,7 @@ public class DeleteExpiredHandledEnvelopes : IDurabilityAction
         }
 
         var sql =
-            $"delete from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @time";
+            $"delete from {wolverineDatabase.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @time";
 
 
         return session.CreateCommand(sql)

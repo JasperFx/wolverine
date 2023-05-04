@@ -44,10 +44,10 @@ public class back_pressure_tripping_off
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var statusRecorder = new StatusRecorder(_output);
-        runtime.ListenerTracker.Subscribe(statusRecorder);
+        runtime.Tracker.Subscribe(statusRecorder);
 
         var waitForTooBusy =
-            runtime.ListenerTracker.WaitForListenerStatusAsync("incoming", ListeningStatus.TooBusy, 1.Minutes());
+            runtime.Tracker.WaitForListenerStatusAsync("incoming", ListeningStatus.TooBusy, 1.Minutes());
 
         var completion = Recorder.WaitForMessagesToBeProcessed(_output, 1000, 1.Minutes());
 
@@ -74,7 +74,7 @@ public class back_pressure_tripping_off
         statusRecorder.StateChanges.ShouldContain(x => x.Status == ListeningStatus.TooBusy);
     }
 
-    public class StatusRecorder : IObserver<ListenerState>
+    public class StatusRecorder : IObserver<IWolverineEvent>
     {
         private readonly ITestOutputHelper _output;
         public readonly List<ListenerState> StateChanges = new();
@@ -94,10 +94,13 @@ public class back_pressure_tripping_off
             // nothing
         }
 
-        public void OnNext(ListenerState value)
+        public void OnNext(IWolverineEvent value)
         {
-            _output.WriteLine("Changed to " + value.Status);
-            StateChanges.Add(value);
+            if (value is ListenerState state)
+            {
+                _output.WriteLine("Changed to " + state.Status);
+                StateChanges.Add(state);
+            }
         }
     }
 }

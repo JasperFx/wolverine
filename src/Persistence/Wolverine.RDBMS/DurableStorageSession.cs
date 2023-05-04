@@ -8,11 +8,11 @@ namespace Wolverine.RDBMS;
 public class DurableStorageSession : IDurableStorageSession
 {
     private readonly ILogger _logger;
-    private readonly DatabaseSettings _settings;
+    private readonly IMessageDatabase _database;
 
-    public DurableStorageSession(DatabaseSettings settings, CancellationToken cancellation, ILogger logger)
+    public DurableStorageSession(IMessageDatabase database, CancellationToken cancellation, ILogger logger)
     {
-        _settings = settings;
+        _database = database;
         _logger = logger;
         Cancellation = cancellation;
     }
@@ -39,7 +39,7 @@ public class DurableStorageSession : IDurableStorageSession
 
     public DbCommand CallFunction(string functionName)
     {
-        var cmd = CreateCommand(_settings.SchemaName + "." + functionName);
+        var cmd = CreateCommand(_database.SchemaName + "." + functionName);
         cmd.CommandType = CommandType.StoredProcedure;
 
         return cmd;
@@ -152,7 +152,7 @@ public class DurableStorageSession : IDurableStorageSession
 
         try
         {
-            await _settings.ReleaseGlobalLockAsync(Connection, lockId, Cancellation);
+            await _database.ReleaseGlobalLockAsync(Connection, lockId, Cancellation);
         }
         catch (ObjectDisposedException)
         {
@@ -168,7 +168,7 @@ public class DurableStorageSession : IDurableStorageSession
             throw new InvalidOperationException("Session has not been started yet");
         }
 
-        return _settings.GetGlobalLockAsync(Connection, lockId, Cancellation);
+        return _database.GetGlobalLockAsync(Connection, lockId, Cancellation);
     }
 
     public Task<bool> TryGetGlobalTxLockAsync(int lockId)
@@ -183,7 +183,7 @@ public class DurableStorageSession : IDurableStorageSession
             throw new InvalidOperationException("Transaction has not been started yet");
         }
 
-        return _settings.TryGetGlobalTxLockAsync(Connection, Transaction, lockId, Cancellation);
+        return _database.TryGetGlobalTxLockAsync(Connection, Transaction, lockId, Cancellation);
     }
 
     public Task<bool> TryGetGlobalLockAsync(int lockId)
@@ -193,7 +193,7 @@ public class DurableStorageSession : IDurableStorageSession
             throw new InvalidOperationException("Session has not been started yet");
         }
 
-        return _settings.TryGetGlobalLockAsync(Connection, Transaction, lockId, Cancellation);
+        return _database.TryGetGlobalLockAsync(Connection, Transaction, lockId, Cancellation);
     }
 
     public async Task ReleaseGlobalLockAsync(int lockId)
@@ -205,7 +205,7 @@ public class DurableStorageSession : IDurableStorageSession
 
         try
         {
-            await _settings.ReleaseGlobalLockAsync(Connection, lockId, Cancellation, Transaction);
+            await _database.ReleaseGlobalLockAsync(Connection, lockId, Cancellation, Transaction);
         }
         catch (ObjectDisposedException)
         {
@@ -237,11 +237,11 @@ public class DurableStorageSession : IDurableStorageSession
 
         try
         {
-            Connection = _settings.CreateConnection();
+            Connection = _database.CreateConnection();
 
             await Connection.OpenAsync(Cancellation);
 
-            await _settings.GetGlobalLockAsync(Connection, nodeId, Cancellation, Transaction);
+            await _database.GetGlobalLockAsync(Connection, nodeId, Cancellation, Transaction);
         }
         catch (Exception)
         {

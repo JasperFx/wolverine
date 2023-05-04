@@ -55,7 +55,7 @@ internal class RunScheduledJobs : IDurabilityAction
                     return;
                 }
 
-                await database.ReassignIncomingAsync(_settings.UniqueNodeId, readyToExecute);
+                await database.ReassignIncomingAsync(_settings.NodeLockId, readyToExecute);
 
                 await session.CommitAsync();
             }

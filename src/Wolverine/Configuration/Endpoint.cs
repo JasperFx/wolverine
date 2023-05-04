@@ -81,7 +81,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// <summary>
     ///     Is the endpoint controlled and configured by the application or Wolverine itself?
     /// </summary>
-    public EndpointRole Role { get; }
+    public EndpointRole Role { get; internal set; }
 
     /// <summary>
     ///     Local message buffering limits and restart thresholds for back pressure mechanics

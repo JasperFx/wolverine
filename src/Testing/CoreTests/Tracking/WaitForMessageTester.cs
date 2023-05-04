@@ -8,15 +8,15 @@ namespace CoreTests.Tracking;
 public class WaitForMessageTester
 {
     [Theory]
-    [InlineData(EventType.Received, typeof(Message1), false)]
-    [InlineData(EventType.Sent, typeof(Message1), false)]
-    [InlineData(EventType.ExecutionFinished, typeof(Message1), false)]
-    [InlineData(EventType.ExecutionStarted, typeof(Message1), false)]
-    [InlineData(EventType.MessageFailed, typeof(Message1), true)]
-    [InlineData(EventType.MessageSucceeded, typeof(Message1), true)]
-    [InlineData(EventType.NoHandlers, typeof(Message1), false)]
-    [InlineData(EventType.NoRoutes, typeof(Message1), false)]
-    public void is_completed_with_no_unique_id(EventType eventType, Type messageType, bool isCompleted)
+    [InlineData(MessageEventType.Received, typeof(Message1), false)]
+    [InlineData(MessageEventType.Sent, typeof(Message1), false)]
+    [InlineData(MessageEventType.ExecutionFinished, typeof(Message1), false)]
+    [InlineData(MessageEventType.ExecutionStarted, typeof(Message1), false)]
+    [InlineData(MessageEventType.MessageFailed, typeof(Message1), true)]
+    [InlineData(MessageEventType.MessageSucceeded, typeof(Message1), true)]
+    [InlineData(MessageEventType.NoHandlers, typeof(Message1), false)]
+    [InlineData(MessageEventType.NoRoutes, typeof(Message1), false)]
+    public void is_completed_with_no_unique_id(MessageEventType eventType, Type messageType, bool isCompleted)
     {
         var waiter = new WaitForMessage<Message1>();
 
@@ -28,17 +28,17 @@ public class WaitForMessageTester
     }
 
     [Theory]
-    [InlineData(EventType.Received, typeof(Message1), 1, false)]
-    [InlineData(EventType.Sent, typeof(Message1), 1, false)]
-    [InlineData(EventType.ExecutionFinished, typeof(Message1), 1, false)]
-    [InlineData(EventType.ExecutionStarted, typeof(Message1), 1, false)]
-    [InlineData(EventType.MessageFailed, typeof(Message1), 1, false)]
-    [InlineData(EventType.MessageSucceeded, typeof(Message1), 1, false)]
-    [InlineData(EventType.MessageFailed, typeof(Message1), 5, true)]
-    [InlineData(EventType.MessageSucceeded, typeof(Message1), 5, true)]
-    [InlineData(EventType.NoHandlers, typeof(Message1), 1, false)]
-    [InlineData(EventType.NoRoutes, typeof(Message1), 1, false)]
-    public void is_completed_with_unique_id(EventType eventType, Type messageType, int nodeId, bool isCompleted)
+    [InlineData(MessageEventType.Received, typeof(Message1), 1, false)]
+    [InlineData(MessageEventType.Sent, typeof(Message1), 1, false)]
+    [InlineData(MessageEventType.ExecutionFinished, typeof(Message1), 1, false)]
+    [InlineData(MessageEventType.ExecutionStarted, typeof(Message1), 1, false)]
+    [InlineData(MessageEventType.MessageFailed, typeof(Message1), 1, false)]
+    [InlineData(MessageEventType.MessageSucceeded, typeof(Message1), 1, false)]
+    [InlineData(MessageEventType.MessageFailed, typeof(Message1), 5, true)]
+    [InlineData(MessageEventType.MessageSucceeded, typeof(Message1), 5, true)]
+    [InlineData(MessageEventType.NoHandlers, typeof(Message1), 1, false)]
+    [InlineData(MessageEventType.NoRoutes, typeof(Message1), 1, false)]
+    public void is_completed_with_unique_id(MessageEventType eventType, Type messageType, int nodeId, bool isCompleted)
     {
         var waiter = new WaitForMessage<Message1>
         {

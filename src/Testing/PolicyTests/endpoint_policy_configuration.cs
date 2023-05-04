@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
 using TestMessages;
@@ -33,7 +34,9 @@ public class endpoint_policy_configuration : IDisposable
             .UseWolverine(opts =>
             {
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
-                    .IntegrateWithWolverine().ApplyAllDatabaseChangesOnStartup();
+                    .IntegrateWithWolverine();
+                
+                opts.Services.AddResourceSetupOnStartup();
                 
                 configure(opts);
             }).StartAsync();

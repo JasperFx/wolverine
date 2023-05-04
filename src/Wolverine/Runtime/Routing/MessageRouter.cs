@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Transports.Local;
@@ -48,7 +44,10 @@ public class MessageRouter<T> : MessageRouterBase<T>
 
     public override IMessageRoute FindSingleRouteForSending()
     {
-        if (Routes.Length == 1) return Routes.Single();
+        if (Routes.Length == 1)
+        {
+            return Routes.Single();
+        }
 
         throw new MultipleSubscribersException(typeof(T), Routes);
     }
@@ -56,7 +55,8 @@ public class MessageRouter<T> : MessageRouterBase<T>
 
 public class MultipleSubscribersException : Exception
 {
-    public MultipleSubscribersException(Type messageType, MessageRoute[] routes) : base($"There are multiple subscribing endpoints {routes.Select(x => x.Sender.Destination!.ToString()).Join(", ")} for message {messageType.FullNameInCode()}")
+    public MultipleSubscribersException(Type messageType, MessageRoute[] routes) : base(
+        $"There are multiple subscribing endpoints {routes.Select(x => x.Sender.Destination!.ToString()).Join(", ")} for message {messageType.FullNameInCode()}")
     {
     }
 }

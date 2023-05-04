@@ -35,7 +35,7 @@ public class interoperability_tests : IClassFixture<HostsFixture>
             });
 
 
-        foreach (var record in session.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
+        foreach (var record in session.AllRecordsInOrder().Where(x => x.MessageEventType == MessageEventType.MessageSucceeded))
             _output.WriteLine(record.ToString());
     }
 
@@ -56,7 +56,7 @@ public class interoperability_tests : IClassFixture<HostsFixture>
             });
 
 
-        foreach (var record in session.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
+        foreach (var record in session.AllRecordsInOrder().Where(x => x.MessageEventType == MessageEventType.MessageSucceeded))
             _output.WriteLine(record.ToString());
     }
 }

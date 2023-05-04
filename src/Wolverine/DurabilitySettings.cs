@@ -1,11 +1,9 @@
-using System.Reflection;
-using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using Wolverine.Util;
 
 namespace Wolverine;
 
+
+// TODO -- thin this down after eliminating the old DurabilityAgent
 public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -63,9 +61,15 @@ public class DurabilitySettings
     /// </summary>
     public TimeSpan ScheduledJobPollingTime { get; set; } = 5.Seconds();
 
-    public int UniqueNodeId { get; } = Guid.NewGuid().ToString().GetDeterministicHashCode();
+    public int NodeLockId { get; internal set; } = Guid.NewGuid().ToString().GetDeterministicHashCode();
 
     public CancellationToken Cancellation => _cancellation.Token;
+    
+    // TODO -- add Xml API comments
+    public TimeSpan FirstHealthCheckExecution { get; set; } = 3.Seconds();
+    public TimeSpan HealthCheckPollingTime { get; set; } = 5.Seconds();
+
+    public TimeSpan StaleNodeTimeout { get; set; } = 1.Minutes();
 
     /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is

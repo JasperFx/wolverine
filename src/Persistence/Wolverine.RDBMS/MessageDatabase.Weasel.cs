@@ -15,7 +15,7 @@ public abstract partial class MessageDatabase<T> : IFeatureSchema
         yield break;
     }
 
-    public abstract ISchemaObject[] Objects { get; }
+    public ISchemaObject[] Objects => AllObjects().ToArray();
 
     Type IFeatureSchema.StorageType => GetType();
 

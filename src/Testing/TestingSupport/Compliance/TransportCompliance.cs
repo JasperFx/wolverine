@@ -205,7 +205,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .Timeout(15.Seconds())
             .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message2()));
 
-        session.FindSingleTrackedMessageOfType<Message2>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<Message2>(MessageEventType.MessageSucceeded)
             .ShouldNotBeNull();
     }
 
@@ -218,7 +218,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
 
 
-        session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
             .ShouldNotBeNull();
     }
 
@@ -250,7 +250,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
 
 
-        session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
             .ShouldNotBeNull();
     }
 
@@ -283,7 +283,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
 
 
-        session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
             .ShouldNotBeNull();
     }
 
@@ -300,7 +300,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .SendMessageAndWaitAsync(message1);
 
 
-        session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
             .Id.ShouldBe(message1.Id);
     }
 
@@ -337,7 +337,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
 
 
-        var record = session.FindEnvelopesWithMessageType<Message1>(EventType.MessageSucceeded).Single();
+        var record = session.FindEnvelopesWithMessageType<Message1>(MessageEventType.MessageSucceeded).Single();
         record
             .ShouldNotBeNull();
 
@@ -364,7 +364,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .ExecuteAndWaitAsync(action);
 
         var envelopes = session2
-            .AllRecordsInOrder(EventType.Sent)
+            .AllRecordsInOrder(MessageEventType.Sent)
             .Select(x => x.Envelope)
             .ToArray();
 
@@ -382,7 +382,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .WaitForMessageToBeReceivedAt<ColorChosen>(theReceiver ?? theSender)
             .ExecuteAndWaitAsync(c => c.ScheduleAsync(new ColorChosen { Name = "Orange" }, 5.Seconds()));
 
-        var message = session.FindSingleTrackedMessageOfType<ColorChosen>(EventType.MessageSucceeded);
+        var message = session.FindSingleTrackedMessageOfType<ColorChosen>(MessageEventType.MessageSucceeded);
         message.Name.ShouldBe("Orange");
     }
 
@@ -401,7 +401,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .SendMessageAndWaitAsync(theMessage);
 
         return _session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(x =>
-            x.EventType == EventType.MessageSucceeded || x.EventType == EventType.MovedToErrorQueue);
+            x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
     }
 
     protected async Task shouldSucceedOnAttempt(int attempt)
@@ -415,21 +415,21 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         var record = session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(
             x =>
-                x.EventType == EventType.MessageSucceeded || x.EventType == EventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
         if (record == null)
         {
             throw new Exception("No ending activity detected");
         }
 
-        if (record.EventType == EventType.MessageSucceeded && record.AttemptNumber == attempt)
+        if (record.MessageEventType == MessageEventType.MessageSucceeded && record.AttemptNumber == attempt)
         {
             return;
         }
 
         var writer = new StringWriter();
 
-        await writer.WriteLineAsync($"Actual ending was '{record.EventType}' on attempt {record.AttemptNumber}");
+        await writer.WriteLineAsync($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
         foreach (var envelopeRecord in session.AllRecordsInOrder())
         {
             writer.WriteLine(envelopeRecord);
@@ -453,21 +453,21 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         var record = session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(
             x =>
-                x.EventType == EventType.MessageSucceeded || x.EventType == EventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
         if (record == null)
         {
             throw new Exception("No ending activity detected");
         }
 
-        if (record.EventType == EventType.MovedToErrorQueue && record.AttemptNumber == attempt)
+        if (record.MessageEventType == MessageEventType.MovedToErrorQueue && record.AttemptNumber == attempt)
         {
             return;
         }
 
         var writer = new StringWriter();
 
-        writer.WriteLine($"Actual ending was '{record.EventType}' on attempt {record.AttemptNumber}");
+        writer.WriteLine($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
         foreach (var envelopeRecord in session.AllRecordsInOrder())
         {
             writer.WriteLine(envelopeRecord);
@@ -531,7 +531,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .Timeout(30.Seconds())
             .SendMessageAndWaitAsync(ping);
 
-        session.FindSingleTrackedMessageOfType<PongMessage>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<PongMessage>(MessageEventType.MessageSucceeded)
             .Id.ShouldBe(ping.Id);
     }
 
@@ -546,7 +546,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(x => x.SendAsync(ping, DeliveryOptions.RequireResponse<ImplicitPong>()));
 
-        session.FindSingleTrackedMessageOfType<ImplicitPong>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<ImplicitPong>(MessageEventType.MessageSucceeded)
             .Id.ShouldBe(ping.Id);
     }
 

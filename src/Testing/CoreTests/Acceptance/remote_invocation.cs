@@ -111,7 +111,7 @@ public class remote_invocation : IAsyncLifetime
             .InvokeAndWaitAsync<Response1>(new Request1 { Name = "Croaker" });
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -149,7 +149,7 @@ public class remote_invocation : IAsyncLifetime
         
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -177,7 +177,7 @@ public class remote_invocation : IAsyncLifetime
             .ExecuteAndWaitAsync(fetch);
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -229,7 +229,7 @@ public class remote_invocation : IAsyncLifetime
             .InvokeMessageAndWaitAsync(new Request2 { Name = "Croaker" });
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -247,7 +247,7 @@ public class remote_invocation : IAsyncLifetime
                 c.EndpointFor("Receiver2").InvokeAsync(new Request2 { Name = "Croaker" }));
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -267,7 +267,7 @@ public class remote_invocation : IAsyncLifetime
                 c.EndpointFor(destination).InvokeAsync( new Request2 { Name = "Croaker" }));
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 

@@ -73,7 +73,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
             list.Add(envelope);
         }
 
-        await thePersistor.StoreIncomingAsync(list.ToArray());
+        await thePersistor.Inbox.StoreIncomingAsync(list.ToArray());
 
 
         // 7 scheduled
@@ -86,7 +86,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
             list.Add(envelope);
         }
 
-        await thePersistor.StoreIncomingAsync(list.ToArray());
+        await thePersistor.Inbox.StoreIncomingAsync(list.ToArray());
 
 
         // 3 outgoing
@@ -99,8 +99,11 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
             list.Add(envelope);
         }
 
-        await thePersistor.StoreOutgoingAsync(list.ToArray(), 0);
-
+        foreach (var envelope in list)
+        {
+            await thePersistor.Outbox.StoreOutgoingAsync(envelope, 0);
+        }
+        
         var counts = await thePersistor.Admin.FetchCountsAsync();
 
         counts.Incoming.ShouldBe(10);
@@ -115,7 +118,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         envelope.Status = EnvelopeStatus.Incoming;
         envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
         var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
 
@@ -132,11 +135,11 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         var envelope = SqlServer.ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
         await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
         {
-            await thePersistence.StoreIncomingAsync(envelope);
+            await thePersistence.Inbox.StoreIncomingAsync(envelope);
         });
     }
 
@@ -147,7 +150,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         envelope.Status = EnvelopeStatus.Outgoing;
         envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
 
-        await thePersistence.StoreOutgoingAsync(envelope, 5890);
+        await thePersistence.Outbox.StoreOutgoingAsync(envelope, 5890);
 
         var stored = (await thePersistence.Admin.AllOutgoingAsync())
             .Single();
@@ -164,9 +167,9 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
     {
         var envelope = ObjectMother.Envelope();
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
-        await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
@@ -180,13 +183,13 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
     {
         var envelope = ObjectMother.Envelope();
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
-        await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
         await thePersistence.Session.BeginAsync();
 
-        var settings = theHost.Services.GetRequiredService<PostgresqlSettings>();
+        var settings = theHost.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>();
         await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session,
             DateTimeOffset.UtcNow.Add(1.Hours()), settings);
 
@@ -212,12 +215,15 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
             list.Add(envelope);
         }
 
-        await thePersistence.StoreOutgoingAsync(list.ToArray(), 111);
+        foreach (var envelope in list)
+        {
+            await thePersistence.Outbox.StoreOutgoingAsync(envelope, 111);
+        }
 
         var toDiscard = new[] { list[2], list[3], list[7] };
         var toReassign = new[] { list[1], list[4], list[6] };
 
-        await thePersistence.DiscardAndReassignOutgoingAsync(toDiscard, toReassign, 444);
+        await thePersistence.Outbox.DiscardAndReassignOutgoingAsync(toDiscard, toReassign, 444);
 
         var stored = await thePersistence.Admin.AllOutgoingAsync();
         stored.Count.ShouldBe(7);
@@ -243,15 +249,15 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
 
         var unReplayableEnvelope = ObjectMother.Envelope();
         var replayableEnvelope = ObjectMother.Envelope();
-        await thePersistence.StoreIncomingAsync(unReplayableEnvelope);
-        await thePersistence.StoreIncomingAsync(replayableEnvelope);
+        await thePersistence.Inbox.StoreIncomingAsync(unReplayableEnvelope);
+        await thePersistence.Inbox.StoreIncomingAsync(replayableEnvelope);
 
         var divideByZeroException = new DivideByZeroException("Kaboom!");
         var applicationException = new ApplicationException("Kaboom!");
-        await thePersistence.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
-        await thePersistence.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
 
-        var settings = theHost.Services.GetRequiredService<PostgresqlSettings>();
+        var settings = theHost.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>();
 
         // make one of the messages(DivideByZeroException) replayable
         var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
@@ -317,10 +323,10 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
             }
         }
 
-        await thePersistence.StoreIncomingAsync(list);
+        await thePersistence.Inbox.StoreIncomingAsync(list);
 
 
-        var settings = theHost.Services.GetRequiredService<PostgresqlSettings>();
+        var settings = theHost.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>();
         var counts = await RecoverIncomingMessages.LoadAtLargeIncomingCountsAsync(thePersistence.Session, settings);
 
 
@@ -377,7 +383,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
             }
         }
 
-        await thePersistence.StoreIncomingAsync(list);
+        await thePersistence.Inbox.StoreIncomingAsync(list);
 
         var limit = list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&

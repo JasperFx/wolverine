@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -16,9 +11,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
-using Wolverine.Middleware;
-using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -43,6 +37,8 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
     private ImHashMap<Type, MessageHandler?> _handlers = ImHashMap<Type, MessageHandler?>.Empty;
 
+    private bool _hasCompiled;
+
     private bool _hasGrouped;
 
     private ImHashMap<string, Type> _messageTypes = ImHashMap<string, Type>.Empty;
@@ -54,7 +50,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         // All of this is to seed the handler and its associated retry policies
         // for scheduling outgoing messages
         AddMessageHandler(typeof(Envelope), new ScheduledSendEnvelopeHandler(this));
-
+        
         _messageTypes = _messageTypes.AddOrUpdate(TransportConstants.ScheduledEnvelope, typeof(Envelope));
 
         RegisterMessageType(typeof(Acknowledgement));
@@ -66,9 +62,9 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
 
     public IEnumerable<Assembly> ExtensionAssemblies => Discovery.Assemblies;
+    public List<Assembly> InteropAssemblies { get; } = new();
 
     public FailureRuleCollection Failures { get; set; } = new();
-    public List<Assembly> InteropAssemblies { get; } = new();
 
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
     {
@@ -90,6 +86,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
     internal void AddMessageHandler(Type messageType, MessageHandler handler)
     {
         _handlers = _handlers.AddOrUpdate(messageType, handler);
+        RegisterMessageType(messageType);
     }
 
     private void assertNotGrouped()
@@ -130,6 +127,19 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
             return handler;
         }
 
+        if (messageType.CanBeCastTo(typeof(IAgentCommand)))
+        {
+            if (_handlers.TryFind(typeof(IAgentCommand), out handler))
+            {
+                _handlers = _handlers.AddOrUpdate(messageType, handler);
+                return handler;
+            }
+            else
+            {
+                throw new NotSupportedException();
+            }
+        }
+
         if (_chains.TryFind(messageType, out var chain))
         {
             if (chain.Handler != null)
@@ -165,26 +175,26 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         return null;
     }
 
-    private bool _hasCompiled = false;
-
     internal void Compile(WolverineOptions options, IContainer container)
     {
-        if (_hasCompiled) return;
+        if (_hasCompiled)
+        {
+            return;
+        }
+
         _hasCompiled = true;
-        
+
         var logger = (ILogger)container.TryGetInstance<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
-        
+
         Rules = options.CodeGeneration;
 
         foreach (var assembly in Discovery.Assemblies)
-        {
             logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers", assembly.GetName());
-        }
-        
+
         var methods = Discovery.FindCalls(options);
 
         var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
-        
+
         if (methods.Any())
         {
             AddRange(calls);
@@ -235,9 +245,15 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
     {
         foreach (var policy in options.RegisteredPolicies)
         {
-            if (policy is IHandlerPolicy h) yield return h;
+            if (policy is IHandlerPolicy h)
+            {
+                yield return h;
+            }
 
-            if (policy is IChainPolicy c) yield return new HandlerChainPolicy(c);
+            if (policy is IChainPolicy c)
+            {
+                yield return new HandlerChainPolicy(c);
+            }
         }
     }
 
@@ -297,7 +313,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
     public bool CanHandle(Type messageType)
     {
-        return _chains.TryFind(messageType, out _);
+        return _chains.TryFind(messageType, out _) || _handlers.Contains(messageType);
     }
 
     public void RegisterMessageType(Type messageType)

@@ -3,6 +3,7 @@ using IntegrationTests;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Oakton.Resources;
 using OrderSagaSample;
 using Shouldly;
 using Wolverine;
@@ -32,6 +33,8 @@ public class When_starting_an_order : PostgresqlContext, IAsyncLifetime
                                 }
                             )
                             .IntegrateWithWolverine();
+
+                        services.AddResourceSetupOnStartup();
                     }
                 )
                 .UseWolverine(options =>

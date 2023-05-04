@@ -36,25 +36,25 @@ public class WolverineOptionsTests
         var options5 = new DurabilitySettings();
         var options6 = new DurabilitySettings();
 
-        options1.UniqueNodeId.ShouldNotBe(options2.UniqueNodeId);
-        options1.UniqueNodeId.ShouldNotBe(options3.UniqueNodeId);
-        options1.UniqueNodeId.ShouldNotBe(options4.UniqueNodeId);
-        options1.UniqueNodeId.ShouldNotBe(options5.UniqueNodeId);
-        options1.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options1.NodeLockId.ShouldNotBe(options2.NodeLockId);
+        options1.NodeLockId.ShouldNotBe(options3.NodeLockId);
+        options1.NodeLockId.ShouldNotBe(options4.NodeLockId);
+        options1.NodeLockId.ShouldNotBe(options5.NodeLockId);
+        options1.NodeLockId.ShouldNotBe(options6.NodeLockId);
 
-        options2.UniqueNodeId.ShouldNotBe(options3.UniqueNodeId);
-        options2.UniqueNodeId.ShouldNotBe(options4.UniqueNodeId);
-        options2.UniqueNodeId.ShouldNotBe(options5.UniqueNodeId);
-        options2.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options2.NodeLockId.ShouldNotBe(options3.NodeLockId);
+        options2.NodeLockId.ShouldNotBe(options4.NodeLockId);
+        options2.NodeLockId.ShouldNotBe(options5.NodeLockId);
+        options2.NodeLockId.ShouldNotBe(options6.NodeLockId);
 
-        options3.UniqueNodeId.ShouldNotBe(options4.UniqueNodeId);
-        options3.UniqueNodeId.ShouldNotBe(options5.UniqueNodeId);
-        options3.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options3.NodeLockId.ShouldNotBe(options4.NodeLockId);
+        options3.NodeLockId.ShouldNotBe(options5.NodeLockId);
+        options3.NodeLockId.ShouldNotBe(options6.NodeLockId);
 
-        options4.UniqueNodeId.ShouldNotBe(options5.UniqueNodeId);
-        options4.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options4.NodeLockId.ShouldNotBe(options5.NodeLockId);
+        options4.NodeLockId.ShouldNotBe(options6.NodeLockId);
 
-        options5.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options5.NodeLockId.ShouldNotBe(options6.NodeLockId);
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class WolverineOptionsTests
 
         // 2 default local queues + the 2 added here
         collection.Transports.AllEndpoints()
-            .Length.ShouldBe(5);
+            .Length.ShouldBeGreaterThanOrEqualTo(5);
     }
 
     [Fact]

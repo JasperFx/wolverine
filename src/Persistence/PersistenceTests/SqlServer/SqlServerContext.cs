@@ -1,6 +1,7 @@
 ﻿using IntegrationTests;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine;
+using Wolverine.RDBMS;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using Xunit;
@@ -14,8 +15,9 @@ public abstract class SqlServerContext : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        var databaseSettings = new DatabaseSettings{ConnectionString = Servers.SqlServerConnectionString };
         thePersistence = new SqlServerMessageStore(
-            new SqlServerSettings { ConnectionString = Servers.SqlServerConnectionString }, new DurabilitySettings(),
+            databaseSettings, new DurabilitySettings(),
             new NullLogger<SqlServerMessageStore>());
         await thePersistence.RebuildAsync();
         await initialize();

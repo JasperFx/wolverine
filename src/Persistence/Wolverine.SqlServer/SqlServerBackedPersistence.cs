@@ -15,7 +15,7 @@ namespace Wolverine.SqlServer;
 /// </summary>
 internal class SqlServerBackedPersistence : IWolverineExtension
 {
-    public SqlServerSettings Settings { get; } = new();
+    public DatabaseSettings Settings { get; } = new(){IsMaster = true};
 
     public void Configure(WolverineOptions options)
     {
@@ -27,11 +27,6 @@ internal class SqlServerBackedPersistence : IWolverineExtension
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
         options.Services.For<SqlConnection>().Use<SqlConnection>();
-
-        options.Services.Add(new ServiceDescriptor(typeof(SqlConnection),
-            new SqlConnectionInstance(typeof(SqlConnection))));
-        options.Services.Add(new ServiceDescriptor(typeof(DbConnection),
-            new SqlConnectionInstance(typeof(DbConnection))));
 
         // Don't overwrite the EF Core transaction support if it's there
         options.CodeGeneration.AddPersistenceStrategy<SqlServerPersistenceFrameProvider>();

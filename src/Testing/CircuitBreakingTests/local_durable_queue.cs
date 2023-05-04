@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
+using Oakton.Resources;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
@@ -33,7 +34,9 @@ public class local_durable_queue : CircuitBreakerIntegrationContext
         {
             opts.Connection(Servers.PostgresConnectionString);
             opts.DatabaseSchemaName = "circuit_breaker";
-        }).ApplyAllDatabaseChangesOnStartup().IntegrateWithWolverine();
+        }).ApplyAllDatabaseChangesOnStartup();
+        
+        opts.Services.AddResourceSetupOnStartup();
 
         opts.Durability.RecoveryBatchSize = 1200;
         opts.Durability.ScheduledJobPollingTime = 1.Seconds();

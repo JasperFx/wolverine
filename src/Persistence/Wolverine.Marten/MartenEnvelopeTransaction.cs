@@ -9,14 +9,14 @@ namespace Wolverine.Marten;
 internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly int _nodeId;
-    private readonly PostgresqlSettings _settings;
+    private readonly PostgresqlMessageStore _store;
 
     public MartenEnvelopeTransaction(IDocumentSession session, MessageContext context)
     {
-        if (context.Storage is PostgresqlMessageStore persistence)
+        if (context.Storage is PostgresqlMessageStore store)
         {
-            _settings = (PostgresqlSettings)persistence.Settings;
-            _nodeId = persistence.Durability.UniqueNodeId;
+            _store = store;
+            _nodeId = store.Durability.NodeLockId;
         }
         else
         {
@@ -31,20 +31,20 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 
     public Task PersistOutgoingAsync(Envelope envelope)
     {
-        Session.StoreOutgoing(_settings, envelope, _nodeId);
+        Session.StoreOutgoing(_store, envelope, _nodeId);
         return Task.CompletedTask;
     }
 
     public Task PersistOutgoingAsync(Envelope[] envelopes)
     {
-        foreach (var envelope in envelopes) Session.StoreOutgoing(_settings, envelope, _nodeId);
+        foreach (var envelope in envelopes) Session.StoreOutgoing(_store, envelope, _nodeId);
 
         return Task.CompletedTask;
     }
 
     public Task PersistIncomingAsync(Envelope envelope)
     {
-        Session.StoreIncoming(_settings, envelope);
+        Session.StoreIncoming(_store, envelope);
         return Task.CompletedTask;
     }
 

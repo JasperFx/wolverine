@@ -106,7 +106,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         else
         {
-            await Storage.ScheduleJobAsync(Envelope);
+            await Storage.Inbox.ScheduleJobAsync(Envelope);
         }
     }
 
@@ -123,7 +123,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
 
         // If persistable, persist
-        return Storage.MoveToDeadLetterStorageAsync(Envelope, exception);
+        return Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
     }
 
     public Task RetryExecutionNowAsync()
@@ -387,7 +387,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         else
         {
-            foreach (var envelope in Scheduled) await Storage.ScheduleJobAsync(envelope);
+            foreach (var envelope in Scheduled) await Storage.Inbox.ScheduleJobAsync(envelope);
         }
 
         Scheduled.Clear();

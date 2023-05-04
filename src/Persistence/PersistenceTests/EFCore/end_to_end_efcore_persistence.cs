@@ -242,6 +242,8 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             {
                 await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
             }
+
+            await conn.CloseAsync();
         }
     }
 

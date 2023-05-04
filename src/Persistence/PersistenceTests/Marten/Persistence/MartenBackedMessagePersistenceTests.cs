@@ -50,7 +50,7 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
         await persistence.Admin.RebuildAsync();
 
 
-        persistence.ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
+        persistence.Inbox.ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
 
         persisted = (await persistence.Admin
                 .AllIncomingAsync())

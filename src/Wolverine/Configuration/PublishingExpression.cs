@@ -180,4 +180,14 @@ public class PublishingExpression : IPublishToExpression
     {
         _subscriptions.Add(Subscription.All());
     }
+
+    /// <summary>
+    /// Publish all messages implementing a marker interface or inheriting from a common
+    /// base class
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void MessagesImplementing<T>()
+    {
+        _subscriptions.Add(new Subscription{BaseType = typeof(T), Scope = RoutingScope.Implements});
+    }
 }

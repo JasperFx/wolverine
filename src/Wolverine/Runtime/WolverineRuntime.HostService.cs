@@ -1,11 +1,8 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -14,27 +11,34 @@ namespace Wolverine.Runtime;
 
 public partial class WolverineRuntime
 {
+    private NodeAgentController? _agents;
     private bool _hasStarted;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         try
         {
-            Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}", Options.ApplicationAssembly.GetName());
-            
+            Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}",
+                Options.ApplicationAssembly.GetName());
+
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
+            // TODO -- eliminate the below and use Stateful Resource model
             if (Options.AutoBuildEnvelopeStorageOnStartup && Storage is not NullMessageStore)
             {
                 await Storage.Admin.MigrateAsync();
             }
+
+            await Storage.InitializeAsync(this);
 
             await startMessagingTransportsAsync();
 
             startInMemoryScheduledJobs();
 
             await startDurabilityAgentAsync();
+
+            await startAgentsAsync();
 
             _hasStarted = true;
         }
@@ -44,6 +48,7 @@ public partial class WolverineRuntime
             throw;
         }
     }
+
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
@@ -62,6 +67,10 @@ public partial class WolverineRuntime
             await Durability.StopAsync(cancellationToken);
         }
 
+        await Storage.DrainAsync();
+
+        // This MUST be called before draining the endpoints
+        await teardownAgentsAsync();
 
         await _endpoints.DrainAsync();
 
@@ -83,7 +92,7 @@ public partial class WolverineRuntime
     private async Task startMessagingTransportsAsync()
     {
         discoverListenersFromConventions();
-        
+
         foreach (var transport in Options.Transports)
         {
             if (!Options.ExternalTransportsAreStubbed)
@@ -94,7 +103,7 @@ public partial class WolverineRuntime
             {
                 Logger.LogInformation("'Stubbing' out all external Wolverine transports for testing");
             }
-            
+
             foreach (var endpoint in transport.Endpoints())
             {
                 endpoint.Runtime = this; // necessary to locate serialization
@@ -107,9 +116,7 @@ public partial class WolverineRuntime
             var replyUri = transport.ReplyEndpoint()?.Uri;
 
             foreach (var endpoint in transport.Endpoints().Where(x => x.AutoStartSendingAgent()))
-            {
                 endpoint.StartSending(this, replyUri);
-            }
         }
 
         if (!Options.ExternalTransportsAreStubbed)
@@ -129,9 +136,7 @@ public partial class WolverineRuntime
         if (!Options.ExternalTransportsAreStubbed)
         {
             foreach (var routingConvention in Options.RoutingConventions)
-            {
                 routingConvention.DiscoverListeners(this, handledMessageTypes);
-            }
         }
         else
         {
@@ -143,7 +148,11 @@ public partial class WolverineRuntime
 
     private Task startDurabilityAgentAsync()
     {
-        if (!Options.Durability.DurabilityAgentEnabled) return Task.CompletedTask;
+        if (!Options.Durability.DurabilityAgentEnabled)
+        {
+            return Task.CompletedTask;
+        }
+
         var store = _container.GetInstance<IMessageStore>();
         Durability = store.BuildDurabilityAgent(this, _container);
         return Durability.StartAsync(Options.Durability.Cancellation);
@@ -151,7 +160,11 @@ public partial class WolverineRuntime
 
     internal async Task StartLightweightAsync()
     {
-        if (_hasStarted) return;
+        if (_hasStarted)
+        {
+            return;
+        }
+
         Options.ExternalTransportsAreStubbed = true;
         Options.Durability.DurabilityAgentEnabled = false;
 

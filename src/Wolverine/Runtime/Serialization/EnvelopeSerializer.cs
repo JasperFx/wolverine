@@ -116,7 +116,7 @@ public static class EnvelopeSerializer
         return messages;
     }
 
-    internal static Envelope Deserialize(byte[] buffer)
+    public static Envelope Deserialize(byte[] buffer)
     {
         using var ms = new MemoryStream(buffer);
         using var br = new BinaryReader(ms);

@@ -1,7 +1,10 @@
 ﻿using IntegrationTests;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Shouldly;
+using Wolverine;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Xunit;
 
 namespace PersistenceTests.Marten.Persistence.Resiliency;
@@ -11,7 +14,7 @@ public class advisory_lock_usage : PostgresqlContext
     [Fact]
     public async Task explicitly_release_global_session_locks()
     {
-        var settings = new PostgresqlSettings();
+        var settings = new PostgresqlMessageStore(new DatabaseSettings{ConnectionString = Servers.PostgresConnectionString}, new DurabilitySettings(), NullLogger<PostgresqlMessageStore>.Instance);
 
         await using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
         await using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
@@ -49,7 +52,7 @@ public class advisory_lock_usage : PostgresqlContext
     [Fact]
     public async Task explicitly_release_global_tx_session_locks()
     {
-        var settings = new PostgresqlSettings();
+        var settings = new PostgresqlMessageStore(new DatabaseSettings{ConnectionString = Servers.PostgresConnectionString}, new DurabilitySettings(), NullLogger<PostgresqlMessageStore>.Instance);
 
         await using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
         await using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
@@ -89,7 +92,7 @@ public class advisory_lock_usage : PostgresqlContext
     [Fact] // - too slow
     public async Task global_session_locks()
     {
-        var settings = new PostgresqlSettings();
+        var settings = new PostgresqlMessageStore(new DatabaseSettings{ConnectionString = Servers.PostgresConnectionString}, new DurabilitySettings(), NullLogger<PostgresqlMessageStore>.Instance);
 
         await using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
         await using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))
@@ -124,7 +127,7 @@ public class advisory_lock_usage : PostgresqlContext
     [Fact] // -- too slow
     public async Task tx_session_locks()
     {
-        var settings = new PostgresqlSettings();
+        var settings = new PostgresqlMessageStore(new DatabaseSettings{ConnectionString = Servers.PostgresConnectionString}, new DurabilitySettings(), NullLogger<PostgresqlMessageStore>.Instance);
 
         await using (var conn1 = new NpgsqlConnection(Servers.PostgresConnectionString))
         await using (var conn2 = new NpgsqlConnection(Servers.PostgresConnectionString))

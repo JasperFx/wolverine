@@ -26,37 +26,30 @@ public abstract partial class MessageDatabase<T>
 
     public Task DeleteOutgoingAsync(Envelope envelope)
     {
-        return Settings
-            .CreateCommand(
-                $"delete from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
+        return CreateCommand(
+                $"delete from {SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
             .With("id", envelope.Id)
             .ExecuteOnce(_cancellation);
     }
 
+    [Obsolete("Goes away")]
     public async Task<Uri[]> FindAllDestinationsAsync()
     {
         var cmd = Session.CreateCommand(
-            $"select distinct destination from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}");
+            $"select distinct destination from {SchemaName}.{DatabaseConstants.OutgoingTable}");
         var uris = await cmd.FetchListAsync<string>(_cancellation);
         return uris.Where(x => x != null).Select(x => x!.ToUri()).ToArray();
     }
 
     public Task StoreOutgoingAsync(Envelope envelope, int ownerId)
     {
-        return DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, Settings)
+        return DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, this)
             .ExecuteOnce(_cancellation);
-    }
-
-
-    public Task StoreOutgoingAsync(Envelope[] envelopes, int ownerId)
-    {
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, ownerId, Settings);
-        return cmd.ExecuteOnce(CancellationToken.None);
     }
 
     public Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.UniqueNodeId, Settings);
+        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.NodeLockId, this);
         cmd.Connection = tx.Connection;
         cmd.Transaction = tx;
 
@@ -64,5 +57,5 @@ public abstract partial class MessageDatabase<T>
     }
 
     protected abstract string
-        determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings, DurabilitySettings settings);
+        determineOutgoingEnvelopeSql(DurabilitySettings settings);
 }

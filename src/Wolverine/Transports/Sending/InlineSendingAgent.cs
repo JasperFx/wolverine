@@ -64,7 +64,7 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
     private void setDefaults(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Outgoing;
-        envelope.OwnerId = _settings.UniqueNodeId;
+        envelope.OwnerId = _settings.NodeLockId;
         envelope.ReplyUri ??= ReplyUri;
     }
 }

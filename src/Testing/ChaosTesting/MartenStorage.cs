@@ -4,6 +4,7 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using Oakton.Resources;
 using Weasel.Core;
 using Wolverine;
 using Wolverine.ErrorHandling;
@@ -28,7 +29,9 @@ public class MartenStorageStrategy : IMessageStorageStrategy
             m.RegisterDocumentType<MessageRecord>();
 
             m.AutoCreateSchemaObjects = AutoCreate.None;
-        }).IntegrateWithWolverine("chaos_receiver").ApplyAllDatabaseChangesOnStartup();
+        }).IntegrateWithWolverine("chaos_receiver");
+
+        opts.Services.AddResourceSetupOnStartup();
         
         opts.Policies.AutoApplyTransactions();
 
@@ -48,7 +51,9 @@ public class MartenStorageStrategy : IMessageStorageStrategy
             m.RegisterDocumentType<MessageRecord>();
             
             m.AutoCreateSchemaObjects = AutoCreate.None;
-        }).IntegrateWithWolverine("chaos_sender").ApplyAllDatabaseChangesOnStartup();
+        }).IntegrateWithWolverine("chaos_sender");
+        
+        opts.Services.AddResourceSetupOnStartup();
                 
         opts.Policies.AutoApplyTransactions();
         

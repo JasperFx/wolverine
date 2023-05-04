@@ -141,7 +141,7 @@ public partial class Envelope
         else
         {
             Status = EnvelopeStatus.Incoming;
-            OwnerId = settings.UniqueNodeId;
+            OwnerId = settings.NodeLockId;
         }
     }
 
@@ -202,7 +202,7 @@ public partial class Envelope
             : EnvelopeStatus.Incoming;
 
         OwnerId = Status == EnvelopeStatus.Incoming
-            ? settings.UniqueNodeId
+            ? settings.NodeLockId
             : TransportConstants.AnyNode;
     }
 

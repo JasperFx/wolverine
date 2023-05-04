@@ -7,6 +7,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -25,7 +26,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
         var persisted = (await afterReceivingTheEnvelopes()).Single();
 
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
-        persisted.OwnerId.ShouldBe(theSettings.UniqueNodeId);
+        persisted.OwnerId.ShouldBe(theSettings.NodeLockId);
 
         assertEnvelopeWasEnqueued(envelope);
     }
@@ -37,7 +38,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
         var persisted = (await afterReceivingTheEnvelopes()).Single();
 
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
-        persisted.OwnerId.ShouldBe(theSettings.UniqueNodeId);
+        persisted.OwnerId.ShouldBe(theSettings.NodeLockId);
 
         assertEnvelopeWasEnqueued(envelope);
     }
@@ -46,7 +47,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
 public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyncLifetime
 {
     protected readonly IMessageStoreAdmin MessageStoreAdmin =
-        new PostgresqlMessageStore(new PostgresqlSettings
+        new PostgresqlMessageStore(new DatabaseSettings()
                 { ConnectionString = Servers.PostgresConnectionString }, new DurabilitySettings(),
             new NullLogger<PostgresqlMessageStore>());
 
@@ -72,7 +73,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
 
         var persistence =
             new PostgresqlMessageStore(
-                new PostgresqlSettings { ConnectionString = Servers.PostgresConnectionString }, theSettings,
+                new DatabaseSettings() { ConnectionString = Servers.PostgresConnectionString }, theSettings,
                 new NullLogger<PostgresqlMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();

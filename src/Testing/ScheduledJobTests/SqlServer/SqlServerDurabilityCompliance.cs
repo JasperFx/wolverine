@@ -42,6 +42,8 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         table.AddColumn<string>("name");
 
         await table.CreateAsync(conn);
+        
+        await conn.CloseAsync();
     }
 
     protected override ItemCreated loadItem(IHost receiver, Guid id)
@@ -85,6 +87,8 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
             tx.Commit();
 
             await context.FlushOutgoingMessagesAsync();
+            
+            await conn.CloseAsync();
         }
 
         #endregion

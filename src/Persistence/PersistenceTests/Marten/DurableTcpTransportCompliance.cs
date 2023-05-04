@@ -41,6 +41,8 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
                 o.Connection(Servers.PostgresConnectionString);
                 o.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine();
+            
+            
         });
     }
 

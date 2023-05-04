@@ -46,7 +46,7 @@ public class local_integration_specs : IntegrationContext
         var session = await Host.SendMessageAndWaitAsync(message1, timeoutInMilliseconds: 15000);
 
 
-        session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
             .ShouldBeSameAs(message1);
     }
 

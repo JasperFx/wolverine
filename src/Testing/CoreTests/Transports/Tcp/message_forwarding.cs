@@ -36,7 +36,7 @@ public class message_forwarding
             .ExecuteAndWaitAsync(c => c.EndpointFor("tcp://localhost:2345".ToUri()).SendAsync( originalMessage));
 
 
-        session.FindSingleTrackedMessageOfType<NewMessage>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<NewMessage>(MessageEventType.MessageSucceeded)
             .FullName.ShouldBe("James Worthy");
     }
 }

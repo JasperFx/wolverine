@@ -224,7 +224,7 @@ public class end_to_end
 
 
         // TODO -- let's make an assertion here?
-        var records = session.FindEnvelopesWithMessageType<PongMessage>(EventType.Received);
+        var records = session.FindEnvelopesWithMessageType<PongMessage>(MessageEventType.Received);
         records.Any(x => x.ServiceName == "Publisher").ShouldBeTrue();
     }
 
@@ -439,7 +439,7 @@ public class end_to_end
                 .SendMessageAndWaitAsync(message);
 
 
-            var received = session.FindSingleTrackedMessageOfType<SpecialTopic>(EventType.MessageSucceeded);
+            var received = session.FindSingleTrackedMessageOfType<SpecialTopic>(MessageEventType.MessageSucceeded);
             received
                 .Id.ShouldBe(message.Id);
         }

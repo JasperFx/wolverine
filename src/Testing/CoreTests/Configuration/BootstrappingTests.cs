@@ -117,7 +117,7 @@ public class BootstrappingTests : IntegrationContext
         Host.Get(serviceType)
             .ShouldNotBeNull();
     }
-
+    
 
     [Fact]
     public void handler_graph_already_has_the_scheduled_send_handler()

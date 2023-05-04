@@ -35,7 +35,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
                 });
             });
 
-        foreach (var record in theSession.AllRecordsInOrder().Where(x => x.EventType == EventType.MessageSucceeded))
+        foreach (var record in theSession.AllRecordsInOrder().Where(x => x.MessageEventType == MessageEventType.MessageSucceeded))
             _output.WriteLine(record.ToString());
 
         theOriginalEnvelope = theSession.Executed.SingleEnvelope<InitialCommand>();
@@ -97,7 +97,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
     public void trace_through_rabbit()
     {
         var envelopes = theSession.FindEnvelopesWithMessageType<RabbitMessage1>()
-            .Where(x => x.EventType == EventType.MessageSucceeded)
+            .Where(x => x.MessageEventType == MessageEventType.MessageSucceeded)
             .Select(x => x.Envelope)
             .OrderBy(x => x.Source)
             .ToArray();
@@ -119,7 +119,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
     public void rabbit_to_rabbit_tracing()
     {
         var envelopes = theSession.FindEnvelopesWithMessageType<RabbitMessage1>()
-            .Where(x => x.EventType == EventType.MessageSucceeded)
+            .Where(x => x.MessageEventType == MessageEventType.MessageSucceeded)
             .Select(x => x.Envelope)
             .OrderBy(x => x.Source)
             .ToArray();

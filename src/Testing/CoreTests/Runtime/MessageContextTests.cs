@@ -109,7 +109,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Storage.Received().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Inbox.Received().ScheduleJobAsync(theEnvelope);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Storage.DidNotReceive().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Inbox.DidNotReceive().ScheduleJobAsync(theEnvelope);
         await callback.As<ISupportNativeScheduling>().Received()
             .MoveToScheduledUntilAsync(theEnvelope, scheduledTime);
     }
@@ -140,7 +140,7 @@ public class MessageContextTests
 
         await theContext.MoveToDeadLetterQueueAsync(exception);
 
-        await theRuntime.Storage.Received()
+        await theRuntime.Storage.Inbox.Received()
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
 
@@ -158,7 +158,7 @@ public class MessageContextTests
         await callback.As<ISupportDeadLetterQueue>().Received()
             .MoveToErrorsAsync(theEnvelope, exception);
 
-        await theRuntime.Storage.DidNotReceive()
+        await theRuntime.Storage.Inbox.DidNotReceive()
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
 

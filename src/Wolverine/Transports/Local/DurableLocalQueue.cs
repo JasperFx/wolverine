@@ -19,7 +19,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 {
     private readonly ILogger _logger;
     private readonly IMessageLogger _messageLogger;
-    private readonly IMessageStore _persistence;
+    private readonly IMessageInbox _inbox;
     private readonly WolverineRuntime _runtime;
     private readonly IMessageSerializer _serializer;
     private readonly DurabilitySettings _settings;
@@ -30,7 +30,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
         _settings = runtime.DurabilitySettings;
-        _persistence = runtime.Storage;
+        _inbox = runtime.Storage.Inbox;
         _messageLogger = runtime.MessageLogger;
         _serializer = endpoint.DefaultSerializer ??
                       throw new ArgumentOutOfRangeException(nameof(endpoint),
@@ -95,7 +95,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         CircuitBreaker?.Reset();
 
-        _runtime.ListenerTracker.Publish(
+        _runtime.Tracker.Publish(
             new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
 
         _logger.LogInformation("Pausing message listening at {Uri}", Endpoint.Uri);
@@ -107,7 +107,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     {
         _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline);
         Latched = false;
-        _runtime.ListenerTracker.Publish(new ListenerState(_receiver.Uri, Endpoint.EndpointName,
+        _runtime.Tracker.Publish(new ListenerState(_receiver.Uri, Endpoint.EndpointName,
             ListeningStatus.Accepting));
         _restarter?.Dispose();
         _restarter = null;
@@ -195,7 +195,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     {
         try
         {
-            await _persistence.StoreIncomingAsync(envelope);
+            await _inbox.StoreIncomingAsync(envelope);
         }
         catch (DuplicateIncomingEnvelopeException e)
         {

@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.Metrics;
-using System.Linq;
-using System.Threading;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -33,7 +28,6 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
     private bool _hasStopped;
-    
 
 
     public WolverineRuntime(WolverineOptions options,
@@ -43,15 +37,15 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         DurabilitySettings = options.Durability;
         Options = options;
         Handlers = options.HandlerGraph;
-        Environment = environment;
 
         LoggerFactory = loggers;
         Logger = loggers.CreateLogger<WolverineRuntime>();
-        
-        Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
-        Logger.LogInformation("Exporting Open Telemetry metrics from Wolverine with name {Name}, version {Version}", Meter.Name, Meter.Version);
 
-        _uniqueNodeId = options.Durability.UniqueNodeId;
+        Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
+        Logger.LogInformation("Exporting Open Telemetry metrics from Wolverine with name {Name}, version {Version}",
+            Meter.Name, Meter.Version);
+
+        _uniqueNodeId = options.Durability.NodeLockId;
         _serviceName = options.ServiceName ?? "WolverineService";
 
         var provider = container.GetInstance<ObjectPoolProvider>();
@@ -65,7 +59,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         Cancellation = DurabilitySettings.Cancellation;
 
-        ListenerTracker = new ListenerTracker(Logger);
+        Tracker = new WolverineTracker(Logger);
 
         _endpoints = new EndpointCollection(this);
 
@@ -82,50 +76,16 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _failureCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesFailed, MetricsConstants.Messages,
             "Number of message execution failures");
-        
+
         _deadLetterQueueCounter = Meter.CreateCounter<int>(MetricsConstants.DeadLetterQueue, MetricsConstants.Messages,
             "Number of messages moved to dead letter queues");
 
         _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime,
             MetricsConstants.Milliseconds,
             "Effective time between a message being sent and being completely handled in milliseconds");
-        
-        _invokers = new(findInvoker);
-    }
-    
-    private IMessageInvoker findInvoker(Type messageType)
-    {
-        try
-        {
-            if (Options.HandlerGraph.CanHandle(messageType))
-            {
-                return this.As<IExecutorFactory>().BuildFor(messageType);
-            }
-            
-            return (IMessageInvoker)RoutingFor(messageType).FindSingleRouteForSending();
-        }
-        catch (Exception e)
-        {
-            Logger.LogError(e, "Failed to create a message handler for {MessageType}", messageType.FullNameInCode());
-            return new NoHandlerExecutor(messageType, this){Exception = e};
-        }
-    }
-    
-    public IMessageInvoker FindInvoker(Type messageType)
-    {
-        return _invokers[messageType];
-    }
 
-    public void AssertHasStarted()
-    {
-        if (!_hasStarted)
-            throw new InvalidOperationException(
-                "WolverineRuntime has not been started. Check that you've called Start/StartAsync() to start your IHost for the application");
+        _invokers = new LightweightCache<Type, IMessageInvoker>(findInvoker);
     }
-    
-    public ILoggerFactory LoggerFactory { get; }
-
-    public Meter Meter { get; }
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
 
@@ -135,11 +95,29 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     internal IScheduledJobProcessor ScheduledJobs { get; private set; } = null!;
 
+    public IMessageInvoker FindInvoker(Type messageType)
+    {
+        return _invokers[messageType];
+    }
+
+    public void AssertHasStarted()
+    {
+        if (!_hasStarted)
+        {
+            throw new InvalidOperationException(
+                "WolverineRuntime has not been started. Check that you've called Start/StartAsync() to start your IHost for the application");
+        }
+    }
+
+    public ILoggerFactory LoggerFactory { get; }
+
+    public Meter Meter { get; }
+
     public IReplyTracker Replies { get; }
 
     public IEndpointCollection Endpoints => _endpoints;
 
-    public ListenerTracker ListenerTracker { get; }
+    public WolverineTracker Tracker { get; }
 
     public CancellationToken Cancellation { get; }
 
@@ -168,14 +146,30 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         ScheduledJobs.Enqueue(executionTime, envelope);
     }
 
-    public IHostEnvironment Environment { get; }
-
     public IHandlerPipeline Pipeline { get; }
 
     public IMessageLogger MessageLogger => this;
 
 
     public IMessageStore Storage => _persistence.Value;
+
+    private IMessageInvoker findInvoker(Type messageType)
+    {
+        try
+        {
+            if (Options.HandlerGraph.CanHandle(messageType))
+            {
+                return this.As<IExecutorFactory>().BuildFor(messageType);
+            }
+
+            return (IMessageInvoker)RoutingFor(messageType).FindSingleRouteForSending();
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "Failed to create a message handler for {MessageType}", messageType.FullNameInCode());
+            return new NoHandlerExecutor(messageType, this) { Exception = e };
+        }
+    }
 
     internal IReadOnlyList<IMissingHandler> MissingHandlers()
     {

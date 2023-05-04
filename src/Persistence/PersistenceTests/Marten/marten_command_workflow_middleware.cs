@@ -8,6 +8,7 @@ using Marten.Internal.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
 using Wolverine.Attributes;
@@ -25,18 +26,19 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
 
     public marten_command_workflow_middleware()
     {
-        theHost = WolverineHost.For(x =>
+        theHost = WolverineHost.For(opts =>
         {
-            x.Services.AddMarten(opts =>
+            opts.Services.AddMarten(opts =>
                 {
                     opts.Connection(Servers.PostgresConnectionString);
                     opts.Projections.SelfAggregate<LetterAggregate>(ProjectionLifecycle.Inline);
                 })
                 .UseLightweightSessions()
-                .IntegrateWithWolverine()
-                .ApplyAllDatabaseChangesOnStartup();
+                .IntegrateWithWolverine();
+            
+            opts.Services.AddResourceSetupOnStartup();
 
-            x.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
         });
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();

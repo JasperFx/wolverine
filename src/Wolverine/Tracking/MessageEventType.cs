@@ -1,6 +1,6 @@
 namespace Wolverine.Tracking;
 
-public enum EventType
+public enum MessageEventType
 {
     Received,
     Sent,

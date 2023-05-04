@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 
 namespace Wolverine.Marten;
 
@@ -33,11 +34,17 @@ public static class WolverineOptionsMartenExtensions
         {
             var store = s.GetRequiredService<IDocumentStore>();
 
-            return new PostgresqlSettings
+            var settings = new DatabaseSettings
             {
                 ConnectionString = store.Storage.Database.CreateConnection().ConnectionString,
-                SchemaName = schemaName ?? store.Options.DatabaseSchemaName
+                SchemaName = schemaName ?? store.Options.DatabaseSchemaName,
+                IsMaster = true // TODO -- will change when we do multi-tenancy support
+                
             };
+
+            if (settings.SchemaName.IsEmpty()) settings.SchemaName = "public";
+
+            return settings;
         });
 
         return expression;

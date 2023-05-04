@@ -28,12 +28,12 @@ internal class EnvelopeHistory
 
     public IEnumerable<EnvelopeRecord> Records => _records;
 
-    private EnvelopeRecord? lastOf(EventType eventType)
+    private EnvelopeRecord? lastOf(MessageEventType eventType)
     {
-        return _records.LastOrDefault(x => x.EventType == eventType);
+        return _records.LastOrDefault(x => x.MessageEventType == eventType);
     }
 
-    private void markLastCompleted(EventType eventType)
+    private void markLastCompleted(MessageEventType eventType)
     {
         var record = lastOf(eventType);
         if (record != null)
@@ -55,9 +55,9 @@ internal class EnvelopeHistory
     // ReSharper disable once CyclomaticComplexity
     public void RecordLocally(EnvelopeRecord record)
     {
-        switch (record.EventType)
+        switch (record.MessageEventType)
         {
-            case EventType.Sent:
+            case MessageEventType.Sent:
                 // Not tracking anything outgoing
                 // when it's testing locally
                 if (record.Envelope.Destination?.Scheme != TransportConstants.Local ||
@@ -73,29 +73,29 @@ internal class EnvelopeHistory
 
                 break;
 
-            case EventType.Received:
+            case MessageEventType.Received:
                 if (record.Envelope.Destination?.Scheme == TransportConstants.Local)
                 {
-                    markLastCompleted(EventType.Sent);
+                    markLastCompleted(MessageEventType.Sent);
                 }
 
                 break;
 
-            case EventType.ExecutionStarted:
+            case MessageEventType.ExecutionStarted:
                 // Nothing special here
                 break;
 
 
-            case EventType.ExecutionFinished:
-                markLastCompleted(EventType.ExecutionStarted);
+            case MessageEventType.ExecutionFinished:
+                markLastCompleted(MessageEventType.ExecutionStarted);
                 record.IsComplete = true;
                 break;
 
-            case EventType.NoHandlers:
-            case EventType.NoRoutes:
-            case EventType.MessageFailed:
-            case EventType.MessageSucceeded:
-            case EventType.MovedToErrorQueue:
+            case MessageEventType.NoHandlers:
+            case MessageEventType.NoRoutes:
+            case MessageEventType.MessageFailed:
+            case MessageEventType.MessageSucceeded:
+            case MessageEventType.MovedToErrorQueue:
                 // The message is complete
                 foreach (var envelopeRecord in _records) envelopeRecord.IsComplete = true;
 
@@ -104,7 +104,7 @@ internal class EnvelopeHistory
                 break;
 
             default:
-                throw new ArgumentOutOfRangeException(nameof(record.EventType), record.EventType, null);
+                throw new ArgumentOutOfRangeException(nameof(record.MessageEventType), record.MessageEventType, null);
         }
 
         _records.Add(record);
@@ -112,16 +112,16 @@ internal class EnvelopeHistory
 
     public void RecordCrossApplication(EnvelopeRecord record)
     {
-        switch (record.EventType)
+        switch (record.MessageEventType)
         {
-            case EventType.Sent:
+            case MessageEventType.Sent:
                 if (record.Envelope.Status == EnvelopeStatus.Scheduled)
                 {
                     record.IsComplete = true;
                 }
 
                 // This can be out of order with Rabbit MQ *somehow*, so:
-                var received = _records.LastOrDefault(x => x.EventType == EventType.Received);
+                var received = _records.LastOrDefault(x => x.MessageEventType == MessageEventType.Received);
                 if (received != null)
                 {
                     record.IsComplete = true;
@@ -129,22 +129,22 @@ internal class EnvelopeHistory
 
                 break;
 
-            case EventType.ExecutionStarted:
+            case MessageEventType.ExecutionStarted:
                 break;
 
-            case EventType.Received:
-                markLastCompleted(EventType.Sent);
+            case MessageEventType.Received:
+                markLastCompleted(MessageEventType.Sent);
                 break;
 
 
-            case EventType.ExecutionFinished:
-                markLastCompleted(EventType.ExecutionStarted, record.UniqueNodeId);
+            case MessageEventType.ExecutionFinished:
+                markLastCompleted(MessageEventType.ExecutionStarted, record.UniqueNodeId);
                 record.IsComplete = true;
                 break;
 
-            case EventType.MovedToErrorQueue:
-            case EventType.MessageFailed:
-            case EventType.MessageSucceeded:
+            case MessageEventType.MovedToErrorQueue:
+            case MessageEventType.MessageFailed:
+            case MessageEventType.MessageSucceeded:
                 // The message is complete
                 foreach (var envelopeRecord in _records.ToArray().Where(x => x.UniqueNodeId == record.UniqueNodeId))
                     envelopeRecord.IsComplete = true;
@@ -153,21 +153,21 @@ internal class EnvelopeHistory
 
                 break;
 
-            case EventType.NoHandlers:
-            case EventType.NoRoutes:
+            case MessageEventType.NoHandlers:
+            case MessageEventType.NoRoutes:
 
                 break;
 
             default:
-                throw new ArgumentOutOfRangeException(nameof(record.EventType), record.EventType, null);
+                throw new ArgumentOutOfRangeException(nameof(record.MessageEventType), record.MessageEventType, null);
         }
 
         _records.Add(record);
     }
 
-    private void markLastCompleted(EventType eventType, int uniqueNodeId)
+    private void markLastCompleted(MessageEventType eventType, int uniqueNodeId)
     {
-        var record = _records.LastOrDefault(x => x.EventType == eventType && x.UniqueNodeId == uniqueNodeId);
+        var record = _records.LastOrDefault(x => x.MessageEventType == eventType && x.UniqueNodeId == uniqueNodeId);
         if (record != null)
         {
             record.IsComplete = true;
@@ -181,14 +181,14 @@ internal class EnvelopeHistory
     }
 
 
-    public bool Has(EventType eventType)
+    public bool Has(MessageEventType eventType)
     {
-        return _records.ToArray().Any(x => x.EventType == eventType);
+        return _records.ToArray().Any(x => x.MessageEventType == eventType);
     }
 
-    public object? MessageFor(EventType eventType)
+    public object? MessageFor(MessageEventType eventType)
     {
-        return _records.Where(x => x.EventType == eventType)
+        return _records.Where(x => x.MessageEventType == eventType)
             .LastOrDefault(x => x.Envelope.Message != null)?.Envelope.Message;
     }
 

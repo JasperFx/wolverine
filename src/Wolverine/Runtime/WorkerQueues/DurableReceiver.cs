@@ -17,7 +17,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     protected readonly ILogger _logger;
     private readonly RetryBlock<Envelope> _markAsHandled;
     private readonly RetryBlock<ErrorReport> _moveToErrors;
-    private readonly IMessageStore _persistence;
+    private readonly IMessageInbox _inbox;
     private readonly ActionBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
     private readonly RetryBlock<Envelope> _scheduleExecution;
@@ -29,7 +29,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _settings = runtime.DurabilitySettings;
-        _persistence = runtime.Storage;
+        _inbox = runtime.Storage.Inbox;
         _logger = runtime.LoggerFactory.CreateLogger<DurableReceiver>();
 
         Uri = endpoint.Uri;
@@ -58,14 +58,14 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             }
         }, endpoint.ExecutionOptions);
 
-        _markAsHandled = new RetryBlock<Envelope>((e, _) => _persistence.MarkIncomingEnvelopeAsHandledAsync(e), _logger,
+        _markAsHandled = new RetryBlock<Envelope>((e, _) => _inbox.MarkIncomingEnvelopeAsHandledAsync(e), _logger,
             _settings.Cancellation);
-        _incrementAttempts = new RetryBlock<Envelope>((e, _) => _persistence.IncrementIncomingEnvelopeAttemptsAsync(e),
+        _incrementAttempts = new RetryBlock<Envelope>((e, _) => _inbox.IncrementIncomingEnvelopeAttemptsAsync(e),
             _logger, _settings.Cancellation);
-        _scheduleExecution = new RetryBlock<Envelope>((e, _) => _persistence.ScheduleExecutionAsync(new[] { e }),
+        _scheduleExecution = new RetryBlock<Envelope>((e, _) => _inbox.ScheduleExecutionAsync(e),
             _logger, _settings.Cancellation);
         _moveToErrors = new RetryBlock<ErrorReport>(
-            (report, _) => _persistence.MoveToDeadLetterStorageAsync(new[] { report }), _logger,
+            (report, _) => _inbox.MoveToDeadLetterStorageAsync(report.Envelope, report.Exception), _logger,
             _settings.Cancellation);
 
         _receivingOne = new RetryBlock<Envelope>((e, _) => receiveOneAsync(e), _logger, _settings.Cancellation);
@@ -153,7 +153,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         await _moveToErrors.DrainAsync();
         await _receivingOne.DrainAsync();
 
-        await executeWithRetriesAsync(() => _persistence.ReleaseIncomingAsync(_settings.UniqueNodeId, Uri));
+        await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.NodeLockId, Uri));
     }
 
 
@@ -183,7 +183,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     {
         try
         {
-            await _persistence.StoreIncomingAsync(envelope);
+            await _inbox.StoreIncomingAsync(envelope);
         }
         catch (DuplicateIncomingEnvelopeException e)
         {
@@ -234,7 +234,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         var batchSucceeded = false;
         try
         {
-            await _persistence.StoreIncomingAsync(envelopes);
+            await _inbox.StoreIncomingAsync(envelopes);
             batchSucceeded = true;
         }
         catch (Exception e)
@@ -261,6 +261,6 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
     public Task ClearInFlightIncomingAsync()
     {
-        return executeWithRetriesAsync(() => _persistence.ReleaseIncomingAsync(_settings.UniqueNodeId, Uri));
+        return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.NodeLockId, Uri));
     }
 }

@@ -7,6 +7,7 @@ using Marten.Events;
 using Marten.Events.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Oakton.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
@@ -32,8 +33,9 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
                         m.Projections.SelfAggregate<LetterAggregate>(ProjectionLifecycle.Inline);
                     })
                     .UseLightweightSessions()
-                    .IntegrateWithWolverine()
-                    .ApplyAllDatabaseChangesOnStartup();
+                    .IntegrateWithWolverine();
+
+                opts.Services.AddResourceSetupOnStartup();
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             }).StartAsync();

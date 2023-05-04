@@ -142,7 +142,7 @@ public class stopping_and_starting_listeners : IDisposable
         var runtime = theListener.GetRuntime();
 
         var stopWaiter =
-            runtime.ListenerTracker.WaitForListenerStatusAsync("one", ListeningStatus.Stopped, 1.Minutes());
+            runtime.Tracker.WaitForListenerStatusAsync("one", ListeningStatus.Stopped, 1.Minutes());
 
         await sender
             .TrackActivity()

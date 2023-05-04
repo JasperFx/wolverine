@@ -81,7 +81,7 @@ public class TrackedSessionConfiguration
     {
         var condition = new WaitForMessage<T>
         {
-            UniqueNodeId = host.Services.GetRequiredService<IWolverineRuntime>().DurabilitySettings.UniqueNodeId
+            UniqueNodeId = host.Services.GetRequiredService<IWolverineRuntime>().DurabilitySettings.NodeLockId
         };
 
         _session.AddCondition(condition);
@@ -187,6 +187,23 @@ public class TrackedSessionConfiguration
         T? response = default;
 
         Func<IMessageContext, Task> invocation = async c => { response = await c.InvokeAsync<T>(request); };
+
+        var session = await ExecuteAndWaitAsync(invocation);
+
+        return (session, response);
+    }
+    
+    /// <summary>
+    ///     Execute a request with expected reply
+    /// </summary>
+    /// <param name="requestInvocation"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public async Task<(ITrackedSession, T?)> InvokeAndWaitAsync<T>(object request, Uri address) where T : class
+    {
+        T? response = default;
+
+        Func<IMessageContext, Task> invocation = async c => { response = await c.EndpointFor(address).InvokeAsync<T>(request, timeout: _session.Timeout); };
 
         var session = await ExecuteAndWaitAsync(invocation);
 

@@ -11,15 +11,10 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 /// </summary>
 internal class MappedEnvelopeTransaction : IEnvelopeTransaction
 {
-    private readonly DatabaseSettings _settings;
 
     public MappedEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
-        if (messaging.Storage is IMessageDatabase persistence)
-        {
-            _settings = persistence.Settings;
-        }
-        else
+        if (messaging.Storage is not IMessageDatabase)
         {
             throw new InvalidOperationException(
                 "This Wolverine application is not using Database backed message persistence. Please configure the message configuration");

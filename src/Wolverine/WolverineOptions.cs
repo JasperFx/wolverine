@@ -7,6 +7,7 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
@@ -46,15 +47,24 @@ public sealed partial class WolverineOptions
             CodeGeneration.Assemblies.Add(ApplicationAssembly);
         }
         
-        Durability = new DurabilitySettings();
+        // TODO -- this should be eliminated later after the durability agent rewrite
+        Durability = new DurabilitySettings{NodeLockId = UniqueNodeId.ToString().GetDeterministicHashCode()};
 
         deriveServiceName();
 
         LocalQueue(TransportConstants.Durable).UseDurableInbox();
 
+        Publish(x =>
+        {
+            x.MessagesImplementing<IAgentCommand>();
+            x.ToLocalQueue(TransportConstants.Agents).MaximumParallelMessages(20, ProcessingOrder.UnOrdered);
+        });
+
         Policies.Add<SagaPersistenceChainPolicy>();
         Policies.Add<SideEffectPolicy>();
     }
+    
+    public Guid UniqueNodeId { get; } = Guid.NewGuid();
     
     
     /// <summary>

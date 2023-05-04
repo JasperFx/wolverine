@@ -40,10 +40,6 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         {
             var result = Channel.QueueDeclarePassive(queue.QueueName);
             Logger.LogInformation("{Count} messages in queue {QueueName}", result.MessageCount, queue.QueueName);
-            if (result.MessageCount > 0)
-            {
-                Debug.WriteLine("Here");
-            }
         }
         catch (Exception e)
         {

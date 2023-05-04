@@ -3,6 +3,7 @@ using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;
 
@@ -24,6 +25,17 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         _queues.FillDefault(TransportConstants.Default);
         _queues.FillDefault(TransportConstants.Replies);
 
+        var systemQueue = _queues[TransportConstants.System];
+        systemQueue.Role = EndpointRole.System;
+        systemQueue.ExecutionOptions.EnsureOrdered = true;
+        systemQueue.ExecutionOptions.MaxDegreeOfParallelism = 1;
+        
+        systemQueue.Subscriptions.Add(new Subscription
+        {
+            Scope = RoutingScope.Implements,
+            BaseType = typeof(IInternalMessage)
+        });
+        
         _queues[TransportConstants.Durable].Mode = EndpointMode.Durable;
     }
 

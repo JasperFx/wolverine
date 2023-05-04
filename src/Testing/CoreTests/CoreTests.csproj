@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <IsPackable>false</IsPackable>
-
+        <TargetFrameworks>net7.0</TargetFrameworks>
         <LangVersion>10</LangVersion>
     </PropertyGroup>
 

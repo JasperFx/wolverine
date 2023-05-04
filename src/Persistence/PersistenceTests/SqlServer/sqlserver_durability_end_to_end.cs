@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
 using Weasel.Core;
@@ -31,14 +32,14 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");
 
         await new SqlServerMessageStore(
-                new SqlServerSettings
+                new DatabaseSettings()
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = ReceiverSchemaName },
                 new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
         await new SqlServerMessageStore(
-                new SqlServerSettings
-                    { ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
+                
+                    new DatabaseSettings(){ ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
                 new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
@@ -58,6 +59,8 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
                     opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, ReceiverSchemaName);
 
                     opts.ListenForMessagesFrom(_listener).UseDurableInbox();
+                    
+                    opts.Services.AddResourceSetupOnStartup();
                 })
                 .Start();
         });
@@ -77,6 +80,8 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
 
                     opts.Durability.ScheduledJobPollingTime = 1.Seconds();
                     opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
+
+                    opts.Services.AddResourceSetupOnStartup();
                 })
                 .Start();
         });
@@ -113,6 +118,8 @@ create table receiver.trace_doc
 );
 
 ").ExecuteNonQueryAsync();
+        
+        await conn.CloseAsync();
     }
 
     protected void StartReceiver(string name)
@@ -163,6 +170,7 @@ create table receiver.trace_doc
 
             if (actual == count && envelopeCount == 0)
             {
+                await conn.CloseAsync();
                 return;
             }
 
@@ -250,13 +258,18 @@ public class TraceMessage
 [WolverineIgnore]
 public class TraceHandler
 {
-    public void Handle(TraceMessage message, SqlTransaction tx)
+    public async Task Handle(TraceMessage message, DatabaseSettings settings)
     {
+        using var conn = new SqlConnection(settings.ConnectionString);
+        await conn.OpenAsync();
+
         var traceDoc = new TraceDoc { Name = message.Name };
 
-        tx.CreateCommand("insert into receiver.trace_doc (id, name) values (@id, @name)")
+        await conn.CreateCommand("insert into receiver.trace_doc (id, name) values (@id, @name)")
             .With("id", traceDoc.Id)
             .With("name", traceDoc.Name)
-            .ExecuteNonQuery();
+            .ExecuteNonQueryAsync();
+        
+        await conn.CloseAsync();
     }
 }

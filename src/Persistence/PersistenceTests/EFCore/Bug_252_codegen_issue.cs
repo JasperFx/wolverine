@@ -59,6 +59,8 @@ public class Bug_252_codegen_issue
         var dbContext = host.Services.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();
 
+        await conn.CloseAsync();
+
         await host.InvokeMessageAndWaitAsync(new OrderCreated(Guid.NewGuid()));
     }
 
@@ -88,6 +90,8 @@ public class Bug_252_codegen_issue
 
         var migration = await SchemaMigration.DetermineAsync(conn, table);
         await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
+
+        await conn.CloseAsync();
 
         var dbContext = host.Services.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();

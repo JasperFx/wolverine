@@ -3,6 +3,7 @@ using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using Oakton;
+using Oakton.Resources;
 using Wolverine;
 using Wolverine.FluentValidation;
 using Wolverine.Marten;
@@ -11,6 +12,10 @@ using Wolverine.RabbitMQ;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+
+// Just letting Marten build out known database schema elements upfront
+// Helps with Wolverine integration in development
+builder.Services.AddResourceSetupOnStartup();
 
 builder.Services.AddMarten(opts =>
 {
@@ -21,11 +26,9 @@ builder.Services.AddMarten(opts =>
     // This is the wolverine integration for the outbox/inbox,
     // transactional middleware, saga persistence we don't care about
     // yet
-    .IntegrateWithWolverine()
+    .IntegrateWithWolverine();
     
-    // Just letting Marten build out known database schema elements upfront
-    // Helps with Wolverine integration in development
-    .ApplyAllDatabaseChangesOnStartup();
+
 
 #region sample_registering_middleware_by_message_type
 

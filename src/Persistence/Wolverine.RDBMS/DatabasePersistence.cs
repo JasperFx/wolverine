@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Serialization;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -8,28 +9,28 @@ namespace Wolverine.RDBMS;
 public static class DatabasePersistence
 {
     public static DbCommand BuildOutgoingStorageCommand(Envelope envelope, int ownerId,
-        DatabaseSettings settings)
+        IMessageDatabase database)
     {
-        var builder = settings.ToCommandBuilder();
+        var builder = database.ToCommandBuilder();
 
         var owner = builder.AddNamedParameter("owner", ownerId);
-        ConfigureOutgoingCommand(settings, builder, envelope, owner);
+        ConfigureOutgoingCommand(database, builder, envelope, owner);
         return builder.Compile();
     }
 
     public static DbCommand BuildOutgoingStorageCommand(Envelope[] envelopes, int ownerId,
-        DatabaseSettings settings)
+        IMessageDatabase database)
     {
-        var builder = settings.ToCommandBuilder();
+        var builder = database.ToCommandBuilder();
 
         var owner = builder.AddNamedParameter("owner", ownerId);
 
-        foreach (var envelope in envelopes) ConfigureOutgoingCommand(settings, builder, envelope, owner);
+        foreach (var envelope in envelopes) ConfigureOutgoingCommand(database, builder, envelope, owner);
 
         return builder.Compile();
     }
 
-    private static void ConfigureOutgoingCommand(DatabaseSettings settings, DbCommandBuilder builder, Envelope envelope,
+    private static void ConfigureOutgoingCommand(IMessageDatabase settings, DbCommandBuilder builder, Envelope envelope,
         DbParameter owner)
     {
         var list = new List<DbParameter>();
@@ -50,7 +51,7 @@ public static class DatabasePersistence
     }
 
     public static DbCommand BuildIncomingStorageCommand(IEnumerable<Envelope> envelopes,
-        DatabaseSettings settings)
+        IMessageDatabase settings)
     {
         var builder = settings.ToCommandBuilder();
 
@@ -59,7 +60,7 @@ public static class DatabasePersistence
         return builder.Compile();
     }
 
-    public static void BuildIncomingStorageCommand(DatabaseSettings settings, DbCommandBuilder builder,
+    public static void BuildIncomingStorageCommand(IMessageDatabase settings, DbCommandBuilder builder,
         Envelope envelope)
     {
         var list = new List<DbParameter>
@@ -98,29 +99,26 @@ public static class DatabasePersistence
         return envelope;
     }
 
-    public static void ConfigureDeadLetterCommands(ErrorReport[] errors, DbCommandBuilder builder,
-        DatabaseSettings databaseSettings)
+    public static void ConfigureDeadLetterCommands(Envelope envelope, Exception? exception, DbCommandBuilder builder,
+        IMessageDatabase wolverineDatabase)
     {
-        foreach (var error in errors)
-        {
-            var list = new List<DbParameter>();
+        var list = new List<DbParameter>();
 
-            list.Add(builder.AddParameter(error.Id));
-            list.Add(builder.AddParameter(error.Envelope.ScheduledTime));
-            list.Add(builder.AddParameter(EnvelopeSerializer.Serialize(error.Envelope)));
-            list.Add(builder.AddParameter(error.Envelope.MessageType));
-            list.Add(builder.AddParameter(error.Envelope.Destination?.ToString()));
-            list.Add(builder.AddParameter(error.Envelope.Source));
-            list.Add(builder.AddParameter(error.ExceptionType));
-            list.Add(builder.AddParameter(error.ExceptionMessage));
-            list.Add(builder.AddParameter(error.Envelope.SentAt.ToUniversalTime()));
-            list.Add(builder.AddParameter(false));
+        list.Add(builder.AddParameter(envelope.Id));
+        list.Add(builder.AddParameter(envelope.ScheduledTime));
+        list.Add(builder.AddParameter(EnvelopeSerializer.Serialize(envelope)));
+        list.Add(builder.AddParameter(envelope.MessageType));
+        list.Add(builder.AddParameter(envelope.Destination?.ToString()));
+        list.Add(builder.AddParameter(envelope.Source));
+        list.Add(builder.AddParameter(exception?.GetType().FullNameInCode()));
+        list.Add(builder.AddParameter(exception?.Message));
+        list.Add(builder.AddParameter(envelope.SentAt.ToUniversalTime()));
+        list.Add(builder.AddParameter(false));
 
-            var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
+        var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
-            builder.Append(
-                $"insert into {databaseSettings.SchemaName}.{DatabaseConstants.DeadLetterTable} ({DatabaseConstants.DeadLetterFields}) values ({parameterList});");
-        }
+        builder.Append(
+            $"insert into {wolverineDatabase.SchemaName}.{DatabaseConstants.DeadLetterTable} ({DatabaseConstants.DeadLetterFields}) values ({parameterList});");
     }
 
     public static async Task<Envelope> ReadOutgoingAsync(DbDataReader reader, CancellationToken cancellation = default)

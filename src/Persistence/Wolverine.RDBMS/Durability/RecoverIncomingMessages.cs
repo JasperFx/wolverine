@@ -3,10 +3,13 @@ using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS.Polling;
 using Wolverine.Transports;
 
 namespace Wolverine.RDBMS.Durability;
 
+
+[Obsolete("Goes away with DurabilityAgent rewrite")]
 internal class RecoverIncomingMessages : IDurabilityAction
 {
     private readonly IEndpointCollection _endpoints;
@@ -25,7 +28,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
 
         await session.WithinSessionGlobalLockAsync(TransportConstants.IncomingMessageLockId, async () =>
         {
-            var counts = await LoadAtLargeIncomingCountsAsync(session, database.Settings);
+            var counts = await LoadAtLargeIncomingCountsAsync(session, database);
             foreach (var count in counts)
                 rescheduleImmediately = rescheduleImmediately ||
                                         await TryRecoverIncomingMessagesAsync(database, session, count,
@@ -41,11 +44,12 @@ internal class RecoverIncomingMessages : IDurabilityAction
 
     public string Description => "Recover persisted incoming messages";
 
+    [Obsolete("Goes away with DurabilityAgent rewrite")]
     public static Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync(IDurableStorageSession session,
-        DatabaseSettings databaseSettings)
+        IMessageDatabase wolverineDatabase)
     {
         var sql =
-            $"select {DatabaseConstants.ReceivedAt}, count(*) from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
+            $"select {DatabaseConstants.ReceivedAt}, count(*) from {wolverineDatabase.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
 
         return session.CreateCommand(sql).FetchListAsync(async reader =>
         {
@@ -125,7 +129,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
         try
         {
             var envelopes = await database.LoadPageOfGloballyOwnedIncomingAsync(count.Destination, pageSize);
-            await database.ReassignIncomingAsync(durabilitySettings.UniqueNodeId, envelopes);
+            await database.ReassignIncomingAsync(durabilitySettings.NodeLockId, envelopes);
 
             await session.CommitAsync();
 
