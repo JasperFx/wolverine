@@ -1,7 +1,7 @@
 # Configuration
 
 ::: warning
-Wolverine requires the usage of the [Lamar](https://wolverinefx.github.io/lamar) IoC container, and the call
+Wolverine requires the usage of the [Lamar](https://jasperfx.github.io/lamar) IoC container, and the call
 to `UseWolverine()` quietly replaces the built in .NET container with Lamar.
 
 Lamar was originally written specifically to support Wolverine's runtime model as well as to be a higher performance
@@ -56,7 +56,7 @@ return await app.RunOaktonCommands(args);
 
 :::tip
 The `WolverineOptions.Services` property can be used to add additional IoC service registrations with
-either the standard .NET `IServiceCollection` model or the [Lamar ServiceRegistry](https://wolverinefx.github.io/lamar/guide/ioc/registration/registry-dsl.html) syntax.
+either the standard .NET `IServiceCollection` model or the [Lamar ServiceRegistry](https://jasperfx.github.io/lamar/guide/ioc/registration/registry-dsl.html) syntax.
 :::
 
 For "headless" console applications with no user interface or HTTP service endpoints, the bootstrapping

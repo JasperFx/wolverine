@@ -256,7 +256,7 @@ support for method injection in a following section.
 Similar to ASP.NET Core, Wolverine supports the concept of [method injection](https://www.martinfowler.com/articles/injection.html) in handler methods where you can just accept additional
 arguments that will be passed into your method by Wolverine when a new message is being handled.
 
-Below is an example action method that takes in a dependency on an `IDocumentSession` from [Marten](http://wolverinefx.github.io/marten):
+Below is an example action method that takes in a dependency on an `IDocumentSession` from [Marten](https://jasperfx.github.io/marten/):
 
 <!-- snippet: sample_HandlerUsingMethodInjection -->
 <a id='snippet-sample_handlerusingmethodinjection'></a>

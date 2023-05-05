@@ -529,7 +529,7 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L180-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://wolverinefx.github.io/oakton/guide/host/resources.html) model,
+Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://jasperfx.github.io/oakton/guide/host/resources.html) model,
 so you can make a generic declaration to auto-provision the Rabbit MQ objects at startup time
 (as well as any other stateful Wolverine resources like envelope storage) with the Oakton
 declarations as shown in the setup below that uses the `AddResourceSetupOnStartup()` declaration:
