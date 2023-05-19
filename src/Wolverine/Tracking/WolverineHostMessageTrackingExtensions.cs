@@ -78,7 +78,7 @@ public static class WolverineHostMessageTrackingExtensions
     /// <param name="timeoutInMilliseconds"></param>
     /// <returns></returns>
     public static Task<ITrackedSession> InvokeMessageAndWaitAsync(this IHost host, object message,
-        string? tenantId = null,
+        string tenantId,
         int timeoutInMilliseconds = 5000)
     {
         return host.ExecuteAndWaitAsync(c =>
@@ -115,7 +115,7 @@ public static class WolverineHostMessageTrackingExtensions
     /// <param name="timeoutInMilliseconds"></param>
     /// <returns></returns>
     public static async Task<(ITrackedSession, T?)> InvokeMessageAndWaitAsync<T>(this IHost host, object message,
-        string? tenantId = null,
+        string tenantId,
         int timeoutInMilliseconds = 5000)
     {
         T? returnValue = default;
