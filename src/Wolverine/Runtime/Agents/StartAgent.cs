@@ -13,4 +13,29 @@ internal record StartAgent(Uri AgentUri) : IAgentCommand
         await runtime.Agents.StartLocallyAsync(AgentUri);
         yield break;
     }
+
+    public virtual bool Equals(StartAgent? other)
+    {
+        if (ReferenceEquals(null, other))
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+
+        return AgentUri.Equals(other.AgentUri);
+    }
+
+    public override int GetHashCode()
+    {
+        return AgentUri.GetHashCode();
+    }
+
+    public override string ToString()
+    {
+        return $"Start agent {AgentUri}";
+    }
 }
