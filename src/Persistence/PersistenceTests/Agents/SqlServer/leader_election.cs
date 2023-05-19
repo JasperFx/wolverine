@@ -189,23 +189,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime, IObserver<IWol
         await tracker.WaitUntilAssumesLeadership(5.Seconds());
         
         var host2 = await startHostAsync();
-        // This is just to eliminate some errors in test output
-        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
-        {
-            w.ExpectRunningAgents(_originalHost, 6);
-            w.ExpectRunningAgents(host2, 6);
-        }, 30.Seconds());
-        
         var host3 = await startHostAsync();
-        
-        // This is just to eliminate some errors in test output
-        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
-        {
-            w.ExpectRunningAgents(_originalHost, 4);
-            w.ExpectRunningAgents(host2, 4);
-            w.ExpectRunningAgents(host3, 4);
-        }, 30.Seconds());
-        
         var host4 = await startHostAsync();
         
         // This is just to eliminate some errors in test output

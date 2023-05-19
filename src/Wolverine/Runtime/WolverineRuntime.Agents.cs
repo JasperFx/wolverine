@@ -83,7 +83,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
         _systemQueue = (BufferedLocalQueue)Endpoints.GetOrBuildSendingAgent(TransportConstants.SystemQueueUri);
 
-        _agents = new NodeAgentController(Tracker, Storage.Nodes, _container.GetAllInstances<IAgentController>(),
+        _agents = new NodeAgentController(this, Tracker, Storage.Nodes, _container.GetAllInstances<IAgentController>(),
             LoggerFactory.CreateLogger<NodeAgentController>(), Options.Durability.Cancellation);
 
         _agents.AddHandlers(this);
