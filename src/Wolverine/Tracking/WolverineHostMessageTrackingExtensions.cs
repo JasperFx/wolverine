@@ -58,8 +58,9 @@ public static class WolverineHostMessageTrackingExtensions
     ///     Invoke the given message and wait until all cascading messages
     ///     have completed
     /// </summary>
-    /// <param name="runtime"></param>
-    /// <param name="action"></param>
+    /// <param name="host"></param>
+    /// <param name="message"></param>
+    /// <param name="timeoutInMilliseconds"></param>
     /// <returns></returns>
     public static Task<ITrackedSession> InvokeMessageAndWaitAsync(this IHost host, object message,
         int timeoutInMilliseconds = 5000)
@@ -71,8 +72,10 @@ public static class WolverineHostMessageTrackingExtensions
     ///     Invoke the given message and wait until all cascading messages
     ///     have completed
     /// </summary>
-    /// <param name="runtime"></param>
-    /// <param name="action"></param>
+    /// <param name="host"></param>
+    /// <param name="message"></param>
+    /// <param name="tenantId"></param>
+    /// <param name="timeoutInMilliseconds"></param>
     /// <returns></returns>
     public static Task<ITrackedSession> InvokeMessageAndWaitAsync(this IHost host, object message,
         string? tenantId = null,
@@ -89,8 +92,9 @@ public static class WolverineHostMessageTrackingExtensions
     ///     Invoke the given message with the expectation of a result T and wait until all cascading messages
     ///     have completed
     /// </summary>
-    /// <param name="runtime"></param>
-    /// <param name="action"></param>
+    /// <param name="host"></param>
+    /// <param name="message"></param>
+    /// <param name="timeoutInMilliseconds"></param>
     /// <returns></returns>
     public static async Task<(ITrackedSession, T?)> InvokeMessageAndWaitAsync<T>(this IHost host, object message,
         int timeoutInMilliseconds = 5000)
@@ -105,15 +109,21 @@ public static class WolverineHostMessageTrackingExtensions
     ///     Invoke the given message with the expectation of a result T and wait until all cascading messages
     ///     have completed
     /// </summary>
-    /// <param name="runtime"></param>
-    /// <param name="action"></param>
+    /// <param name="host"></param>
+    /// <param name="message"></param>
+    /// <param name="tenantId"></param>
+    /// <param name="timeoutInMilliseconds"></param>
     /// <returns></returns>
     public static async Task<(ITrackedSession, T?)> InvokeMessageAndWaitAsync<T>(this IHost host, object message,
         string? tenantId = null,
         int timeoutInMilliseconds = 5000)
     {
         T? returnValue = default;
-        var tracked = await host.ExecuteAndWaitAsync(async c => returnValue = await c.InvokeAsync<T>(message), timeoutInMilliseconds);
+        var tracked = await host.ExecuteAndWaitAsync(async c =>
+        {
+            c.TenantId = tenantId;
+            returnValue = await c.InvokeAsync<T>(message);
+        }, timeoutInMilliseconds);
 
         return (tracked, returnValue);
     }
