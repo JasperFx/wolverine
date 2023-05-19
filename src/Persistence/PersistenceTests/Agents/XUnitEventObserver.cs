@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Logging;
 using Wolverine.Runtime.Agents;
@@ -34,7 +35,7 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>
     {
         if (value is AgentAssignmentsChanged changed)
         {
-            _output.WriteLine($"Host {_assignedId}: Agent assignments determined");
+            _output.WriteLine($"Host {_assignedId}: Agent assignments determined for known nodes {changed.AssignedNodeIds.Select(x => x.ToString()).Join(", ")}");
             foreach (var command in changed.Commands)
             {
                 _output.WriteLine($"* {command}");

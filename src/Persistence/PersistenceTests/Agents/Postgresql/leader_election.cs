@@ -1,7 +1,5 @@
 using IntegrationTests;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
-using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,10 +20,9 @@ namespace PersistenceTests.Agents.Postgresql;
 
 public class leader_election : PostgresqlContext, IAsyncLifetime
 {
+    private readonly List<IHost> _hosts = new();
     private readonly ITestOutputHelper _output;
     private IHost _originalHost;
-
-    private readonly List<IHost> _hosts = new();
 
     public leader_election(ITestOutputHelper output)
     {
@@ -39,13 +36,18 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         _originalHost = await startHostAsync();
     }
 
+    public async Task DisposeAsync()
+    {
+        foreach (var host in _hosts) await host.StopAsync();
+    }
+
     private async Task<IHost> startHostAsync()
     {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Services.AddSingleton<IAgentController, FakeAgentController>();
-                
+
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
@@ -53,7 +55,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
             }).StartAsync();
 
         new XUnitEventObserver(host, _output);
-        
+
         _hosts.Add(host);
 
         return host;
@@ -73,14 +75,6 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         await conn.CloseAsync();
     }
 
-    public async Task DisposeAsync()
-    {
-        foreach (var host in _hosts)
-        {
-            await host.StopAsync();
-        }
-    }
-
     [Fact]
     public async Task the_only_known_node_is_automatically_the_leader()
     {
@@ -88,7 +82,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         await tracker.WaitUntilAssumesLeadership(10.Seconds());
         tracker.IsLeader().ShouldBeTrue();
     }
-    
+
     /***** NEW TESTS START HERE **********************************************/
 
     private bool allAgentsAreRunning(WolverineTracker tracker)
@@ -96,7 +90,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         var agents = FakeAgentController.AllAgentUris();
         return agents.All(tracker.AgentIsRunning);
     }
-    
+
     [Fact]
     public async Task the_original_node_knows_about_all_the_possible_agents()
     {
@@ -116,9 +110,8 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
             w.ExpectRunningAgents(host2, 6);
         }, 10.Seconds());
     }
-    
-    
-    
+
+
     /***** NEW TESTS END HERE **********************************************/
 
     [Fact]
@@ -126,23 +119,23 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     {
         var tracker = _originalHost.GetRuntime().Tracker;
         await tracker.WaitUntilAssumesLeadership(5.Seconds());
-        
+
         var waiter = _originalHost.GetRuntime().Tracker.WaitForNodeEvent(NodeEventType.Started, 10.Seconds());
-        
+
         var host2 = await startHostAsync();
 
         var @event = await waiter;
 
-        var runtime2 = @host2.GetRuntime();
+        var runtime2 = host2.GetRuntime();
         @event.Node.Id.ShouldBe(runtime2.Options.UniqueNodeId);
 
         _originalHost.GetRuntime().Tracker.Nodes.ContainsKey(runtime2.Options.UniqueNodeId).ShouldBeTrue();
-        
+
         // Should not take over leadership
         runtime2.Tracker.IsLeader().ShouldBeFalse();
         _originalHost.GetRuntime().Tracker.IsLeader().ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task send_node_event_for_exiting_node()
     {
@@ -154,18 +147,18 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
             w.ExpectRunningAgents(_originalHost, 6);
             w.ExpectRunningAgents(host2, 6);
         }, 10.Seconds());
-        
+
         var waiter = _originalHost.GetRuntime().Tracker.WaitForNodeEvent(NodeEventType.Exiting, 10.Seconds());
         var host2Id = host2.GetRuntime().Options.UniqueNodeId;
 
         await shutdownHostAsync(host2);
 
         var @event = await waiter;
-        
+
         @event.Node.Id.ShouldBe(host2Id);
-        
+
         _originalHost.GetRuntime().Tracker.Nodes.Count.ShouldBe(1);
-        
+
         _originalHost.GetRuntime().Tracker.Nodes.ContainsKey(host2Id).ShouldBeFalse();
     }
 
@@ -174,27 +167,11 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     {
         var tracker = _originalHost.GetRuntime().Tracker;
         await tracker.WaitUntilAssumesLeadership(5.Seconds());
-        
+
         var host2 = await startHostAsync();
-        // This is just to eliminate some errors in test output
-        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
-        {
-            w.ExpectRunningAgents(_originalHost, 6);
-            w.ExpectRunningAgents(host2, 6);
-        }, 30.Seconds());
-        
         var host3 = await startHostAsync();
-        
-        // This is just to eliminate some errors in test output
-        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
-        {
-            w.ExpectRunningAgents(_originalHost, 4);
-            w.ExpectRunningAgents(host2, 4);
-            w.ExpectRunningAgents(host3, 4);
-        }, 30.Seconds());
-        
         var host4 = await startHostAsync();
-        
+
         // This is just to eliminate some errors in test output
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {
@@ -205,13 +182,11 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         }, 30.Seconds());
 
         await _originalHost.StopAsync();
-        
+
         await host2.GetRuntime().Tracker.WaitUntilAssumesLeadership(15.Seconds());
 
         await host2.StopAsync();
 
-        await host3.GetRuntime().Tracker.WaitUntilAssumesLeadership(15.Seconds());
+        await host3.GetRuntime().Tracker.WaitUntilAssumesLeadership(30.Seconds());
     }
-    
-
 }

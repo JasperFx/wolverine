@@ -1,5 +1,8 @@
+using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime.WorkerQueues;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -31,7 +34,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
     private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
 
-    internal NodeAgentController(INodeStateTracker tracker, INodeAgentPersistence persistence,
+    internal NodeAgentController(IWolverineRuntime runtime, INodeStateTracker tracker, INodeAgentPersistence persistence,
         IEnumerable<IAgentController> agentControllers, ILogger logger, CancellationToken cancellation)
     {
         _tracker = tracker;
@@ -42,6 +45,13 @@ public class NodeAgentController : IInternalHandler<StartAgents>
         }
         _cancellation = cancellation;
         _logger = logger;
+        
+        _assignmentBlock = new ActionBlock<EvaluateAssignments[]>(async batch =>
+        {
+            await new MessageBus(runtime).PublishAsync(new EvaluateAssignments());
+        }, new ExecutionDataflowBlockOptions{CancellationToken = runtime.Cancellation});
+
+        _assignmentBufferBlock = new BatchingBlock<EvaluateAssignments>(runtime.Options.Durability.EvaluateAssignmentBufferTime, _assignmentBlock);
     }
     
     public async IAsyncEnumerable<object> HandleAsync(StartAgents command)
@@ -118,7 +128,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
                     _tracker.RegisterAgents(agents);
                 }
 
-                yield return new EvaluateAssignments();
+                await requestAssignmentEvaluation();
             }
             else
             {
@@ -144,6 +154,11 @@ public class NodeAgentController : IInternalHandler<StartAgents>
         
         // Try it again
         yield return new TryAssumeLeadership();
+    }
+
+    private async Task requestAssignmentEvaluation()
+    {
+        await _assignmentBufferBlock.SendAsync(new EvaluateAssignments());
     }
 
     // Tested w/ integration tests all the way
@@ -173,7 +188,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
             }
         }
         
-        _tracker.Publish(new AgentAssignmentsChanged(commands));
+        _tracker.Publish(new AgentAssignmentsChanged(commands, _tracker.AllNodes().Select(x => x.AssignedNodeId).ToArray()));
         
         // TODO -- try to batch the commands
         // TODO -- raise events on agent start up failures
@@ -197,7 +212,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
                 if (_tracker.Self.IsLeader())
                 {
                     await _persistence.DeleteAsync(@event.Node.Id);
-                    yield return new EvaluateAssignments();
+                    await requestAssignmentEvaluation();
                 }
                 else if (_tracker.Leader == null || _tracker.Leader.Id == @event.Node.Id)
                 {
@@ -219,7 +234,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
                 _tracker.Add(@event.Node);
                 if (_tracker.Self.IsLeader())
                 {
-                    yield return new EvaluateAssignments();
+                    await requestAssignmentEvaluation();
                 }
 
                 break;
@@ -318,6 +333,8 @@ public class NodeAgentController : IInternalHandler<StartAgents>
     }
 
     private ImHashMap<Uri, IAgent> _agents = ImHashMap<Uri, IAgent>.Empty;
+    private readonly ActionBlock<EvaluateAssignments[]> _assignmentBlock;
+    private readonly BatchingBlock<EvaluateAssignments> _assignmentBufferBlock;
 
     private ValueTask<IAgent> findAgentAsync(Uri uri)
     {
@@ -341,6 +358,9 @@ public class NodeAgentController : IInternalHandler<StartAgents>
 
     public async Task StopAgentAsync(Uri agentUri)
     {
+        _assignmentBufferBlock.Complete();
+        _assignmentBlock.Complete();
+        
         if (_agents.TryFind(agentUri, out var agent))
         {
             await agent.StopAsync(_cancellation);

@@ -29,7 +29,7 @@ public class missing_handlers
 
         for (var i = 0; i < 4; i++)
         {
-            if (RecordingMissingHandler.Recorded.Any())
+            if (RecordingMissingHandler.Recorded.Any() && RecordingMissingHandler2.Recorded.Any() && RecordingMissingHandler3.Recorded.Any())
             {
                 break;
             }

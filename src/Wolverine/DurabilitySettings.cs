@@ -70,6 +70,7 @@ public class DurabilitySettings
     public TimeSpan HealthCheckPollingTime { get; set; } = 5.Seconds();
 
     public TimeSpan StaleNodeTimeout { get; set; } = 1.Minutes();
+    public TimeSpan EvaluateAssignmentBufferTime { get; set; } = 1.Seconds();
 
     /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is

@@ -264,12 +264,6 @@ public class try_assume_leadership_from_scratch_happy_path : NodeAgentController
     {
         theCascadedMessages.OfType<TryAssumeLeadership>().Any().ShouldBeFalse();
     }
-
-    [Fact]
-    public void should_trigger_an_assignment_evaluation()
-    {
-        theCascadedMessages.OfType<EvaluateAssignments>().Single().ShouldNotBeNull();
-    }
 }
 
 public class try_assume_leadership_from_scratch_nothing_is_assigned : NodeAgentControllerTestsContext
@@ -458,24 +452,6 @@ public class handling_node_events : NodeAgentControllerTestsContext
         theCascadedMessages.ShouldBeEmpty();
     }
 
-    [Fact]
-    public async Task get_a_new_node_when_the_leader()
-    {
-        theTracker.Publish(new NodeEvent(theNodes.Self, NodeEventType.LeadershipAssumed));
-        await theTracker.WaitUntilAssumesLeadership(10.Seconds());
-        
-        var node = new WolverineNode
-        {
-            Id = Guid.NewGuid(),
-            AssignedNodeId = 5,
-            ControlUri = new Uri("fake://5"),
-        };
-
-        var e = new NodeEvent(node, NodeEventType.Started);
-        await afterHandlingEvent(e);
-
-        theCascadedMessages.Single().ShouldBeOfType<EvaluateAssignments>();
-    }
 
     [Fact]
     public async Task get_node_exiting_when_not_the_leader_and_that_node_is_not_leader()
@@ -507,7 +483,6 @@ public class handling_node_events : NodeAgentControllerTestsContext
         
         thePublishedEvents.ShouldContain(e);
 
-        theCascadedMessages.Single().ShouldBeOfType<EvaluateAssignments>();
     }
 
     [Fact]
@@ -567,7 +542,7 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
     protected readonly List<IWolverineEvent> thePublishedEvents = new();
     protected readonly CancellationToken theCancellation = CancellationToken.None;
     protected readonly List<IAgentController> theControllers = new();
-    protected NodeAgentController theController;
+    
     protected readonly List<object> theCascadedMessages = new();
 
     protected NodeAgentControllerTestsContext()
@@ -580,6 +555,19 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
 
         theNodes = theTracker.As<INodeStateTracker>();
+    }
+
+    private NodeAgentController _controller;
+
+    protected NodeAgentController theController
+    {
+        get
+        {
+            _controller ??= new NodeAgentController(new MockWolverineRuntime(), theTracker, thePersistence, theControllers, NullLogger.Instance,
+                theCancellation);
+
+            return _controller;
+        }
     }
 
     public abstract Task InitializeAsync();
@@ -605,9 +593,6 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
     public async Task afterStarting()
     {
-        theController = new NodeAgentController(theTracker, thePersistence, theControllers, NullLogger.Instance,
-            theCancellation);
-        
         await foreach (var message in theController.HandleAsync(new StartAgents(theOptions)).WithCancellation(theCancellation))
         {
             theCascadedMessages.Add(message);
@@ -618,10 +603,6 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
     public async Task afterHandlingEvent(NodeEvent @event)
     {
-        theController = new NodeAgentController(theTracker, thePersistence, theControllers, NullLogger.Instance,
-            theCancellation);
-        
-        
         await foreach (var message in theController.HandleAsync(@event).WithCancellation(theCancellation))
         {
             theCascadedMessages.Add(message);
