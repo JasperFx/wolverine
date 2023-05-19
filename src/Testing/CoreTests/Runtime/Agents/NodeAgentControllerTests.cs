@@ -593,7 +593,7 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
     public async Task afterStarting()
     {
-        await foreach (var message in theController.HandleAsync(new StartAgents(theOptions)).WithCancellation(theCancellation))
+        await foreach (var message in theController.HandleAsync(new StartLocalAgentProcessing(theOptions)).WithCancellation(theCancellation))
         {
             theCascadedMessages.Add(message);
         }

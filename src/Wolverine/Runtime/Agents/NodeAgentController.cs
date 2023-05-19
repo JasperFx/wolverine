@@ -10,7 +10,7 @@ namespace Wolverine.Runtime.Agents;
 
 internal interface IInternalMessage{}
 
-public record StartAgents(WolverineOptions Options) : IInternalMessage;
+public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMessage;
 
 public record EvaluateAssignments : IInternalMessage;
 
@@ -18,7 +18,7 @@ public record CheckAgentHealth : IInternalMessage;
 
 
 
-public class NodeAgentController : IInternalHandler<StartAgents>
+public class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
     , IInternalHandler<TryAssumeLeadership>
     , IInternalHandler<NodeEvent>
     , IInternalHandler<EvaluateAssignments>
@@ -56,7 +56,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
         _assignmentBufferBlock = new BatchingBlock<EvaluateAssignments>(runtime.Options.Durability.EvaluateAssignmentBufferTime, _assignmentBlock);
     }
     
-    public async IAsyncEnumerable<object> HandleAsync(StartAgents command)
+    public async IAsyncEnumerable<object> HandleAsync(StartLocalAgentProcessing command)
     {
         _logger.LogInformation("Starting agents for Node {NodeId}", command.Options.UniqueNodeId);
         var others = await _persistence.LoadAllNodesAsync(_cancellation);
@@ -287,7 +287,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
     {
         var handlers = runtime.Handlers;
         handlers.AddMessageHandler(typeof(NodeEvent),new InternalMessageHandler<NodeEvent>(this));
-        handlers.AddMessageHandler(typeof(StartAgents),new InternalMessageHandler<StartAgents>(this));
+        handlers.AddMessageHandler(typeof(StartLocalAgentProcessing),new InternalMessageHandler<StartLocalAgentProcessing>(this));
         handlers.AddMessageHandler(typeof(EvaluateAssignments),new InternalMessageHandler<EvaluateAssignments>(this));
         handlers.AddMessageHandler(typeof(TryAssumeLeadership),new InternalMessageHandler<TryAssumeLeadership>(this));
         handlers.AddMessageHandler(typeof(CheckAgentHealth),new InternalMessageHandler<CheckAgentHealth>(this));

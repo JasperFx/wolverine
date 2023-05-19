@@ -93,7 +93,7 @@ public partial class WolverineRuntime : IAgentRuntime
             Options.Durability.HealthCheckPollingTime);
 
         var bus = new MessageBus(this);
-        await bus.InvokeAsync(new StartAgents(Options), Cancellation);
+        await bus.InvokeAsync(new StartLocalAgentProcessing(Options), Cancellation);
     }
 
     private void fireHealthCheck(object? state)
