@@ -191,9 +191,11 @@ public class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
             {
                 commands.Add(agentCommand);
             }
-        }
+        }   
         
         _tracker.Publish(new AgentAssignmentsChanged(commands, _tracker.AllNodes().Select(x => x.AssignedNodeId).ToArray()));
+
+        batchCommands(commands);
         
         // TODO -- try to batch the commands
         // TODO -- raise events on agent start up failures
@@ -201,6 +203,33 @@ public class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
         foreach (var agentCommand in commands)
         {
             yield return agentCommand;
+        }
+    }
+
+    private static void batchCommands(List<IAgentCommand> commands)
+    {
+        foreach (var group in commands.OfType<AssignAgent>().GroupBy(x => x.NodeId).Where(x => x.Count() > 1).ToArray())
+        {
+            var assignAgents = new AssignAgents(group.Key, group.Select(x => x.AgentUri).ToArray());
+
+            foreach (var message in group)
+            {
+                commands.Remove(message);
+            }
+
+            commands.Add(assignAgents);
+        }
+        
+        foreach (var group in commands.OfType<StopRemoteAgent>().GroupBy(x => x.NodeId).Where(x => x.Count() > 1).ToArray())
+        {
+            var stopAgents = new StopRemoteAgents(group.Key, group.Select(x => x.AgentUri).ToArray());
+
+            foreach (var message in group)
+            {
+                commands.Remove(message);
+            }
+
+            commands.Add(stopAgents);
         }
     }
 
@@ -295,7 +324,11 @@ public class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
         handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(runtime));
         
         handlers.RegisterMessageType(typeof(StartAgent));
+        handlers.RegisterMessageType(typeof(StartAgents));
+        handlers.RegisterMessageType(typeof(AgentsStarted));
+        handlers.RegisterMessageType(typeof(AgentsStopped));
         handlers.RegisterMessageType(typeof(StopAgent));
+        handlers.RegisterMessageType(typeof(StopAgents));
 
     }
 
