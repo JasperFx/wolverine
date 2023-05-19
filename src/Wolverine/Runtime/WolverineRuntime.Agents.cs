@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
@@ -49,7 +50,7 @@ public partial class WolverineRuntime : IAgentRuntime
         else if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            await new MessageBus(this).EndpointFor(endpoint).InvokeAsync(command, Cancellation);
+            await new MessageBus(this).EndpointFor(endpoint).InvokeAsync(command, Cancellation, 10.Seconds());
         }
         else
         {
@@ -66,7 +67,7 @@ public partial class WolverineRuntime : IAgentRuntime
         if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            return await new MessageBus(this).EndpointFor(endpoint).InvokeAsync<T>(command, Cancellation);
+            return await new MessageBus(this).EndpointFor(endpoint).InvokeAsync<T>(command, Cancellation, 10.Seconds());
         }
 
         throw new UnknownWolverineNodeException(nodeId);
@@ -116,7 +117,14 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         if (AgentTimer != null)
         {
-            await AgentTimer.DisposeAsync();
+            try
+            {
+                await AgentTimer.DisposeAsync();
+            }
+            catch (Exception)
+            {
+                // Don't really care, make this stop
+            }
         }
 
         if (_agents != null)

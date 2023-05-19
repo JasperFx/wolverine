@@ -36,6 +36,8 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>
         if (value is AgentAssignmentsChanged changed)
         {
             _output.WriteLine($"Host {_assignedId}: Agent assignments determined for known nodes {changed.AssignedNodeIds.Select(x => x.ToString()).Join(", ")}");
+            if (!changed.Commands.Any()) _output.WriteLine("No assignment changes detected");
+            
             foreach (var command in changed.Commands)
             {
                 _output.WriteLine($"* {command}");
