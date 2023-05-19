@@ -10,7 +10,6 @@ internal class DatabaseControlEndpoint : Endpoint
 {
     public Guid NodeId { get; }
     private readonly DatabaseControlTransport _parent;
-    private readonly System.Threading.Timer _timer;
 
     public DatabaseControlEndpoint(DatabaseControlTransport parent, Guid nodeId) : base(new Uri($"{DatabaseControlTransport.ProtocolName}://{nodeId}"), EndpointRole.System)
     {

@@ -24,7 +24,7 @@ public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEven
 
                 foreach (var uri in Node.ActiveAgents)
                 {
-                    tracker.Agents.Remove(uri);
+                    tracker.Agents[uri] = null;
                 }
                 
                 tracker.Nodes.Remove(Node.Id);

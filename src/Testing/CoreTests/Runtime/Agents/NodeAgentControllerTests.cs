@@ -364,7 +364,7 @@ public class try_assume_leadership_and_another_node_was_already_there : NodeAgen
         }
 
         thePersistence.MarkNodeAsLeaderAsync(null, theOptions.UniqueNodeId).Returns(node3.Id);
-        thePersistence.LoadNodeAsync(node3.Id).Returns(node3);
+        thePersistence.LoadNodeAsync(node3.Id, theCancellation).Returns(node3);
         
         theNodes.MarkCurrent(WolverineNode.For(theOptions));
         

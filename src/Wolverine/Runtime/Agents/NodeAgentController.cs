@@ -25,7 +25,8 @@ public class NodeAgentController : IInternalHandler<StartAgents>
     , IInternalHandler<CheckAgentHealth>
 {
     public static readonly Uri LeaderUri = new("wolverine://leader");
-    
+
+    private readonly IWolverineRuntime _runtime;
     private readonly INodeStateTracker _tracker;
     private readonly INodeAgentPersistence _persistence;
 
@@ -37,6 +38,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
     internal NodeAgentController(IWolverineRuntime runtime, INodeStateTracker tracker, INodeAgentPersistence persistence,
         IEnumerable<IAgentController> agentControllers, ILogger logger, CancellationToken cancellation)
     {
+        _runtime = runtime;
         _tracker = tracker;
         _persistence = persistence;
         foreach (var agentController in agentControllers)
@@ -132,7 +134,7 @@ public class NodeAgentController : IInternalHandler<StartAgents>
             }
             else
             {
-                var leader = await _persistence.LoadNodeAsync(assigned.Value);
+                var leader = await _persistence.LoadNodeAsync(assigned.Value, _cancellation);
 
                 if (leader != null)
                 {
@@ -170,6 +172,9 @@ public class NodeAgentController : IInternalHandler<StartAgents>
         {
             try
             {
+                var allAgents = await controller.AllKnownAgentsAsync();
+                grid.WithAgents(allAgents.ToArray()); // Just in case something has gotten lost, and this is master anyway
+
                 await controller.EvaluateAssignmentsAsync(grid);
             }
             catch (Exception e)
@@ -310,12 +315,29 @@ public class NodeAgentController : IInternalHandler<StartAgents>
         
         try
         {
-            // Don't trust the in memory storage of nodes, fetch from storage
-            var controlUris = await _persistence.LoadAllOtherNodeControlUrisAsync(_tracker.Self.Id);
-            foreach (var uri in controlUris)
+            if (_tracker.Self.IsLeader())
             {
-                await messageBus.EndpointFor(uri).SendAsync(new NodeEvent(_tracker.Self, NodeEventType.Exiting));
+                // notify everyone
+                // Don't trust the in memory storage of nodes, fetch from storage
+                var controlUris = await _persistence.LoadAllOtherNodeControlUrisAsync(_tracker.Self.Id);
+                foreach (var uri in controlUris)
+                {
+                    await messageBus.EndpointFor(uri).SendAsync(new NodeEvent(_tracker.Self, NodeEventType.Exiting));
+                }
             }
+            else
+            {
+                // Don't trust the in memory storage of nodes, fetch from storage
+                // ONLY notify the leader. Makes tests work better:)
+                var controlUri = await _persistence.FindLeaderControlUriAsync(_tracker.Self.Id);
+            
+                if (controlUri != null)
+                {
+                    await messageBus.EndpointFor(controlUri).SendAsync(new NodeEvent(_tracker.Self, NodeEventType.Exiting));
+                }
+            }
+            
+
         }
         catch (Exception e)
         {

@@ -89,7 +89,7 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
     }
 
     // TODO -- unit test this
-    public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId)
+    public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }
@@ -180,17 +180,17 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         return leader;
     }
 
-    public async Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
+    public async Task<Uri?> FindLeaderControlUriAsync(Guid selfId)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
 
-        var list = await conn.CreateCommand($"select uri from {_nodeTable} where id != @id").With("id", selfId)
-            .FetchListAsync<string>();
+        var raw = await conn.CreateCommand($"select uri from {_nodeTable} inner join {_assignmentTable} on {_nodeTable}.id = {_assignmentTable}.node_id where {_assignmentTable}.id = @id").With("id", NodeAgentController.LeaderUri.ToString())
+            .ExecuteScalarAsync();
 
         await conn.CloseAsync();
 
-        return list.Select(x => x.ToUri()).ToList();
+        return raw == null ? null : new Uri((string)raw);
     }
 
     private async Task<Guid?> currentLeaderAsync(SqlConnection conn)
@@ -206,5 +206,18 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         }
 
         return null;
+    }
+    
+    public async Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        var list = await conn.CreateCommand($"select uri from {_nodeTable} where id != @id").With("id", selfId)
+            .FetchListAsync<string>();
+
+        await conn.CloseAsync();
+
+        return list.Select(x => x.ToUri()).ToList();
     }
 }

@@ -93,9 +93,31 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
     }
 
     // TODO -- unit test this
-    public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId)
+    public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        var cmd = CommandExtensions.CreateCommand(conn,
+            $"select id, node_number, description, uri, started, capabilities from {_nodeTable} where id = :id;select id, node_id, started from {_assignmentTable} where node_id = :id;")
+            .With("id", nodeId);
+
+        WolverineNode returnValue = null;
+        
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            returnValue = await readNode(reader);
+            
+            await reader.NextResultAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var agentId = new Uri(await reader.GetFieldValueAsync<string>(0, cancellationToken));
+                returnValue.ActiveAgents.Add(agentId);
+            }
+        }
+
+        return returnValue;
     }
 
     // TODO -- unit test this
@@ -157,7 +179,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
             }
             catch (NpgsqlException e)
             {
-                if (e.ErrorCode == 23503 && e.Message.Contains("violates foreign key constraint"))
+                if (e.Message.Contains("violates foreign key constraint \"fkey_wolverine_node_assignments_node_id\""))
                 {
                     return null;
                 }
@@ -177,6 +199,19 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         return leader;
     }
 
+    public async Task<Uri?> FindLeaderControlUriAsync(Guid selfId)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        var raw = await conn.CreateCommand($"select uri from {_nodeTable} inner join {_assignmentTable} on {_nodeTable}.id = {_assignmentTable}.node_id where {_assignmentTable}.id = :id").With("id", NodeAgentController.LeaderUri.ToString())
+            .ExecuteScalarAsync();
+
+        await conn.CloseAsync();
+
+        return raw == null ? null : new Uri((string)raw);
+    }
+    
     public async Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
     {
         await using var conn = new NpgsqlConnection(_settings.ConnectionString);

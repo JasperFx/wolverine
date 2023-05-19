@@ -8,7 +8,8 @@ public interface INodeAgentPersistence
 
     Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken);
     Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id);
-    Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId);
-    Task<WolverineNode?> LoadNodeAsync(Guid nodeId);
+    Task<Uri?> FindLeaderControlUriAsync(Guid selfId);
+    Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken);
     Task MarkHealthCheckAsync(Guid nodeId);
+    Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId);
 }
