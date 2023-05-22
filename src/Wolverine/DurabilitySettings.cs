@@ -70,6 +70,11 @@ public class DurabilitySettings
     public TimeSpan HealthCheckPollingTime { get; set; } = 5.Seconds();
 
     public TimeSpan StaleNodeTimeout { get; set; } = 1.Minutes();
+    
+    /// <summary>
+    /// How long should Wolverine buffer requests to evaluate assignments
+    /// to prevent unnecessary assignment operations
+    /// </summary>
     public TimeSpan EvaluateAssignmentBufferTime { get; set; } = 1.Seconds();
 
     /// <summary>

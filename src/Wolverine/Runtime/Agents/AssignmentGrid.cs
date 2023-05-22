@@ -12,6 +12,7 @@ public class AssignmentGrid
     public IReadOnlyList<Node> Nodes => _nodes;
 
     public IReadOnlyList<Agent> AllAgents => _agents.Values.ToList();
+    public DateTimeOffset EvaluationTime { get; set; }
 
     public static AssignmentGrid ForTracker(INodeStateTracker tracker)
     {
