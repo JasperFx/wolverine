@@ -415,4 +415,57 @@ public class assigning_agent_logic
             grid.AgentFor(agentUri).ActiveNode.ShouldNotBeNull();
         }
     }
+
+    [Fact]
+    public void find_delta_with_missing_agent()
+    {
+        var grid = new AssignmentGrid();
+
+        var node1 = grid.WithNode(1, Guid.NewGuid()).Running(blue1, blue2);
+        var node2 = grid.WithNode(2, Guid.NewGuid()).Running(blue3, blue4);
+        var node3 = grid.WithNode(3, Guid.NewGuid()).Running(red1, red2);
+
+        var dict = grid.CompileAssignments();
+
+        dict.Remove(blue2);
+
+        var delta = grid.FindDelta(dict).ToArray();
+        delta.Single().ShouldBe(new AssignAgent(blue2, node1.NodeId));
+    }
+
+    [Fact]
+    public async Task find_delta_with_extra_agent()
+    {
+        var grid = new AssignmentGrid();
+
+        var node1 = grid.WithNode(1, Guid.NewGuid()).Running(blue1, blue2);
+        var node2 = grid.WithNode(2, Guid.NewGuid()).Running(blue3, blue4);
+        var node3 = grid.WithNode(3, Guid.NewGuid()).Running(red1, red2);
+
+        var dict = grid.CompileAssignments();
+
+        dict.Add(green8, node2.NodeId);
+        
+        var delta = grid.FindDelta(dict).ToArray();
+        delta.Single().ShouldBe(new StopRemoteAgent(green8, node2.NodeId));
+        
+    }
+
+    [Fact]
+    public void find_delta_when_agent_is_running_on_wrong_node()
+    {
+        var grid = new AssignmentGrid();
+
+        var node1 = grid.WithNode(1, Guid.NewGuid()).Running(blue1, blue2);
+        var node2 = grid.WithNode(2, Guid.NewGuid()).Running(blue3, blue4);
+        var node3 = grid.WithNode(3, Guid.NewGuid()).Running(red1, red2);
+
+        var dict = grid.CompileAssignments();
+
+        dict[red1] = node1.NodeId;
+        
+        var delta = grid.FindDelta(dict).ToArray();
+        delta.Single().ShouldBe(new ReassignAgent(red1, node1.NodeId, node3.NodeId));
+
+    }
 }
