@@ -92,7 +92,6 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         return nodes;
     }
 
-    // TODO -- unit test this
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         await using var conn = new NpgsqlConnection(_settings.ConnectionString);
@@ -153,11 +152,36 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await conn.CloseAsync();
     }
 
+    public async Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await conn.CreateCommand($"delete from {_assignmentTable} where id = :id and node_id = :node")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteNonQueryAsync(cancellationToken);
+        
+        await conn.CloseAsync();
+    }
+
+    public async Task AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await conn.CreateCommand($"insert into {_assignmentTable} (id, node_id) values (:id, :node) on conflict (id) do update set node_id = :node;")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteNonQueryAsync(cancellationToken);
+        
+        await conn.CloseAsync();
+    }
+
     public async Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
     {
         await using var conn = new NpgsqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
-
 
         var lockResult = await conn.TryGetGlobalLock(LeaderLockId);
         if (lockResult == AttainLockResult.Success)

@@ -54,6 +54,7 @@ public class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
         }, new ExecutionDataflowBlockOptions{CancellationToken = runtime.Cancellation});
 
         _assignmentBufferBlock = new BatchingBlock<EvaluateAssignments>(runtime.Options.Durability.EvaluateAssignmentBufferTime, _assignmentBlock);
+        
     }
     
     public async IAsyncEnumerable<object> HandleAsync(StartLocalAgentProcessing command)
@@ -297,18 +298,14 @@ public class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
         
         if (_tracker.Self.IsLeader())
         {
-                        
+            // check health of each node. 
+            // verify that all agents are assigned? Run assignment through the agents? How do we know when to trip off?
         }
         else
         {
-            
+            // potentially trigger leadership if leader appears to be offline
         }
-        
-        // mark agent as healthy
-        // probe agents?
-        // ping leader
-        // if leader, ping other nodes
-        // potentially trigger leadership
+
         yield break;
     }
 
@@ -409,6 +406,15 @@ public class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
         await agent.StartAsync(_cancellation);
 
         _agents = _agents.AddOrUpdate(agentUri, agent);
+
+        try
+        {
+            await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to persist the assignment of agent {AgentUri} to Node {NodeId}", agentUri, _runtime.Options.UniqueNodeId);
+        }
     }
 
     public async Task StopAgentAsync(Uri agentUri)
@@ -420,6 +426,15 @@ public class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
         {
             await agent.StopAsync(_cancellation);
             _agents = _agents.Remove(agentUri);
+            
+            try
+            {
+                await _persistence.RemoveAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to remove the assignment of agent {AgentUri} to Node {NodeId} in persistence", agentUri, _runtime.Options.UniqueNodeId);
+            }
         }
     }
     

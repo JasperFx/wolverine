@@ -60,9 +60,6 @@ public interface IMessageStore : IAsyncDisposable
     // TODO -- split by tenant under the covers
 
 
-
-
-
     [Obsolete("Will have to have tenant id now?, or all dead letter queue goes to main DB?")]
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
 

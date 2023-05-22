@@ -222,5 +222,70 @@ public class node_persistence : PostgresqlContext, IAsyncLifetime
         var persistedNode1 = nodes.Single(x => x.Id == node1.Id);
         persistedNode1.IsLeader().ShouldBeFalse();
     }
+    
+        [Fact]
+    public async Task add_assignments_one_at_a_time()
+    {
+        var id = Guid.NewGuid();
+        var node = new WolverineNode
+        {
+            Id = id,
+            ControlUri = new Uri($"dbcontrol://{id}"),
+            Description = Environment.MachineName,
+            
+        };
+        
+        node.Capabilities.Add(new Uri("red://"));
+        node.Capabilities.Add(new Uri("blue://"));
+        node.Capabilities.Add(new Uri("green://"));
+
+        var assignedId = await _database.Nodes.PersistAsync(node, CancellationToken.None);
+
+        var agent1 = new Uri("red://leader");
+        var agent2 = new Uri("red://five");
+        var agent3 = new Uri("blue://leader");
+
+        await _database.Nodes.AddAssignmentAsync(id, agent1, CancellationToken.None);
+        await _database.Nodes.AddAssignmentAsync(id, agent2, CancellationToken.None);
+        await _database.Nodes.AddAssignmentAsync(id, agent3, CancellationToken.None);
+        
+        var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
+        var persisted = nodes.Single();
+        persisted.ActiveAgents.OrderBy(x => x.ToString()).ShouldHaveTheSameElementsAs(agent3, agent2, agent1);
+    }
+
+    [Fact]
+    public async Task remove_an_assignment()
+    {
+        var id = Guid.NewGuid();
+        var node = new WolverineNode
+        {
+            Id = id,
+            ControlUri = new Uri($"dbcontrol://{id}"),
+            Description = Environment.MachineName,
+            
+        };
+        
+        node.Capabilities.Add(new Uri("red://"));
+        node.Capabilities.Add(new Uri("blue://"));
+        node.Capabilities.Add(new Uri("green://"));
+
+        var assignedId = await _database.Nodes.PersistAsync(node, CancellationToken.None);
+
+        var agent1 = new Uri("red://leader");
+        var agent2 = new Uri("red://five");
+        var agent3 = new Uri("blue://leader");
+
+        await _database.Nodes.AddAssignmentAsync(id, agent1, CancellationToken.None);
+        await _database.Nodes.AddAssignmentAsync(id, agent2, CancellationToken.None);
+        await _database.Nodes.AddAssignmentAsync(id, agent3, CancellationToken.None);
+
+        // Now remove 1
+        await _database.Nodes.RemoveAssignmentAsync(id, agent1, CancellationToken.None);
+        
+        var persisted = await _database.Nodes.LoadNodeAsync(node.Id, CancellationToken.None);
+        persisted.ActiveAgents.ShouldHaveTheSameElementsAs(agent3, agent2);
+    }
+
 
 }
