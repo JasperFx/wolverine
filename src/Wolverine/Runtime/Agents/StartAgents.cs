@@ -90,7 +90,7 @@ internal record AgentsStopped(Uri[] AgentUris);
 
 internal record StopAgents(Uri[] AgentUris) : IAgentCommand
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var successful = new List<Uri>();
         foreach (var agentUri in AgentUris)

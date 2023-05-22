@@ -88,10 +88,31 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         return nodes;
     }
 
-    // TODO -- unit test this
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        var cmd = CommandExtensions.CreateCommand(conn,
+                $"select id, node_number, description, uri, started, capabilities from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
+            .With("id", nodeId);
+
+        WolverineNode returnValue = null;
+        
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            returnValue = await readNode(reader);
+            
+            await reader.NextResultAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var agentId = new Uri(await reader.GetFieldValueAsync<string>(0, cancellationToken));
+                returnValue.ActiveAgents.Add(agentId);
+            }
+        }
+
+        return returnValue;
     }
 
     // TODO -- unit test this
@@ -143,6 +164,32 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         await builder.ExecuteNonQueryAsync(conn, cancellationToken);
 
 
+        await conn.CloseAsync();
+    }
+    
+    public async Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await conn.CreateCommand($"delete from {_assignmentTable} where id = @id and node_id = @node")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteNonQueryAsync(cancellationToken);
+        
+        await conn.CloseAsync();
+    }
+
+    public async Task AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await conn.CreateCommand($"delete from {_assignmentTable} where id = @id;insert into {_assignmentTable} (id, node_id) values (@id, @node);")
+            .With("id", agentUri.ToString())
+            .With("node", nodeId)
+            .ExecuteNonQueryAsync(cancellationToken);
+        
         await conn.CloseAsync();
     }
 
