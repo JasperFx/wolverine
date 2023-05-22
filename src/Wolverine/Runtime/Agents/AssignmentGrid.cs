@@ -143,6 +143,43 @@ public class AssignmentGrid
         _nodes.Remove(node);
     }
 
+    /// <summary>
+    /// The point of this is to find any agents that are currently misaligned with the
+    /// expected assignments
+    /// </summary>
+    /// <param name="actuals"></param>
+    /// <returns></returns>
+    public IEnumerable<IAgentCommand> FindDelta(Dictionary<Uri, Guid> actuals)
+    {
+        foreach (var assignment in _agents)
+        {
+            if (actuals.TryGetValue(assignment.Key, out var actual))
+            {
+                var specified = assignment.Value.ActiveNode;
+                if (specified == null)
+                {
+                    // Should not be running, so stop it
+                    yield return new StopRemoteAgent(assignment.Key, actual);
+                }
+                else if (actual != specified.NodeId)
+                {
+                    // Running in wrong place, reassign to correct place
+                    yield return new ReassignAgent(assignment.Key, actual, specified.NodeId);
+                }
+            }
+            else if (assignment.Value.ActiveNode != null)
+            {
+                // Missing, so add it
+                yield return new AssignAgent(assignment.Key, assignment.Value.ActiveNode.NodeId);
+            }
+        }
+
+        foreach (var actual in actuals.Where(pair => !_agents.ContainsKey(pair.Key)))
+        {
+            yield return new StopRemoteAgent(actual.Key, actual.Value);
+        }
+    }
+
     public class Agent
     {
         private readonly AssignmentGrid _parent;
@@ -288,5 +325,19 @@ public class AssignmentGrid
             agent.ActiveNode = this;
             _agents.Fill(agent);
         }
+    }
+
+    public Dictionary<Uri, Guid> CompileAssignments()
+    {
+        var dict = new Dictionary<Uri, Guid>();
+        foreach (var pair in _agents)
+        {
+            if (pair.Value.ActiveNode != null)
+            {
+                dict.Add(pair.Key, pair.Value.ActiveNode.NodeId);
+            }
+        }
+
+        return dict;
     }
 }
