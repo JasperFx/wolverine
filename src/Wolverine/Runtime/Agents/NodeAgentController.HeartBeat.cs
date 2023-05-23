@@ -12,7 +12,7 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
         
         if (_tracker.Self.IsLeader())
         {
-            // check health of each node. 
+            // check health of each node. Look for stale agents, and initiate a separate command to kick them off.
             // verify that all agents are assigned? Run assignment through the agents? How do we know when to trip off?
         }
         else
@@ -22,4 +22,7 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
 
         yield break;
     }
+    
+    // Separate command to initiate kicking off a stale node, so that gets unit tested
+    // TODO -- whole new command to check up on current assignments
 }

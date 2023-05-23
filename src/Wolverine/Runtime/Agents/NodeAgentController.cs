@@ -191,7 +191,14 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         if (_agents.Contains(agentUri)) return;
 
         var agent = await findAgentAsync(agentUri);
-        await agent.StartAsync(_cancellation);
+        try
+        {
+            await agent.StartAsync(_cancellation);
+        }
+        catch (Exception e)
+        {
+            throw new AgentStartingException(agentUri, _runtime.Options.UniqueNodeId, e);
+        }
 
         _agents = _agents.AddOrUpdate(agentUri, agent);
 
@@ -212,7 +219,15 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         
         if (_agents.TryFind(agentUri, out var agent))
         {
-            await agent.StopAsync(_cancellation);
+            try
+            {
+                await agent.StopAsync(_cancellation);
+            }
+            catch (Exception e)
+            {
+                throw new AgentStoppingException(agentUri, _runtime.Options.UniqueNodeId, e);
+            }
+            
             _agents = _agents.Remove(agentUri);
         }
         
@@ -227,4 +242,18 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
     }
     
     
+}
+
+public class AgentStartingException : Exception
+{
+    public AgentStartingException(Uri agentUri, Guid nodeId, Exception? innerException) : base($"Failed trying to start agent {agentUri} on node {nodeId}", innerException)
+    {
+    }
+}
+
+public class AgentStoppingException : Exception
+{
+    public AgentStoppingException(Uri agentUri, Guid nodeId, Exception? innerException) : base($"Failed trying to stop agent {agentUri} on node {nodeId}", innerException)
+    {
+    }
 }
