@@ -3,7 +3,7 @@ using Wolverine.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-public interface INodeStateTracker
+internal interface INodeStateTracker
 {
     WolverineNode Self { get; }
 

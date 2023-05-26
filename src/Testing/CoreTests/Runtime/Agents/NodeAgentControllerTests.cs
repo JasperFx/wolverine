@@ -15,7 +15,7 @@ public class starting_nodes_as_the_first_node : NodeAgentControllerTestsContext,
 {
     public override Task InitializeAsync()
     {
-        theControllers.Add(new FakeAgentController("blue"));
+        theControllers.Add(new FakeAgentFamily("blue"));
         return afterStarting();
     }
 
@@ -77,7 +77,7 @@ public class starting_a_second_node_with_an_existing_leader : NodeAgentControlle
         theOtherNodes.Add(node2);
         theOtherNodes.Add(node3);
 
-        theControllers.Add(new FakeAgentController("blue"));
+        theControllers.Add(new FakeAgentFamily("blue"));
         await afterStarting();
     }
     
@@ -149,7 +149,7 @@ public class starting_a_subsequent_node_with_no_existing_leader : NodeAgentContr
         theOtherNodes.Add(node2);
         theOtherNodes.Add(node3);
 
-        theControllers.Add(new FakeAgentController("blue"));
+        theControllers.Add(new FakeAgentFamily("blue"));
         await afterStarting();
     }
     
@@ -538,10 +538,10 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
     protected readonly INodeAgentPersistence thePersistence = Substitute.For<INodeAgentPersistence>();
     protected readonly WolverineTracker theTracker = new WolverineTracker(NullLogger.Instance);
-    protected readonly INodeStateTracker theNodes;
+    internal readonly INodeStateTracker theNodes;
     protected readonly List<IWolverineEvent> thePublishedEvents = new();
     protected readonly CancellationToken theCancellation = CancellationToken.None;
-    protected readonly List<IAgentController> theControllers = new();
+    protected readonly List<IAgentFamily> theControllers = new();
     
     protected readonly List<object> theCascadedMessages = new();
 
@@ -613,9 +613,9 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
 }
 
-public class FakeAgentController : IAgentController
+public class FakeAgentFamily : IAgentFamily
 {
-    public FakeAgentController(string protocol)
+    public FakeAgentFamily(string protocol)
     {
         Scheme = protocol;
     }

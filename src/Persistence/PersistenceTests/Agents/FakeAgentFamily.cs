@@ -3,7 +3,7 @@ using Wolverine.Runtime.Agents;
 
 namespace PersistenceTests.Agents;
 
-public class FakeAgentController : IAgentController
+public class FakeAgentFamily : IAgentFamily
 {
     public string Scheme { get; } = "fake";
 

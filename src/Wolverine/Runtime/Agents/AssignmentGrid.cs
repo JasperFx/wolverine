@@ -2,19 +2,36 @@ using JasperFx.Core;
 
 namespace Wolverine.Runtime.Agents;
 
+
+/// <summary>
+/// Models the desired assignment of agents between Wolverine nodes
+/// </summary>
 public class AssignmentGrid
 {
     private readonly Dictionary<Uri, Agent> _agents = new();
     private readonly List<Node> _nodes = new();
 
-    public IReadOnlyList<Agent> UnassignedAgents => _agents.Values.Where(x => x.ActiveNode == null).ToArray();
+    /// <summary>
+    /// The identity of all currently unassigned agents
+    /// </summary>
+    public IReadOnlyList<Agent> UnassignedAgents => _agents.Values.Where(x => x.AssignedNode == null).ToArray();
 
+    /// <summary>
+    /// Identity and location of all the currently executing nodes for this Wolverine application
+    /// </summary>
     public IReadOnlyList<Node> Nodes => _nodes;
 
+    /// <summary>
+    /// All agents, including a model of their current and intended node assignments
+    /// </summary>
     public IReadOnlyList<Agent> AllAgents => _agents.Values.ToList();
-    public DateTimeOffset EvaluationTime { get; set; }
+    
+    /// <summary>
+    /// Timestamp when this assignment grid was last updated
+    /// </summary>
+    public DateTimeOffset EvaluationTime { get; internal set; }
 
-    public static AssignmentGrid ForTracker(INodeStateTracker tracker)
+    internal static AssignmentGrid ForTracker(INodeStateTracker tracker)
     {
         var grid = new AssignmentGrid();
         foreach (var node in tracker.AllNodes())
@@ -29,6 +46,13 @@ public class AssignmentGrid
         return grid;
     }
 
+    /// <summary>
+    /// Add an executing node to the grid. Useful for testing custom agent assignment
+    /// schemes
+    /// </summary>
+    /// <param name="assignedId"></param>
+    /// <param name="id"></param>
+    /// <returns></returns>
     public Node WithNode(int assignedId, Guid id)
     {
         var node = new Node(this, assignedId, id);
@@ -37,6 +61,12 @@ public class AssignmentGrid
         return node;
     }
 
+    /// <summary>
+    /// Add additional agent uris to this assignment grid. This is intended for
+    /// testing scenarios
+    /// </summary>
+    /// <param name="uris"></param>
+    /// <returns></returns>
     public AssignmentGrid WithAgents(params Uri[] uris)
     {
         foreach (var uri in uris)
@@ -50,11 +80,21 @@ public class AssignmentGrid
         return this;
     }
 
+    /// <summary>
+    /// Find information about a single agent by its Uri
+    /// </summary>
+    /// <param name="agentUri"></param>
+    /// <returns></returns>
     public Agent? AgentFor(Uri agentUri)
     {
         return _agents[agentUri];
     }
 
+    /// <summary>
+    /// Testing helper, adds a new agent to the current assignment grid
+    /// </summary>
+    /// <param name="uri"></param>
+    /// <returns></returns>
     public Agent WithAgent(Uri uri)
     {
         WithAgents(uri);
@@ -62,6 +102,12 @@ public class AssignmentGrid
         return AgentFor(uri);
     }
 
+    /// <summary>
+    /// Attempts to redistribute agents for a given agent type evenly
+    /// across the known, executing nodes with minimal disruption 
+    /// </summary>
+    /// <param name="scheme"></param>
+    /// <exception cref="InvalidOperationException"></exception>
     public void DistributeEvenly(string scheme)
     {
         if (!_nodes.Any())
@@ -95,7 +141,7 @@ public class AssignmentGrid
             foreach (var agent in extras) agent.Detach();
         }
 
-        var missing = new Queue<Agent>(agents.Where(x => x.ActiveNode == null));
+        var missing = new Queue<Agent>(agents.Where(x => x.AssignedNode == null));
 
         // 2nd pass
         foreach (var node in _nodes)
@@ -158,7 +204,7 @@ public class AssignmentGrid
             
             if (actuals.TryGetValue(assignment.Key, out var actual))
             {
-                var specified = assignment.Value.ActiveNode;
+                var specified = assignment.Value.AssignedNode;
                 if (specified == null)
                 {
                     // Should not be running, so stop it
@@ -170,10 +216,10 @@ public class AssignmentGrid
                     yield return new ReassignAgent(assignment.Key, actual, specified.NodeId);
                 }
             }
-            else if (assignment.Value.ActiveNode != null)
+            else if (assignment.Value.AssignedNode != null)
             {
                 // Missing, so add it
-                yield return new AssignAgent(assignment.Key, assignment.Value.ActiveNode.NodeId);
+                yield return new AssignAgent(assignment.Key, assignment.Value.AssignedNode.NodeId);
             }
         }
 
@@ -199,22 +245,32 @@ public class AssignmentGrid
             _parent = parent;
             Uri = uri;
             OriginalNode = originalNode;
-            ActiveNode = originalNode;
+            AssignedNode = originalNode;
         }
 
         public Uri Uri { get; }
+        
+        /// <summary>
+        /// The node that was executing this agent at the time the assignment
+        /// grid was being determined
+        /// </summary>
         public Node? OriginalNode { get; }
-        public Node? ActiveNode { get; internal set; }
+        
+        /// <summary>
+        /// The Wolverine node that will be assigned this agent when this assignment grid
+        /// is applied 
+        /// </summary>
+        public Node? AssignedNode { get; internal set; }
 
         public void Detach()
         {
-            if (ActiveNode == null)
+            if (AssignedNode == null)
             {
                 return;
             }
 
-            var active = ActiveNode;
-            ActiveNode = null;
+            var active = AssignedNode;
+            AssignedNode = null;
             active.Remove(this);
         }
 
@@ -225,30 +281,30 @@ public class AssignmentGrid
             if (OriginalNode == null)
             {
                 // Do nothing if no assignment
-                if (ActiveNode == null)
+                if (AssignedNode == null)
                 {
                     return false;
                 }
 
                 // Start the agent up for the first time on the designated node
-                command = new AssignAgent(Uri, ActiveNode.NodeId);
+                command = new AssignAgent(Uri, AssignedNode.NodeId);
                 return true;
             }
 
-            if (ActiveNode == null)
+            if (AssignedNode == null)
             {
                 // No longer assigned, so stop it where it was running
                 command = new StopRemoteAgent(Uri, OriginalNode.NodeId);
                 return true;
             }
 
-            if (ActiveNode == OriginalNode)
+            if (AssignedNode == OriginalNode)
             {
                 return false;
             }
 
             // reassign the agent to a different node
-            command = new ReassignAgent(Uri, OriginalNode.NodeId, ActiveNode.NodeId);
+            command = new ReassignAgent(Uri, OriginalNode.NodeId, AssignedNode.NodeId);
             return true;
         }
     }
@@ -296,11 +352,20 @@ public class AssignmentGrid
             _agents.Remove(agent);
         }
 
+        /// <summary>
+        /// Remove an assigned agent from this node
+        /// </summary>
+        /// <param name="agent"></param>
         public void Detach(Agent agent)
         {
             agent.Detach();
         }
 
+        /// <summary>
+        /// Assign a given agent to be executed on this node when the assignment grid
+        /// is applied
+        /// </summary>
+        /// <param name="agentUri"></param>
         public void Assign(Uri agentUri)
         {
             if (!_parent._agents.TryGetValue(agentUri, out var agent))
@@ -309,23 +374,28 @@ public class AssignmentGrid
                 _parent._agents[agentUri] = agent;
             }
 
-            if (agent.ActiveNode != null)
+            if (agent.AssignedNode != null)
             {
                 agent.Detach();
             }
 
-            agent.ActiveNode = this;
+            agent.AssignedNode = this;
             _agents.Fill(agent);
         }
 
+        /// <summary>
+        /// Assign a given agent to be executed on this node when the assignment grid
+        /// is applied
+        /// </summary>
+        /// <param name="agent"></param>
         public void Assign(Agent agent)
         {
-            if (agent.ActiveNode != null)
+            if (agent.AssignedNode != null)
             {
                 agent.Detach();
             }
 
-            agent.ActiveNode = this;
+            agent.AssignedNode = this;
             _agents.Fill(agent);
         }
 
@@ -335,14 +405,14 @@ public class AssignmentGrid
         }
     }
 
-    public Dictionary<Uri, Guid> CompileAssignments()
+    internal Dictionary<Uri, Guid> CompileAssignments()
     {
         var dict = new Dictionary<Uri, Guid>();
         foreach (var pair in _agents)
         {
-            if (pair.Value.ActiveNode != null)
+            if (pair.Value.AssignedNode != null)
             {
-                dict.Add(pair.Key, pair.Value.ActiveNode.NodeId);
+                dict.Add(pair.Key, pair.Value.AssignedNode.NodeId);
             }
         }
 

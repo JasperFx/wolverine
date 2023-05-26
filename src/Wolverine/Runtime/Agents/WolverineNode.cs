@@ -6,17 +6,13 @@ public class WolverineNode
     public int AssignedNodeId { get; set; }
     public Uri ControlUri { get; set; }
     public string Description { get; set; } = Environment.MachineName;
-    public DateTimeOffset? LastHealthCheck { get; set; }
 
     public List<Uri> Capabilities { get; } = new();
 
-    public DateTimeOffset Started { get; set; } = DateTimeOffset.MinValue;
-    public DateTimeOffset HealthCheck { get; set; } = DateTimeOffset.MinValue;
-
     public List<Uri> ActiveAgents { get; } = new();
+    public DateTimeOffset Started { get; set; }
 
     public bool IsLeader() => ActiveAgents.Contains(NodeAgentController.LeaderUri);
-    public bool IsLocal { get; set; }
 
     public static WolverineNode For(WolverineOptions options)
     {

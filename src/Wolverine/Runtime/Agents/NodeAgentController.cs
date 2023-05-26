@@ -26,13 +26,13 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
     private readonly INodeStateTracker _tracker;
     private readonly INodeAgentPersistence _persistence;
 
-    private readonly Dictionary<string, IAgentController>
+    private readonly Dictionary<string, IAgentFamily>
         _agentControllers = new();
     private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
 
     internal NodeAgentController(IWolverineRuntime runtime, INodeStateTracker tracker, INodeAgentPersistence persistence,
-        IEnumerable<IAgentController> agentControllers, ILogger logger, CancellationToken cancellation)
+        IEnumerable<IAgentFamily> agentControllers, ILogger logger, CancellationToken cancellation)
     {
         _runtime = runtime;
         _tracker = tracker;

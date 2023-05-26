@@ -46,7 +46,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddSingleton<IAgentController, FakeAgentController>();
+                opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
 
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
@@ -87,7 +87,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
 
     private bool allAgentsAreRunning(WolverineTracker tracker)
     {
-        var agents = FakeAgentController.AllAgentUris();
+        var agents = FakeAgentFamily.AllAgentUris();
         return agents.All(tracker.AgentIsRunning);
     }
 

@@ -40,21 +40,21 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>
 
             foreach (var agent in changed.Assignments.AllAgents)
             {
-                if (agent.ActiveNode == null)
+                if (agent.AssignedNode == null)
                 {
                     _output.WriteLine($"* {agent.Uri} is not assigned");
                 }
                 else if (agent.OriginalNode == null)
                 {
-                    _output.WriteLine($"* {agent.Uri} assigned to node {agent.ActiveNode.AssignedId}");
+                    _output.WriteLine($"* {agent.Uri} assigned to node {agent.AssignedNode.AssignedId}");
                 }
-                else if (agent.OriginalNode == agent.ActiveNode)
+                else if (agent.OriginalNode == agent.AssignedNode)
                 {
-                    _output.WriteLine($"* {agent.Uri} is unchanged on node {agent.ActiveNode.AssignedId}");
+                    _output.WriteLine($"* {agent.Uri} is unchanged on node {agent.AssignedNode.AssignedId}");
                 }
                 else
                 {
-                    _output.WriteLine($"* {agent.Uri} reassigned from node {agent.OriginalNode.AssignedId} to node {agent.ActiveNode.AssignedId}");
+                    _output.WriteLine($"* {agent.Uri} reassigned from node {agent.OriginalNode.AssignedId} to node {agent.AssignedNode.AssignedId}");
                 }
             }
         }
