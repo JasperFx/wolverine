@@ -2,6 +2,10 @@ using Wolverine.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
+/// <summary>
+/// Records the deactivation of an agent on a Wolverine node
+/// </summary>
+/// <param name="AgentUri"></param>
 public record AgentStopped(Uri AgentUri) : IWolverineEvent
 {
     public void ModifyState(WolverineTracker tracker)

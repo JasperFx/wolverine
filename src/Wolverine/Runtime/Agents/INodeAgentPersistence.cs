@@ -1,5 +1,8 @@
 namespace Wolverine.Runtime.Agents;
 
+/// <summary>
+/// Persistence provider for Wolverine node and agent assignment information
+/// </summary>
 public interface INodeAgentPersistence
 {
     Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken);

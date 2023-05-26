@@ -72,7 +72,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            var node = await readNode(reader);
+            var node = await readNodeAsync(reader);
             nodes.Add(node);
         }
 
@@ -106,7 +106,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
         {
-            returnValue = await readNode(reader);
+            returnValue = await readNodeAsync(reader);
             
             await reader.NextResultAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -249,7 +249,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         return list.Select(x => x.ToUri()).ToList();
     }
 
-    private async Task<WolverineNode> readNode(DbDataReader reader)
+    private async Task<WolverineNode> readNodeAsync(DbDataReader reader)
     {
         var node = new WolverineNode
         {

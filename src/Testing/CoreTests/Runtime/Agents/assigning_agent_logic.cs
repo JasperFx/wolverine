@@ -102,7 +102,7 @@ public class assigning_agent_logic
         agent.Detach();
 
         grid.UnassignedAgents.Single().Uri.ShouldBe(blue2);
-        agent.ActiveNode.ShouldBeNull();
+        agent.AssignedNode.ShouldBeNull();
         node1.Agents.ShouldNotContain(x => x.Uri == blue2);
     }
 
@@ -120,7 +120,7 @@ public class assigning_agent_logic
         node1.Detach(agent);
         
         grid.UnassignedAgents.Single().Uri.ShouldBe(blue2);
-        agent.ActiveNode.ShouldBeNull();
+        agent.AssignedNode.ShouldBeNull();
         node1.Agents.ShouldNotContain(x => x.Uri == blue2);
     }
 
@@ -140,7 +140,7 @@ public class assigning_agent_logic
         var agent = grid.AgentFor(blue8);
         
         agent.OriginalNode.ShouldBeNull();
-        agent.ActiveNode.ShouldBe(node3);
+        agent.AssignedNode.ShouldBe(node3);
         
         node3.Agents.ShouldContain(agent);
     }
@@ -162,7 +162,7 @@ public class assigning_agent_logic
         node3.Agents.ShouldContain(x => x.Uri == blue8);
 
         agent.OriginalNode.ShouldBeNull();
-        agent.ActiveNode.ShouldBe(node3);
+        agent.AssignedNode.ShouldBe(node3);
         
         node3.Agents.ShouldContain(agent);
     }
@@ -185,7 +185,7 @@ public class assigning_agent_logic
         node4.Agents.Single().ShouldBe(agent);
 
         agent.OriginalNode.ShouldBe(node1);
-        agent.ActiveNode.ShouldBe(node4);
+        agent.AssignedNode.ShouldBe(node4);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class assigning_agent_logic
         var grid = new AssignmentGrid();
         var agent = grid.WithAgent(blue9);
         agent.OriginalNode.ShouldBeNull();
-        agent.ActiveNode.ShouldBeNull();
+        agent.AssignedNode.ShouldBeNull();
         
         agent.TryBuildAssignmentCommand(out var command).ShouldBeFalse();
     }
@@ -208,7 +208,7 @@ public class assigning_agent_logic
 
         var agent = grid.AgentFor(blue1);
         
-        agent.ActiveNode.ShouldBe(agent.OriginalNode);
+        agent.AssignedNode.ShouldBe(agent.OriginalNode);
         
         agent.TryBuildAssignmentCommand(out var command).ShouldBeFalse();
     }
@@ -226,7 +226,7 @@ public class assigning_agent_logic
         node4.Assign(agent);
         
         agent.OriginalNode.ShouldBeNull();
-        agent.ActiveNode.ShouldBe(node4);
+        agent.AssignedNode.ShouldBe(node4);
         
         agent.TryBuildAssignmentCommand(out var command).ShouldBeTrue();
         
@@ -245,7 +245,7 @@ public class assigning_agent_logic
         agent.Detach();
 
         agent.OriginalNode.ShouldNotBeNull();
-        agent.ActiveNode.ShouldBeNull();
+        agent.AssignedNode.ShouldBeNull();
         
         agent.TryBuildAssignmentCommand(out var command).ShouldBeTrue();
         
@@ -265,7 +265,7 @@ public class assigning_agent_logic
         node4.Assign(agent);
         
         agent.OriginalNode.ShouldBe(node1);
-        agent.ActiveNode.ShouldBe(node4);
+        agent.AssignedNode.ShouldBe(node4);
         
         agent.TryBuildAssignmentCommand(out var command).ShouldBeTrue();
         
@@ -288,7 +288,7 @@ public class assigning_agent_logic
         var all = new Uri[] { blue1, blue2, blue3, blue4, blue5, blue6, blue7, blue8, blue9, blue10, blue11, blue12 };
         foreach (var agentUri in all)
         {
-            grid.AgentFor(agentUri).ActiveNode.ShouldNotBeNull();
+            grid.AgentFor(agentUri).AssignedNode.ShouldNotBeNull();
         }
     }
 
@@ -313,7 +313,7 @@ public class assigning_agent_logic
         var all = new Uri[] { blue1, blue2, blue3, blue4, blue5, blue6, blue7, blue8, blue9, blue10, blue11, blue12 };
         foreach (var agentUri in all)
         {
-            grid.AgentFor(agentUri).ActiveNode.ShouldNotBeNull();
+            grid.AgentFor(agentUri).AssignedNode.ShouldNotBeNull();
         }
     }
 
@@ -343,7 +343,7 @@ public class assigning_agent_logic
         var all = new Uri[] { blue1, blue2, blue3, blue4, blue5, blue6, blue7, blue8, blue9, blue10, blue11, blue12 };
         foreach (var agentUri in all)
         {
-            grid.AgentFor(agentUri).ActiveNode.ShouldNotBeNull();
+            grid.AgentFor(agentUri).AssignedNode.ShouldNotBeNull();
         }
     }
 
@@ -376,7 +376,7 @@ public class assigning_agent_logic
         var all = new Uri[] { blue1, blue2, blue3, blue4, blue5, blue6, blue7, blue8, blue9, blue10, blue11, blue12 };
         foreach (var agentUri in all)
         {
-            grid.AgentFor(agentUri).ActiveNode.ShouldNotBeNull();
+            grid.AgentFor(agentUri).AssignedNode.ShouldNotBeNull();
         }
     }
     
@@ -412,7 +412,7 @@ public class assigning_agent_logic
         var all = new Uri[] { blue1, blue2, blue3, blue4, blue5, blue6, blue7, blue8, blue9, blue10, blue11, blue12 };
         foreach (var agentUri in all)
         {
-            grid.AgentFor(agentUri).ActiveNode.ShouldNotBeNull();
+            grid.AgentFor(agentUri).AssignedNode.ShouldNotBeNull();
         }
     }
 

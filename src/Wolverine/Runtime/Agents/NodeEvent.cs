@@ -2,6 +2,11 @@ using Wolverine.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
+/// <summary>
+/// Records a change in state for the active nodes within this Wolverine system
+/// </summary>
+/// <param name="Node"></param>
+/// <param name="Type"></param>
 public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEvent, IInternalMessage
 {
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
