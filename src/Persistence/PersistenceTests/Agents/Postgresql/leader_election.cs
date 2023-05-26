@@ -229,4 +229,41 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
             w.ExpectRunningAgents(host4, 4);
         }, 30.Seconds());
     }
+
+    [Fact]
+    public async Task verify_assignments_can_make_corrections()
+    {
+        var tracker = _originalHost.GetRuntime().Tracker;
+        await tracker.WaitUntilAssumesLeadership(5.Seconds());
+
+        var host2 = await startHostAsync();
+        var host3 = await startHostAsync();
+        var host4 = await startHostAsync();
+
+        // This is just to eliminate some errors in test output
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 3);
+            w.ExpectRunningAgents(host2, 3);
+            w.ExpectRunningAgents(host3, 3);
+            w.ExpectRunningAgents(host4, 3);
+        }, 30.Seconds());
+
+        var runtime4 = host4.GetRuntime();
+        foreach (var agentUri in runtime4.Agents.AllRunningAgentUris())
+        {
+            await runtime4.Agents.StopLocallyAsync(agentUri);
+        }
+
+        // This should eventually turn back on the missing agents from node4
+        await _originalHost.InvokeMessageAndWaitAsync(new VerifyAssignments());
+        
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 3);
+            w.ExpectRunningAgents(host2, 3);
+            w.ExpectRunningAgents(host3, 3);
+            w.ExpectRunningAgents(host4, 3);
+        }, 30.Seconds());
+    }
 }
