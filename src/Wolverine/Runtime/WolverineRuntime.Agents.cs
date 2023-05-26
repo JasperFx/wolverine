@@ -138,4 +138,28 @@ public partial class WolverineRuntime : IAgentRuntime
             await _agents.StopAsync(bus);
         }
     }
+
+    /// <summary>
+    /// STRICTLY FOR TESTING!!!!
+    /// </summary>
+    /// <param name="lastHeartbeatTime"></param>
+    internal async Task DisableAgentsAsync(DateTimeOffset lastHeartbeatTime)
+    {
+        if (AgentTimer != null)
+        {
+            try
+            {
+                await AgentTimer.DisposeAsync();
+            }
+            catch (Exception)
+            {
+                // Don't really care, make this stop
+            }
+        }
+
+        await _agents.DisableAgentsAsync();
+        await _persistence.Value.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
+        
+        _agents = null;
+    }
 }

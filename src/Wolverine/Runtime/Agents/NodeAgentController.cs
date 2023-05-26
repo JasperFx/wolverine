@@ -255,6 +255,20 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
     {
         return _agents.Enumerate().Select(x => x.Key).ToArray();
     }
+
+    /// <summary>
+    /// THIS IS STRICTLY FOR TESTING
+    /// </summary>
+    internal async Task DisableAgentsAsync()
+    {
+        var agents = _agents.Enumerate().Select(x => x.Value).ToArray();
+        foreach (var agent in agents)
+        {
+            await agent.StopAsync(CancellationToken.None);
+        }
+        
+        _agents = ImHashMap<Uri, IAgent>.Empty;
+    }
 }
 
 public class AgentStartingException : Exception

@@ -119,17 +119,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         return returnValue;
     }
 
-    // TODO -- unit test this
-    public async Task MarkHealthCheckAsync(Guid nodeId)
-    {
-        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
 
-        await conn.CreateCommand($"update {_nodeTable} set health_check = now() where id = :id")
-            .With("id", nodeId).ExecuteNonQueryAsync();
-
-        await conn.CloseAsync();
-    }
 
     public async Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
     {
@@ -304,5 +294,29 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await conn.CloseAsync();
 
         return nodes;
+    }
+
+    public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        await conn.CreateCommand($"update {_nodeTable} set health_check = :now where id = :id")
+            .With("id", nodeId)
+            .With("now", lastHeartbeatTime)
+            .ExecuteNonQueryAsync();
+
+        await conn.CloseAsync();
+    }
+    
+    public async Task MarkHealthCheckAsync(Guid nodeId)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        await conn.CreateCommand($"update {_nodeTable} set health_check = now() where id = :id")
+            .With("id", nodeId).ExecuteNonQueryAsync();
+
+        await conn.CloseAsync();
     }
 }
