@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Logging;
@@ -13,11 +8,12 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RDBMS.Durability;
 
+[Obsolete("Goes away with DurabilityAgent rewrite")]
 internal class RecoverOutgoingMessages : IDurabilityAction
 {
+    private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
     private readonly IWolverineRuntime _runtime;
-    private readonly CancellationToken _cancellation;
 
     public RecoverOutgoingMessages(IWolverineRuntime runtime, ILogger logger)
     {
@@ -53,7 +49,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                         break;
                     }
 
-                    var found = await recoverFromAsync(sendingAgent, database, session, database.Node);
+                    var found = await recoverFromAsync(sendingAgent, database, session, database.Durability);
 
                     count += found;
                 }
@@ -64,13 +60,13 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
                     await session.BeginAsync();
 
-                    await DeleteByDestinationAsync(session, destination, database.Settings);
+                    await DeleteByDestinationAsync(session, destination, database);
                     await session.CommitAsync();
                     break;
                 }
             }
 
-            var wasMaxedOut = count >= database.Node.RecoveryBatchSize;
+            var wasMaxedOut = count >= database.Durability.RecoveryBatchSize;
 
             if (wasMaxedOut)
             {
@@ -82,9 +78,9 @@ internal class RecoverOutgoingMessages : IDurabilityAction
             await session.ReleaseGlobalLockAsync(TransportConstants.OutgoingMessageLockId);
         }
     }
-    
+
     internal Task DeleteByDestinationAsync(IDurableStorageSession session, Uri? destination,
-        DatabaseSettings databaseSettings)
+        IMessageDatabase wolverineDatabase)
     {
         if (session.Transaction == null)
         {
@@ -93,7 +89,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
         return session.Transaction
             .CreateCommand(
-                $"delete from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = :owner and destination = @destination")
+                $"delete from {wolverineDatabase.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = :owner and destination = @destination")
             .With("destination", destination!.ToString())
             .With("owner", TransportConstants.AnyNode)
             .ExecuteNonQueryAsync(_cancellation);
@@ -102,7 +98,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
 
     private async Task<int> recoverFromAsync(ISendingAgent sendingAgent, IMessageDatabase storage,
         IDurableStorageSession session,
-        NodeSettings nodeSettings)
+        DurabilitySettings durabilitySettings)
     {
 #pragma warning disable CS8600
         Envelope[] filtered;
@@ -113,13 +109,13 @@ internal class RecoverOutgoingMessages : IDurabilityAction
         {
             await session.BeginAsync();
 
-            outgoing = await storage.LoadOutgoingAsync(sendingAgent.Destination);
+            outgoing = await storage.Outbox.LoadOutgoingAsync(sendingAgent.Destination);
 
             var expiredMessages = outgoing.Where(x => x.IsExpired()).ToArray();
             _logger.DiscardedExpired(expiredMessages);
 
 
-            await storage.DeleteOutgoingAsync(expiredMessages.ToArray());
+            await storage.Outbox.DeleteOutgoingAsync(expiredMessages.ToArray());
             filtered = outgoing.Where(x => !expiredMessages.Contains(x)).ToArray();
 
             // Might easily try to do this in the time between starting
@@ -131,7 +127,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                 return 0;
             }
 
-            await storage.ReassignOutgoingAsync(nodeSettings.UniqueNodeId, filtered);
+            await storage.ReassignOutgoingAsync(durabilitySettings.NodeLockId, filtered);
 
             await session.CommitAsync();
         }

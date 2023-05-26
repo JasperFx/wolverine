@@ -31,7 +31,7 @@ public class TrackedSessionTester : IDisposable
     [Fact]
     public async Task throw_if_any_exceptions_happy_path()
     {
-        theSession.Record(EventType.Sent, theEnvelope, "", 1);
+        theSession.Record(MessageEventType.Sent, theEnvelope, "", 1);
         await theSession.TrackAsync();
         theSession.AssertNoExceptionsWereThrown();
     }
@@ -39,8 +39,8 @@ public class TrackedSessionTester : IDisposable
     [Fact]
     public async Task throw_if_any_exceptions_sad_path()
     {
-        theSession.Record(EventType.ExecutionStarted, theEnvelope, "", 1);
-        theSession.Record(EventType.ExecutionFinished, theEnvelope, "", 1, new DivideByZeroException());
+        theSession.Record(MessageEventType.ExecutionStarted, theEnvelope, "", 1);
+        theSession.Record(MessageEventType.ExecutionFinished, theEnvelope, "", 1, new DivideByZeroException());
         await theSession.TrackAsync();
 
         Should.Throw<AggregateException>(() => theSession.AssertNoExceptionsWereThrown());
@@ -49,8 +49,8 @@ public class TrackedSessionTester : IDisposable
     [Fact]
     public async Task throw_if_any_exceptions_and_completed_happy_path()
     {
-        theSession.Record(EventType.ExecutionStarted, theEnvelope, "", 1);
-        theSession.Record(EventType.ExecutionFinished, theEnvelope, "", 1);
+        theSession.Record(MessageEventType.ExecutionStarted, theEnvelope, "", 1);
+        theSession.Record(MessageEventType.ExecutionFinished, theEnvelope, "", 1);
         await theSession.TrackAsync();
         theSession.AssertNoExceptionsWereThrown();
         theSession.AssertNotTimedOut();
@@ -59,8 +59,8 @@ public class TrackedSessionTester : IDisposable
     [Fact]
     public async Task throw_if_any_exceptions_and_completed_sad_path_with_exceptions()
     {
-        theSession.Record(EventType.ExecutionStarted, theEnvelope, "", 1);
-        theSession.Record(EventType.ExecutionFinished, theEnvelope, "", 1, new DivideByZeroException());
+        theSession.Record(MessageEventType.ExecutionStarted, theEnvelope, "", 1);
+        theSession.Record(MessageEventType.ExecutionFinished, theEnvelope, "", 1, new DivideByZeroException());
         await theSession.TrackAsync();
 
         Should.Throw<AggregateException>(() =>
@@ -73,7 +73,7 @@ public class TrackedSessionTester : IDisposable
     [Fact]
     public async Task throw_if_any_exceptions_and_completed_sad_path_with_never_completed()
     {
-        theSession.Record(EventType.ExecutionStarted, theEnvelope, "", 1);
+        theSession.Record(MessageEventType.ExecutionStarted, theEnvelope, "", 1);
         await theSession.TrackAsync();
 
         Should.Throw<TimeoutException>(() =>

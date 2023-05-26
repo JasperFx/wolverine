@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
@@ -17,13 +18,14 @@ internal class CompositeContinuation : IContinuation
 
     public IReadOnlyList<IContinuation> Inner => _continuations;
 
-    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+        Activity? activity)
     {
         foreach (var continuation in _continuations)
         {
             try
             {
-                await continuation.ExecuteAsync(lifecycle, runtime, now);
+                await continuation.ExecuteAsync(lifecycle, runtime, now, activity);
             }
             catch (Exception e)
             {

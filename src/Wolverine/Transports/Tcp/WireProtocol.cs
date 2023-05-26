@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports.Sending;

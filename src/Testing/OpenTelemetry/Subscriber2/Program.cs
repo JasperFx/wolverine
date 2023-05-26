@@ -11,11 +11,7 @@ return await Host.CreateDefaultBuilder(args)
     {
         opts.ServiceName = "Subscriber2";
 
-        opts.Handlers.Discovery(source =>
-        {
-            source.DisableConventionalDiscovery();
-            source.IncludeType<Subscriber2Handlers>();
-        });
+        opts.Discovery.DisableConventionalDiscovery().IncludeType<Subscriber2Handlers>();
 
         opts.UseRabbitMq().AutoProvision();
 

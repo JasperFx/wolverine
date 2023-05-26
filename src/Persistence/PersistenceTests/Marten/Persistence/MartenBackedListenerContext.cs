@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -11,6 +7,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -29,7 +26,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
         var persisted = (await afterReceivingTheEnvelopes()).Single();
 
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
-        persisted.OwnerId.ShouldBe(theSettings.UniqueNodeId);
+        persisted.OwnerId.ShouldBe(theSettings.NodeLockId);
 
         assertEnvelopeWasEnqueued(envelope);
     }
@@ -41,7 +38,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
         var persisted = (await afterReceivingTheEnvelopes()).Single();
 
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
-        persisted.OwnerId.ShouldBe(theSettings.UniqueNodeId);
+        persisted.OwnerId.ShouldBe(theSettings.NodeLockId);
 
         assertEnvelopeWasEnqueued(envelope);
     }
@@ -50,8 +47,8 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
 public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyncLifetime
 {
     protected readonly IMessageStoreAdmin MessageStoreAdmin =
-        new PostgresqlMessageStore(new PostgresqlSettings
-                { ConnectionString = Servers.PostgresConnectionString }, new NodeSettings(null),
+        new PostgresqlMessageStore(new DatabaseSettings()
+                { ConnectionString = Servers.PostgresConnectionString }, new DurabilitySettings(),
             new NullLogger<PostgresqlMessageStore>());
 
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
@@ -59,7 +56,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
     protected readonly DocumentStore theStore;
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
     internal DurableReceiver theReceiver;
-    protected NodeSettings theSettings;
+    protected DurabilitySettings theSettings;
 
 
     public MartenBackedListenerContext()
@@ -69,20 +66,20 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
 
     public async Task InitializeAsync()
     {
-        theSettings = new NodeSettings(null);
+        theSettings = new DurabilitySettings();
 
 
         await MessageStoreAdmin.RebuildAsync();
 
         var persistence =
             new PostgresqlMessageStore(
-                new PostgresqlSettings { ConnectionString = Servers.PostgresConnectionString }, theSettings,
+                new DatabaseSettings() { ConnectionString = Servers.PostgresConnectionString }, theSettings,
                 new NullLogger<PostgresqlMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Storage.Returns(persistence);
         runtime.Pipeline.Returns(thePipeline);
-        runtime.Node.Returns(theSettings);
+        runtime.DurabilitySettings.Returns(theSettings);
 
 
         theReceiver = new DurableReceiver(new LocalQueue("temp"), runtime, runtime.Pipeline);

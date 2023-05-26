@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFrameworks>net7.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
@@ -11,9 +11,9 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0"/>
         <PackageReference Include="xunit" Version="2.4.1"/>
-        <PackageReference Include="GitHubActionsTestLogger" Version="2.0.1"  PrivateAssets="All" />
-        <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1" PrivateAssets="All" />
-        <PackageReference Include="coverlet.collector" Version="1.3.0" PrivateAssets="All" />
+        <PackageReference Include="GitHubActionsTestLogger" Version="2.0.1" PrivateAssets="All"/>
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1" PrivateAssets="All"/>
+        <PackageReference Include="coverlet.collector" Version="1.3.0" PrivateAssets="All"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -29,6 +29,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 </Project>

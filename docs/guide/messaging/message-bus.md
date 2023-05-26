@@ -29,22 +29,22 @@ public static async Task use_message_bus(IMessageBus bus)
     // Execute this command message right now! And wait until
     // it's completed or acknowledged
     await bus.InvokeAsync(new DebitAccount(1111, 100));
-    
+
     // Execute this message right now, but wait for the declared response
     var status = await bus.InvokeAsync<AccountStatus>(new DebitAccount(1111, 250));
-    
+
     // Send the message expecting there to be at least one subscriber to be executed later, but
     // don't wait around
     await bus.SendAsync(new DebitAccount(1111, 250));
-    
+
     // Or instead, publish it to any interested subscribers, 
     // but don't worry about it if there are actually any subscribers
     // This is probably best for raising event messages
     await bus.PublishAsync(new DebitAccount(1111, 300));
-    
+
     // Send a message to be sent or executed at a specific time
     await bus.ScheduleAsync(new DebitAccount(1111, 100), DateTimeOffset.UtcNow.AddDays(1));
-    
+
     // Or do the same, but this time express the time as a delay
     await bus.ScheduleAsync(new DebitAccount(1111, 225), 1.Days());
 }
@@ -70,7 +70,7 @@ public static async Task invoke_locally(IMessageBus bus)
     await bus.InvokeAsync(new Message1());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L11-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L9-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the `Message1` message has a local subscription, the message handler will be invoked in the calling thread. In this usage, the `InvokeAsync()` feature will utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
@@ -95,6 +95,7 @@ in these message types and a corresponding message handler:
 <a id='snippet-sample_numbers_and_results_for_request_response'></a>
 ```cs
 public record Numbers(int X, int Y);
+
 public record Results(int Sum, int Product);
 
 public static class NumbersHandler
@@ -105,7 +106,7 @@ public static class NumbersHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L80-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_numbers_and_results_for_request_response' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L81-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_numbers_and_results_for_request_response' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note in the sample above that the message handler that accepts `Numbers` returns a `Results` object. That return value is necessary for Wolverine to be able to
@@ -151,7 +152,7 @@ public ValueTask SendMessage(IMessageContext bus)
     return bus.SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L187-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L182-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That by itself will send the `InvoiceCreated` message to whatever subscribers are interested in
@@ -179,7 +180,7 @@ public ValueTask PublishMessage(IMessageContext bus)
     return bus.PublishAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L207-L224' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L202-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduling Message Delivery or Execution

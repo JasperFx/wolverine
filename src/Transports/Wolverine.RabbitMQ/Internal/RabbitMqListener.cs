@@ -1,6 +1,5 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -8,18 +7,18 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
+internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDeadLetterQueue
 {
     private readonly RabbitMqChannelCallback _callback;
-    private readonly string _routingKey;
-    private readonly RabbitMqSender _sender;
     private readonly CancellationToken _cancellation = CancellationToken.None;
     private readonly WorkerQueueMessageConsumer? _consumer;
     private readonly IReceiver _receiver;
+    private readonly string _routingKey;
+    private readonly RabbitMqSender _sender;
 
     public RabbitMqListener(IWolverineRuntime runtime,
         RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection,
-        runtime.Logger)
+        runtime.LoggerFactory.CreateLogger<RabbitMqListener>())
     {
         Queue = queue;
         Address = queue.Uri;
@@ -34,17 +33,26 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
 
         if (queue.AutoDelete || transport.AutoProvision)
         {
-            queue.Declare(Channel!, runtime.Logger);
+            queue.Declare(Channel!, Logger);
+        }
+
+        try
+        {
+            var result = Channel.QueueDeclarePassive(queue.QueueName);
+            Logger.LogInformation("{Count} messages in queue {QueueName}", result.MessageCount, queue.QueueName);
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "Unable to check the queued count for {QueueName}", queue.QueueName);
         }
 
         var mapper = queue.BuildMapper(runtime);
 
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
-        _consumer = new WorkerQueueMessageConsumer(receiver, Logger, this, mapper, Address,
+        _consumer = new WorkerQueueMessageConsumer(Channel, receiver, Logger, this, mapper, Address,
             _cancellation);
 
         Channel!.BasicQos(Queue.PreFetchSize, Queue.PreFetchCount, false);
-
         Channel.BasicConsume(_consumer, _routingKey);
 
         _callback = transport.Callback;
@@ -87,6 +95,11 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
         return _callback.DeferAsync(envelope);
     }
 
+    public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        return _callback.MoveToErrorsAsync(envelope, exception);
+    }
+
     public void Stop()
     {
         if (_consumer == null)
@@ -104,7 +117,6 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener
         _sender.Dispose();
     }
 
-    // TODO -- need to put a retry on this!!!!
     public ValueTask RequeueAsync(RabbitMqEnvelope envelope)
     {
         if (!envelope.Acknowledged)

@@ -23,12 +23,16 @@ public class MessageBus : IMessageBus
 
     public MessageBus(IWolverineRuntime runtime, string? correlationId)
     {
+        Runtime?.AssertHasStarted();
+
         Runtime = runtime;
         Storage = runtime.Storage;
         CorrelationId = correlationId;
     }
 
     public string? CorrelationId { get; set; }
+
+    public string? TenantId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
     public IMessageStore Storage { get; }
@@ -89,7 +93,7 @@ public class MessageBus : IMessageBus
 
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
     {
-        return Runtime.RoutingFor(message.GetType()).RouteForSend(message, null);
+        return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, null);
     }
 
     public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
@@ -101,7 +105,7 @@ public class MessageBus : IMessageBus
 
         // Cannot trust the T here. Can be "object"
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
-        trackEnvelopeCorrelation(outgoing);
+        trackEnvelopeCorrelation(Activity.Current, outgoing);
 
         return PersistOrSendAsync(outgoing);
     }
@@ -115,7 +119,7 @@ public class MessageBus : IMessageBus
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
-        trackEnvelopeCorrelation(outgoing);
+        trackEnvelopeCorrelation(Activity.Current, outgoing);
 
         if (outgoing.Any())
         {
@@ -166,21 +170,26 @@ public class MessageBus : IMessageBus
         var original = Transaction;
         Transaction = transaction;
 
-        if (original is MessageContext c) return c.CopyToAsync(transaction);
+        if (original is MessageContext c)
+        {
+            return c.CopyToAsync(transaction);
+        }
 
         return Task.CompletedTask;
     }
 
-    private void trackEnvelopeCorrelation(Envelope[] outgoing)
+    private void trackEnvelopeCorrelation(Activity? activity, Envelope[] outgoing)
     {
-        foreach (var outbound in outgoing) TrackEnvelopeCorrelation(outbound);
+        foreach (var outbound in outgoing) TrackEnvelopeCorrelation(outbound, activity);
     }
 
-    internal virtual void TrackEnvelopeCorrelation(Envelope outbound)
+    internal virtual void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
-        outbound.Source = Runtime.Node.ServiceName;
+        outbound.Source = Runtime.Options.ServiceName;
         outbound.CorrelationId = CorrelationId;
         outbound.ConversationId = outbound.Id; // the message chain originates here
+        outbound.TenantId = TenantId;
+        outbound.ParentId = activity?.Id;
     }
 
     internal async ValueTask PersistOrSendAsync(params Envelope[] outgoing)

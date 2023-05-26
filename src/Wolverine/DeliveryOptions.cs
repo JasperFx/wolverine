@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using JasperFx.Core;
 using Wolverine.Util;
 
 namespace Wolverine;
@@ -44,10 +45,7 @@ public class DeliveryOptions
     /// <summary>
     ///     Set the ScheduleTime to now plus the value of the supplied TimeSpan
     /// </summary>
-    public TimeSpan ScheduleDelay
-    {
-        set => ScheduledTime = DateTimeOffset.UtcNow.Add(value);
-    }
+    public TimeSpan? ScheduleDelay { get; set; }
 
     /// <summary>
     ///     Declare that this application is interested in receiving
@@ -60,6 +58,11 @@ public class DeliveryOptions
     ///     the underlying saga state object
     /// </summary>
     public string? SagaId { get; internal set; }
+    
+    /// <summary>
+    /// Override the tenant id metadata for a single envelope
+    /// </summary>
+    public string? TenantId { get; set; }
 
     /// <summary>
     ///     Mimetype of the serialized data
@@ -85,6 +88,12 @@ public class DeliveryOptions
             envelope.Status = EnvelopeStatus.Scheduled;
         }
 
+        if (ScheduleDelay.HasValue)
+        {
+            envelope.ScheduleDelay = ScheduleDelay;
+            envelope.Status = EnvelopeStatus.Scheduled;
+        }
+
         if (AckRequested.HasValue)
         {
             envelope.AckRequested = AckRequested.Value;
@@ -98,6 +107,11 @@ public class DeliveryOptions
         if (SagaId != null)
         {
             envelope.SagaId = SagaId;
+        }
+
+        if (TenantId.IsNotEmpty())
+        {
+            envelope.TenantId = TenantId;
         }
 
         if (ContentType != null)

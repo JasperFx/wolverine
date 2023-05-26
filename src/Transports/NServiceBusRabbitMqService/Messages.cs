@@ -2,6 +2,11 @@ using NServiceBus;
 
 namespace NServiceBusRabbitMqService;
 
+public interface IInterfaceMessage : ICommand
+{
+    public Guid Id { get; set; }
+}
+
 public class InitialMessage : ICommand
 {
     public Guid Id { get; set; }

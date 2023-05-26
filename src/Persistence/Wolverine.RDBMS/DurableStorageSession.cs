@@ -1,8 +1,5 @@
-using System;
 using System.Data;
 using System.Data.Common;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 
@@ -10,17 +7,19 @@ namespace Wolverine.RDBMS;
 
 public class DurableStorageSession : IDurableStorageSession
 {
-    private readonly DatabaseSettings _settings;
+    private readonly ILogger _logger;
+    private readonly IMessageDatabase _database;
 
-    public DurableStorageSession(DatabaseSettings settings, CancellationToken cancellation)
+    public DurableStorageSession(IMessageDatabase database, CancellationToken cancellation, ILogger logger)
     {
-        _settings = settings;
+        _database = database;
+        _logger = logger;
         Cancellation = cancellation;
     }
 
-    public CancellationToken Cancellation { get; }
-
     public DbConnection? Connection { get; private set; }
+
+    public CancellationToken Cancellation { get; }
 
     public DbTransaction? Transaction { get; private set; }
 
@@ -40,7 +39,7 @@ public class DurableStorageSession : IDurableStorageSession
 
     public DbCommand CallFunction(string functionName)
     {
-        var cmd = CreateCommand(_settings.SchemaName + "." + functionName);
+        var cmd = CreateCommand(_database.SchemaName + "." + functionName);
         cmd.CommandType = CommandType.StoredProcedure;
 
         return cmd;
@@ -144,14 +143,22 @@ public class DurableStorageSession : IDurableStorageSession
         return Task.CompletedTask;
     }
 
-    public Task ReleaseNodeLockAsync(int lockId)
+    public async Task ReleaseNodeLockAsync(int lockId)
     {
         if (Connection == null)
         {
             throw new InvalidOperationException("Session has not been started yet");
         }
 
-        return _settings.ReleaseGlobalLockAsync(Connection, lockId, Cancellation);
+        try
+        {
+            await _database.ReleaseGlobalLockAsync(Connection, lockId, Cancellation);
+        }
+        catch (ObjectDisposedException)
+        {
+            _logger.LogDebug(
+                "Tried to use a disposed object while releasing a global lock, this is normally due to shutdown procedures");
+        }
     }
 
     public Task GetNodeLockAsync(int lockId)
@@ -161,7 +168,7 @@ public class DurableStorageSession : IDurableStorageSession
             throw new InvalidOperationException("Session has not been started yet");
         }
 
-        return _settings.GetGlobalLockAsync(Connection, lockId, Cancellation);
+        return _database.GetGlobalLockAsync(Connection, lockId, Cancellation);
     }
 
     public Task<bool> TryGetGlobalTxLockAsync(int lockId)
@@ -176,7 +183,7 @@ public class DurableStorageSession : IDurableStorageSession
             throw new InvalidOperationException("Transaction has not been started yet");
         }
 
-        return _settings.TryGetGlobalTxLockAsync(Connection, Transaction, lockId, Cancellation);
+        return _database.TryGetGlobalTxLockAsync(Connection, Transaction, lockId, Cancellation);
     }
 
     public Task<bool> TryGetGlobalLockAsync(int lockId)
@@ -186,17 +193,25 @@ public class DurableStorageSession : IDurableStorageSession
             throw new InvalidOperationException("Session has not been started yet");
         }
 
-        return _settings.TryGetGlobalLockAsync(Connection, Transaction, lockId, Cancellation);
+        return _database.TryGetGlobalLockAsync(Connection, Transaction, lockId, Cancellation);
     }
 
-    public Task ReleaseGlobalLockAsync(int lockId)
+    public async Task ReleaseGlobalLockAsync(int lockId)
     {
         if (Connection == null)
         {
             throw new InvalidOperationException("Session has not been started yet");
         }
 
-        return _settings.ReleaseGlobalLockAsync(Connection, lockId, Cancellation, Transaction);
+        try
+        {
+            await _database.ReleaseGlobalLockAsync(Connection, lockId, Cancellation, Transaction);
+        }
+        catch (ObjectDisposedException)
+        {
+            _logger.LogDebug(
+                "Tried to use a disposed object while releasing a global lock, this is normally due to shutdown procedures");
+        }
     }
 
     public bool IsConnected()
@@ -222,11 +237,11 @@ public class DurableStorageSession : IDurableStorageSession
 
         try
         {
-            Connection = _settings.CreateConnection();
+            Connection = _database.CreateConnection();
 
             await Connection.OpenAsync(Cancellation);
 
-            await _settings.GetGlobalLockAsync(Connection, nodeId, Cancellation, Transaction);
+            await _database.GetGlobalLockAsync(Connection, nodeId, Cancellation, Transaction);
         }
         catch (Exception)
         {

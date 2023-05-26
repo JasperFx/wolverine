@@ -26,7 +26,7 @@ public class send_by_topics : IDisposable
         theSender = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRabbitMq().AutoProvision();
+                opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
                 opts.PublishAllMessages().ToRabbitTopics("wolverine.topics", exchange =>
                 {
                     exchange.BindTopic("color.green").ToQueue("green");
@@ -89,7 +89,7 @@ public class send_by_topics : IDisposable
             .SendMessageAndWaitAsync(new PurpleMessage());
 
         session.FindEnvelopesWithMessageType<PurpleMessage>()
-            .Where(x => x.EventType == EventType.Received)
+            .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
             .Single().ShouldBe("Third");
     }
@@ -104,7 +104,7 @@ public class send_by_topics : IDisposable
             .SendMessageAndWaitAsync(new FirstMessage());
 
         session.FindEnvelopesWithMessageType<FirstMessage>()
-            .Where(x => x.EventType == EventType.Received)
+            .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
             .OrderBy(x => x).ShouldHaveTheSameElementsAs("Second", "Third");
     }
@@ -119,7 +119,7 @@ public class send_by_topics : IDisposable
             .BroadcastMessageToTopicAndWaitAsync("color.green", new PurpleMessage());
 
         session.FindEnvelopesWithMessageType<PurpleMessage>()
-            .Where(x => x.EventType == EventType.Received)
+            .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
             .OrderBy(x => x)
             .ShouldHaveTheSameElementsAs("First", "Third");
@@ -135,7 +135,7 @@ public class send_by_topics : IDisposable
             .BroadcastMessageToTopicAndWaitAsync("color.blue", new PurpleMessage());
 
         session.FindEnvelopesWithMessageType<PurpleMessage>()
-            .Where(x => x.EventType == EventType.Received)
+            .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
             .OrderBy(x => x)
             .ShouldHaveTheSameElementsAs("Second", "Third");

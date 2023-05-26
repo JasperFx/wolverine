@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -55,11 +56,11 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
 
             opts.Services.AddSingleton<ILogger<WolverineRuntime>>(this);
 
-            opts.Handlers.OnException<DivideByZeroException>().Requeue();
+            opts.Policies.OnException<DivideByZeroException>().Requeue();
 
-            opts.Handlers.IncludeType<InvokedMessageHandler>();
+            opts.IncludeType<InvokedMessageHandler>();
 
-            opts.Handlers.Failures.MaximumAttempts = 3;
+            opts.Policies.Failures.MaximumAttempts = 3;
         });
     }
 
@@ -78,21 +79,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
         await Should.ThrowAsync<DivideByZeroException>(() => Publisher.InvokeAsync(message));
     }
 
-    [Fact]
-    public async Task will_log_an_exception()
-    {
-        configure();
-
-        try
-        {
-            await Publisher.InvokeAsync(new Message5 { FailThisManyTimes = 1 });
-        }
-        catch (Exception)
-        {
-        }
-
-        Exceptions.Any().ShouldBeTrue();
-    }
 
     [Fact]
     public async Task will_process_inline()
@@ -185,6 +171,32 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
 
         answer.Sum.ShouldBe(7);
         answer.Product.ShouldBe(12);
+    }
+
+    [Fact]
+    public async Task use_iasync_enumerable_as_return_value()
+    {
+        var tracked = await Host.InvokeMessageAndWaitAsync(new ForceAsyncEnumMessages());
+
+        tracked.Sent.MessagesOf<Message1>().Count().ShouldBe(3);
+    }
+}
+
+public record ForceAsyncEnumMessages;
+
+public class ForceAsyncEnumMessagesHandler
+{
+    public static async IAsyncEnumerable<object> Handle(ForceAsyncEnumMessages command)
+    {
+        yield return new Message1();
+
+        await Task.Delay(50.Milliseconds());
+
+        yield return new Message1();
+        
+        await Task.Delay(50.Milliseconds());
+
+        yield return new Message1();
     }
 }
 

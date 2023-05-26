@@ -17,7 +17,7 @@ public static class MessagingConfigurationExamples
             .UseWolverine(opts =>
             {
                 // Configure handler policies
-                opts.Handlers
+                opts.Policies
                     .OnException<SqlException>()
                     .ScheduleRetry(3.Seconds());
 

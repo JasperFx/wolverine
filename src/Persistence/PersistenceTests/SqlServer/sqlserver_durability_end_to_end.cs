@@ -1,12 +1,11 @@
-using System;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
 using Weasel.Core;
@@ -33,15 +32,15 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");
 
         await new SqlServerMessageStore(
-                new SqlServerSettings
+                new DatabaseSettings()
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = ReceiverSchemaName },
-                new NodeSettings(null), new NullLogger<SqlServerMessageStore>())
+                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
         await new SqlServerMessageStore(
-                new SqlServerSettings
-                    { ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
-                new NodeSettings(null), new NullLogger<SqlServerMessageStore>())
+                
+                    new DatabaseSettings(){ ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
+                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
 
         await buildTraceDocTable();
@@ -53,13 +52,15 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.Handlers.DisableConventionalDiscovery();
-                    opts.Handlers.IncludeType<TraceHandler>();
-                    opts.Handlers.AutoApplyTransactions();
+                    opts.DisableConventionalDiscovery();
+                    opts.IncludeType<TraceHandler>();
+                    opts.Policies.AutoApplyTransactions();
 
                     opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, ReceiverSchemaName);
 
                     opts.ListenForMessagesFrom(_listener).UseDurableInbox();
+                    
+                    opts.Services.AddResourceSetupOnStartup();
                 })
                 .Start();
         });
@@ -69,16 +70,18 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.Handlers.DisableConventionalDiscovery();
-                    opts.Handlers.AutoApplyTransactions();
+                    opts.DisableConventionalDiscovery();
+                    opts.Policies.AutoApplyTransactions();
 
                     opts.Publish(x => x.Message<TraceMessage>().To(_listener)
                         .UseDurableOutbox());
 
                     opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, SenderSchemaName);
 
-                    opts.Node.ScheduledJobPollingTime = 1.Seconds();
-                    opts.Node.ScheduledJobFirstExecution = 0.Seconds();
+                    opts.Durability.ScheduledJobPollingTime = 1.Seconds();
+                    opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
+
+                    opts.Services.AddResourceSetupOnStartup();
                 })
                 .Start();
         });
@@ -115,6 +118,8 @@ create table receiver.trace_doc
 );
 
 ").ExecuteNonQueryAsync();
+        
+        await conn.CloseAsync();
     }
 
     protected void StartReceiver(string name)
@@ -165,6 +170,7 @@ create table receiver.trace_doc
 
             if (actual == count && envelopeCount == 0)
             {
+                await conn.CloseAsync();
                 return;
             }
 
@@ -252,13 +258,18 @@ public class TraceMessage
 [WolverineIgnore]
 public class TraceHandler
 {
-    public void Handle(TraceMessage message, SqlTransaction tx)
+    public async Task Handle(TraceMessage message, DatabaseSettings settings)
     {
+        using var conn = new SqlConnection(settings.ConnectionString);
+        await conn.OpenAsync();
+
         var traceDoc = new TraceDoc { Name = message.Name };
 
-        tx.CreateCommand("insert into receiver.trace_doc (id, name) values (@id, @name)")
+        await conn.CreateCommand("insert into receiver.trace_doc (id, name) values (@id, @name)")
             .With("id", traceDoc.Id)
             .With("name", traceDoc.Name)
-            .ExecuteNonQuery();
+            .ExecuteNonQueryAsync();
+        
+        await conn.CloseAsync();
     }
 }

@@ -19,7 +19,13 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
     {
         return false;
     }
-    
+
+    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    {
+        persistenceService = GetType();
+        return true;
+    }
+
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
         return SagaChain.DetermineSagaIdMember(sagaType)?.GetMemberType() ?? typeof(object);

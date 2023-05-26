@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
@@ -36,7 +37,7 @@ public class custom_error_action_raises_new_message_1 : IAsyncLifetime
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "Receiver";
 
-                opts.Handlers.OnException<ShippingFailedException>()
+                opts.Policies.OnException<ShippingFailedException>()
                     .Discard().And(async (_, context, _) =>
                     {
                         if (context.Envelope?.Message is ShipOrder cmd)
@@ -82,7 +83,7 @@ public class ShippingOrderFailurePolicy : UserDefinedContinuation
     }
 
     public override async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime,
-        DateTimeOffset now)
+        DateTimeOffset now, Activity activity)
     {
         if (lifecycle.Envelope?.Message is ShipOrder cmd)
         {
@@ -120,7 +121,7 @@ public class custom_error_action_raises_new_message_2 : IAsyncLifetime
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "Receiver";
 
-                opts.Handlers.OnException<ShippingFailedException>()
+                opts.Policies.OnException<ShippingFailedException>()
                     .Discard().And<ShippingOrderFailurePolicy>();
             }).StartAsync();
 

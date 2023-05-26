@@ -31,10 +31,31 @@ public class DeliveryOptionsTests
             ScheduleDelay = 5.Minutes()
         };
 
-        options.ScheduledTime.ShouldNotBeNull();
+        var envelope = new Envelope();
+        
+        options.Override(envelope);
+        
+        
+        envelope.ScheduleDelay.ShouldBe(5.Minutes());
+        envelope.ScheduledTime.ShouldNotBeNull();
 
-        options.ScheduledTime.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(5).AddSeconds(-5));
-        options.ScheduledTime.Value.ShouldBeLessThan(DateTimeOffset.UtcNow.AddMinutes(5).AddSeconds(5));
+        envelope.ScheduledTime.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(5).AddSeconds(-5));
+        envelope.ScheduledTime.Value.ShouldBeLessThan(DateTimeOffset.UtcNow.AddMinutes(5).AddSeconds(5));
+    }
+
+    [Fact]
+    public void override_tenant_id()
+    {
+        var options = new DeliveryOptions
+        {
+            TenantId = "tenant4"
+        };
+
+        var envelope = new Envelope();
+        
+        options.Override(envelope);
+        
+        envelope.TenantId.ShouldBe("tenant4");
     }
 
     [Fact]

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using JasperFx.Core.Reflection;
@@ -10,7 +8,7 @@ namespace Wolverine.SqlServer.Util;
 
 internal static class SqlCommandExtensions
 {
-    public static DbCommand WithIdList(this DbCommand cmd, DatabaseSettings settings, IReadOnlyList<Envelope> envelopes,
+    public static DbCommand WithIdList(this DbCommand cmd, IMessageDatabase settings, IReadOnlyList<Envelope> envelopes,
         string parameterName = "IDLIST")
     {
         var table = new DataTable();

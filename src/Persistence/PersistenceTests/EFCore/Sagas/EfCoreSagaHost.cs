@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,7 +22,7 @@ public class EfCoreSagaHost : ISagaHost
     {
         _host = WolverineHost.For(opts =>
         {
-            opts.Handlers.DisableConventionalDiscovery().IncludeType<TSaga>();
+            opts.DisableConventionalDiscovery().IncludeType<TSaga>();
 
             opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
 
@@ -78,8 +76,10 @@ public class EfCoreSagaHost : ISagaHost
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 
-        var migration = await SchemaMigration.Determine(conn, tables);
-        await new SqlServerMigrator().ApplyAll(conn, migration, AutoCreate.All);
+        var migration = await SchemaMigration.DetermineAsync(conn, tables);
+        await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
+
+        await conn.CloseAsync();
 
         await _host.ResetResourceState();
     }

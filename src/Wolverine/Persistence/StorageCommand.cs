@@ -28,12 +28,12 @@ public class StorageInput : NetCoreInput
     public string ExceptionTypeForReplayFlag { get; set; } = string.Empty;
 }
 
-[Description("Administer the envelope storage")]
+[Description("Administer the Wolverine message storage")]
 public class StorageCommand : OaktonAsyncCommand<StorageInput>
 {
     public StorageCommand()
     {
-        Usage("Administer the envelope storage").Arguments(x => x.Action);
+        Usage("Administer the Wolverine message storage").Arguments(x => x.Action);
     }
 
     public override async Task<bool> Execute(StorageInput input)

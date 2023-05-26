@@ -34,20 +34,20 @@ public class when_determining_if_the_session_is_done : IDisposable
     }
 
     [Theory]
-    [InlineData(new[] { EventType.NoRoutes }, true)]
-    [InlineData(new[] { EventType.Sent, EventType.NoRoutes }, true)]
-    [InlineData(new[] { EventType.Received }, false)]
-    [InlineData(new[] { EventType.Received, EventType.ExecutionStarted }, false)]
-    [InlineData(new[] { EventType.Received, EventType.ExecutionStarted, EventType.ExecutionFinished }, false)]
+    [InlineData(new[] { MessageEventType.NoRoutes }, true)]
+    [InlineData(new[] { MessageEventType.Sent, MessageEventType.NoRoutes }, true)]
+    [InlineData(new[] { MessageEventType.Received }, false)]
+    [InlineData(new[] { MessageEventType.Received, MessageEventType.ExecutionStarted }, false)]
+    [InlineData(new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished }, false)]
     [InlineData(
-        new[] { EventType.Received, EventType.ExecutionStarted, EventType.ExecutionFinished, EventType.MessageFailed },
+        new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished, MessageEventType.MessageFailed },
         true)]
     [InlineData(
         new[]
         {
-            EventType.Received, EventType.ExecutionStarted, EventType.ExecutionFinished, EventType.MessageSucceeded
+            MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished, MessageEventType.MessageSucceeded
         }, true)]
-    public void envelope_history_determining_when_complete_locally(EventType[] events, bool isComplete)
+    public void envelope_history_determining_when_complete_locally(MessageEventType[] events, bool isComplete)
     {
         var time = 100;
         var history = new EnvelopeHistory(env1.Id);
@@ -68,7 +68,7 @@ public class when_determining_if_the_session_is_done : IDisposable
 
         env1.Destination.Scheme.ShouldBe(TransportConstants.Local);
 
-        history.RecordLocally(new EnvelopeRecord(EventType.Sent, env1, 110, null));
+        history.RecordLocally(new EnvelopeRecord(MessageEventType.Sent, env1, 110, null));
         history.IsComplete().ShouldBeFalse();
     }
 
@@ -79,26 +79,26 @@ public class when_determining_if_the_session_is_done : IDisposable
         env1.Destination = "tcp://localhost:4444".ToUri();
 
 
-        history.RecordLocally(new EnvelopeRecord(EventType.Sent, env1, 110, null));
+        history.RecordLocally(new EnvelopeRecord(MessageEventType.Sent, env1, 110, null));
         history.IsComplete().ShouldBeTrue();
     }
 
     [Theory]
-    [InlineData(new[] { EventType.Sent }, false)]
-    [InlineData(new[] { EventType.Received }, false)]
-    [InlineData(new[] { EventType.Received, EventType.ExecutionStarted }, false)]
-    [InlineData(new[] { EventType.Received, EventType.ExecutionStarted, EventType.ExecutionFinished }, false)]
+    [InlineData(new[] { MessageEventType.Sent }, false)]
+    [InlineData(new[] { MessageEventType.Received }, false)]
+    [InlineData(new[] { MessageEventType.Received, MessageEventType.ExecutionStarted }, false)]
+    [InlineData(new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished }, false)]
     [InlineData(
-        new[] { EventType.Received, EventType.ExecutionStarted, EventType.ExecutionFinished, EventType.MessageFailed },
+        new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished, MessageEventType.MessageFailed },
         true)]
     [InlineData(
         new[]
         {
-            EventType.Received, EventType.ExecutionStarted, EventType.ExecutionFinished, EventType.MessageSucceeded
+            MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished, MessageEventType.MessageSucceeded
         }, true)]
-    [InlineData(new[] { EventType.NoRoutes }, true)]
-    [InlineData(new[] { EventType.Sent, EventType.NoRoutes }, true)]
-    public void envelope_history_determining_when_complete_cross_app(EventType[] events, bool isComplete)
+    [InlineData(new[] { MessageEventType.NoRoutes }, true)]
+    [InlineData(new[] { MessageEventType.Sent, MessageEventType.NoRoutes }, true)]
+    public void envelope_history_determining_when_complete_cross_app(MessageEventType[] events, bool isComplete)
     {
         var time = 100;
         var history = new EnvelopeHistory(env1.Id);
@@ -113,13 +113,13 @@ public class when_determining_if_the_session_is_done : IDisposable
         var session = new TrackedSession(_host);
 
 
-        session.Record(EventType.Received, env1, "wolverine", 1);
-        session.Record(EventType.ExecutionStarted, env1, "wolverine", 1);
-        session.Record(EventType.ExecutionFinished, env1, "wolverine", 1);
+        session.Record(MessageEventType.Received, env1, "wolverine", 1);
+        session.Record(MessageEventType.ExecutionStarted, env1, "wolverine", 1);
+        session.Record(MessageEventType.ExecutionFinished, env1, "wolverine", 1);
 
         session.Status.ShouldBe(TrackingStatus.Active);
 
-        session.Record(EventType.MessageSucceeded, env1, "wolverine", 1);
+        session.Record(MessageEventType.MessageSucceeded, env1, "wolverine", 1);
 
         await session.TrackAsync();
 
@@ -131,21 +131,21 @@ public class when_determining_if_the_session_is_done : IDisposable
     {
         var session = new TrackedSession(_host);
 
-        session.Record(EventType.Received, env1, "wolverine", 1);
-        session.Record(EventType.ExecutionStarted, env1, "wolverine", 1);
-        session.Record(EventType.ExecutionFinished, env1, "wolverine", 1);
+        session.Record(MessageEventType.Received, env1, "wolverine", 1);
+        session.Record(MessageEventType.ExecutionStarted, env1, "wolverine", 1);
+        session.Record(MessageEventType.ExecutionFinished, env1, "wolverine", 1);
 
         session.Status.ShouldBe(TrackingStatus.Active);
 
-        session.Record(EventType.Received, env2, "wolverine", 1);
-        session.Record(EventType.ExecutionStarted, env2, "wolverine", 1);
-        session.Record(EventType.ExecutionFinished, env2, "wolverine", 1);
+        session.Record(MessageEventType.Received, env2, "wolverine", 1);
+        session.Record(MessageEventType.ExecutionStarted, env2, "wolverine", 1);
+        session.Record(MessageEventType.ExecutionFinished, env2, "wolverine", 1);
 
-        session.Record(EventType.MessageSucceeded, env1, "wolverine", 1);
+        session.Record(MessageEventType.MessageSucceeded, env1, "wolverine", 1);
 
         session.Status.ShouldBe(TrackingStatus.Active);
 
-        session.Record(EventType.MessageSucceeded, env2, "wolverine", 1);
+        session.Record(MessageEventType.MessageSucceeded, env2, "wolverine", 1);
 
         await session.TrackAsync();
 

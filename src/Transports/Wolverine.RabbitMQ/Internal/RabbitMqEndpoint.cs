@@ -36,7 +36,6 @@ public abstract class RabbitMqEndpoint : Endpoint, IMassTransitInteropEndpoint, 
     public abstract ValueTask TeardownAsync(ILogger logger);
     public abstract ValueTask SetupAsync(ILogger logger);
 
-    // TODO -- have this built in the constructors?
     public Uri? MassTransitUri()
     {
         var segments = new List<string>();

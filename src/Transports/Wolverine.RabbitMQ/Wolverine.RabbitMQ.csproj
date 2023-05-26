@@ -15,7 +15,7 @@
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="RabbitMQ.Client" Version="6.4.0" />
+        <PackageReference Include="RabbitMQ.Client" Version="6.5.0" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />

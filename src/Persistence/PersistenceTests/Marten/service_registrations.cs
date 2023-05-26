@@ -1,9 +1,8 @@
-﻿using System;
-using System.Linq;
-using IntegrationTests;
+﻿using IntegrationTests;
 using Lamar;
 using Marten;
 using Microsoft.Extensions.Hosting;
+using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
 using Weasel.Core;
@@ -39,7 +38,7 @@ public class service_registrations : PostgresqlContext
             .Any(x => x.ImplementationType == typeof(MartenIntegration))
             .ShouldBeTrue();
 
-        container.GetInstance<PostgresqlSettings>()
+        container.GetInstance<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
             .SchemaName.ShouldBe("public");
     }
 
@@ -54,6 +53,8 @@ public class service_registrations : PostgresqlContext
                     o.Connection(Servers.PostgresConnectionString);
                     o.AutoCreateSchemaObjects = AutoCreate.All;
                 }).IntegrateWithWolverine("wolverine");
+
+                opts.Services.AddResourceSetupOnStartup();
             }).Start();
 
         var container = (IContainer)host.Services;
@@ -65,7 +66,7 @@ public class service_registrations : PostgresqlContext
             .Any(x => x.ImplementationType == typeof(MartenIntegration))
             .ShouldBeTrue();
 
-        container.GetInstance<PostgresqlSettings>()
+        container.GetInstance<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
             .SchemaName.ShouldBe("wolverine");
     }
 

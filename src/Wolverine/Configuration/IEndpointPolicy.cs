@@ -3,7 +3,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Configuration;
 
-public interface IEndpointPolicy
+public interface IEndpointPolicy : IWolverinePolicy
 {
     void Apply(Endpoint endpoint, IWolverineRuntime runtime);
 }

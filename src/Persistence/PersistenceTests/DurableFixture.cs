@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
@@ -28,7 +24,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         var senderPort = PortFinder.GetAvailablePort();
 
         var senderRegistry = new WolverineOptions();
-        senderRegistry.Handlers
+        senderRegistry
             .DisableConventionalDiscovery()
             .IncludeType<CascadeReceiver>()
             .IncludeType<ScheduledMessageHandler>();
@@ -54,7 +50,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
 
         var receiverRegistry = new WolverineOptions();
-        receiverRegistry.Handlers.DisableConventionalDiscovery()
+        receiverRegistry.DisableConventionalDiscovery()
             .IncludeType<TTriggerHandler>()
             .IncludeType<TItemCreatedHandler>()
             .IncludeType<QuestionHandler>()

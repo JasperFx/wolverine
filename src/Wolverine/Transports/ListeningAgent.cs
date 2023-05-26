@@ -48,7 +48,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         Endpoint = endpoint;
         _runtime = runtime;
         Uri = endpoint.Uri;
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<ListeningAgent>();
 
         if (endpoint.CircuitBreakerOptions != null)
         {
@@ -100,7 +100,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     {
         if (_receiver is ILocalQueue queue)
         {
-            var uniqueNodeId = _runtime.Node.UniqueNodeId;
+            var uniqueNodeId = _runtime.DurabilitySettings.NodeLockId;
             foreach (var envelope in envelopes)
             {
                 envelope.OwnerId = uniqueNodeId;
@@ -149,7 +149,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _receiver = null;
 
         Status = ListeningStatus.Stopped;
-        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Stopped message listener at {Uri}", Uri);
     }
@@ -166,7 +166,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
 
         Status = ListeningStatus.Accepting;
-        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Started message listening at {Uri}", Uri);
     }
@@ -185,7 +185,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _circuitBreaker?.Reset();
 
         _logger.LogInformation("Pausing message listening at {Uri}", Uri);
-        // TODO -- publish through the ListenerTracker here
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
         _restarter = new Restarter(this, pauseTime);
     }
 
@@ -209,7 +209,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _listener = null;
 
         Status = ListeningStatus.TooBusy;
-        _runtime.ListenerTracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Marked listener at {Uri} as too busy and stopped receiving", Uri);
     }

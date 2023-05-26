@@ -100,7 +100,7 @@ public class RetryBlock<T> : IDisposable
         }
     }
 
-    internal TimeSpan DeterminePauseTime(int attempt)
+    public TimeSpan DeterminePauseTime(int attempt)
     {
         if (attempt >= Pauses.Length)
         {

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using IntegrationTests;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +17,7 @@ public class MartenSagaHost : ISagaHost
     {
         _host = WolverineHost.For(opts =>
         {
-            opts.Handlers.DisableConventionalDiscovery().IncludeType<TSaga>();
+            opts.DisableConventionalDiscovery().IncludeType<TSaga>();
 
             opts.Services.AddMarten(x =>
             {

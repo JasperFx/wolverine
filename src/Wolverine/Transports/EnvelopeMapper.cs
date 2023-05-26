@@ -68,7 +68,8 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         MapPropertyToHeader(x => x.MessageType!, EnvelopeConstants.MessageTypeKey);
         MapPropertyToHeader(x => x.AcceptedContentTypes, EnvelopeConstants.AcceptedContentTypesKey);
 
-        // TODO -- could check it here, then delete it on the spot instead of mapping it!!
+        MapPropertyToHeader(x => x.TenantId!, EnvelopeConstants.TenantIdKey);
+
         MapPropertyToHeader(x => x.DeliverBy!, EnvelopeConstants.DeliverByKey);
 
         MapPropertyToHeader(x => x.Attempts, EnvelopeConstants.AttemptsKey);

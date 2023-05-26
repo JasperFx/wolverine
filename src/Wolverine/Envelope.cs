@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using JasperFx.Core;
 using Wolverine.Attributes;
 using Wolverine.Util;
 
@@ -118,7 +119,6 @@ public partial class Envelope
                 throw new InvalidOperationException("No data or writer is known for this envelope");
             }
 
-            // TODO -- this is messy!
             _data = Serializer.Write(this);
 
             return _data;
@@ -197,6 +197,12 @@ public partial class Envelope
     ///     activity across services
     /// </summary>
     public string? ParentId { get; internal set; }
+    
+    /// <summary>
+    /// User defined tenant identifier for multi-tenancy strategies. This is
+    /// part of metrics reporting and message correlation
+    /// </summary>
+    public string? TenantId { get; set; }
 
     /// <summary>
     ///     Specifies the accepted content types for the requested reply
@@ -253,6 +259,12 @@ public partial class Envelope
     public override string ToString()
     {
         var text = $"Envelope #{Id}";
+
+        if (CorrelationId.IsNotEmpty())
+        {
+            text += $"/CorrelationId={CorrelationId}";
+        }
+        
         if (Message != null)
         {
             text += $" ({Message.GetType().Name})";

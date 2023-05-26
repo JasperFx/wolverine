@@ -49,7 +49,7 @@ public class remote_invocation : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.DisableConventionalDiscovery();
+                opts.DisableConventionalDiscovery();
                 opts.ServiceName = "Sender";
                 opts.ListenAtPort(senderPort);
 
@@ -95,12 +95,11 @@ public class remote_invocation : IAsyncLifetime
         await using var nested = _sender.Get<IContainer>().GetNestedContainer();
         var publisher = nested.GetInstance<IMessageBus>();
 
-        var ex = await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
+        var ex = await Should.ThrowAsync<MultipleSubscribersException>(async () =>
         {
             await publisher.InvokeAsync(new Request4());
         });
 
-        ex.Message.ShouldContain("There are multiple subscribing endpoints");
     }
 
     [Fact]
@@ -112,7 +111,7 @@ public class remote_invocation : IAsyncLifetime
             .InvokeAndWaitAsync<Response1>(new Request1 { Name = "Croaker" });
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -150,7 +149,7 @@ public class remote_invocation : IAsyncLifetime
         
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -178,7 +177,7 @@ public class remote_invocation : IAsyncLifetime
             .ExecuteAndWaitAsync(fetch);
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -230,7 +229,7 @@ public class remote_invocation : IAsyncLifetime
             .InvokeMessageAndWaitAsync(new Request2 { Name = "Croaker" });
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -248,7 +247,7 @@ public class remote_invocation : IAsyncLifetime
                 c.EndpointFor("Receiver2").InvokeAsync(new Request2 { Name = "Croaker" }));
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 
@@ -268,7 +267,7 @@ public class remote_invocation : IAsyncLifetime
                 c.EndpointFor(destination).InvokeAsync( new Request2 { Name = "Croaker" }));
 
         var send = session.FindEnvelopesWithMessageType<Request2>()
-            .Single(x => x.EventType == EventType.Sent);
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
 
         send.Envelope.DeliverBy.ShouldNotBeNull();
 

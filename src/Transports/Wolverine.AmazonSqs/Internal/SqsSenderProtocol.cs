@@ -20,7 +20,7 @@ internal class SqsSenderProtocol : ISenderProtocol
         _queue = queue;
         _sqs = sqs;
         _mapper = queue.BuildMapper(runtime);
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>();
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)

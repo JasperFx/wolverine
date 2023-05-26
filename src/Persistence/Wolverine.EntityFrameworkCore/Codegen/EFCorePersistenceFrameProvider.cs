@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -9,8 +5,8 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
-using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
@@ -21,7 +17,15 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
 // ReSharper disable once InconsistentNaming
 internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 {
+    public const string UsingEfCoreTransaction = "uses_efcore_transaction";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
+
+    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    {
+        var dbContextType = TryDetermineDbContextType(entityType, container);
+        persistenceService = dbContextType;
+        return dbContextType != null;
+    }
 
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
@@ -58,7 +62,11 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var method =
             dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
 
-        return new MethodCall(dbContextType, method);
+        var call = new MethodCall(dbContextType, method);
+        call.CommentText = "Committing any pending entity changes to the database";
+        call.ReturnVariable.OverrideName(call.ReturnVariable.Usage + "1");
+
+        return call;
     }
 
     public Frame DetermineUpdateFrame(Variable saga, IContainer container)
@@ -74,10 +82,15 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
     public void ApplyTransactionSupport(IChain chain, IContainer container)
     {
+        if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
+        chain.Tags.Add(UsingEfCoreTransaction, true);
+        
         var dbType = DetermineDbContextType(chain, container);
 
-        chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
-
+        if (chain.RequiresOutbox())
+        {
+            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
+        }
 
         var saveChangesAsync =
             dbType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
@@ -88,10 +101,10 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         };
 
         chain.Postprocessors.Add(call);
-        
+
         chain.Postprocessors.Add(new CommitDbContextTransactionIfNecessary());
-        
-        if (chain.ShouldFlushOutgoingMessages())
+
+        if (chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
         {
 #pragma warning disable CS4014
             chain.Postprocessors.Add(MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync()));
@@ -106,8 +119,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             var sagaType = saga.SagaType;
             return TryDetermineDbContextType(sagaType, container) != null;
         }
-        
-        return chain.ServiceDependencies(container).Any(x => x.CanBeCastTo<DbContext>());
+
+        return chain.ServiceDependencies(container, Type.EmptyTypes).Any(x => x.CanBeCastTo<DbContext>());
     }
 
     internal Type? TryDetermineDbContextType(Type entityType, IContainer container)
@@ -124,30 +137,45 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         foreach (var candidate in candidates)
         {
             var dbContext = (DbContext)nested.GetInstance(candidate);
-            if (dbContext.Model.FindEntityType(entityType) != null)
+            try
             {
-                _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
-                return candidate;
+                if (dbContext.Model.FindEntityType(entityType) != null)
+                {
+                    _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
+                    return candidate;
+                }
+            }
+            catch (InvalidOperationException e)
+            {
+                var logger = container.TryGetInstance<ILogger<EFCorePersistenceFrameProvider>>();
+                logger?.LogError(e, "Error trying to use DbContext type {DbContextType}", candidate.FullNameInCode());
             }
         }
 
         _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, null);
         return null;
     }
-    
+
     internal Type DetermineDbContextType(Type entityType, IContainer container)
     {
         var contextType = TryDetermineDbContextType(entityType, container);
         if (contextType == null)
-            throw new ArgumentOutOfRangeException($"Unable to determine a DbContext type that persists " +
+        {
+            throw new ArgumentOutOfRangeException("Unable to determine a DbContext type that persists " +
                                                   entityType.FullNameInCode());
+        }
 
         return contextType;
     }
 
-    public static Type DetermineDbContextType(IChain chain, IContainer container)
+    public Type DetermineDbContextType(IChain chain, IContainer container)
     {
-        var contextTypes = chain.ServiceDependencies(container).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
+        if (chain is SagaChain saga)
+        {
+            return DetermineDbContextType(saga.SagaType, container);
+        }
+
+        var contextTypes = chain.ServiceDependencies(container, Type.EmptyTypes).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
 
         if (contextTypes.Length == 0)
         {
@@ -177,56 +205,59 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             _envelopeTransaction = Create(typeof(IEnvelopeTransaction));
         }
 
+        public override IEnumerable<Variable> Creates
+        {
+            get { yield return _envelopeTransaction; }
+        }
+
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
-            writer.WriteComment("Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
-            writer.Write($"var {_envelopeTransaction.Usage} = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction({_dbContext!.Usage}, {_context!.Usage});");
-            writer.Write($"await context.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
-            
+            writer.WriteLine("");
+            writer.WriteComment(
+                "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
+            writer.Write(
+                $"var {_envelopeTransaction.Usage} = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction({_dbContext!.Usage}, {_context!.Usage});");
+            writer.Write(
+                $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
+
             Next?.GenerateCode(method, writer);
         }
 
         public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
         {
-            _context = chain.FindVariable(typeof(IMessageContext));
+            _context = chain.FindVariable(typeof(MessageContext));
             yield return _context;
 
             _dbContext = chain.FindVariable(_dbContextType);
             yield return _dbContext;
         }
-        
-        public override IEnumerable<Variable> Creates
-        {
-            get
-            {
-                yield return _envelopeTransaction;
-            }
-        }
     }
-    
+
     public class CommitDbContextTransactionIfNecessary : SyncFrame
     {
         private Variable? _envelopeTransaction;
 
-        public CommitDbContextTransactionIfNecessary()
-        {
-        }
-
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
-            writer.WriteComment(
-                "If we have separate context for outbox and application, the we need to manually commit the transaction");
-            writer.Write(
-                $"if ({_envelopeTransaction.Usage} is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) {{ await rawTx.CommitAsync(); }}");
-            
-            
+            if (_envelopeTransaction != null)
+            {
+                writer.WriteComment(
+                    "If we have separate context for outbox and application, the we need to manually commit the transaction");
+                writer.Write(
+                    $"if ({_envelopeTransaction.Usage} is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) {{ await rawTx.CommitAsync(); }}");
+            }
+
+
             Next?.GenerateCode(method, writer);
         }
 
         public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
         {
-            _envelopeTransaction = chain.FindVariable(typeof(IEnvelopeTransaction));
-            yield return _envelopeTransaction;
+            _envelopeTransaction = chain.TryFindVariable(typeof(IEnvelopeTransaction), VariableSource.NotServices);
+            if (_envelopeTransaction != null)
+            {
+                yield return _envelopeTransaction;
+            }
         }
     }
 }
@@ -253,6 +284,8 @@ internal class DbContextOperationFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteLine("");
+        writer.WriteComment("Registering the Saga entity change");
         writer.Write($"{_context!.Usage}.{_methodName}({_saga.Usage});");
         Next?.GenerateCode(method, writer);
     }
@@ -286,6 +319,8 @@ internal class LoadEntityFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteLine("");
+        writer.WriteComment("Trying to load the existing Saga data");
         writer.Write(
             $"var {Saga.Usage} = await {_context!.Usage}.{nameof(DbContext.FindAsync)}<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);

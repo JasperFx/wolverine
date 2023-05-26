@@ -136,7 +136,7 @@ builder.Host.UseWolverine(opts =>
     // This middleware should be applied to all handlers where the 
     // command type implements the IAccountCommand interface that is the
     // "detected" message type of the middleware
-    opts.Handlers.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
+    opts.Policies.ForMessagesOfType<IAccountCommand>().AddMiddleware(typeof(AccountLookupMiddleware));
     
     opts.UseFluentValidation();
 
@@ -153,5 +153,5 @@ builder.Host.UseWolverine(opts =>
         .BufferedInMemory();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Program.cs#L28-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_middleware_by_message_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Program.cs#L30-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_middleware_by_message_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

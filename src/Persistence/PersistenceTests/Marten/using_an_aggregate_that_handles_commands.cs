@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using Marten;
@@ -9,6 +6,7 @@ using Marten.Events.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
 using Wolverine.Marten;
@@ -25,16 +23,18 @@ public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisp
 
     public using_an_aggregate_that_handles_commands()
     {
-        theHost = WolverineHost.For(x =>
+        theHost = WolverineHost.For(opts =>
         {
-            x.ApplicationAssembly = GetType().Assembly;
-            x.Services.AddMarten(opts =>
+            opts.ApplicationAssembly = GetType().Assembly;
+            opts.Services.AddMarten(opts =>
             {
                 opts.Connection(Servers.PostgresConnectionString);
                 opts.Projections.SelfAggregate<SelfLetteredAggregate>(ProjectionLifecycle.Inline);
-            }).IntegrateWithWolverine().ApplyAllDatabaseChangesOnStartup();
+            }).IntegrateWithWolverine();
+            
+            opts.Services.AddResourceSetupOnStartup();
 
-            x.Node.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
         });
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
@@ -108,7 +108,7 @@ public record IncrementC2(Guid SelfLetteredAggregateId);
 
 public record IncrementMany2(Guid SelfLetteredAggregateId, string[] Letters);
 
-[MartenCommandWorkflow]
+[AggregateHandler]
 public class SelfLetteredAggregate
 {
     public SelfLetteredAggregate()

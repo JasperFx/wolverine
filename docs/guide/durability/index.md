@@ -1,5 +1,10 @@
 # Durable Inbox and Outbox Messaging
 
+::: tip
+The database schema objects for durable inbox or outbox usage within Wolverine require just a little bit of
+explicit configuration or explicit action on your part. See the [Managing Message Storage](./managing) for more detail.
+:::
+
 See the blog post [Transactional Outbox/Inbox with Wolverine and why you care](https://jeremydmiller.com/2022/12/15/transactional-outbox-inbox-with-wolverine-and-why-you-care/) for more context.
 
 One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](/guide/messaging/transports/tcp) and external transports like the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq).
@@ -63,7 +68,7 @@ and slow [distributed transactions](https://en.wikipedia.org/wiki/Distributed_tr
 also includes a separate *message relay* process that will send the persisted outgoing messages in background processes (it's done by marshalling the outgoing message envelopes through [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) queues if you're curious.)
 
 If any node of a Wolverine system that uses durable messaging goes down before all the messages are processed, the persisted messages will be loaded from
-storage and processed when the system is restarted. Wolverine does this through its [DurabilityAgent](https://github.com/JasperFx/wolverine/blob/master/src/Wolverine/Persistence/Durability/DurabilityAgent.cs) that will run within your application through Wolverine's
+storage and processed when the system is restarted. Wolverine does this through its [DurabilityAgent](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Persistence/Durability/DurabilityAgent.cs) that will run within your application through Wolverine's
 [IHostedService](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-6.0&tabs=visual-studio) runtime that is automatically registered in your system through the `UseWolverine()` extension method.
 
 ::: tip
@@ -100,16 +105,14 @@ That can be done either on specific endpoints like this sample:
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-
         opts.PublishAllMessages().ToPort(5555)
-            
+
             // This option makes just this one outgoing subscriber use
             // durable message storage
             .UseDurableOutbox();
-
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L66-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_specific_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L66-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_specific_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or globally through a built in policy:
@@ -137,8 +140,25 @@ successfully processed, expires, discarded due to error conditions, or moved to 
 To enroll individual listening endpoints or all listening endpoints in the Wolverine inbox mechanics, use
 one of these options:
 
-sample_configuring_durable_inbox
+<!-- snippet: sample_configuring_durable_inbox -->
+<a id='snippet-sample_configuring_durable_inbox'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.ListenAtPort(5555)
 
+            // Make specific endpoints be enrolled
+            // in the durable inbox
+            .UseDurableInbox();
+
+        // Make every single listener endpoint use
+        // durable message storage 
+        opts.Policies.UseDurableInboxOnAllListeners();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L83-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Local Queues
 
@@ -159,7 +179,7 @@ using var host = await Host.CreateDefaultBuilder()
         // or
 
         opts.LocalQueue("important").UseDurableInbox();
-        
+
         // or conventionally, make the local queues for messages in a certain namespace
         // be durable
         opts.Policies.ConfigureConventionalLocalRouting().CustomizeQueues((type, queue) =>
@@ -171,7 +191,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L106-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L104-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using Sql Server for Message Storage
@@ -191,7 +211,7 @@ builder.Host.UseWolverine(opts =>
     // Setting up Sql Server-backed message storage
     // This requires a reference to Wolverine.SqlServer
     opts.PersistMessagesWithSqlServer(connectionString);
-    
+
     // Other Wolverine configuration
 });
 
@@ -207,7 +227,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L133-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_sqlserver_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L131-L157' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_sqlserver_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -234,7 +254,7 @@ builder.Host.UseWolverine(opts =>
     // Setting up Postgresql-backed message storage
     // This requires a reference to Wolverine.Postgresql
     opts.PersistMessagesWithPostgresql(connectionString);
-    
+
     // Other Wolverine configuration
 });
 
@@ -250,7 +270,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L165-L191' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L163-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Database Schema Objects

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Wolverine.Runtime;
 
@@ -15,8 +16,10 @@ internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
 
     public TimeSpan Delay => _delay;
 
-    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
+    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+        Activity? activity)
     {
+        activity?.AddEvent(new ActivityEvent(WolverineTracing.ScheduledRetry));
         var scheduledTime = now.Add(_delay);
 
         return new ValueTask(lifecycle.ReScheduleAsync(scheduledTime));

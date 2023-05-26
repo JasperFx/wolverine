@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using CoreTests.Runtime;
 using NSubstitute;
@@ -23,10 +24,12 @@ public class CompositeContinuationTests
         var runtime = new MockWolverineRuntime();
         var now = DateTimeOffset.UtcNow;
 
-        await continuation.ExecuteAsync(lifecycle, runtime, now);
+        var activity = new Activity("process");
+        
+        await continuation.ExecuteAsync(lifecycle, runtime, now, activity);
 
-        await inner1.Received().ExecuteAsync(lifecycle, runtime, now);
-        await inner2.Received().ExecuteAsync(lifecycle, runtime, now);
+        await inner1.Received().ExecuteAsync(lifecycle, runtime, now, activity);
+        await inner2.Received().ExecuteAsync(lifecycle, runtime, now, activity);
     }
 
     [Fact]
@@ -41,10 +44,11 @@ public class CompositeContinuationTests
         var runtime = new MockWolverineRuntime();
         var now = DateTimeOffset.UtcNow;
 
-        inner1.ExecuteAsync(lifecycle, runtime, now).Throws(new DivideByZeroException());
+        var activity = new Activity("process");
+        inner1.ExecuteAsync(lifecycle, runtime, now, activity).Throws(new DivideByZeroException());
 
-        await continuation.ExecuteAsync(lifecycle, runtime, now);
+        await continuation.ExecuteAsync(lifecycle, runtime, now, activity);
 
-        await inner2.Received().ExecuteAsync(lifecycle, runtime, now);
+        await inner2.Received().ExecuteAsync(lifecycle, runtime, now, activity);
     }
 }

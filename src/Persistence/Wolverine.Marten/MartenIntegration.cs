@@ -1,4 +1,3 @@
-using JasperFx.Core.Reflection;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Persistence.Sagas;
@@ -15,14 +14,14 @@ internal class MartenIntegration : IWolverineExtension
 
     public void Configure(WolverineOptions options)
     {
-        options.Node.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
+        options.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
 
-        options.Node.CodeGeneration.AddPersistenceStrategy<MartenPersistenceFrameProvider>();
+        options.CodeGeneration.AddPersistenceStrategy<MartenPersistenceFrameProvider>();
 
-        options.Node.CodeGeneration.Sources.Add(new SessionVariableSource());
+        options.CodeGeneration.Sources.Add(new SessionVariableSource());
 
-        options.Handlers.AddPolicy<MartenAggregateHandlerStrategy>();
-        
-        options.Handlers.Discovery(x => x.IncludeTypes(type => type.HasAttribute<MartenCommandWorkflowAttribute>()));
+        options.Policies.Add<MartenAggregateHandlerStrategy>();
+
+        options.Discovery.CustomizeHandlerDiscovery(x => x.Includes.WithAttribute<AggregateHandlerAttribute>());
     }
 }

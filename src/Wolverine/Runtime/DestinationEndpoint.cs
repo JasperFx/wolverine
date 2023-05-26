@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.Core;
@@ -56,7 +57,7 @@ internal class DestinationEndpoint : IDestinationEndpoint
             envelope = envelope.ForScheduledSend(localDurableQueue);
         }
         
-        _parent.TrackEnvelopeCorrelation(envelope);
+        _parent.TrackEnvelopeCorrelation(envelope, Activity.Current);
 
         return _parent.PersistOrSendAsync(envelope);
     }

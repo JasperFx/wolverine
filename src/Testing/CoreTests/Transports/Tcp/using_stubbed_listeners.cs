@@ -27,7 +27,7 @@ public class using_stubbed_listeners
         // ongoing
         var session = await host.SendMessageAndWaitAsync(message);
 
-        session.FindSingleTrackedMessageOfType<Message1>(EventType.Sent)
+        session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.Sent)
             .ShouldBeSameAs(message);
     }
 

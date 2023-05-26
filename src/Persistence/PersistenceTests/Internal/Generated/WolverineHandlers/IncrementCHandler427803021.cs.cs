@@ -22,6 +22,7 @@ namespace Internal.Generated.WolverineHandlers
             var incrementC = (PersistenceTests.Marten.IncrementC)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementC.LetterAggregateId, cancellation).ConfigureAwait(false);
 

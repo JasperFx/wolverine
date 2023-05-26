@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using CoreTests.Messaging;
 using CoreTests.Runtime;
@@ -21,7 +22,7 @@ public class RetryNowContinuationTester
         var context = Substitute.For<IEnvelopeLifecycle>();
         context.Envelope.Returns(envelope);
 
-        await continuation.ExecuteAsync(context, new MockWolverineRuntime(), DateTimeOffset.Now);
+        await continuation.ExecuteAsync(context, new MockWolverineRuntime(), DateTimeOffset.Now, new Activity("process"));
 
         await context.Received(1).RetryExecutionNowAsync();
     }

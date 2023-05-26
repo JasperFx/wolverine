@@ -1,6 +1,8 @@
 ﻿using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using TestMessages;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -44,7 +46,7 @@ public class local_integration_specs : IntegrationContext
         var session = await Host.SendMessageAndWaitAsync(message1, timeoutInMilliseconds: 15000);
 
 
-        session.FindSingleTrackedMessageOfType<Message1>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
             .ShouldBeSameAs(message1);
     }
 
@@ -85,5 +87,37 @@ public class local_integration_specs : IntegrationContext
         var circuitBreaker = pipeline.ExecutorFactory
             .ShouldBeOfType<CircuitBreakerTrackedExecutorFactory>();
         agent.CircuitBreaker.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void individual_configuration_by_queue()
+    {
+        with(opts =>
+        {
+            opts.LocalQueueFor<Message1>().MaximumParallelMessages(6, ProcessingOrder.UnOrdered);
+        });
+        
+        var runtime = Host.GetRuntime();
+        var queue = runtime.Options.LocalRouting.FindQueueForMessageType(typeof(Message1));
+        queue
+            .ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(6);
+        
+        queue.ExecutionOptions.EnsureOrdered.ShouldBeFalse();
+    }
+    
+    [Fact]
+    public void individual_configuration_by_queue_2()
+    {
+        with(opts =>
+        {
+            opts.LocalQueueFor<Message1>().MaximumParallelMessages(6, ProcessingOrder.StrictOrdered);
+        });
+        
+        var runtime = Host.GetRuntime();
+        var queue = runtime.Options.LocalRouting.FindQueueForMessageType(typeof(Message1));
+        queue
+            .ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(6);
+        
+        queue.ExecutionOptions.EnsureOrdered.ShouldBeTrue();
     }
 }

@@ -111,7 +111,7 @@ public class TriggerHandler
 
 public record SpawnDelayResponse(Guid Id);
 
-public record DelayedResponse(Guid Id) : DelayedMessage(5.Minutes());
+public record DelayedResponse(Guid Id) : TimeoutMessage(5.Minutes());
 
 public record TriggerMessage(Guid Id);
 

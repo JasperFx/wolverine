@@ -62,6 +62,78 @@ The response types of your message handlers can be:
 1. `IEnumerable<object>` or `object[]` to make multiple responses
 1. A [Tuple](https://docs.microsoft.com/en-us/dotnet/csharp/tuples) type to express the exact kinds of responses your message handler returns
 
+## Using OutgoingMessages
+
+::: TIP
+In the case of mixing different return values from a handler (side effects, Marten events, etc.), it might well make
+your code more intention revealing to use `OutgoingMessages`
+:::
+
+You can return a value from your handlers called `OutgoingMessages` that is just a collection of outgoing messages. This
+helps Wolverine "know" that these messages should be cascaded after the initial message is successful.
+
+The usage of this is shown below:
+
+<!-- snippet: sample_using_OutgoingMessage -->
+<a id='snippet-sample_using_outgoingmessage'></a>
+```cs
+public static OutgoingMessages Handle(Incoming incoming)
+{
+    // You can use collection initializers for OutgoingMessages in C#
+    // as a shorthand. 
+    var messages = new OutgoingMessages
+    {
+        new Message1(),
+        new Message2(),
+        new Message3(),
+    };
+
+    // Send a specific message back to the original sender
+    // of the incoming message
+    messages.RespondToSender(new Message4());
+
+    // Send a message with a 5 minute delay
+    messages.Delay(new Message5(), 5.Minutes());
+
+    // Schedule a message to be sent at a specific time
+    messages.Schedule(new Message5(), new DateTimeOffset(2023, 4, 5, 0, 0, 0, 0.Minutes()));
+
+    return messages;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/OutgoingMessagesSample.cs#L9-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_outgoingmessage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Do note that the value of `OutgoingMessages` is probably greatest when being used in a tuple response from a handler that's a mix
+of cascading messages and other side effects.
+
+## Scheduled, Delayed, or other Customized Message Publishing
+
+The basic cascading messages effectively do a straight up `IMessageBus.PublishAsync()` on each object returned from a handler -- but that 
+takes away a lot of the power of Wolverine. Not to worry, you've got a couple helpers to have both the testability and pure function goodness
+of cascading messages **and** have full access to the power of Wolverine. Here's some example usages:
+
+<!-- snippet: sample_customized_cascaded_messages -->
+<a id='snippet-sample_customized_cascaded_messages'></a>
+```cs
+public IEnumerable<object> Consume(Incoming incoming)
+{
+    // Delay the message delivery
+    yield return new Message1().DelayedFor(10.Minutes());
+    
+    // Schedule the message delivery
+    yield return new Message2().ScheduledAt(new DateTimeOffset(DateTime.Today.AddDays(2)));
+    
+    // Customize the message delivery however you please...
+    yield return new Message3()
+        .WithDeliveryOptions(new DeliveryOptions().WithHeader("foo", "bar"));
+    
+    // Send back to the original sender
+    yield return Respond.ToSender(new Message4());
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/OutgoingMessagesSample.cs#L37-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_cascaded_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Request/Reply Scenarios
 

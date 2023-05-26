@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -12,9 +8,9 @@ namespace Wolverine.RDBMS.Durability;
 internal class RunScheduledJobs : IDurabilityAction
 {
     private readonly ILogger _logger;
-    private readonly NodeSettings _settings;
+    private readonly DurabilitySettings _settings;
 
-    public RunScheduledJobs(NodeSettings settings, ILogger logger)
+    public RunScheduledJobs(DurabilitySettings settings, ILogger logger)
     {
         _settings = settings;
         _logger = logger;
@@ -59,7 +55,7 @@ internal class RunScheduledJobs : IDurabilityAction
                     return;
                 }
 
-                await database.ReassignIncomingAsync(_settings.UniqueNodeId, readyToExecute);
+                await database.ReassignIncomingAsync(_settings.NodeLockId, readyToExecute);
 
                 await session.CommitAsync();
             }

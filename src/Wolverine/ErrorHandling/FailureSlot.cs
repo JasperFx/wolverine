@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JasperFx.Core;
 using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-internal class FailureSlot
+public class FailureSlot
 {
     private readonly List<IContinuationSource> _sources = new();
 
@@ -32,5 +33,10 @@ internal class FailureSlot
         return _sources.Count == 1
             ? _sources.Single().Build(ex, envelope)
             : new CompositeContinuation(_sources.Select(x => x.Build(ex, envelope)).ToArray());
+    }
+
+    public string Describe()
+    {
+        return _sources.Select(x => x.Description).Join(", then ");
     }
 }

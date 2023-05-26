@@ -16,7 +16,7 @@ public class disabling_external_transports_does_not_try_to_connect_to_rabbit
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.DisableConventionalDiscovery();
+                opts.DisableConventionalDiscovery();
 
                 // This could never, ever work
                 opts.UseRabbitMq(x => x.HostName = Guid.NewGuid().ToString());

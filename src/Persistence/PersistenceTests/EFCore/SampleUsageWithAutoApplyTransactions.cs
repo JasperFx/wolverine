@@ -21,11 +21,11 @@ public class SampleUsageWithAutoApplyTransactions
                 {
                     x.UseSqlServer(connectionString);
                 });
-                
+
                 opts.UseEntityFrameworkCoreTransactions();
-                
+
                 // Add the auto transaction middleware attachment policy
-                opts.Handlers.AutoApplyTransactions();
+                opts.Policies.AutoApplyTransactions();
             }).StartAsync();
 
         #endregion

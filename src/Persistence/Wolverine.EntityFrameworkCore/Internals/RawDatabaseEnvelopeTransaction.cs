@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Wolverine.Persistence.Durability;
@@ -11,19 +8,17 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 
 // ReSharper disable once InconsistentNaming
 /// <summary>
-/// Envelope transaction for raw database access for DbContexts w/o the explicit wolverine mappings
+///     Envelope transaction for raw database access for DbContexts w/o the explicit wolverine mappings
 /// </summary>
 public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 {
-    private readonly DatabaseSettings _settings;
+    private readonly IMessageDatabase _database;
 
     public RawDatabaseEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
-        
-        
         if (messaging.Storage is IMessageDatabase persistence)
         {
-            _settings = persistence.Settings;
+            _database = persistence;
         }
         else
         {
@@ -42,10 +37,10 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
         {
             await DbContext.Database.BeginTransactionAsync();
         }
-        
+
         var conn = DbContext.Database.GetDbConnection();
         var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _settings);
+        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _database);
         cmd.Transaction = tx;
         cmd.Connection = conn;
 
@@ -66,7 +61,7 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 
         var conn = DbContext.Database.GetDbConnection();
         var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-        var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, _settings);
+        var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, _database);
         cmd.Transaction = tx;
         cmd.Connection = conn;
 
@@ -82,8 +77,8 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 
         var conn = DbContext.Database.GetDbConnection();
         var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-        var builder = _settings.ToCommandBuilder();
-        DatabasePersistence.BuildIncomingStorageCommand(_settings, builder, envelope);
+        var builder = _database.ToCommandBuilder();
+        DatabasePersistence.BuildIncomingStorageCommand(_database, builder, envelope);
         await builder.ExecuteNonQueryAsync(conn, tx: tx);
     }
 
@@ -96,7 +91,7 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 
         return ValueTask.CompletedTask;
     }
-    
+
     public ValueTask CommitAsync()
     {
         if (DbContext.Database.CurrentTransaction != null)

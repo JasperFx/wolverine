@@ -1,5 +1,4 @@
-﻿using System;
-using Weasel.Core;
+﻿using Weasel.Core;
 using Weasel.Postgresql.Tables;
 using Wolverine.RDBMS;
 
@@ -20,6 +19,5 @@ internal class IncomingEnvelopeTable : Table
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
         AddColumn<string>(DatabaseConstants.ReceivedAt);
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
-
     }
 }

@@ -11,6 +11,7 @@ can be used as:
 1. An [inline "mediator" pipeline](/tutorials/mediator) for executing commands
 2. A [local message bus](/guide/command-bus) within .NET applications
 3. A full fledged [asynchronous messaging framework](/guide/messaging/) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ, 
+4. With the [WolverineFx.Http](/guide/http/) library, Wolverine's execution pipeline can be used directly as an alternative ASP.Net Core Endpoint provider
 
 Wolverine tries very hard to be a good citizen within the .NET ecosystem and even when used in
 "headless" services, uses the idiomatic elements of .NET (logging, configuration, bootstrapping, hosted services)
@@ -58,6 +59,7 @@ Let's jump right into the `Program.cs` file of our new web service:
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
+using Oakton;
 using Quickstart;
 using Wolverine;
 
@@ -82,9 +84,12 @@ app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeA
 // An endpoint to assign an issue to an existing user
 app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
-app.Run();
+// Opt into using Oakton for command line parsing
+// to unlock built in diagnostics and utility tools within
+// your Wolverine application
+return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -119,6 +124,10 @@ public class CreateIssueHandler
         _repository = repository;
     }
 
+    // The IssueCreated event message being returned will be
+    // published as a new "cascaded" message by Wolverine after
+    // the original message and any related middleware has
+    // succeeded
     public IssueCreated Handle(CreateIssue command)
     {
         var issue = new Issue
@@ -136,7 +145,7 @@ public class CreateIssueHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssueHandler.cs#L1-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_createissuehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssueHandler.cs#L1-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_createissuehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully that code is simple enough, but let's talk what you do not see in this code or

@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Shouldly;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Util;
@@ -51,5 +52,13 @@ public class RabbitMqTransportTests
 
         topic.Exchange.Name.ShouldBe("color");
         topic.Exchange.ExchangeType.ShouldBe(ExchangeType.Topic);
+    }
+
+    [Fact]
+    public void default_dead_letter_queue_settings()
+    {
+        theTransport.DeadLetterQueue.Enabled.ShouldBeTrue();
+        theTransport.DeadLetterQueue.QueueName.ShouldBe(RabbitMqTransport.DeadLetterQueueName);
+        theTransport.DeadLetterQueue.ExchangeName.ShouldBe(RabbitMqTransport.DeadLetterQueueName);
     }
 }

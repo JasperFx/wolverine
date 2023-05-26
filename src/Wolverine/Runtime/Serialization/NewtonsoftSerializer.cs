@@ -80,7 +80,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
 
     public byte[] WriteMessage(object message)
     {
-        var bytes = _bytePool.Rent(_bufferSize); // TODO -- should this be configurable?
+        var bytes = _bytePool.Rent(_bufferSize); 
         var stream = new MemoryStream(bytes);
 
 
@@ -90,9 +90,9 @@ internal class NewtonsoftSerializer : IMessageSerializer
             using var jsonWriter = new JsonTextWriter(textWriter)
             {
                 ArrayPool = _jsonCharPool,
-                CloseOutput = false
+                CloseOutput = false,
 
-                //AutoCompleteOnClose = false // TODO -- put this in if we upgrade Newtonsoft
+                AutoCompleteOnClose = false 
             };
 
             _serializer.Serialize(jsonWriter, message);
@@ -147,9 +147,9 @@ internal class NewtonsoftSerializer : IMessageSerializer
         using var jsonWriter = new JsonTextWriter(textWriter)
         {
             ArrayPool = _jsonCharPool,
-            CloseOutput = false
+            CloseOutput = false,
 
-            //AutoCompleteOnClose = false // TODO -- put this in if we upgrade Newtonsoft
+            AutoCompleteOnClose = false
         };
 
         serializer.Serialize(jsonWriter, model);

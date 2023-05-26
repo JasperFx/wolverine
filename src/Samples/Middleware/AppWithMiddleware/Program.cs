@@ -3,12 +3,19 @@ using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using Oakton;
+using Oakton.Resources;
 using Wolverine;
 using Wolverine.FluentValidation;
 using Wolverine.Marten;
 using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+
+// Just letting Marten build out known database schema elements upfront
+// Helps with Wolverine integration in development
+builder.Services.AddResourceSetupOnStartup();
 
 builder.Services.AddMarten(opts =>
 {
@@ -19,11 +26,9 @@ builder.Services.AddMarten(opts =>
     // This is the wolverine integration for the outbox/inbox,
     // transactional middleware, saga persistence we don't care about
     // yet
-    .IntegrateWithWolverine()
+    .IntegrateWithWolverine();
     
-    // Just letting Marten build out known database schema elements upfront
-    // Helps with Wolverine integration in development
-    .ApplyAllDatabaseChangesOnStartup();
+
 
 #region sample_registering_middleware_by_message_type
 
@@ -32,7 +37,7 @@ builder.Host.UseWolverine(opts =>
     // This middleware should be applied to all handlers where the 
     // command type implements the IAccountCommand interface that is the
     // "detected" message type of the middleware
-    opts.Handlers.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
+    opts.Policies.ForMessagesOfType<IAccountCommand>().AddMiddleware(typeof(AccountLookupMiddleware));
     
     opts.UseFluentValidation();
 
@@ -52,6 +57,8 @@ builder.Host.UseWolverine(opts =>
 #endregion
 
 var app = builder.Build();
+
+app.MapControllers();
 
 // One Minimal API that just delegates directly to Wolverine
 app.MapPost("/accounts/debit", (DebitAccount command, IMessageBus bus) => bus.InvokeAsync(command));

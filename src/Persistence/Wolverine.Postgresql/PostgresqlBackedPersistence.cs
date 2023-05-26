@@ -13,7 +13,10 @@ namespace Wolverine.Postgresql;
 /// </summary>
 internal class PostgresqlBackedPersistence : IWolverineExtension
 {
-    public PostgresqlSettings Settings { get; } = new();
+    public DatabaseSettings Settings { get; } = new()
+    {
+        IsMaster = true,
+    };
 
     public void Configure(WolverineOptions options)
     {
@@ -21,15 +24,10 @@ internal class PostgresqlBackedPersistence : IWolverineExtension
 
         options.Services.AddTransient<IMessageStore, PostgresqlMessageStore>();
         options.Services.AddSingleton(s => (IDatabase)s.GetRequiredService<IMessageStore>());
-        options.Node.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
+        options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
         options.Services.For<NpgsqlConnection>().Use<NpgsqlConnection>();
 
-        options.Services.Add(new ServiceDescriptor(typeof(NpgsqlConnection),
-            new NpgsqlConnectionInstance(typeof(NpgsqlConnection))));
-        options.Services.Add(new ServiceDescriptor(typeof(DbConnection),
-            new NpgsqlConnectionInstance(typeof(DbConnection))));
-
-        options.Node.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
+        options.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
     }
 }

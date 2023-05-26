@@ -1,20 +1,17 @@
-using System;
-using System.Collections.Generic;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten.Events;
-using Oakton.Parsing;
 
 namespace Wolverine.Marten.Codegen;
 
 internal class LoadAggregateFrame<T> : MethodCall where T : class
 {
-    private readonly MartenCommandWorkflowAttribute _att;
+    private readonly AggregateHandlerAttribute _att;
     private Variable? _command;
 
-    public LoadAggregateFrame(MartenCommandWorkflowAttribute att) : base(typeof(IEventStore), FindMethod(att))
+    public LoadAggregateFrame(AggregateHandlerAttribute att) : base(typeof(IEventStore), FindMethod(att))
     {
         _att = att;
         CommentText = "Loading Marten aggregate";
@@ -34,7 +31,7 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
         foreach (var variable in base.FindVariables(chain)) yield return variable;
     }
 
-    internal static MethodInfo FindMethod(MartenCommandWorkflowAttribute att)
+    internal static MethodInfo FindMethod(AggregateHandlerAttribute att)
     {
         var isGuidIdentified = att.AggregateIdMember.GetMemberType() == typeof(Guid);
 

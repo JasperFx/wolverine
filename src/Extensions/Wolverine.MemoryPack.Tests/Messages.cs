@@ -3,7 +3,7 @@
 namespace Wolverine.MemoryPack.Tests;
 
 [MemoryPackable]
-public partial class  MemoryPackMessage
+public partial class MemoryPackMessage
 {
     public string Name;
 }

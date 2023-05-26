@@ -1,9 +1,9 @@
-﻿using System;
-using System.Linq;
-using JasperFx.CodeGeneration.Frames;
+﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Marten;
+using Marten.Events;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
@@ -13,6 +13,12 @@ namespace Wolverine.Marten.Persistence.Sagas;
 
 internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 {
+    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    {
+        persistenceService = typeof(IDocumentSession);
+        return true;
+    }
+
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
         var store = container.GetInstance<IDocumentStore>();
@@ -29,8 +35,13 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public bool CanApply(IChain chain, IContainer container)
     {
-        if (chain is SagaChain) return true;
-        return chain.ServiceDependencies(container).Any(x => x == typeof(IDocumentSession));
+        if (chain is SagaChain)
+        {
+            return true;
+        }
+
+        return 
+               chain.ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession)}).Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
     }
 
     public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)
@@ -45,7 +56,9 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame CommitUnitOfWorkFrame(Variable saga, IContainer container)
     {
-        return MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
+        var call = MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
+        call.CommentText = "Commit all pending changes";
+        return call;
     }
 
     public Frame DetermineUpdateFrame(Variable saga, IContainer container)

@@ -1,139 +1,84 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
-using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Middleware;
 
-
-// TODO -- move this to JasperFx.CodeGeneration if it works
-public class TryFinallyWrapperFrame : Frame
-{
-    private readonly Frame _inner;
-    private readonly Frame[] _finallys;
-
-    public TryFinallyWrapperFrame(Frame inner, Frame[] finallys) : base(inner.IsAsync)
-    {
-        _inner = inner;
-        _finallys = finallys;
-    }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        _inner.GenerateCode(method, writer);
-        writer.Write("BLOCK:try");
-        
-        Next?.GenerateCode(method, writer);
-        
-        writer.FinishBlock();
-        writer.Write("BLOCK:finally");
-        
-        if (_finallys.Length > 1)
-        {
-            for (var i = 1; i < _finallys.Length; i++)
-            {
-                _finallys[i - 1].Next = _finallys[i];
-            }
-        }
-        
-        _finallys[0].GenerateCode(method, writer);
-        
-        writer.FinishBlock();
-    }
-
-    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-    {
-        foreach (var variable in _inner.FindVariables(chain))
-        {
-            yield return variable;
-        }
-
-        // NOT letting the finallys get involved with ordering frames
-        // because that way lies madness
-        foreach (var @finally in _finallys)
-        {
-            // Forcing it to evaluate and attach all variables
-            @finally.FindVariables(chain).ToArray();
-        }
-    }
-}
-
-// TODO -- move to JasperFx.CodeGeneration
-public static class FrameExtensions
-{
-    public static bool CreatesNewOf<T>(this MethodCall frame)
-    {
-        return frame.ReturnVariable?.VariableType == typeof(T) || frame.Creates.Any(x => x.VariableType == typeof(T));
-    }
-}
-
-internal class MiddlewarePolicy : IHandlerPolicy
+public class MiddlewarePolicy : IChainPolicy
 {
     public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync", "Load", "LoadAsync" };
     public static readonly string[] AfterMethodNames = { "After", "AfterAsync", "PostProcess", "PostProcessAsync" };
     public static readonly string[] FinallyMethodNames = {"Finally", "FinallyAsync"};
 
     private readonly List<Application> _applications = new();
-
-    /// <summary>
-    /// Applies a single middleware type to a single chain
-    /// </summary>
-    /// <param name="middlewareType"></param>
-    /// <param name="chain"></param>
-    public static void Apply(Type middlewareType, HandlerChain chain)
+    
+    
+    public static void AssertMethodDoesNotHaveDuplicateReturnValues(MethodCall call)
     {
-        var application = new Application(middlewareType, _ => true);
-        var befores = application.BuildBeforeCalls(chain).ToArray();
-        
-        for (var i = 0; i < befores.Length; i++)
+        if (call.Method.ReturnType.IsValueType)
         {
-            chain.Middleware.Insert(i, befores[i]);
+            var duplicates = call.Method.ReturnType.GetGenericArguments().GroupBy(x => x);
+            if (duplicates.Any(x => x.Count() > 1))
+            {
+                throw new InvalidWolverineMiddlewareException(
+                    $"Wolverine middleware cannot support multiple 'creates' variables of the same type. Method {call}, arguments {duplicates.Select(x => x.Key.Name).Join(", ")}");
+            }
         }
-        
-        var afters = application.BuildAfterCalls(chain).ToArray().Reverse();
 
-        chain.Postprocessors.AddRange(afters);
     }
 
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
         var applications = _applications;
         
-        foreach (var chain in graph.Chains)
+        foreach (var chain in chains)
         {
-            ApplyToChain(applications, chain);
+            ApplyToChain(applications, rules, chain);
         }
     }
 
-    internal static void ApplyToChain(List<Application> applications, IChain chain)
+    internal static void ApplyToChain(List<Application> applications, GenerationRules rules, IChain chain)
     {
-        var befores = applications.SelectMany(x => x.BuildBeforeCalls(chain)).ToArray();
+        var befores = applications.SelectMany(x => x.BuildBeforeCalls(chain, rules)).ToArray();
+
+        if (chain.InputType() != null &&
+            befores.SelectMany(x => x.Creates).Any(x => x.VariableType == chain.InputType()))
+        {
+            throw new InvalidWolverineMiddlewareException(
+                "It's not currently legal in Wolverine to return the message type from middleware");
+        }
 
         for (var i = 0; i < befores.Length; i++)
         {
             chain.Middleware.Insert(i, befores[i]);
         }
 
-        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain));
+        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain, rules));
 
         chain.Postprocessors.AddRange(afters);
     }
 
 
-    public Application AddType(Type middlewareType, Func<IChain, bool> filter = null)
+    public Application AddType(Type middlewareType, Func<IChain, bool>? filter = null)
     {
         filter ??= _ => true;
         var application = new Application(middlewareType, filter);
         _applications.Add(application);
         return application;
+    }
+
+    public static IEnumerable<MethodInfo> FilterMethods<T>(IEnumerable<MethodInfo> methods, string[] validNames)
+        where T : Attribute
+    {
+        return methods
+            .Where(x => !x.HasAttribute<WolverineIgnoreAttribute>())
+            .Where(x => validNames.Contains(x.Name) || x.HasAttribute<T>());
     }
 
     public class Application
@@ -166,9 +111,9 @@ internal class MiddlewarePolicy : IHandlerPolicy
 
             var methods = middlewareType.GetMethods().ToArray();
 
-            _befores = methods.Where(x => BeforeMethodNames.Contains(x.Name)).ToArray();
-            _afters = methods.Where(x => AfterMethodNames.Contains(x.Name)).ToArray();
-            _finals = methods.Where(x => FinallyMethodNames.Contains(x.Name)).ToArray();
+            _befores = FilterMethods<WolverineBeforeAttribute>(methods, BeforeMethodNames).ToArray();
+            _afters = FilterMethods<WolverineAfterAttribute>(methods, AfterMethodNames).ToArray();
+            _finals = FilterMethods<WolverineFinallyAttribute>(methods, FinallyMethodNames).ToArray();
 
             if (!_befores.Any() && !_afters.Any() && !_finals.Any())
             {
@@ -182,9 +127,9 @@ internal class MiddlewarePolicy : IHandlerPolicy
 
         public bool MatchByMessageType { get; set; }
 
-        public IEnumerable<Frame> BuildBeforeCalls(IChain chain)
+        public IEnumerable<Frame> BuildBeforeCalls(IChain chain, GenerationRules rules)
         {
-            var frames = buildBefores(chain).ToArray();
+            var frames = buildBefores(chain, rules).ToArray();
             if (frames.Any() && !MiddlewareType.IsStatic())
             {
                 var constructorFrame = new ConstructorFrame(MiddlewareType, _constructor);
@@ -199,13 +144,13 @@ internal class MiddlewarePolicy : IHandlerPolicy
             foreach (var frame in frames) yield return frame;
         }
 
-        private IEnumerable<Frame> wrapBeforeFrame(MethodCall call)
+        private IEnumerable<Frame> wrapBeforeFrame(MethodCall call, GenerationRules rules)
         {
             if (_finals.Any())
             {
-                if (call.CreatesNewOf<HandlerContinuation>())
+                if (rules.TryFindContinuationHandler(call, out var frame))
                 {
-                    call.Next = new HandlerContinuationFrame(call);
+                    call.Next = frame;
                 }
 
                 var finals = _finals.Select(x => new MethodCall(MiddlewareType, x)).ToArray();
@@ -215,9 +160,9 @@ internal class MiddlewarePolicy : IHandlerPolicy
             else
             {
                 yield return call;
-                if (call.CreatesNewOf<HandlerContinuation>())
+                if (rules.TryFindContinuationHandler(call, out var frame))
                 {
-                    yield return new HandlerContinuationFrame(call);
+                    yield return frame;
                 }
             }
         }
@@ -226,13 +171,12 @@ internal class MiddlewarePolicy : IHandlerPolicy
         {
             if (MatchByMessageType)
             {
-                if (chain is HandlerChain c)
+                var inputType = chain.InputType();
+                var messageType = before.MessageType();
+                
+                if (messageType != null && inputType.CanBeCastTo(messageType))
                 {
-                    var messageType = before.MessageType();
-                    if (messageType != null && c.MessageType.CanBeCastTo(messageType))
-                    {
-                        return new MethodCallAgainstMessage(MiddlewareType, before, messageType);
-                    }
+                    return new MethodCallAgainstMessage(MiddlewareType, before, inputType);
                 }
             }
             else
@@ -243,7 +187,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
             return null;
         }
 
-        private IEnumerable<Frame> buildBefores(IChain chain)
+        private IEnumerable<Frame> buildBefores(IChain chain, GenerationRules rules)
         {
             if (!Filter(chain))
             {
@@ -263,7 +207,9 @@ internal class MiddlewarePolicy : IHandlerPolicy
                 var call = buildCallForBefore(chain, before);
                 if (call != null)
                 {
-                    foreach (var frame in wrapBeforeFrame(call))
+                    AssertMethodDoesNotHaveDuplicateReturnValues(call);
+
+                    foreach (var frame in wrapBeforeFrame(call, rules))
                     {
                         yield return frame;
                     }
@@ -271,19 +217,17 @@ internal class MiddlewarePolicy : IHandlerPolicy
             }
         }
 
+
         private IEnumerable<Frame> buildFinals(IChain chain)
         {
             foreach (var final in _finals)
             {
                 if (MatchByMessageType)
                 {
-                    if (chain is HandlerChain c)
+                    var messageType = final.MessageType();
+                    if (messageType != null && chain.InputType().CanBeCastTo(messageType))
                     {
-                        var messageType = final.MessageType();
-                        if (messageType != null && c.MessageType.CanBeCastTo(messageType))
-                        {
-                            yield return new MethodCallAgainstMessage(MiddlewareType, final, messageType);
-                        }
+                        yield return new MethodCallAgainstMessage(MiddlewareType, final, chain.InputType()!);
                     }
                 }
                 else
@@ -293,9 +237,9 @@ internal class MiddlewarePolicy : IHandlerPolicy
             }
         }
 
-        public IEnumerable<Frame> BuildAfterCalls(IChain chain)
+        public IEnumerable<Frame> BuildAfterCalls(IChain chain, GenerationRules rules)
         {
-            var afters = buildAfters(chain).ToArray();
+            var afters = buildAfters(chain, rules).ToArray();
 
             if (afters.Any() && !MiddlewareType.IsStatic())
             {
@@ -308,7 +252,7 @@ internal class MiddlewarePolicy : IHandlerPolicy
             foreach (var after in afters) yield return after;
         }
 
-        private IEnumerable<Frame> buildAfters(IChain chain)
+        private IEnumerable<Frame> buildAfters(IChain chain, GenerationRules rules)
         {
             if (!Filter(chain))
             {
@@ -319,13 +263,10 @@ internal class MiddlewarePolicy : IHandlerPolicy
             {
                 if (MatchByMessageType)
                 {
-                    if (chain is HandlerChain c)
+                    var messageType = after.MessageType();
+                    if (messageType != null && chain.InputType().CanBeCastTo(messageType))
                     {
-                        var messageType = after.MessageType();
-                        if (messageType != null && c.MessageType.CanBeCastTo(messageType))
-                        {
-                            yield return new MethodCallAgainstMessage(MiddlewareType, after, messageType);
-                        }
+                        yield return new MethodCallAgainstMessage(MiddlewareType, after, chain.InputType()!);
                     }
                 }
                 else

@@ -1,54 +1,111 @@
-using System;
+using System.Data;
 using System.Data.Common;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Lamar;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Durability;
+using Wolverine.RDBMS.Polling;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports.Local;
+using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
-    IMessageDatabase, IMessageStoreAdmin where T : DbConnection, new()
+    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin where T : DbConnection, new()
 {
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
+    protected readonly DatabaseSettings _settings;
+    private string _schemaName;
+    private DatabaseBatcher? _batcher;
 
-    protected MessageDatabase(DatabaseSettings databaseSettings, NodeSettings settings,
-        ILogger logger) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, databaseSettings.Migrator,
+    protected MessageDatabase(DatabaseSettings databaseSettings, DurabilitySettings settings,
+        ILogger logger, Migrator migrator, string defaultSchema) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, migrator,
         "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
     {
-        Settings = databaseSettings;
+        if (databaseSettings.ConnectionString == null)
+            throw new ArgumentNullException(nameof(DatabaseSettings.ConnectionString)); 
+        
+        _settings = databaseSettings;
+        _schemaName = databaseSettings.SchemaName ?? defaultSchema;
 
-        Node = settings;
+        IncomingFullName = $"{SchemaName}.{DatabaseConstants.IncomingTable}";
+        OutgoingFullName = $"{SchemaName}.{DatabaseConstants.OutgoingTable}";
+
+        Durability = settings;
         _cancellation = settings.Cancellation;
 
-        var transaction = new DurableStorageSession(databaseSettings, settings.Cancellation);
+        var transaction = new DurableStorageSession(this, settings.Cancellation, logger);
 
         Session = transaction;
 
         _cancellation = settings.Cancellation;
         _deleteIncomingEnvelopeById =
-            $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
+            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
         _incrementIncominEnvelopeAttempts =
-            $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id";
+            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id";
 
         // ReSharper disable once VirtualMemberCallInConstructor
-        _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(databaseSettings, settings);
+        _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(settings);
 
-
+        Nodes = buildNodeStorage(databaseSettings);
     }
 
-    public NodeSettings Node { get; }
+    protected abstract INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings);
 
-    public DatabaseSettings Settings { get; }
+    public INodeAgentPersistence Nodes { get; }
+
+    public IMessageInbox Inbox => this;
+
+    public IMessageOutbox Outbox => this;
+
+    public DatabaseSettings Settings => _settings;
+
+    public string SchemaName
+    {
+        get => _schemaName;
+        set
+        {
+            _schemaName = value;
+
+            IncomingFullName = $"{value}.{DatabaseConstants.IncomingTable}";
+            OutgoingFullName = $"{value}.{DatabaseConstants.OutgoingTable}";
+        }
+    }
+    
+    public string OutgoingFullName { get; private set; }
+
+    public string IncomingFullName { get; private set; }
+
+    public DurabilitySettings Durability { get; }
+
+    public Task EnqueueAsync(IDatabaseOperation operation)
+    {
+        if (_batcher == null) throw new InvalidOperationException("This message database has not yet been initialized");
+
+        return _batcher.EnqueueAsync(operation);
+    }
+
+    public Task InitializeAsync(IWolverineRuntime runtime)
+    {
+        _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
+        
+        if (Settings.IsMaster && runtime.Options.Transports.NodeControlEndpoint == null)
+        {
+            var transport = new DatabaseControlTransport(this, runtime.Options);
+            runtime.Options.Transports.Add(transport);
+
+            runtime.Options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
+        }
+
+        return Task.CompletedTask;
+    }
 
     public IMessageStoreAdmin Admin => this;
 
@@ -63,7 +120,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         await conn
             .CreateCommand(
-                $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner")
+                $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner")
             .With("owner", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
     }
@@ -75,7 +132,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         var impacted = await conn
             .CreateCommand(
-                $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
+                $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
             .With("owner", ownerId)
             .With("uri", receivedAt.ToString())
             .ExecuteNonQueryAsync(_cancellation);
@@ -85,14 +142,72 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     {
         var durabilityLogger = container.GetInstance<ILogger<DurabilityAgent>>();
 
-        // TODO -- use the worker queue for Retries?
         var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
-        return new DurabilityAgent(runtime, runtime.Logger, durabilityLogger, worker, this,
-            runtime.Options.Node, Settings);
+        return new DurabilityAgent(runtime, runtime.LoggerFactory.CreateLogger<DurabilityAgent>(), durabilityLogger, worker, this,
+            runtime.Options.Durability, this);
     }
 
-    public void Dispose()
+    public Task DrainAsync()
     {
+        return _batcher.DrainAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_batcher != null)
+        {
+            await _batcher.DisposeAsync();
+        }
+        
         Session?.Dispose();
     }
+
+    DbConnection IMessageDatabase.CreateConnection()
+    {
+        return CreateConnection();
+    }
+
+    public DbCommand CreateCommand(string command)
+    {
+        var cmd = CreateConnection().CreateCommand();
+        cmd.CommandText = command;
+
+        return cmd;
+    }
+
+    public DbCommand CallFunction(string functionName)
+    {
+        var cmd = CreateConnection().CreateCommand();
+        cmd.CommandText = SchemaName + "." + functionName;
+
+        cmd.CommandType = CommandType.StoredProcedure;
+
+        return cmd;
+    }
+
+    public DbCommandBuilder ToCommandBuilder()
+    {
+        return CreateConnection().ToCommandBuilder();
+    }
+
+
+    public abstract Task GetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
+        CancellationToken cancellation = default);
+
+    public abstract Task<bool> TryGetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
+        CancellationToken cancellation = default);
+
+    public abstract Task GetGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
+        DbTransaction? transaction = null);
+
+    public abstract Task<bool> TryGetGlobalLockAsync(DbConnection conn, DbTransaction? tx, int lockId,
+        CancellationToken cancellation = default);
+
+    public abstract Task<bool> TryGetGlobalLockAsync(DbConnection conn, int lockId, DbTransaction tx,
+        CancellationToken cancellation = default);
+
+    public abstract Task ReleaseGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
+        DbTransaction? tx = null);
+
+    public abstract IEnumerable<ISchemaObject> AllObjects();
 }

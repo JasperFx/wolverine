@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace PersistenceTests.SqlServer.Persistence;
+﻿namespace PersistenceTests.SqlServer.Persistence;
 
 public class ItemCreated
 {

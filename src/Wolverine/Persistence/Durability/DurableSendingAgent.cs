@@ -18,23 +18,23 @@ internal class DurableSendingAgent : SendingAgent
     private readonly RetryBlock<Envelope> _deleteOutgoingOne;
     private readonly RetryBlock<OutgoingMessageBatch> _enqueueForRetry;
     private readonly ILogger _logger;
-    private readonly IMessageStore _persistence;
+    private readonly IMessageOutbox _outbox;
     private readonly RetryBlock<Envelope> _storeAndForward;
 
     private IList<Envelope> _queued = new List<Envelope>();
 
-    public DurableSendingAgent(ISender sender, NodeSettings settings, ILogger logger,
+    public DurableSendingAgent(ISender sender, DurabilitySettings settings, ILogger logger,
         IMessageLogger messageLogger,
         IMessageStore persistence, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
     {
         _logger = logger;
 
-        _persistence = persistence;
+        _outbox = persistence.Outbox;
 
         _deleteOutgoingOne =
-            new RetryBlock<Envelope>((e, _) => _persistence.DeleteOutgoingAsync(e), logger, settings.Cancellation);
+            new RetryBlock<Envelope>((e, _) => _outbox.DeleteOutgoingAsync(e), logger, settings.Cancellation);
 
-        _deleteOutgoingMany = new RetryBlock<Envelope[]>((envelopes, _) => _persistence.DeleteOutgoingAsync(envelopes),
+        _deleteOutgoingMany = new RetryBlock<Envelope[]>((envelopes, _) => _outbox.DeleteOutgoingAsync(envelopes),
             logger, settings.Cancellation);
 
         _enqueueForRetry = new RetryBlock<OutgoingMessageBatch>((batch, _) => enqueueForRetryAsync(batch), _logger,
@@ -42,7 +42,7 @@ internal class DurableSendingAgent : SendingAgent
 
         _storeAndForward = new RetryBlock<Envelope>(async (e, _) =>
         {
-            await _persistence.StoreOutgoingAsync(e, _settings.UniqueNodeId);
+            await _outbox.StoreOutgoingAsync(e, _settings.NodeLockId);
 
             await _sending.PostAsync(e);
         }, _logger, settings.Cancellation);
@@ -95,7 +95,7 @@ internal class DurableSendingAgent : SendingAgent
 
         await executeWithRetriesAsync(async () =>
         {
-            await _persistence.DiscardAndReassignOutgoingAsync(expired, reassigned, TransportConstants.AnyNode);
+            await _outbox.DiscardAndReassignOutgoingAsync(expired, reassigned, TransportConstants.AnyNode);
             _logger.DiscardedExpired(expired);
         });
 
@@ -108,7 +108,7 @@ internal class DurableSendingAgent : SendingAgent
         var expired = _queued.Where(x => x.IsExpired()).ToArray();
         if (expired.Any())
         {
-            await executeWithRetriesAsync(() => _persistence.DeleteIncomingEnvelopesAsync(expired));
+            await executeWithRetriesAsync(() => _outbox.DeleteOutgoingAsync(expired));
         }
 
         var toRetry = _queued.Where(x => !x.IsExpired()).ToArray();

@@ -1,17 +1,18 @@
 using System;
 using System.Diagnostics;
 using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 
 namespace Wolverine.Tracking;
 
 public class EnvelopeRecord
 {
-    public EnvelopeRecord(EventType eventType, Envelope envelope, long sessionTime, Exception? exception)
+    public EnvelopeRecord(MessageEventType eventType, Envelope envelope, long sessionTime, Exception? exception)
     {
         Envelope = envelope;
         SessionTime = sessionTime;
         Exception = exception;
-        EventType = eventType;
+        MessageEventType = eventType;
         AttemptNumber = envelope.Attempts;
 
         var activity = Activity.Current;
@@ -41,7 +42,7 @@ public class EnvelopeRecord
     public long SessionTime { get; }
 
     public Exception? Exception { get; }
-    public EventType EventType { get; }
+    public MessageEventType MessageEventType { get; }
 
     public int AttemptNumber { get; }
 
@@ -54,38 +55,38 @@ public class EnvelopeRecord
         var prefix = $"{ServiceName} ({UniqueNodeId}) @{SessionTime}ms: ";
         var message = $"{Message?.GetType().FullNameInCode()} ({Envelope.Id})";
 
-        switch (EventType)
+        switch (MessageEventType)
         {
-            case EventType.Sent:
+            case MessageEventType.Sent:
                 return $"{prefix}Sent {message} to {Envelope.Destination}";
 
-            case EventType.Received:
+            case MessageEventType.Received:
                 return $"{prefix}Received {message} at {Envelope.Destination}";
 
-            case EventType.ExecutionStarted:
+            case MessageEventType.ExecutionStarted:
                 return $"{prefix}Started execution of {message}";
 
-            case EventType.ExecutionFinished:
+            case MessageEventType.ExecutionFinished:
                 return $"{prefix}Finished execution of {message}";
 
-            case EventType.MessageFailed:
+            case MessageEventType.MessageFailed:
                 return $"{prefix}{message} was marked as failed!";
 
-            case EventType.MessageSucceeded:
+            case MessageEventType.MessageSucceeded:
                 return $"{prefix}{message} was marked as successful.";
 
-            case EventType.NoHandlers:
+            case MessageEventType.NoHandlers:
                 return $"{prefix}{message} had no known handlers and was discarded";
 
-            case EventType.NoRoutes:
+            case MessageEventType.NoRoutes:
                 return $"{prefix}Attempted to publish {message}, but there were no subscribers";
 
-            case EventType.MovedToErrorQueue:
+            case MessageEventType.MovedToErrorQueue:
                 return $"{prefix}{message} was moved to the dead letter queue";
         }
 
         var icon = IsComplete ? "+" : "-";
         return
-            $"{icon} Service: {ServiceName}, Id: {Envelope.Id}, {nameof(SessionTime)}: {SessionTime}, {nameof(EventType)}: {EventType}, MessageType: {Envelope.MessageType} at node #{UniqueNodeId}";
+            $"{icon} Service: {ServiceName}, Id: {Envelope.Id}, {nameof(SessionTime)}: {SessionTime}, {nameof(MessageEventType)}: {MessageEventType}, MessageType: {Envelope.MessageType} at node #{UniqueNodeId}";
     }
 }

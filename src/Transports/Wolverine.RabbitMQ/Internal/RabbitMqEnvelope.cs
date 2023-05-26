@@ -10,8 +10,18 @@ internal class RabbitMqEnvelope : Envelope
         DeliveryTag = deliveryTag;
     }
 
-    internal RabbitMqListener RabbitMqListener { get; }
-    internal ulong DeliveryTag { get; }
+    /// <summary>
+    /// This is only here for chaos testing. Don't use this for any
+    /// other reason. You've been warned!
+    /// </summary>
+    /// <param name="tag"></param>
+    internal void OverrideDeliveryTag(ulong tag)
+    {
+        DeliveryTag = tag;
+    }
+
+    internal RabbitMqListener RabbitMqListener { get;  }
+    internal ulong DeliveryTag { get; private set;}
 
     public bool Acknowledged { get; private set; }
 

@@ -5,13 +5,13 @@ namespace Wolverine.Marten.Persistence.Operations;
 
 internal static class MartenStorageExtensions
 {
-    public static void StoreIncoming(this IDocumentSession session, PostgresqlSettings settings, Envelope envelope)
+    public static void StoreIncoming(this IDocumentSession session, PostgresqlMessageStore store, Envelope envelope)
     {
-        var operation = new StoreIncomingEnvelope(settings.IncomingFullName, envelope);
+        var operation = new StoreIncomingEnvelope(store.IncomingFullName, envelope);
         session.QueueOperation(operation);
     }
 
-    public static void StoreOutgoing(this IDocumentSession session, PostgresqlSettings settings, Envelope envelope,
+    public static void StoreOutgoing(this IDocumentSession session, PostgresqlMessageStore settings, Envelope envelope,
         int ownerId)
     {
         var operation = new StoreOutgoingEnvelope(settings.OutgoingFullName, envelope, ownerId);

@@ -27,7 +27,7 @@ builder.Services.AddMarten(opts =>
 builder.Host.UseWolverine(opts =>
 {
     // Just setting up some retries on transient database connectivity errors
-    opts.Handlers.OnException<NpgsqlException>().OrInner<NpgsqlException>()
+    opts.Policies.OnException<NpgsqlException>().OrInner<NpgsqlException>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
 
     // NEW! Apply the durable inbox/outbox functionality to the two in-memory queues

@@ -22,17 +22,13 @@ namespace Internal.Generated.WolverineHandlers
             var incrementCD = (PersistenceTests.Marten.IncrementCD)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementCD.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementCD.LetterAggregateId, incrementCD.Version, cancellation).ConfigureAwait(false);
 
-            var outgoing1 = letterAggregateHandler.Handle(incrementCD, eventStream.Aggregate);
-            if (outgoing1 != null)
-            {
-                // Capturing any possible events returned from the command handlers
-                eventStream.AppendMany(outgoing1);
-
-            }
-
+            (var outgoing1, var outgoing2) = letterAggregateHandler.Handle(incrementCD, eventStream.Aggregate);
+            eventStream.AppendOne(outgoing1);
+            eventStream.AppendOne(outgoing2);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 

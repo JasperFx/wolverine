@@ -34,6 +34,15 @@ namespace build
             Target("test", DependsOn("compile"),() =>
             {
                 RunTests("CoreTests");
+
+                RunTests("Extensions", "Wolverine.FluentValidation.Tests");
+                RunTests("Extensions", "Wolverine.MemoryPack.Tests");
+                RunTests("Extensions", "Wolverine.MessagePack.Tests");
+            });
+            
+            Target("test-http", DependsOn("compile", "docker-up"), () =>
+            {
+                RunTests("Http", "Wolverine.Http.Tests");
             });
             
             Target("test-persistence", DependsOn("compile", "docker-up"), () =>
@@ -70,7 +79,9 @@ namespace build
                 Directory.SetCurrentDirectory(Path.Combine(original, "src", "Samples", "ConsoleApp"));
                 RunCurrentProject("?");
                 RunCurrentProject("describe");
-
+                
+                Directory.SetCurrentDirectory(Path.Combine(original, "src", "Http", "WolverineWebApi"));
+                RunCurrentProject("codegen preview");
 
                 Directory.SetCurrentDirectory(original);
             });
@@ -135,10 +146,13 @@ namespace build
                 "./src/Persistence/Wolverine.Marten",
                 "./src/Persistence/Wolverine.SqlServer",
                 "./src/Extensions/Wolverine.FluentValidation",
-                "./src/Extensions/Wolverine.MemoryPack"
+                "./src/Extensions/Wolverine.MemoryPack",
+                "./src/Extensions/Wolverine.MessagePack",
+                "./src/Http/Wolverine.Http",
+                "./src/Http/Wolverine.Http.FluentValidation",
             };
 
-            Target("pack", DependsOn("compile"), ForEach(nugetProjects), project =>
+            Target("pack", ForEach(nugetProjects), project =>
                 Run("dotnet", $"pack {project} -o ./artifacts --configuration Release"));
 
 

@@ -1,26 +1,35 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Collections;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-internal class FailureRule
+public class FailureRule : IEnumerable<FailureSlot>
 {
-    private readonly IExceptionMatch _match;
     private readonly List<FailureSlot> _slots = new();
 
     public FailureRule(IExceptionMatch match)
     {
-        _match = match;
+        Match = match;
     }
 
     public FailureSlot this[int attempt] => _slots[attempt - 1];
 
+    public IExceptionMatch Match { get; }
+
+    public IEnumerator<FailureSlot> GetEnumerator()
+    {
+        return _slots.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
     public bool TryCreateContinuation(Exception ex, Envelope env, out IContinuation continuation)
     {
-        if (_match.Matches(ex))
+        if (Match.Matches(ex))
         {
             if (env.Attempts == 0)
             {

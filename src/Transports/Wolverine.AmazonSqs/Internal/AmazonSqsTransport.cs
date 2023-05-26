@@ -36,7 +36,22 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace('.', '-');
+        //AWS requires FIFO queues to have a `.fifo` suffix
+        var suffixIndex = identifier.LastIndexOf(".fifo", StringComparison.OrdinalIgnoreCase);
+
+        if (suffixIndex != -1) // ".fifo" suffix found
+        {
+            var prefix = identifier[..suffixIndex];
+            var suffix = identifier[suffixIndex..];
+
+            prefix = prefix.Replace(".", IdentifierDelimiter);
+
+            return prefix + suffix;
+        }
+        else // ".fifo" suffix not found
+        {
+            return identifier.Replace(".", IdentifierDelimiter);
+        }
     }
 
     protected override IEnumerable<AmazonSqsQueue> endpoints()

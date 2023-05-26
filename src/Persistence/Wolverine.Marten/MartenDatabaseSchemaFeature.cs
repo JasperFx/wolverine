@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;

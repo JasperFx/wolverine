@@ -7,11 +7,12 @@ namespace Wolverine.MemoryPack;
 public static class WolverineMemoryPackSerializationExtensions
 {
     /// <summary>
-    /// Make MemoryPack the default serializer for this application
+    ///     Make MemoryPack the default serializer for this application
     /// </summary>
     /// <param name="options"></param>
     /// <param name="configuration"></param>
-    public static void UseMemoryPackSerialization(this WolverineOptions options, Action<MemoryPackSerializerOptions>? configuration = null)
+    public static void UseMemoryPackSerialization(this WolverineOptions options,
+        Action<MemoryPackSerializerOptions>? configuration = null)
     {
         var serializerOptions = MemoryPackSerializerOptions.Default;
 
@@ -23,13 +24,15 @@ public static class WolverineMemoryPackSerializationExtensions
     }
 
     /// <summary>
-    /// Apply MemoryPack serialization for just this endpoint
+    ///     Apply MemoryPack serialization for just this endpoint
     /// </summary>
-    /// <param name="listener"></param>b
+    /// <param name="listener"></param>
+    /// b
     /// <param name="configuration"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static T UseMemoryPackSerialization<T>(this T endpoint, Action<MemoryPackSerializerOptions>? configuration = null) where T : IEndpointConfiguration<T>
+    public static T UseMemoryPackSerialization<T>(this T endpoint,
+        Action<MemoryPackSerializerOptions>? configuration = null) where T : IEndpointConfiguration<T>
     {
         var serializerOptions = MemoryPackSerializerOptions.Default;
 
@@ -39,5 +42,4 @@ public static class WolverineMemoryPackSerializationExtensions
         endpoint.DefaultSerializer(serializer);
         return endpoint;
     }
-
 }

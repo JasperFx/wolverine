@@ -24,18 +24,14 @@ public class marten_scheduled_jobs : IAsyncLifetime
             .CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Node.ScheduledJobPollingTime = 50.Milliseconds();
+                opts.Durability.ScheduledJobPollingTime = 50.Milliseconds();
 
                 opts.Services.AddSingleton(theReceiver);
 
                 opts.Publish(x => x.MessagesFromAssemblyContaining<ScheduledMessageReceiver>()
                     .ToLocalQueue("incoming").UseDurableInbox());
 
-                opts.Handlers.Discovery(x =>
-                {
-                    x.DisableConventionalDiscovery();
-                    x.IncludeType<ScheduledMessageCatcher>();
-                });
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<ScheduledMessageCatcher>();
 
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();

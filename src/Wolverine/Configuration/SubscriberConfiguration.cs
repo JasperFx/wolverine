@@ -14,7 +14,7 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
     ISubscriberConfiguration<T>
     where TEndpoint : Endpoint where T : ISubscriberConfiguration<T>
 {
-    protected SubscriberConfiguration(TEndpoint queue) : base(queue)
+    protected SubscriberConfiguration(TEndpoint endpoint) : base(endpoint)
     {
     }
 

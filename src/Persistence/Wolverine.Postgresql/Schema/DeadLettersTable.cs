@@ -1,5 +1,4 @@
-﻿using System;
-using Weasel.Core;
+﻿using Weasel.Core;
 using Weasel.Postgresql.Tables;
 using Wolverine.RDBMS;
 
@@ -16,7 +15,7 @@ internal class DeadLettersTable : Table
 
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
         AddColumn<string>(DatabaseConstants.ReceivedAt);
-        
+
         AddColumn<string>(DatabaseConstants.Source);
         AddColumn<string>(DatabaseConstants.ExceptionType);
         AddColumn<string>(DatabaseConstants.ExceptionMessage);

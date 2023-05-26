@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
@@ -28,7 +25,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
     private DocumentStore _receiverStore;
     private LightweightCache<string, IHost> _senders;
     private DocumentStore _sendingStore;
-    
+
     public async Task InitializeAsync()
     {
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");
@@ -42,7 +39,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         });
 
         await _receiverStore.Advanced.Clean.CompletelyRemoveAllAsync();
-        await _receiverStore.Schema.ApplyAllConfiguredChangesToDatabaseAsync();
+        await _receiverStore.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
 
         _sendingStore = DocumentStore.For(opts =>
         {
@@ -50,21 +47,21 @@ public class marten_durability_end_to_end : IAsyncLifetime
             opts.DatabaseSchemaName = SenderSchemaName;
         });
 
-        var advanced = new NodeSettings(null);
+        var advanced = new DurabilitySettings();
 
         var logger = new NullLogger<PostgresqlMessageStore>();
-        await new PostgresqlMessageStore(new PostgresqlSettings
+        await new PostgresqlMessageStore(new DatabaseSettings()
                     { ConnectionString = Servers.PostgresConnectionString, SchemaName = ReceiverSchemaName }, advanced,
                 logger)
             .RebuildAsync();
 
-        await new PostgresqlMessageStore(new PostgresqlSettings
+        await new PostgresqlMessageStore(new DatabaseSettings()
                     { ConnectionString = Servers.PostgresConnectionString, SchemaName = SenderSchemaName }, advanced,
                 logger)
             .RebuildAsync();
 
         await _sendingStore.Advanced.Clean.CompletelyRemoveAllAsync();
-        await _sendingStore.Schema.ApplyAllConfiguredChangesToDatabaseAsync();
+        await _sendingStore.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
 
         _receivers = new LightweightCache<string, IHost>(key =>
         {
@@ -73,9 +70,9 @@ public class marten_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.Handlers.AutoApplyTransactions();
-                    opts.Handlers.DisableConventionalDiscovery();
-                    opts.Handlers.IncludeType<TraceHandler>();
+                    opts.Policies.AutoApplyTransactions();
+                    opts.DisableConventionalDiscovery();
+                    opts.IncludeType<TraceHandler>();
 
                     opts.Services.AddMarten(m =>
                     {
@@ -93,8 +90,8 @@ public class marten_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.Handlers.DisableConventionalDiscovery();
-                    opts.Handlers.AutoApplyTransactions();
+                    opts.DisableConventionalDiscovery();
+                    opts.Policies.AutoApplyTransactions();
 
                     opts.Publish(x => x.Message<TraceMessage>().To(_listener)
                         .UseDurableOutbox());
@@ -105,8 +102,8 @@ public class marten_durability_end_to_end : IAsyncLifetime
                         m.DatabaseSchemaName = SenderSchemaName;
                     }).IntegrateWithWolverine();
 
-                    opts.Node.ScheduledJobPollingTime = 1.Seconds();
-                    opts.Node.ScheduledJobFirstExecution = 0.Seconds();
+                    opts.Durability.ScheduledJobPollingTime = 1.Seconds();
+                    opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
                 })
                 .Start();
         });

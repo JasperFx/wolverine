@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
 
@@ -16,6 +19,7 @@ public class LocalQueue : Endpoint
     }
 
     internal List<Type> HandledMessageTypes { get; } = new();
+    public int MessageCount => Agent?.As<ILocalQueue>().QueueCount ?? 0;
 
     public override bool ShouldEnforceBackPressure()
     {

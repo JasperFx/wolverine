@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 using Wolverine;
 
@@ -20,6 +21,23 @@ public class SampleExtension : IWolverineExtension
 }
 
 #endregion
+
+public static class ExtensionUse
+{
+    public static async Task spin_up()
+    {
+        #region sample_including_extension
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Including a single extension
+                opts.Include<SampleExtension>();
+            }).StartAsync();
+
+        #endregion
+    }
+}
 
 public interface IFoo
 {

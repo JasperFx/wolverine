@@ -133,4 +133,5 @@ public interface IMessageBus
     ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null);
 
 
+    string? TenantId { get; set; }
 }

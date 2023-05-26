@@ -56,16 +56,24 @@ public class Middleware
 
 public class MiddlewareSample
 {
-    public void Before(){}
-    public void After(){}
-    public void Finally(){}
+    public void Before()
+    {
+    }
+
+    public void After()
+    {
+    }
+
+    public void Finally()
+    {
+    }
 }
 
 #region sample_StopwatchMiddleware_1
 
 public class StopwatchMiddleware
 {
-    private readonly Stopwatch _stopwatch = new Stopwatch();
+    private readonly Stopwatch _stopwatch = new();
 
     public void Before()
     {
@@ -75,7 +83,7 @@ public class StopwatchMiddleware
     public void Finally(ILogger logger, Envelope envelope)
     {
         _stopwatch.Stop();
-        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds", 
+        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds",
             envelope.Id, envelope.MessageType, _stopwatch.ElapsedMilliseconds);
     }
 }
@@ -116,7 +124,7 @@ public static class StopwatchMiddleware2
     public static void Finally(Stopwatch stopwatch, ILogger logger, Envelope envelope)
     {
         stopwatch.Stop();
-        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds", 
+        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds",
             envelope.Id, envelope.MessageType, stopwatch.ElapsedMilliseconds);
     }
 }
@@ -134,8 +142,9 @@ public static class UsingStopwatchMiddleware
             {
                 // Apply our new middleware to message handlers, but optionally 
                 // filter it to only messages from a certain namespace
-                opts.Handlers
-                    .AddMiddleware<StopwatchMiddleware>(chain => chain.MessageType.IsInNamespace("MyApp.Messages.Important"));
+                opts.Policies
+                    .AddMiddleware<StopwatchMiddleware>(chain =>
+                        chain.MessageType.IsInNamespace("MyApp.Messages.Important"));
             }).StartAsync();
 
         #endregion

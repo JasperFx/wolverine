@@ -1,56 +1,42 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.IO;
-using System.Threading.Tasks;
+﻿using System.Data;
+using System.Data.Common;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
+using Weasel.SqlServer;
+using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
 using Wolverine.RDBMS;
+using Wolverine.Runtime.Agents;
 using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Util;
 using Wolverine.Transports;
+using CommandExtensions = Weasel.Core.CommandExtensions;
+using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.SqlServer.Persistence;
 
 public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 {
-    private readonly SqlServerSettings _databaseSettings;
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _moveToDeadLetterStorageSql;
 
 
-    public SqlServerMessageStore(SqlServerSettings databaseSettings, NodeSettings settings,
+    public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
         ILogger<SqlServerMessageStore> logger)
-        : base(databaseSettings, settings, logger)
+        : base(database, settings, logger, new SqlServerMigrator(), "dbo")
     {
-        _databaseSettings = databaseSettings;
         _findAtLargeEnvelopesSql =
-            $"select top (@limit) {DatabaseConstants.IncomingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
+            $"select top (@limit) {DatabaseConstants.IncomingFields} from {database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
 
-        _moveToDeadLetterStorageSql = $"EXEC {_databaseSettings.SchemaName}.uspDeleteIncomingEnvelopes @IDLIST;";
+        _moveToDeadLetterStorageSql = $"EXEC {SchemaName}.uspDeleteIncomingEnvelopes @IDLIST;";
     }
 
-    public override ISchemaObject[] Objects
+    protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings)
     {
-        get
-        {
-            return new ISchemaObject[]
-            {
-                new OutgoingEnvelopeTable(Settings.SchemaName),
-                new IncomingEnvelopeTable(Settings.SchemaName),
-                new DeadLettersTable(Settings.SchemaName),
-                new EnvelopeIdTable(Settings.SchemaName),
-                new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", Settings),
-                new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", Settings),
-                new WolverineStoredProcedure("uspDiscardAndReassignOutgoing.sql", Settings),
-                new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", Settings),
-                new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", Settings)
-            };
-        }
+        return new SqlServerNodePersistence(databaseSettings);
     }
 
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
@@ -62,12 +48,10 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         var counts = new PersistedCounts();
 
-        await using var conn = Settings.CreateConnection();
+        await using var conn = CreateConnection();
         await conn.OpenAsync();
 
-        await using (var reader = await conn
-                         .CreateCommand(
-                             $"select status, count(*) from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} group by status")
+        await using (var reader = await CommandExtensions.CreateCommand(conn, $"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
                          .ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
@@ -92,58 +76,63 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             }
         }
 
-        counts.Outgoing = (int)(await conn
-            .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.OutgoingTable}")
+        counts.Outgoing = (int)(await CommandExtensions.CreateCommand(conn, $"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteScalarAsync())!;
-        
-        counts.DeadLetter = (int)(await conn
-            .CreateCommand($"select count(*) from {Settings.SchemaName}.{DatabaseConstants.DeadLetterTable}")
+
+        counts.DeadLetter = (int)(await CommandExtensions.CreateCommand(conn, $"select count(*) from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
             .ExecuteScalarAsync())!;
+
+
+        await conn.CloseAsync();
 
         return counts;
     }
+    
+    /// <summary>
+    ///     The value of the 'database_principal' parameter in calls to APPLOCK_TEST
+    /// </summary>
+    public string DatabasePrincipal { get; set; } = "dbo";
 
     public override Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
     {
-        return _databaseSettings.CallFunction("uspDeleteIncomingEnvelopes")
-            .WithIdList(_databaseSettings, envelopes).ExecuteOnce(_cancellation);
+        return CallFunction("uspDeleteIncomingEnvelopes")
+            .WithIdList(this, envelopes).ExecuteOnce(_cancellation);
     }
 
-    public override Task MoveToDeadLetterStorageAsync(ErrorReport[] errors)
+    public override Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         var table = new DataTable();
         table.Columns.Add(new DataColumn("ID", typeof(Guid)));
-        foreach (var error in errors) table.Rows.Add(error.Id);
+        table.Rows.Add(envelope.Id);
 
-        var builder = Settings.ToCommandBuilder();
+        var builder = ToCommandBuilder();
 
         var list = builder.AddNamedParameter("IDLIST", table).As<SqlParameter>();
         list.SqlDbType = SqlDbType.Structured;
-        list.TypeName = $"{_databaseSettings.SchemaName}.EnvelopeIdList";
+        list.TypeName = $"{SchemaName}.EnvelopeIdList";
 
         builder.Append(_moveToDeadLetterStorageSql);
 
-        DatabasePersistence.ConfigureDeadLetterCommands(errors, builder, Settings);
+        DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
 
         return builder.Compile().ExecuteOnce(_cancellation);
     }
 
     public override void Describe(TextWriter writer)
     {
-        writer.WriteLine($"Sql Server Envelope Storage in Schema '{_databaseSettings.SchemaName}'");
+        writer.WriteLine($"Sql Server Envelope Storage in Schema '{SchemaName}'");
     }
 
-    protected override string determineOutgoingEnvelopeSql(DatabaseSettings databaseSettings,
-        NodeSettings settings)
+    protected override string determineOutgoingEnvelopeSql(DurabilitySettings settings)
     {
         return
-            $"select top {settings.RecoveryBatchSize} {DatabaseConstants.OutgoingFields} from {databaseSettings.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination";
+            $"select top {settings.RecoveryBatchSize} {DatabaseConstants.OutgoingFields} from {SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination";
     }
 
     public override Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
     {
         var cmd = Session.CallFunction("uspMarkOutgoingOwnership")
-            .WithIdList(Settings, outgoing)
+            .WithIdList(this, outgoing)
             .With("owner", ownerId);
 
         return cmd.ExecuteNonQueryAsync(_cancellation);
@@ -151,9 +140,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     public override Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
-        var cmd = Settings.CallFunction("uspDiscardAndReassignOutgoing")
-            .WithIdList(Settings, discards, "discards")
-            .WithIdList(Settings, reassigned, "reassigned")
+        var cmd = CallFunction("uspDiscardAndReassignOutgoing")
+            .WithIdList(this, discards, "discards")
+            .WithIdList(this, reassigned, "reassigned")
             .With("ownerId", nodeId);
 
         return cmd.ExecuteOnce(_cancellation);
@@ -161,8 +150,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     public override Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
-        return Settings.CallFunction("uspDeleteOutgoingEnvelopes")
-            .WithIdList(Settings, envelopes).ExecuteOnce(_cancellation);
+        return CallFunction("uspDeleteOutgoingEnvelopes")
+            .WithIdList(this, envelopes).ExecuteOnce(_cancellation);
     }
 
     public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
@@ -170,13 +159,13 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         return Session.CreateCommand(_findAtLargeEnvelopesSql)
             .With("address", listenerAddress.ToString())
             .With("limit", limit)
-            .FetchList(r => DatabasePersistence.ReadIncomingAsync(r));
+            .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 
     public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
         return Session.CallFunction("uspMarkIncomingOwnership")
-            .WithIdList(_databaseSettings, incoming)
+            .WithIdList(this, incoming)
             .With("owner", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
     }
@@ -185,8 +174,144 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         return Session!.Transaction!
             .CreateCommand(
-                $"select TOP {Node.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {Settings.SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time")
+                $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time")
             .With("time", utcNow)
-            .FetchList(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
+            .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
+    }
+
+
+    public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
+    {
+        builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @");
+        builder.AppendParameter(utcNow);
+        builder.Append(";");
+    }
+
+
+    public override Task GetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
+        CancellationToken cancellation = default)
+    {
+        return getLockAsync(conn, lockId, "Transaction", tx, cancellation);
+    }
+
+    private static async Task getLockAsync(DbConnection conn, int lockId, string owner, DbTransaction? tx,
+        CancellationToken cancellation)
+    {
+        var returnValue = await tryGetLockAsync(conn, lockId, owner, tx, cancellation);
+
+        if (returnValue < 0)
+        {
+            throw new Exception($"sp_getapplock failed with errorCode '{returnValue}'");
+        }
+    }
+
+    private static async Task<int> tryGetLockAsync(DbConnection conn, int lockId, string owner, DbTransaction? tx,
+        CancellationToken cancellation)
+    {
+        var cmd = conn.CreateCommand("sp_getapplock");
+        cmd.Transaction = tx;
+
+        cmd.CommandType = CommandType.StoredProcedure;
+        cmd.With("Resource", lockId.ToString());
+        cmd.With("LockMode", "Exclusive");
+
+        cmd.With("LockOwner", owner);
+        cmd.With("LockTimeout", 1000);
+
+        var returnValue = cmd.CreateParameter();
+        returnValue.ParameterName = "ReturnValue";
+        returnValue.DbType = DbType.Int32;
+        returnValue.Direction = ParameterDirection.ReturnValue;
+        cmd.Parameters.Add(returnValue);
+
+        await cmd.ExecuteNonQueryAsync(cancellation);
+
+        return (int)returnValue.Value!;
+    }
+
+    public override async Task<bool> TryGetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
+        CancellationToken cancellation = default)
+    {
+        return await tryGetLockAsync(conn, lockId, "Transaction", tx, cancellation) >= 0;
+    }
+
+
+    public override Task GetGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
+        DbTransaction? transaction = null)
+    {
+        return getLockAsync(conn, lockId, "Session", transaction, cancellation);
+    }
+
+    public override async Task<bool> TryGetGlobalLockAsync(DbConnection conn, DbTransaction? tx, int lockId,
+        CancellationToken cancellation = default)
+    {
+        return await tryGetLockAsync(conn, lockId, "Session", tx, cancellation) >= 0;
+    }
+
+    public override async Task<bool> TryGetGlobalLockAsync(DbConnection conn, int lockId, DbTransaction tx,
+        CancellationToken cancellation = default)
+    {
+        return await tryGetLockAsync(conn, lockId, "Session", tx, cancellation) >= 0;
+    }
+
+    public override Task ReleaseGlobalLockAsync(DbConnection conn, int lockId,
+        CancellationToken cancellation = default,
+        DbTransaction? tx = null)
+    {
+        var sqlCommand = conn.CreateCommand("sp_releaseapplock");
+        sqlCommand.Transaction = tx;
+        sqlCommand.CommandType = CommandType.StoredProcedure;
+
+        sqlCommand.With("Resource", lockId.ToString());
+        sqlCommand.With("LockOwner", "Session");
+
+        return sqlCommand.ExecuteNonQueryAsync(cancellation);
+    }
+
+    public override IEnumerable<ISchemaObject> AllObjects()
+    {
+        yield return new OutgoingEnvelopeTable(SchemaName);
+        yield return new IncomingEnvelopeTable(SchemaName);
+        yield return new DeadLettersTable(SchemaName);
+        yield return new EnvelopeIdTable(SchemaName);
+        yield return new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", this);
+        yield return new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", this);
+        yield return new WolverineStoredProcedure("uspDiscardAndReassignOutgoing.sql", this);
+        yield return new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", this);
+        yield return new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", this);
+        
+        if (_settings.IsMaster)
+        {
+            var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
+            nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
+            nodeTable.AddColumn<int>("node_number").AutoNumber().NotNull();
+            nodeTable.AddColumn<string>("description").NotNull();
+            nodeTable.AddColumn<string>("uri").NotNull();
+            nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
+            nodeTable.AddColumn<DateTimeOffset>("health_check").AllowNulls();
+            nodeTable.AddColumn("capabilities", "nvarchar(max)").AllowNulls();
+
+            yield return nodeTable;
+
+            var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
+            assignmentTable.AddColumn<string>("id").AsPrimaryKey();
+            assignmentTable.AddColumn<Guid>("node_id").ForeignKeyTo(nodeTable.Identifier, "id", onDelete:CascadeAction.Cascade);
+            assignmentTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
+
+            yield return assignmentTable;
+            
+            if (_settings.CommandQueuesEnabled)
+            {
+                var queueTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
+                queueTable.AddColumn<Guid>("id").AsPrimaryKey();
+                queueTable.AddColumn<string>("message_type").NotNull();
+                queueTable.AddColumn<Guid>("node_id").NotNull();
+                queueTable.AddColumn(DatabaseConstants.Body, "varbinary(max)").NotNull();
+                queueTable.AddColumn<DateTimeOffset>("posted").NotNull().DefaultValueByExpression("GETUTCDATE()");
+                queueTable.AddColumn<DateTimeOffset>("expires");
+
+                yield return queueTable;
+            }
+        }
     }
 }

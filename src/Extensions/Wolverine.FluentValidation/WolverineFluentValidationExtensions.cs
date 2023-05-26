@@ -29,6 +29,11 @@ public static class WolverineFluentValidationExtensions
     public static WolverineOptions UseFluentValidation(this WolverineOptions options,
         RegistrationBehavior behavior = RegistrationBehavior.DiscoverAndRegisterValidators)
     {
+        if (options.Services.Any(x => x.ServiceType == typeof(WolverineFluentValidationMarker)))
+        {
+            return options;
+        }
+
         options.Services.Policies.Add<ValidatorLifetimePolicy>();
         options.Services.AddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
 
@@ -42,8 +47,10 @@ public static class WolverineFluentValidationExtensions
             });
         }
 
-        options.Handlers.OnException<ValidationException>().Discard();
-        options.Handlers.AddPolicy<FluentValidationPolicy>();
+        options.OnException<ValidationException>().Discard();
+        options.Policies.Add<FluentValidationPolicy>();
+
+        options.Services.AddSingleton<WolverineFluentValidationMarker>();
 
         return options;
     }

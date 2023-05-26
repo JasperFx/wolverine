@@ -18,8 +18,8 @@ public class optimizing_artifact_workflow
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
-        options.Node.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
-        options.Node.CodeGeneration.SourceCodeWritingEnabled.ShouldBeTrue();
+        options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
+        options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeTrue();
         options.AutoBuildEnvelopeStorageOnStartup.ShouldBeTrue();
     }
 
@@ -33,8 +33,8 @@ public class optimizing_artifact_workflow
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
-        options.Node.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
-        options.Node.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
+        options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
+        options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
         options.AutoBuildEnvelopeStorageOnStartup.ShouldBeFalse();
     }
 
@@ -48,8 +48,8 @@ public class optimizing_artifact_workflow
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
-        options.Node.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Static);
-        options.Node.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
+        options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Static);
+        options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
         options.AutoBuildEnvelopeStorageOnStartup.ShouldBeFalse();
     }
 }

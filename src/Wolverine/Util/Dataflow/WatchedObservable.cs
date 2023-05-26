@@ -76,4 +76,10 @@ public class WatchedObservable<T> : IObservable<T>, IDisposable
             _tracker._listeners = _tracker._listeners.Remove(_observer);
         }
     }
+    
+    internal Task DrainAsync()
+    {
+        _block.Complete();
+        return _block.Completion;
+    }
 }

@@ -1,24 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using JasperFx.TypeDiscovery;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json;
-using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
-using Wolverine.Util;
+using Wolverine.Transports.Local;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
 
@@ -29,25 +22,9 @@ namespace Wolverine;
 /// </summary>
 public sealed partial class WolverineOptions
 {
-    /// <summary>
-    ///     You may use this to "help" Wolverine in testing scenarios to force
-    ///     it to consider this assembly as the main application assembly rather
-    ///     that assuming that the IDE or test runner assembly is the application assembly
-    /// </summary>
-    public static Assembly? RememberedApplicationAssembly;
-
-    private readonly IList<Type> _extensionTypes = new List<Type>();
-
-    private readonly IDictionary<string, IMessageSerializer>
-        _serializers = new Dictionary<string, IMessageSerializer>();
-
-    private Assembly? _applicationAssembly;
-
-    private IMessageSerializer? _defaultSerializer;
-
-
     public WolverineOptions() : this(null)
     {
+        
     }
 
     public WolverineOptions(string? assemblyName)
@@ -57,20 +34,58 @@ public sealed partial class WolverineOptions
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
 
         UseNewtonsoftForSerialization();
+        
+        CodeGeneration = new GenerationRules("Internal.Generated");
+        CodeGeneration.Sources.Add(new NowTimeVariableSource());
+        CodeGeneration.Assemblies.Add(GetType().GetTypeInfo().Assembly);
 
         establishApplicationAssembly(assemblyName);
         
-        Node = new NodeSettings(ApplicationAssembly);
+
+        if (ApplicationAssembly != null)
+        {
+            CodeGeneration.Assemblies.Add(ApplicationAssembly);
+        }
+        
+        // TODO -- this should be eliminated later after the durability agent rewrite
+        Durability = new DurabilitySettings{NodeLockId = UniqueNodeId.ToString().GetDeterministicHashCode()};
 
         deriveServiceName();
 
         LocalQueue(TransportConstants.Durable).UseDurableInbox();
+
+        Publish(x =>
+        {
+            x.MessagesImplementing<IAgentCommand>();
+            x.ToLocalQueue(TransportConstants.Agents).MaximumParallelMessages(20, ProcessingOrder.UnOrdered);
+        });
+
+        Policies.Add<SagaPersistenceChainPolicy>();
+        Policies.Add<SideEffectPolicy>();
     }
+    
+    public Guid UniqueNodeId { get; } = Guid.NewGuid();
+    
+    
+    /// <summary>
+    ///  Configure or extend how Wolverine does the runtime (or build ahead time) code generation
+    /// </summary>
+    public GenerationRules CodeGeneration { get; }
+
+
+    /// <summary>
+    ///     Configure how & where Wolverine discovers message handler classes and message types to override or expand
+    ///     the built in conventions. Register additional Wolverine module assemblies
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public HandlerDiscovery Discovery => HandlerGraph.Discovery;
+
 
     /// <summary>
     ///     Options for applying conventional configuration to all or a subset of messaging endpoints
     /// </summary>
-    public IEndpointPolicies Policies => new EndpointPolicies(Transports, this);
+    public IPolicies Policies => this;
 
     /// <summary>
     /// </summary>
@@ -80,18 +95,7 @@ public sealed partial class WolverineOptions
     ///     Advanced configuration options for Wolverine message processing,
     ///     job scheduling, validation, and resiliency features and node specific settings
     /// </summary>
-    public NodeSettings Node { get; }
-
-    /// <summary>
-    /// For the purposes of interoperability with NServiceBus or MassTransit, register
-    /// the assemblies for shared message types to make Wolverine try to forward the message
-    /// names of its messages to the interfaces of NServiceBus or MassTransit message types
-    /// </summary>
-    /// <param name="assembly"></param>
-    public void RegisterInteropMessageAssembly(Assembly assembly)
-    {
-        WolverineMessageNaming.AddMessageInterfaceAssembly(assembly);
-    }
+    public DurabilitySettings Durability { get; }
 
     /// <summary>
     ///     The default message execution timeout. This uses a CancellationTokenSource
@@ -107,75 +111,7 @@ public sealed partial class WolverineOptions
     /// </summary>
     public ServiceRegistry Services { get; } = new();
 
-    /// <summary>
-    ///     The main application assembly for this Wolverine system. You may need or want to explicitly set this in automated
-    ///     test harness
-    ///     scenarios. Defaults to the application entry assembly
-    /// </summary>
-    public Assembly? ApplicationAssembly
-    {
-        get => _applicationAssembly;
-        set
-        {
-            _applicationAssembly = value;
-
-            if (value != null)
-            {
-                HandlerGraph.Source.Assemblies.Add(value);
-
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                if (Node != null)
-                {
-                    Node.CodeGeneration.ApplicationAssembly = value;
-                    Node.CodeGeneration.ReferenceAssembly(value);
-                }
-            }
-        }
-    }
-
     internal HandlerGraph HandlerGraph { get; } = new();
-
-    /// <summary>
-    ///     Options to control how Wolverine discovers message handler actions, error
-    ///     handling, local worker queues, and other policies on message handling
-    /// </summary>
-    public IHandlerConfiguration Handlers => HandlerGraph;
-
-    /// <summary>
-    ///     Get or set the logical Wolverine service name. By default, this is
-    ///     derived from the name of a custom WolverineOptions
-    /// </summary>
-    public string? ServiceName
-    {
-        get => Node.ServiceName;
-        set => Node.ServiceName = value;
-    }
-
-    /// <summary>
-    ///     Override or get the default message serializer for the application. The default is based around Newtonsoft.Json
-    /// </summary>
-    /// <exception cref="InvalidOperationException"></exception>
-    public IMessageSerializer DefaultSerializer
-    {
-        get
-        {
-            return _defaultSerializer ??=
-                _serializers.Values.FirstOrDefault(x => x.ContentType == EnvelopeConstants.JsonContentType) ??
-                _serializers.Values.First();
-        }
-        set
-        {
-            if (value == null)
-            {
-                throw new InvalidOperationException("The DefaultSerializer cannot be null");
-            }
-
-            _serializers[value.ContentType] = value;
-            _defaultSerializer = value;
-        }
-    }
-
-    internal List<IWolverineExtension> AppliedExtensions { get; } = new();
 
     /// <summary>
     ///     Direct Wolverine to make any necessary database patches for envelope storage upon
@@ -186,198 +122,36 @@ public sealed partial class WolverineOptions
     internal TypeLoadMode ProductionTypeLoadMode { get; set; }
 
     /// <summary>
-    ///     All of the assemblies that Wolverine is searching for message handlers and
-    ///     other Wolverine items
+    ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
     /// </summary>
-    public IEnumerable<Assembly> Assemblies => HandlerGraph.Source.Assemblies;
-
+    public string ServiceName { get; set; } = Assembly.GetEntryAssembly().GetName().Name;
 
     /// <summary>
-    ///     Applies the extension to this application
+    ///     This should probably *only* be used in development or testing
+    ///     to latch all outgoing message sending
     /// </summary>
-    /// <param name="extension"></param>
-    public void Include(IWolverineExtension extension)
-    {
-        ApplyExtensions(new[] { extension });
-    }
+    internal bool ExternalTransportsAreStubbed { get; set; }
 
-    /// <summary>
-    ///     Applies the extension with optional configuration to the application
-    /// </summary>
-    /// <param name="configure">Optional configuration of the extension</param>
-    /// <typeparam name="T"></typeparam>
-    public void Include<T>(Action<T>? configure = null) where T : IWolverineExtension, new()
-    {
-        var extension = new T();
-        configure?.Invoke(extension);
-
-        ApplyExtensions(new IWolverineExtension[] { extension });
-    }
+    internal LocalTransport LocalRouting => Transports.GetOrCreate<LocalTransport>();
+    internal bool LocalRoutingConventionDisabled { get; set; }
 
     private void deriveServiceName()
     {
         if (GetType() == typeof(WolverineOptions))
         {
-            Node.ServiceName = ApplicationAssembly?.GetName().Name ?? "WolverineService";
+            ServiceName = ApplicationAssembly?.GetName().Name ?? "WolverineService";
         }
         else
         {
-            Node.ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
+            ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
                 .Replace("Options", "");
         }
-    }
-
-    private Assembly? determineCallingAssembly()
-    {
-        var stack = new StackTrace();
-        var frames = stack.GetFrames();
-        var wolverineFrame = frames.LastOrDefault(x => x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly?.GetName().Name == "Wolverine");
-
-        var index = frames.IndexOf(wolverineFrame);
-        for (var i = index; i < frames.Length; i++)
-        {
-            var candidate = frames[i];
-            var assembly = candidate.GetMethod()?.DeclaringType?.Assembly;
-
-            if (assembly is null) continue;
-
-            if (assembly.HasAttribute<WolverineIgnoreAttribute>()) continue;
-
-            var assemblyName = assembly.GetName().Name;
-
-            if (assemblyName is null) continue;
-
-            if (assemblyName.StartsWith("System")) continue;
-
-            return assembly;
-        }
-
-        return Assembly.GetEntryAssembly();
-    }
-
-    private void establishApplicationAssembly(string? assemblyName)
-    {
-        if (assemblyName.IsNotEmpty())
-        {
-            ApplicationAssembly ??= Assembly.Load(assemblyName);
-        }
-        else if (RememberedApplicationAssembly != null)
-        {
-            ApplicationAssembly = RememberedApplicationAssembly;
-        }
-        else
-        {
-            RememberedApplicationAssembly = ApplicationAssembly = determineCallingAssembly();
-        }
-        
-
-        if (ApplicationAssembly == null)
-        {
-            throw new InvalidOperationException("Unable to determine an application assembly");
-        }
-        else
-        {
-            HandlerGraph.Source.Assemblies.Fill(ApplicationAssembly);
-        }
-    }
-
-    internal void ApplyExtensions(IWolverineExtension[] extensions)
-    {
-        // Apply idempotency
-        extensions = extensions.Where(x => !_extensionTypes.Contains(x.GetType())).ToArray();
-
-        foreach (var extension in extensions)
-        {
-            extension.Configure(this);
-            AppliedExtensions.Add(extension);
-        }
-
-        _extensionTypes.Fill(extensions.Select(x => x.GetType()));
     }
 
     internal void CombineServices(IServiceCollection services)
     {
         services.Clear();
         services.AddRange(Services);
-    }
-
-    internal IMessageSerializer DetermineSerializer(Envelope envelope)
-    {
-        if (envelope.ContentType.IsEmpty())
-        {
-            return DefaultSerializer;
-        }
-
-        if (_serializers.TryGetValue(envelope.ContentType, out var serializer))
-        {
-            return serializer;
-        }
-
-        return DefaultSerializer;
-    }
-
-    /// <summary>
-    ///     Use Newtonsoft.Json as the default JSON serialization with optional configuration
-    /// </summary>
-    /// <param name="configuration"></param>
-    public void UseNewtonsoftForSerialization(Action<JsonSerializerSettings>? configuration = null)
-    {
-        var settings = NewtonsoftSerializer.DefaultSettings();
-
-        configuration?.Invoke(settings);
-
-        var serializer = new NewtonsoftSerializer(settings);
-
-        _serializers[serializer.ContentType] = serializer;
-    }
-
-    /// <summary>
-    ///     Use System.Text.Json as the default JSON serialization with optional configuration
-    /// </summary>
-    /// <param name="configuration"></param>
-    public void UseSystemTextJsonForSerialization(Action<JsonSerializerOptions>? configuration = null)
-    {
-        var options = SystemTextJsonSerializer.DefaultOptions();
-
-        configuration?.Invoke(options);
-
-        var serializer = new SystemTextJsonSerializer(options);
-
-        _serializers[serializer.ContentType] = serializer;
-    }
-
-    internal void IncludeExtensionAssemblies(Assembly[] assemblies)
-    {
-        foreach (var assembly in assemblies) HandlerGraph.Source.IncludeAssembly(assembly);
-    }
-
-    internal IMessageSerializer FindSerializer(string contentType)
-    {
-        if (_serializers.TryGetValue(contentType, out var serializer))
-        {
-            return serializer;
-        }
-
-        throw new ArgumentOutOfRangeException(nameof(contentType));
-    }
-
-    internal IMessageSerializer? TryFindSerializer(string contentType)
-    {
-        if (_serializers.TryGetValue(contentType, out var s))
-        {
-            return s;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    ///     Register an alternative serializer with this Wolverine application
-    /// </summary>
-    /// <param name="serializer"></param>
-    public void AddSerializer(IMessageSerializer serializer)
-    {
-        _serializers[serializer.ContentType] = serializer;
     }
 
     /// <summary>
@@ -387,5 +161,17 @@ public sealed partial class WolverineOptions
     {
         ProductionTypeLoadMode = productionMode;
         Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>();
+    }
+
+    /// <summary>
+    /// Produce a report of why or why not this Wolverine application
+    /// is finding or not finding methods from this handlerType
+    /// USE THIS TO TROUBLESHOOT HANDLER DISCOVERY ISSUES 
+    /// </summary>
+    /// <param name="handlerType"></param>
+    /// <returns></returns>
+    public string DescribeHandlerMatch(Type handlerType)
+    {
+        return Discovery.DescribeHandlerMatch(this, handlerType);
     }
 }

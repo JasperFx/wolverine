@@ -23,7 +23,6 @@ public class PulsarSender : ISender, IAsyncDisposable
         _endpoint = endpoint;
         _cancellation = cancellation;
 
-        // TODO -- make this more configurable with ConsumerOptions
         _producer = transport.Client!.NewProducer().Topic(_endpoint.PulsarTopic()).Create();
 
         Destination = _endpoint.Uri;

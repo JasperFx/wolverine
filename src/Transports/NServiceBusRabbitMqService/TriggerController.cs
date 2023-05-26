@@ -17,4 +17,11 @@ public class TriggerController : ControllerBase
     {
         return sender.Publish(new ToWolverine { Id = id });
     }
+    
+    [HttpPost("/interface/{id}")]
+    public Task Interface(Guid id, [FromServices] IMessageSession sender)
+    {
+        // needs to be sent to "wolverine"
+        return sender.Publish<IInterfaceMessage>(x => x.Id = id);
+    }
 }

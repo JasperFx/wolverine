@@ -10,4 +10,5 @@ public interface IMessageRouter
     Envelope[] RouteToTopic(object message, string topicName, DeliveryOptions? options);
 
     IMessageRoute FindSingleRouteForSending();
+    MessageRoute[] Routes { get; }
 }

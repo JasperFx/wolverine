@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 

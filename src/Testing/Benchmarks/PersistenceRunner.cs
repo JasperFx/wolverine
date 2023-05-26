@@ -35,7 +35,7 @@ public class PersistenceRunner : IDisposable
     {
         theDriver.Start(opts =>
         {
-            opts.Node.DurabilityAgentEnabled = false;
+            opts.Durability.DurabilityAgentEnabled = false;
             if (DatabaseEngine == "SqlServer")
             {
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
@@ -79,15 +79,6 @@ public class PersistenceRunner : IDisposable
         }
     }
 
-    [Benchmark]
-    public async Task StoreOutgoing()
-    {
-        for (var i = 0; i < 10; i++)
-        {
-            await theDriver.Persistence.StoreOutgoingAsync(theEnvelopes.Skip(i * 100).Take(100).ToArray(), 5);
-        }
-    }
-
     [IterationSetup(Target = nameof(LoadIncoming))]
     public void LoadIncomingSetup()
     {
@@ -99,13 +90,6 @@ public class PersistenceRunner : IDisposable
     public Task LoadIncoming()
     {
         return theDriver.Persistence.Admin.AllIncomingAsync();
-    }
-
-    [IterationSetup(Target = nameof(LoadOutgoing))]
-    public void LoadOutgoingSetup()
-    {
-        BuildDatabase();
-        StoreOutgoing().GetAwaiter().GetResult();
     }
 
     [Benchmark]

@@ -18,7 +18,7 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
             opts.UseAmazonSqsTransportLocally()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-            opts.Handlers.DisableConventionalDiscovery();
+            opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
 
@@ -49,7 +49,7 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
         var received = session
             .AllRecordsInOrder()
             .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
-            .Single(x => x.EventType == EventType.Received);
+            .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received
             .ServiceName.ShouldBe("Receiver");

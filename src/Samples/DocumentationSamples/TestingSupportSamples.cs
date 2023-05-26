@@ -149,10 +149,7 @@ public class AccountHandlerTests
             // May not be super useful to the average user, but it's been crucial
             // to test Wolverine itself
             .AlsoTrack(otherWolverineSystem)
-            
-            // SERIOUSLY be careful with this
-            .DoNotAssertTimeout()
-            
+
             // This is actually helpful if you are testing for error handling 
             // functionality in your system
             .DoNotAssertOnExceptionsDetected()

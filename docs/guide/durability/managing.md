@@ -26,9 +26,9 @@ public static async Task testing_setup_or_teardown(IHost host)
     // also tries to clear out any messages held
     // by message brokers connected to your Wolverine app
     await host.ResetResourceState();
-    
+
     var store = host.Services.GetRequiredService<IMessageStore>();
-    
+
     // Rebuild the database schema objects
     // and delete existing message data
     // This is good for testing

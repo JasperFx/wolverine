@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -15,6 +16,7 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 {
     private readonly List<IEndpointPolicy> _policies = new();
     private readonly Dictionary<string, ITransport> _transports = new();
+    private Endpoint? _nodeControlEndpoint;
 
     internal TransportCollection()
     {
@@ -23,22 +25,24 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
         Add(new TcpTransport());
     }
 
+    /// <summary>
+    /// The endpoint to use for sending system messages to a specific Node
+    /// </summary>
+    public Endpoint? NodeControlEndpoint
+    {
+        get => _nodeControlEndpoint;
+        set
+        {
+            if (value != null) value.IsListener = true;
+            _nodeControlEndpoint = value;
+        }
+    }
+
     internal IEnumerable<IEndpointPolicy> EndpointPolicies => _policies;
 
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
-        // TODO -- this is generic. Harvest this to somewhere else
-        foreach (var transport in _transports.Values)
-        {
-            if (transport is IAsyncDisposable ad)
-            {
-                await ad.DisposeAsync();
-            }
-            else if (transport is IDisposable d)
-            {
-                d.Dispose();
-            }
-        }
+        await _transports.Values.MaybeDisposeAllAsync();
     }
 
     public IEnumerator<ITransport> GetEnumerator()

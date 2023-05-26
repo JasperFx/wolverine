@@ -80,9 +80,12 @@ public class Subscription
             RoutingScope.Type => type.Name.EqualsIgnoreCase(Match!) || type.FullName!.EqualsIgnoreCase(Match!) ||
                                  type.ToMessageTypeName().EqualsIgnoreCase(Match!),
             RoutingScope.TypeName => type.ToMessageTypeName().EqualsIgnoreCase(Match!),
+            RoutingScope.Implements => type.CanBeCastTo(BaseType),
             _ => true
         };
     }
+    
+    public Type BaseType { get; set; }
 
 
     protected bool Equals(Subscription other)

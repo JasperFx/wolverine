@@ -6,7 +6,7 @@ Wolverine uses the [Rabbit MQ .NET Client](https://www.rabbitmq.com/dotnet.html)
 
 ## Installing
 
-All the code samples in this section are from the [Ping/Pong with Rabbit MQ sample project](https://github.com/JasperFx/wolverine/tree/master/src/Samples/PingPongWithRabbitMq).
+All the code samples in this section are from the [Ping/Pong with Rabbit MQ sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithRabbitMq).
 
 To use [RabbitMQ](http://www.rabbitmq.com/) as a transport with Wolverine, first install the `Wolverine.RabbitMQ` library via nuget to your project. Behind the scenes, this package uses the [RabbitMQ C# Client](https://www.rabbitmq.com/dotnet.html) to both send and receive messages from RabbitMQ.
 
@@ -448,7 +448,7 @@ to in your application. Lot of words, here's some code from the Wolverine test s
 theSender = Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseRabbitMq().AutoProvision();
+        opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
         opts.PublishAllMessages().ToRabbitTopics("wolverine.topics", exchange =>
         {
             exchange.BindTopic("color.green").ToQueue("green");
@@ -529,7 +529,7 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Samples.cs#L180-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://wolverinefx.github.io/oakton/guide/host/resources.html) model,
+Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://jasperfx.github.io/oakton/guide/host/resources.html) model,
 so you can make a generic declaration to auto-provision the Rabbit MQ objects at startup time
 (as well as any other stateful Wolverine resources like envelope storage) with the Oakton
 declarations as shown in the setup below that uses the `AddResourceSetupOnStartup()` declaration:

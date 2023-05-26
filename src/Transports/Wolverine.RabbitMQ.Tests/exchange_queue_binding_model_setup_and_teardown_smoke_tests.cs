@@ -42,7 +42,7 @@ public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
 
         var wolverineRuntime = Substitute.For<IWolverineRuntime>();
         wolverineRuntime.Logger.Returns(NullLogger.Instance);
-        wolverineRuntime.Node.Returns(new NodeSettings(null));
+        wolverineRuntime.DurabilitySettings.Returns(new DurabilitySettings());
         theTransport.TryBuildStatefulResource(wolverineRuntime, out var resource);
 
         theResource = resource;

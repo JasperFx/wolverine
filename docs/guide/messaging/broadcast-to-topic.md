@@ -9,7 +9,7 @@ such as this example using Rabbit MQ from the Wolverine tests:
 theSender = Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseRabbitMq().AutoProvision();
+        opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
         opts.PublishAllMessages().ToRabbitTopics("wolverine.topics", exchange =>
         {
             exchange.BindTopic("color.green").ToQueue("green");

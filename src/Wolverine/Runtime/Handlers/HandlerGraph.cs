@@ -1,20 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
 using Lamar;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
-using Wolverine.Middleware;
-using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -23,7 +21,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
-public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
+public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 {
     public static readonly string Context = "context";
     private readonly List<HandlerCall> _calls = new();
@@ -32,13 +30,14 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
     private readonly IList<Action> _configurations = new List<Action>();
 
     private readonly object _groupingLock = new();
-    private readonly IList<IHandlerPolicy> _policies = new List<IHandlerPolicy>();
 
-    internal readonly HandlerSource Source = new();
+    internal readonly HandlerDiscovery Discovery = new();
 
     private ImHashMap<Type, HandlerChain> _chains = ImHashMap<Type, HandlerChain>.Empty;
 
     private ImHashMap<Type, MessageHandler?> _handlers = ImHashMap<Type, MessageHandler?>.Empty;
+
+    private bool _hasCompiled;
 
     private bool _hasGrouped;
 
@@ -51,7 +50,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         // All of this is to seed the handler and its associated retry policies
         // for scheduling outgoing messages
         AddMessageHandler(typeof(Envelope), new ScheduledSendEnvelopeHandler(this));
-
+        
         _messageTypes = _messageTypes.AddOrUpdate(TransportConstants.ScheduledEnvelope, typeof(Envelope));
 
         RegisterMessageType(typeof(Acknowledgement));
@@ -62,49 +61,10 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
 
-    public IEnumerable<Assembly> ExtensionAssemblies => Source.Assemblies;
+    public IEnumerable<Assembly> ExtensionAssemblies => Discovery.Assemblies;
+    public List<Assembly> InteropAssemblies { get; } = new();
 
     public FailureRuleCollection Failures { get; set; } = new();
-
-    public void AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
-    {
-        AddMiddleware(typeof(T), filter);
-    }
-
-    public void AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null)
-    {
-        var policy = findOrCreateMiddlewarePolicy();
-
-        Func<IChain, bool> f = filter == null
-            ? c => c is HandlerChain
-            : c => c is HandlerChain chain && filter(chain);
-        
-        policy.AddType(middlewareType, f );
-    }
-
-    public IHandlerConfiguration Discovery(Action<HandlerSource> configure)
-    {
-        configure(Source);
-        return this;
-    }
-
-    /// <summary>
-    ///     Applies a handler policy to all known message handlers
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    public void AddPolicy<T>() where T : IHandlerPolicy, new()
-    {
-        AddPolicy(new T());
-    }
-
-    /// <summary>
-    ///     Applies a handler policy to all known message handlers
-    /// </summary>
-    /// <param name="policy"></param>
-    public void AddPolicy(IHandlerPolicy policy)
-    {
-        _policies.Add(policy);
-    }
 
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
     {
@@ -123,34 +83,10 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         });
     }
 
-    public void AddMiddlewareByMessageType(Type middlewareType)
-    {
-        var policy = findOrCreateMiddlewarePolicy();
-
-        var application = policy.AddType(middlewareType);
-        application.MatchByMessageType = true;
-    }
-
-    public void AutoApplyTransactions()
-    {
-        AddPolicy(new AutoApplyTransactions());
-    }
-
     internal void AddMessageHandler(Type messageType, MessageHandler handler)
     {
         _handlers = _handlers.AddOrUpdate(messageType, handler);
-    }
-
-    private MiddlewarePolicy findOrCreateMiddlewarePolicy()
-    {
-        var policy = _policies.OfType<MiddlewarePolicy>().FirstOrDefault();
-        if (policy == null)
-        {
-            policy = new MiddlewarePolicy();
-            _policies.Add(policy);
-        }
-
-        return policy;
+        RegisterMessageType(messageType);
     }
 
     private void assertNotGrouped()
@@ -191,6 +127,19 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
             return handler;
         }
 
+        if (messageType.CanBeCastTo(typeof(IAgentCommand)))
+        {
+            if (_handlers.TryFind(typeof(IAgentCommand), out handler))
+            {
+                _handlers = _handlers.AddOrUpdate(messageType, handler);
+                return handler;
+            }
+            else
+            {
+                throw new NotSupportedException();
+            }
+        }
+
         if (_chains.TryFind(messageType, out var chain))
         {
             if (chain.Handler != null)
@@ -226,34 +175,86 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
         return null;
     }
 
-
-    internal async Task CompileAsync(WolverineOptions options, IContainer container)
+    internal void Compile(WolverineOptions options, IContainer container)
     {
-        Rules = options.Node.CodeGeneration;
-        var calls = await Source.FindCallsAsync(options);
+        if (_hasCompiled)
+        {
+            return;
+        }
 
-        if (calls.Any())
+        _hasCompiled = true;
+
+        var logger = (ILogger)container.TryGetInstance<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
+
+        Rules = options.CodeGeneration;
+
+        foreach (var assembly in Discovery.Assemblies)
+            logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers", assembly.GetName());
+
+        var methods = Discovery.FindCalls(options);
+
+        var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
+
+        if (methods.Any())
         {
             AddRange(calls);
         }
 
         Group();
 
-        foreach (var policy in _policies) policy.Apply(this, Rules, container);
+        foreach (var policy in handlerPolicies(options)) policy.Apply(Chains, Rules, container);
 
         Container = container;
 
         var forwarders = new Forwarders();
-        await forwarders.FindForwardsAsync(options.ApplicationAssembly!);
+        forwarders.FindForwards(options.ApplicationAssembly!);
         AddForwarders(forwarders);
 
         foreach (var configuration in _configurations) configuration();
 
+        registerMessageTypes();
+    }
+
+    private void registerMessageTypes()
+    {
         _messageTypes =
             _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
 
         foreach (var chain in Chains)
+        {
             _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
+
+            if (chain.MessageType.TryGetAttribute<InteropMessageAttribute>(out var att))
+            {
+                _messageTypes = _messageTypes.AddOrUpdate(att.InteropType.ToMessageTypeName(), chain.MessageType);
+            }
+            else
+            {
+                foreach (var @interface in chain.MessageType.GetInterfaces())
+                {
+                    if (InteropAssemblies.Contains(@interface.Assembly))
+                    {
+                        _messageTypes = _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
+                    }
+                }
+            }
+        }
+    }
+
+    private IEnumerable<IHandlerPolicy> handlerPolicies(WolverineOptions options)
+    {
+        foreach (var policy in options.RegisteredPolicies)
+        {
+            if (policy is IHandlerPolicy h)
+            {
+                yield return h;
+            }
+
+            if (policy is IChainPolicy c)
+            {
+                yield return new HandlerChainPolicy(c);
+            }
+        }
     }
 
     public bool TryFindMessageType(string messageTypeName, out Type messageType)
@@ -282,7 +283,8 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
     private HandlerChain buildHandlerChain(IGrouping<Type, HandlerCall> group)
     {
-        if (group.Any(x => x.HandlerType.CanBeCastTo<Saga>()))
+        // If the SagaChain handler method is a static, then it's valid to be a "Start" method
+        if (group.Any(x => x.HandlerType.CanBeCastTo<Saga>() && !x.Method.IsStatic))
         {
             return new SagaChain(group, this);
         }
@@ -311,7 +313,7 @@ public partial class HandlerGraph : ICodeFileCollection, IHandlerConfiguration
 
     public bool CanHandle(Type messageType)
     {
-        return _chains.TryFind(messageType, out _);
+        return _chains.TryFind(messageType, out _) || _handlers.Contains(messageType);
     }
 
     public void RegisterMessageType(Type messageType)

@@ -15,16 +15,19 @@ public class Order : Saga
 {
     public string? Id { get; set; }
 
+    #region sample_starting_a_saga_inside_a_handler
+
     // This method would be called when a StartOrder message arrives
     // to start a new Order
-    public OrderTimeout Start(StartOrder order, ILogger<Order> logger)
+    public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
     {
-        Id = order.OrderId; // defining the Saga Id.
-
         logger.LogInformation("Got a new order with id {Id}", order.OrderId);
+    
         // creating a timeout message for the saga
-        return new OrderTimeout(order.OrderId);
+        return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
     }
+
+    #endregion
 
     // Apply the CompleteOrder to the saga
     public void Handle(CompleteOrder complete, ILogger<Order> logger)

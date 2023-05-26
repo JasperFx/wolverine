@@ -126,7 +126,6 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
     public override async ValueTask InitializeAsync(ILogger logger)
     {
-        // TODO -- do some logging here?
         if (_initialized)
         {
             return;
@@ -139,10 +138,10 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
             throw new InvalidOperationException($"Parent {nameof(AmazonSqsTransport)} has not been initialized");
         }
 
-        // TODO -- allow for config on endpoint?
         if (_parent.AutoProvision)
         {
             await SetupAsync(client);
+            logger.LogInformation("Tried to create Amazon SQS queue {Name} if missing", QueueUrl);
         }
 
         if (QueueUrl.IsEmpty())
@@ -151,10 +150,10 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
             QueueUrl = response.QueueUrl;
         }
 
-        // TODO -- allow for endpoint by endpoint variance
         if (_parent.AutoPurgeAllQueues)
         {
             await client.PurgeQueueAsync(QueueUrl);
+            logger.LogInformation("Purging Amazon SQS queue {Name}", QueueUrl);
         }
 
         _initialized = true;
@@ -188,7 +187,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
         if (QueueUrl.IsEmpty())
         {
-            await InitializeAsync(runtime.Logger);
+            await InitializeAsync(runtime.LoggerFactory.CreateLogger<AmazonSqsQueue>());
         }
 
         return new SqsListener(runtime, this, _parent, receiver);
@@ -199,7 +198,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
         var protocol = new SqsSenderProtocol(runtime, this,
             _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
         return new BatchedSender(Uri, protocol, runtime.Cancellation,
-            runtime.Logger);
+            runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>());
     }
 
     protected override bool supportsMode(EndpointMode mode)

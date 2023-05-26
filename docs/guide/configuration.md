@@ -1,7 +1,7 @@
 # Configuration
 
 ::: warning
-Wolverine requires the usage of the [Lamar](https://wolverinefx.github.io/lamar) IoC container, and the call
+Wolverine requires the usage of the [Lamar](https://jasperfx.github.io/lamar) IoC container, and the call
 to `UseWolverine()` quietly replaces the built in .NET container with Lamar.
 
 Lamar was originally written specifically to support Wolverine's runtime model as well as to be a higher performance
@@ -19,6 +19,7 @@ Below is a sample of adding Wolverine to an ASP.NET Core application that is boo
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
+using Oakton;
 using Quickstart;
 using Wolverine;
 
@@ -43,16 +44,19 @@ app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeA
 // An endpoint to assign an issue to an existing user
 app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
-app.Run();
+// Opt into using Oakton for command line parsing
+// to unlock built in diagnostics and utility tools within
+// your Wolverine application
+return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## "Headless" Applications
 
 :::tip
 The `WolverineOptions.Services` property can be used to add additional IoC service registrations with
-either the standard .NET `IServiceCollection` model or the [Lamar ServiceRegistry](https://wolverinefx.github.io/lamar/guide/ioc/registration/registry-dsl.html) syntax.
+either the standard .NET `IServiceCollection` model or the [Lamar ServiceRegistry](https://jasperfx.github.io/lamar/guide/ioc/registration/registry-dsl.html) syntax.
 :::
 
 For "headless" console applications with no user interface or HTTP service endpoints, the bootstrapping
@@ -66,11 +70,7 @@ return await Host.CreateDefaultBuilder(args)
     {
         opts.ServiceName = "Subscriber1";
 
-        opts.Handlers.Discovery(source =>
-        {
-            source.DisableConventionalDiscovery();
-            source.IncludeType<Subscriber1Handlers>();
-        });
+        opts.Discovery.DisableConventionalDiscovery().IncludeType<Subscriber1Handlers>();
 
         opts.ListenAtPort(MessagingConstants.Subscriber1Port);
 
@@ -96,5 +96,5 @@ return await Host.CreateDefaultBuilder(args)
     })
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

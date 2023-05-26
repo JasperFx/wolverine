@@ -28,7 +28,7 @@ builder.Services.AddMarten(opts =>
 builder.Host.UseWolverine(opts =>
 {
     // Retry policies if a Marten concurrency exception is encountered
-    opts.Handlers.OnException<ConcurrencyException>()
+    opts.OnException<ConcurrencyException>()
         .RetryOnce()
         .Then.RetryWithCooldown(100.Milliseconds(), 250.Milliseconds())
         .Then.Discard();

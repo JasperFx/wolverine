@@ -15,7 +15,7 @@ using Xunit.Abstractions;
 namespace CircuitBreakingTests;
 
 [Collection("circuit_breaker")]
-public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<ListenerState>
+public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<IWolverineEvent>
 {
     private readonly IHost _host;
     private readonly ITestOutputHelper _output;
@@ -38,7 +38,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
             .Start();
 
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>();
-        _runtime.ListenerTracker.Subscribe(this);
+        _runtime.Tracker.Subscribe(this);
     }
 
     public void Dispose()
@@ -46,18 +46,21 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         _host.Dispose();
     }
 
-    void IObserver<ListenerState>.OnCompleted()
+    void IObserver<IWolverineEvent>.OnCompleted()
     {
     }
 
-    void IObserver<ListenerState>.OnError(Exception error)
+    void IObserver<IWolverineEvent>.OnError(Exception error)
     {
     }
 
-    void IObserver<ListenerState>.OnNext(ListenerState value)
+    void IObserver<IWolverineEvent>.OnNext(IWolverineEvent value)
     {
-        _output.WriteLine($"Got status update {value.Status} with {Recorder.Received} processed");
-        _recordedStates.Add(value);
+        if (value is ListenerState state)
+        {
+            _output.WriteLine($"Got status update {state.Status} with {Recorder.Received} processed");
+            _recordedStates.Add(state);
+        }
     }
 
     protected abstract void configureListener(WolverineOptions opts);

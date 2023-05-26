@@ -76,7 +76,7 @@ public class sending_messages_to_named_endpoints : IDisposable
             .ExecuteAndWaitAsync(c => c.EndpointFor("two").SendAsync( new TrackedMessage()));
 
         session.FindEnvelopesWithMessageType<TrackedMessage>()
-            .Single(x => x.EventType == EventType.Received)
+            .Single(x => x.MessageEventType == MessageEventType.Received)
             .ServiceName.ShouldBe("two");
     }
 }

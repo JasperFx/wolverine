@@ -15,7 +15,7 @@ public class buffered_not_parallelized : CircuitBreakerIntegrationContext
     protected override void configureListener(WolverineOptions opts)
     {
         // Requeue failed messages.
-        opts.Handlers.OnException<BadImageFormatException>().Or<DivideByZeroException>()
+        opts.Policies.OnException<BadImageFormatException>().Or<DivideByZeroException>()
             .Requeue();
 
         opts.PublishAllMessages().ToRabbitQueue("circuit2");

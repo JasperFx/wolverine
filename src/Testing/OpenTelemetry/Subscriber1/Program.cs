@@ -14,11 +14,7 @@ return await Host.CreateDefaultBuilder(args)
     {
         opts.ServiceName = "Subscriber1";
 
-        opts.Handlers.Discovery(source =>
-        {
-            source.DisableConventionalDiscovery();
-            source.IncludeType<Subscriber1Handlers>();
-        });
+        opts.Discovery.DisableConventionalDiscovery().IncludeType<Subscriber1Handlers>();
 
         opts.ListenAtPort(MessagingConstants.Subscriber1Port);
 

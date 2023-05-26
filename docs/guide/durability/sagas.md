@@ -12,7 +12,7 @@ in Wolverine consists of a couple parts:
 
 ## Your First Saga
 
-*See the [OrderSagaSample](https://github.com/JasperFx/wolverine/tree/master/src/Samples/OrderSagaSample) project in GitHub for all the
+*See the [OrderSagaSample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderSagaSample) project in GitHub for all the
 sample code in this section.*
 
 Jumping right into an example, consider a very simple order management service that will have steps to:
@@ -38,13 +38,12 @@ public class Order : Saga
 
     // This method would be called when a StartOrder message arrives
     // to start a new Order
-    public OrderTimeout Start(StartOrder order, ILogger<Order> logger)
+    public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
     {
-        Id = order.OrderId; // defining the Saga Id.
-
         logger.LogInformation("Got a new order with id {Id}", order.OrderId);
+    
         // creating a timeout message for the saga
-        return new OrderTimeout(order.OrderId);
+        return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
     }
 
     // Apply the CompleteOrder to the saga
@@ -67,7 +66,7 @@ public class Order : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A few explanatory notes on this code before we move on to detailed documentation:
@@ -138,6 +137,105 @@ return await app.RunOaktonCommands(args);
 The call to `IServiceCollection.AddMarten().IntegrateWithWolverine()` adds the Marten backed saga persistence to your application. No other configuration
 is necessary. See the [Marten integration](/guide/durability/marten.html#saga-storage) for a little more information about using Marten backed sagas.
 
+## How it works
+
+::: Warning
+Do not call `IMessageBus.InvokeAsync()` within a `Saga` related handler to execute a command on that same `Saga`. You will be acting
+on old or missing data. Utilize cascading messages for subsequent work. 
+:::
+
+Wolverine is wrapping some generated code around your `Saga.Start()` and `Saga.Handle()` methods for loading and persisting the state. Here's a (mildly cleaned up) version
+of the generated code for starting the `Order` saga shown above:
+
+<!-- snippet: sample_generated_code_for_start_order_handler -->
+<a id='snippet-sample_generated_code_for_start_order_handler'></a>
+```cs
+public class StartOrderHandler133227374 : MessageHandler
+{
+    private readonly OutboxedSessionFactory _outboxedSessionFactory;
+    private readonly ILogger<Order> _logger;
+
+    public StartOrderHandler133227374(OutboxedSessionFactory outboxedSessionFactory, ILogger<Order> logger)
+    {
+        _outboxedSessionFactory = outboxedSessionFactory;
+        _logger = logger;
+    }
+
+    public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
+    {
+        var startOrder = (StartOrder)context.Envelope.Message;
+        await using var documentSession = _outboxedSessionFactory.OpenSession(context);
+        (var outgoing1, var outgoing2) = Order.Start(startOrder, _logger);
+        
+        // Register the document operation with the current session
+        documentSession.Insert(outgoing1);
+        
+        // Outgoing, cascaded message
+        await context.EnqueueCascadingAsync(outgoing2).ConfigureAwait(false);
+        
+        // Commit the unit of work
+        await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Internal/Generated/WolverineHandlers/StartOrderHandler133227374.cs.cs#L11-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_code_for_start_order_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And here's the code that's generated for the `CompleteOrder` command from the sample above:
+
+<!-- snippet: sample_generated_code_for_CompleteOrder -->
+<a id='snippet-sample_generated_code_for_completeorder'></a>
+```cs
+public class CompleteOrderHandler1228388417 : MessageHandler
+{
+    private readonly OutboxedSessionFactory _outboxedSessionFactory;
+    private readonly ILogger<Order> _logger;
+
+    public CompleteOrderHandler1228388417(OutboxedSessionFactory outboxedSessionFactory, ILogger<Order> logger)
+    {
+        _outboxedSessionFactory = outboxedSessionFactory;
+        _logger = logger;
+    }
+    
+    public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
+    {
+        await using var documentSession = _outboxedSessionFactory.OpenSession(context);
+        var completeOrder = (CompleteOrder)context.Envelope.Message;
+        string sagaId = context.Envelope.SagaId ?? completeOrder.Id;
+        if (string.IsNullOrEmpty(sagaId)) throw new IndeterminateSagaStateIdException(context.Envelope);
+        
+        // Try to load the existing saga document
+        var order = await documentSession.LoadAsync<Order>(sagaId, cancellation).ConfigureAwait(false);
+        if (order == null)
+        {
+            throw new UnknownSagaException(typeof(Order), sagaId);
+        }
+
+        else
+        {
+            order.Handle(completeOrder, _logger);
+            if (order.IsCompleted())
+            {
+                // Register the document operation with the current session
+                documentSession.Delete(order);
+            }
+            else
+            {
+                
+                // Register the document operation with the current session
+                documentSession.Update(order);
+            }
+            
+            // Commit all pending changes
+            await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
+        }
+
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Internal/Generated/WolverineHandlers/CompleteOrderHandler1228388417.cs.cs#L12-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_code_for_completeorder' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Saga Message Identity
 
 In the case of two Wolverine applications sending messages between themselves, or a single Wolverine
@@ -179,7 +277,89 @@ public record CompleteOrder(string Id);
 
 ## Starting a Saga
 
-TODO -- do this first: https://github.com/JasperFx/wolverine/issues/751
+::: Tip
+In all the cases where you return a `Saga` object from a handler method to denote the start of a new `Saga`, your code should
+set the identity for the new `Saga`.
+:::
+
+To start a new saga, you have a couple options. You can use a static `Start()` or `StartAsync()` handler method on the `Saga` type itself
+like this one on an `OrderSaga`:
+
+<!-- snippet: sample_starting_a_saga_inside_a_handler -->
+<a id='snippet-sample_starting_a_saga_inside_a_handler'></a>
+```cs
+// This method would be called when a StartOrder message arrives
+// to start a new Order
+public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
+{
+    logger.LogInformation("Got a new order with id {Id}", order.OrderId);
+
+    // creating a timeout message for the saga
+    return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L18-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+You can also simply return one or more `Saga` type objects from a handler method as shown below where `Reservation` is a Wolverine saga:
+
+<!-- snippet: sample_reservation_saga -->
+<a id='snippet-sample_reservation_saga'></a>
+```cs
+public class Reservation : Saga
+{
+    public string? Id { get; set; }
+    
+    // Apply the CompleteReservation to the saga
+    public void Handle(BookReservation book, ILogger<Reservation> logger)
+    {
+        logger.LogInformation("Completing Reservation {Id}", book.Id);
+
+        // That's it, we're done. Delete the saga state after the message is done.
+        MarkCompleted();
+    }
+
+    // Delete this Reservation if it has not already been deleted to enforce a "timeout"
+    // condition
+    public void Handle(ReservationTimeout timeout, ILogger<Reservation> logger)
+    {
+        logger.LogInformation("Applying timeout to Reservation {Id}", timeout.Id);
+
+        // That's it, we're done. Delete the saga state after the message is done.
+        MarkCompleted();
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L48-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+and the handler that would start the new saga:
+
+<!-- snippet: sample_return_saga_from_handler -->
+<a id='snippet-sample_return_saga_from_handler'></a>
+```cs
+public class StartReservationHandler
+{
+    public static (
+        // Outgoing message
+        ReservationBooked, 
+        
+        // Starts a new Saga
+        Reservation, 
+        
+        // Additional message cascading for the new saga
+        ReservationTimeout) Handle(StartReservation start)
+    {
+        return (
+            new ReservationBooked(start.ReservationId, DateTimeOffset.UtcNow), 
+            new Reservation { Id = start.ReservationId }, 
+            new ReservationTimeout(start.ReservationId)
+            );
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Method Conventions
 

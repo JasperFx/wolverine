@@ -21,6 +21,7 @@ namespace Internal.Generated.WolverineHandlers
             var incrementMany2 = (PersistenceTests.Marten.IncrementMany2)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.SelfLetteredAggregate>(incrementMany2.SelfLetteredAggregateId, cancellation).ConfigureAwait(false);
 
@@ -28,6 +29,7 @@ namespace Internal.Generated.WolverineHandlers
             var outgoing1 = eventStream.Aggregate.Handle(incrementMany2);
             if (outgoing1 != null)
             {
+                
                 // Capturing any possible events returned from the command handlers
                 eventStream.AppendMany(outgoing1);
 

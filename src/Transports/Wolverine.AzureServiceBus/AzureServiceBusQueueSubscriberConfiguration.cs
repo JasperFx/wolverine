@@ -8,7 +8,7 @@ public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfigurati
     AzureServiceBusQueueSubscriberConfiguration,
     AzureServiceBusQueue>
 {
-    public AzureServiceBusQueueSubscriberConfiguration(AzureServiceBusQueue queue) : base(queue)
+    public AzureServiceBusQueueSubscriberConfiguration(AzureServiceBusQueue endpoint) : base(endpoint)
     {
     }
 

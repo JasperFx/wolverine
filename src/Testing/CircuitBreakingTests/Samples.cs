@@ -17,7 +17,7 @@ public class Samples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.OnException<InvalidOperationException>()
+                opts.Policies.OnException<InvalidOperationException>()
                     .Discard();
 
                 opts.ListenToRabbitQueue("incoming")

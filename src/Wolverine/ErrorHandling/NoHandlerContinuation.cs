@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -20,12 +21,14 @@ internal class NoHandlerContinuation : IContinuation
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
-        DateTimeOffset now)
+        DateTimeOffset now, Activity? activity)
     {
         if (lifecycle.Envelope == null)
         {
             throw new InvalidOperationException("Context does not have an Envelope");
         }
+
+        activity?.AddEvent(new ActivityEvent(WolverineTracing.NoHandler));
 
         runtime.MessageLogger.NoHandlerFor(lifecycle.Envelope!);
 

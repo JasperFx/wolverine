@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using JasperFx.CodeGeneration.Frames;
+﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
 using Microsoft.Data.SqlClient;
@@ -26,10 +24,20 @@ internal class SqlServerPersistenceFrameProvider : IPersistenceFrameProvider
 
     public bool CanApply(IChain chain, IContainer container)
     {
-        if (chain is SagaChain) return false;
-        return chain.ServiceDependencies(container).Any(x => x == typeof(SqlConnection) || x == typeof(SqlTransaction));
+        if (chain is SagaChain)
+        {
+            return false;
+        }
+
+        return chain.ServiceDependencies(container, Type.EmptyTypes).Any(x => x == typeof(SqlConnection) || x == typeof(SqlTransaction));
     }
-    
+
+    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    {
+        persistenceService = default;
+        return false;
+    }
+
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
         throw new NotSupportedException();

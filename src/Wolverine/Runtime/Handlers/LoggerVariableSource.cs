@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Handlers;
 
-internal class LoggerVariableSource : IVariableSource
+public class LoggerVariableSource : IVariableSource
 {
     private readonly Type _messageType;
     private readonly Type _loggerType;
@@ -15,7 +15,7 @@ internal class LoggerVariableSource : IVariableSource
         _messageType = messageType;
         _loggerType = typeof(ILogger<>).MakeGenericType(messageType);
 
-        _field = new InjectedField(_loggerType);
+        _field = new InjectedField(_loggerType, "loggerForMessage");
     }
 
     public bool Matches(Type type)

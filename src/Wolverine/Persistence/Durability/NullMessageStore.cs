@@ -1,20 +1,19 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Lamar;
 using Wolverine.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
 
 namespace Wolverine.Persistence.Durability;
 
-internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
+/// <summary>
+///     Nullo implementation of a message store
+/// </summary>
+public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin
 {
-    public IScheduledJobProcessor? ScheduledJobs { get; set; }
-    public IMessageStoreAdmin Admin => this;
+    internal IScheduledJobProcessor? ScheduledJobs { get; set; }
+
+    public IDurableStorageSession Session => throw new NotSupportedException();
 
     public Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
     {
@@ -26,27 +25,12 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         return Task.CompletedTask;
     }
 
-    public Task DeleteOutgoingAsync(Envelope[] envelopes)
+    public Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         return Task.CompletedTask;
     }
 
-    public Task DeleteOutgoingAsync(Envelope envelope)
-    {
-        return Task.CompletedTask;
-    }
-
-    public Task MoveToDeadLetterStorageAsync(ErrorReport[] errors)
-    {
-        return Task.CompletedTask;
-    }
-
-    public Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? ex)
-    {
-        return Task.CompletedTask;
-    }
-
-    public Task ScheduleExecutionAsync(Envelope[] envelopes)
+    public Task ScheduleExecutionAsync(Envelope envelope)
     {
         return Task.CompletedTask;
     }
@@ -54,11 +38,6 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
     public Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
         return Task.CompletedTask;
-    }
-
-    public Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
-    {
-        throw new NotSupportedException();
     }
 
     public Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
@@ -90,31 +69,6 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         return Task.CompletedTask;
     }
 
-    public Task<Uri[]> FindAllDestinationsAsync()
-    {
-        throw new NotSupportedException();
-    }
-
-    public Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
-    {
-        return Task.CompletedTask;
-    }
-
-    public Task StoreOutgoingAsync(Envelope envelope, int ownerId)
-    {
-        return Task.CompletedTask;
-    }
-
-    public Task StoreOutgoingAsync(Envelope[] envelopes, int ownerId)
-    {
-        return Task.CompletedTask;
-    }
-
-    public void Describe(TextWriter writer)
-    {
-        writer.WriteLine("No persistent envelope storage");
-    }
-
     public Task ScheduleJobAsync(Envelope envelope)
     {
         if (!envelope.ScheduledTime.HasValue)
@@ -128,17 +82,24 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         return Task.CompletedTask;
     }
 
-
-    public void Dispose()
+    public Task ReleaseIncomingAsync(int ownerId)
     {
-        // Nothing
+        return Task.CompletedTask;
     }
 
-    public IDurableStorageSession Session => throw new NotSupportedException();
-
-    public Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
+    public Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
-        throw new NotSupportedException();
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteOutgoingAsync(Envelope envelope)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task StoreOutgoingAsync(Envelope envelope, int ownerId)
+    {
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
@@ -146,14 +107,36 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         throw new NotSupportedException();
     }
 
-    public Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
+    public Task InitializeAsync(IWolverineRuntime runtime)
+    {
+        return Task.CompletedTask;
+    }
+
+    public IMessageInbox Inbox => this;
+    public IMessageOutbox Outbox => this;
+    public INodeAgentPersistence Nodes => throw new NotSupportedException();
+
+    public IMessageStoreAdmin Admin => this;
+
+    public Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
     {
         throw new NotSupportedException();
     }
 
-    public Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
+    public Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
-        throw new NotSupportedException();
+        return Task.CompletedTask;
+    }
+
+    public void Describe(TextWriter writer)
+    {
+        writer.WriteLine("No persistent envelope storage");
+    }
+
+
+    public ValueTask DisposeAsync()
+    {
+        return new ValueTask();
     }
 
     public IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container)
@@ -161,45 +144,7 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
         return new NullDurabilityAgent();
     }
 
-    internal class NullDurabilityAgent : IDurabilityAgent
-    {
-        public Task StartAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        public void EnqueueLocally(Envelope envelope)
-        {
-            // Nothing
-        }
-
-        public void RescheduleIncomingRecovery()
-        {
-            // Nothing
-        }
-
-        public void RescheduleOutgoingRecovery()
-        {
-            // Nothing
-        }
-    }
-
-    public Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
-    {
-        throw new NotSupportedException();
-    }
-
-    public Task ReleaseIncomingAsync(int ownerId)
+    public Task DrainAsync()
     {
         return Task.CompletedTask;
     }
@@ -248,5 +193,63 @@ internal class NullMessageStore : IMessageStore, IMessageStoreAdmin
     public Task RebuildAsync()
     {
         return Task.CompletedTask;
+    }
+
+    public Task<Uri[]> FindAllDestinationsAsync()
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        throw new NotSupportedException();
+    }
+
+    internal class NullDurabilityAgent : IDurabilityAgent
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        public void EnqueueLocally(Envelope envelope)
+        {
+            // Nothing
+        }
+
+        public void RescheduleIncomingRecovery()
+        {
+            // Nothing
+        }
+
+        public void RescheduleOutgoingRecovery()
+        {
+            // Nothing
+        }
     }
 }

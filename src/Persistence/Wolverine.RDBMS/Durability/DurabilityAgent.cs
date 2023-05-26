@@ -1,8 +1,4 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -10,20 +6,20 @@ using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.RDBMS.Durability;
 
+[Obsolete]
 internal class DurabilityAgent : IDurabilityAgent
 {
-    public DatabaseSettings DatabaseSettings { get; }
+    public IMessageDatabase WolverineDatabase { get; }
     private readonly DeleteExpiredHandledEnvelopes _deleteExpired;
     private readonly bool _disabled;
     private readonly IDurabilityAction _incomingMessages;
     private readonly ILocalQueue _locals;
     private readonly ILogger _logger;
-    private readonly MetricsCalculator _metrics;
     private readonly IDurabilityAction _nodeReassignment;
     private readonly IDurabilityAction _outgoingMessages;
     private readonly IDurabilityAction _scheduledJobs;
     private readonly MoveReplayableErrorMessagesToIncoming _moveReplayable;
-    private readonly NodeSettings _settings;
+    private readonly DurabilitySettings _settings;
 
     private readonly IMessageDatabase _database;
     private readonly ILogger<DurabilityAgent> _trace;
@@ -38,11 +34,11 @@ internal class DurabilityAgent : IDurabilityAgent
         ILogger<DurabilityAgent> trace,
         ILocalQueue locals,
         IMessageDatabase database,
-        NodeSettings settings, 
-        DatabaseSettings databaseSettings)
+        DurabilitySettings settings,
+        IMessageDatabase wolverineDatabase)
 #pragma warning restore CS8618)
     {
-        DatabaseSettings = databaseSettings;
+        WolverineDatabase = wolverineDatabase;
 
 
         _logger = logger;
@@ -50,8 +46,6 @@ internal class DurabilityAgent : IDurabilityAgent
         _locals = locals;
         _database = database;
         _settings = settings;
-
-        _metrics = new MetricsCalculator(runtime.Meter);
 
         _worker = new ActionBlock<IDurabilityAction>(processActionAsync, new ExecutionDataflowBlockOptions
         {
@@ -76,9 +70,10 @@ internal class DurabilityAgent : IDurabilityAgent
 
         if (_database.Session.IsConnected())
         {
-            await _database.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
-            _database.SafeDispose();
+            await _database.Session.ReleaseNodeLockAsync(_settings.NodeLockId);
         }
+        
+        await _database.DisposeAsync();
 
         if (_scheduledJobTimer != null)
         {
@@ -120,7 +115,6 @@ internal class DurabilityAgent : IDurabilityAgent
             _worker.Post(_scheduledJobs);
             _worker.Post(_incomingMessages);
             _worker.Post(_outgoingMessages);
-            _worker.Post(_metrics);
             _worker.Post(_deleteExpired);
             _worker.Post(_moveReplayable);
         }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
@@ -153,10 +147,13 @@ internal class DurabilityAgent : IDurabilityAgent
         {
             await _worker.Completion;
 
-            await _database.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
+            await _database.Session.ReleaseNodeLockAsync(_settings.NodeLockId);
 
             // Release all envelopes tagged to this node in message persistence to any node
-            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_database.Session, _settings.UniqueNodeId, DatabaseSettings);
+            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_database.Session, _settings.NodeLockId,
+                WolverineDatabase);
+
+            await _database.Inbox.ReleaseIncomingAsync(_settings.NodeLockId);
         }
         catch (Exception e)
         {
@@ -195,8 +192,7 @@ internal class DurabilityAgent : IDurabilityAgent
                     _trace.LogDebug("Running action {Action}", action.Description);
                 }
 
-                // TODO -- eliminate the downcast!
-                await action.ExecuteAsync((IMessageDatabase)_database, this, _database.Session);
+                await action.ExecuteAsync(_database, this, _database.Session);
             }
             catch (Exception e)
             {
@@ -206,10 +202,10 @@ internal class DurabilityAgent : IDurabilityAgent
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to run {Action}", action);
-            await _database.Session.ReleaseNodeLockAsync(_settings.UniqueNodeId);
+            await _database.Session.ReleaseNodeLockAsync(_settings.NodeLockId);
         }
 
-        await _database.Session.GetNodeLockAsync(_settings.UniqueNodeId);
+        await _database.Session.GetNodeLockAsync(_settings.NodeLockId);
     }
 
     private async Task tryRestartConnectionAsync()
@@ -221,7 +217,7 @@ internal class DurabilityAgent : IDurabilityAgent
 
         try
         {
-            await _database.Session.ConnectAndLockCurrentNodeAsync(_logger, _settings.UniqueNodeId);
+            await _database.Session.ConnectAndLockCurrentNodeAsync(_logger, _settings.NodeLockId);
         }
         catch (Exception? e)
         {

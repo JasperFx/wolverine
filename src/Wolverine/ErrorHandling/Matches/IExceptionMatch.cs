@@ -2,7 +2,7 @@ using System;
 
 namespace Wolverine.ErrorHandling.Matches;
 
-internal interface IExceptionMatch
+public interface IExceptionMatch
 {
     string Description { get; }
 

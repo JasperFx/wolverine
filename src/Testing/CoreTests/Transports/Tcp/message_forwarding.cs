@@ -1,4 +1,5 @@
 ﻿using System.Threading.Tasks;
+using JasperFx.Core;
 using TestingSupport;
 using Wolverine.Attributes;
 using Wolverine.Tracking;
@@ -15,8 +16,8 @@ public class message_forwarding
     {
         using var host = WolverineHost.For(opts =>
         {
-            opts.Handlers.DisableConventionalDiscovery();
-            opts.Handlers.IncludeType<NewMessageHandler>();
+            opts.DisableConventionalDiscovery();
+            opts.IncludeType<NewMessageHandler>();
 
             opts.Publish(x =>
             {
@@ -35,7 +36,7 @@ public class message_forwarding
             .ExecuteAndWaitAsync(c => c.EndpointFor("tcp://localhost:2345".ToUri()).SendAsync( originalMessage));
 
 
-        session.FindSingleTrackedMessageOfType<NewMessage>(EventType.MessageSucceeded)
+        session.FindSingleTrackedMessageOfType<NewMessage>(MessageEventType.MessageSucceeded)
             .FullName.ShouldBe("James Worthy");
     }
 }

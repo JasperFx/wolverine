@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Routing;
 
@@ -23,7 +24,7 @@ internal class NoHandlerExecutor : IExecutor
         _continuation = new NoHandlerContinuation(handlers, runtime);
     }
 
-    public string? ExceptionText { get; set; }
+    public Exception? Exception { get; set; }
 
     public Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
     {
@@ -41,7 +42,7 @@ internal class NoHandlerExecutor : IExecutor
         var handlerAssemblies = _runtime
             .Options
             .HandlerGraph
-            .Source
+            .Discovery
             .Assemblies
             .Select(x => x.FullName)
             .Join(", ");
@@ -51,11 +52,21 @@ internal class NoHandlerExecutor : IExecutor
 
     public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        throw new IndeterminateRoutesException(typeof(T));
+        if (Exception != null)
+        {
+            throw Exception;
+        }
+        
+        throw new IndeterminateRoutesException(_messageType);
     }
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        throw new IndeterminateRoutesException(message.GetType(), ExceptionText);
+        if (Exception != null)
+        {
+            throw Exception;
+        }
+
+        return Task.CompletedTask;
     }
 }

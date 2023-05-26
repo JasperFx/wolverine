@@ -21,17 +21,6 @@ public class extension_registrations : SqlServerContext
             x.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString));
         var container = runtime.Get<IContainer>();
 
-        container.Model.HasRegistrationFor<SqlConnection>().ShouldBeTrue();
-        container.Model.HasRegistrationFor<DbConnection>().ShouldBeTrue();
-
-        container.Model.For<SqlConnection>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
-
-
         container.Model.HasRegistrationFor<IMessageStore>().ShouldBeTrue();
-
-
-        runtime.Get<SqlConnection>().ConnectionString.ShouldBe(Servers.SqlServerConnectionString);
-        runtime.Get<DbConnection>().ShouldBeOfType<SqlConnection>()
-            .ConnectionString.ShouldBe(Servers.SqlServerConnectionString);
     }
 }

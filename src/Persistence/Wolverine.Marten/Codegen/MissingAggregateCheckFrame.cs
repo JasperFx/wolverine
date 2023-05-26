@@ -1,9 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Marten.Events;
 
 namespace Wolverine.Marten.Codegen;

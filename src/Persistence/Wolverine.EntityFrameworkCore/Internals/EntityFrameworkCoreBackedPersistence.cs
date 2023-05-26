@@ -14,7 +14,7 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
 {
     public void Configure(WolverineOptions options)
     {
-        options.Node.CodeGeneration.AddPersistenceStrategy<EFCorePersistenceFrameProvider>();
+        options.CodeGeneration.AddPersistenceStrategy<EFCorePersistenceFrameProvider>();
 
         options.Services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
         options.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();

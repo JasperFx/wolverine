@@ -13,30 +13,21 @@ public class EndpointConfiguration
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PublishMessage<MessageOne>().ToPort(3333)
+                opts.PublishMessage<MyMessageOne>().ToPort(3333)
 
                     // Override the endpoint name easier usage and diagnostics
                     .Named("threes")
 
                     // Configure the outgoing circuit breaker 
                     // rules
-                    .CircuitBreaking(cb =>
-                    {
-                        cb.FailuresBeforeCircuitBreaks = 5;
-
-                    })
+                    .CircuitBreaking(cb => { cb.FailuresBeforeCircuitBreaks = 5; })
 
                     // Customize the outgoing message envelopes to add headers
                     // or other delivery options
-                    .CustomizeOutgoing(env =>
-                    {
-                        env.Headers["Machine"] = Environment.MachineName;
-                    })
-
+                    .CustomizeOutgoing(env => { env.Headers["Machine"] = Environment.MachineName; })
 
                     // Several options to use different serializers
                     .DefaultSerializer(new CustomSerializer())
-
                     .CustomNewtonsoftJsonSerialization(new JsonSerializerSettings())
 
                     // Customize messages or the containing envelope on the way out
@@ -44,9 +35,7 @@ public class EndpointConfiguration
                     {
                         msg.MachineName = Environment.MachineName;
                     })
-
                     ;
-
             }).StartAsync();
     }
 }
@@ -54,6 +43,7 @@ public class EndpointConfiguration
 public class CustomSerializer : IMessageSerializer
 {
     public string ContentType { get; }
+
     public byte[] Write(Envelope envelope)
     {
         throw new NotImplementedException();

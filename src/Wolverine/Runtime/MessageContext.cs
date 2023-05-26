@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Transactions;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -19,9 +20,12 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
 
+    private bool _hasFlushed;
 
     public async Task FlushOutgoingMessagesAsync()
     {
+        if (_hasFlushed) return;
+
         if (Envelope != null && Envelope.ReplyRequested.IsNotEmpty() &&
             Outstanding.All(x => x.MessageType != Envelope.ReplyRequested))
         {
@@ -64,6 +68,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
 
         _outstanding.Clear();
+
+        _hasFlushed = true;
     }
 
     public ValueTask CompleteAsync()
@@ -100,7 +106,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         else
         {
-            await Storage.ScheduleJobAsync(Envelope);
+            await Storage.Inbox.ScheduleJobAsync(Envelope);
         }
     }
 
@@ -117,7 +123,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
 
         // If persistable, persist
-        return Storage.MoveToDeadLetterStorageAsync(Envelope, exception);
+        return Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
     }
 
     public Task RetryExecutionNowAsync()
@@ -145,9 +151,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         var envelope = Runtime.RoutingFor(typeof(Acknowledgement))
             .RouteToDestination(acknowledgement, Envelope.ReplyUri, null);
 
-        TrackEnvelopeCorrelation(envelope);
+        TrackEnvelopeCorrelation(envelope, Activity.Current);
         envelope.SagaId = Envelope.SagaId;
-        // TODO -- reevaluate the metadata. Causation, Originator, all that
 
         try
         {
@@ -155,7 +160,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         catch (Exception e)
         {
-            // TODO -- any kind of retry? Only an issue for inline senders anyway
+            // This should never happen because all the sending agents catch errors, but you know...
             Runtime.Logger.LogError(e, "Failure while sending an acknowledgement for envelope {Id}", envelope.Id);
         }
     }
@@ -176,9 +181,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         var envelope = Runtime.RoutingFor(typeof(FailureAcknowledgement))
             .RouteToDestination(acknowledgement, Envelope.ReplyUri, null);
 
-        TrackEnvelopeCorrelation(envelope);
+        TrackEnvelopeCorrelation(envelope, Activity.Current);
         envelope.SagaId = Envelope.SagaId;
-        // TODO -- reevaluate the metadata. Causation, ORiginator, all that
 
         try
         {
@@ -186,7 +190,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         catch (Exception e)
         {
-            // TODO -- any kind of retry? Only an issue for inline senders anyway
+            // Should never happen, but still.
             Runtime.Logger.LogError(e, "Failure while sending a failure acknowledgement for envelope {Id}",
                 envelope.Id);
         }
@@ -294,16 +298,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     public async Task EnqueueCascadingAsync(object? message)
     {
-        if (Envelope == null)
-        {
-            throw new InvalidOperationException("No Envelope attached to this context");
-        }
-
-        if (Envelope.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
-                                              Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
+        if (Envelope?.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
+                                               Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
         {
             Envelope.Response = message;
-            return;
         }
 
         switch (message)
@@ -323,9 +321,17 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                 foreach (var o in enumerable) await EnqueueCascadingAsync(o);
 
                 return;
+            
+            case IAsyncEnumerable<object> asyncEnumerable:
+                await foreach (var o in asyncEnumerable)
+                {
+                    await EnqueueCascadingAsync(o);
+                };
+
+                return;
         }
 
-        if (message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
+        if (Envelope != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
             await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
             return;
@@ -341,6 +347,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             d.SafeDispose();
         }
+
+        _hasFlushed = false;
         
         _outstanding.Clear();
         Scheduled.Clear();
@@ -356,6 +364,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         ConversationId = originalEnvelope.Id;
         _channel = channel;
         _sagaId = originalEnvelope.SagaId;
+        TenantId = originalEnvelope.TenantId;
 
         Transaction = this;
 
@@ -364,7 +373,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             var ack = new Acknowledgement { RequestId = Envelope.Id };
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
                 .RouteToDestination(ack, Envelope.ReplyUri, null);
-            TrackEnvelopeCorrelation(ackEnvelope);
+            TrackEnvelopeCorrelation(ackEnvelope, Activity.Current);
             _outstanding.Add(ackEnvelope);
         }
     }
@@ -378,15 +387,15 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         else
         {
-            foreach (var envelope in Scheduled) await Storage.ScheduleJobAsync(envelope);
+            foreach (var envelope in Scheduled) await Storage.Inbox.ScheduleJobAsync(envelope);
         }
 
         Scheduled.Clear();
     }
 
-    internal override void TrackEnvelopeCorrelation(Envelope outbound)
+    internal override void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
-        base.TrackEnvelopeCorrelation(outbound);
+        base.TrackEnvelopeCorrelation(outbound, activity);
         outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
 
         if (Envelope != null)
@@ -394,4 +403,5 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             outbound.ConversationId = Envelope.ConversationId == Guid.Empty ? Envelope.Id : Envelope.ConversationId;
         }
     }
+
 }

@@ -13,6 +13,7 @@ using Weasel.Core;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.RabbitMQ.Internal;
+using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Xunit;
@@ -66,10 +67,10 @@ public class end_to_end
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_durable_transport_option()
     {
-        var queueName = RabbitTesting.NextQueueName();
+        var queueName = "durable_test_queue";
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+            opts.UseRabbitMq().DisableDeadLetterQueueConfiguration().AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
                 .ToRabbitQueue(queueName)
@@ -88,7 +89,7 @@ public class end_to_end
 
         using var receiver = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().AutoProvision();
+            opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueConfiguration();
 
             opts.ListenToRabbitQueue(queueName);
             opts.Services.AddSingleton<ColorHistory>();
@@ -116,6 +117,54 @@ public class end_to_end
 
 
         receiver.Get<ColorHistory>().Name.ShouldBe("Orange");
+    }
+    
+    
+    [Fact]
+    public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers()
+    {
+        var queueName = RabbitTesting.NextQueueName();
+        using var publisher = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+
+            opts.PublishAllMessages()
+                .ToRabbitQueue(queueName)
+                .SendInline();
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        });
+
+
+        using var receiver = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision();
+
+            opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
+            opts.Services.AddSingleton<ColorHistory>();
+
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        });
+
+        await receiver.ResetResourceState();
+
+        for (int i = 0; i < 10000; i++)
+        {
+            await publisher.SendAsync(new ColorChosen { Name = "blue" });
+        }
+
+        var cancellation = new CancellationTokenSource(30.Seconds());
+        var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
+
+        while (!cancellation.IsCancellationRequested && queue.QueuedCount() > 0)
+        {
+            await Task.Delay(250.Milliseconds(), cancellation.Token);
+        }
+        
+        cancellation.Token.ThrowIfCancellationRequested();
+
+        
     }
 
 
@@ -175,7 +224,7 @@ public class end_to_end
 
 
         // TODO -- let's make an assertion here?
-        var records = session.FindEnvelopesWithMessageType<PongMessage>(EventType.Received);
+        var records = session.FindEnvelopesWithMessageType<PongMessage>(MessageEventType.Received);
         records.Any(x => x.ServiceName == "Publisher").ShouldBeTrue();
     }
 
@@ -232,8 +281,8 @@ public class end_to_end
 
         var publisher = WolverineHost.For(opts =>
         {
-            opts.Node.ScheduledJobFirstExecution = 1.Seconds();
-            opts.Node.ScheduledJobPollingTime = 1.Seconds();
+            opts.Durability.ScheduledJobFirstExecution = 1.Seconds();
+            opts.Durability.ScheduledJobPollingTime = 1.Seconds();
             opts.ServiceName = "Publisher";
 
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
@@ -369,7 +418,7 @@ public class end_to_end
 
             opts.PublishAllMessages().ToRabbitTopic("special", "topics");
 
-            opts.Handlers.DisableConventionalDiscovery();
+            opts.DisableConventionalDiscovery();
         });
 
         var receiver = WolverineHost.For(opts =>
@@ -378,7 +427,7 @@ public class end_to_end
 
             opts.ListenToRabbitQueue(queueName);
 
-            opts.Handlers.DisableConventionalDiscovery().IncludeType<SpecialTopicGuy>();
+            opts.DisableConventionalDiscovery().IncludeType<SpecialTopicGuy>();
         });
 
         try
@@ -390,7 +439,7 @@ public class end_to_end
                 .SendMessageAndWaitAsync(message);
 
 
-            var received = session.FindSingleTrackedMessageOfType<SpecialTopic>(EventType.MessageSucceeded);
+            var received = session.FindSingleTrackedMessageOfType<SpecialTopic>(MessageEventType.MessageSucceeded);
             received
                 .Id.ShouldBe(message.Id);
         }

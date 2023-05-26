@@ -25,11 +25,7 @@ public class HostsFixture : IAsyncLifetime
                 opts.ServiceName = "Subscriber1";
                 opts.ApplicationAssembly = GetType().Assembly;
 
-                opts.Handlers.Discovery(source =>
-                {
-                    source.DisableConventionalDiscovery();
-                    source.IncludeType<Subscriber1Handlers>();
-                });
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<Subscriber1Handlers>();
 
                 opts.ListenAtPort(MessagingConstants.Subscriber1Port);
 
@@ -58,11 +54,9 @@ public class HostsFixture : IAsyncLifetime
                 opts.ServiceName = "Subscriber2";
                 opts.ApplicationAssembly = GetType().Assembly;
 
-                opts.Handlers.Discovery(source =>
-                {
-                    source.DisableConventionalDiscovery();
-                    source.IncludeType<Subscriber2Handlers>();
-                });
+                opts.Discovery
+                    .DisableConventionalDiscovery()
+                    .IncludeType<Subscriber2Handlers>();
 
                 opts.UseRabbitMq().AutoProvision();
 

@@ -43,7 +43,7 @@ As an example middleware using Wolverine's conventional approach, here's the sto
 ```cs
 public class StopwatchMiddleware
 {
-    private readonly Stopwatch _stopwatch = new Stopwatch();
+    private readonly Stopwatch _stopwatch = new();
 
     public void Before()
     {
@@ -53,12 +53,12 @@ public class StopwatchMiddleware
     public void Finally(ILogger logger, Envelope envelope)
     {
         _stopwatch.Stop();
-        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds", 
+        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds",
             envelope.Id, envelope.MessageType, _stopwatch.ElapsedMilliseconds);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L64-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchmiddleware_1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L72-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchmiddleware_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and that can be added to our application at bootstrapping time like this:
@@ -71,11 +71,12 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Apply our new middleware to message handlers, but optionally 
         // filter it to only messages from a certain namespace
-        opts.Handlers
-            .AddMiddleware<StopwatchMiddleware>(chain => chain.MessageType.IsInNamespace("MyApp.Messages.Important"));
+        opts.Policies
+            .AddMiddleware<StopwatchMiddleware>(chain =>
+                chain.MessageType.IsInNamespace("MyApp.Messages.Important"));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L130-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_by_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L138-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_by_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And just for the sake of completeness, here's another version of the same functionality, but 
@@ -101,12 +102,12 @@ public static class StopwatchMiddleware2
     public static void Finally(Stopwatch stopwatch, ILogger logger, Envelope envelope)
     {
         stopwatch.Stop();
-        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds", 
+        logger.LogDebug("Envelope {Id} / {MessageType} ran in {Duration} milliseconds",
             envelope.Id, envelope.MessageType, stopwatch.ElapsedMilliseconds);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L100-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_silly_micro_optimized_stopwatch_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L108-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_silly_micro_optimized_stopwatch_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Alright, let's talk about what's happening in the code samples above:
@@ -222,7 +223,7 @@ builder.Host.UseWolverine(opts =>
     // This middleware should be applied to all handlers where the 
     // command type implements the IAccountCommand interface that is the
     // "detected" message type of the middleware
-    opts.Handlers.AddMiddlewareByMessageType(typeof(AccountLookupMiddleware));
+    opts.Policies.ForMessagesOfType<IAccountCommand>().AddMiddleware(typeof(AccountLookupMiddleware));
     
     opts.UseFluentValidation();
 
@@ -239,7 +240,7 @@ builder.Host.UseWolverine(opts =>
         .BufferedInMemory();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Program.cs#L28-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_middleware_by_message_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Program.cs#L30-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_middleware_by_message_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine determines the message type for a middleware class method by assuming that the first
@@ -266,7 +267,7 @@ public static class SomeHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L87-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_middleware_by_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L95-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_middleware_by_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this attribute will accept multiple middleware types. Also note that the `[Middleware]` attribute can be placed either
@@ -326,7 +327,7 @@ public class StopwatchFrame : SyncFrame
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L145-L192' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L154-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -346,7 +347,7 @@ public class StopwatchAttribute : ModifyChainAttribute
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L194-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L203-L213' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This attribute can now be placed either on a specific HTTP route endpoint method or message handler method to **only** apply to
@@ -366,7 +367,7 @@ public class ClockedEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L206-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L215-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, when the application is bootstrapped, this is the code that would be generated to handle the "GET /clocked" route:
@@ -422,18 +423,18 @@ You can register user-defined policies that apply to all chains or some subset o
 /// <summary>
 ///     Use to apply your own conventions or policies to message handlers
 /// </summary>
-public interface IHandlerPolicy
+public interface IHandlerPolicy : IWolverinePolicy
 {
     /// <summary>
     ///     Called during bootstrapping to alter how the message handlers are configured
     /// </summary>
-    /// <param name="graph"></param>
+    /// <param name="chains"></param>
     /// <param name="rules"></param>
     /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(HandlerGraph graph, GenerationRules rules, IContainer container);
+    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L7-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's a simple sample that registers middleware on each handler chain:
@@ -443,9 +444,9 @@ Here's a simple sample that registers middleware on each handler chain:
 ```cs
 public class WrapWithSimple : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
-        foreach (var chain in graph.Chains) chain.Middleware.Add(new SimpleWrapper());
+        foreach (var chain in chains) chain.Middleware.Add(new SimpleWrapper());
     }
 }
 ```
@@ -458,7 +459,7 @@ Then register your custom `IHandlerPolicy` with a Wolverine application like thi
 <a id='snippet-sample_appwithhandlerpolicy'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts => { opts.Handlers.AddPolicy<WrapWithSimple>(); }).StartAsync();
+    .UseWolverine(opts => { opts.Policies.Add<WrapWithSimple>(); }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L15-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appwithhandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

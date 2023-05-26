@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 
 namespace Wolverine.Persistence.Sagas;
 

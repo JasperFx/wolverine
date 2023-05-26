@@ -20,7 +20,7 @@ public interface IMartenOutbox : IMessageBus
     void Enroll(IDocumentSession session);
 }
 
-internal class MartenOutbox : MessageContext, IMartenOutbox
+public class MartenOutbox : MessageContext, IMartenOutbox
 {
     public MartenOutbox(IWolverineRuntime runtime, IDocumentSession session) : base(runtime)
     {

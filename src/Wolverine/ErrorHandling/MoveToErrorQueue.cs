@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Wolverine.Runtime;
 
@@ -25,12 +26,14 @@ internal class MoveToErrorQueue : IContinuation
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
-        DateTimeOffset now)
+        DateTimeOffset now, Activity? activity)
     {
         await lifecycle.SendFailureAcknowledgementAsync(
             $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{_exception}");
 
         await lifecycle.MoveToDeadLetterQueueAsync(_exception);
+
+        activity?.AddEvent(new ActivityEvent(WolverineTracing.MovedToErrorQueue));
 
         runtime.MessageLogger.MessageFailed(lifecycle.Envelope, _exception);
         runtime.MessageLogger.MovedToErrorQueue(lifecycle.Envelope, _exception);

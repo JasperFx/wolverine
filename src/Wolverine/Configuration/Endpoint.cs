@@ -1,17 +1,15 @@
 #nullable enable
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Oakton.Descriptions;
 using Wolverine.ErrorHandling;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -67,7 +65,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     private EndpointMode _mode = EndpointMode.BufferedInMemory;
     private string? _name;
     private ImHashMap<string, IMessageSerializer> _serializers = ImHashMap<string, IMessageSerializer>.Empty;
-    
+
     internal ImHashMap<Type, MessageRoute> Routes = ImHashMap<Type, MessageRoute>.Empty;
 
     protected Endpoint(Uri uri, EndpointRole role)
@@ -75,23 +73,15 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         Role = role;
         Uri = uri;
         EndpointName = uri.ToString();
-    }
 
-    internal MessageRoute RouteFor(Type messageType, IWolverineRuntime runtime)
-    {
-        if (Routes.TryFind(messageType, out var route)) return route;
-
-        route = new MessageRoute(messageType, this, runtime.Replies);
-
-        Routes = Routes.AddOrUpdate(messageType, route);
-
-        return route;
+        ExecutionOptions.MaxDegreeOfParallelism = Environment.ProcessorCount;
+        ExecutionOptions.EnsureOrdered = false;
     }
 
     /// <summary>
     ///     Is the endpoint controlled and configured by the application or Wolverine itself?
     /// </summary>
-    public EndpointRole Role { get; }
+    public EndpointRole Role { get; internal set; }
 
     /// <summary>
     ///     Local message buffering limits and restart thresholds for back pressure mechanics
@@ -231,6 +221,20 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return dict;
     }
 
+    internal MessageRoute RouteFor(Type messageType, IWolverineRuntime runtime)
+    {
+        if (Routes.TryFind(messageType, out var route))
+        {
+            return route;
+        }
+
+        route = new MessageRoute(messageType, this, runtime.Replies);
+
+        Routes = Routes.AddOrUpdate(messageType, route);
+
+        return route;
+    }
+
     internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
     {
         DelayedConfiguration.Add(configuration);
@@ -245,7 +249,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
 
-        foreach (var configuration in DelayedConfiguration.ToArray()) configuration.Apply();
+        foreach (var configuration in DelayedConfiguration.ToArray()) configuration?.Apply();
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 
@@ -313,7 +317,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     protected internal virtual ISendingAgent StartSending(IWolverineRuntime runtime,
         Uri? replyUri)
     {
-        var sender = runtime.Node.StubAllExternalTransports ? new NullSender(Uri) : CreateSender(runtime);
+        var sender = runtime.Options.ExternalTransportsAreStubbed ? new NullSender(Uri) : CreateSender(runtime);
         return runtime.Endpoints.CreateSendingAgent(replyUri, sender, this);
     }
 
@@ -339,5 +343,29 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public virtual ValueTask InitializeAsync(ILogger logger)
     {
         return ValueTask.CompletedTask;
+    }
+
+    internal string SerializerDescription(WolverineOptions options)
+    {
+        var dict = options.ToSerializerDictionary();
+        var overrides = _serializers.Enumerate().Select(x => x.Value)
+            .Where(x => !(x is EnvelopeReaderWriter));
+
+        foreach (var serializer in overrides) dict[serializer.ContentType] = serializer;
+
+        dict.Remove("binary/envelope");
+
+        return dict.Select(x => $"{x.Value.GetType().ShortNameInCode()} ({x.Key})").Join(", ");
+    }
+
+    internal string ExecutionDescription()
+    {
+        if (Mode == EndpointMode.Inline)
+        {
+            return "";
+        }
+
+        return
+            $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
     }
 }

@@ -24,7 +24,7 @@ public class InvokeRunner : IDisposable
     [IterationSetup]
     public void BuildDatabase()
     {
-        theDriver.Start(opts => { opts.Node.DurabilityAgentEnabled = false; }).GetAwaiter().GetResult();
+        theDriver.Start(opts => { opts.Durability.DurabilityAgentEnabled = false; }).GetAwaiter().GetResult();
     }
 
     [Benchmark]

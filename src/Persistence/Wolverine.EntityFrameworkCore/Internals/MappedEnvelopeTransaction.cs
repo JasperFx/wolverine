@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
@@ -8,20 +6,15 @@ using Wolverine.Runtime;
 namespace Wolverine.EntityFrameworkCore.Internals;
 
 /// <summary>
-/// This envelope transaction should be used for DbContext types where the Wolverine
-/// mappings have been applied to the DbContext
+///     This envelope transaction should be used for DbContext types where the Wolverine
+///     mappings have been applied to the DbContext
 /// </summary>
 internal class MappedEnvelopeTransaction : IEnvelopeTransaction
 {
-    private readonly DatabaseSettings _settings;
-    
+
     public MappedEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
-        if (messaging.Storage is IMessageDatabase persistence)
-        {
-            _settings = persistence.Settings;
-        }
-        else
+        if (messaging.Storage is not IMessageDatabase)
         {
             throw new InvalidOperationException(
                 "This Wolverine application is not using Database backed message persistence. Please configure the message configuration");
@@ -29,7 +22,7 @@ internal class MappedEnvelopeTransaction : IEnvelopeTransaction
 
         DbContext = dbContext;
     }
-    
+
     public DbContext DbContext { get; }
 
     public Task PersistOutgoingAsync(Envelope envelope)
@@ -52,7 +45,7 @@ internal class MappedEnvelopeTransaction : IEnvelopeTransaction
     public Task PersistIncomingAsync(Envelope envelope)
     {
         DbContext.Add(new IncomingMessage(envelope));
-        
+
         return Task.CompletedTask;
     }
 

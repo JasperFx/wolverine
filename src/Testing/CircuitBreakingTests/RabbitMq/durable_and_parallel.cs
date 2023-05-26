@@ -24,7 +24,7 @@ public class durable_and_parallel : CircuitBreakerIntegrationContext
         }).IntegrateWithWolverine();
 
         // Requeue failed messages.
-        opts.Handlers.OnException<BadImageFormatException>().Or<DivideByZeroException>()
+        opts.Policies.OnException<BadImageFormatException>().Or<DivideByZeroException>()
             .Requeue();
 
         opts.PublishAllMessages().ToRabbitQueue("circuit4");

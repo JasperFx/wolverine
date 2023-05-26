@@ -8,13 +8,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: IncrementA2Handler148798447
     public class IncrementA2Handler148798447 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.SelfLetteredAggregate> _logger;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementA2Handler148798447(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.SelfLetteredAggregate> logger)
+        public IncrementA2Handler148798447(Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.SelfLetteredAggregate> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
-            _outboxedSessionFactory = outboxedSessionFactory;
             _logger = logger;
+            _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
@@ -24,18 +24,13 @@ namespace Internal.Generated.WolverineHandlers
             var incrementA2 = (PersistenceTests.Marten.IncrementA2)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.SelfLetteredAggregate>(incrementA2.SelfLetteredAggregateId, cancellation).ConfigureAwait(false);
 
             if (eventStream.Aggregate == null) throw new Wolverine.Marten.UnknownAggregateException(typeof(PersistenceTests.Marten.SelfLetteredAggregate), incrementA2.SelfLetteredAggregateId);
-            var aEvent = eventStream.Aggregate.Handle(incrementA2, _logger);
-            if (aEvent != null)
-            {
-                // Capturing any possible events returned from the command handlers
-                eventStream.AppendOne(aEvent);
-
-            }
-
+            var outgoing1 = eventStream.Aggregate.Handle(incrementA2, _logger);
+            eventStream.AppendOne(outgoing1);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 

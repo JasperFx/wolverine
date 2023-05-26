@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Wolverine.ErrorHandling.Matches;
@@ -17,7 +18,8 @@ public abstract class UserDefinedContinuation : IContinuationSource, IContinuati
         Description = description;
     }
 
-    public abstract ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now);
+    public abstract ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+        Activity? activity);
 
     public string Description { get; }
 
@@ -233,7 +235,8 @@ internal class LambdaContinuation : IContinuation
         _exception = exception;
     }
 
-    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
+    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+        Activity? activity)
     {
         return _action(runtime, lifecycle, _exception);
     }

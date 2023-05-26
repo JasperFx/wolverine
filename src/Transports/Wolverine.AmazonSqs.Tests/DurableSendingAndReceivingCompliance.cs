@@ -1,5 +1,6 @@
 using IntegrationTests;
 using Marten;
+using Oakton.Resources;
 using TestingSupport.Compliance;
 using Wolverine.Marten;
 
@@ -25,7 +26,9 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             {
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "sender";
-            }).IntegrateWithWolverine("sender").ApplyAllDatabaseChangesOnStartup();
+            }).IntegrateWithWolverine("sender");
+            
+            opts.Services.AddResourceSetupOnStartup();
 
             opts.ListenToSqsQueue("durable-sender");
         });
@@ -42,7 +45,9 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             {
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "receiver";
-            }).IntegrateWithWolverine("receiver").ApplyAllDatabaseChangesOnStartup();
+            }).IntegrateWithWolverine("receiver");
+            
+            opts.Services.AddResourceSetupOnStartup();
 
             opts.ListenToSqsQueue("durable-receiver");
         });

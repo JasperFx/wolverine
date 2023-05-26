@@ -1,5 +1,4 @@
-﻿
-using JasperFx.Core;
+﻿using JasperFx.Core;
 
 namespace Wolverine.SqlServer;
 

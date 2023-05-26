@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Module1;
 using TestingSupport;
 using TestMessages;
+using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Xunit;
@@ -23,11 +24,26 @@ public class BootstrappingTests : IntegrationContext
     {
     }
 
+    [Fact]
+    public void registers_the_supplemental_code_files()
+    {
+        with(_ => {});
+
+        var container = (IContainer)Host.Services;
+        container.Model.For<WolverineSupplementalCodeFiles>()
+            .Default.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        
+        container.GetAllInstances<ICodeFileCollection>()
+            .OfType<WolverineSupplementalCodeFiles>()
+            .Any()
+            .ShouldBeTrue();
+    }
+
 
     [Fact]
     public void can_apply_a_wrapper_to_all_chains()
     {
-        with(opts => opts.Handlers.AddPolicy<WrapWithSimple>());
+        with(opts => opts.Policies.Add<WrapWithSimple>());
 
         chainFor<MovieAdded>().Middleware.OfType<SimpleWrapper>().Any().ShouldBeTrue();
     }
@@ -46,8 +62,8 @@ public class BootstrappingTests : IntegrationContext
     {
         with(opts =>
         {
-            opts.Node.CodeGeneration.Sources.Add(new SpecialServiceSource());
-            opts.Handlers.IncludeType<SpecialServiceUsingThing>();
+            opts.CodeGeneration.Sources.Add(new SpecialServiceSource());
+            opts.IncludeType<SpecialServiceUsingThing>();
         });
 
 
@@ -61,7 +77,7 @@ public class BootstrappingTests : IntegrationContext
         using var host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Handlers.DisableConventionalDiscovery();
+                opts.DisableConventionalDiscovery();
 
                 opts.Services.For<IModuleService>().Use<AppsModuleService>();
             }).Start();
@@ -101,7 +117,7 @@ public class BootstrappingTests : IntegrationContext
         Host.Get(serviceType)
             .ShouldNotBeNull();
     }
-
+    
 
     [Fact]
     public void handler_graph_already_has_the_scheduled_send_handler()

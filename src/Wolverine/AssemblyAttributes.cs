@@ -9,6 +9,7 @@ using Wolverine.Attributes;
 [assembly: WolverineFeature]
 
 [assembly: InternalsVisibleTo("CoreTests")]
+[assembly: InternalsVisibleTo("DiagnosticsTests")]
 [assembly: InternalsVisibleTo("PolicyTests")]
 [assembly: InternalsVisibleTo("CircuitBreakingTests")]
 [assembly: InternalsVisibleTo("TestingSupport")]

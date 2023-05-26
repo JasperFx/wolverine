@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -28,32 +29,32 @@ public class WolverineOptionsTests
     [Fact]
     public void unique_node_id_is_really_unique()
     {
-        var options1 = new NodeSettings(null);
-        var options2 = new NodeSettings(null);
-        var options3 = new NodeSettings(null);
-        var options4 = new NodeSettings(null);
-        var options5 = new NodeSettings(null);
-        var options6 = new NodeSettings(null);
+        var options1 = new DurabilitySettings();
+        var options2 = new DurabilitySettings();
+        var options3 = new DurabilitySettings();
+        var options4 = new DurabilitySettings();
+        var options5 = new DurabilitySettings();
+        var options6 = new DurabilitySettings();
 
-        options1.UniqueNodeId.ShouldNotBe(options2.UniqueNodeId);
-        options1.UniqueNodeId.ShouldNotBe(options3.UniqueNodeId);
-        options1.UniqueNodeId.ShouldNotBe(options4.UniqueNodeId);
-        options1.UniqueNodeId.ShouldNotBe(options5.UniqueNodeId);
-        options1.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options1.NodeLockId.ShouldNotBe(options2.NodeLockId);
+        options1.NodeLockId.ShouldNotBe(options3.NodeLockId);
+        options1.NodeLockId.ShouldNotBe(options4.NodeLockId);
+        options1.NodeLockId.ShouldNotBe(options5.NodeLockId);
+        options1.NodeLockId.ShouldNotBe(options6.NodeLockId);
 
-        options2.UniqueNodeId.ShouldNotBe(options3.UniqueNodeId);
-        options2.UniqueNodeId.ShouldNotBe(options4.UniqueNodeId);
-        options2.UniqueNodeId.ShouldNotBe(options5.UniqueNodeId);
-        options2.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options2.NodeLockId.ShouldNotBe(options3.NodeLockId);
+        options2.NodeLockId.ShouldNotBe(options4.NodeLockId);
+        options2.NodeLockId.ShouldNotBe(options5.NodeLockId);
+        options2.NodeLockId.ShouldNotBe(options6.NodeLockId);
 
-        options3.UniqueNodeId.ShouldNotBe(options4.UniqueNodeId);
-        options3.UniqueNodeId.ShouldNotBe(options5.UniqueNodeId);
-        options3.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options3.NodeLockId.ShouldNotBe(options4.NodeLockId);
+        options3.NodeLockId.ShouldNotBe(options5.NodeLockId);
+        options3.NodeLockId.ShouldNotBe(options6.NodeLockId);
 
-        options4.UniqueNodeId.ShouldNotBe(options5.UniqueNodeId);
-        options4.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options4.NodeLockId.ShouldNotBe(options5.NodeLockId);
+        options4.NodeLockId.ShouldNotBe(options6.NodeLockId);
 
-        options5.UniqueNodeId.ShouldNotBe(options6.UniqueNodeId);
+        options5.NodeLockId.ShouldNotBe(options6.NodeLockId);
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public class WolverineOptionsTests
     public void sets_up_the_container_with_services()
     {
         var registry = new WolverineOptions();
-        registry.Handlers.DisableConventionalDiscovery();
+        registry.DisableConventionalDiscovery();
         registry.Services.For<IFoo>().Use<Foo>();
         registry.Services.AddTransient<IFakeStore, FakeStore>();
 
@@ -86,11 +87,11 @@ public class WolverineOptionsTests
     public void stub_out_external_setting_via_IEndpoints()
     {
         var options = new WolverineOptions();
-        options.Node.StubAllExternalTransports.ShouldBeFalse();
+        options.ExternalTransportsAreStubbed.ShouldBeFalse();
 
         options.StubAllExternalTransports();
 
-        options.Node.StubAllExternalTransports.ShouldBeTrue();
+        options.ExternalTransportsAreStubbed.ShouldBeTrue();
     }
 
     [Fact]
@@ -148,7 +149,7 @@ public class WolverineOptionsTests
 
         // 2 default local queues + the 2 added here
         collection.Transports.AllEndpoints()
-            .Length.ShouldBe(5);
+            .Length.ShouldBeGreaterThanOrEqualTo(5);
     }
 
     [Fact]

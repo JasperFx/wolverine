@@ -10,7 +10,7 @@ public class requeue_mechanics : ErrorHandlingContext
 {
     public requeue_mechanics()
     {
-        theOptions.Handlers.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+        theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
         {
             chain.OnException<DivideByZeroException>().Requeue();
         });

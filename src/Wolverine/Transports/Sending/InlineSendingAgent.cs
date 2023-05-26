@@ -12,10 +12,10 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
 {
     private readonly ISender _sender;
     private readonly RetryBlock<Envelope> _sending;
-    private readonly NodeSettings _settings;
+    private readonly DurabilitySettings _settings;
 
     public InlineSendingAgent(ILogger logger, ISender sender, Endpoint endpoint, IMessageLogger messageLogger,
-        NodeSettings settings)
+        DurabilitySettings settings)
     {
         _sender = sender;
         _settings = settings;
@@ -64,7 +64,7 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
     private void setDefaults(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Outgoing;
-        envelope.OwnerId = _settings.UniqueNodeId;
+        envelope.OwnerId = _settings.NodeLockId;
         envelope.ReplyUri ??= ReplyUri;
     }
 }

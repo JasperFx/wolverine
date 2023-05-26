@@ -21,7 +21,7 @@ public class MyMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L76-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplest_possible_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L77-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplest_possible_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you've used other messaging, command execution, or so called "mediator" tool in .NET, you'll surely notice the absence of any kind of
@@ -39,7 +39,7 @@ public static async Task publish_command(IMessageBus bus)
     await bus.PublishAsync(new MyMessage());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L90-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_mymessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L91-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_mymessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Between the call to `IMessageBus.PublishAsync()` and `MyMessageHandler.Handle(MyMessage)` there's a couple things
@@ -55,6 +55,7 @@ Before diving into the exact rules for message handlers, here are some valid han
 <!-- snippet: sample_ValidMessageHandlers -->
 <a id='snippet-sample_validmessagehandlers'></a>
 ```cs
+[WolverineHandler]
 public class ValidMessageHandlers
 {
     // There's only one argument, so we'll assume that
@@ -64,14 +65,14 @@ public class ValidMessageHandlers
     }
 
     // The parameter named "message" is assumed to be the message type
-    public Task Consume(Message1 message, IDocumentSession session)
+    public Task ConsumeAsync(Message1 message, IDocumentSession session)
     {
         return session.SaveChangesAsync();
     }
 
     // In this usage, we're "cascading" a new message of type
     // Message2
-    public Task<Message2> Handle(Message1 message, IDocumentSession session)
+    public Task<Message2> HandleAsync(Message1 message, IDocumentSession session)
     {
         return Task.FromResult(new Message2());
     }
@@ -99,7 +100,7 @@ public class ValidMessageHandlers
 
     // You can inject additional services directly into the handler
     // method
-    public ValueTask Consume(Message3 weirdName, IEmailService service)
+    public ValueTask ConsumeAsync(Message3 weirdName, IEmailService service)
     {
         return ValueTask.CompletedTask;
     }
@@ -111,7 +112,7 @@ public class ValidMessageHandlers
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Rules for Message Handlers
@@ -188,7 +189,7 @@ public class ExampleHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L103-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbyinstance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L104-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbyinstance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When using instance methods, the containing handler type will be scoped to a single message and be
@@ -216,7 +217,7 @@ public class ServiceUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L147-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerbuiltbyconstructorinjection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L148-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerbuiltbyconstructorinjection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -243,7 +244,7 @@ public static class ExampleHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L124-L140' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbystaticmethods' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L125-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbystaticmethods' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler classes can be static classes as well. This technique gets much more useful when combined with Wolverine's
@@ -255,7 +256,7 @@ support for method injection in a following section.
 Similar to ASP.NET Core, Wolverine supports the concept of [method injection](https://www.martinfowler.com/articles/injection.html) in handler methods where you can just accept additional
 arguments that will be passed into your method by Wolverine when a new message is being handled.
 
-Below is an example action method that takes in a dependency on an `IDocumentSession` from [Marten](http://wolverinefx.github.io/marten):
+Below is an example action method that takes in a dependency on an `IDocumentSession` from [Marten](https://jasperfx.github.io/marten/):
 
 <!-- snippet: sample_HandlerUsingMethodInjection -->
 <a id='snippet-sample_handlerusingmethodinjection'></a>
@@ -271,7 +272,7 @@ public static class MethodInjectionHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L174-L187' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingmethodinjection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L175-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingmethodinjection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So, what can be injected as an argument to your message handler?
@@ -306,7 +307,10 @@ public static class ShipOrderHandler
     public static async Task<(Order, Customer)> LoadAsync(ShipOrder command, IDocumentSession session)
     {
         var order = await session.LoadAsync<Order>(command.OrderId);
-        if (order == null) throw new MissingOrderException(command.OrderId);
+        if (order == null)
+        {
+            throw new MissingOrderException(command.OrderId);
+        }
 
         var customer = await session.LoadAsync<Customer>(command.CustomerId);
 
@@ -325,7 +329,7 @@ public static class ShipOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L33-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L31-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -346,7 +350,7 @@ public class EnvelopeUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L190-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingenvelope' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L191-L202' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingenvelope' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 TODO -- link to documentation on Envelope?

@@ -1,7 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -53,7 +50,7 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
         await persistence.Admin.RebuildAsync();
 
 
-        persistence.ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
+        persistence.Inbox.ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
 
         persisted = (await persistence.Admin
                 .AllIncomingAsync())

@@ -13,7 +13,7 @@ namespace CoreTests.Runtime.ResponseReply;
 
 public class response_handling : IDisposable
 {
-    private readonly ReplyTracker _theListener = new(NullLogger<WolverineRuntime>.Instance);
+    private readonly ReplyTracker _theListener = new(NullLogger<ReplyTracker>.Instance);
 
     public void Dispose()
     {

@@ -1,38 +1,35 @@
 ﻿using System;
+using Wolverine;
 using Wolverine.Configuration;
 
 namespace TestingSupport;
 
 public static class HandlerConfigurationExtensions
 {
-    public static IHandlerConfiguration DisableConventionalDiscovery(this IHandlerConfiguration handlers)
+    public static WolverineOptions DisableConventionalDiscovery(this WolverineOptions handlers)
     {
-        handlers.Discovery(x => x.DisableConventionalDiscovery());
+        handlers.Discovery.DisableConventionalDiscovery();
 
         return handlers;
     }
 
-    public static IHandlerConfiguration OnlyType<T>(this IHandlerConfiguration handlers)
+    public static WolverineOptions OnlyType<T>(this WolverineOptions handlers)
     {
-        handlers.Discovery(x =>
-        {
-            x.DisableConventionalDiscovery();
-            x.IncludeType<T>();
-        });
+        handlers.Discovery.DisableConventionalDiscovery().IncludeType<T>();
 
         return handlers;
     }
 
-    public static IHandlerConfiguration IncludeType<T>(this IHandlerConfiguration handlers)
+    public static WolverineOptions IncludeType<T>(this WolverineOptions handlers)
     {
-        handlers.Discovery(x => x.IncludeType<T>());
+        handlers.Discovery.IncludeType<T>();
 
         return handlers;
     }
 
-    public static IHandlerConfiguration IncludeType(this IHandlerConfiguration handlers, Type handlerType)
+    public static WolverineOptions IncludeType(this WolverineOptions handlers, Type handlerType)
     {
-        handlers.Discovery(x => x.IncludeType(handlerType));
+        handlers.Discovery.IncludeType(handlerType);
 
         return handlers;
     }

@@ -137,4 +137,37 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
         add(e => configure(e));
         return this;
     }
+
+    /// <summary>
+    /// Customize the dead letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="deadLetterQueueName"></param>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public RabbitMqListenerConfiguration CustomizeDeadLetterQueueing(string deadLetterQueueName, Action<DeadLetterQueue>? configure = null)
+    {
+        add(e =>
+        {
+            e.DeadLetterQueue = new DeadLetterQueue(deadLetterQueueName);
+            configure?.Invoke(e.DeadLetterQueue);
+        });
+        
+        return this;
+    }
+    
+    /// <summary>
+    /// Remove all dead letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqListenerConfiguration DisableDeadLetterQueueing()
+    {
+        add(e =>
+        {
+            e.DeadLetterQueue = null;
+        });
+        
+        return this;
+    }
+    
+    
 }

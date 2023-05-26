@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -14,7 +10,7 @@ using Lamar;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
-using Wolverine.Middleware;
+using Wolverine.Logging;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -26,7 +22,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public const string Handles = "Handles";
     public const string Consume = "Consume";
     public const string Consumes = "Consumes";
-    public const string NotCascading = "NotCascading";
 
     private readonly HandlerGraph _parent;
 
@@ -38,24 +33,34 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public HandlerChain(Type messageType, HandlerGraph parent)
     {
-        Debug.WriteLine("Creating chain for " + messageType.NameInCode());
         _parent = parent;
         MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
 
         TypeName = messageType.ToSuffixedTypeName(HandlerSuffix);
 
         Description = "Message Handler for " + MessageType.FullNameInCode();
+
+        foreach (var property in messageType.GetProperties())
+        {
+            if (property.TryGetAttribute<AuditAttribute>(out var att))
+            {
+                Audit(property, att.Heading);
+            }
+        }
+
+        foreach (var field in messageType.GetFields())
+        {
+            if (field.TryGetAttribute<AuditAttribute>(out var att))
+            {
+                Audit(field, att.Heading);
+            }
+        }
     }
 
 
     private HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
     {
         Handlers.Add(call);
-    }
-
-    public bool HasAttribute<T>() where T : Attribute
-    {
-        return Handlers.Any(x => x.Method.HasAttribute<T>() || x.HandlerType.HasAttribute<T>());
     }
 
     public HandlerChain(IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
@@ -69,8 +74,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             i = DisambiguateOutgoingVariableName(create, i);
     }
     
-    
-
     /// <summary>
     ///     A textual description of this HandlerChain
     /// </summary>
@@ -95,13 +98,16 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     string ICodeFile.FileName => TypeName + ".cs";
 
-    /// <summary>
-    ///     Configure the retry policies and error handling for this chain
-    /// </summary>
-    public FailureRuleCollection Failures { get; } = new();
-
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
+        foreach (var handler in Handlers)
+        {
+            if (handler.Creates.Any(x => x.VariableType == typeof(Envelope)))
+            {
+                throw new InvalidHandlerException($"Invalid Wolverine handler signature. Method {handler} creates a {typeof(Envelope).FullNameInCode()}");
+            }
+        }
+        
         _generatedType = assembly.AddType(TypeName, typeof(MessageHandler));
 
         foreach (var handler in Handlers) assembly.ReferenceAssembly(handler.HandlerType.Assembly);
@@ -109,10 +115,19 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         var handleMethod = _generatedType.MethodFor(nameof(MessageHandler.HandleAsync));
         handleMethod.Sources.Add(new MessageHandlerVariableSource(MessageType));
         handleMethod.Sources.Add(new LoggerVariableSource(MessageType));
-        handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules, _parent.Container!));
+        var frames = DetermineFrames(assembly.Rules, _parent.Container!);
+        var index = 0;
+        foreach (var variable in frames.SelectMany(x => x.Creates))
+        {
+            // Might wanna make this more generic later. Some kind of "reserved" variable names?
+            if (variable.Usage == "context")
+            {
+                variable.OverrideName("context" + ++index);
+            }
+        }
 
-        // TODO -- this is temporary, but there's a bug in LamarCodeGeneration that uses await using
-        // when the method returns IAsyncDisposable
+        handleMethod.Frames.AddRange(frames);
+
         handleMethod.AsyncMode = AsyncMode.AsyncTask;
 
         handleMethod.DerivedVariables.Add(new Variable(typeof(IMessageContext), "context"));
@@ -142,7 +157,47 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handler = (MessageHandler)services.As<IContainer>().QuickBuild(_handlerType);
         Handler.Chain = this;
 
+        Debug.WriteLine(_generatedType?.SourceCode);
+
         return true;
+    }
+
+    /// <summary>
+    ///     Configure the retry policies and error handling for this chain
+    /// </summary>
+    public FailureRuleCollection Failures { get; } = new();
+
+    public override bool HasAttribute<T>()
+    {
+        return Handlers.Any(x => x.Method.HasAttribute<T>() || x.HandlerType.HasAttribute<T>());
+    }
+
+    public override Type? InputType()
+    {
+        return MessageType;
+    }
+
+    public IEnumerable<Type> PublishedTypes()
+    {
+        var ignoredTypes = new[]
+        {
+            typeof(object),
+            typeof(object[]),
+            typeof(IEnumerable<object>),
+            typeof(IList<object>),
+            typeof(IReadOnlyList<object>)
+        };
+
+        foreach (var variable in Handlers.SelectMany(x => x.Creates))
+        {
+            if (ignoredTypes.Contains(variable.VariableType) ||
+                variable.VariableType.CanBeCastTo<IEnumerable<object>>())
+            {
+                continue;
+            }
+
+            yield return variable.VariableType;
+        }
     }
 
     public static HandlerChain For<T>(Expression<Action<T>> expression, HandlerGraph parent)
@@ -203,13 +258,18 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                                                 MessageType.FullName);
         }
 
+        if (AuditedMembers.Any())
+        {
+            Middleware.Insert(0, new AuditToActivityFrame(this));
+        }
+
         applyCustomizations(rules, container);
 
-        var cascadingHandlers = determineCascadingMessages().ToArray();
+        var handlerReturnValueFrames = determineHandlerReturnValueFrames().ToArray();
 
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
-        return Middleware.Concat(Handlers).Concat(cascadingHandlers).Concat(Postprocessors).ToList();
+        return Middleware.Concat(Handlers).Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
     }
 
     protected void applyCustomizations(GenerationRules rules, IContainer container)
@@ -228,37 +288,14 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
         }
 
-        var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
-        foreach (var handlerType in handlerTypes)
-        {
-            var befores = handlerType.GetMethods().Where(x => MiddlewarePolicy.BeforeMethodNames.Contains(x.Name) && !x.HasAttribute<WolverineIgnoreAttribute>());
-            foreach (var before in befores)
-            {
-                var frame = new MethodCall(handlerType, before);
-                Middleware.Add(frame);
-            }
-            
-            var afters = handlerType.GetMethods().Where(x => MiddlewarePolicy.AfterMethodNames.Contains(x.Name) && !x.HasAttribute<WolverineIgnoreAttribute>());
-            foreach (var after in afters)
-            {
-                var frame = new MethodCall(handlerType, after);
-                Postprocessors.Add(frame);
-            }
-        }
+        applyImpliedMiddlewareFromHandlers(rules);
     }
 
-    private IEnumerable<CaptureCascadingMessages> determineCascadingMessages()
+    protected IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
-        foreach (var handler in Handlers)
-        foreach (var create in handler.Creates)
-        {
-            if (!create.ShouldBeCascaded())
-            {
-                continue;
-            }
-
-            yield return new CaptureCascadingMessages(create);
-        }
+        return Handlers.SelectMany(x => x.Creates)
+            .Select(x => x.ReturnAction(this))
+            .SelectMany(x => x.Frames());
     }
 
     internal static int DisambiguateOutgoingVariableName(Variable create, int i)
@@ -266,6 +303,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         create.OverrideName("outgoing" + ++i);
 
         return i;
+    }
+
+    public override bool RequiresOutbox()
+    {
+        return true;
     }
 
     public override MethodCall[] HandlerCalls()
@@ -293,5 +335,4 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         return options.DefaultExecutionTimeout;
     }
-
 }

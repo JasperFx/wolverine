@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
@@ -15,7 +16,7 @@ public class MessageSucceededContinuation : IContinuation
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
-        DateTimeOffset now)
+        DateTimeOffset now, Activity? activity)
     {
         try
         {
@@ -32,7 +33,7 @@ public class MessageSucceededContinuation : IContinuation
             runtime.Logger.LogError(ex, "Failure while post-processing a successful envelope");
             runtime.MessageLogger.MessageFailed(lifecycle.Envelope!, ex);
 
-            await new MoveToErrorQueue(ex).ExecuteAsync(lifecycle, runtime, now);
+            await new MoveToErrorQueue(ex).ExecuteAsync(lifecycle, runtime, now, activity);
         }
     }
 }

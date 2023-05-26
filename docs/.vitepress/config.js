@@ -25,8 +25,8 @@ export default {
             {text: 'Guide', link: '/guide/basics'},
             {text: 'Tutorials', link: '/tutorials/'},
             {
-                text: 'Gitter | Join Chat',
-                link: 'https://gitter.im/JasperFx/wolverine?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge'
+                text: 'Discord | Join Chat',
+                link: 'https://discord.gg/WMxrvegf8H'
             }
         ],
 
@@ -40,6 +40,13 @@ export default {
             pattern: 'https://github.com/JasperFx/wolverine/edit/main/docs/:path',
             text: 'Suggest changes to this page'
         },
+
+        socialLinks: [
+            { 
+                icon: 'github', 
+                link: 'https://github.com/JasperFx/wolverine' 
+            },
+        ],
 
         footer: {
             message: 'Released under the MIT License.',
@@ -66,10 +73,12 @@ export default {
                     items: [
                         {text: 'Basic Concepts', link: '/guide/basics'},
                         {text: 'Configuration', link: '/guide/configuration'},
-                        {text: 'Instrumentation, Diagnostics, and Logging', link: '/guide/logging'},
+                        {text: 'Instrumentation and Metrics', link: '/guide/logging'},
+                        {text: 'Diagnostics', link: '/guide/diagnostics'},
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
                         {text: 'Runtime Architecture', link: '/guide/runtime'},
+                        {text: 'Code Generation', link: '/guide/codegen'},
                         {text: 'Extensions', link: '/guide/extensions'}
                     ]
                 },
@@ -84,6 +93,7 @@ export default {
                                 {text: 'Discovery', link: '/guide/handlers/discovery'},
                                 {text: 'Error Handling', link: '/guide/handlers/error-handling'},
                                 {text: 'Cascading Messages', link: '/guide/handlers/cascading'},
+                                {text: 'Side Effects', link: '/guide/handlers/side-effects'},
                                 {text: 'Middleware', link: '/guide/handlers/middleware'},
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'}
@@ -97,7 +107,7 @@ export default {
                     collapsed: true,
                     items: [
                         {text: 'Working with IMessageBus', link: '/guide/messaging/message-bus'},
-                        {text: 'Subscriptions', link: '/guide/messaging/subscriptions'},
+                        {text: 'Subscriptions & Message Routing', link: '/guide/messaging/subscriptions'},
                         {text: 'Message Listeners', link: '/guide/messaging/listeners'},
                         {
                             text: 'Transports',
@@ -120,16 +130,36 @@ export default {
                     ]
                 },
                 {
+                    text: 'ASP.Net Core Integration',
+                    collapsible: true,
+                    collapsed: true,
+                    items: [
+                        {text: 'HTTP Services', link: '/guide/http/'},
+                        {text: 'Endpoints', link: '/guide/http/endpoints'},
+                        {text: 'Headers', link: '/guide/http/headers'},
+                        {text: 'Middleware', link: '/guide/http/middleware.md'},
+                        {text: 'Policies', link: '/guide/http/policies.md'},
+                        {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
+                        {text: 'Publishing Messages', link: '/guide/http/messaging'},
+                        {text: 'Integration with Sagas', link: '/guide/http/sagas'},
+                        {text: 'Integration with Marten', link: '/guide/http/marten'},
+                    ]
+                },
+                {
                     text: 'Durability and Persistence',
                     collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Durable Inbox and Outbox Messaging', link: '/guide/durability/'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
-                        {text: 'Marten Integration', link: '/guide/durability/marten'},
+                        {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
+                                {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'},
+                                {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/aggregates'}
+                            ]},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
-                        {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'}
+                        {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},
+                        {text: 'Idempotent Message Delivery', link:'/guide/durability/idempotency'}
                     ]
                 },
 

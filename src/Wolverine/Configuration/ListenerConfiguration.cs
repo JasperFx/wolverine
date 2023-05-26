@@ -18,14 +18,26 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     IListenerConfiguration<TSelf>
     where TSelf : IListenerConfiguration<TSelf> where TEndpoint : Endpoint
 {
-    public ListenerConfiguration(TEndpoint queue) : base(queue)
+    public ListenerConfiguration(TEndpoint endpoint) : base(endpoint)
     {
         add(e => e.IsListener = true);
     }
 
-    public TSelf MaximumParallelMessages(int maximumParallelHandlers)
+    public ListenerConfiguration(Func<TEndpoint> source) : base(source)
     {
-        add(e => e.ExecutionOptions.MaxDegreeOfParallelism = maximumParallelHandlers);
+        add(e => e.IsListener = true);
+    }
+
+    public TSelf MaximumParallelMessages(int maximumParallelHandlers, ProcessingOrder? order = null)
+    {
+        add(e =>
+        {
+            e.ExecutionOptions.MaxDegreeOfParallelism = maximumParallelHandlers;
+            if (order.HasValue)
+            {
+                e.ExecutionOptions.EnsureOrdered = order.Value == ProcessingOrder.StrictOrdered;
+            }
+        });
         return this.As<TSelf>();
     }
 
@@ -110,4 +122,19 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
         return this.As<TSelf>();
     }
+}
+
+public enum ProcessingOrder
+{
+    /// <summary>
+    /// Should the messages be processed in the strict order in which they
+    /// were received?
+    /// </summary>
+    StrictOrdered,
+    
+    /// <summary>
+    /// Is it okay to allow the local queue to process messages in any order? This
+    /// may give better throughput
+    /// </summary>
+    UnOrdered
 }

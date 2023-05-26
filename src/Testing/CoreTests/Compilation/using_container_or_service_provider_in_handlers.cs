@@ -15,10 +15,10 @@ public class using_container_or_service_provider_in_handlers : CompilationContex
     {
         _output = output;
 
-        theOptions.Handlers.IncludeType<CSP1Handler>();
-        theOptions.Handlers.IncludeType<CSP2Handler>();
-        theOptions.Handlers.IncludeType<CSP3Handler>();
-        theOptions.Handlers.IncludeType<CSP4Handler>();
+        theOptions.IncludeType<CSP1Handler>();
+        theOptions.IncludeType<CSP2Handler>();
+        theOptions.IncludeType<CSP3Handler>();
+        theOptions.IncludeType<CSP4Handler>();
     }
 
     [Fact]

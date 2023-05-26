@@ -1,15 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS.Polling;
 using Wolverine.Transports;
 
 namespace Wolverine.RDBMS.Durability;
 
+
+[Obsolete("Goes away with DurabilityAgent rewrite")]
 internal class RecoverIncomingMessages : IDurabilityAction
 {
     private readonly IEndpointCollection _endpoints;
@@ -28,11 +28,11 @@ internal class RecoverIncomingMessages : IDurabilityAction
 
         await session.WithinSessionGlobalLockAsync(TransportConstants.IncomingMessageLockId, async () =>
         {
-            var counts = await LoadAtLargeIncomingCountsAsync(session, database.Settings);
+            var counts = await LoadAtLargeIncomingCountsAsync(session, database);
             foreach (var count in counts)
-            {
-                rescheduleImmediately = rescheduleImmediately || await TryRecoverIncomingMessagesAsync(database, session, count, database.Node);
-            }
+                rescheduleImmediately = rescheduleImmediately ||
+                                        await TryRecoverIncomingMessagesAsync(database, session, count,
+                                            database.Durability);
         });
 
 
@@ -41,31 +41,35 @@ internal class RecoverIncomingMessages : IDurabilityAction
             agent.RescheduleIncomingRecovery();
         }
     }
-    
-    public static Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync(IDurableStorageSession session, DatabaseSettings databaseSettings)
+
+    public string Description => "Recover persisted incoming messages";
+
+    [Obsolete("Goes away with DurabilityAgent rewrite")]
+    public static Task<IReadOnlyList<IncomingCount>> LoadAtLargeIncomingCountsAsync(IDurableStorageSession session,
+        IMessageDatabase wolverineDatabase)
     {
-        var sql = $"select {DatabaseConstants.ReceivedAt}, count(*) from {databaseSettings.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
-        
-        return session.CreateCommand(sql).FetchList(async reader =>
+        var sql =
+            $"select {DatabaseConstants.ReceivedAt}, count(*) from {wolverineDatabase.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt}";
+
+        return session.CreateCommand(sql).FetchListAsync(async reader =>
         {
-            var address = new Uri(await reader.GetFieldValueAsync<string>(0, session.Cancellation).ConfigureAwait(false));
+            var address =
+                new Uri(await reader.GetFieldValueAsync<string>(0, session.Cancellation).ConfigureAwait(false));
             var count = await reader.GetFieldValueAsync<int>(1, session.Cancellation).ConfigureAwait(false);
 
             return new IncomingCount(address, count);
         }, session.Cancellation);
     }
 
-    public string Description => "Recover persisted incoming messages";
-
     public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count,
-        NodeSettings nodeSettings)
+        DurabilitySettings durabilitySettings)
     {
         if (listener!.Status != ListeningStatus.Accepting)
         {
             return 0;
         }
 
-        var pageSize = nodeSettings.RecoveryBatchSize;
+        var pageSize = durabilitySettings.RecoveryBatchSize;
         if (pageSize > count.Count)
         {
             pageSize = count.Count;
@@ -86,18 +90,19 @@ internal class RecoverIncomingMessages : IDurabilityAction
 
     internal async Task<bool> TryRecoverIncomingMessagesAsync(IMessageDatabase database,
         IDurableStorageSession session, IncomingCount count,
-        NodeSettings nodeSettings)
+        DurabilitySettings durabilitySettings)
     {
         var listener = findListenerCircuit(count);
 
-        var pageSize = DeterminePageSize(listener!, count, nodeSettings);
+        var pageSize = DeterminePageSize(listener!, count, durabilitySettings);
 
         if (pageSize <= 0)
         {
             return false;
         }
 
-        await RecoverMessagesAsync(database, session, count, pageSize, listener!, nodeSettings).ConfigureAwait(false);
+        await RecoverMessagesAsync(database, session, count, pageSize, listener!, durabilitySettings)
+            .ConfigureAwait(false);
 
         // Reschedule again if it wasn't able to grab all outstanding envelopes
         return pageSize < count.Count;
@@ -117,14 +122,14 @@ internal class RecoverIncomingMessages : IDurabilityAction
 
     public virtual async Task RecoverMessagesAsync(IMessageDatabase database,
         IDurableStorageSession session, IncomingCount count, int pageSize,
-        IListenerCircuit listener, NodeSettings nodeSettings)
+        IListenerCircuit listener, DurabilitySettings durabilitySettings)
     {
         await session.BeginAsync();
 
         try
         {
             var envelopes = await database.LoadPageOfGloballyOwnedIncomingAsync(count.Destination, pageSize);
-            await database.ReassignIncomingAsync(nodeSettings.UniqueNodeId, envelopes);
+            await database.ReassignIncomingAsync(durabilitySettings.NodeLockId, envelopes);
 
             await session.CommitAsync();
 

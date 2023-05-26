@@ -10,7 +10,7 @@ public class moving_to_dead_letter_queue : ErrorHandlingContext
 {
     public moving_to_dead_letter_queue()
     {
-        theOptions.Handlers.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+        theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
         {
             chain.OnException<DivideByZeroException>().MoveToErrorQueue();
             chain.OnException<InvalidOperationException>().RetryTimes(3);

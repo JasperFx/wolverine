@@ -1,6 +1,3 @@
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Services;
@@ -18,7 +15,6 @@ internal class PublishIncomingEventsBeforeCommit : DocumentSessionListenerBase
 
     public override async Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
     {
-        // TODO -- SMELLY. Add something in Marten itself for this
         var events = session.PendingChanges.As<IChangeSet>().GetEvents().Select(x => x.Data).ToArray();
 
         if (events.Any())

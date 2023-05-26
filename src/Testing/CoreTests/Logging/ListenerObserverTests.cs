@@ -9,7 +9,7 @@ namespace CoreTests.Logging;
 
 public class ListenerObserverTests
 {
-    private readonly ListenerTracker theTracker = new(NullLogger.Instance);
+    private readonly WolverineTracker theTracker = new(NullLogger.Instance);
 
     [Fact]
     public void initial_state_by_endpoint_name_is_unknown()

@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,12 +6,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using TestingSupport;
-using Weasel.Core;
 using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.SqlServer;
+using Wolverine.SqlServer.Persistence;
 using Wolverine.Transports;
 using Wolverine.Util;
 using Xunit;
@@ -54,11 +50,14 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreOutgoingAsync(list.ToArray(), 111);
+        foreach (var envelope in list)
+        {
+            await thePersistence.Outbox.StoreOutgoingAsync(envelope, 111);
+        }
 
         var toDelete = list[5];
 
-        await thePersistence.DeleteOutgoingAsync(toDelete);
+        await thePersistence.Outbox.DeleteOutgoingAsync(toDelete);
 
         var stored = await thePersistence.Admin.AllOutgoingAsync();
         stored.Count.ShouldBe(9);
@@ -79,11 +78,11 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreIncomingAsync(list.ToArray());
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
 
         var toDelete = new[] { list[2], list[3], list[7] };
 
-        await thePersistence.DeleteIncomingEnvelopesAsync(toDelete);
+        await thePersistence.Inbox.DeleteIncomingEnvelopesAsync(toDelete);
 
         var stored = await thePersistence.Admin.AllIncomingAsync();
 
@@ -99,9 +98,9 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     {
         var envelope = ObjectMother.Envelope();
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
-        await thePersistence.MarkIncomingEnvelopeAsHandledAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
@@ -115,13 +114,14 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     {
         var envelope = ObjectMother.Envelope();
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
         await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance,
             -1000);
         await thePersistence.Session.BeginAsync();
-        var settings = theHost.Services.GetRequiredService<SqlServerSettings>();
-        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session, DateTimeOffset.UtcNow.Add(1.Hours()), settings);
+        var settings = theHost.Services.GetRequiredService<SqlServerMessageStore>();
+        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session,
+            DateTimeOffset.UtcNow.Add(1.Hours()), settings);
 
         await thePersistence.Session.CommitAsync();
 
@@ -131,7 +131,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
     }
-    
+
     [Fact]
     public async Task move_replayable_error_messages_to_incoming()
     {
@@ -141,18 +141,18 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
          * Run the DurabilityAction
          * Replayable message should be moved back to Inbox
          */
-        
+
         var unReplayableEnvelope = ObjectMother.Envelope();
         var replayableEnvelope = ObjectMother.Envelope();
-        await thePersistence.StoreIncomingAsync(unReplayableEnvelope);
-        await thePersistence.StoreIncomingAsync(replayableEnvelope);
+        await thePersistence.Inbox.StoreIncomingAsync(unReplayableEnvelope);
+        await thePersistence.Inbox.StoreIncomingAsync(replayableEnvelope);
 
         var divideByZeroException = new DivideByZeroException("Kaboom!");
         var applicationException = new ApplicationException("Kaboom!");
-        await thePersistence.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
-        await thePersistence.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
 
-        var settings = theHost.Services.GetRequiredService<SqlServerSettings>();
+        var settings = theHost.Services.GetRequiredService<SqlServerMessageStore>();
 
         // make one of the messages(DivideByZeroException) replayable
         var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
@@ -190,11 +190,14 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreOutgoingAsync(list.ToArray(), 111);
+        foreach (var envelope in list)
+        {
+            await thePersistence.Outbox.StoreOutgoingAsync(envelope, 111);
+        }
 
         var toDelete = new[] { list[2], list[3], list[7] };
 
-        await thePersistence.DeleteOutgoingAsync(toDelete);
+        await thePersistence.Outbox.DeleteOutgoingAsync(toDelete);
 
         var stored = await thePersistence.Admin.AllOutgoingAsync();
         stored.Count.ShouldBe(7);
@@ -217,12 +220,15 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreOutgoingAsync(list.ToArray(), 111);
+        foreach (var envelope in list)
+        {
+            await thePersistence.Outbox.StoreOutgoingAsync(envelope, 111);
+        }
 
         var toDiscard = new[] { list[2], list[3], list[7] };
         var toReassign = new[] { list[1], list[4], list[6] };
 
-        await thePersistence.DiscardAndReassignOutgoingAsync(toDiscard, toReassign, 444);
+        await thePersistence.Outbox.DiscardAndReassignOutgoingAsync(toDiscard, toReassign, 444);
 
         var stored = await thePersistence.Admin.AllOutgoingAsync();
         stored.Count.ShouldBe(7);
@@ -250,7 +256,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreIncomingAsync(list.ToArray());
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
 
 
         // 7 scheduled
@@ -263,7 +269,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreIncomingAsync(list.ToArray());
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
 
 
         // 3 outgoing
@@ -276,7 +282,10 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreOutgoingAsync(list.ToArray(), 0);
+        foreach (var envelope in list)
+        {
+            await thePersistence.Outbox.StoreOutgoingAsync(envelope, 0);
+        }
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
@@ -292,12 +301,12 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
         var prop = ReflectionHelper.GetProperty<Envelope>(x => x.Attempts);
         prop.SetValue(envelope, 3);
 
-        await thePersistence.IncrementIncomingEnvelopeAttemptsAsync(envelope);
+        await thePersistence.Inbox.IncrementIncomingEnvelopeAttemptsAsync(envelope);
 
         var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
         stored.Attempts.ShouldBe(3);
@@ -316,7 +325,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreIncomingAsync(list.ToArray());
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
 
 
         var ex = new DivideByZeroException("Kaboom!");
@@ -325,8 +334,10 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         var report3 = new ErrorReport(list[3], ex);
         var report4 = new ErrorReport(list[4], ex);
 
-        await thePersistence.MoveToDeadLetterStorageAsync(new[] { report2, report3, report4 });
-
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
+        
 
         var stored = await thePersistence.LoadDeadLetterEnvelopeAsync(report2.Id);
 
@@ -352,7 +363,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreIncomingAsync(list.ToArray());
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
 
 
         var ex = new DivideByZeroException("Kaboom!");
@@ -361,7 +372,9 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         var report3 = new ErrorReport(list[3], ex);
         var report4 = new ErrorReport(list[4], ex);
 
-        await thePersistence.MoveToDeadLetterStorageAsync(new[] { report2, report3, report4 });
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, report2.Exception);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, report2.Exception);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, report2.Exception);
 
         var stored = await thePersistence.Admin.AllIncomingAsync();
 
@@ -385,7 +398,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreIncomingAsync(list.ToArray());
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
 
 
         list[5].ScheduledTime = DateTimeOffset.Now.AddMinutes(5);
@@ -393,7 +406,9 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         list[7].ScheduledTime = DateTimeOffset.Now.AddMinutes(5);
         list[9].ScheduledTime = DateTimeOffset.Now.AddMinutes(5);
 
-        await thePersistence.ScheduleExecutionAsync(new[] { list[5], list[7], list[9] });
+        await thePersistence.Inbox.ScheduleExecutionAsync(list[5]);
+        await thePersistence.Inbox.ScheduleExecutionAsync(list[7]);
+        await thePersistence.Inbox.ScheduleExecutionAsync(list[9]);
 
         var stored = await thePersistence.Admin.AllIncomingAsync();
         stored.Count(x => x.Status == EnvelopeStatus.Incoming).ShouldBe(7);
@@ -411,7 +426,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         envelope.SentAt = DateTime.Today.ToUniversalTime();
         envelope.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
         var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
 
@@ -429,7 +444,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         envelope.Status = EnvelopeStatus.Outgoing;
         envelope.SentAt = DateTime.Today.ToUniversalTime();
 
-        await thePersistence.StoreOutgoingAsync(envelope, 5890);
+        await thePersistence.Outbox.StoreOutgoingAsync(envelope, 5890);
 
         var stored = (await thePersistence.Admin.AllOutgoingAsync())
             .Single();
@@ -447,11 +462,11 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
         await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
         {
-            await thePersistence.StoreIncomingAsync(envelope);
+            await thePersistence.Inbox.StoreIncomingAsync(envelope);
         });
     }
 
@@ -468,7 +483,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreIncomingAsync(list.ToArray());
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
 
         var stored = await thePersistence.Admin.AllIncomingAsync();
 
@@ -491,7 +506,10 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             list.Add(envelope);
         }
 
-        await thePersistence.StoreOutgoingAsync(list.ToArray(), 111);
+        foreach (var envelope in list)
+        {
+            await thePersistence.Outbox.StoreOutgoingAsync(envelope, 111);
+        }
 
         var stored = await thePersistence.Admin.AllOutgoingAsync();
 
@@ -544,13 +562,12 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             }
         }
 
-        await thePersistence.StoreIncomingAsync(list);
+        await thePersistence.Inbox.StoreIncomingAsync(list);
 
         await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance, 5);
         await thePersistence.Session.BeginAsync();
-        var settings = theHost.Services.GetRequiredService<SqlServerSettings>();
+        var settings = theHost.Services.GetRequiredService<SqlServerMessageStore>();
         var counts = await RecoverIncomingMessages.LoadAtLargeIncomingCountsAsync(thePersistence.Session, settings);
-
 
 
         counts[0].Destination.ShouldBe(localOne);
@@ -607,7 +624,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             }
         }
 
-        await thePersistence.StoreIncomingAsync(list);
+        await thePersistence.Inbox.StoreIncomingAsync(list);
 
         await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance, 5);
         await thePersistence.Session.BeginAsync();

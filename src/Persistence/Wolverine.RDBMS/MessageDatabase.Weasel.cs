@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 
@@ -18,7 +15,7 @@ public abstract partial class MessageDatabase<T> : IFeatureSchema
         yield break;
     }
 
-    public abstract ISchemaObject[] Objects { get; }
+    public ISchemaObject[] Objects => AllObjects().ToArray();
 
     Type IFeatureSchema.StorageType => GetType();
 

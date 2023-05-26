@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using CoreTests.Messaging;
@@ -25,16 +26,46 @@ public class MessageContextTests
     public MessageContextTests()
     {
         theRuntime = new MockWolverineRuntime();
+        theRuntime.Options.ServiceName = "MyService";
 
         var original = ObjectMother.Envelope();
         original.Id = Guid.NewGuid();
         original.CorrelationId = Guid.NewGuid().ToString();
+        original.ConversationId = Guid.NewGuid();
+        original.TenantId = "some tenant";
+        original.SagaId = "some saga";
 
         var context = new MessageContext(theRuntime);
         context.ReadEnvelope(original, InvocationCallback.Instance);
         theContext = context.As<MessageContext>();
 
         theEnvelope = ObjectMother.Envelope();
+    }
+
+    [Fact]
+    public void track_envelope_correlation()
+    {
+        using var activity = new Activity("DoWork");
+        activity.Start();
+        
+        theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
+        
+        theEnvelope.TenantId.ShouldBe(theContext.TenantId);
+        
+        theEnvelope.SagaId.ShouldBe("some saga");
+        theEnvelope.ConversationId.ShouldBe(theContext.Envelope.ConversationId);
+        
+        theEnvelope.Source.ShouldBe("MyService");
+        theEnvelope.CorrelationId.ShouldBe(theContext.CorrelationId);
+
+        activity.Id.ShouldNotBeNull();
+        theEnvelope.ParentId.ShouldBe(activity.Id);
+    }
+
+    [Fact]
+    public void reads_tenant_id_from_envelope()
+    {
+        theContext.TenantId.ShouldBe("some tenant");
     }
 
     [Fact]
@@ -78,7 +109,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Storage.Received().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Inbox.Received().ScheduleJobAsync(theEnvelope);
     }
 
     [Fact]
@@ -93,7 +124,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Storage.DidNotReceive().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Inbox.DidNotReceive().ScheduleJobAsync(theEnvelope);
         await callback.As<ISupportNativeScheduling>().Received()
             .MoveToScheduledUntilAsync(theEnvelope, scheduledTime);
     }
@@ -109,7 +140,7 @@ public class MessageContextTests
 
         await theContext.MoveToDeadLetterQueueAsync(exception);
 
-        await theRuntime.Storage.Received()
+        await theRuntime.Storage.Inbox.Received()
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
 
@@ -127,7 +158,7 @@ public class MessageContextTests
         await callback.As<ISupportDeadLetterQueue>().Received()
             .MoveToErrorsAsync(theEnvelope, exception);
 
-        await theRuntime.Storage.DidNotReceive()
+        await theRuntime.Storage.Inbox.DidNotReceive()
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
 

@@ -156,14 +156,14 @@ public class EnvelopeTests
         envelope.ScheduledTime = null;
 
         var uri = TransportConstants.LocalUri;
-        var settings = new NodeSettings(null);
+        var settings = new DurabilitySettings();
 
         var listener = Substitute.For<IListener>();
         listener.Address.Returns(uri);
         envelope.MarkReceived(listener, DateTimeOffset.Now, settings);
 
         envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
+        envelope.OwnerId.ShouldBe(settings.NodeLockId);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class EnvelopeTests
         envelope.ScheduledTime = DateTimeOffset.Now.AddDays(-1);
 
         var uri = TransportConstants.LocalUri;
-        var settings = new NodeSettings(null);
+        var settings = new DurabilitySettings();
 
         var listener = Substitute.For<IListener>();
         listener.Address.Returns(uri);
@@ -194,12 +194,12 @@ public class EnvelopeTests
         var listener = Substitute.For<IListener>();
         listener.Address.Returns(uri);
 
-        var settings = new NodeSettings(null);
+        var settings = new DurabilitySettings();
 
         envelope.MarkReceived(listener, DateTimeOffset.Now, settings);
 
         envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
+        envelope.OwnerId.ShouldBe(settings.NodeLockId);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class EnvelopeTests
         var listener = Substitute.For<IListener>();
         listener.Address.Returns(uri);
 
-        var settings = new NodeSettings(null);
+        var settings = new DurabilitySettings();
 
         envelope.MarkReceived(listener, DateTimeOffset.Now, settings);
 
@@ -342,12 +342,12 @@ public class EnvelopeTests
             ScheduledTime = null
         };
 
-        var settings = new NodeSettings(null);
+        var settings = new DurabilitySettings();
 
         envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
 
         envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
+        envelope.OwnerId.ShouldBe(settings.NodeLockId);
     }
 
     [Fact]
@@ -382,7 +382,7 @@ public class EnvelopeTests
             ScheduleDelay = 1.Days()
         };
 
-        var settings = new NodeSettings(null);
+        var settings = new DurabilitySettings();
 
         envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
 
@@ -398,12 +398,60 @@ public class EnvelopeTests
             ScheduledTime = DateTimeOffset.UtcNow.AddDays(-1)
         };
 
-        var settings = new NodeSettings(null);
+        var settings = new DurabilitySettings();
 
         envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
 
         envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.UniqueNodeId);
+        envelope.OwnerId.ShouldBe(settings.NodeLockId);
+    }
+
+    [Fact]
+    public void build_headers_for_metrics()
+    {
+        var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1()};
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+        dict[MetricsConstants.MessageTypeKey].ShouldBe(typeof(Message1).ToMessageTypeName());
+        dict[MetricsConstants.MessageDestinationKey].ShouldBe(envelope.Destination);
+        
+        dict.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void tenant_id_is_part_of_metrics()
+    {
+        var envelope = new Envelope
+        {
+            Destination = new Uri("local://one"), 
+            Message = new Message1(),
+            TenantId = "tenant1"
+        };
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+        dict[MetricsConstants.TenantIdKey].ShouldBe("tenant1");
+    }
+
+    [Fact]
+    public void add_custom_metrics_header()
+    {
+        var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1()};
+        envelope.SetMetricsTag("org.unit", "foo");
+        
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+        dict["org.unit"].ShouldBe("foo");
+    }
+
+    [Fact]
+    public void propagate_tenant_id_in_ForSend()
+    {
+        var envelope = new Envelope
+        {
+            Destination = new Uri("local://one"), 
+            Message = new Message1(),
+            TenantId = "tenant1"
+        };
+
+        var send = envelope.ForSend(new Message2());
+        send.TenantId.ShouldBe(envelope.TenantId);
     }
 
     public class when_building_an_envelope_for_scheduled_send
@@ -464,5 +512,7 @@ public class EnvelopeTests
         {
             theScheduledEnvelope.ContentType.ShouldBe(TransportConstants.SerializedEnvelope);
         }
+        
+        
     }
 }

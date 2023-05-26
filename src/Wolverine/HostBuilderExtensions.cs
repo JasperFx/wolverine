@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Commands;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -70,7 +71,10 @@ public static class HostBuilderExtensions
                     "IHostBuilder.UseWolverine() can only be called once per service collection");
             }
 
-            services.AddSingleton<IStatefulResource, EnvelopeStorageResource>();
+            services.AddSingleton<WolverineSupplementalCodeFiles>();
+            services.AddSingleton<ICodeFileCollection>(x => x.GetRequiredService<WolverineSupplementalCodeFiles>());
+
+            services.AddSingleton<IStatefulResource, MessageStoreResource>();
 
             services.AddSingleton(s => s.GetRequiredService<IContainer>().CreateServiceVariableSource());
 
@@ -97,7 +101,7 @@ public static class HostBuilderExtensions
                 }
 #endif
 
-                options.Node.CodeGeneration.GeneratedCodeOutputPath =
+                options.CodeGeneration.GeneratedCodeOutputPath =
                     directory!.AppendPath("Internal", "Generated");
 
                 return options;
@@ -108,15 +112,14 @@ public static class HostBuilderExtensions
             services.AddSingleton(s => (IStatefulResourceSource)s.GetRequiredService<IWolverineRuntime>());
 
             services.AddSingleton(options.HandlerGraph);
-            services.AddSingleton(options.Node);
+            services.AddSingleton(options.Durability);
 
             // The runtime is also a hosted service
             services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
 
             services.MessagingRootService(x => x.MessageLogger);
 
-            services.AddSingleton<IDescribedSystemPart>(s => s.GetRequiredService<WolverineOptions>().HandlerGraph);
-            services.AddSingleton<IDescribedSystemPart>(s => s.GetRequiredService<WolverineOptions>());
+            services.AddSingleton<IDescribedSystemPartFactory>(s => (IDescribedSystemPartFactory)s.GetRequiredService<IWolverineRuntime>());
 
             services.TryAddSingleton<IMessageStore, NullMessageStore>();
             services.AddSingleton<InMemorySagaPersistor>();
@@ -126,7 +129,7 @@ public static class HostBuilderExtensions
             services.AddOptions();
             services.AddLogging();
 
-            services.AddScoped<IMessageBus, MessageBus>();
+            services.AddScoped<IMessageBus, MessageContext>();
             services.AddScoped<IMessageContext, MessageContext>();
 
             services.AddSingleton<ObjectPoolProvider>(new DefaultObjectPoolProvider());
@@ -142,13 +145,10 @@ public static class HostBuilderExtensions
                 // Ugly workaround. Leave this be.
                 if (handlers.Rules == null)
                 {
-                    handlers.CompileAsync(container.GetInstance<WolverineOptions>(), container)
-#pragma warning disable VSTHRD002
-                        .GetAwaiter().GetResult();
-#pragma warning restore VSTHRD002
+                    handlers.Compile(container.GetInstance<WolverineOptions>(), container);
                 }
 
-                handlers.Rules ??= c.GetRequiredService<WolverineOptions>().Node.CodeGeneration;
+                handlers.Rules ??= c.GetRequiredService<WolverineOptions>().CodeGeneration;
 
                 return handlers;
             });
@@ -158,7 +158,7 @@ public static class HostBuilderExtensions
             ExtensionLoader.ApplyExtensions(options);
             if (options.ApplicationAssembly != null)
             {
-                options.HandlerGraph.Source.Assemblies.Fill(options.ApplicationAssembly);
+                options.HandlerGraph.Discovery.Assemblies.Fill(options.ApplicationAssembly);
             }
 
             customization?.Invoke(context, options);
@@ -243,6 +243,23 @@ public static class HostBuilderExtensions
         return host.Get<IMessageBus>().InvokeAsync(command!);
     }
 
+    /// <summary>
+    /// Validate all of the Wolverine configuration of this Wolverine application.
+    /// This:
+    /// 1. Checks that all of the known generated code elements are valid
+    /// 2. Does an assertion of the Lamar container configuration
+    /// </summary>
+    /// <param name="host"></param>
+    public static void AssertWolverineConfigurationIsValid(this IHost host)
+    {
+        host.AssertAllGeneratedCodeCanCompile();
+        
+        if (host.Services is IContainer c)
+        {
+            c.AssertConfigurationIsValid();
+        }
+    }
+
 
     /// <summary>
     /// Disable all Wolverine messaging outside the current process. This is almost entirely
@@ -251,17 +268,26 @@ public static class HostBuilderExtensions
     /// </summary>
     /// <param name="services"></param>
     /// <returns></returns>
+
+    #region sample_extension_method_to_disable_external_transports
+
     public static IServiceCollection DisableAllExternalWolverineTransports(this IServiceCollection services)
     {
         services.AddSingleton<IWolverineExtension, DisableExternalTransports>();
         return services;
     }
 
+    #endregion
+
+    #region sample_DisableExternalTransports
+
     internal class DisableExternalTransports : IWolverineExtension
     {
         public void Configure(WolverineOptions options)
         {
-            options.Node.StubAllExternalTransports = true;
+            options.ExternalTransportsAreStubbed = true;
         }
     }
+
+    #endregion
 }

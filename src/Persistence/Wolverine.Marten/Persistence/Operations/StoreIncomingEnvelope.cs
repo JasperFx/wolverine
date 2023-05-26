@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data.Common;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Data.Common;
 using JasperFx.Core;
 using Marten.Internal;
 using Marten.Internal.Operations;
@@ -36,10 +31,8 @@ internal class StoreIncomingEnvelope : IStorageOperation
             builder.AddParameter(Envelope.ScheduledTime),
             builder.AddParameter(Envelope.Attempts),
             builder.AddParameter(Envelope.MessageType),
-            builder.AddParameter(Envelope.Destination?.ToString()),
+            builder.AddParameter(Envelope.Destination?.ToString())
         };
-
-        // TODO -- this seems like a good thing to generalize and move to Weasel
 
         var parameterList = list.Select(x => $":{x.ParameterName}").Join(", ");
 

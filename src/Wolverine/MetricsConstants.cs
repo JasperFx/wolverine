@@ -14,4 +14,10 @@ public class MetricsConstants
     public const string InboxCount = "wolverine-inbox-count";
     public const string OutboxCount = "wolverine-outbox-count";
     public const string ScheduledCount = "wolverine-scheduled-count";
+
+    public const string MessageTypeKey = "message.type";
+    public const string MessageDestinationKey = "message.destination";
+    public const string TenantIdKey = "tenant.id";
+    public const string MessagesFailed = "wolverine-execution-failure";
+    public const string ExceptionType = "exception.type";
 }

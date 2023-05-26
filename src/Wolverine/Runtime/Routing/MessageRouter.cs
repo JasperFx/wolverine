@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime.Routing;
@@ -17,7 +14,7 @@ public class MessageRouter<T> : MessageRouterBase<T>
             route.Rules.Fill(HandlerRules);
     }
 
-    public MessageRoute[] Routes { get; }
+    public override MessageRoute[] Routes { get; }
 
     public override Envelope[] RouteForSend(T message, DeliveryOptions? options)
     {
@@ -47,9 +44,19 @@ public class MessageRouter<T> : MessageRouterBase<T>
 
     public override IMessageRoute FindSingleRouteForSending()
     {
-        if (Routes.Length == 1) return Routes.Single();
-        
-        throw new InvalidOperationException(
-            $"There are multiple subscribing endpoints {Routes.Select(x => x.Sender.Destination!.ToString()).Join(", ")} for message {typeof(T).FullNameInCode()}");
+        if (Routes.Length == 1)
+        {
+            return Routes.Single();
+        }
+
+        throw new MultipleSubscribersException(typeof(T), Routes);
+    }
+}
+
+public class MultipleSubscribersException : Exception
+{
+    public MultipleSubscribersException(Type messageType, MessageRoute[] routes) : base(
+        $"There are multiple subscribing endpoints {routes.Select(x => x.Sender.Destination!.ToString()).Join(", ")} for message {messageType.FullNameInCode()}")
+    {
     }
 }

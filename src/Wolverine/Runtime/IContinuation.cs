@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace Wolverine.Runtime;
@@ -15,9 +16,11 @@ public interface IContinuation
     /// </summary>
     /// <param name="lifecycle"></param>
     /// <param name="runtime"></param>
-    /// <param name="now"></param>
+    /// <param name="now">The current system time</param>
+    /// <param name="activity">The current open telemetry activity span for additional tagging or logging</param>
     /// <returns></returns>
-    ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now);
+    ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+        Activity? activity);
 }
 
 #endregion

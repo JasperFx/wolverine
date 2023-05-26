@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using CoreTests.Messaging;
+using JasperFx.Core;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
 using Xunit;

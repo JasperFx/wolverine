@@ -19,7 +19,7 @@ public class end_to_end_with_conventional_routing : IDisposable
         _sender = WolverineHost.For(opts =>
         {
             opts.UseRabbitMq().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-            opts.Handlers.DisableConventionalDiscovery();
+            opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
 
@@ -47,7 +47,7 @@ public class end_to_end_with_conventional_routing : IDisposable
         var received = session
             .AllRecordsInOrder()
             .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
-            .Single(x => x.EventType == EventType.Received);
+            .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received
             .ServiceName.ShouldBe("Receiver");

@@ -26,7 +26,7 @@ internal class SqsListener : IListener
         }
 
         _mapper = new AmazonSqsMapper(queue, runtime);
-        _logger = runtime.Logger;
+        _logger = runtime.LoggerFactory.CreateLogger<SqsListener>();
         _queue = queue;
         _transport = transport;
 
@@ -132,7 +132,6 @@ internal class SqsListener : IListener
 
     private Task tryMoveToDeadLetterQueue(IAmazonSQS client, Message message)
     {
-        // TODO -- figure out how to do this
         return Task.CompletedTask;
     }
 
@@ -146,13 +145,11 @@ internal class SqsListener : IListener
 
     public Task CompleteAsync(Message sqsMessage)
     {
-        // TODO -- harden this like crazy
         return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
     }
 
     public Task DeferAsync(Message sqsMessage)
     {
-        // TODO -- harden this like crazy
         // TODO -- the visibility timeout needs to be configurable by timeout
         return _transport.Client!.ChangeMessageVisibilityAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle, 1000);
     }

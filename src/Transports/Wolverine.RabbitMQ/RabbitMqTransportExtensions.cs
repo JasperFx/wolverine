@@ -59,6 +59,19 @@ public static class RabbitMqTransportExtensions
     {
         return options.UseRabbitMq(_ => { });
     }
+    
+    /// <summary>
+    ///     Connect to Rabbit MQ using the values from the connection string. This format is
+    /// purposely designed to be compatible with the syntax from https://docs.particular.net/transports/rabbitmq/connection-settings
+    /// </summary>
+    /// <param name="options"></param>
+    public static RabbitMqTransportExpression UseRabbitMq(this WolverineOptions options, string rabbitMqConnectionString)
+    {
+        return options.UseRabbitMq(factory =>
+        {
+            ConnectionStringParser.Apply(rabbitMqConnectionString, factory);
+        });
+    }
 
     /// <summary>
     ///     Listen for incoming messages at the designated Rabbit MQ queue by name

@@ -1,9 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Marten;
 
 namespace Wolverine.Marten.Persistence.Sagas;
@@ -34,6 +32,8 @@ internal class LoadDocumentFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteLine("");
+        writer.WriteComment("Try to load the existing saga document");
         writer.Write(
             $"var {Saga.Usage} = await {_session!.Usage}.LoadAsync<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {_cancellation!.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);

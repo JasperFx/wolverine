@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Wolverine.Runtime;
 
@@ -12,8 +13,10 @@ internal class RequeueContinuation : IContinuation, IContinuationSource
     {
     }
 
-    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
+    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+        Activity? activity)
     {
+        activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeRequeued));
         return lifecycle.DeferAsync();
     }
 

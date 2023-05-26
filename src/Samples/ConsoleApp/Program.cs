@@ -1,6 +1,5 @@
 #region sample_QuickStartConsoleMain
 
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using TestingSupport;
 using Wolverine.RabbitMQ;
@@ -22,7 +21,7 @@ internal class Program
 
             opts.PublishAllMessages().ToPort(2224);
 
-            opts.Node.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup()
                 .BindExchange("Main")

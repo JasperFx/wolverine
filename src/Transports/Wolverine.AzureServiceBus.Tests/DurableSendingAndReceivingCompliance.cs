@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using IntegrationTests;
 using Marten;
+using Oakton.Resources;
 using TestingSupport.Compliance;
 using Weasel.Core;
 using Wolverine.Marten;
@@ -30,7 +31,9 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "sender";
                 store.AutoCreateSchemaObjects = AutoCreate.All;
-            }).IntegrateWithWolverine("sender").ApplyAllDatabaseChangesOnStartup();
+            }).IntegrateWithWolverine("sender");
+            
+            opts.Services.AddResourceSetupOnStartup();
 
             opts.ListenToAzureServiceBusQueue("durable-sender");
         });
@@ -48,7 +51,9 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "receiver";
                 store.AutoCreateSchemaObjects = AutoCreate.All;
-            }).IntegrateWithWolverine("receiver").ApplyAllDatabaseChangesOnStartup();
+            }).IntegrateWithWolverine("receiver");
+            
+            opts.Services.AddResourceSetupOnStartup();
 
             opts.ListenToAzureServiceBusQueue("durable-receiver");
         });

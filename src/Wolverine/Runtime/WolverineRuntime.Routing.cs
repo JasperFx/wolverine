@@ -22,7 +22,7 @@ public partial class WolverineRuntime
         var explicits = Options.Transports.AllEndpoints().Where(x => x.ShouldSendMessage(messageType)).ToArray();
         if (explicits.Any()) return explicits;
 
-        if (Options.HandlerGraph.CanHandle(messageType))
+        if (!Options.LocalRoutingConventionDisabled && Options.HandlerGraph.CanHandle(messageType))
         {
             var endpoints = Options.LocalRouting.DiscoverSenders(messageType, this).ToArray();
             if (endpoints.Any()) return endpoints;

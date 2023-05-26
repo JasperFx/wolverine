@@ -40,6 +40,13 @@ public interface IMessageLogger
     /// </summary>
     /// <param name="envelope"></param>
     void ExecutionFinished(Envelope envelope);
+    
+    /// <summary>
+    /// Marks the end of message execution with a failure
+    /// </summary>
+    /// <param name="envelope"></param>
+    /// <param name="exception"></param>
+    void ExecutionFinished(Envelope envelope, Exception exception);
 
     /// <summary>
     ///     Called when a message has been successfully processed
@@ -79,6 +86,8 @@ public interface IMessageLogger
     /// </summary>
     /// <param name="envelope"></param>
     void DiscardedEnvelope(Envelope envelope);
+
+    
 }
 
 #endregion

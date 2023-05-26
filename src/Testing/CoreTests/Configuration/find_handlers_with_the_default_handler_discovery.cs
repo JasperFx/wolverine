@@ -1,16 +1,24 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Module2;
 using OrderExtension;
 using TestingSupport;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace CoreTests.Configuration;
 
 public class find_handlers_with_the_default_handler_discovery : IntegrationContext
 {
-    public find_handlers_with_the_default_handler_discovery(DefaultApp @default) : base(@default)
+    private readonly ITestOutputHelper _output;
+
+    public find_handlers_with_the_default_handler_discovery(DefaultApp @default, ITestOutputHelper output) : base(@default)
     {
+        _output = output;
         @default.RecycleIfNecessary();
     }
 
@@ -56,7 +64,7 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void ignore_method_marked_as_NotHandler()
     {
-        with(x => x.Handlers.DisableConventionalDiscovery().IncludeType<NetflixHandler>());
+        with(x => x.DisableConventionalDiscovery().IncludeType<NetflixHandler>());
         //withAllDefaults();
         chainFor<MovieAdded>()
             .ShouldNotHaveHandler<NetflixHandler>(x => x.Handles(new MovieAdded()));
@@ -71,10 +79,45 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void find_handlers_from_wolverine_module_extensions()
     {
-        chainFor<CreateOrder>().ShouldHaveHandler<OrderHandler>(x => x.Handle(new CreateOrder()));
-        chainFor<ShipOrder>().ShouldHaveHandler<OrderHandler>(x => x.Handle(new ShipOrder()));
+        _output.WriteLine(Host.Services.GetRequiredService<IWolverineRuntime>().Options.DescribeHandlerMatch(typeof(OrderHandler)));
+        
+        chainFor<CreateOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new CreateOrder()));
+        chainFor<ShipOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new ShipOrder()));
+    }
+    
+    [WolverineHandler]
+    public static class AttributeWorker
+    {
+        public static void Handle(AttributeMessage message)
+        {
+            Console.WriteLine("Got it");
+        }
+    }
+
+    public record AttributeMessage;
+
+    [Fact]
+    public void find_handlers_marked_with_wolverine_handler_attribute()
+    {
+        chainFor<AttributeMessage>().ShouldNotBeNull();
+    }
+
+    public record MarkedMessage;
+    public class MarkedWorker : IWolverineHandler
+    {
+        public void Handle(MarkedMessage message)
+        {
+            Console.WriteLine("Got it.");
+        }
+    }
+
+    [Fact]
+    public void finds_handlers_that_implement_IWolverineHandler()
+    {
+        chainFor<MarkedMessage>().ShouldHaveHandler<MarkedWorker>(x => x.Handle(null));
     }
 }
+
 
 public class customized_finding : IntegrationContext
 {
@@ -82,10 +125,18 @@ public class customized_finding : IntegrationContext
     {
     }
 
+    private void withTypeDiscovery(Action<TypeQuery> customize)
+    {
+        with(opts =>
+        {
+            opts.Discovery.CustomizeHandlerDiscovery(customize);
+        });
+    }
+
     [Fact]
     public void extra_suffix()
     {
-        with(x => x.Handlers.Discovery(d => d.IncludeClassesSuffixedWith("Watcher")));
+        withTypeDiscovery(x => x.Includes.WithNameSuffix("Watcher"));
 
         chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null));
     }
@@ -93,9 +144,41 @@ public class customized_finding : IntegrationContext
     [Fact]
     public void handler_types_from_a_marker_interface()
     {
-        with(x => x.Handlers.Discovery(d => d.IncludeTypesImplementing<IMovieThing>()));
+        withTypeDiscovery(x => x.Includes.Implements<IMovieThing>());
 
         chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
+    }
+
+    public record DifferentNameMessage;
+
+    public class DifferentNameMessageHandler
+    {
+        [WolverineHandler] // This should force Wolverine into thinking
+                           // it's a handler
+        public void DoWork(DifferentNameMessage message)
+        {
+            
+        }
+    }
+
+    [Fact]
+    public void use_WolverineHandler_attribute_on_method()
+    {
+        chainFor<DifferentNameMessage>().ShouldHaveHandler<DifferentNameMessageHandler>(x => x.DoWork(null));
+    }
+
+    [Fact]
+    public void find_handlers_from_included_assembly()
+    {
+        with(opts =>
+        {
+            opts.Discovery.IncludeAssembly(typeof(Module2Message1).Assembly);
+        });
+
+        chainFor<Module2Message1>().ShouldNotBeNull();
+        chainFor<Module2Message2>().ShouldNotBeNull();
+        chainFor<Module2Message3>().ShouldNotBeNull();
+        chainFor<Module2Message4>().ShouldNotBeNull();
     }
 }
 
@@ -229,3 +312,4 @@ public class EventConsumer
     {
     }
 }
+

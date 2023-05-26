@@ -8,13 +8,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: IncrementBHandler1993886962
     public class IncrementBHandler1993886962 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> _logger;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementBHandler1993886962(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> logger)
+        public IncrementBHandler1993886962(Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
-            _outboxedSessionFactory = outboxedSessionFactory;
             _logger = logger;
+            _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
@@ -25,17 +25,12 @@ namespace Internal.Generated.WolverineHandlers
             var incrementB = (PersistenceTests.Marten.IncrementB)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementB.LetterAggregateId, cancellation).ConfigureAwait(false);
 
             var outgoing1 = await letterAggregateHandler.Handle(incrementB, eventStream.Aggregate, _logger).ConfigureAwait(false);
-            if (outgoing1 != null)
-            {
-                // Capturing any possible events returned from the command handlers
-                eventStream.AppendOne(outgoing1);
-
-            }
-
+            eventStream.AppendOne(outgoing1);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 

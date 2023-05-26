@@ -1,6 +1,4 @@
-﻿using System.Linq;
-using System.Threading.Tasks;
-using Shouldly;
+﻿using Shouldly;
 using Wolverine;
 using Xunit;
 
@@ -20,7 +18,7 @@ public class SqlServerBackedListenerTests : SqlServerBackedListenerContext
         var persisted = (await afterReceivingTheEnvelopes()).Single();
 
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
-        persisted.OwnerId.ShouldBe(theSettings.UniqueNodeId);
+        persisted.OwnerId.ShouldBe(theSettings.NodeLockId);
 
         assertEnvelopeWasEnqueued(envelope);
     }
@@ -32,7 +30,7 @@ public class SqlServerBackedListenerTests : SqlServerBackedListenerContext
         var persisted = (await afterReceivingTheEnvelopes()).Single();
 
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
-        persisted.OwnerId.ShouldBe(theSettings.UniqueNodeId);
+        persisted.OwnerId.ShouldBe(theSettings.NodeLockId);
 
         assertEnvelopeWasEnqueued(envelope);
     }

@@ -29,9 +29,9 @@ internal class Forwarders
         }
     }
 
-    public async Task FindForwardsAsync(Assembly assembly)
+    public void FindForwards(Assembly assembly)
     {
-        var candidates = await TypeRepository.ForAssembly(assembly);
-        foreach (var type in candidates.ClosedTypes.Concretes.Where(t => t.Closes(typeof(IForwardsTo<>)))) Add(type);
+        var candidates = assembly.ExportedTypes.Where(x => x.IsConcrete() && !x.IsOpenGeneric());
+        foreach (var type in candidates.Where(t => t.Closes(typeof(IForwardsTo<>)))) Add(type);
     }
 }

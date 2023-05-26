@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine;
-using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
@@ -24,29 +19,23 @@ public class SqlServerBackedListenerContext : SqlServerContext
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
-    protected SqlServerSettings mssqlSettings;
     protected IMessageDatabase thePersistence;
     internal DurableReceiver theReceiver;
-    protected NodeSettings theSettings;
+    protected DurabilitySettings theSettings;
 
 
     public SqlServerBackedListenerContext()
     {
-        theSettings = new NodeSettings(null);
-
-        mssqlSettings = new SqlServerSettings
-        {
-            ConnectionString = Servers.SqlServerConnectionString
-        };
+        theSettings = new DurabilitySettings();
 
         thePersistence =
-            new SqlServerMessageStore(mssqlSettings, theSettings,
+            new SqlServerMessageStore(new DatabaseSettings{ConnectionString = Servers.SqlServerConnectionString}, theSettings,
                 new NullLogger<SqlServerMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Storage.Returns(thePersistence);
         runtime.Pipeline.Returns(thePipeline);
-        runtime.Node.Returns(theSettings);
+        runtime.DurabilitySettings.Returns(theSettings);
 
 
         theReceiver = new DurableReceiver(new LocalQueue("temp"), runtime, thePipeline);

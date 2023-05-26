@@ -30,6 +30,13 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
 
     public ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
+        EnqueueDirectly(envelope);
+
+        return ValueTask.CompletedTask;
+    }
+
+    internal void EnqueueDirectly(Envelope envelope)
+    {
         _messageLogger.Sent(envelope);
         envelope.ReplyUri = envelope.ReplyUri ?? ReplyUri;
 
@@ -41,8 +48,6 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
         {
             Enqueue(envelope);
         }
-
-        return ValueTask.CompletedTask;
     }
 
     public ValueTask StoreAndForwardAsync(Envelope envelope)

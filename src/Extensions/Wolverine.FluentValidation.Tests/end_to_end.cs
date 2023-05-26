@@ -130,7 +130,7 @@ public class end_to_end
         await Should.NotThrowAsync(() => host.InvokeAsync(command));
         await host.StopAsync();
     }
-    
+
     [Fact]
     public async Task invoke_sad_path_multiple_validators_with_async_rule()
     {

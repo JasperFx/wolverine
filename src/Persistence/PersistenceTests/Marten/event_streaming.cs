@@ -1,6 +1,5 @@
-using System;
-using System.Threading.Tasks;
 using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
@@ -30,6 +29,8 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             {
                 services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine("receiver");
+
+                services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         await theReceiver.ResetResourceState();
@@ -38,12 +39,14 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.PublishAllMessages().ToPort(receiverPort).UseDurableOutbox();
-                opts.Handlers.DisableConventionalDiscovery().IncludeType<TriggerHandler>();
+                opts.DisableConventionalDiscovery().IncludeType<TriggerHandler>();
             })
             .ConfigureServices(services =>
             {
                 services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine("sender").EventForwardingToWolverine();
+                
+                services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         await theSender.ResetResourceState();

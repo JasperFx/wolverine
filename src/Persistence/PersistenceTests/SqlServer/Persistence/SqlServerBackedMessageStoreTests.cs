@@ -1,7 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
@@ -48,7 +45,7 @@ public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
         theEnvelope.ConversationId = Guid.NewGuid();
         theEnvelope.ParentId = Guid.NewGuid().ToString();
 
-        theHost.Get<IMessageStore>().ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
+        theHost.Get<IMessageStore>().Inbox.ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
 
         var persistor = theHost.Get<SqlServerMessageStore>();
 

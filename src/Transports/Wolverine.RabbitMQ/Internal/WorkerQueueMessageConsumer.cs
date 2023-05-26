@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
+internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposable
 {
     private readonly Uri _address;
     private readonly CancellationToken _cancellation;
@@ -17,9 +17,9 @@ internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
     private readonly IReceiver _workerQueue;
     private bool _latched;
 
-    public WorkerQueueMessageConsumer(IReceiver workerQueue, ILogger logger,
+    public WorkerQueueMessageConsumer(IModel channel, IReceiver workerQueue, ILogger logger,
         RabbitMqListener listener,
-        IEnvelopeMapper<IBasicProperties, IBasicProperties> mapper, Uri address, CancellationToken cancellation)
+        IEnvelopeMapper<IBasicProperties, IBasicProperties> mapper, Uri address, CancellationToken cancellation) : base(channel)
     {
         _workerQueue = workerQueue;
         _logger = logger;
@@ -34,7 +34,7 @@ internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
         _latched = true;
     }
 
-    public override void HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered,
+    public override async Task HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered,
         string exchange, string routingKey,
         IBasicProperties properties, ReadOnlyMemory<byte> body)
     {
@@ -48,7 +48,7 @@ internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
 
         try
         {
-            envelope.Data = body.ToArray(); // TODO -- use byte sequence instead!
+            envelope.Data = body.ToArray(); 
             _mapper.MapIncomingToEnvelope(envelope, properties);
         }
         catch (Exception e)
@@ -65,15 +65,22 @@ internal class WorkerQueueMessageConsumer : DefaultBasicConsumer, IDisposable
             return;
         }
 
-#pragma warning disable VSTHRD110
-        _workerQueue.ReceivedAsync(_listener, envelope).AsTask().ContinueWith(t =>
-#pragma warning restore VSTHRD110
+        try
         {
-            if (t.IsFaulted)
+            await _workerQueue.ReceivedAsync(_listener, envelope);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failure to receive an incoming message with {Id}, trying to 'Nack' the message", envelope.Id);
+            try
             {
-                _logger.LogError(t.Exception, "Failure to receive an incoming message with {Id}", envelope.Id);
                 Model.BasicNack(deliveryTag, false, true);
             }
-        }, _cancellation, TaskContinuationOptions.None, TaskScheduler.Default);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failure trying to Nack a previously failed message {Id}", envelope.Id);
+            }
+        }
+
     }
 }

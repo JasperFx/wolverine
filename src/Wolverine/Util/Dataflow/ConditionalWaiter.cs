@@ -4,27 +4,29 @@ using System.Threading.Tasks;
 
 namespace Wolverine.Util.Dataflow;
 
-internal abstract class ConditionalWaiter<T> : IObserver<T>
+internal sealed class ConditionalWaiter<TObservedEvent, TSpecificEvent> : IObserver<TObservedEvent> where TSpecificEvent : TObservedEvent
 {
-    private readonly TaskCompletionSource<T> _completion;
+    private readonly Func<TSpecificEvent, bool> _match;
+    private readonly TaskCompletionSource<TSpecificEvent> _completion;
     private readonly IDisposable _unsubscribe;
 
-    public ConditionalWaiter(IObservable<T> parent, TimeSpan timeout)
+    public ConditionalWaiter(Func<TSpecificEvent, bool> match, IObservable<TObservedEvent> parent, TimeSpan timeout)
     {
-        _completion = new TaskCompletionSource<T>();
+        _match = match;
+        _completion = new TaskCompletionSource<TSpecificEvent>();
 
 
         var timeout1 = new CancellationTokenSource(timeout);
         timeout1.Token.Register(() =>
         {
             _completion.TrySetException(new TimeoutException(
-                "Listener {Expected} did not change to status {expected.Status} in the time allowed"));
+                "Did not reach the expected state or message in time"));
         });
 
         _unsubscribe = parent.Subscribe(this);
     }
 
-    public Task Completion => _completion.Task;
+    public Task<TSpecificEvent> Completion => _completion.Task;
 
     public void OnCompleted()
     {
@@ -36,16 +38,15 @@ internal abstract class ConditionalWaiter<T> : IObserver<T>
         _completion.SetException(error);
     }
 
-    public void OnNext(T value)
+    public void OnNext(TObservedEvent value)
     {
-        if (!hasCompleted(value))
+        if (value is TSpecificEvent e && _match(e))
         {
-            return;
+            _completion.SetResult(e);
+            _unsubscribe.Dispose();
         }
+        
 
-        _completion.SetResult(value);
-        _unsubscribe.Dispose();
     }
 
-    protected abstract bool hasCompleted(T state);
 }

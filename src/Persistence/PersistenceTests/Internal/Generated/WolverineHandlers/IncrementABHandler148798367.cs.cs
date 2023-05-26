@@ -21,12 +21,14 @@ namespace Internal.Generated.WolverineHandlers
             var incrementAB = (PersistenceTests.Marten.IncrementAB)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForExclusiveWriting<PersistenceTests.Marten.LetterAggregate>(incrementAB.LetterAggregateId, cancellation).ConfigureAwait(false);
 
             var outgoing1 = PersistenceTests.Marten.SpecialLetterHandler.Handle(incrementAB, eventStream.Aggregate);
             if (outgoing1 != null)
             {
+                
                 // Capturing any possible events returned from the command handlers
                 eventStream.AppendMany(outgoing1);
 

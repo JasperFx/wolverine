@@ -1,28 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Weasel.Core;
+﻿using Weasel.Core;
 using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
-    public Task ScheduleExecutionAsync(Envelope[] envelopes)
+    public Task ScheduleExecutionAsync(Envelope envelope)
     {
-        var builder = Settings.ToCommandBuilder();
-
-        foreach (var envelope in envelopes)
-        {
-            var id = builder.AddParameter(envelope.Id);
-            var time = builder.AddParameter(envelope.ScheduledTime!.Value);
-            var attempts = builder.AddParameter(envelope.Attempts);
-
-            builder.Append(
-                $"update {Settings.SchemaName}.{DatabaseConstants.IncomingTable} set execution_time = @{time.ParameterName}, status = \'{EnvelopeStatus.Scheduled}\', attempts = @{attempts.ParameterName}, owner_id = {TransportConstants.AnyNode} where id = @{id.ParameterName};");
-        }
-
-        return builder.Compile().ExecuteOnce(_cancellation);
+        return CreateCommand(
+                $"update {SchemaName}.{DatabaseConstants.IncomingTable} set execution_time = @time, status = \'{EnvelopeStatus.Scheduled}\', attempts = @attempts, owner_id = {TransportConstants.AnyNode} where id = @id;")
+            .With("time", envelope.ScheduledTime!.Value)
+            .With("attempts", envelope.Attempts)
+            .With("id", envelope.Id)
+            .ExecuteOnce(cancellation: _cancellation);
     }
 
 
@@ -35,5 +25,8 @@ public abstract partial class MessageDatabase<T>
     }
 
 
+    [Obsolete("Goes away with move to DatabaseBatcher & Agents")]
     public abstract Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow);
+
+    public abstract void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
 }

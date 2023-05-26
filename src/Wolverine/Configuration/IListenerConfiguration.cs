@@ -38,8 +38,9 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     ///     can use at one time
     /// </summary>
     /// <param name="maximumParallelHandlers"></param>
+    /// <param name="order">Optionally specify whether the messages must be processed in strict order of being received</param>
     /// <returns></returns>
-    T MaximumParallelMessages(int maximumParallelHandlers);
+    T MaximumParallelMessages(int maximumParallelHandlers, ProcessingOrder? order = null);
 
     /// <summary>
     ///     Forces this worker queue to use no more than one thread

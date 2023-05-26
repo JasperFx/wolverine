@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using JasperFx.Core;
 using Shouldly;
 using TestMessages;
 using Wolverine.AzureServiceBus.Internal;

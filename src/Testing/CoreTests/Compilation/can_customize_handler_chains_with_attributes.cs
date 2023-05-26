@@ -15,9 +15,9 @@ public class can_customize_handler_chains_with_attributes
     {
         using (var runtime = WolverineHost.For(opts =>
                {
-                   opts.Handlers.DisableConventionalDiscovery();
-                   opts.Handlers.IncludeType<FakeHandler1>();
-                   opts.Handlers.IncludeType<FakeHandler2>();
+                   opts.DisableConventionalDiscovery();
+                   opts.IncludeType<FakeHandler1>();
+                   opts.IncludeType<FakeHandler2>();
                }))
         {
             var chain = runtime.Get<HandlerGraph>().ChainFor<T>();

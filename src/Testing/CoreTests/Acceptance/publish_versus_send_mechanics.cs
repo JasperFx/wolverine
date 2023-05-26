@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using TestingSupport;
 using TestMessages;
 using Wolverine.Runtime.Routing;
@@ -15,7 +16,7 @@ public class publish_versus_send_mechanics : IntegrationContext
     {
         with(opts =>
         {
-            opts.Handlers.DisableConventionalDiscovery();
+            opts.DisableConventionalDiscovery();
 
             opts.Publish(x => x
                 .Message<Message1>()
@@ -31,7 +32,7 @@ public class publish_versus_send_mechanics : IntegrationContext
     {
         var session = await Host.ExecuteAndWaitValueTaskAsync(x => x.PublishAsync(new Message3()));
 
-        session.AllRecordsInOrder().Any(x => x.EventType != EventType.NoRoutes).ShouldBeFalse();
+        session.AllRecordsInOrder().Any(x => x.MessageEventType != MessageEventType.NoRoutes).ShouldBeFalse();
     }
 
     [Fact]
@@ -44,13 +45,13 @@ public class publish_versus_send_mechanics : IntegrationContext
         });
 
         session
-            .FindEnvelopesWithMessageType<Message1>(EventType.Sent)
+            .FindEnvelopesWithMessageType<Message1>(MessageEventType.Sent)
             .Single()
             .Envelope.Destination
             .ShouldBe("local://one".ToUri());
 
         session
-            .FindEnvelopesWithMessageType<Message2>(EventType.Sent)
+            .FindEnvelopesWithMessageType<Message2>(MessageEventType.Sent)
             .Select(x => x.Envelope.Destination).OrderBy(x => x.ToString())
             .ShouldHaveTheSameElementsAs("local://one".ToUri(), "local://two".ToUri());
     }
@@ -72,7 +73,7 @@ public class publish_versus_send_mechanics : IntegrationContext
             await c.SendAsync(new Message2());
         });
 
-        session.AllRecordsInOrder(EventType.Sent)
+        session.AllRecordsInOrder(MessageEventType.Sent)
             .Length.ShouldBe(3);
     }
 }

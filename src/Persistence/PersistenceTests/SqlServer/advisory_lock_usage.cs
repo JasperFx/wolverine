@@ -1,9 +1,11 @@
-﻿using System;
-using System.Threading.Tasks;
-using IntegrationTests;
+﻿using IntegrationTests;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
+using Wolverine;
+using Wolverine.RDBMS;
 using Wolverine.SqlServer;
+using Wolverine.SqlServer.Persistence;
 using Xunit;
 
 namespace PersistenceTests.SqlServer;
@@ -13,7 +15,7 @@ public class advisory_lock_usage : SqlServerContext
     [Fact]
     public async Task explicitly_release_global_session_locks()
     {
-        var settings = new SqlServerSettings();
+        var settings = new SqlServerMessageStore(new DatabaseSettings{ConnectionString = Servers.SqlServerConnectionString}, new DurabilitySettings(), NullLogger<SqlServerMessageStore>.Instance);
 
         await using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
         await using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
@@ -51,7 +53,7 @@ public class advisory_lock_usage : SqlServerContext
     [Fact]
     public async Task explicitly_release_global_tx_session_locks()
     {
-        var settings = new SqlServerSettings();
+        var settings = new SqlServerMessageStore(new DatabaseSettings{ConnectionString = Servers.SqlServerConnectionString}, new DurabilitySettings(), NullLogger<SqlServerMessageStore>.Instance);
 
         await using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
         await using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
@@ -91,7 +93,7 @@ public class advisory_lock_usage : SqlServerContext
     [Fact] // - too slow
     public async Task global_session_locks()
     {
-        var settings = new SqlServerSettings();
+        var settings = new SqlServerMessageStore(new DatabaseSettings{ConnectionString = Servers.SqlServerConnectionString}, new DurabilitySettings(), NullLogger<SqlServerMessageStore>.Instance);
 
         await using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
         await using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))
@@ -126,7 +128,7 @@ public class advisory_lock_usage : SqlServerContext
     [Fact] // -- too slow
     public async Task tx_session_locks()
     {
-        var settings = new SqlServerSettings();
+        var settings = new SqlServerMessageStore(new DatabaseSettings{ConnectionString = Servers.SqlServerConnectionString}, new DurabilitySettings(), NullLogger<SqlServerMessageStore>.Instance);
 
         await using (var conn1 = new SqlConnection(Servers.SqlServerConnectionString))
         await using (var conn2 = new SqlConnection(Servers.SqlServerConnectionString))

@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
@@ -50,7 +47,7 @@ public class transactional_frame_end_to_end : PostgresqlContext
             .UseWolverine(opts =>
             {
                 // And actually use the policy
-                opts.Handlers.AddPolicy<CommandsAreTransactional>();
+                opts.Policies.Add<CommandsAreTransactional>();
             }).StartAsync();
 
         #endregion
@@ -88,14 +85,13 @@ public class UsingDocumentSessionHandler
 
 public class CommandsAreTransactional : IHandlerPolicy
 {
-    public void Apply(HandlerGraph graph, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
     {
         // Important! Create a brand new TransactionalFrame
         // for each chain
-        graph
-            .Chains
-            .Where(x => x.MessageType.Name.EndsWith("Command"))
-            .Each(x => x.Middleware.Add(new TransactionalFrame()));
+        chains
+            .Where(chain => chain.MessageType.Name.EndsWith("Command"))
+            .Each(chain => chain.Middleware.Add(new TransactionalFrame()));
     }
 }
 

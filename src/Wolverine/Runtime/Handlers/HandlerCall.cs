@@ -12,6 +12,11 @@ public class HandlerCall : MethodCall
 {
     public HandlerCall(Type handlerType, MethodInfo method) : base(handlerType, method)
     {
+        if (method == null)
+        {
+            throw new ArgumentNullException(nameof(method));
+        }
+
         MessageType = method.MessageType()!;
 
         if (MessageType == null)
@@ -23,40 +28,7 @@ public class HandlerCall : MethodCall
 
     public Type MessageType { get; }
 
-    public static bool IsCandidate(MethodInfo method)
-    {
-        if (!method.GetParameters().Any())
-        {
-            return false;
-        }
-
-        if (method.DeclaringType == typeof(object))
-        {
-            return false;
-        }
-
-        if (method.IsSpecialName)
-        {
-            return false;
-        }
-
-        var messageType = method.MessageType();
-        if (messageType == null)
-        {
-            return false;
-        }
-
-        var hasOutput = method.ReturnType != typeof(void);
-
-        if (WolverineMessageNaming.IsValueTuple(method.ReturnType))
-        {
-            return true;
-        }
-
-        return !hasOutput || !method.ReturnType.IsPrimitive;
-    }
-
-    public static HandlerCall For<T>(Expression<Action<T>> method)
+    public new static HandlerCall For<T>(Expression<Action<T>> method)
     {
         return new HandlerCall(typeof(T), ReflectionHelper.GetMethod(method));
     }

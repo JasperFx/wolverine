@@ -10,6 +10,10 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
     {
     }
 
+    internal LocalQueueConfiguration(Func<LocalQueue> source) : base(source)
+    {
+    }
+
     /// <summary>
     /// Limit all outgoing messages to a certain "deliver within" time span after which the messages
     /// will be discarded even if not successfully delivered or processed

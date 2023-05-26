@@ -19,8 +19,8 @@ public class Bug_42_concurrent_creation_of_command_handlers
         {
             using var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
             {
-                opts.Handlers.AddMiddleware<SimpleBeforeAndAfter>();
-                opts.Handlers.AddMiddleware<SimpleBeforeAndAfterAsync>();
+                opts.Policies.AddMiddleware<SimpleBeforeAndAfter>();
+                opts.Policies.AddMiddleware<SimpleBeforeAndAfterAsync>();
             }).StartAsync();
 
             var bus = host.Services.GetRequiredService<IMessageBus>();

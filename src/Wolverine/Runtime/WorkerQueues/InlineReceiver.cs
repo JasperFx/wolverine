@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
@@ -10,13 +11,13 @@ internal class InlineReceiver : IReceiver
 {
     private readonly ILogger _logger;
     private readonly IHandlerPipeline _pipeline;
-    private readonly NodeSettings _settings;
+    private readonly DurabilitySettings _settings;
 
     public InlineReceiver(IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _pipeline = pipeline;
-        _logger = runtime.Logger;
-        _settings = runtime.Node;
+        _logger = runtime.LoggerFactory.CreateLogger<InlineReceiver>();
+        _settings = runtime.DurabilitySettings;
     }
 
     public int QueueCount => 0;
@@ -46,11 +47,11 @@ internal class InlineReceiver : IReceiver
             await _pipeline.InvokeAsync(envelope, listener, activity!);
             _logger.IncomingReceived(envelope, listener.Address);
 
-            // TODO -- mark success on the activity?
+            activity?.SetStatus(ActivityStatusCode.Ok);
         }
         catch (Exception? e)
         {
-            // TODO -- Mark failures onto the activity?
+            activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             _logger.LogError(e, "Failure to receive an incoming message for envelope {EnvelopeId}", envelope.Id);
 
             try

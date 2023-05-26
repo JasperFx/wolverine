@@ -21,18 +21,13 @@ namespace Internal.Generated.WolverineHandlers
             var incrementB2 = (PersistenceTests.Marten.IncrementB2)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.SelfLetteredAggregate>(incrementB2.SelfLetteredAggregateId, cancellation).ConfigureAwait(false);
 
             if (eventStream.Aggregate == null) throw new Wolverine.Marten.UnknownAggregateException(typeof(PersistenceTests.Marten.SelfLetteredAggregate), incrementB2.SelfLetteredAggregateId);
-            var bEvent = await eventStream.Aggregate.Handle(incrementB2).ConfigureAwait(false);
-            if (bEvent != null)
-            {
-                // Capturing any possible events returned from the command handlers
-                eventStream.AppendOne(bEvent);
-
-            }
-
+            var outgoing1 = await eventStream.Aggregate.Handle(incrementB2).ConfigureAwait(false);
+            eventStream.AppendOne(outgoing1);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 

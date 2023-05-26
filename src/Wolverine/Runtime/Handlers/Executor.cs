@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.Core;
@@ -69,12 +70,19 @@ internal class Executor : IExecutor
                 envelope.Attempts++;
             }
 
-            // TODO -- Harden the inline sender. Feel good about buffered
             await context.FlushOutgoingMessagesAsync();
+            Activity.Current?.SetStatus(ActivityStatusCode.Ok);
+            _logger.ExecutionFinished(envelope);
+        }
+        catch (Exception e)
+        {
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            _logger.ExecutionFinished(envelope, e);
+            throw;
         }
         finally
         {
-            _logger.ExecutionFinished(envelope);
+            
             _contextPool.Return(context);
             activity?.Stop();
         }
@@ -89,7 +97,7 @@ internal class Executor : IExecutor
             ResponseType = typeof(T)
         };
         
-        bus.TrackEnvelopeCorrelation(envelope);
+        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         
         await InvokeInlineAsync(envelope, cancellation);
 
@@ -104,7 +112,7 @@ internal class Executor : IExecutor
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
         var envelope = new Envelope(message);
-        bus.TrackEnvelopeCorrelation(envelope);
+        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         return InvokeInlineAsync(envelope, cancellation);
     }
 
@@ -118,21 +126,22 @@ internal class Executor : IExecutor
         try
         {
             await _handler.HandleAsync(context, combined.Token);
+            Activity.Current?.SetStatus(ActivityStatusCode.Ok);
             return MessageSucceededContinuation.Instance;
         }
         catch (Exception e)
         {
             _logger.LogException(e, context.Envelope!.Id, "Failure during message processing execution");
             _logger
-                .ExecutionFinished(context.Envelope); // Need to do this to make the MessageHistory complete
+                .ExecutionFinished(context.Envelope, e); // Need to do this to make the MessageHistory complete
 
             await context.ClearAllAsync();
 
+            Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             return _rules.DetermineExecutionContinuation(e, context.Envelope);
         }
     }
 
-    // TODO -- make this external, and remove from IExecutor interface?
     public async Task<InvokeResult> InvokeAsync(MessageContext context, CancellationToken cancellation)
     {
         if (context.Envelope == null)

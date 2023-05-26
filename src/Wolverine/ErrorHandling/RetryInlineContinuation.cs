@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Wolverine.Runtime;
 
@@ -21,12 +22,15 @@ internal class RetryInlineContinuation : IContinuation, IContinuationSource
 
     public TimeSpan? Delay => _delay;
 
-    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now)
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+        Activity? activity)
     {
         if (_delay != null)
         {
             await Task.Delay(_delay.Value).ConfigureAwait(false);
         }
+
+        activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeRetry));
 
         await lifecycle.RetryExecutionNowAsync().ConfigureAwait(false);
     }

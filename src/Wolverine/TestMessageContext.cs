@@ -115,7 +115,9 @@ public class TestMessageContext : IMessageContext
 
         return ValueTask.CompletedTask;
     }
-    
+
+    public string? TenantId { get; set; }
+
     internal class DestinationEndpoint : IDestinationEndpoint
     {
         private readonly TestMessageContext _parent;

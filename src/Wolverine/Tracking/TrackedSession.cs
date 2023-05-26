@@ -11,6 +11,7 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Tracking;
 
@@ -42,9 +43,6 @@ internal class TrackedSession : ITrackedSession
     public TimeSpan Timeout { get; set; } = 5.Seconds();
 
     public bool AssertNoExceptions { get; set; } = true;
-
-    // TODO -- do something with this?
-    public bool AssertNoTimeout { get; set; } = true;
 
     public Func<IMessageContext, Task> Execution { get; set; } = _ => Task.CompletedTask;
 
@@ -89,10 +87,10 @@ internal class TrackedSession : ITrackedSession
             .Single();
     }
 
-    public T FindSingleTrackedMessageOfType<T>(EventType eventType)
+    public T FindSingleTrackedMessageOfType<T>(MessageEventType eventType)
     {
         var messages = AllRecordsInOrder()
-            .Where(x => x.EventType == eventType)
+            .Where(x => x.MessageEventType == eventType)
             .Select(x => x.Envelope.Message)
             .Where(x => x != null)
             .OfType<T>()
@@ -110,11 +108,11 @@ internal class TrackedSession : ITrackedSession
         };
     }
 
-    public EnvelopeRecord[] FindEnvelopesWithMessageType<T>(EventType eventType)
+    public EnvelopeRecord[] FindEnvelopesWithMessageType<T>(MessageEventType eventType)
     {
         return _envelopes
             .SelectMany(x => x.Records)
-            .Where(x => x.EventType == eventType)
+            .Where(x => x.MessageEventType == eventType)
             .Where(x => x.Envelope.Message is T)
             .ToArray();
     }
@@ -132,11 +130,11 @@ internal class TrackedSession : ITrackedSession
         return _envelopes.SelectMany(x => x.Records).OrderBy(x => x.SessionTime).ToArray();
     }
 
-    public EnvelopeRecord[] AllRecordsInOrder(EventType eventType)
+    public EnvelopeRecord[] AllRecordsInOrder(MessageEventType eventType)
     {
         return _envelopes
             .SelectMany(x => x.Records)
-            .Where(x => x.EventType == eventType)
+            .Where(x => x.MessageEventType == eventType)
             .OrderBy(x => x.SessionTime)
             .ToArray();
     }
@@ -148,11 +146,11 @@ internal class TrackedSession : ITrackedSession
             .Distinct().ToList()!;
     }
 
-    public RecordCollection Received => new(EventType.Received, this);
-    public RecordCollection Sent => new(EventType.Sent, this);
+    public RecordCollection Received => new(MessageEventType.Received, this);
+    public RecordCollection Sent => new(MessageEventType.Sent, this);
 
 
-    public RecordCollection Executed => new(EventType.ExecutionFinished, this);
+    public RecordCollection Executed => new(MessageEventType.ExecutionFinished, this);
 
     public void WatchOther(IHost host)
     {
@@ -297,13 +295,16 @@ internal class TrackedSession : ITrackedSession
         }, CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
     }
 
-    public void Record(EventType eventType, Envelope envelope, string? serviceName, int uniqueNodeId,
+    public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, int uniqueNodeId,
         Exception? ex = null)
     {
         if (envelope.Message is ValueTask)
         {
-            throw new Exception("What you doing Willis?");
+            throw new Exception("Whatcha you doing Willis?");
         }
+
+        // Ignore these
+        if (envelope.Message is IInternalMessage) return;
 
         var history = _envelopes[envelope.Id];
 
@@ -337,6 +338,8 @@ internal class TrackedSession : ITrackedSession
 
     public bool IsCompleted()
     {
+        if (_conditions.Any(x => x.IsCompleted())) return true;
+        
         if (!_envelopes.All(x => x.IsComplete()))
         {
             return false;
