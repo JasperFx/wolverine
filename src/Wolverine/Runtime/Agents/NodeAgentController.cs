@@ -14,7 +14,7 @@ public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMes
 
 public record EvaluateAssignments : IInternalMessage;
 
-public record CheckAgentHealth : IInternalMessage;
+
 
 
 
@@ -105,6 +105,7 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         handlers.AddMessageHandler(typeof(EvaluateAssignments),new InternalMessageHandler<EvaluateAssignments>(this));
         handlers.AddMessageHandler(typeof(TryAssumeLeadership),new InternalMessageHandler<TryAssumeLeadership>(this));
         handlers.AddMessageHandler(typeof(CheckAgentHealth),new InternalMessageHandler<CheckAgentHealth>(this));
+        handlers.AddMessageHandler(typeof(VerifyAssignments), new InternalMessageHandler<VerifyAssignments>(this));
         
         handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(runtime));
         
@@ -114,6 +115,8 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         handlers.RegisterMessageType(typeof(AgentsStopped));
         handlers.RegisterMessageType(typeof(StopAgent));
         handlers.RegisterMessageType(typeof(StopAgents));
+        handlers.RegisterMessageType(typeof(QueryAgents));
+        handlers.RegisterMessageType(typeof(RunningAgents));
 
     }
 
@@ -194,6 +197,9 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         try
         {
             await agent.StartAsync(_cancellation);
+            
+            // Need to update the current node
+            _tracker.Publish(new AgentStarted(_runtime.Options.UniqueNodeId, agentUri));
         }
         catch (Exception e)
         {
@@ -240,8 +246,12 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
             _logger.LogError(e, "Error trying to remove the assignment of agent {AgentUri} to Node {NodeId} in persistence", agentUri, _runtime.Options.UniqueNodeId);
         }
     }
-    
-    
+
+
+    public Uri[] AllRunningAgentUris()
+    {
+        return _agents.Enumerate().Select(x => x.Key).ToArray();
+    }
 }
 
 public class AgentStartingException : Exception

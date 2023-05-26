@@ -34,7 +34,7 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
             }
         }   
         
-        _tracker.Publish(new AgentAssignmentsChanged(commands, _tracker.AllNodes().Select(x => x.AssignedNodeId).ToArray()));
+        _tracker.Publish(new AgentAssignmentsChanged(commands, grid));
 
         LastAssignments = grid;
         LastAssignments.EvaluationTime = DateTimeOffset.UtcNow;

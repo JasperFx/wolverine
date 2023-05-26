@@ -78,7 +78,7 @@ public class XUnitLogger : ILogger
             logLevel == LogLevel.Information) return;
         
         var text = formatter(state, exception);
-        //if (_ignoredStrings.Any(x => text.Contains(x))) return;
+        if (_ignoredStrings.Any(x => text.Contains(x))) return;
 
         _testOutputHelper.WriteLine($"{_categoryName}/{logLevel}: {text}");
 

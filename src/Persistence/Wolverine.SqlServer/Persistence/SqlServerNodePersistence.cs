@@ -88,6 +88,31 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         return nodes;
     }
 
+    public async Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime, CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        var cmd = conn
+            .CreateCommand($"select id, uri from {_nodeTable} where health_check < @stale")
+            .With("stale", staleTime);
+        var nodes = await cmd.FetchListAsync<WolverineNode>(async reader =>
+        {
+            var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+            var raw = await reader.GetFieldValueAsync<string>(1, cancellationToken);
+
+            return new WolverineNode
+            {
+                Id = id,
+                ControlUri = new Uri(raw)
+            };
+        }, cancellation: cancellationToken);
+
+        await conn.CloseAsync();
+
+        return nodes;
+    }
+
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
