@@ -35,12 +35,27 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>
     {
         if (value is AgentAssignmentsChanged changed)
         {
-            _output.WriteLine($"Host {_assignedId}: Agent assignments determined for known nodes {changed.AssignedNodeIds.Select(x => x.ToString()).Join(", ")}");
+            _output.WriteLine($"Host {_assignedId}: Agent assignments determined for known nodes {changed.Assignments.Nodes.Select(x => x.ToString()).Join(", ")}");
             if (!changed.Commands.Any()) _output.WriteLine("No assignment changes detected");
-            
-            foreach (var command in changed.Commands)
+
+            foreach (var agent in changed.Assignments.AllAgents)
             {
-                _output.WriteLine($"* {command}");
+                if (agent.ActiveNode == null)
+                {
+                    _output.WriteLine($"* {agent.Uri} is not assigned");
+                }
+                else if (agent.OriginalNode == null)
+                {
+                    _output.WriteLine($"* {agent.Uri} assigned to node {agent.ActiveNode.AssignedId}");
+                }
+                else if (agent.OriginalNode == agent.ActiveNode)
+                {
+                    _output.WriteLine($"* {agent.Uri} is unchanged on node {agent.ActiveNode.AssignedId}");
+                }
+                else
+                {
+                    _output.WriteLine($"* {agent.Uri} reassigned from node {agent.OriginalNode.AssignedId} to node {agent.ActiveNode.AssignedId}");
+                }
             }
         }
         else

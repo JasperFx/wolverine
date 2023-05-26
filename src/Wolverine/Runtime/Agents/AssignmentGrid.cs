@@ -154,6 +154,8 @@ public class AssignmentGrid
     {
         foreach (var assignment in _agents)
         {
+            if (assignment.Key.Scheme == "wolverine") continue;
+            
             if (actuals.TryGetValue(assignment.Key, out var actual))
             {
                 var specified = assignment.Value.ActiveNode;
@@ -326,6 +328,11 @@ public class AssignmentGrid
             agent.ActiveNode = this;
             _agents.Fill(agent);
         }
+
+        public override string ToString()
+        {
+            return $"{nameof(AssignedId)}: {AssignedId}, {nameof(NodeId)}: {NodeId}";
+        }
     }
 
     public Dictionary<Uri, Guid> CompileAssignments()
@@ -341,4 +348,6 @@ public class AssignmentGrid
 
         return dict;
     }
+    
+    
 }

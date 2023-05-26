@@ -33,6 +33,11 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
         Nodes[node.Id] = node;
 
         if (node.IsLeader()) Leader = node;
+
+        foreach (var agent in node.ActiveAgents)
+        {
+            Agents[agent] = node.Id;
+        }
         
         return node;
     }

@@ -73,6 +73,11 @@ public partial class WolverineRuntime : IAgentRuntime
         throw new UnknownWolverineNodeException(nodeId);
     }
 
+    public Uri[] AllRunningAgentUris()
+    {
+        return _agents.AllRunningAgentUris();
+    }
+
     public IAgentRuntime Agents => this;
 
     private async Task startAgentsAsync()

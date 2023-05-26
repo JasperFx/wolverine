@@ -276,7 +276,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             nodeTable.AddColumn<string>("description").NotNull();
             nodeTable.AddColumn<string>("uri").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("now()").NotNull();
-            nodeTable.AddColumn<DateTimeOffset>("health_check").AllowNulls();
+            nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull().DefaultValueByExpression("now()");
             nodeTable.AddColumn("capabilities", "text[]").AllowNulls();
 
             yield return nodeTable;

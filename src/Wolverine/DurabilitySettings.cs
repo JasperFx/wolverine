@@ -67,7 +67,7 @@ public class DurabilitySettings
     
     // TODO -- add Xml API comments
     public TimeSpan FirstHealthCheckExecution { get; set; } = 3.Seconds();
-    public TimeSpan HealthCheckPollingTime { get; set; } = 5.Seconds();
+    public TimeSpan HealthCheckPollingTime { get; set; } = 10.Seconds();
 
     public TimeSpan StaleNodeTimeout { get; set; } = 1.Minutes();
     
@@ -76,6 +76,14 @@ public class DurabilitySettings
     /// to prevent unnecessary assignment operations
     /// </summary>
     public TimeSpan EvaluateAssignmentBufferTime { get; set; } = 1.Seconds();
+
+    /// <summary>
+    /// How often should Wolverine do a full check that all assigned agents are
+    /// really running and try to restart (or stop) any differences from the last
+    /// good set of assignments
+    /// </summary>
+    public TimeSpan CheckAssignmentPeriod { get; set; } = 30.Seconds();
+
 
     /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is

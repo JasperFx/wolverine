@@ -63,6 +63,7 @@ public interface IAgentRuntime
     Task InvokeAsync(Guid nodeId, IAgentCommand command);
 
     Task<T> InvokeAsync<T>(Guid nodeId, IAgentCommand command) where T : class;
+    Uri[] AllRunningAgentUris();
 }
 
 internal interface IExecutorFactory

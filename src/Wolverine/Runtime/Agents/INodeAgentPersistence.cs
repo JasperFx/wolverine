@@ -16,6 +16,8 @@ public interface INodeAgentPersistence
     Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken);
     Task MarkHealthCheckAsync(Guid nodeId);
     Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId);
-    
-    
+
+
+    Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime, CancellationToken cancellation);
 }
+
