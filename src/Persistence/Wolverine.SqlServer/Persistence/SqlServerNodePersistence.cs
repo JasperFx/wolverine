@@ -113,6 +113,19 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         return nodes;
     }
 
+    public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        await conn.CreateCommand($"update {_nodeTable} set health_check = @now where id = @id")
+            .With("id", nodeId)
+            .With("now", lastHeartbeatTime)
+            .ExecuteNonQueryAsync();
+
+        await conn.CloseAsync();
+    }
+
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
