@@ -12,8 +12,16 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
     public override void Customize(ModelBuilder modelBuilder, DbContext context)
     {
         base.Customize(modelBuilder, context);
+
+        var customizationOptions = context.Database.GetService<WolverineDbContextCustomizationOptions>();
         
-        // TODO -- allow the database schema name to be poked in somehow
-        modelBuilder.MapWolverineEnvelopeStorage();
+        modelBuilder.MapWolverineEnvelopeStorage(customizationOptions?.DatabaseSchema);
     }
+}
+
+public class WolverineDbContextCustomizationOptions
+{
+    public string? DatabaseSchema { get; init; }
+
+    public static WolverineDbContextCustomizationOptions Default => new WolverineDbContextCustomizationOptions { DatabaseSchema = null };
 }

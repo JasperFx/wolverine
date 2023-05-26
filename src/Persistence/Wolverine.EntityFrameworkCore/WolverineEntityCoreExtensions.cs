@@ -19,9 +19,10 @@ public static class WolverineEntityCoreExtensions
     /// </summary>
     /// <param name="services"></param>
     /// <param name="configure"></param>
+    /// <param name="wolverineDatabaseSchema"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static IServiceCollection AddDbContextWithWolverineIntegration<T>(this IServiceCollection services, Action<DbContextOptionsBuilder> configure) where T : DbContext
+    public static IServiceCollection AddDbContextWithWolverineIntegration<T>(this IServiceCollection services, Action<DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
         services.AddDbContext<T>(b =>
         {
@@ -30,6 +31,10 @@ public static class WolverineEntityCoreExtensions
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
+
+        services.AddSingleton<WolverineDbContextCustomizationOptions>(ctx => 
+            string.IsNullOrEmpty(wolverineDatabaseSchema) ? 
+                WolverineDbContextCustomizationOptions.Default : new WolverineDbContextCustomizationOptions { DatabaseSchema = wolverineDatabaseSchema});
 
         return services;
     }
