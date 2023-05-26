@@ -28,13 +28,13 @@ public class ReassignAgentTests : IAsyncLifetime
     [Fact]
     public async Task should_stop_the_currently_running_agent()
     {
-        await theRuntime.Agents.Received().InvokeAsync(theCommand.CurrentNodeId, new StopAgent(theCommand.AgentUri));
+        await theRuntime.Agents.Received().InvokeAsync(theCommand.OriginalNodeId, new StopAgent(theCommand.AgentUri));
     }
 
     [Fact]
     public void should_cascade_a_command_to_start_the_agent_on_next_node()
     {
-        theCascadingMessages.Single().ShouldBe(new AssignAgent(theCommand.AgentUri, theCommand.NewNodeId));
+        theCascadingMessages.Single().ShouldBe(new AssignAgent(theCommand.AgentUri, theCommand.ActiveNodeId));
     }
 
     [Fact]
