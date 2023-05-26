@@ -200,6 +200,8 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
             
             // Need to update the current node
             _tracker.Publish(new AgentStarted(_runtime.Options.UniqueNodeId, agentUri));
+            
+            _logger.LogInformation("Successfully started agent {AgentUri}", agentUri);
         }
         catch (Exception e)
         {
@@ -228,6 +230,7 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
             try
             {
                 await agent.StopAsync(_cancellation);
+                _logger.LogInformation("Successfully stopped agent {AgentUri}", agentUri);
             }
             catch (Exception e)
             {

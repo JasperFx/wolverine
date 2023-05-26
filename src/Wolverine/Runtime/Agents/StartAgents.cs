@@ -12,6 +12,8 @@ internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand
     {
         var startAgents = new StartAgents(AgentIds);
         var response = await runtime.Agents.InvokeAsync<AgentsStarted>(NodeId, startAgents);
+        
+        runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeId}", AgentIds, NodeId);
 
         foreach (var uri in response.AgentUris)
         {
