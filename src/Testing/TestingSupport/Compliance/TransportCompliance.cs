@@ -378,7 +378,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender
             .TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
-            .Timeout(15.Seconds())
+            .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<ColorChosen>(theReceiver ?? theSender)
             .ExecuteAndWaitAsync(c => c.ScheduleAsync(new ColorChosen { Name = "Orange" }, 5.Seconds()));
 

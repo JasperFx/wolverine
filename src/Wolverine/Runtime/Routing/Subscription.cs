@@ -5,6 +5,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using Wolverine.Runtime.Agents;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.Routing;
@@ -81,7 +82,7 @@ public class Subscription
                                  type.ToMessageTypeName().EqualsIgnoreCase(Match!),
             RoutingScope.TypeName => type.ToMessageTypeName().EqualsIgnoreCase(Match!),
             RoutingScope.Implements => type.CanBeCastTo(BaseType),
-            _ => true
+            _ => !type.CanBeCastTo<IAgentCommand>() && !type.CanBeCastTo<IInternalMessage>()
         };
     }
     

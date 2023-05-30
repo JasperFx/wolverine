@@ -12,6 +12,7 @@ using Lamar;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.RemoteInvocation;
 
 namespace Wolverine.Tracking;
 
@@ -304,7 +305,7 @@ internal class TrackedSession : ITrackedSession
         }
 
         // Ignore these
-        if (envelope.Message is IInternalMessage) return;
+        if (envelope.Message is IInternalMessage || envelope.Message is IAgentCommand || envelope.Message is Acknowledgement) return;
 
         var history = _envelopes[envelope.Id];
 
