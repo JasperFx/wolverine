@@ -19,7 +19,7 @@ internal class MoveReplayableErrorMessagesToIncomingOperation : IDatabaseOperati
     public void ConfigureCommand(DbCommandBuilder builder)
     {
         builder.Append($"insert into {_database.SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) ");
-        builder.Append($"select {DatabaseConstants.Body}, {DatabaseConstants.Id}, '{EnvelopeStatus.Incoming}', 0, null, 0, {DatabaseConstants.MessageType}, {DatabaseConstants.ReceivedAt}");
+        builder.Append($"select {DatabaseConstants.Body}, {DatabaseConstants.Id}, '{EnvelopeStatus.Incoming}', 0, null, 0, {DatabaseConstants.MessageType}, {DatabaseConstants.ReceivedAt} ");
         builder.Append($"from {_database.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = @replayable;");
         builder.AddNamedParameter("replayable", true);
         builder.Append($"delete from {_database.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = @replayable;");

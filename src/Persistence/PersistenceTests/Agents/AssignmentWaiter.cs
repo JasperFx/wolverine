@@ -45,7 +45,7 @@ internal class AssignmentWaiter : IObserver<IWolverineEvent>
     {
         foreach (var pair in AgentCountByHost)
         {
-            var runningCount = _tracker.Agents.Count(x => x.Value == pair.Key);
+            var runningCount = _tracker.Agents.Where(x => !x.Key.Scheme.StartsWith("wolverine")).Count(x => x.Value == pair.Key);
             if (pair.Value != runningCount) return false;
         }
 
