@@ -17,7 +17,6 @@ internal class DurabilityAgent : IDurabilityAgent
     private readonly ILogger _logger;
     private readonly IDurabilityAction _nodeReassignment;
     private readonly IDurabilityAction _outgoingMessages;
-    private readonly IDurabilityAction _scheduledJobs;
     private readonly MoveReplayableErrorMessagesToIncoming _moveReplayable;
     private readonly DurabilitySettings _settings;
 
@@ -57,7 +56,6 @@ internal class DurabilityAgent : IDurabilityAgent
         _outgoingMessages = new RecoverOutgoingMessages(runtime, logger);
         _nodeReassignment = new NodeReassignment(logger);
         _deleteExpired = new DeleteExpiredHandledEnvelopes();
-        _scheduledJobs = new RunScheduledJobs(settings, logger);
         _moveReplayable = new MoveReplayableErrorMessagesToIncoming();
     }
 
