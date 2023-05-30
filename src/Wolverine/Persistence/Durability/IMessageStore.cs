@@ -62,10 +62,7 @@ public interface IMessageStore : IAsyncDisposable
 
     [Obsolete("Will have to have tenant id now?, or all dead letter queue goes to main DB?")]
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
-
-
-    IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container);
-
+    
     Task DrainAsync();
 }
 

@@ -10,6 +10,7 @@ public interface IMessageDatabase : IMessageStore
 {
     public DurabilitySettings Durability { get; }
 
+    [Obsolete]
     IDurableStorageSession Session { get; }
 
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);

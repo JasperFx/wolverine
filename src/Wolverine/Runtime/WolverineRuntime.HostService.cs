@@ -36,8 +36,6 @@ public partial class WolverineRuntime
 
             startInMemoryScheduledJobs();
 
-            await startDurabilityAgentAsync();
-
             await startAgentsAsync();
 
             _hasStarted = true;
@@ -61,11 +59,6 @@ public partial class WolverineRuntime
 
         // This is important!
         _container.As<Container>().DisposalLock = DisposalLock.Unlocked;
-
-        if (Durability != null)
-        {
-            await Durability.StopAsync(cancellationToken);
-        }
 
         await Storage.DrainAsync();
 
@@ -145,19 +138,7 @@ public partial class WolverineRuntime
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
     }
-
-    private Task startDurabilityAgentAsync()
-    {
-        if (!Options.Durability.DurabilityAgentEnabled)
-        {
-            return Task.CompletedTask;
-        }
-
-        var store = _container.GetInstance<IMessageStore>();
-        Durability = store.BuildDurabilityAgent(this, _container);
-        return Durability.StartAsync(Options.Durability.Cancellation);
-    }
-
+    
     internal async Task StartLightweightAsync()
     {
         if (_hasStarted)

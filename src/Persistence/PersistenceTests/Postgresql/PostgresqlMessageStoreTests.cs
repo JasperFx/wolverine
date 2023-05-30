@@ -9,12 +9,14 @@ using PersistenceTests.Marten;
 using PersistenceTests.Marten.Persistence;
 using Shouldly;
 using TestingSupport;
+using Weasel.Core;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
+using Wolverine.RDBMS.Polling;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
@@ -187,19 +189,19 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
 
         await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
-        await thePersistence.Session.BeginAsync();
-
-        var settings = theHost.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>();
-        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session,
-            DateTimeOffset.UtcNow.Add(1.Hours()), settings);
-
-        await thePersistence.Session.CommitAsync();
+        var hourAgo = DateTimeOffset.UtcNow.Add(1.Hours());
+        var operation = new DeleteExpiredEnvelopesOperation(new DbObjectName("receiver", DatabaseConstants.IncomingTable), hourAgo);
+        var batch = new DatabaseOperationBatch(thePersistence, new IDatabaseOperation[] { operation });
+        await theHost.InvokeAsync(batch);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
         counts.Incoming.ShouldBe(0);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
+        
+        // Now, let's set the keep until in the past
+        
     }
 
     [Fact]
@@ -257,20 +259,15 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
 
-        var settings = theHost.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>();
-
         // make one of the messages(DivideByZeroException) replayable
         var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
             .Admin
             .MarkDeadLetterEnvelopesAsReplayableAsync(divideByZeroException.GetType().FullName!);
 
-        await thePersistence.Session.BeginAsync();
-
         // run the action
-        await new MoveReplayableErrorMessagesToIncoming()
-            .MoveReplayableErrorMessagesToIncomingAsync(thePersistence.Session, settings);
-
-        await thePersistence.Session.CommitAsync();
+        var operation = new MoveReplayableErrorMessagesToIncomingOperation(thePersistence);
+        var batch = new DatabaseOperationBatch(thePersistence, new IDatabaseOperation[] { operation });
+        await theHost.InvokeAsync(batch);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
@@ -293,6 +290,8 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         for (var i = 0; i < 100; i++)
         {
             var envelope = ObjectMother.Envelope();
+            envelope.Destination = TransportConstants.DurableLocalUri;
+            
             list.Add(envelope);
 
             if (random.Next(0, 10) > 6)
@@ -327,16 +326,16 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
 
 
         var settings = theHost.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>();
-        var counts = await RecoverIncomingMessages.LoadAtLargeIncomingCountsAsync(thePersistence.Session, settings);
 
+        var counts1 = await settings.LoadPageOfGloballyOwnedIncomingAsync(localOne, 1000);
+        var counts2 = await settings.LoadPageOfGloballyOwnedIncomingAsync(localTwo, 1000);
 
-        counts[0].Destination.ShouldBe(localOne);
-        counts[0].Count.ShouldBe(list.Count(x =>
+        
+        counts1.Count.ShouldBe(list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localOne));
 
-        counts[1].Destination.ShouldBe(localTwo);
-        counts[1].Count.ShouldBe(list.Count(x =>
+        counts2.Count.ShouldBe(list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localTwo));
     }

@@ -6,10 +6,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using TestingSupport;
+using Weasel.Core;
 using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
+using Wolverine.RDBMS.Polling;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using Wolverine.Transports;
@@ -112,18 +114,16 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     [Fact]
     public async Task delete_expired_envelopes()
     {
-        var envelope = ObjectMother.Envelope();
+        var envelope = Marten.Persistence.ObjectMother.Envelope();
 
         await thePersistence.Inbox.StoreIncomingAsync(envelope);
 
-        await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance,
-            -1000);
-        await thePersistence.Session.BeginAsync();
-        var settings = theHost.Services.GetRequiredService<SqlServerMessageStore>();
-        await new DeleteExpiredHandledEnvelopes().DeleteExpiredHandledEnvelopesAsync(thePersistence.Session,
-            DateTimeOffset.UtcNow.Add(1.Hours()), settings);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
-        await thePersistence.Session.CommitAsync();
+        var hourAgo = DateTimeOffset.UtcNow.Add(1.Hours());
+        var operation = new DeleteExpiredEnvelopesOperation(new DbObjectName("receiver", DatabaseConstants.IncomingTable), hourAgo);
+        var batch = new DatabaseOperationBatch(thePersistence, new IDatabaseOperation[] { operation });
+        await theHost.InvokeAsync(batch);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
@@ -152,21 +152,15 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
 
-        var settings = theHost.Services.GetRequiredService<SqlServerMessageStore>();
-
         // make one of the messages(DivideByZeroException) replayable
         var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
             .Admin
             .MarkDeadLetterEnvelopesAsReplayableAsync(divideByZeroException.GetType().FullName!);
 
-        await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance, 12345678);
-        await thePersistence.Session.BeginAsync();
-
         // run the action
-        await new MoveReplayableErrorMessagesToIncoming()
-            .MoveReplayableErrorMessagesToIncomingAsync(thePersistence.Session, settings);
-
-        await thePersistence.Session.CommitAsync();
+        var operation = new MoveReplayableErrorMessagesToIncomingOperation(thePersistence);
+        var batch = new DatabaseOperationBatch(thePersistence, new IDatabaseOperation[] { operation });
+        await theHost.InvokeAsync(batch);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
@@ -532,6 +526,8 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         for (var i = 0; i < 100; i++)
         {
             var envelope = ObjectMother.Envelope();
+            envelope.Destination = TransportConstants.DurableLocalUri;
+            
             list.Add(envelope);
 
             if (random.Next(0, 10) > 6)
@@ -564,19 +560,18 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         await thePersistence.Inbox.StoreIncomingAsync(list);
 
-        await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance, 5);
-        await thePersistence.Session.BeginAsync();
-        var settings = theHost.Services.GetRequiredService<SqlServerMessageStore>();
-        var counts = await RecoverIncomingMessages.LoadAtLargeIncomingCountsAsync(thePersistence.Session, settings);
 
+        var settings = theHost.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<SqlServerMessageStore>();
 
-        counts[0].Destination.ShouldBe(localOne);
-        counts[0].Count.ShouldBe(list.Count(x =>
+        var counts1 = await settings.LoadPageOfGloballyOwnedIncomingAsync(localOne, 1000);
+        var counts2 = await settings.LoadPageOfGloballyOwnedIncomingAsync(localTwo, 1000);
+
+        
+        counts1.Count.ShouldBe(list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localOne));
 
-        counts[1].Destination.ShouldBe(localTwo);
-        counts[1].Count.ShouldBe(list.Count(x =>
+        counts2.Count.ShouldBe(list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localTwo));
     }
