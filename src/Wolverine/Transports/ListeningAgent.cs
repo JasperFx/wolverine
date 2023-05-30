@@ -100,7 +100,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     {
         if (_receiver is ILocalQueue queue)
         {
-            var uniqueNodeId = _runtime.DurabilitySettings.NodeLockId;
+            var uniqueNodeId = _runtime.DurabilitySettings.AssignedNodeNumber;
             foreach (var envelope in envelopes)
             {
                 envelope.OwnerId = uniqueNodeId;

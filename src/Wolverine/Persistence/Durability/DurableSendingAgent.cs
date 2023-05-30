@@ -42,7 +42,7 @@ internal class DurableSendingAgent : SendingAgent
 
         _storeAndForward = new RetryBlock<Envelope>(async (e, _) =>
         {
-            await _outbox.StoreOutgoingAsync(e, _settings.NodeLockId);
+            await _outbox.StoreOutgoingAsync(e, _settings.AssignedNodeNumber);
 
             await _sending.PostAsync(e);
         }, _logger, settings.Cancellation);

@@ -163,7 +163,7 @@ public class EnvelopeTests
         envelope.MarkReceived(listener, DateTimeOffset.Now, settings);
 
         envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.NodeLockId);
+        envelope.OwnerId.ShouldBe(settings.AssignedNodeNumber);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class EnvelopeTests
         envelope.MarkReceived(listener, DateTimeOffset.Now, settings);
 
         envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.NodeLockId);
+        envelope.OwnerId.ShouldBe(settings.AssignedNodeNumber);
     }
 
     [Fact]
@@ -347,7 +347,7 @@ public class EnvelopeTests
         envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
 
         envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.NodeLockId);
+        envelope.OwnerId.ShouldBe(settings.AssignedNodeNumber);
     }
 
     [Fact]
@@ -403,7 +403,7 @@ public class EnvelopeTests
         envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, settings);
 
         envelope.Status.ShouldBe(EnvelopeStatus.Incoming);
-        envelope.OwnerId.ShouldBe(settings.NodeLockId);
+        envelope.OwnerId.ShouldBe(settings.AssignedNodeNumber);
     }
 
     [Fact]

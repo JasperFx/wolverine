@@ -51,7 +51,7 @@ public abstract partial class MessageDatabase<T>
 
     public Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.NodeLockId, this);
+        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.AssignedNodeNumber, this);
         cmd.Connection = tx.Connection;
         cmd.Transaction = tx;
 

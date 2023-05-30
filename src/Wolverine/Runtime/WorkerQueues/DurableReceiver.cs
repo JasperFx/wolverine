@@ -153,7 +153,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         await _moveToErrors.DrainAsync();
         await _receivingOne.DrainAsync();
 
-        await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.NodeLockId, Uri));
+        await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
     }
 
 
@@ -261,6 +261,6 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
     public Task ClearInFlightIncomingAsync()
     {
-        return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.NodeLockId, Uri));
+        return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
     }
 }

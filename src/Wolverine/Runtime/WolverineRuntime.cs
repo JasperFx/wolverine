@@ -24,7 +24,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     private readonly Lazy<IMessageStore> _persistence;
 
     private readonly string _serviceName;
-    private readonly int _uniqueNodeId;
+    private readonly Guid _uniqueNodeId;
 
     private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
     private bool _hasStopped;
@@ -45,7 +45,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         Logger.LogInformation("Exporting Open Telemetry metrics from Wolverine with name {Name}, version {Version}",
             Meter.Name, Meter.Version);
 
-        _uniqueNodeId = options.Durability.NodeLockId;
+        _uniqueNodeId = options.UniqueNodeId;
         _serviceName = options.ServiceName ?? "WolverineService";
 
         var provider = container.GetInstance<ObjectPoolProvider>();

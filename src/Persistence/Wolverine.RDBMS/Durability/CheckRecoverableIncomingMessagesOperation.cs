@@ -130,7 +130,7 @@ internal class RecoverableIncomingMessagesOperation : IAgentCommand
         
         // TODO - this will have to be changed in the underlying to not use the existing database session
         var envelopes = await _database.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
-        await _database.ReassignIncomingAsync(_settings.NodeLockId, envelopes);
+        await _database.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
         
         _circuit.EnqueueDirectly(envelopes);
         _logger.RecoveredIncoming(envelopes);

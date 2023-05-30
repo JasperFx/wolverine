@@ -27,6 +27,11 @@ public class WaitForMessageTester
         waiter.IsCompleted().ShouldBe(isCompleted);
     }
 
+    public static Guid[] guids = new[]
+    {
+        Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+    };
+
     [Theory]
     [InlineData(MessageEventType.Received, typeof(Message1), 1, false)]
     [InlineData(MessageEventType.Sent, typeof(Message1), 1, false)]
@@ -42,14 +47,14 @@ public class WaitForMessageTester
     {
         var waiter = new WaitForMessage<Message1>
         {
-            UniqueNodeId = 5
+            UniqueNodeId = guids[5]
         };
 
         var message = Activator.CreateInstance(messageType);
 
         waiter.Record(new EnvelopeRecord(eventType, new Envelope(message), 100, null)
         {
-            UniqueNodeId = nodeId
+            UniqueNodeId = guids[nodeId]
         });
 
         waiter.IsCompleted().ShouldBe(isCompleted);

@@ -6,7 +6,7 @@ internal class WaitForMessage<T> : ITrackedCondition
 {
     private bool _isCompleted;
 
-    public int UniqueNodeId { get; set; }
+    public Guid UniqueNodeId { get; set; }
 
     public void Record(EnvelopeRecord record)
     {
@@ -17,7 +17,7 @@ internal class WaitForMessage<T> : ITrackedCondition
 
         if (record.Envelope.Message is T)
         {
-            if (UniqueNodeId != 0 && UniqueNodeId != record.UniqueNodeId)
+            if (UniqueNodeId != Guid.Empty && UniqueNodeId != record.UniqueNodeId)
             {
                 return;
             }
@@ -34,7 +34,7 @@ internal class WaitForMessage<T> : ITrackedCondition
     public override string ToString()
     {
         var description = $"Wait for message of type {typeof(T).GetFullName()} to be received";
-        if (UniqueNodeId != 0)
+        if (UniqueNodeId != Guid.Empty)
         {
             description += " at node " + UniqueNodeId;
         }

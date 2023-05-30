@@ -48,7 +48,7 @@ public class EnvelopeRecord
 
     public bool IsComplete { get; internal set; }
     public string? ServiceName { get; set; }
-    public int UniqueNodeId { get; set; }
+    public Guid UniqueNodeId { get; set; }
 
     public override string ToString()
     {

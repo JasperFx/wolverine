@@ -26,7 +26,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
         var persisted = (await afterReceivingTheEnvelopes()).Single();
 
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
-        persisted.OwnerId.ShouldBe(theSettings.NodeLockId);
+        persisted.OwnerId.ShouldBe(theSettings.AssignedNodeNumber);
 
         assertEnvelopeWasEnqueued(envelope);
     }
@@ -38,7 +38,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
         var persisted = (await afterReceivingTheEnvelopes()).Single();
 
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
-        persisted.OwnerId.ShouldBe(theSettings.NodeLockId);
+        persisted.OwnerId.ShouldBe(theSettings.AssignedNodeNumber);
 
         assertEnvelopeWasEnqueued(envelope);
     }

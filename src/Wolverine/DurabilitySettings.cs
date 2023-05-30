@@ -61,7 +61,7 @@ public class DurabilitySettings
     /// </summary>
     public TimeSpan ScheduledJobPollingTime { get; set; } = 5.Seconds();
 
-    public int NodeLockId { get; internal set; } = Guid.NewGuid().ToString().GetDeterministicHashCode();
+    public int AssignedNodeNumber { get; internal set; } = Guid.NewGuid().ToString().GetDeterministicHashCode();
 
     public CancellationToken Cancellation => _cancellation.Token;
     

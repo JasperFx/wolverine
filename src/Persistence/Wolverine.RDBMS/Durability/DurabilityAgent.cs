@@ -68,7 +68,7 @@ internal class DurabilityAgent : IDurabilityAgent
 
         if (_database.Session.IsConnected())
         {
-            await _database.Session.ReleaseNodeLockAsync(_settings.NodeLockId);
+            await _database.Session.ReleaseNodeLockAsync(_settings.AssignedNodeNumber);
         }
         
         await _database.DisposeAsync();
@@ -146,13 +146,13 @@ internal class DurabilityAgent : IDurabilityAgent
         {
             await _worker.Completion;
 
-            await _database.Session.ReleaseNodeLockAsync(_settings.NodeLockId);
+            await _database.Session.ReleaseNodeLockAsync(_settings.AssignedNodeNumber);
 
             // Release all envelopes tagged to this node in message persistence to any node
-            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_database.Session, _settings.NodeLockId,
+            await NodeReassignment.ReassignDormantNodeToAnyNodeAsync(_database.Session, _settings.AssignedNodeNumber,
                 WolverineDatabase);
 
-            await _database.Inbox.ReleaseIncomingAsync(_settings.NodeLockId);
+            await _database.Inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber);
         }
         catch (Exception e)
         {
@@ -201,10 +201,10 @@ internal class DurabilityAgent : IDurabilityAgent
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to run {Action}", action);
-            await _database.Session.ReleaseNodeLockAsync(_settings.NodeLockId);
+            await _database.Session.ReleaseNodeLockAsync(_settings.AssignedNodeNumber);
         }
 
-        await _database.Session.GetNodeLockAsync(_settings.NodeLockId);
+        await _database.Session.GetNodeLockAsync(_settings.AssignedNodeNumber);
     }
 
     private async Task tryRestartConnectionAsync()
@@ -216,7 +216,7 @@ internal class DurabilityAgent : IDurabilityAgent
 
         try
         {
-            await _database.Session.ConnectAndLockCurrentNodeAsync(_logger, _settings.NodeLockId);
+            await _database.Session.ConnectAndLockCurrentNodeAsync(_logger, _settings.AssignedNodeNumber);
         }
         catch (Exception? e)
         {

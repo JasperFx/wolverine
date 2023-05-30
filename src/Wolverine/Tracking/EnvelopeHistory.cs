@@ -165,7 +165,7 @@ internal class EnvelopeHistory
         _records.Add(record);
     }
 
-    private void markLastCompleted(MessageEventType eventType, int uniqueNodeId)
+    private void markLastCompleted(MessageEventType eventType, Guid uniqueNodeId)
     {
         var record = _records.LastOrDefault(x => x.MessageEventType == eventType && x.UniqueNodeId == uniqueNodeId);
         if (record != null)

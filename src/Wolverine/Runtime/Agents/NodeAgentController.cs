@@ -66,6 +66,7 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         var current = WolverineNode.For(command.Options);
         
         current.AssignedNodeId = await _persistence.PersistAsync(current, _cancellation);
+        _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId;
         
         _logger.LogInformation("Starting agents for Node {NodeId} with assigned node id {Id}", command.Options.UniqueNodeId, current.AssignedNodeId);
         
