@@ -66,7 +66,7 @@ internal class DatabaseAgent : IAgent
                 new RunScheduledMessagesOperation(_database, _settings, _localQueue),
                 new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
                 new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
-                new DeleteExpiredEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable)),
+                new DeleteExpiredEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
                 new MoveReplayableErrorMessagesToIncomingOperation(_database),
                 
             };

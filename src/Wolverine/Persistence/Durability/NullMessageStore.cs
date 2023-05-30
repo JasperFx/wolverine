@@ -139,11 +139,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return new ValueTask();
     }
 
-    public IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container)
-    {
-        return new NullDurabilityAgent();
-    }
-
     public Task DrainAsync()
     {
         return Task.CompletedTask;
@@ -220,36 +215,4 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         throw new NotSupportedException();
     }
 
-    internal class NullDurabilityAgent : IDurabilityAgent
-    {
-        public Task StartAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        public void EnqueueLocally(Envelope envelope)
-        {
-            // Nothing
-        }
-
-        public void RescheduleIncomingRecovery()
-        {
-            // Nothing
-        }
-
-        public void RescheduleOutgoingRecovery()
-        {
-            // Nothing
-        }
-    }
 }

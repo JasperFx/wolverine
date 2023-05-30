@@ -10,17 +10,19 @@ namespace Wolverine.RDBMS.Durability;
 internal class DeleteExpiredEnvelopesOperation : IDatabaseOperation
 {
     private readonly DbObjectName _incomingTable;
+    private readonly DateTimeOffset _utcNow;
 
-    public DeleteExpiredEnvelopesOperation(DbObjectName incomingTable)
+    public DeleteExpiredEnvelopesOperation(DbObjectName incomingTable, DateTimeOffset utcNow)
     {
         _incomingTable = incomingTable;
+        _utcNow = utcNow;
     }
 
     public string Description => "Delete expired incoming envelopes";
     public void ConfigureCommand(DbCommandBuilder builder)
     {
         builder.Append($"delete from {_incomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= ");
-        builder.AppendParameter(DateTimeOffset.UtcNow);
+        builder.AppendParameter(_utcNow);
         builder.Append(";");
     }
 

@@ -154,12 +154,19 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             .WithIdList(this, envelopes).ExecuteOnce(_cancellation);
     }
 
-    public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
+    public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
-        return Session.CreateCommand(_findAtLargeEnvelopesSql)
+        await using var conn = CreateConnection();
+        await conn.OpenAsync();
+        
+        var list = await conn.CreateCommand(_findAtLargeEnvelopesSql)
             .With("address", listenerAddress.ToString())
             .With("limit", limit)
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
+
+        await conn.CloseAsync();
+
+        return list;
     }
 
     public override async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)

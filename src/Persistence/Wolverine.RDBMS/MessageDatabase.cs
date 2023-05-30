@@ -138,15 +138,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-    public IDurabilityAgent BuildDurabilityAgent(IWolverineRuntime runtime, IContainer container)
-    {
-        var durabilityLogger = container.GetInstance<ILogger<DurabilityAgent>>();
-
-        var worker = new DurableReceiver(new LocalQueue("scheduled"), runtime, runtime.Pipeline);
-        return new DurabilityAgent(runtime, runtime.LoggerFactory.CreateLogger<DurabilityAgent>(), durabilityLogger, worker, this,
-            runtime.Options.Durability, this);
-    }
-
     public Task DrainAsync()
     {
         return _batcher.DrainAsync();
