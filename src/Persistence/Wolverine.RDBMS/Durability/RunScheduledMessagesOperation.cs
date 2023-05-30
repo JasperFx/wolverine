@@ -49,7 +49,7 @@ internal class RunScheduledMessagesOperation : IDatabaseOperation, IAgentCommand
 
     public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
-        await _database.ReassignIncomingAsync(_settings.NodeLockId, _envelopes);
+        await _database.ReassignIncomingAsync(_settings.AssignedNodeNumber, _envelopes);
 
         foreach (var envelope in _envelopes)
         {

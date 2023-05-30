@@ -36,25 +36,25 @@ public class WolverineOptionsTests
         var options5 = new DurabilitySettings();
         var options6 = new DurabilitySettings();
 
-        options1.NodeLockId.ShouldNotBe(options2.NodeLockId);
-        options1.NodeLockId.ShouldNotBe(options3.NodeLockId);
-        options1.NodeLockId.ShouldNotBe(options4.NodeLockId);
-        options1.NodeLockId.ShouldNotBe(options5.NodeLockId);
-        options1.NodeLockId.ShouldNotBe(options6.NodeLockId);
+        options1.AssignedNodeNumber.ShouldNotBe(options2.AssignedNodeNumber);
+        options1.AssignedNodeNumber.ShouldNotBe(options3.AssignedNodeNumber);
+        options1.AssignedNodeNumber.ShouldNotBe(options4.AssignedNodeNumber);
+        options1.AssignedNodeNumber.ShouldNotBe(options5.AssignedNodeNumber);
+        options1.AssignedNodeNumber.ShouldNotBe(options6.AssignedNodeNumber);
 
-        options2.NodeLockId.ShouldNotBe(options3.NodeLockId);
-        options2.NodeLockId.ShouldNotBe(options4.NodeLockId);
-        options2.NodeLockId.ShouldNotBe(options5.NodeLockId);
-        options2.NodeLockId.ShouldNotBe(options6.NodeLockId);
+        options2.AssignedNodeNumber.ShouldNotBe(options3.AssignedNodeNumber);
+        options2.AssignedNodeNumber.ShouldNotBe(options4.AssignedNodeNumber);
+        options2.AssignedNodeNumber.ShouldNotBe(options5.AssignedNodeNumber);
+        options2.AssignedNodeNumber.ShouldNotBe(options6.AssignedNodeNumber);
 
-        options3.NodeLockId.ShouldNotBe(options4.NodeLockId);
-        options3.NodeLockId.ShouldNotBe(options5.NodeLockId);
-        options3.NodeLockId.ShouldNotBe(options6.NodeLockId);
+        options3.AssignedNodeNumber.ShouldNotBe(options4.AssignedNodeNumber);
+        options3.AssignedNodeNumber.ShouldNotBe(options5.AssignedNodeNumber);
+        options3.AssignedNodeNumber.ShouldNotBe(options6.AssignedNodeNumber);
 
-        options4.NodeLockId.ShouldNotBe(options5.NodeLockId);
-        options4.NodeLockId.ShouldNotBe(options6.NodeLockId);
+        options4.AssignedNodeNumber.ShouldNotBe(options5.AssignedNodeNumber);
+        options4.AssignedNodeNumber.ShouldNotBe(options6.AssignedNodeNumber);
 
-        options5.NodeLockId.ShouldNotBe(options6.NodeLockId);
+        options5.AssignedNodeNumber.ShouldNotBe(options6.AssignedNodeNumber);
     }
 
     [Fact]

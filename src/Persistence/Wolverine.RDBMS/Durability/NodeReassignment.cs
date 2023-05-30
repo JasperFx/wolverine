@@ -31,7 +31,7 @@ internal class NodeReassignment : IDurabilityAction
 
         foreach (var owner in owners.Where(x => x != TransportConstants.AnyNode))
         {
-            if (owner == durabilitySettings.NodeLockId)
+            if (owner == durabilitySettings.AssignedNodeNumber)
             {
                 continue;
             }
@@ -86,7 +86,7 @@ union
 select distinct owner_id from {wolverineDatabase.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id != 0 and owner_id != @owner";
 
         var list = await session.Transaction.CreateCommand(sql)
-            .With("owner", durabilitySettings.NodeLockId)
+            .With("owner", durabilitySettings.AssignedNodeNumber)
             .FetchListAsync<int>(session.Cancellation);
 
         return list.ToArray();

@@ -112,14 +112,15 @@ public class when_determining_if_the_session_is_done : IDisposable
     {
         var session = new TrackedSession(_host);
 
+        var guid = Guid.NewGuid();
 
-        session.Record(MessageEventType.Received, env1, "wolverine", 1);
-        session.Record(MessageEventType.ExecutionStarted, env1, "wolverine", 1);
-        session.Record(MessageEventType.ExecutionFinished, env1, "wolverine", 1);
+        session.Record(MessageEventType.Received, env1, "wolverine", guid);
+        session.Record(MessageEventType.ExecutionStarted, env1, "wolverine", guid);
+        session.Record(MessageEventType.ExecutionFinished, env1, "wolverine", guid);
 
         session.Status.ShouldBe(TrackingStatus.Active);
 
-        session.Record(MessageEventType.MessageSucceeded, env1, "wolverine", 1);
+        session.Record(MessageEventType.MessageSucceeded, env1, "wolverine", guid);
 
         await session.TrackAsync();
 
@@ -131,21 +132,23 @@ public class when_determining_if_the_session_is_done : IDisposable
     {
         var session = new TrackedSession(_host);
 
-        session.Record(MessageEventType.Received, env1, "wolverine", 1);
-        session.Record(MessageEventType.ExecutionStarted, env1, "wolverine", 1);
-        session.Record(MessageEventType.ExecutionFinished, env1, "wolverine", 1);
+        var guid = Guid.NewGuid();
+
+        session.Record(MessageEventType.Received, env1, "wolverine", guid);
+        session.Record(MessageEventType.ExecutionStarted, env1, "wolverine", guid);
+        session.Record(MessageEventType.ExecutionFinished, env1, "wolverine", guid);
 
         session.Status.ShouldBe(TrackingStatus.Active);
 
-        session.Record(MessageEventType.Received, env2, "wolverine", 1);
-        session.Record(MessageEventType.ExecutionStarted, env2, "wolverine", 1);
-        session.Record(MessageEventType.ExecutionFinished, env2, "wolverine", 1);
+        session.Record(MessageEventType.Received, env2, "wolverine", guid);
+        session.Record(MessageEventType.ExecutionStarted, env2, "wolverine", guid);
+        session.Record(MessageEventType.ExecutionFinished, env2, "wolverine", guid);
 
-        session.Record(MessageEventType.MessageSucceeded, env1, "wolverine", 1);
+        session.Record(MessageEventType.MessageSucceeded, env1, "wolverine", guid);
 
         session.Status.ShouldBe(TrackingStatus.Active);
 
-        session.Record(MessageEventType.MessageSucceeded, env2, "wolverine", 1);
+        session.Record(MessageEventType.MessageSucceeded, env2, "wolverine", guid);
 
         await session.TrackAsync();
 

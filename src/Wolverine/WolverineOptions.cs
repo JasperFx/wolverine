@@ -47,8 +47,7 @@ public sealed partial class WolverineOptions
             CodeGeneration.Assemblies.Add(ApplicationAssembly);
         }
         
-        // TODO -- this should be eliminated later after the durability agent rewrite
-        Durability = new DurabilitySettings{NodeLockId = UniqueNodeId.ToString().GetDeterministicHashCode()};
+        Durability = new DurabilitySettings{AssignedNodeNumber = UniqueNodeId.ToString().GetDeterministicHashCode()};
 
         deriveServiceName();
 

@@ -296,7 +296,7 @@ internal class TrackedSession : ITrackedSession
         }, CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
     }
 
-    public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, int uniqueNodeId,
+    public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, Guid uniqueNodeId,
         Exception? ex = null)
     {
         if (envelope.Message is ValueTask)

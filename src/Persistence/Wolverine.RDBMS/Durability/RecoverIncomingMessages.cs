@@ -129,7 +129,7 @@ internal class RecoverIncomingMessages : IDurabilityAction
         try
         {
             var envelopes = await database.LoadPageOfGloballyOwnedIncomingAsync(count.Destination, pageSize);
-            await database.ReassignIncomingAsync(durabilitySettings.NodeLockId, envelopes);
+            await database.ReassignIncomingAsync(durabilitySettings.AssignedNodeNumber, envelopes);
 
             await session.CommitAsync();
 

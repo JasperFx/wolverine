@@ -127,7 +127,7 @@ internal class RecoverOutgoingMessages : IDurabilityAction
                 return 0;
             }
 
-            await storage.ReassignOutgoingAsync(durabilitySettings.NodeLockId, filtered);
+            await storage.ReassignOutgoingAsync(durabilitySettings.AssignedNodeNumber, filtered);
 
             await session.CommitAsync();
         }
