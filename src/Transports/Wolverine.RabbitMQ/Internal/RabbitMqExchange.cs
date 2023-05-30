@@ -131,10 +131,10 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     public override ValueTask<bool> CheckAsync()
     {
         using var channel = _parent.ListeningConnection.CreateModel();
-        var exchangeTypeName = ExchangeType.ToString().ToLower();
+        var exchangeName = Name.ToLower();
         try
         {
-            channel.ExchangeDeclarePassive(exchangeTypeName);
+            channel.ExchangeDeclarePassive(exchangeName);
             return ValueTask.FromResult(true);
         }
         catch (Exception)

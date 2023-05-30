@@ -340,7 +340,7 @@ public class end_to_end
     [Fact]
     public async Task use_fan_out_exchange()
     {
-        var exchangeName = "fanout";
+        var exchangeName = "fanout1";
         var queueName1 = RabbitTesting.NextQueueName() + "e23";
         var queueName2 = RabbitTesting.NextQueueName() + "e23";
         var queueName3 = RabbitTesting.NextQueueName() + "e23";

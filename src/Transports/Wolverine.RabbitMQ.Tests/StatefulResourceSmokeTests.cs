@@ -34,7 +34,13 @@ public class StatefulResourceSmokeTests
 
                 opts.PublishMessage<SRMessage3>()
                     .ToRabbitQueue("sr" + starting++);
+
+                PublishMessageToRabbitExchange<SRMessage4>(opts, "sr" + starting++);
             });
+
+        void PublishMessageToRabbitExchange<TMessage>(WolverineOptions opts, string queueName)
+            => opts.PublishMessage<TMessage>()
+                .ToRabbitExchange(queueName, exchange => exchange.BindQueue(queueName));
     }
 
     [Fact]
