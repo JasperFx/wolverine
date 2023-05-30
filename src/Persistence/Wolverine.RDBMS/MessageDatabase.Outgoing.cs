@@ -10,16 +10,18 @@ public abstract partial class MessageDatabase<T>
     public abstract Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
     public abstract Task DeleteOutgoingAsync(Envelope[] envelopes);
 
-    public Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
+    public async Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
-        if (Session.Transaction == null)
-        {
-            throw new InvalidOperationException("No current transaction");
-        }
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
 
-        return Session.Transaction.CreateCommand(_outgoingEnvelopeSql)
+        var envelopes = await conn.CreateCommand(_outgoingEnvelopeSql)
             .With("destination", destination.ToString())
             .FetchListAsync(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
+
+        await conn.CloseAsync();
+
+        return envelopes;
     }
 
     public abstract Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);

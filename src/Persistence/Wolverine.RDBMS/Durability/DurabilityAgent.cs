@@ -112,10 +112,10 @@ internal class DurabilityAgent : IDurabilityAgent
         {
             // Already obsolete
             //_worker.Post(_scheduledJobs);
-            _worker.Post(_incomingMessages);
-            _worker.Post(_outgoingMessages);
-            _worker.Post(_deleteExpired);
-            _worker.Post(_moveReplayable);
+            // _worker.Post(_incomingMessages);
+            // _worker.Post(_outgoingMessages);
+            // _worker.Post(_deleteExpired);
+            // _worker.Post(_moveReplayable);
         }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
 
         _nodeReassignmentTimer = new Timer(_ => { _worker.Post(_nodeReassignment); }, _settings,
