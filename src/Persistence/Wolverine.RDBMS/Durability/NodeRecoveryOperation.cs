@@ -1,44 +1,23 @@
-using System.Data.Common;
-using Wolverine.RDBMS.Polling;
+using System.Runtime.CompilerServices;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
-using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS.Durability;
 
-internal class NodeRecoveryOperation : IDatabaseOperation
+internal class NodeRecoveryOperation : IAgentCommand
 {
-    private readonly IMessageDatabase _database;
     private readonly int _ownerNodeId;
 
-    public NodeRecoveryOperation(IMessageDatabase database, int ownerNodeId)
+    public NodeRecoveryOperation(int ownerNodeId)
     {
-        _database = database;
         _ownerNodeId = ownerNodeId;
     }
 
-    public string Description => $"Reassign inbox/outbox messages originally owned by node {_ownerNodeId} to any node";
-    public void ConfigureCommand(DbCommandBuilder builder)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var ownerParameter = builder.AddParameter(_ownerNodeId);
-        
-        builder.Append($"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @{ownerParameter.ParameterName};");
-        builder.Append($"update {_database.SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0 where owner_id = @{ownerParameter.ParameterName};");
-        
-    }
+        await runtime.Storage.Admin.ReleaseAllOwnershipAsync();
 
-    public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
-    {
-        var inboxNumber = reader.RecordsAffected;
-        
-        await reader.NextResultAsync(token);
-
-        var outboxNumber = reader.RecordsAffected;
-        
-        // TODO -- definitely do something with logging and the tracker here to support testing
-    }
-
-    public IEnumerable<IAgentCommand> PostProcessingCommands()
-    {
         yield break;
     }
 }

@@ -5,7 +5,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS.Durability;
 
-internal class MoveReplayableErrorMessagesToIncomingOperation : IDatabaseOperation
+internal class MoveReplayableErrorMessagesToIncomingOperation : IDatabaseOperation, IDoNotReturnData
 {
     private readonly IMessageDatabase _database;
 

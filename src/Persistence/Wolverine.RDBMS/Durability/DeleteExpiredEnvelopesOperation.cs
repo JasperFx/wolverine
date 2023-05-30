@@ -7,7 +7,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS.Durability;
 
-internal class DeleteExpiredEnvelopesOperation : IDatabaseOperation
+internal class DeleteExpiredEnvelopesOperation : IDatabaseOperation, IDoNotReturnData
 {
     private readonly DbObjectName _incomingTable;
     private readonly DateTimeOffset _utcNow;
