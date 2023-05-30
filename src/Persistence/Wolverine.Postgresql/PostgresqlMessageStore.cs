@@ -22,7 +22,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     private readonly string _discardAndReassignOutgoingSql;
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _reassignIncomingSql;
-    private readonly string _reassignOutgoingSql;
 
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings,
@@ -31,8 +30,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         _deleteIncomingEnvelopesSql =
             $"delete from {SchemaName}.{DatabaseConstants.IncomingTable} WHERE id = ANY(@ids);";
-        _reassignOutgoingSql =
-            $"update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @owner where id = ANY(@ids)";
+
         _reassignIncomingSql =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner where id = ANY(@ids)";
         _deleteOutgoingEnvelopesSql =
@@ -126,13 +124,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     }
 
 
-    public override Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
-    {
-        return CreateCommand(_deleteIncomingEnvelopesSql)
-            .WithEnvelopeIds("ids", envelopes)
-            .ExecuteOnce(_cancellation);
-    }
-
 
     public override void Describe(TextWriter writer)
     {
@@ -162,19 +153,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             $"select {DatabaseConstants.OutgoingFields} from {SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";
     }
 
-    public override Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
-    {
-        if (Session.Transaction == null)
-        {
-            throw new InvalidOperationException("No active transaction");
-        }
-
-        return Session.Transaction.CreateCommand(_reassignOutgoingSql)
-            .With("owner", ownerId)
-            .WithEnvelopeIds("ids", outgoing)
-            .ExecuteNonQueryAsync(_cancellation);
-    }
-
     public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
         using var conn = CreateConnection();
@@ -201,15 +179,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             .ExecuteNonQueryAsync(_cancellation);
 
         await conn.CloseAsync();
-    }
-
-    public override Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
-    {
-        return Session!.Transaction!
-            .CreateCommand(
-                $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time LIMIT {Durability.RecoveryBatchSize}")
-            .With("time", utcNow)
-            .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)

@@ -13,8 +13,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
 
-    public IDurableStorageSession Session => throw new NotSupportedException();
-
     public Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
     {
         return Task.CompletedTask;
@@ -188,11 +186,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public Task RebuildAsync()
     {
         return Task.CompletedTask;
-    }
-
-    public Task<Uri[]> FindAllDestinationsAsync()
-    {
-        throw new NotSupportedException();
     }
 
     public Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)

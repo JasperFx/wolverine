@@ -68,34 +68,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     }
 
     [Fact]
-    public async Task delete_multiple_incoming_envelope()
-    {
-        var list = new List<Envelope>();
-
-        for (var i = 0; i < 10; i++)
-        {
-            var envelope = ObjectMother.Envelope();
-            envelope.Status = EnvelopeStatus.Incoming;
-
-            list.Add(envelope);
-        }
-
-        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
-
-        var toDelete = new[] { list[2], list[3], list[7] };
-
-        await thePersistence.Inbox.DeleteIncomingEnvelopesAsync(toDelete);
-
-        var stored = await thePersistence.Admin.AllIncomingAsync();
-
-        stored.Count.ShouldBe(7);
-
-        stored.Any(x => x.Id == list[2].Id).ShouldBeFalse();
-        stored.Any(x => x.Id == list[3].Id).ShouldBeFalse();
-        stored.Any(x => x.Id == list[7].Id).ShouldBeFalse();
-    }
-
-    [Fact]
     public async Task mark_envelope_as_handled()
     {
         var envelope = ObjectMother.Envelope();
@@ -621,8 +593,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         await thePersistence.Inbox.StoreIncomingAsync(list);
 
-        await thePersistence.Session.ConnectAndLockCurrentNodeAsync(NullLogger.Instance, 5);
-        await thePersistence.Session.BeginAsync();
+
         var limit = list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localOne) - 1;

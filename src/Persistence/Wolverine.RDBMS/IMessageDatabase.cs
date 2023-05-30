@@ -9,18 +9,9 @@ namespace Wolverine.RDBMS;
 public interface IMessageDatabase : IMessageStore
 {
     public DurabilitySettings Durability { get; }
-
-    [Obsolete]
-    IDurableStorageSession Session { get; }
-
+    
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
-
-    Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);
-    Task<Uri[]> FindAllDestinationsAsync();
-
-
-    Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow);
 
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
