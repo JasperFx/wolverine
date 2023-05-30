@@ -112,7 +112,8 @@ internal class DurabilityAgent : IDurabilityAgent
 
         _scheduledJobTimer = new Timer(_ =>
         {
-            _worker.Post(_scheduledJobs);
+            // Already obsolete
+            //_worker.Post(_scheduledJobs);
             _worker.Post(_incomingMessages);
             _worker.Post(_outgoingMessages);
             _worker.Post(_deleteExpired);

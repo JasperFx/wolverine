@@ -27,7 +27,7 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
     private readonly INodeAgentPersistence _persistence;
 
     private readonly Dictionary<string, IAgentFamily>
-        _agentControllers = new();
+        _agentFamilies = new();
     private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
 
@@ -39,8 +39,14 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         _persistence = persistence;
         foreach (var agentController in agentControllers)
         {
-            _agentControllers[agentController.Scheme] = agentController;
+            _agentFamilies[agentController.Scheme] = agentController;
         }
+
+        if (runtime.Storage is IAgentFamily agentFamily)
+        {
+            _agentFamilies[agentFamily.Scheme] = agentFamily;
+        }
+        
         _cancellation = cancellation;
         _logger = logger;
         
@@ -63,7 +69,7 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         
         _logger.LogInformation("Starting agents for Node {NodeId} with assigned node id {Id}", command.Options.UniqueNodeId, current.AssignedNodeId);
         
-        foreach (var controller in _agentControllers.Values)
+        foreach (var controller in _agentFamilies.Values)
         {
             current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
         }
@@ -181,9 +187,9 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
 
     private ValueTask<IAgent> findAgentAsync(Uri uri)
     {
-        if (_agentControllers.TryGetValue(uri.Scheme, out var controller))
+        if (_agentFamilies.TryGetValue(uri.Scheme, out var controller))
         {
-            return controller.BuildAgentAsync(uri);
+            return controller.BuildAgentAsync(uri, _runtime);
         }
 
         throw new ArgumentOutOfRangeException(nameof(uri), $"Unrecognized agent scheme '{uri.Scheme}'");

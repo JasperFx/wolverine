@@ -468,4 +468,23 @@ public class assigning_agent_logic
         delta.Single().ShouldBe(new ReassignAgent(red1, node1.NodeId, node3.NodeId));
 
     }
+
+    [Fact]
+    public void run_on_leader()
+    {
+        var grid = new AssignmentGrid();
+        
+        var node1 = grid.WithNode(1, Guid.NewGuid()).Running(blue1, blue2);
+        var node2 = grid.WithNode(2, Guid.NewGuid()).Running(blue3, blue4);
+        var node3 = grid.WithNode(3, Guid.NewGuid()).Running(red1, red2);
+
+        node3.IsLeader = true;
+        
+        grid.RunOnLeader(blue5);
+        grid.RunOnLeader(blue1);
+        
+        grid.AgentFor(blue5).AssignedNode.ShouldBe(node3);
+        grid.AgentFor(blue1).AssignedNode.ShouldBe(node3);
+        
+    }
 }

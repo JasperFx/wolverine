@@ -162,12 +162,20 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 
-    public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    public override async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
-        return Session.CallFunction("uspMarkIncomingOwnership")
+        await using var conn = CreateConnection();
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership");
+        cmd.CommandType = CommandType.StoredProcedure;
+        
+        await cmd
             .WithIdList(this, incoming)
             .With("owner", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
+
+        await conn.CloseAsync();
     }
 
     public override Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
@@ -182,7 +190,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
-        builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @");
+        builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
         builder.AppendParameter(utcNow);
         builder.Append(";");
     }

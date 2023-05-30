@@ -25,6 +25,8 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         _queues.FillDefault(TransportConstants.Default);
         _queues.FillDefault(TransportConstants.Replies);
 
+        _queues[TransportConstants.Scheduled].Mode = EndpointMode.Durable;
+
         var systemQueue = _queues[TransportConstants.System];
         systemQueue.Role = EndpointRole.System;
         systemQueue.ExecutionOptions.EnsureOrdered = true;

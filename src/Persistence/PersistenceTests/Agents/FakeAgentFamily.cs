@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
 namespace PersistenceTests.Agents;
@@ -37,7 +38,7 @@ public class FakeAgentFamily : IAgentFamily
         return ValueTask.FromResult((IReadOnlyList<Uri>)agents);
     }
 
-    public ValueTask<IAgent> BuildAgentAsync(Uri uri)
+    public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime runtime)
     {
         return new ValueTask<IAgent>(Agents[uri]);
     }
