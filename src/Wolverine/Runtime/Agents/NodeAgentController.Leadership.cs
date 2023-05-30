@@ -30,7 +30,7 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
 
                 _tracker.Publish(new NodeEvent(_tracker.Self, NodeEventType.LeadershipAssumed));
 
-                foreach (var controller in _agentControllers.Values)
+                foreach (var controller in _agentFamilies.Values)
                 {
                     var agents = await controller.AllKnownAgentsAsync();
                     _tracker.RegisterAgents(agents);

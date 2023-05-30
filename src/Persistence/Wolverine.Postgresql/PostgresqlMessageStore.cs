@@ -184,12 +184,16 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 
-    public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    public override async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
-        return Session.CreateCommand(_reassignIncomingSql)
+        await using var conn = CreateConnection();
+        await conn.OpenAsync();
+        await conn.CreateCommand(_reassignIncomingSql)
             .With("owner", ownerId)
             .With("ids", incoming.Select(x => x.Id).ToArray())
             .ExecuteNonQueryAsync(_cancellation);
+
+        await conn.CloseAsync();
     }
 
     public override Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
@@ -204,7 +208,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append(
-            $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @");
+            $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
         
         builder.AppendParameter(utcNow);
         builder.Append($" LIMIT {Durability.RecoveryBatchSize};");

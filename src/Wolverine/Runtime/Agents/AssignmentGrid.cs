@@ -418,6 +418,14 @@ public class AssignmentGrid
 
         return dict;
     }
-    
-    
+
+
+    public void RunOnLeader(Uri agentUri)
+    {
+        var node = _nodes.FirstOrDefault(x => x.IsLeader);
+        if (node != null)
+        {
+            node.Assign(agentUri);
+        }
+    }
 }

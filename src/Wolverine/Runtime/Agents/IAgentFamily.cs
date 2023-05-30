@@ -16,13 +16,14 @@ public interface IAgentFamily
     /// </summary>
     /// <returns></returns>
     ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync();
-    
+
     /// <summary>
     /// Create or resolve the agent for this family
     /// </summary>
     /// <param name="uri"></param>
+    /// <param name="wolverineRuntime"></param>
     /// <returns></returns>
-    ValueTask<IAgent> BuildAgentAsync(Uri uri);
+    ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime);
     
     /// <summary>
     /// All supported agent uris by this node instance

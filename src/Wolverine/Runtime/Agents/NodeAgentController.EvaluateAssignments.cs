@@ -9,7 +9,7 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
     {
         var grid = AssignmentGrid.ForTracker(_tracker);
 
-        foreach (var controller in _agentControllers.Values)
+        foreach (var controller in _agentFamilies.Values)
         {
             try
             {

@@ -1,4 +1,5 @@
 using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -48,11 +49,11 @@ internal class RunScheduledMessagesOperation : IDatabaseOperation, IAgentCommand
 
     public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
-        // TODO -- this needs to be be self-committing now
         await _database.ReassignIncomingAsync(_settings.NodeLockId, _envelopes);
 
         foreach (var envelope in _envelopes)
         {
+            runtime.Logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id, envelope.MessageType);
             _localQueue.Enqueue(envelope);
         }
         

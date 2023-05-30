@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Xunit;
 
@@ -652,7 +653,7 @@ public class FakeAgentFamily : IAgentFamily
         return ValueTask.FromResult((IReadOnlyList<Uri>)agents);
     }
 
-    public ValueTask<IAgent> BuildAgentAsync(Uri uri)
+    public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
     {
         return new ValueTask<IAgent>(Agents[uri]);
     }

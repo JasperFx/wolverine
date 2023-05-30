@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Persistence.Durability;
 
+[Obsolete]
 public interface IDurableStorageSession : IDisposable
 {
     DbTransaction? Transaction { get; }
