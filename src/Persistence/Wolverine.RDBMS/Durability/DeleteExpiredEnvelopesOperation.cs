@@ -19,8 +19,9 @@ internal class DeleteExpiredEnvelopesOperation : IDatabaseOperation
     public string Description => "Delete expired incoming envelopes";
     public void ConfigureCommand(DbCommandBuilder builder)
     {
-        builder.Append($"delete from {_incomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @");
+        builder.Append($"delete from {_incomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= ");
         builder.AppendParameter(DateTimeOffset.UtcNow);
+        builder.Append(";");
     }
 
     public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)

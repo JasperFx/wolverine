@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics;
 using JasperFx.Core.Exceptions;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -31,12 +32,21 @@ internal class DatabaseOperationBatch : IAgentCommand
         var tx = await conn.BeginTransactionAsync(cancellationToken);
         cmd.Transaction = tx;
 
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        var exceptions = new List<Exception>();
-        await ApplyCallbacksAsync(_operations, reader, exceptions, cancellationToken);
-        await reader.CloseAsync();
+        try
+        {
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            var exceptions = new List<Exception>();
+            await ApplyCallbacksAsync(_operations, reader, exceptions, cancellationToken);
+            await reader.CloseAsync();
 
-        await tx.CommitAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+            
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(cmd.CommandText);
+            throw;
+        }
 
         foreach (var command in _operations.SelectMany(x => x.PostProcessingCommands()))
         {
@@ -44,6 +54,7 @@ internal class DatabaseOperationBatch : IAgentCommand
         }
 
         await conn.CloseAsync();
+
     }
     
     public static async Task ApplyCallbacksAsync(IReadOnlyList<IDatabaseOperation> operations, DbDataReader reader,

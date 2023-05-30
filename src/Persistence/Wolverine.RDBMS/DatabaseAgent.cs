@@ -1,5 +1,6 @@
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
@@ -12,16 +13,19 @@ namespace Wolverine.RDBMS;
 internal class DatabaseAgent : IAgent
 {
     internal const string AgentScheme = "wolverinedb";
-    
+
+    private readonly IWolverineRuntime _runtime;
     private readonly IMessageDatabase _database;
     private readonly DatabaseSettings _databaseSettings;
     private readonly ILocalQueue _localQueue;
     private readonly DurabilitySettings _settings;
     private Timer? _scheduledJobTimer;
     private readonly ActionBlock<DatabaseOperationBatch> _runningBlock;
+    private ILogger<DatabaseAgent> _logger;
 
     public DatabaseAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database, DatabaseSettings databaseSettings)
     {
+        _runtime = runtime;
         _database = database;
         _databaseSettings = databaseSettings;
         _localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(TransportConstants.Scheduled);
@@ -31,7 +35,7 @@ internal class DatabaseAgent : IAgent
 
         var invoker = runtime.FindInvoker(typeof(DatabaseOperationBatch));
 
-        var logger = runtime.LoggerFactory.CreateLogger<DatabaseAgent>();
+        _logger = runtime.LoggerFactory.CreateLogger<DatabaseAgent>();
 
         _runningBlock = new ActionBlock<DatabaseOperationBatch>(async batch =>
         {
@@ -43,7 +47,7 @@ internal class DatabaseAgent : IAgent
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Error trying to run durability agent commands");
+                _logger.LogError(e, "Error trying to run durability agent commands");
             }
         }, new ExecutionDataflowBlockOptions
         {
@@ -59,7 +63,12 @@ internal class DatabaseAgent : IAgent
         {
             var operations = new IDatabaseOperation[]
             {
-                new RunScheduledMessagesOperation(_database, _settings, _localQueue)
+                new RunScheduledMessagesOperation(_database, _settings, _localQueue),
+                new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
+                new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
+                //new DeleteExpiredEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable)),
+                //new MoveReplayableErrorMessagesToIncomingOperation(_database),
+                
             };
             
             var batch = new DatabaseOperationBatch(_database, operations);
