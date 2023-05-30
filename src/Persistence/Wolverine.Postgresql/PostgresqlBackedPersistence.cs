@@ -27,6 +27,11 @@ internal class PostgresqlBackedPersistence : IWolverineExtension
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
         options.Services.For<NpgsqlConnection>().Use<NpgsqlConnection>();
+        
+        options.Services.Add(new ServiceDescriptor(typeof(NpgsqlConnection),
+            new NpgsqlConnectionInstance(typeof(NpgsqlConnection))));
+        options.Services.Add(new ServiceDescriptor(typeof(DbConnection),
+            new NpgsqlConnectionInstance(typeof(DbConnection))));
 
         options.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
     }

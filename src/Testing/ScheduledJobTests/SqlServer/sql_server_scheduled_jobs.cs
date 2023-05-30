@@ -33,6 +33,8 @@ public class sql_server_scheduled_jobs : IAsyncLifetime
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<ScheduledMessageCatcher>();
 
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
+
+                opts.Services.AddResourceSetupOnStartup();
             })
             .StartAsync();
 
