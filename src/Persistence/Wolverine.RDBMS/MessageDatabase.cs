@@ -1,17 +1,13 @@
 using System.Data;
 using System.Data.Common;
-using Lamar;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
-using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
-using Wolverine.Runtime.WorkerQueues;
-using Wolverine.Transports.Local;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
@@ -22,16 +18,19 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
     protected readonly DatabaseSettings _settings;
-    private string _schemaName;
     private DatabaseBatcher? _batcher;
+    private string _schemaName;
 
     protected MessageDatabase(DatabaseSettings databaseSettings, DurabilitySettings settings,
-        ILogger logger, Migrator migrator, string defaultSchema) : base(new MigrationLogger(logger), AutoCreate.CreateOrUpdate, migrator,
+        ILogger logger, Migrator migrator, string defaultSchema) : base(new MigrationLogger(logger),
+        AutoCreate.CreateOrUpdate, migrator,
         "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
     {
         if (databaseSettings.ConnectionString == null)
-            throw new ArgumentNullException(nameof(DatabaseSettings.ConnectionString)); 
-        
+        {
+            throw new ArgumentNullException(nameof(DatabaseSettings.ConnectionString));
+        }
+
         _settings = databaseSettings;
         _schemaName = databaseSettings.SchemaName ?? defaultSchema;
 
@@ -40,10 +39,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         Durability = settings;
         _cancellation = settings.Cancellation;
-
-        var transaction = new DurableStorageSession(this, settings.Cancellation, logger);
-
-        Session = transaction;
 
         _cancellation = settings.Cancellation;
         _deleteIncomingEnvelopeById =
@@ -57,15 +52,17 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Nodes = buildNodeStorage(databaseSettings);
     }
 
-    protected abstract INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings);
+    public DatabaseSettings Settings => _settings;
+
+    public string OutgoingFullName { get; private set; }
+
+    public string IncomingFullName { get; private set; }
 
     public INodeAgentPersistence Nodes { get; }
 
     public IMessageInbox Inbox => this;
 
     public IMessageOutbox Outbox => this;
-
-    public DatabaseSettings Settings => _settings;
 
     public string SchemaName
     {
@@ -78,16 +75,15 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             OutgoingFullName = $"{value}.{DatabaseConstants.OutgoingTable}";
         }
     }
-    
-    public string OutgoingFullName { get; private set; }
-
-    public string IncomingFullName { get; private set; }
 
     public DurabilitySettings Durability { get; }
 
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
-        if (_batcher == null) throw new InvalidOperationException("This message database has not yet been initialized");
+        if (_batcher == null)
+        {
+            throw new InvalidOperationException("This message database has not yet been initialized");
+        }
 
         return _batcher.EnqueueAsync(operation);
     }
@@ -95,7 +91,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public Task InitializeAsync(IWolverineRuntime runtime)
     {
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
-        
+
         if (Settings.IsMaster && runtime.Options.Transports.NodeControlEndpoint == null)
         {
             var transport = new DatabaseControlTransport(this, runtime.Options);
@@ -109,9 +105,49 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public IMessageStoreAdmin Admin => this;
 
-    public IDurableStorageSession Session { get; }
-
     public abstract void Describe(TextWriter writer);
+
+    public Task DrainAsync()
+    {
+        return _batcher.DrainAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_batcher != null)
+        {
+            await _batcher.DisposeAsync();
+        }
+    }
+
+    DbConnection IMessageDatabase.CreateConnection()
+    {
+        return CreateConnection();
+    }
+
+    public DbCommandBuilder ToCommandBuilder()
+    {
+        return CreateConnection().ToCommandBuilder();
+    }
+
+
+    public abstract Task GetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
+        CancellationToken cancellation = default);
+
+    public abstract Task<bool> TryGetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
+        CancellationToken cancellation = default);
+
+    public abstract Task GetGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
+        DbTransaction? transaction = null);
+
+    public abstract Task<bool> TryGetGlobalLockAsync(DbConnection conn, DbTransaction? tx, int lockId,
+        CancellationToken cancellation = default);
+
+    public abstract Task<bool> TryGetGlobalLockAsync(DbConnection conn, int lockId, DbTransaction tx,
+        CancellationToken cancellation = default);
+
+    public abstract Task ReleaseGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
+        DbTransaction? tx = null);
 
     public async Task ReleaseIncomingAsync(int ownerId)
     {
@@ -138,25 +174,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-    public Task DrainAsync()
-    {
-        return _batcher.DrainAsync();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_batcher != null)
-        {
-            await _batcher.DisposeAsync();
-        }
-        
-        Session?.Dispose();
-    }
-
-    DbConnection IMessageDatabase.CreateConnection()
-    {
-        return CreateConnection();
-    }
+    protected abstract INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings);
 
     public DbCommand CreateCommand(string command)
     {
@@ -175,30 +193,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         return cmd;
     }
-
-    public DbCommandBuilder ToCommandBuilder()
-    {
-        return CreateConnection().ToCommandBuilder();
-    }
-
-
-    public abstract Task GetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
-        CancellationToken cancellation = default);
-
-    public abstract Task<bool> TryGetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
-        CancellationToken cancellation = default);
-
-    public abstract Task GetGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
-        DbTransaction? transaction = null);
-
-    public abstract Task<bool> TryGetGlobalLockAsync(DbConnection conn, DbTransaction? tx, int lockId,
-        CancellationToken cancellation = default);
-
-    public abstract Task<bool> TryGetGlobalLockAsync(DbConnection conn, int lockId, DbTransaction tx,
-        CancellationToken cancellation = default);
-
-    public abstract Task ReleaseGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
-        DbTransaction? tx = null);
 
     public abstract IEnumerable<ISchemaObject> AllObjects();
 }

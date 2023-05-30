@@ -23,10 +23,7 @@ public abstract partial class MessageDatabase<T>
 
         return StoreIncomingAsync(envelope);
     }
-
-
-    [Obsolete("Goes away with move to DatabaseBatcher & Agents")]
-    public abstract Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow);
+    
 
     public abstract void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
 }

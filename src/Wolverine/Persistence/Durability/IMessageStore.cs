@@ -11,7 +11,6 @@ public interface IMessageInbox
     Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope);
     Task StoreIncomingAsync(Envelope envelope);
     Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes);
-    Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes);
     Task ScheduleJobAsync(Envelope envelope);
     
     Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope);
@@ -54,10 +53,6 @@ public interface IMessageStore : IAsyncDisposable
     IMessageStoreAdmin Admin { get; }
 
     void Describe(TextWriter writer);
-
-    // Part of durability, maybe can be moved off this
-
-    // TODO -- split by tenant under the covers
 
 
     [Obsolete("Will have to have tenant id now?, or all dead letter queue goes to main DB?")]

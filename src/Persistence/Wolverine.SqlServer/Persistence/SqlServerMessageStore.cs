@@ -93,12 +93,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     /// </summary>
     public string DatabasePrincipal { get; set; } = "dbo";
 
-    public override Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
-    {
-        return CallFunction("uspDeleteIncomingEnvelopes")
-            .WithIdList(this, envelopes).ExecuteOnce(_cancellation);
-    }
-
     public override Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         var table = new DataTable();
@@ -127,15 +121,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         return
             $"select top {settings.RecoveryBatchSize} {DatabaseConstants.OutgoingFields} from {SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination";
-    }
-
-    public override Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
-    {
-        var cmd = Session.CallFunction("uspMarkOutgoingOwnership")
-            .WithIdList(this, outgoing)
-            .With("owner", ownerId);
-
-        return cmd.ExecuteNonQueryAsync(_cancellation);
     }
 
     public override Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
@@ -183,15 +168,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             .ExecuteNonQueryAsync(_cancellation);
 
         await conn.CloseAsync();
-    }
-
-    public override Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
-    {
-        return Session!.Transaction!
-            .CreateCommand(
-                $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= @time")
-            .With("time", utcNow)
-            .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 
 

@@ -24,23 +24,12 @@ public abstract partial class MessageDatabase<T>
         return envelopes;
     }
 
-    public abstract Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing);
-
     public Task DeleteOutgoingAsync(Envelope envelope)
     {
         return CreateCommand(
                 $"delete from {SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
             .With("id", envelope.Id)
             .ExecuteOnce(_cancellation);
-    }
-
-    [Obsolete("Goes away")]
-    public async Task<Uri[]> FindAllDestinationsAsync()
-    {
-        var cmd = Session.CreateCommand(
-            $"select distinct destination from {SchemaName}.{DatabaseConstants.OutgoingTable}");
-        var uris = await cmd.FetchListAsync<string>(_cancellation);
-        return uris.Where(x => x != null).Select(x => x!.ToUri()).ToArray();
     }
 
     public Task StoreOutgoingAsync(Envelope envelope, int ownerId)
