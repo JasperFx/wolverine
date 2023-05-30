@@ -17,6 +17,7 @@ public abstract partial class MessageDatabase<T>
         await using var conn = CreateConnection();
         await conn.OpenAsync(_cancellation);
         await truncateEnvelopeDataAsync(conn);
+        await conn.CloseAsync();
     }
 
     public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)

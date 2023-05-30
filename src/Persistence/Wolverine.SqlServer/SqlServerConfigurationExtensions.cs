@@ -21,6 +21,10 @@ public static class SqlServerConfigurationExtensions
             {
                 x.Settings.SchemaName = schema;
             }
+            else
+            {
+                schema = "dbo";
+            }
         });
     }
 }

@@ -21,8 +21,8 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
     public SqlServerNodePersistence(DatabaseSettings settings)
     {
         _settings = settings;        
-        _nodeTable = new DbObjectName(settings.SchemaName, DatabaseConstants.NodeTableName);
-        _assignmentTable = new DbObjectName(settings.SchemaName, DatabaseConstants.NodeAssignmentsTableName);
+        _nodeTable = new DbObjectName(settings.SchemaName ?? "dbo", DatabaseConstants.NodeTableName);
+        _assignmentTable = new DbObjectName(settings.SchemaName ?? "dbo", DatabaseConstants.NodeAssignmentsTableName);
     }
 
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
