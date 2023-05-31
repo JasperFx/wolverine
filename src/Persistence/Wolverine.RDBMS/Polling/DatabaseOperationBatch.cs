@@ -1,10 +1,29 @@
 using System.Data.Common;
-using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using JasperFx.Core.Exceptions;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.RDBMS.Polling;
+
+public class DatabaseBatchCommandException : Exception
+{
+    private static string toMessage(DbCommand command)
+    {
+        var message = "Database operation batch failure:\n";
+        message += command.CommandText;
+        foreach (DbParameter parameter in command.Parameters)
+        {
+            message += $"\n{parameter.ParameterName}: {parameter.Value}";
+        }
+
+        return message;
+    }
+    
+    public DatabaseBatchCommandException(DbCommand command, Exception inner) : base(toMessage(command), inner)
+    {
+    }
+}
 
 internal class DatabaseOperationBatch : IAgentCommand
 {
@@ -17,7 +36,7 @@ internal class DatabaseOperationBatch : IAgentCommand
         _operations = operations;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var builder = _database.ToCommandBuilder();
         foreach (var operation in _operations)
@@ -44,8 +63,7 @@ internal class DatabaseOperationBatch : IAgentCommand
         }
         catch (Exception e)
         {
-            Debug.WriteLine(cmd.CommandText);
-            throw;
+            throw new DatabaseBatchCommandException(cmd, e);
         }
 
         foreach (var command in _operations.SelectMany(x => x.PostProcessingCommands()))
