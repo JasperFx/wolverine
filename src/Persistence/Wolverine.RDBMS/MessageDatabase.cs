@@ -8,6 +8,7 @@ using Wolverine.RDBMS.Polling;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
@@ -51,6 +52,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         Nodes = buildNodeStorage(databaseSettings);
     }
+    
+    public string Name { get; set; } = TransportConstants.Default;
 
     public DatabaseSettings Settings => _settings;
 

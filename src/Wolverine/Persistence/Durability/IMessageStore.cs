@@ -25,6 +25,7 @@ public interface IMessageInbox
 public interface IMessageOutbox
 {
     Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination);
+    
     Task StoreOutgoingAsync(Envelope envelope, int ownerId);
     Task DeleteOutgoingAsync(Envelope[] envelopes);
     Task DeleteOutgoingAsync(Envelope envelope);
@@ -47,7 +48,6 @@ public interface IMessageStore : IAsyncDisposable
     
     INodeAgentPersistence Nodes { get; }
 
-    [Obsolete("use IStatefulResource model instead")]
     IMessageStoreAdmin Admin { get; }
 
     void Describe(TextWriter writer);

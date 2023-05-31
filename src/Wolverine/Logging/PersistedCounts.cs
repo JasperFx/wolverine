@@ -27,6 +27,15 @@ public class PersistedCounts
     /// </summary>
     public int DeadLetter { get; set; }
 
+    public void Add(PersistedCounts other)
+    {
+        Incoming += other.Incoming;
+        Scheduled += other.Scheduled;
+        Outgoing += other.Outgoing;
+        Handled += other.Handled;
+        DeadLetter += other.DeadLetter;
+    }
+
     public override string ToString()
     {
         return
