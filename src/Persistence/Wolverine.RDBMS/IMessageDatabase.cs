@@ -29,24 +29,6 @@ public interface IMessageDatabase : IMessageStore
     DbConnection CreateConnection();
     Weasel.Core.DbCommandBuilder ToCommandBuilder();
 
-    Task GetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
-        CancellationToken cancellation = default);
-
-    Task<bool> TryGetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
-        CancellationToken cancellation = default);
-
-    Task GetGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
-        DbTransaction? transaction = null);
-
-    Task<bool> TryGetGlobalLockAsync(DbConnection conn, DbTransaction? tx, int lockId,
-        CancellationToken cancellation = default);
-
-    Task<bool> TryGetGlobalLockAsync(DbConnection conn, int lockId, DbTransaction tx,
-        CancellationToken cancellation = default);
-
-    Task ReleaseGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
-        DbTransaction? tx = null);
-
     Task EnqueueAsync(IDatabaseOperation operation);
     void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
 }

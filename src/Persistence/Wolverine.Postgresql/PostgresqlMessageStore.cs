@@ -1,5 +1,4 @@
-﻿using System.Data.Common;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
 using Weasel.Core;
@@ -11,7 +10,6 @@ using Wolverine.Postgresql.Util;
 using Wolverine.RDBMS;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
-using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.Postgresql;
 
@@ -103,7 +101,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             .ExecuteScalarAsync();
 
         counts.DeadLetter = Convert.ToInt32(deadLetterCount);
-        
+
         await conn.CloseAsync();
 
         return counts;
@@ -122,7 +120,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
         return builder.Compile().ExecuteOnce(_cancellation);
     }
-
 
 
     public override void Describe(TextWriter writer)
@@ -153,11 +150,12 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             $"select {DatabaseConstants.OutgoingFields} from {SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";
     }
 
-    public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
+    public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress,
+        int limit)
     {
         await using var conn = CreateConnection();
         await conn.OpenAsync();
-        
+
         var list = await conn
             .CreateCommand(_findAtLargeEnvelopesSql)
             .With("address", listenerAddress.ToString())
@@ -185,61 +183,9 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         builder.Append(
             $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
-        
+
         builder.AppendParameter(utcNow);
         builder.Append($" LIMIT {Durability.RecoveryBatchSize};");
-    }
-
-    public override Task GetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
-        CancellationToken cancellation = default)
-    {
-        return tx.CreateCommand("SELECT pg_advisory_xact_lock(:id);").With("id", lockId)
-            .ExecuteNonQueryAsync(cancellation);
-    }
-
-    public override async Task<bool> TryGetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
-        CancellationToken cancellation = default)
-    {
-        var c = await tx.CreateCommand("SELECT pg_try_advisory_xact_lock(:id);")
-            .With("id", lockId)
-            .ExecuteScalarAsync(cancellation);
-
-        return (bool)c!;
-    }
-
-    public override Task GetGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
-        DbTransaction? transaction = null)
-    {
-        return conn.CreateCommand("SELECT pg_advisory_lock(:id);").With("id", lockId)
-            .ExecuteNonQueryAsync(cancellation);
-    }
-
-    public override async Task<bool> TryGetGlobalLockAsync(DbConnection conn, DbTransaction? tx, int lockId,
-        CancellationToken cancellation = default)
-    {
-        var c = await conn.CreateCommand("SELECT pg_try_advisory_lock(:id);")
-            .With("id", lockId)
-            .ExecuteScalarAsync(cancellation);
-
-        return (bool)c!;
-    }
-
-    public override async Task<bool> TryGetGlobalLockAsync(DbConnection conn, int lockId, DbTransaction tx,
-        CancellationToken cancellation = default)
-    {
-        var c = await conn.CreateCommand("SELECT pg_try_advisory_xact_lock(:id);")
-            .With("id", lockId)
-            .ExecuteScalarAsync(cancellation);
-
-        return (bool)c!;
-    }
-
-    public override Task ReleaseGlobalLockAsync(DbConnection conn, int lockId,
-        CancellationToken cancellation = default,
-        DbTransaction? tx = null)
-    {
-        return conn.CreateCommand("SELECT pg_advisory_unlock(:id);").With("id", lockId)
-            .ExecuteNonQueryAsync(cancellation);
     }
 
     public override IEnumerable<ISchemaObject> AllObjects()
@@ -263,11 +209,12 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
             var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
             assignmentTable.AddColumn<string>("id").AsPrimaryKey();
-            assignmentTable.AddColumn<Guid>("node_id").ForeignKeyTo(nodeTable.Identifier, "id", onDelete:CascadeAction.Cascade);
+            assignmentTable.AddColumn<Guid>("node_id")
+                .ForeignKeyTo(nodeTable.Identifier, "id", onDelete: CascadeAction.Cascade);
             assignmentTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("now()").NotNull();
 
             yield return assignmentTable;
-            
+
             if (_settings.CommandQueuesEnabled)
             {
                 var queueTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
@@ -281,7 +228,5 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
                 yield return queueTable;
             }
         }
-
-
     }
 }

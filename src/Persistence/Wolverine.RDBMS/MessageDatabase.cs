@@ -130,25 +130,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return CreateConnection().ToCommandBuilder();
     }
 
-
-    public abstract Task GetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
-        CancellationToken cancellation = default);
-
-    public abstract Task<bool> TryGetGlobalTxLockAsync(DbConnection conn, DbTransaction tx, int lockId,
-        CancellationToken cancellation = default);
-
-    public abstract Task GetGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
-        DbTransaction? transaction = null);
-
-    public abstract Task<bool> TryGetGlobalLockAsync(DbConnection conn, DbTransaction? tx, int lockId,
-        CancellationToken cancellation = default);
-
-    public abstract Task<bool> TryGetGlobalLockAsync(DbConnection conn, int lockId, DbTransaction tx,
-        CancellationToken cancellation = default);
-
-    public abstract Task ReleaseGlobalLockAsync(DbConnection conn, int lockId, CancellationToken cancellation = default,
-        DbTransaction? tx = null);
-
     public async Task ReleaseIncomingAsync(int ownerId)
     {
         await using var conn = CreateConnection();
