@@ -8,7 +8,7 @@ namespace Wolverine.RDBMS;
 
 public interface IMessageDatabase : IMessageStore
 {
-    public DurabilitySettings Durability { get; }
+    string Name { get; }
     
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
