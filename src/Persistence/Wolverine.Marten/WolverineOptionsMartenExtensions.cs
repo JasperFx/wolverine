@@ -1,5 +1,6 @@
 ﻿using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
@@ -26,11 +27,7 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
-        expression.Services.AddSingleton<IMessageStore, PostgresqlMessageStore>();
-        expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
-        expression.Services.AddSingleton<OutboxedSessionFactory>();
-
-        expression.Services.AddSingleton(s =>
+        expression.Services.AddSingleton<IMessageStore>(s =>
         {
             var store = s.GetRequiredService<IDocumentStore>();
 
@@ -44,8 +41,16 @@ public static class WolverineOptionsMartenExtensions
 
             if (settings.SchemaName.IsEmpty()) settings.SchemaName = "public";
 
-            return settings;
+            var durability = s.GetRequiredService<DurabilitySettings>();
+            var logger = s.GetRequiredService<ILogger<PostgresqlMessageStore>>();
+
+            return new PostgresqlMessageStore(settings, durability, logger);
         });
+        
+        
+        expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
+        expression.Services.AddSingleton<OutboxedSessionFactory>();
+
 
         return expression;
     }
