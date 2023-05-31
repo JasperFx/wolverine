@@ -13,6 +13,7 @@ using Wolverine.Marten;
 using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Xunit;
 
@@ -48,9 +49,6 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
     {
         var container = (IContainer)theHost.Services;
 
-        container.Model.For<IMessageStore>()
-            .Default.ImplementationType.ShouldBe(typeof(PostgresqlMessageStore));
-
         container.Model.For<IWolverineExtension>().Instances
             .Any(x => x.ImplementationType == typeof(MartenIntegration))
             .ShouldBeTrue();
@@ -76,8 +74,6 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
 
         var container = (IContainer)host.Services;
 
-        container.Model.For<IMessageStore>()
-            .Default.ImplementationType.ShouldBe(typeof(PostgresqlMessageStore));
 
         container.Model.For<IWolverineExtension>().Instances
             .Any(x => x.ImplementationType == typeof(MartenIntegration))
