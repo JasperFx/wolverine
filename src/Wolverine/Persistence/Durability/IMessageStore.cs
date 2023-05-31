@@ -28,9 +28,7 @@ public interface IMessageOutbox
     Task StoreOutgoingAsync(Envelope envelope, int ownerId);
     Task DeleteOutgoingAsync(Envelope[] envelopes);
     Task DeleteOutgoingAsync(Envelope envelope);
-    
-    // TODO -- simplify into discard command & reassign operation sent by tenant. Let DatabaseBatching do the work
-    // instead. Simplifies the usage
+
     Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
 }
 

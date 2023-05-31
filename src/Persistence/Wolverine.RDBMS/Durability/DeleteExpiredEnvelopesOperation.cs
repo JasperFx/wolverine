@@ -26,10 +26,9 @@ internal class DeleteExpiredEnvelopesOperation : IDatabaseOperation, IDoNotRetur
         builder.Append(";");
     }
 
-    public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
+    public Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
     {
-        var affected = reader.RecordsAffected;
-        // TODO -- do something to log this if more than zero
+        return Task.CompletedTask;
     }
 
     public IEnumerable<IAgentCommand> PostProcessingCommands()

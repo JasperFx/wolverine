@@ -25,14 +25,9 @@ internal class MoveReplayableErrorMessagesToIncomingOperation : IDatabaseOperati
         builder.Append($"delete from {_database.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = @replayable;");
     }
 
-    public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
+    public Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
     {
-        var number = reader.RecordsAffected;
-        
-        // TODO -- log something from up above!
-        
-        // Need to advance the reader because this operation runs two separate queries
-        await reader.NextResultAsync(token);
+        return Task.CompletedTask;
     }
 
     public IEnumerable<IAgentCommand> PostProcessingCommands()

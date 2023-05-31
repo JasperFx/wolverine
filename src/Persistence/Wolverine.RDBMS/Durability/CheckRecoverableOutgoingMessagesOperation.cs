@@ -30,7 +30,7 @@ internal class CheckRecoverableOutgoingMessagesOperation : IDatabaseOperation
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {
-        builder.Append($"select distinct destination from {_database.SchemaName}.{DatabaseConstants.OutgoingTable};");
+        builder.Append($"select distinct destination from {_database.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = 0;");
     }
 
     public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
@@ -50,6 +50,7 @@ internal class CheckRecoverableOutgoingMessagesOperation : IDatabaseOperation
 
             if (!sendingAgent.Latched)
             {
+                _logger.LogInformation("Found recoverable outgoing messages in the outbox for {Destination}", destination);
                 yield return new RecoverOutgoingMessagesCommand(sendingAgent, _database, _logger);
             }
         }
@@ -76,36 +77,17 @@ internal class RecoverOutgoingMessagesCommand : IAgentCommand
         
         var outgoing = await _database.Outbox.LoadOutgoingAsync(_sendingAgent.Destination);
         var expiredMessages = outgoing.Where(x => x.IsExpired()).ToArray();
-        yield return new DeleteExpiredOutgoingEnvelopesCommand(_database, _logger, expiredMessages);
-        
         var good = outgoing.Where(x => !x.IsExpired()).ToArray();
+
+        await _database.Outbox.DiscardAndReassignOutgoingAsync(expiredMessages, good,
+            runtime.Options.Durability.AssignedNodeNumber);
 
         foreach (var envelope in good)
         {
             await _sendingAgent.EnqueueOutgoingAsync(envelope);
         }
-    }
-}
-
-internal class DeleteExpiredOutgoingEnvelopesCommand : IAgentCommand
-{
-    private readonly IMessageDatabase _database;
-    private readonly ILogger _logger;
-    private readonly Envelope[] _expiredMessages;
-
-    public DeleteExpiredOutgoingEnvelopesCommand(IMessageDatabase database, ILogger logger, Envelope[] expiredMessages)
-    {
-        _database = database;
-        _logger = logger;
-        _expiredMessages = expiredMessages;
-    }
-
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        await _database.Outbox.DeleteOutgoingAsync(_expiredMessages);
-        _logger.DiscardedExpired(_expiredMessages);
         
-        yield break;
+        _logger.LogInformation("Recovered {Count} messages from outbox for destination {Destination} while discarding {ExpiredCount} expired messages", good.Length, _sendingAgent.Destination, expiredMessages.Length);
     }
 }
+
