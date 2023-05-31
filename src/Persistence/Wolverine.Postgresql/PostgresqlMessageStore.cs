@@ -155,7 +155,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
-        using var conn = CreateConnection();
+        await using var conn = CreateConnection();
         await conn.OpenAsync();
         
         var list = await conn

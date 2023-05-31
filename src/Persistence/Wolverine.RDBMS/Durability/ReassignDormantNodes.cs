@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime.Agents;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
@@ -10,11 +11,13 @@ namespace Wolverine.RDBMS.Durability;
 public class ReassignDormantNodes : IDatabaseOperation
 {
     private readonly IMessageDatabase _database;
-    private List<int> _obsoletes;
+    private readonly ILogger _logger;
+    private readonly List<int> _obsoletes = new();
 
-    public ReassignDormantNodes(IMessageDatabase database)
+    public ReassignDormantNodes(IMessageDatabase database, ILogger logger)
     {
         _database = database;
+        _logger = logger;
     }
 
     public string Description { get; } = "Reassigning persisted messages from obsolete nodes";
@@ -27,8 +30,6 @@ public class ReassignDormantNodes : IDatabaseOperation
 
     public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
     {
-        _obsoletes = new List<int>();
-
         while (await reader.ReadAsync(token))
         {
             var ownerId = await reader.GetFieldValueAsync<int>(0, token);
@@ -42,10 +43,13 @@ public class ReassignDormantNodes : IDatabaseOperation
             var ownerId = await reader.GetFieldValueAsync<int>(0, token);
             _obsoletes.Fill(ownerId);
         }
+        
+        _logger.LogInformation("Found dormant nodes in the inbox/outbox: {Nodes}", _obsoletes.Select(x => x.ToString()).Join(", "));
     }
 
     public IEnumerable<IAgentCommand> PostProcessingCommands()
     {
+        
         return _obsoletes.Select(id => new NodeRecoveryOperation(id));
     }
 }

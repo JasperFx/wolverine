@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
@@ -54,8 +55,11 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
         {
             var listener = findListenerCircuit(incoming);
 
-            // TODO -- log/tracker
-            yield return new RecoverableIncomingMessagesOperation(_database, incoming, listener, _settings, _logger);
+            if (listener.Status == ListeningStatus.Accepting)
+            {
+                _logger.LogInformation("Issuing a command to recover {Count} incoming messages from the inbox to destination {Destination}", incoming.Count, incoming.Destination);
+                yield return new RecoverableIncomingMessagesOperation(_database, incoming, listener, _settings, _logger);
+            }
         }
     }
     
@@ -119,21 +123,22 @@ internal class RecoverableIncomingMessagesOperation : IAgentCommand
         return pageSize;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var pageSize = DeterminePageSize(_circuit, _count, _settings);
         if (pageSize == 0)
         {
-            // TODO -- log here
+            _logger.LogInformation("Unable to recover inbox messages to destination {Destination}. Listener has status {Status} and queued count {QueuedCount}", _count.Destination, _circuit.Status, _circuit.QueueCount);
             yield break;
         }
         
-        // TODO - this will have to be changed in the underlying to not use the existing database session
         var envelopes = await _database.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
         await _database.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
         
         _circuit.EnqueueDirectly(envelopes);
         _logger.RecoveredIncoming(envelopes);
+        
+        _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}", envelopes.Count, _count.Destination);
 
         if (pageSize < _count.Count)
         {
