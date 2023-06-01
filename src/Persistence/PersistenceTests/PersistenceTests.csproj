@@ -7,6 +7,8 @@
         <LangVersion>10</LangVersion>
 
         <RootNamespace>PersistenceTests</RootNamespace>
+
+        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
