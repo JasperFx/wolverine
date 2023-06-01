@@ -1,4 +1,5 @@
-﻿using Marten;
+﻿using JasperFx.Core.Reflection;
+using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Marten.Publishing;
@@ -16,9 +17,15 @@ public static class WolverineOptionsMartenExtensions
     /// </summary>
     /// <param name="expression"></param>
     /// <param name="schemaName">Optionally move the Wolverine envelope storage to a separate schema</param>
+    /// <param name="masterDatabaseConnectionString">
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    /// </param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null)
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null,
+        string? masterDatabaseConnectionString = null)
     {
         expression.Services.ConfigureMarten(opts =>
         {
@@ -29,31 +36,40 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddSingleton<IMessageStore>(s =>
         {
-            var store = s.GetRequiredService<IDocumentStore>();
-
-            var settings = new DatabaseSettings
-            {
-                ConnectionString = store.Storage.Database.CreateConnection().ConnectionString,
-                SchemaName = schemaName ?? store.Options.DatabaseSchemaName,
-                IsMaster = true // TODO -- will change when we do multi-tenancy support
-                
-            };
-
-            if (settings.SchemaName.IsEmpty()) settings.SchemaName = "public";
+            var store = s.GetRequiredService<IDocumentStore>().As<DocumentStore>();
 
             var durability = s.GetRequiredService<DurabilitySettings>();
             var logger = s.GetRequiredService<ILogger<PostgresqlMessageStore>>();
 
-            return new PostgresqlMessageStore(settings, durability, logger);
+            schemaName ??= store.Options.DatabaseSchemaName;
+
+            // TODO -- hacky. Need a way to expose this in Marten
+            if (store.Tenancy.GetType().Name == "DefaultTenancy")
+            {
+                var martenDatabase = store.Storage.Database;
+
+                var settings = new DatabaseSettings
+                {
+                    ConnectionString = martenDatabase.CreateConnection().ConnectionString,
+                    SchemaName = schemaName,
+                    IsMaster = true
+                };
+
+                return new PostgresqlMessageStore(settings, durability, logger);
+            }
+
+
+            throw new NotImplementedException();
         });
-        
-        
+
+
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
 
         return expression;
     }
+
 
     internal static MartenIntegration? FindMartenIntegration(this IServiceCollection services)
     {
