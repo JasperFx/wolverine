@@ -23,11 +23,11 @@ internal class DatabaseAgent : IAgent
     private readonly ActionBlock<DatabaseOperationBatch> _runningBlock;
     private ILogger<DatabaseAgent> _logger;
 
-    public DatabaseAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database, DatabaseSettings databaseSettings)
+    public DatabaseAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database)
     {
         _runtime = runtime;
         _database = database;
-        _databaseSettings = databaseSettings;
+        _databaseSettings = database.Settings;
         _localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(TransportConstants.Scheduled);
         _settings = runtime.DurabilitySettings;
 
@@ -68,7 +68,7 @@ internal class DatabaseAgent : IAgent
                 new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
                 new DeleteExpiredEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
                 new MoveReplayableErrorMessagesToIncomingOperation(_database),
-                new ReassignDormantNodes(_database, _runtime.Logger)
+                //new ReassignDormantNodes(_database, _runtime.Logger)
             };
             
             var batch = new DatabaseOperationBatch(_database, operations);

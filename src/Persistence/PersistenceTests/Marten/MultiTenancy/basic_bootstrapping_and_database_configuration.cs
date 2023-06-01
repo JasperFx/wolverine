@@ -1,8 +1,11 @@
 using IntegrationTests;
+using JasperFx.Core;
 using Npgsql;
+using PersistenceTests.Agents;
 using Shouldly;
 using Weasel.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.Tracking;
 using Wolverine.Transports;
 using Xunit;
 
@@ -111,5 +114,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
         
         Databases.Master.IsMaster.ShouldBeTrue();
     }
+
+
 
 }

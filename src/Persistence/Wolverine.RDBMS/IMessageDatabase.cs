@@ -26,7 +26,8 @@ public interface IMessageDatabase : IMessageStore
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     
     string SchemaName { get; set; }
-    
+    DatabaseSettings Settings { get; }
+
 
     DbConnection CreateConnection();
     Weasel.Core.DbCommandBuilder ToCommandBuilder();

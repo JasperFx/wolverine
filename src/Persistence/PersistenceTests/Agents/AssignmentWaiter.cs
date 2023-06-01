@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Logging;
 using Wolverine.Tracking;
@@ -12,6 +13,7 @@ internal class AssignmentWaiter : IObserver<IWolverineEvent>
     private readonly WolverineTracker _tracker;
 
     public Dictionary<Guid, int> AgentCountByHost { get; } = new();
+    public string AgentScheme { get; set; }
 
     public AssignmentWaiter(IHost leader)
     {
@@ -45,7 +47,11 @@ internal class AssignmentWaiter : IObserver<IWolverineEvent>
     {
         foreach (var pair in AgentCountByHost)
         {
-            var runningCount = _tracker.Agents.ToArray().Where(x => !x.Key.Scheme.StartsWith("wolverine")).Count(x => x.Value == pair.Key);
+            Func<Uri, bool> filter = AgentScheme.IsEmpty()
+                ? x => !x.Scheme.StartsWith("wolverine")
+                : x => x.Scheme.EqualsIgnoreCase(AgentScheme);
+            
+            var runningCount = _tracker.Agents.ToArray().Where(x => filter(x.Key)).Count(x => x.Value == pair.Key);
             if (pair.Value != runningCount) return false;
         }
 
