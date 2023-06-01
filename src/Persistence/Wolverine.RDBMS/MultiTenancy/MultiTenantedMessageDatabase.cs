@@ -4,6 +4,7 @@ using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.MultiTenancy;
@@ -47,7 +48,7 @@ public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessa
 
     public ValueTask<IMessageDatabase> GetDatabaseAsync(string? tenantId)
     {
-        return tenantId.IsEmpty() 
+        return tenantId.IsEmpty() || tenantId == TransportConstants.Default
             ? new ValueTask<IMessageDatabase>(Master) 
             : _databases.FindDatabaseAsync(tenantId);
     }
@@ -134,9 +135,10 @@ public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessa
         await database.Inbox.ScheduleExecutionAsync(envelope);
     }
 
-    Task IMessageInbox.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
+    async Task IMessageInbox.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
-        return Master.Inbox.MoveToDeadLetterStorageAsync(envelope, exception);
+        var database = await GetDatabaseAsync(envelope.TenantId);
+        await database.Inbox.MoveToDeadLetterStorageAsync(envelope, exception);
     }
 
     async Task IMessageInbox.IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
@@ -244,8 +246,8 @@ public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessa
 
     async Task IMessageOutbox.DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
-        var discardGroups = discards.GroupBy(x => x.TenantId).ToArray();
-        var reassignedGroups = reassigned.GroupBy(x => x.TenantId).ToArray();
+        var discardGroups = discards.GroupBy(x => x.TenantId ?? TransportConstants.Default).ToArray();
+        var reassignedGroups = reassigned.GroupBy(x => x.TenantId?? TransportConstants.Default).ToArray();
 
         var dict = new Dictionary<string, DiscardAndReassignOutgoingAsyncGroup>();
 
