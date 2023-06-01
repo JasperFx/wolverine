@@ -36,8 +36,6 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
         Options = options;
 
         TableName = new DbObjectName(database.SchemaName, DatabaseConstants.ControlQueueTableName);
-        
-        
     }
 
     public DatabaseControlEndpoint ControlEndpoint { get; }

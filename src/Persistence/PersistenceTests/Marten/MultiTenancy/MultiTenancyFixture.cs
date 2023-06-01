@@ -82,7 +82,7 @@ public class MultiTenancyFixture : IAsyncLifetime
                     {
                         tenancy.AddSingleTenantDatabase(tenant1ConnectionString, "tenant1");
                         tenancy.AddSingleTenantDatabase(tenant2ConnectionString, "tenant2");
-                        tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant2");
+                        tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
                     });
                     
                 }).IntegrateWithWolverine(schemaName:"control", masterDatabaseConnectionString:Servers.PostgresConnectionString);

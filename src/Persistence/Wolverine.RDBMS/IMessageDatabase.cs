@@ -9,7 +9,9 @@ namespace Wolverine.RDBMS;
 public interface IMessageDatabase : IMessageStore
 {
     string Name { get; }
-    
+
+    bool IsMaster { get; }
+
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
 

@@ -52,7 +52,9 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         Nodes = buildNodeStorage(databaseSettings);
     }
-    
+
+    public bool IsMaster => Settings.IsMaster;
+
     public string Name { get; set; } = TransportConstants.Default;
 
     public DatabaseSettings Settings => _settings;
