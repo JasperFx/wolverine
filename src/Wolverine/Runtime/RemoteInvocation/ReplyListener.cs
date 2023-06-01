@@ -11,9 +11,10 @@ internal class ReplyListener<T> : IReplyListener
     private readonly CancellationTokenSource _cancellation;
     private readonly TaskCompletionSource<T> _completion;
 
-    public ReplyListener(Guid requestId, ReplyTracker parent, TimeSpan timeout, CancellationToken cancellationToken)
+    public ReplyListener(Envelope envelope, ReplyTracker parent, TimeSpan timeout, CancellationToken cancellationToken)
     {
-        RequestId = requestId;
+        RequestId = envelope.Id;
+        RequestType = envelope.MessageType;
         Parent = parent ?? throw new ArgumentNullException(nameof(parent));
         cancellationToken.Register(onCancellation);
 
@@ -22,6 +23,8 @@ internal class ReplyListener<T> : IReplyListener
 
         _cancellation.Token.Register(onCancellation);
     }
+
+    public string? RequestType { get; set; }
 
     public ReplyTracker Parent { get; }
 
@@ -56,12 +59,12 @@ internal class ReplyListener<T> : IReplyListener
         if (typeof(T) == typeof(Acknowledgement))
         {
             _completion.TrySetException(new TimeoutException(
-                $"Timed out waiting for expected acknowledgement for original message {RequestId}"));
+                $"Timed out waiting for expected acknowledgement for original message {RequestId} of type {RequestType}"));
         }
         else
         {
             _completion.TrySetException(new TimeoutException(
-                $"Timed out waiting for expected response {typeof(T).FullNameInCode()} for original message {RequestId}"));
+                $"Timed out waiting for expected response {typeof(T).FullNameInCode()} for original message {RequestId} of type {RequestType}"));
         }
 
 

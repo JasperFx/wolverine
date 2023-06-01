@@ -9,18 +9,7 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.MultiTenancy;
 
-/// <summary>
-/// Source of known tenant databases
-/// </summary>
-public interface IMessageDatabaseSource
-{
-    ValueTask<IMessageDatabase> FindDatabaseAsync(string tenantId);
-    Task InitializeAsync();
-
-    IReadOnlyList<IMessageDatabase> AllActive();
-}
-
-public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin
+public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin
 {
     private readonly ILogger _logger;
     private readonly IWolverineRuntime _runtime;

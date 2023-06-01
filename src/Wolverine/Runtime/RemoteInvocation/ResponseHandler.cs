@@ -32,7 +32,7 @@ internal class ReplyTracker : IReplyTracker
 #pragma warning restore VSTHRD200
     {
         envelope.DeliverWithin = timeout; // Make the message expire so it doesn't cruft up the receivers
-        var listener = new ReplyListener<T>(envelope.Id, this, timeout, cancellationToken);
+        var listener = new ReplyListener<T>(envelope, this, timeout, cancellationToken);
         _listeners.AddOrUpdate(envelope.Id, listener, (id, l) => listener);
 
         return listener.Task;

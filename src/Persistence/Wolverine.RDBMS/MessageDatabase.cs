@@ -52,6 +52,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         Nodes = buildNodeStorage(databaseSettings);
     }
+    
+    
 
     public bool IsMaster => Settings.IsMaster;
 
