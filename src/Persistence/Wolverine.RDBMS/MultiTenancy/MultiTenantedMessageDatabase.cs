@@ -26,9 +26,9 @@ public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessa
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
 
 
-    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, ILogger logger, IMessageDatabaseSource databases)
+    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource databases)
     {
-        _logger = logger;
+        _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageDatabase>();
         _databases = databases;
 
         _retryBlock = new RetryBlock<IEnvelopeCommand>((command, cancellation) => command.ExecuteAsync(cancellation),
@@ -61,7 +61,11 @@ public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessa
     public async Task InitializeAsync(IWolverineRuntime runtime)
     {
         await _databases.InitializeAsync();
-        await Master.InitializeAsync(runtime);
+
+        foreach (var database in databases())
+        {
+            await database.InitializeAsync(runtime);
+        }
     }
 
     public IMessageInbox Inbox => this;

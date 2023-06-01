@@ -6,6 +6,8 @@ using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.MultiTenancy;
+using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
@@ -38,7 +40,7 @@ public static class WolverineOptionsMartenExtensions
         {
             var store = s.GetRequiredService<IDocumentStore>().As<DocumentStore>();
 
-            var durability = s.GetRequiredService<DurabilitySettings>();
+            var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<PostgresqlMessageStore>>();
 
             schemaName ??= store.Options.DatabaseSchemaName;
@@ -55,15 +57,35 @@ public static class WolverineOptionsMartenExtensions
                     IsMaster = true
                 };
 
-                return new PostgresqlMessageStore(settings, durability, logger);
+                return new PostgresqlMessageStore(settings, runtime.Options.Durability, logger);
             }
 
+            if (masterDatabaseConnectionString.IsEmpty())
+            {
+                throw new ArgumentOutOfRangeException(nameof(masterDatabaseConnectionString),
+                    "Must specify a master Wolverine database connection string in the case of using Marten multi-tenancy with multiple databases");
+            }
+            
+            var masterSettings = new DatabaseSettings
+            {
+                ConnectionString = masterDatabaseConnectionString,
+                SchemaName = schemaName,
+                IsMaster = true,
+                CommandQueuesEnabled = true
+            };
 
-            throw new NotImplementedException();
+            var source = new MartenMessageDatabaseSource(schemaName, store, runtime);
+            var master = new PostgresqlMessageStore(masterSettings, runtime.Options.Durability,
+                runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>());
+
+            return new MultiTenantedMessageDatabase(master, runtime, source);
         });
 
 
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
+        
+
+        
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
 
