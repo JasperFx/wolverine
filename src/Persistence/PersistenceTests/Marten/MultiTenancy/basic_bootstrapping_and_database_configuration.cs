@@ -3,6 +3,7 @@ using Npgsql;
 using Shouldly;
 using Weasel.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.Transports;
 using Xunit;
 
 namespace PersistenceTests.Marten.MultiTenancy;
@@ -73,6 +74,12 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
             
             await conn.CloseAsync();
         }
+    }
+
+    [Fact]
+    public async Task finds_database_for_default_is_master()
+    {
+        (await Databases.GetDatabaseAsync(TransportConstants.Default)).ShouldBeSameAs(Databases.Master);
     }
 
     [Fact]

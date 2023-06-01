@@ -157,9 +157,12 @@ public partial class WolverineRuntime : IAgentRuntime
             }
         }
 
-        await _agents.DisableAgentsAsync();
-        await _persistence.Value.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
-        
+        if (_agents != null)
+        {
+            await _agents.DisableAgentsAsync();
+            await _persistence.Value.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
+        }
+
         _agents = null;
     }
 }
