@@ -22,13 +22,16 @@ public interface IMessageDatabaseSource
 public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin
 {
     private readonly ILogger _logger;
+    private readonly IWolverineRuntime _runtime;
     private readonly IMessageDatabaseSource _databases;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
+    private bool _initialized;
 
 
     public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource databases)
     {
         _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageDatabase>();
+        _runtime = runtime;
         _databases = databases;
 
         _retryBlock = new RetryBlock<IEnvelopeCommand>((command, cancellation) => command.ExecuteAsync(cancellation),
@@ -37,7 +40,6 @@ public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessa
         Master = master;
     }
     
-
     public IMessageDatabase Master { get;}
 
     public IReadOnlyList<IMessageDatabase> ActiveDatabases() =>
@@ -60,12 +62,16 @@ public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessa
 
     public async Task InitializeAsync(IWolverineRuntime runtime)
     {
+        if (_initialized) return;
+        
         await _databases.InitializeAsync();
 
         foreach (var database in databases())
         {
             await database.InitializeAsync(runtime);
         }
+
+        _initialized = true;
     }
 
     public IMessageInbox Inbox => this;
@@ -366,8 +372,13 @@ public class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessa
         return executeOnAllAsync(d => d.Admin.CheckConnectivityAsync(token));
     }
 
-    Task IMessageStoreAdmin.MigrateAsync()
+    async Task IMessageStoreAdmin.MigrateAsync()
     {
-        return executeOnAllAsync(d => d.Admin.MigrateAsync());
+        if (!_initialized)
+        {
+            await InitializeAsync(_runtime);
+        }
+        
+        await executeOnAllAsync(d => d.Admin.MigrateAsync());
     }
 }

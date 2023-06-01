@@ -48,48 +48,58 @@ public static class WolverineOptionsMartenExtensions
             // TODO -- hacky. Need a way to expose this in Marten
             if (store.Tenancy.GetType().Name == "DefaultTenancy")
             {
-                var martenDatabase = store.Storage.Database;
-
-                var settings = new DatabaseSettings
-                {
-                    ConnectionString = martenDatabase.CreateConnection().ConnectionString,
-                    SchemaName = schemaName,
-                    IsMaster = true
-                };
-
-                return new PostgresqlMessageStore(settings, runtime.Options.Durability, logger);
+                return BuildSinglePostgresqlMessageStore(schemaName, store, runtime, logger);
             }
 
-            if (masterDatabaseConnectionString.IsEmpty())
-            {
-                throw new ArgumentOutOfRangeException(nameof(masterDatabaseConnectionString),
-                    "Must specify a master Wolverine database connection string in the case of using Marten multi-tenancy with multiple databases");
-            }
-            
-            var masterSettings = new DatabaseSettings
-            {
-                ConnectionString = masterDatabaseConnectionString,
-                SchemaName = schemaName,
-                IsMaster = true,
-                CommandQueuesEnabled = true
-            };
-
-            var source = new MartenMessageDatabaseSource(schemaName, store, runtime);
-            var master = new PostgresqlMessageStore(masterSettings, runtime.Options.Durability,
-                runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>());
-
-            return new MultiTenantedMessageDatabase(master, runtime, source);
+            return BuildMultiTenantedMessageDatabase(schemaName, masterDatabaseConnectionString, store, runtime);
         });
 
-
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
-        
-
-        
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
-
         return expression;
+    }
+
+    internal static IMessageStore BuildMultiTenantedMessageDatabase(string schemaName,
+        string? masterDatabaseConnectionString, DocumentStore store, IWolverineRuntime runtime)
+    {
+        if (masterDatabaseConnectionString.IsEmpty())
+        {
+            throw new ArgumentOutOfRangeException(nameof(masterDatabaseConnectionString),
+                "Must specify a master Wolverine database connection string in the case of using Marten multi-tenancy with multiple databases");
+        }
+
+        var masterSettings = new DatabaseSettings
+        {
+            ConnectionString = masterDatabaseConnectionString,
+            SchemaName = schemaName,
+            IsMaster = true,
+            CommandQueuesEnabled = true
+        };
+
+        var source = new MartenMessageDatabaseSource(schemaName, store, runtime);
+        var master = new PostgresqlMessageStore(masterSettings, runtime.Options.Durability,
+            runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
+        {
+            Name = "Master"
+        };
+
+        return new MultiTenantedMessageDatabase(master, runtime, source);
+    }
+
+    internal static IMessageStore BuildSinglePostgresqlMessageStore(string schemaName, DocumentStore store,
+        IWolverineRuntime runtime, ILogger<PostgresqlMessageStore> logger)
+    {
+        var martenDatabase = store.Storage.Database;
+
+        var settings = new DatabaseSettings
+        {
+            ConnectionString = martenDatabase.CreateConnection().ConnectionString,
+            SchemaName = schemaName,
+            IsMaster = true
+        };
+
+        return new PostgresqlMessageStore(settings, runtime.Options.Durability, logger);
     }
 
 

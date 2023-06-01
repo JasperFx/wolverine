@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Storage;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Weasel.Core;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
@@ -80,7 +81,10 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         };
 
         return new PostgresqlMessageStore(settings, _runtime.Options.Durability,
-            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>());
+            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
+        {
+            Name = new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database ?? database.Identifier
+        };
     }
 
     public async Task InitializeAsync()
