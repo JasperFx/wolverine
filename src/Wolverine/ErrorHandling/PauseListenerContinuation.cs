@@ -2,7 +2,9 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Transports;
 
 namespace Wolverine.ErrorHandling;
 
@@ -18,7 +20,18 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
     public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity)
     {
-        var agent = runtime.Endpoints.FindListeningAgent(lifecycle.Envelope!.Listener!.Address);
+        IListenerCircuit agent;
+        var destination = lifecycle.Envelope!.Destination;
+        if (destination?.Scheme == "local")
+        {
+            // This will only work for durable, local queues
+            agent = runtime.Endpoints.GetOrBuildSendingAgent(destination) as IListenerCircuit;
+        }
+        else
+        {
+            agent = runtime.Endpoints.FindListeningAgent(lifecycle.Envelope!.Listener!.Address);
+        }
+
         if (agent != null)
         {
             activity?.AddEvent(new ActivityEvent(WolverineTracing.PausedListener));
@@ -27,6 +40,10 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
             Task.Factory.StartNew(() =>
 #pragma warning restore VSTHRD110
                 agent.PauseAsync(PauseTime), CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
+        }
+        else
+        {
+            runtime.Logger.LogInformation("Unable to pause listening endpoint {Destination}. Is this a local queue that is not durable?", destination);
         }
 
         return ValueTask.CompletedTask;

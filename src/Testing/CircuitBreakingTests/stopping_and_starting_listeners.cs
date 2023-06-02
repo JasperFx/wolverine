@@ -1,10 +1,16 @@
 using System.Diagnostics;
+using IntegrationTests;
 using JasperFx.Core;
+using Marten;
 using Microsoft.Extensions.Hosting;
+using NSubstitute;
+using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
+using TestMessages;
 using Wolverine;
 using Wolverine.ErrorHandling;
+using Wolverine.Marten;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
@@ -27,9 +33,16 @@ public class stopping_and_starting_listeners : IDisposable
 
         theListener = WolverineHost.For(opts =>
         {
+            opts.Services.AddMarten(Servers.PostgresConnectionString)
+                .IntegrateWithWolverine();
+
+            opts.Services.AddResourceSetupOnStartup();
+            
             opts.ListenAtPort(_port1).Named("one");
             opts.ListenAtPort(_port2).Named("two");
             opts.ListenAtPort(_port3).Named("three");
+
+            opts.PublishMessage<Message1>().ToLocalQueue("one").UseDurableInbox();
 
             opts.Policies.OnException<DivideByZeroException>()
                 .Requeue().AndPauseProcessing(5.Seconds());
@@ -39,6 +52,22 @@ public class stopping_and_starting_listeners : IDisposable
     public void Dispose()
     {
         theListener?.Dispose();
+    }
+
+    [Fact]
+    public async Task pause_a_local_durable_queue()
+    {
+        var envelope = new Envelope
+        {
+            Destination = new Uri("local://one")
+        };
+
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
+        lifecycle.Envelope.Returns(envelope);
+
+        var runtime = theListener.GetRuntime();
+
+        await new PauseListenerContinuation(5.Minutes()).ExecuteAsync(lifecycle, runtime, DateTimeOffset.UtcNow, null);
     }
 
     [Fact]
