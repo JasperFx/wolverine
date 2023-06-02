@@ -266,7 +266,14 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         if (Transaction != null)
         {
-            await Transaction.RollbackAsync();
+            try
+            {
+                await Transaction.RollbackAsync();
+            }
+            catch (Exception)
+            {
+                // Swallowing these exceptions as they can do nothing but harm
+            }
         }
 
         Transaction = null;
