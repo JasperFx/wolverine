@@ -46,7 +46,16 @@ internal class CheckRecoverableOutgoingMessagesOperation : IDatabaseOperation
     {
         foreach (var destination in _uris)
         {
-            var sendingAgent = _runtime.Endpoints.GetOrBuildSendingAgent(destination);
+            ISendingAgent sendingAgent;
+            try
+            {
+                sendingAgent = _runtime.Endpoints.GetOrBuildSendingAgent(destination);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to find a sending agent for {Destination}", destination);
+                yield break;
+            }
 
             if (!sendingAgent.Latched)
             {
@@ -70,7 +79,7 @@ internal class RecoverOutgoingMessagesCommand : IAgentCommand
         _logger = logger;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // It's possible that this could happen between the command being created and executed
         if (_sendingAgent.Latched) yield break;
