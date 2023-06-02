@@ -305,4 +305,17 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
 
         return list.Select(x => x.ToUri()).ToList();
     }
+    
+    public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        var result = await conn.CreateCommand($"select node_number from {_nodeTable}")
+            .FetchListAsync<int>();
+
+        await conn.CloseAsync();
+
+        return result;
+    }
 }

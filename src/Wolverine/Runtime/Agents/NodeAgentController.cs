@@ -109,9 +109,7 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         handlers.AddMessageHandler(typeof(TryAssumeLeadership),new InternalMessageHandler<TryAssumeLeadership>(this));
         handlers.AddMessageHandler(typeof(CheckAgentHealth),new InternalMessageHandler<CheckAgentHealth>(this));
         handlers.AddMessageHandler(typeof(VerifyAssignments), new InternalMessageHandler<VerifyAssignments>(this));
-        
-        handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(runtime));
-        
+
         handlers.RegisterMessageType(typeof(StartAgent));
         handlers.RegisterMessageType(typeof(StartAgents));
         handlers.RegisterMessageType(typeof(AgentsStarted));
