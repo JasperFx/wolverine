@@ -104,6 +104,8 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
                     opts.Durability.ScheduledJobPollingTime = 1.Seconds();
                     opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
+
+                    opts.Durability.NodeReassignmentPollingTime = 1.Seconds();
                 })
                 .Start();
         });

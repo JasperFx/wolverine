@@ -30,6 +30,8 @@ public partial class WolverineRuntime
                 await Storage.Admin.MigrateAsync();
             }
 
+            // Has to be done before initializing the storage
+            Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
             await Storage.InitializeAsync(this);
 
             await startMessagingTransportsAsync();

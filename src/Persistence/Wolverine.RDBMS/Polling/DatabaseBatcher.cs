@@ -16,7 +16,7 @@ public class DatabaseBatcher : IAsyncDisposable
     private readonly IWolverineRuntime _runtime;
     private readonly CancellationToken _cancellationToken;
     private readonly ILogger<DatabaseBatcher> _logger;
-    private readonly IExecutor _executor;
+    private readonly Lazy<IExecutor> _executor;
 
     public DatabaseBatcher(IMessageDatabase database, IWolverineRuntime runtime,
         CancellationToken cancellationToken)
@@ -34,7 +34,7 @@ public class DatabaseBatcher : IAsyncDisposable
 
         _logger = _runtime.LoggerFactory.CreateLogger<DatabaseBatcher>();
 
-        _executor = runtime.As<IExecutorFactory>().BuildFor(typeof(DatabaseOperationBatch));
+        _executor = new Lazy<IExecutor>(() => runtime.As<IExecutorFactory>().BuildFor(typeof(DatabaseOperationBatch)));
     }
 
     public Task EnqueueAsync(IDatabaseOperation operation)
@@ -46,7 +46,7 @@ public class DatabaseBatcher : IAsyncDisposable
     {
         try
         {
-            await _executor.InvokeAsync(new DatabaseOperationBatch(_database, operations), new MessageBus(_runtime), _cancellationToken);
+            await _executor.Value.InvokeAsync(new DatabaseOperationBatch(_database, operations), new MessageBus(_runtime), _cancellationToken);
         }
         catch (Exception e)
         {

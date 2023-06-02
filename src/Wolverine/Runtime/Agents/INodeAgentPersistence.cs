@@ -23,5 +23,6 @@ public interface INodeAgentPersistence
 
     Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime, CancellationToken cancellation);
     Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime);
+    Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync();
 }
 

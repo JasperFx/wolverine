@@ -319,4 +319,17 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
 
         await conn.CloseAsync();
     }
+
+    public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        var result = await conn.CreateCommand($"select node_number from {_nodeTable}")
+            .FetchListAsync<int>();
+
+        await conn.CloseAsync();
+
+        return result;
+    }
 }
