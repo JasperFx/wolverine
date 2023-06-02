@@ -6,7 +6,7 @@ namespace Wolverine.RDBMS.MultiTenancy;
 
 public partial class MultiTenantedMessageDatabase : IAgentFamily
 {
-    public string Scheme { get; } = DatabaseAgent.AgentScheme;
+    public string Scheme { get; } = DurabilityAgent.AgentScheme;
     public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
         var uris = databases().Select(x => new Uri($"{Scheme}://{x.Name}")).ToList();
@@ -18,7 +18,7 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
         var database = databases().FirstOrDefault(x => x.Name.EqualsIgnoreCase(uri.Host));
         if (database == null) throw new ArgumentOutOfRangeException(nameof(uri), "Unknown database " + uri.Host);
 
-        return new ValueTask<IAgent>(new DatabaseAgent(database.Name, _runtime, database));
+        return new ValueTask<IAgent>(new DurabilityAgent(database.Name, _runtime, database));
     }
 
     public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()

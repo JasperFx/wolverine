@@ -103,7 +103,6 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         _calls.AddRange(calls);
     }
 
-
     public MessageHandler? HandlerFor<T>()
     {
         return HandlerFor(typeof(T));

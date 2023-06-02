@@ -6,9 +6,9 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : IAgentFamily
 {
-    private readonly Uri _defaultAgent = new Uri($"{DatabaseAgent.AgentScheme}://{TransportConstants.Default}");
+    private readonly Uri _defaultAgent = new Uri($"{DurabilityAgent.AgentScheme}://{TransportConstants.Default}");
     
-    public string Scheme => DatabaseAgent.AgentScheme;
+    public string Scheme => DurabilityAgent.AgentScheme;
     
     public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
@@ -20,7 +20,7 @@ public abstract partial class MessageDatabase<T> : IAgentFamily
     {
         if (uri != _defaultAgent) throw new ArgumentOutOfRangeException(nameof(uri));
 
-        var agent = new DatabaseAgent(TransportConstants.Default, runtime, this);
+        var agent = new DurabilityAgent(TransportConstants.Default, runtime, this);
 
         return new ValueTask<IAgent>(agent);
     }

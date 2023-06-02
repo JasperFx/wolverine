@@ -1,4 +1,5 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.RDBMS.Durability;
@@ -10,7 +11,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-internal class DatabaseAgent : IAgent
+internal class DurabilityAgent : IAgent
 {
     internal const string AgentScheme = "wolverinedb";
 
@@ -21,9 +22,9 @@ internal class DatabaseAgent : IAgent
     private readonly DurabilitySettings _settings;
     private Timer? _scheduledJobTimer;
     private readonly ActionBlock<DatabaseOperationBatch> _runningBlock;
-    private ILogger<DatabaseAgent> _logger;
+    private ILogger<DurabilityAgent> _logger;
 
-    public DatabaseAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database)
+    public DurabilityAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database)
     {
         _runtime = runtime;
         _database = database;
@@ -33,9 +34,9 @@ internal class DatabaseAgent : IAgent
 
         Uri = new Uri($"{AgentScheme}://{databaseName}");
 
-        var invoker = runtime.FindInvoker(typeof(DatabaseOperationBatch));
+        var executor = runtime.As<IExecutorFactory>().BuildFor(typeof(DatabaseOperationBatch));
 
-        _logger = runtime.LoggerFactory.CreateLogger<DatabaseAgent>();
+        _logger = runtime.LoggerFactory.CreateLogger<DurabilityAgent>();
 
         _runningBlock = new ActionBlock<DatabaseOperationBatch>(async batch =>
         {
@@ -43,7 +44,7 @@ internal class DatabaseAgent : IAgent
             
             try
             {
-                await invoker.InvokeAsync(batch, new MessageBus(runtime));
+                await executor.InvokeAsync(batch, new MessageBus(runtime));
             }
             catch (Exception e)
             {
