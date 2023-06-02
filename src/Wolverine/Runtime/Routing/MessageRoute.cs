@@ -53,6 +53,11 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         WolverineRuntime runtime)
     {
         var envelope = new Envelope(message, Sender);
+        if (Sender.Endpoint is LocalQueue)
+        {
+            envelope.Status = EnvelopeStatus.Incoming;
+        }
+        
         if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != envelope.ContentType)
         {
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
