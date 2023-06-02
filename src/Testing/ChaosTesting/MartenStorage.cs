@@ -50,7 +50,7 @@ public class MartenStorageStrategy : IMessageStorageStrategy
             
             m.RegisterDocumentType<MessageRecord>();
             
-            m.AutoCreateSchemaObjects = AutoCreate.None;
+            m.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
         }).IntegrateWithWolverine("chaos_sender");
         
         opts.Services.AddResourceSetupOnStartup();
