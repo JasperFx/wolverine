@@ -188,7 +188,7 @@ public class MessageBus : IMessageBus
         outbound.Source = Runtime.Options.ServiceName;
         outbound.CorrelationId = CorrelationId;
         outbound.ConversationId = outbound.Id; // the message chain originates here
-        outbound.TenantId = TenantId;
+        outbound.TenantId ??= TenantId; // don't override a tenant id that's specifically set on the envelope itself
         outbound.ParentId = activity?.Id;
     }
 
