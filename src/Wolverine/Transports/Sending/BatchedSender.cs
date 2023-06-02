@@ -39,6 +39,11 @@ public class BatchedSender : ISender, ISenderRequiresCallback
             {
                 try
                 {
+                    if (e.Data == null && e.Serializer != null)
+                    {
+                        e.Data = e.Serializer.Write(e);
+                    }
+                    
                     await _batching!.SendAsync(e);
                 }
                 catch (Exception? ex)
