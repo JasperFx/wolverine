@@ -120,16 +120,22 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
             foreach (var parameter in handlerCall.Method.GetParameters())
             {
-                yield return parameter.ParameterType;
-
-                if (!parameter.ParameterType.IsPrimitive || parameter.ParameterType.Assembly == GetType().Assembly || !stopAtTypes.Contains(parameter.ParameterType))
+                // Absolutely do NOT let Lamar go into the command/input/request types
+                if (parameter.ParameterType != InputType() && !parameter.ParameterType.IsPrimitive)
                 {
-                    var candidate = container.Model.For(parameter.ParameterType).Default;
-                    if (candidate != null)
+                    yield return parameter.ParameterType;
+                    
+                    if (parameter.ParameterType.Assembly != GetType().Assembly || !stopAtTypes.Contains(parameter.ParameterType))
                     {
-                        foreach (var dependency in candidate.Instance.Dependencies) yield return dependency.ServiceType;
+                        var candidate = container.Model.For(parameter.ParameterType).Default;
+                        if (candidate != null)
+                        {
+                            foreach (var dependency in candidate.Instance.Dependencies) yield return dependency.ServiceType;
+                        }
                     }
                 }
+
+
             }
 
             // Don't have to consider dependencies of a static handler
