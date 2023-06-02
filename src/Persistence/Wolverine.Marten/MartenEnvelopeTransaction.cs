@@ -2,6 +2,7 @@
 using Wolverine.Marten.Persistence.Operations;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
@@ -17,6 +18,11 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
         {
             _store = store;
             _nodeId = store.Durability.AssignedNodeNumber;
+        }
+        else if (context.Storage is MultiTenantedMessageDatabase mt && mt.Master is PostgresqlMessageStore s)
+        {
+            _store = s;
+            _nodeId = s.Durability.AssignedNodeNumber;
         }
         else
         {

@@ -87,6 +87,8 @@ public class MultiTenancyFixture : IAsyncLifetime
                     
                 }).IntegrateWithWolverine(schemaName:"control", masterDatabaseConnectionString:Servers.PostgresConnectionString);
 
+                opts.Policies.AutoApplyTransactions();
+                
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
     }
