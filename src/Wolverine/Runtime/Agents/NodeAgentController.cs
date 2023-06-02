@@ -14,10 +14,6 @@ public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMes
 
 public record EvaluateAssignments : IInternalMessage;
 
-
-
-
-
 public partial class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
 {
     public static readonly Uri LeaderUri = new("wolverine://leader");
@@ -42,7 +38,7 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
             _agentFamilies[agentController.Scheme] = agentController;
         }
 
-        if (runtime.Storage is IAgentFamily agentFamily)
+        if (runtime.Storage is IAgentFamily agentFamily && runtime.Options.Durability.DurabilityAgentEnabled)
         {
             _agentFamilies[agentFamily.Scheme] = agentFamily;
         }
