@@ -9,7 +9,7 @@ using Xunit;
 
 namespace CoreTests.Runtime.Handlers;
 
-public class HandlerChainTester
+public class HandlerChainTests
 {
 
     [Fact]
@@ -40,6 +40,14 @@ public class HandlerChainTester
     {
         var chain = HandlerChain.For<Target>(nameof(Target.GoStatic), null);
         chain.Failures.MaximumAttempts.HasValue.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ignore_message_type_as_service_dependency()
+    {
+        var chain = HandlerChain.For<Target>(nameof(Target.GoStatic), null);
+        chain.ServiceDependencies(Container.Empty(), new List<Type>())
+            .ShouldNotContain(typeof(Message2));
     }
 
     public class Target
