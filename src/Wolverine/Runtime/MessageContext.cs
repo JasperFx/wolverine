@@ -117,7 +117,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        if (_channel is ISupportDeadLetterQueue c)
+        if (_channel is ISupportDeadLetterQueue c && c.NativeDeadLetterQueueEnabled)
         {
             return c.MoveToErrorsAsync(Envelope, exception);
         }

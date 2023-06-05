@@ -10,6 +10,8 @@ namespace Wolverine.Transports;
 public interface ISupportDeadLetterQueue
 {
     Task MoveToErrorsAsync(Envelope envelope, Exception exception);
+    
+    bool NativeDeadLetterQueueEnabled { get; }
 }
 
 /// <summary>

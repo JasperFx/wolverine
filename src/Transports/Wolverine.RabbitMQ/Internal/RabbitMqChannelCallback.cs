@@ -104,6 +104,9 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         return Task.CompletedTask;
     }
 
+    // TODO -- about to change
+    public bool NativeDeadLetterQueueEnabled { get; } = true;
+
     public virtual void Dispose()
     {
         Complete.Dispose();

@@ -292,4 +292,6 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     {
         return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
     }
+
+    public bool NativeDeadLetterQueueEnabled => true;
 }
