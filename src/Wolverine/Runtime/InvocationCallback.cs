@@ -27,6 +27,8 @@ internal class InvocationCallback : IChannelCallback, ISupportNativeScheduling, 
         return Task.CompletedTask;
     }
 
+    public bool NativeDeadLetterQueueEnabled => true;
+
     public Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
         return Task.CompletedTask;

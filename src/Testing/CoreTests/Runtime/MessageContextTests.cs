@@ -148,6 +148,7 @@ public class MessageContextTests
     public async Task move_to_dead_letter_queue_with_native_dead_letter()
     {
         var callback = Substitute.For<IChannelCallback, ISupportDeadLetterQueue>();
+        callback.As<ISupportDeadLetterQueue>().NativeDeadLetterQueueEnabled.Returns(true);
 
         theContext.ReadEnvelope(theEnvelope, callback);
 
@@ -159,6 +160,22 @@ public class MessageContextTests
             .MoveToErrorsAsync(theEnvelope, exception);
 
         await theRuntime.Storage.Inbox.DidNotReceive()
+            .MoveToDeadLetterStorageAsync(theEnvelope, exception);
+    }
+    
+    [Fact]
+    public async Task move_to_dead_letter_queue_without_native_dead_letter_if_native_dlq_is_disabled()
+    {
+        var callback = Substitute.For<IChannelCallback, ISupportDeadLetterQueue>();
+        callback.As<ISupportDeadLetterQueue>().NativeDeadLetterQueueEnabled.Returns(false);
+
+        theContext.ReadEnvelope(theEnvelope, callback);
+
+        var exception = new Exception();
+
+        await theContext.MoveToDeadLetterQueueAsync(exception);
+
+        await theRuntime.Storage.Inbox.Received()
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
 

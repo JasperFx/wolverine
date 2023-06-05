@@ -131,4 +131,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
     {
         Channel!.BasicAck(deliveryTag, true);
     }
+    
+    // TODO -- about to change
+    public bool NativeDeadLetterQueueEnabled { get; } = true;
 }
