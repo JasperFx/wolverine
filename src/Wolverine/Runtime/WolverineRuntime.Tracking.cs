@@ -9,16 +9,10 @@ public sealed partial class WolverineRuntime : IMessageTracker
 {
     public const int SentEventId = 100;
     public const int ReceivedEventId = 101;
-    public const int ExecutionStartedEventId = 102;
-    public const int ExecutionFinishedEventId = 103;
-
     public const int NoHandlerEventId = 106;
     public const int NoRoutesEventId = 107;
     public const int MovedToErrorQueueId = 108;
     public const int UndeliverableEventId = 108;
-    private static readonly Action<ILogger, string, string, Guid, Exception?> _executionFinished;
-    private static readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
-
 
     private static readonly Action<ILogger, Envelope, Exception?> _movedToErrorQueue;
     private static readonly Action<ILogger, string?, string, Guid, string, Exception?> _noHandler;
@@ -40,13 +34,6 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
         _received = LoggerMessage.Define<string, string, Guid, string, string>(LogLevel.Debug, ReceivedEventId,
             "{CorrelationId}: Received {Name}#{Id} at {Destination} from {ReplyUri}");
-
-        _executionStarted = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
-            "{CorrelationId}: Started processing {Name}#{Id}");
-
-        _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
-            "{CorrelationId}: Finished processing {Name}#{Id}");
-
 
         _noHandler = LoggerMessage.Define<string?, string, Guid, string>(LogLevel.Information, NoHandlerEventId,
             "{CorrelationId}: No known handler for {Name}#{Id} from {ReplyUri}");
@@ -82,7 +69,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         envelope.StartTiming();
         ActiveSession?.Record(MessageEventType.ExecutionStarted, envelope, _serviceName, _uniqueNodeId);
-        _executionStarted(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, null);
+        
     }
 
     public void ExecutionFinished(Envelope envelope)
@@ -94,7 +81,6 @@ public sealed partial class WolverineRuntime : IMessageTracker
         }
 
         ActiveSession?.Record(MessageEventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
-        _executionFinished(Logger, envelope.CorrelationId, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
     public void ExecutionFinished(Envelope envelope, Exception exception)

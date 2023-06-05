@@ -27,6 +27,8 @@ internal class Executor : IExecutor
 {
     public const int MessageSucceededEventId = 104;
     public const int MessageFailedEventId = 105;
+    public const int ExecutionStartedEventId = 102;
+    public const int ExecutionFinishedEventId = 103;
     
     private readonly ObjectPool<MessageContext> _contextPool;
     private readonly IMessageHandler _handler;
@@ -37,6 +39,9 @@ internal class Executor : IExecutor
     
     private readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
     private readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
+    private readonly Action<ILogger, string, string, Guid, Exception?> _executionFinished;
+    private readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
+    
     private readonly string _messageTypeName;
 
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler, FailureRuleCollection rules, TimeSpan timeout)
@@ -56,6 +61,11 @@ internal class Executor : IExecutor
         _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
+        _executionStarted = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
+            "{CorrelationId}: Started processing {Name}#{Id}");
+
+        _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
+            "{CorrelationId}: Finished processing {Name}#{Id}");
     }
 
     public Executor(ObjectPool<MessageContext> contextPool, ILogger logger, IMessageHandler handler, IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout)
@@ -76,6 +86,12 @@ internal class Executor : IExecutor
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
         _messageTypeName = handler.MessageType.ToMessageTypeName();
+        
+        _executionStarted = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
+            "{CorrelationId}: Started processing {Name}#{Id}");
+
+        _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
+            "{CorrelationId}: Finished processing {Name}#{Id}");
 
     }
 
@@ -84,6 +100,7 @@ internal class Executor : IExecutor
         using var activity = WolverineTracing.StartExecuting(envelope);
 
         _tracker.ExecutionStarted(envelope);
+        _executionStarted(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
 
         var context = _contextPool.Get();
         context.ReadEnvelope(envelope, InvocationCallback.Instance);
@@ -100,6 +117,7 @@ internal class Executor : IExecutor
             await context.FlushOutgoingMessagesAsync();
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
+            _executionFinished(_logger, envelope!.CorrelationId, _messageTypeName, envelope.Id, null);
         }
         catch (Exception e)
         {
@@ -147,6 +165,7 @@ internal class Executor : IExecutor
     {
         var envelope = context.Envelope;
         _tracker.ExecutionStarted(envelope!);
+        _executionStarted(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         
         envelope!.Attempts++;
 
@@ -179,6 +198,7 @@ internal class Executor : IExecutor
         finally
         {
             _tracker.ExecutionFinished(envelope!);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }
 
