@@ -7,6 +7,7 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
@@ -17,6 +18,8 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly InMemoryScheduledJobProcessor _scheduler;
     private readonly DurabilitySettings _settings;
     private bool _latched;
+    private readonly RetryBlock<Envelope> _deferBlock;
+    private readonly RetryBlock<Envelope> _completeBlock;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
@@ -29,11 +32,14 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
 
+        _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger, runtime.Cancellation);
+        _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger, runtime.Cancellation);
+
         _receivingBlock = new ActionBlock<Envelope>(async envelope =>
         {
             if (_latched && envelope.Listener != null)
             {
-                await envelope.Listener.DeferAsync(envelope);
+                await _deferBlock.PostAsync(envelope);
                 return;
             }
 
@@ -88,11 +94,15 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public int QueueCount => _receivingBlock.InputCount;
 
-    public ValueTask DrainAsync()
+    public async ValueTask DrainAsync()
     {
         _latched = true;
         _receivingBlock.Complete();
-        return new ValueTask(_receivingBlock.Completion);
+
+        await _completeBlock.DrainAsync();
+        await _deferBlock.DrainAsync();
+
+        await _receivingBlock.Completion;
     }
 
     public void Enqueue(Envelope envelope)
@@ -120,7 +130,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         {
             envelope.MarkReceived(listener, now, _settings);
             Enqueue(envelope);
-            await listener.CompleteAsync(envelope);
+            await _completeBlock.PostAsync(envelope);
         }
 
         _logger.IncomingBatchReceived(Uri, messages);
@@ -133,6 +143,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         if (envelope.IsExpired())
         {
+            await _completeBlock.PostAsync(envelope);
             return;
         }
 
@@ -145,7 +156,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             Enqueue(envelope);
         }
 
-        await listener.CompleteAsync(envelope);
+        await _completeBlock.PostAsync(envelope);
 
         _logger.IncomingReceived(envelope, Uri);
     }
@@ -153,6 +164,8 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public void Dispose()
     {
         _receivingBlock.Complete();
+        _completeBlock.Dispose();
+        _deferBlock.Dispose();
     }
 
     Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
