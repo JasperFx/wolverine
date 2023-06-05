@@ -57,7 +57,7 @@ public class RabbitMqTransportTests
     [Fact]
     public void default_dead_letter_queue_settings()
     {
-        theTransport.DeadLetterQueue.Enabled.ShouldBeTrue();
+        theTransport.DeadLetterQueue.Mode.ShouldBe(DeadLetterQueueMode.Native);
         theTransport.DeadLetterQueue.QueueName.ShouldBe(RabbitMqTransport.DeadLetterQueueName);
         theTransport.DeadLetterQueue.ExchangeName.ShouldBe(RabbitMqTransport.DeadLetterQueueName);
     }

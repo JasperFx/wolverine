@@ -266,7 +266,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
             return;
         }
 
-        if (DeadLetterQueue != null && DeadLetterQueue.Enabled)
+        if (DeadLetterQueue != null && DeadLetterQueue.Mode == DeadLetterQueueMode.Native)
         {
             Arguments[RabbitMqTransport.DeadLetterQueueHeader] = DeadLetterQueue.ExchangeName;
         }
@@ -301,6 +301,11 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         var dict = base.DescribeProperties();
 
         dict.Add(nameof(QueueName), QueueName);
+
+        if (DeadLetterQueue != null)
+        {
+            dict.Add("Dead Letter Queue", DeadLetterQueue.QueueName);
+        }
 
         if (ListenerCount > 0 && IsListener)
         {
