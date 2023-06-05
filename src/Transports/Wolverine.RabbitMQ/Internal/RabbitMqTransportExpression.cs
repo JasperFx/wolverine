@@ -110,7 +110,8 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     /// <exception cref="NotImplementedException"></exception>
     public RabbitMqTransportExpression DisableDeadLetterQueueConfiguration()
     {
-        Transport.DeadLetterQueue.Enabled = false;
+        Transport.DeadLetterQueue.Mode = DeadLetterQueueMode.WolverineStorage;
+
         return this;
     }
 

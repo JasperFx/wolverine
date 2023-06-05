@@ -154,6 +154,7 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
         
         return this;
     }
+
     
     /// <summary>
     /// Remove all dead letter queueing declarations from this queue

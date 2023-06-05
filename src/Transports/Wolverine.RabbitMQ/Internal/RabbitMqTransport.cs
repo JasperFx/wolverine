@@ -38,7 +38,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         });
     }
 
-    public DeadLetterQueue DeadLetterQueue { get; } = new DeadLetterQueue(DeadLetterQueueName);
+    public DeadLetterQueue DeadLetterQueue { get; } = new(DeadLetterQueueName);
 
     internal RabbitMqChannelCallback Callback { get; private set; }
 
@@ -186,11 +186,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     private IEnumerable<DeadLetterQueue> enabledDeadLetterQueues()
     {
-        if (DeadLetterQueue.Enabled) yield return DeadLetterQueue;
+        if (DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage) yield return DeadLetterQueue;
 
         foreach (var queue in Queues)
         {
-            if (queue.IsDurable && queue.Role == EndpointRole.Application && queue.DeadLetterQueue != null && queue.DeadLetterQueue.Enabled)
+            if (queue.IsDurable && queue.Role == EndpointRole.Application && queue.DeadLetterQueue != null && queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage)
             {
                 yield return queue.DeadLetterQueue;
             }

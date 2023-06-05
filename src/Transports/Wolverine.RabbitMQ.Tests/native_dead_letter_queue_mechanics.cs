@@ -10,14 +10,14 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-public class dead_letter_queue_mechanics : RabbitMQContext, IDisposable
+public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
     private IHost _host;
     private RabbitMqTransport theTransport;
     private WolverineOptions theOptions = new WolverineOptions();
 
-    public dead_letter_queue_mechanics()
+    public native_dead_letter_queue_mechanics()
     {
         theOptions.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
