@@ -30,7 +30,7 @@ public class RabbitMqBinding
         {
             return;
         }
-
+        
         _queue.Declare(channel, logger);
         channel.QueueBind(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
         logger.LogInformation("Declared a Rabbit Mq binding '{Key}' from exchange {Exchange} to {Queue}", BindingKey,
