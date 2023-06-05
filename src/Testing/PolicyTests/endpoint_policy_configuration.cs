@@ -59,11 +59,38 @@ public class endpoint_policy_configuration : IDisposable
             opts.Policies.UseDurableLocalQueues();
         });
 
-        options.Transports.AllEndpoints().OfType<LocalQueue>()
+        options.Transports.AllEndpoints().OfType<LocalQueue>().Where(x => x.Role == EndpointRole.Application)
             .Each(x => x.Mode.ShouldBe(EndpointMode.Durable));
 
         options.Transports.AllEndpoints().OfType<TcpEndpoint>()
             .Each(x => x.Mode.ShouldBe(EndpointMode.BufferedInMemory));
+        
+        
+    }
+    
+    [Fact]
+    public async Task make_all_local_queues_durable_does_not_impact_system_queues()
+    {
+        var options = await UsingOptions(opts =>
+        {
+            opts.LocalQueue("one");
+            opts.LocalQueue("two");
+            opts.LocalQueue("three");
+
+
+            opts.Policies.UseDurableLocalQueues();
+        });
+
+        options.Transports.AllEndpoints().OfType<LocalQueue>().Where(x => x.Role == EndpointRole.Application)
+            .Each(x => x.Mode.ShouldBe(EndpointMode.Durable));
+
+        var queues = options.Transports.AllEndpoints().OfType<LocalQueue>().ToDictionary(x => x.EndpointName);
+        
+        queues[TransportConstants.Agents].Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        queues[TransportConstants.Durable].Mode.ShouldBe(EndpointMode.Durable);
+        queues[TransportConstants.System].Mode.ShouldBe(EndpointMode.BufferedInMemory);
+
+
     }
 
     [Fact]
@@ -91,7 +118,7 @@ public class endpoint_policy_configuration : IDisposable
 
         // Don't touch local endpoints
         options.Transports.AllEndpoints().OfType<LocalQueue>()
-            .Where(x => x.Uri != TransportConstants.DurableLocalUri)
+            .Where(x => x.Role == EndpointRole.Application)
             .Each(x => x.Mode.ShouldBe(EndpointMode.BufferedInMemory));
 
 
@@ -142,7 +169,7 @@ public class endpoint_policy_configuration : IDisposable
 
         // Don't touch local endpoints
         options.Transports.AllEndpoints().OfType<LocalQueue>()
-            .Where(x => x.Uri != TransportConstants.DurableLocalUri)
+            .Where(x => x.Role == EndpointRole.Application)
             .Each(x => x.Mode.ShouldBe(EndpointMode.BufferedInMemory));
 
 
