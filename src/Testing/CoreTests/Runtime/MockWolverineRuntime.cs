@@ -30,6 +30,8 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
         Tracker.Subscribe(this);
     }
 
+    public IMessageTracker MessageTracking { get; } = Substitute.For<IMessageTracker>();
+
     void IObserver<IWolverineEvent>.OnCompleted()
     {
     }
@@ -56,8 +58,6 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public IReplyTracker Replies { get; } = Substitute.For<IReplyTracker>();
 
     public IHandlerPipeline Pipeline { get; } = Substitute.For<IHandlerPipeline>();
-    public IMessageLogger MessageLogger { get; } = Substitute.For<IMessageLogger>();
-
     public WolverineTracker Tracker { get; } = new(NullLogger.Instance);
 
     public IMessageRouter RoutingFor(Type messageType)

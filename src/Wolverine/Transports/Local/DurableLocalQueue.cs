@@ -18,7 +18,7 @@ namespace Wolverine.Transports.Local;
 internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 {
     private readonly ILogger _logger;
-    private readonly IMessageLogger _messageLogger;
+    private readonly IMessageTracker _messageLogger;
     private readonly IMessageInbox _inbox;
     private readonly WolverineRuntime _runtime;
     private readonly IMessageSerializer _serializer;
@@ -31,7 +31,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     {
         _settings = runtime.DurabilitySettings;
         _inbox = runtime.Storage.Inbox;
-        _messageLogger = runtime.MessageLogger;
+        _messageLogger = runtime.MessageTracking;
         _serializer = endpoint.DefaultSerializer ??
                       throw new ArgumentOutOfRangeException(nameof(endpoint),
                           "No default serializer for this Endpoint");

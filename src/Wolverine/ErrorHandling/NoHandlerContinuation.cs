@@ -30,7 +30,7 @@ internal class NoHandlerContinuation : IContinuation
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.NoHandler));
 
-        runtime.MessageLogger.NoHandlerFor(lifecycle.Envelope!);
+        runtime.MessageTracking.NoHandlerFor(lifecycle.Envelope!);
 
         foreach (var handler in _handlers)
         {
@@ -54,7 +54,7 @@ internal class NoHandlerContinuation : IContinuation
 
         // These two lines are important to make the message tracking work
         // if there is no handler
-        runtime.MessageLogger.ExecutionFinished(lifecycle.Envelope);
-        runtime.MessageLogger.MessageSucceeded(lifecycle.Envelope);
+        runtime.MessageTracking.ExecutionFinished(lifecycle.Envelope);
+        runtime.MessageTracking.MessageSucceeded(lifecycle.Envelope);
     }
 }

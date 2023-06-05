@@ -44,7 +44,7 @@ public partial class WolverineRuntime
         }
         catch (Exception? e)
         {
-            MessageLogger.LogException(e, message: "Failed to start the Wolverine messaging");
+            MessageTracking.LogException(e, message: "Failed to start the Wolverine messaging");
             throw;
         }
     }

@@ -193,15 +193,15 @@ public class EndpointCollection : IEndpointCollection
         switch (endpoint.Mode)
         {
             case EndpointMode.Durable:
-                return new DurableSendingAgent(sender, _options.Durability, _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageLogger,
+                return new DurableSendingAgent(sender, _options.Durability, _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTracking,
                     _runtime.Storage, endpoint);
 
             case EndpointMode.BufferedInMemory:
-                return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(), _runtime.MessageLogger, sender, _runtime.DurabilitySettings,
+                return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(), _runtime.MessageTracking, sender, _runtime.DurabilitySettings,
                     endpoint);
 
             case EndpointMode.Inline:
-                return new InlineSendingAgent(_runtime.LoggerFactory.CreateLogger<InlineSendingAgent>(), sender, endpoint, _runtime.MessageLogger,
+                return new InlineSendingAgent(_runtime.LoggerFactory.CreateLogger<InlineSendingAgent>(), sender, endpoint, _runtime.MessageTracking,
                     _runtime.DurabilitySettings);
         }
 

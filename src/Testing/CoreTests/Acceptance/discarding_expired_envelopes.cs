@@ -17,7 +17,7 @@ public class discarding_expired_envelopes
     [Fact]
     public async Task can_discard_an_envelope_if_expired()
     {
-        var logger = Substitute.For<IMessageLogger>();
+        var logger = Substitute.For<IMessageTracker>();
 
         using var runtime = WolverineHost.For(x =>
         {

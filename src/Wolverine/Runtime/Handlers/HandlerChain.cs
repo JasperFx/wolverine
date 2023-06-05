@@ -7,6 +7,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -56,6 +57,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             }
         }
     }
+
+    /// <summary>
+    /// At what level should Wolverine log messages about execution completing or succeeding? The default
+    /// is Information
+    /// </summary>
+    public LogLevel ExecutionLogLevel { get; set; } = LogLevel.Information;
 
 
     private HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)

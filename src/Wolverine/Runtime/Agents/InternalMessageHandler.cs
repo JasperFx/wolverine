@@ -1,8 +1,9 @@
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime.Agents;
 
-internal class InternalMessageHandler<T> : MessageHandler
+internal class InternalMessageHandler<T> : IMessageHandler
 {
     private readonly IInternalHandler<T> _handler;
 
@@ -11,7 +12,7 @@ internal class InternalMessageHandler<T> : MessageHandler
         _handler = handler;
     }
 
-    public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
+    public async Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         var message = (T)context.Envelope!.Message!;
 
@@ -20,6 +21,9 @@ internal class InternalMessageHandler<T> : MessageHandler
             await context.EnqueueCascadingAsync(outgoing);
         }
     }
+
+    public Type MessageType => typeof(T);
+    public LogLevel ExecutionLogLevel => LogLevel.Debug;
 }
 
 internal interface IInternalHandler<T>

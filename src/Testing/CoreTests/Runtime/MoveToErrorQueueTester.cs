@@ -38,7 +38,7 @@ public class MoveToErrorQueueTester
     {
         await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
 
-        theRuntime.MessageLogger.Received().MessageFailed(theEnvelope, theException);
-        theRuntime.MessageLogger.Received().MovedToErrorQueue(theEnvelope, theException);
+        theRuntime.MessageTracking.Received().MessageFailed(theEnvelope, theException);
+        theRuntime.MessageTracking.Received().MovedToErrorQueue(theEnvelope, theException);
     }
 }

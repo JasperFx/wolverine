@@ -35,7 +35,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
     private ImHashMap<Type, HandlerChain> _chains = ImHashMap<Type, HandlerChain>.Empty;
 
-    private ImHashMap<Type, MessageHandler?> _handlers = ImHashMap<Type, MessageHandler?>.Empty;
+    private ImHashMap<Type, IMessageHandler?> _handlers = ImHashMap<Type, IMessageHandler?>.Empty;
 
     private bool _hasCompiled;
 
@@ -83,7 +83,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         });
     }
 
-    internal void AddMessageHandler(Type messageType, MessageHandler handler)
+    internal void AddMessageHandler(Type messageType, IMessageHandler handler)
     {
         _handlers = _handlers.AddOrUpdate(messageType, handler);
         RegisterMessageType(messageType);
@@ -103,14 +103,14 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         _calls.AddRange(calls);
     }
 
-    public MessageHandler? HandlerFor<T>()
+    public IMessageHandler? HandlerFor<T>()
     {
         return HandlerFor(typeof(T));
     }
 
     public HandlerChain? ChainFor(Type messageType)
     {
-        return HandlerFor(messageType)?.Chain;
+        return (HandlerFor(messageType) as MessageHandler)?.Chain;
     }
 
     public HandlerChain? ChainFor<T>()
@@ -119,7 +119,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
     }
 
 
-    public MessageHandler? HandlerFor(Type messageType)
+    public IMessageHandler? HandlerFor(Type messageType)
     {
         if (_handlers.TryFind(messageType, out var handler))
         {

@@ -13,7 +13,7 @@ namespace Wolverine.Runtime;
 public interface IWolverineRuntime
 {
     IHandlerPipeline Pipeline { get; }
-    IMessageLogger MessageLogger { get; }
+    IMessageTracker MessageTracking { get; }
     WolverineOptions Options { get; }
 
     IMessageStore Storage { get; }

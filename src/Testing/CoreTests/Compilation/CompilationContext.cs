@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using Wolverine.Runtime;
@@ -41,7 +42,7 @@ public abstract class CompilationContext : IDisposable
         }
 
 
-        return _host.Get<HandlerGraph>().HandlerFor(typeof(TMessage));
+        return _host.Get<HandlerGraph>().HandlerFor(typeof(TMessage)).As<MessageHandler>();
     }
 
     public async Task<IMessageContext> Execute<TMessage>(TMessage message)

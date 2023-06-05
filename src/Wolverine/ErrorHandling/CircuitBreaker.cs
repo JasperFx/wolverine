@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -61,6 +62,10 @@ internal class CircuitBreakerWrappedMessageHandler : IMessageHandler
             throw;
         }
     }
+
+    public Type MessageType => _inner.MessageType;
+
+    public LogLevel ExecutionLogLevel => _inner.ExecutionLogLevel;
 }
 
 internal interface IMessageSuccessTracker

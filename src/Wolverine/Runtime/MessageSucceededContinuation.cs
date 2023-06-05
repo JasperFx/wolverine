@@ -1,6 +1,4 @@
-﻿using System;
-using System.Diagnostics;
-using System.Threading.Tasks;
+﻿using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 
@@ -24,14 +22,14 @@ public class MessageSucceededContinuation : IContinuation
 
             await lifecycle.CompleteAsync();
 
-            runtime.MessageLogger.MessageSucceeded(lifecycle.Envelope!);
+            runtime.MessageTracking.MessageSucceeded(lifecycle.Envelope!);
         }
         catch (Exception ex)
         {
             await lifecycle.SendFailureAcknowledgementAsync("Sending cascading message failed: " + ex.Message);
 
             runtime.Logger.LogError(ex, "Failure while post-processing a successful envelope");
-            runtime.MessageLogger.MessageFailed(lifecycle.Envelope!, ex);
+            runtime.MessageTracking.MessageFailed(lifecycle.Envelope!, ex);
 
             await new MoveToErrorQueue(ex).ExecuteAsync(lifecycle, runtime, now, activity);
         }

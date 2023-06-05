@@ -126,7 +126,7 @@ public class MessageBus : IMessageBus
             return PersistOrSendAsync(outgoing);
         }
 
-        Runtime.MessageLogger.NoRoutesFor(new Envelope(message));
+        Runtime.MessageTracking.NoRoutesFor(new Envelope(message));
         return ValueTask.CompletedTask;
     }
 

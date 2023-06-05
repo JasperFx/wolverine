@@ -14,7 +14,7 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
     private readonly RetryBlock<Envelope> _sending;
     private readonly DurabilitySettings _settings;
 
-    public InlineSendingAgent(ILogger logger, ISender sender, Endpoint endpoint, IMessageLogger messageLogger,
+    public InlineSendingAgent(ILogger logger, ISender sender, Endpoint endpoint, IMessageTracker messageLogger,
         DurabilitySettings settings)
     {
         _sender = sender;

@@ -2,12 +2,12 @@ using System;
 
 namespace Wolverine.Logging;
 
-#region sample_IMessageLogger
+#region sample_IMessageTracker
 
 /// <summary>
 ///     Abstraction for Wolverine's message tracking
 /// </summary>
-public interface IMessageLogger
+public interface IMessageTracker
 {
     /// <summary>
     ///     Catch all hook for any exceptions encountered by the messaging

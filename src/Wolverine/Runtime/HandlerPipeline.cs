@@ -29,14 +29,14 @@ public class HandlerPipeline : IHandlerPipeline
         _contextPool = runtime.ExecutionPool;
         _cancellation = runtime.Cancellation;
 
-        Logger = runtime.MessageLogger;
+        Logger = runtime.MessageTracking;
 
         _executors = new LightweightCache<Type, IExecutor>(executorFactory.BuildFor);
     }
 
     internal IExecutorFactory ExecutorFactory { get; }
 
-    public IMessageLogger Logger { get; }
+    public IMessageTracker Logger { get; }
 
     public Task InvokeAsync(Envelope envelope, IChannelCallback channel)
     {
@@ -155,18 +155,18 @@ public class HandlerPipeline : IHandlerPipeline
             }
         }
 
-        Logger.ExecutionStarted(envelope);
-
         if (envelope.IsResponse)
         {
             _runtime.Replies.Complete(envelope);
+            
+            // TODO -- log the successful reply here. 
             return MessageSucceededContinuation.Instance;
         }
 
         var executor =_executors[envelope.Message!.GetType()];
 
         var continuation = await executor.ExecuteAsync(context, _cancellation).ConfigureAwait(false);
-        Logger.ExecutionFinished(envelope);
+        
 
         return continuation;
     }
