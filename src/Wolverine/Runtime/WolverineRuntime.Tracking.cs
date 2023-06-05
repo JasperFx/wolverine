@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
@@ -6,14 +5,13 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Runtime;
 
-public sealed partial class WolverineRuntime : IMessageLogger
+public sealed partial class WolverineRuntime : IMessageTracker
 {
     public const int SentEventId = 100;
     public const int ReceivedEventId = 101;
     public const int ExecutionStartedEventId = 102;
     public const int ExecutionFinishedEventId = 103;
-    public const int MessageSucceededEventId = 104;
-    public const int MessageFailedEventId = 105;
+
     public const int NoHandlerEventId = 106;
     public const int NoRoutesEventId = 107;
     public const int MovedToErrorQueueId = 108;
@@ -21,8 +19,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
     private static readonly Action<ILogger, string, string, Guid, Exception?> _executionFinished;
     private static readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
 
-    private static readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
-    private static readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
+
     private static readonly Action<ILogger, Envelope, Exception?> _movedToErrorQueue;
     private static readonly Action<ILogger, string?, string, Guid, string, Exception?> _noHandler;
     private static readonly Action<ILogger, Envelope, Exception?> _noRoutes;
@@ -50,12 +47,6 @@ public sealed partial class WolverineRuntime : IMessageLogger
         _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
             "{CorrelationId}: Finished processing {Name}#{Id}");
 
-        _messageSucceeded =
-            LoggerMessage.Define<string, Guid, string>(LogLevel.Information, MessageSucceededEventId,
-                "Successfully processed message {Name}#{envelope} from {ReplyUri}");
-
-        _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
-            "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
         _noHandler = LoggerMessage.Define<string?, string, Guid, string>(LogLevel.Information, NoHandlerEventId,
             "{CorrelationId}: No known handler for {Name}#{Id} from {ReplyUri}");
@@ -121,7 +112,6 @@ public sealed partial class WolverineRuntime : IMessageLogger
         _successCounter.Add(1, envelope.ToMetricsHeaders());
 
         ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
-        _messageSucceeded(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), null);
     }
 
     public void MessageFailed(Envelope envelope, Exception ex)
@@ -132,7 +122,7 @@ public sealed partial class WolverineRuntime : IMessageLogger
         _deadLetterQueueCounter.Add(1, envelope.ToMetricsHeaders());
 
         ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
-        _messageFailed(Logger, envelope.GetMessageTypeName(), envelope.Id, envelope.Destination!.ToString(), ex);
+        
     }
 
     public void NoHandlerFor(Envelope envelope)

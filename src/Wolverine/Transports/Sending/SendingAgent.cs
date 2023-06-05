@@ -13,7 +13,7 @@ namespace Wolverine.Transports.Sending;
 internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
 {
     private readonly ILogger _logger;
-    private readonly IMessageLogger _messageLogger;
+    private readonly IMessageTracker _messageLogger;
     protected readonly ISender _sender;
 
     protected readonly RetryBlock<Envelope> _sending;
@@ -22,7 +22,7 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
     private int _failureCount;
 
 
-    public SendingAgent(ILogger logger, IMessageLogger messageLogger, ISender sender, DurabilitySettings settings,
+    public SendingAgent(ILogger logger, IMessageTracker messageLogger, ISender sender, DurabilitySettings settings,
         Endpoint endpoint)
     {
         _logger = logger;

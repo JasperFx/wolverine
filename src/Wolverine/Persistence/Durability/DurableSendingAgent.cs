@@ -24,7 +24,7 @@ internal class DurableSendingAgent : SendingAgent
     private IList<Envelope> _queued = new List<Envelope>();
 
     public DurableSendingAgent(ISender sender, DurabilitySettings settings, ILogger logger,
-        IMessageLogger messageLogger,
+        IMessageTracker messageLogger,
         IMessageStore persistence, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
     {
         _logger = logger;

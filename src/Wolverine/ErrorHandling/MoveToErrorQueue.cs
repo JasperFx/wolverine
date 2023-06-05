@@ -35,8 +35,8 @@ internal class MoveToErrorQueue : IContinuation
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.MovedToErrorQueue));
 
-        runtime.MessageLogger.MessageFailed(lifecycle.Envelope, _exception);
-        runtime.MessageLogger.MovedToErrorQueue(lifecycle.Envelope, _exception);
+        runtime.MessageTracking.MessageFailed(lifecycle.Envelope, _exception);
+        runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, _exception);
     }
 
     public override string ToString()

@@ -140,13 +140,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {
-        MessageLogger.Sent(envelope);
+        MessageTracking.Sent(envelope);
         ScheduledJobs.Enqueue(executionTime, envelope);
     }
 
     public IHandlerPipeline Pipeline { get; }
 
-    public IMessageLogger MessageLogger => this;
+    public IMessageTracker MessageTracking => this;
 
 
     public IMessageStore Storage => _persistence.Value;

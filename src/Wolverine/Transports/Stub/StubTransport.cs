@@ -29,7 +29,7 @@ internal class StubTransport : TransportBase<StubEndpoint>
 
     public override ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
-        foreach (var endpoint in Endpoints) endpoint.Start(runtime.Pipeline, runtime.MessageLogger);
+        foreach (var endpoint in Endpoints) endpoint.Start(runtime.Pipeline, runtime.MessageTracking);
 
         return ValueTask.CompletedTask;
     }

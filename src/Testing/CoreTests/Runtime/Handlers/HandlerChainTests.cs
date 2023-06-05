@@ -2,6 +2,7 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Lamar;
+using Microsoft.Extensions.Logging;
 using TestMessages;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
@@ -12,6 +13,13 @@ namespace CoreTests.Runtime.Handlers;
 public class HandlerChainTests
 {
 
+    [Fact]
+    public void the_default_log_level_is_information()
+    {
+        var chain = HandlerChain.For<Target>(x => x.Go(null), null);
+        chain.ExecutionLogLevel.ShouldBe(LogLevel.Information);
+    }
+    
     [Fact]
     public void create_by_method()
     {

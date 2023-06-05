@@ -1,10 +1,11 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime.RemoteInvocation;
 
-internal class AcknowledgementHandler : MessageHandler
+internal class AcknowledgementHandler : IMessageHandler
 {
     private readonly IReplyTracker _replies;
 
@@ -13,7 +14,10 @@ internal class AcknowledgementHandler : MessageHandler
         _replies = replies;
     }
 
-    public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
+    public Type MessageType => typeof(Acknowledgement);
+    public LogLevel ExecutionLogLevel => LogLevel.Debug;
+
+    public Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         _replies.Complete(context.Envelope!);
         return Task.CompletedTask;

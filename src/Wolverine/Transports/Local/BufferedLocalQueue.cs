@@ -10,11 +10,11 @@ namespace Wolverine.Transports.Local;
 
 internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
 {
-    private readonly IMessageLogger _messageLogger;
+    private readonly IMessageTracker _messageLogger;
 
     public BufferedLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime, runtime.Pipeline)
     {
-        _messageLogger = runtime.MessageLogger;
+        _messageLogger = runtime.MessageTracking;
         Destination = endpoint.Uri;
         Endpoint = endpoint;
     }

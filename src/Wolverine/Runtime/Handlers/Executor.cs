@@ -1,9 +1,6 @@
-using System;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
@@ -28,35 +25,65 @@ internal interface IExecutor : IMessageInvoker
 
 internal class Executor : IExecutor
 {
+    public const int MessageSucceededEventId = 104;
+    public const int MessageFailedEventId = 105;
+    
     private readonly ObjectPool<MessageContext> _contextPool;
     private readonly IMessageHandler _handler;
-    private readonly IMessageLogger _logger;
+    private readonly IMessageTracker _tracker;
     private readonly FailureRuleCollection _rules;
     private readonly TimeSpan _timeout;
+    private readonly ILogger _logger;
+    
+    private readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
+    private readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
+    private readonly string _messageTypeName;
 
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler, FailureRuleCollection rules, TimeSpan timeout)
     {
         _handler = handler;
         _timeout = timeout;
         _rules = rules;
-        _logger = runtime.MessageLogger;
+        _tracker = runtime.MessageTracking;
         _contextPool = contextPool;
+
+        _logger = runtime.LoggerFactory.CreateLogger(handler.MessageType);
+        
+        _messageSucceeded =
+            LoggerMessage.Define<string, Guid, string>(handler.ExecutionLogLevel, MessageSucceededEventId,
+                "Successfully processed message {Name}#{envelope} from {ReplyUri}");
+
+        _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
+            "Failed to process message {Name}#{envelope} from {ReplyUri}");
+
     }
 
-    public Executor(ObjectPool<MessageContext> contextPool, IMessageHandler handler, IMessageLogger logger, FailureRuleCollection rules, TimeSpan timeout)
+    public Executor(ObjectPool<MessageContext> contextPool, ILogger logger, IMessageHandler handler, IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout)
     {
         _contextPool = contextPool;
         _handler = handler;
-        _logger = logger;
+        _tracker = tracker;
         _rules = rules;
         _timeout = timeout;
+        
+        _logger = logger;
+        
+        _messageSucceeded =
+            LoggerMessage.Define<string, Guid, string>(LogLevel.Information, MessageSucceededEventId,
+                "Successfully processed message {Name}#{envelope} from {ReplyUri}");
+
+        _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
+            "Failed to process message {Name}#{envelope} from {ReplyUri}");
+
+        _messageTypeName = handler.MessageType.ToMessageTypeName();
+
     }
 
     public async Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation)
     {
         using var activity = WolverineTracing.StartExecuting(envelope);
 
-        _logger.ExecutionStarted(envelope);
+        _tracker.ExecutionStarted(envelope);
 
         var context = _contextPool.Get();
         context.ReadEnvelope(envelope, InvocationCallback.Instance);
@@ -72,12 +99,12 @@ internal class Executor : IExecutor
 
             await context.FlushOutgoingMessagesAsync();
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
-            _logger.ExecutionFinished(envelope);
+            _tracker.ExecutionFinished(envelope);
         }
         catch (Exception e)
         {
             Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
-            _logger.ExecutionFinished(envelope, e);
+            _tracker.ExecutionFinished(envelope, e);
             throw;
         }
         finally
@@ -118,7 +145,10 @@ internal class Executor : IExecutor
 
     public async Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
     {
-        context.Envelope!.Attempts++;
+        var envelope = context.Envelope;
+        _tracker.ExecutionStarted(envelope!);
+        
+        envelope!.Attempts++;
 
         using var timeout = new CancellationTokenSource(_timeout);
         using var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellation);
@@ -127,18 +157,28 @@ internal class Executor : IExecutor
         {
             await _handler.HandleAsync(context, combined.Token);
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
+
+            _messageSucceeded(_logger, _messageTypeName, envelope.Id,
+                envelope.Destination!.ToString(), null);
+            
             return MessageSucceededContinuation.Instance;
         }
         catch (Exception e)
         {
-            _logger.LogException(e, context.Envelope!.Id, "Failure during message processing execution");
-            _logger
-                .ExecutionFinished(context.Envelope, e); // Need to do this to make the MessageHistory complete
+            _messageFailed(_logger, _messageTypeName, envelope.Id, envelope.Destination!.ToString(), e);
+            
+            _tracker.LogException(e, envelope!.Id, "Failure during message processing execution");
+            _tracker
+                .ExecutionFinished(envelope, e); // Need to do this to make the MessageHistory complete
 
             await context.ClearAllAsync();
 
             Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
-            return _rules.DetermineExecutionContinuation(e, context.Envelope);
+            return _rules.DetermineExecutionContinuation(e, envelope);
+        }
+        finally
+        {
+            _tracker.ExecutionFinished(envelope!);
         }
     }
 
@@ -156,7 +196,7 @@ internal class Executor : IExecutor
         }
         catch (Exception e)
         {
-            _logger.LogException(e, message: $"Invocation of {context.Envelope} failed!");
+            _tracker.LogException(e, message: $"Invocation of {context.Envelope} failed!");
 
             var retry = _rules.TryFindInlineContinuation(e, context.Envelope);
             if (retry == null)
@@ -175,7 +215,7 @@ internal class Executor : IExecutor
 
     internal Executor WrapWithMessageTracking(IMessageSuccessTracker tracker)
     {
-        return new Executor(_contextPool, new CircuitBreakerWrappedMessageHandler(_handler, tracker), _logger, _rules, _timeout);
+        return new Executor(_contextPool, _logger, new CircuitBreakerWrappedMessageHandler(_handler, tracker), _tracker, _rules, _timeout);
     }
 
     public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool, HandlerGraph handlerGraph, Type messageType)
@@ -186,8 +226,10 @@ internal class Executor : IExecutor
             return new NoHandlerExecutor(messageType, (WolverineRuntime)runtime);
         }
 
-        var timeoutSpan = handler.Chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
-        var rules = handler.Chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
+        var chain = (handler as MessageHandler)?.Chain;
+        var timeoutSpan = chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
+        var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
+
         return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
     }
 }

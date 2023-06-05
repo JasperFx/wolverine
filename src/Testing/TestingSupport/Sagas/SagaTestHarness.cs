@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Runtime.Handlers;
@@ -32,7 +33,7 @@ public class SagaTestHarness<T> : IDisposable
 
     protected string codeFor<T>()
     {
-        return _host.Get<HandlerGraph>().HandlerFor<T>().Chain.SourceCode;
+        return _host.Get<HandlerGraph>().HandlerFor<T>().As<MessageHandler>().Chain.SourceCode;
     }
 
     protected async Task invoke<T>(T message)

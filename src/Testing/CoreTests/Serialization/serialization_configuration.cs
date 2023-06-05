@@ -25,9 +25,9 @@ public class serialization_configuration
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
 
         root.Endpoints.EndpointFor("stub://one".ToUri())
-            .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>();
+            .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
         root.Endpoints.EndpointFor("stub://two".ToUri())
-            .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>();
+            .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class serialization_configuration
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())
-            .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>();
+            .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
 
         root.Endpoints.EndpointFor("stub://two".ToUri())
             .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>()
@@ -111,7 +111,7 @@ public class serialization_configuration
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())
-            .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>();
+            .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
 
         root.Endpoints.EndpointFor("stub://two".ToUri())
             .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>()
@@ -133,7 +133,7 @@ public class serialization_configuration
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())
-            .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>();
+            .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
 
         root.Endpoints.EndpointFor("stub://two".ToUri())
             .DefaultSerializer.ShouldBeSameAs(fooSerializer);

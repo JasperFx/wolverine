@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
 
@@ -15,6 +16,8 @@ internal class AgentCommandHandler : MessageHandler
         Chain.OnException<AgentCommandException>()
             .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds())
             .Then.Discard();
+
+        Chain.ExecutionLogLevel = LogLevel.Debug;
     }
 
     public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)

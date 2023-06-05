@@ -20,7 +20,7 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 
     // ReSharper disable once CollectionNeverQueried.Global
     public readonly IList<Envelope> Sent = new List<Envelope>();
-    private IMessageLogger? _logger;
+    private IMessageTracker? _logger;
     private IHandlerPipeline? _pipeline;
 
     public StubEndpoint(string queueName, StubTransport stubTransport) : base($"stub://{queueName}".ToUri(),
@@ -112,7 +112,7 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     }
 
 
-    public void Start(IHandlerPipeline pipeline, IMessageLogger logger)
+    public void Start(IHandlerPipeline pipeline, IMessageTracker logger)
     {
         _pipeline = pipeline;
         _logger = logger;

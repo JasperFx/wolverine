@@ -58,7 +58,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             {
                 Runtime.Logger.LogError(e,
                     "Unable to send an outgoing message, most likely due to serialization issues");
-                Runtime.MessageLogger.DiscardedEnvelope(envelope);
+                Runtime.MessageTracking.DiscardedEnvelope(envelope);
             }
         }
 
