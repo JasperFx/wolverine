@@ -83,7 +83,8 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
 
 
     /// <summary>
-    ///     Fine tune the internal message handling queue for this listener
+    /// Fine tune the internal message handling queue for this listener. This only applies
+    /// to buffered or durable listeners.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>

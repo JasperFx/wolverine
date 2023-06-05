@@ -3,14 +3,11 @@ using System.Runtime.CompilerServices;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
-using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
-using Wolverine.Transports;
 using Wolverine.Transports.Local;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
@@ -24,7 +21,6 @@ public sealed partial class WolverineOptions
 {
     public WolverineOptions() : this(null)
     {
-        
     }
 
     public WolverineOptions(string? assemblyName)
@@ -33,33 +29,34 @@ public sealed partial class WolverineOptions
 
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
 
-        UseNewtonsoftForSerialization();
-        
+        //UseNewtonsoftForSerialization();
+        UseSystemTextJsonForSerialization();
+
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
         CodeGeneration.Assemblies.Add(GetType().GetTypeInfo().Assembly);
 
         establishApplicationAssembly(assemblyName);
-        
+
 
         if (ApplicationAssembly != null)
         {
             CodeGeneration.Assemblies.Add(ApplicationAssembly);
         }
-        
-        Durability = new DurabilitySettings{AssignedNodeNumber = UniqueNodeId.ToString().GetDeterministicHashCode()};
+
+        Durability = new DurabilitySettings { AssignedNodeNumber = UniqueNodeId.ToString().GetDeterministicHashCode() };
 
         deriveServiceName();
 
         Policies.Add<SagaPersistenceChainPolicy>();
         Policies.Add<SideEffectPolicy>();
     }
-    
+
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
-    
-    
+
+
     /// <summary>
-    ///  Configure or extend how Wolverine does the runtime (or build ahead time) code generation
+    ///     Configure or extend how Wolverine does the runtime (or build ahead time) code generation
     /// </summary>
     public GenerationRules CodeGeneration { get; }
 
@@ -155,9 +152,9 @@ public sealed partial class WolverineOptions
     }
 
     /// <summary>
-    /// Produce a report of why or why not this Wolverine application
-    /// is finding or not finding methods from this handlerType
-    /// USE THIS TO TROUBLESHOOT HANDLER DISCOVERY ISSUES 
+    ///     Produce a report of why or why not this Wolverine application
+    ///     is finding or not finding methods from this handlerType
+    ///     USE THIS TO TROUBLESHOOT HANDLER DISCOVERY ISSUES
     /// </summary>
     /// <param name="handlerType"></param>
     /// <returns></returns>
