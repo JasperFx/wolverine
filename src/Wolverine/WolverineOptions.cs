@@ -51,14 +51,6 @@ public sealed partial class WolverineOptions
 
         deriveServiceName();
 
-        LocalQueue(TransportConstants.Durable).UseDurableInbox();
-
-        Publish(x =>
-        {
-            x.MessagesImplementing<IAgentCommand>();
-            x.ToLocalQueue(TransportConstants.Agents).MaximumParallelMessages(20, ProcessingOrder.UnOrdered);
-        });
-
         Policies.Add<SagaPersistenceChainPolicy>();
         Policies.Add<SideEffectPolicy>();
     }
