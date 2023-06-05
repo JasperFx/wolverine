@@ -12,7 +12,7 @@ public static class ObjectMother
             Id = Guid.NewGuid(),
             Data = new byte[] { 1, 2, 3, 4 },
             MessageType = "Something",
-            Destination = TransportConstants.ScheduledUri,
+            Destination = TransportConstants.RepliesUri,
             ContentType = EnvelopeConstants.JsonContentType,
             Source = "SomeApp",
             DeliverBy = new DateTimeOffset(DateTime.Today.AddHours(4)),

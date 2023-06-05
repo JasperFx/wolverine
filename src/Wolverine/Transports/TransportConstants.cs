@@ -17,15 +17,9 @@ public static class TransportConstants
     public static readonly Uri SystemQueueUri = "local://system".ToUri();
 
     public const string WolverineTransport = "WolverineTransport";
-    internal static readonly int ScheduledJobLockId = "scheduled-jobs".GetDeterministicHashCode();
-    internal static readonly int IncomingMessageLockId = "recover-incoming-messages".GetDeterministicHashCode();
-    internal static readonly int OutgoingMessageLockId = "recover-outgoing-messages".GetDeterministicHashCode();
-    internal static readonly int ReassignmentLockId = "wolverine-reassign-envelopes".GetDeterministicHashCode();
     public static readonly string Local = "local";
 
-    public static readonly Uri RetryUri = "local://retries".ToUri();
     public static readonly Uri RepliesUri = "local://replies".ToUri();
-    public static readonly Uri ScheduledUri = "local://scheduled".ToUri();
     public static readonly string Scheduled = "scheduled";
 
     public static readonly Uri DurableLocalUri = "local://durable".ToUri();

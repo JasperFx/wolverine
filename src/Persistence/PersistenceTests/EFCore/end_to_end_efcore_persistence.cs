@@ -145,7 +145,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         {
             Data = new byte[] { 1, 2, 3, 4 },
             OwnerId = 5,
-            Destination = TransportConstants.RetryUri,
+            Destination = TransportConstants.RepliesUri,
             DeliverBy = new DateTimeOffset(DateTime.Today),
             MessageType = "foo",
             ContentType = EnvelopeConstants.JsonContentType
@@ -193,7 +193,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         {
             Data = new byte[] { 1, 2, 3, 4 },
             OwnerId = 5,
-            Destination = TransportConstants.RetryUri,
+            Destination = TransportConstants.RepliesUri,
             DeliverBy = new DateTimeOffset(DateTime.Today),
             MessageType = "foo",
             ContentType = EnvelopeConstants.JsonContentType
