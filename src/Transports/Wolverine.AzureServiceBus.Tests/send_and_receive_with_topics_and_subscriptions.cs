@@ -1,13 +1,11 @@
-using System;
-using System.Threading.Tasks;
 using TestingSupport.Compliance;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
-public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
+public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public BufferedComplianceFixture() : base(new Uri("asb://queue/buffered-receiver"), 120)
+    public TopicsComplianceFixture() : base(new Uri("asb://topic/topic1"), 120)
     {
     }
 
@@ -18,6 +16,8 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
             opts.UseAzureServiceBusTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup();
+
+            opts.ListenToAzureServiceBusQueue("buffered-sender");
         });
 
         await ReceiverIs(opts =>
@@ -26,17 +26,17 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 
-            opts.ListenToAzureServiceBusQueue("buffered-receiver").BufferedInMemory();
+            opts.ListenToAzureServiceBusSubscription("subscription1").FromTopic("topic1");
         });
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
-        await DisposeAsync();
+        return Task.CompletedTask;
     }
 }
 
 [Collection("acceptance")]
-public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
+public class TopicAndSubscriptionSendingAndReceivingCompliance : TransportCompliance<TopicsComplianceFixture>
 {
 }

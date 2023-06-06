@@ -1,13 +1,11 @@
-using System;
-using System.Threading.Tasks;
 using TestingSupport.Compliance;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
-public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
+public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public BufferedComplianceFixture() : base(new Uri("asb://queue/buffered-receiver"), 120)
+    public InlineComplianceFixture() : base(new Uri("asb://queue/inline-receiver"), 120)
     {
     }
 
@@ -26,17 +24,17 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 
-            opts.ListenToAzureServiceBusQueue("buffered-receiver").BufferedInMemory();
+            opts.ListenToAzureServiceBusQueue("inline-receiver").ProcessInline();
         });
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
-        await DisposeAsync();
+        return Task.CompletedTask;
     }
 }
 
 [Collection("acceptance")]
-public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
+public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
 {
 }

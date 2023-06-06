@@ -4,6 +4,7 @@ using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
 using Wolverine.AzureServiceBus.Internal;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -12,10 +13,11 @@ namespace Wolverine.AzureServiceBus;
 public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "asb";
+    public const string ResponseEndpointName = "AzureServiceBusResponses";
     private readonly Lazy<ServiceBusClient> _busClient;
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
 
-    public readonly List<AzureServiceBusQueueSubscription> Subscriptions = new();
+    public readonly List<AzureServiceBusSubscription> Subscriptions = new();
 
     public AzureServiceBusTransport() : base(ProtocolName, "Azure Service Bus")
     {
@@ -58,6 +60,19 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         return ValueTask.CompletedTask;
     }
 
+    protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
+    {
+        var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
+
+        var queue = Queues[queueName];
+
+        queue.Options.AutoDeleteOnIdle = 5.Minutes();
+        queue.Mode = EndpointMode.BufferedInMemory;
+        queue.IsListener = true;
+        queue.EndpointName = ResponseEndpointName;
+        queue.IsUsedForReplies = true;
+    }
+
     protected override IEnumerable<AzureServiceBusEndpoint> endpoints()
     {
         foreach (var queue in Queues) yield return queue;
@@ -86,7 +101,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
                     var subscriptionName = uri.Segments.Last().TrimEnd('/');
                     var topic = Topics[topicName];
-                    subscription = new AzureServiceBusQueueSubscription(this, topic, subscriptionName);
+                    subscription = new AzureServiceBusSubscription(this, topic, subscriptionName);
                     Subscriptions.Add(subscription);
 
                     return subscription;
