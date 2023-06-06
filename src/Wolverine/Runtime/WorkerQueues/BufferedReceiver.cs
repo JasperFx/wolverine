@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -13,13 +11,13 @@ namespace Wolverine.Runtime.WorkerQueues;
 
 internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling
 {
+    private readonly RetryBlock<Envelope> _completeBlock;
+    private readonly RetryBlock<Envelope> _deferBlock;
     private readonly ILogger _logger;
     private readonly ActionBlock<Envelope> _receivingBlock;
     private readonly InMemoryScheduledJobProcessor _scheduler;
     private readonly DurabilitySettings _settings;
     private bool _latched;
-    private readonly RetryBlock<Envelope> _deferBlock;
-    private readonly RetryBlock<Envelope> _completeBlock;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
@@ -32,8 +30,10 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
 
-        _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger, runtime.Cancellation);
-        _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger, runtime.Cancellation);
+        _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
+            runtime.Cancellation);
+        _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
+            runtime.Cancellation);
 
         _receivingBlock = new ActionBlock<Envelope>(async envelope =>
         {

@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus.Administration;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -17,6 +18,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
         }
 
         TopicName = EndpointName = topicName ?? throw new ArgumentNullException(nameof(topicName));
+        Options = new CreateTopicOptions(TopicName);
     }
 
     public string TopicName { get; }
@@ -28,21 +30,72 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        throw new NotImplementedException();
+        var mapper = BuildMapper(runtime);
+        var sender = Parent.BusClient.CreateSender(TopicName);
+        
+        if (Mode == EndpointMode.Inline)
+        {
+            var inlineSender = new InlineAzureServiceBusSender(this, mapper, sender,
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+
+            return inlineSender;
+        }
+
+        var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
+
+        return new BatchedSender(Uri, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
     }
 
-    public override ValueTask<bool> CheckAsync()
+    internal ISender BuildInlineSender(IWolverineRuntime runtime)
     {
-        throw new NotImplementedException();
+        var mapper = BuildMapper(runtime);
+        var sender = Parent.BusClient.CreateSender(TopicName);
+        return new InlineAzureServiceBusSender(this, mapper, sender,
+            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+
+    }
+
+    public override async ValueTask<bool> CheckAsync()
+    {
+        var client = Parent.ManagementClient;
+
+        return (await client.TopicExistsAsync(TopicName)).Value;
     }
 
     public override ValueTask TeardownAsync(ILogger logger)
     {
-        throw new NotImplementedException();
+        var task = Parent.ManagementClient.DeleteTopicAsync(TopicName);
+        return new ValueTask(task);
+    }
+    
+    public CreateTopicOptions Options { get; }
+
+    public override async ValueTask SetupAsync(ILogger logger)
+    {
+        var client = Parent.ManagementClient;
+
+        var exists = await client.TopicExistsAsync(TopicName, CancellationToken.None);
+        if (!exists)
+        {
+            Options.Name = TopicName;
+
+            await client.CreateTopicAsync(Options);
+        }
     }
 
-    public override ValueTask SetupAsync(ILogger logger)
+    public AzureServiceBusSubscription FindOrCreateSubscription(string subscriptionName)
     {
-        throw new NotImplementedException();
+        var existing =
+            Parent.Subscriptions.FirstOrDefault(x => x.SubscriptionName == subscriptionName && x.Topic == this);
+
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        var subscription = new AzureServiceBusSubscription(Parent, this, subscriptionName);
+        Parent.Subscriptions.Add(subscription);
+
+        return subscription;
     }
 }

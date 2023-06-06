@@ -26,7 +26,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocol
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
-        await _endpoint.InitializeAsync(_runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
+        await _endpoint.InitializeAsync(_logger);
 
         var messages = new List<ServiceBusMessage>();
 

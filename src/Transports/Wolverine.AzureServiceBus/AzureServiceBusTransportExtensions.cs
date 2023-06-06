@@ -1,6 +1,7 @@
 using Azure;
 using Azure.Core;
 using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core.Reflection;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
@@ -123,6 +124,67 @@ public static class AzureServiceBusTransportExtensions
         return new AzureServiceBusQueueListenerConfiguration(endpoint);
     }
 
+    public class SubscriptionExpression
+    {
+        private readonly string _subscriptionName;
+        private readonly Action<CreateSubscriptionOptions>? _configureSubscriptions;
+        private readonly AzureServiceBusTransport _transport;
+
+        public SubscriptionExpression(string subscriptionName, Action<CreateSubscriptionOptions>? configureSubscriptions, AzureServiceBusTransport transport)
+        {
+            _subscriptionName = subscriptionName;
+            _configureSubscriptions = configureSubscriptions;
+            _transport = transport;
+        }
+
+        public AzureServiceBusSubscriptionListenerConfiguration FromTopic(string topicName, Action<CreateTopicOptions>? configureTopic = null)
+        {
+            if (topicName == null)
+            {
+                throw new ArgumentNullException(nameof(topicName));
+            }
+
+            var topic = _transport.Topics[topicName];
+            configureTopic?.Invoke(topic.Options);
+            
+            var subscription = topic.FindOrCreateSubscription(_subscriptionName);
+            subscription.IsListener = true;
+        
+            _configureSubscriptions?.Invoke(subscription.Options);
+
+            return new AzureServiceBusSubscriptionListenerConfiguration(subscription);
+        }
+    }
+
+    /// <summary>
+    /// Listen for messages from an Azure Service Bus topic subscription
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="subscriptionName"></param>
+    /// <param name="topicName"></param>
+    /// <param name="configureTopic">Optionally apply customizations to the Azure Service Bus topic</param>
+    /// <param name="configureSubscriptions">Optionally apply customizations to the actual Azure Service Bus subscription</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static SubscriptionExpression ListenToAzureServiceBusSubscription(this WolverineOptions endpoints, string subscriptionName, Action<CreateSubscriptionOptions>? configureSubscriptions = null)
+    {
+        if (subscriptionName == null)
+        {
+            throw new ArgumentNullException(nameof(subscriptionName));
+        }
+
+
+        var transport = endpoints.AzureServiceBusTransport();
+        return new SubscriptionExpression(subscriptionName, configureSubscriptions,
+            transport);
+    }
+
+    /// <summary>
+    /// Publish the designated messages directly to an Azure Service Bus queue
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="queueName"></param>
+    /// <returns></returns>
     public static AzureServiceBusQueueSubscriberConfiguration ToAzureServiceBusQueue(
         this IPublishToExpression publishing, string queueName)
     {
@@ -139,4 +201,29 @@ public static class AzureServiceBusTransportExtensions
 
         return new AzureServiceBusQueueSubscriberConfiguration(endpoint);
     }
+    
+    /// <summary>
+    /// Publish the designated messages to an Azure Service Bus topic
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="topicName"></param>
+    /// <returns></returns>
+    public static AzureServiceBusTopicSubscriberConfiguration ToAzureServiceBusTopic(
+        this IPublishToExpression publishing, string topicName)
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<AzureServiceBusTransport>();
+
+        var corrected = transport.MaybeCorrectName(topicName);
+
+        var endpoint = transport.Topics[corrected];
+        endpoint.EndpointName = topicName;
+
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(endpoint.Uri);
+
+        return new AzureServiceBusTopicSubscriberConfiguration(endpoint);
+    }
+    
+    
 }

@@ -1,12 +1,14 @@
 using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class BatchedAzureServiceBusListener : IListener
+public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 {
     private readonly CancellationTokenSource _cancellation = new();
     private readonly RetryBlock<AzureServiceBusEnvelope> _complete;
@@ -14,18 +16,21 @@ public class BatchedAzureServiceBusListener : IListener
     private readonly AzureServiceBusEndpoint _endpoint;
     private readonly ILogger _logger;
     private readonly IIncomingMapper<ServiceBusReceivedMessage> _mapper;
+    private readonly ISender _requeue;
     private readonly ServiceBusReceiver _receiver;
     private readonly Task _task;
     private readonly IReceiver _wolverineReceiver;
+    private readonly RetryBlock<AzureServiceBusEnvelope> _deadLetter;
 
     public BatchedAzureServiceBusListener(AzureServiceBusEndpoint endpoint, ILogger logger,
-        IReceiver wolverineReceiver, ServiceBusReceiver receiver, IIncomingMapper<ServiceBusReceivedMessage> mapper)
+        IReceiver wolverineReceiver, ServiceBusReceiver receiver, IIncomingMapper<ServiceBusReceivedMessage> mapper, ISender requeue)
     {
         _endpoint = endpoint;
         _logger = logger;
         _wolverineReceiver = wolverineReceiver;
         _receiver = receiver;
         _mapper = mapper;
+        _requeue = requeue;
 
         _task = Task.Run(listenForMessages, _cancellation.Token);
 
@@ -39,6 +44,10 @@ public class BatchedAzureServiceBusListener : IListener
             return _receiver.DeferMessageAsync(e.AzureMessage,
                 new Dictionary<string, object> { { EnvelopeConstants.AttemptsKey, e.Attempts + 1 } });
         }, logger, _cancellation.Token);
+
+        _deadLetter =
+            new RetryBlock<AzureServiceBusEnvelope>((e, c) => _receiver.DeadLetterMessageAsync(e.AzureMessage, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
+                _cancellation.Token);
     }
 
     public ValueTask CompleteAsync(Envelope envelope)
@@ -52,15 +61,15 @@ public class BatchedAzureServiceBusListener : IListener
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask DeferAsync(Envelope envelope)
+    public async ValueTask DeferAsync(Envelope envelope)
     {
         if (envelope is AzureServiceBusEnvelope e)
         {
-            var task = _defer.PostAsync(e);
-            return new ValueTask(task);
+            await _receiver.CompleteMessageAsync(e.AzureMessage);
+            e.IsCompleted = true;
         }
-
-        return ValueTask.CompletedTask;
+        
+        await _requeue.SendAsync(envelope);
     }
 
     public ValueTask DisposeAsync()
@@ -69,6 +78,7 @@ public class BatchedAzureServiceBusListener : IListener
         _task.SafeDispose();
         _complete.SafeDispose();
         _defer.SafeDispose();
+        _deadLetter.SafeDispose();
         return _receiver.DisposeAsync();
     }
 
@@ -127,6 +137,11 @@ public class BatchedAzureServiceBusListener : IListener
             }
             catch (Exception e)
             {
+                if (e is TaskCanceledException && _cancellation.IsCancellationRequested)
+                {
+                    break;
+                }
+                
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
@@ -149,4 +164,15 @@ public class BatchedAzureServiceBusListener : IListener
                 message.MessageId);
         }
     }
+
+    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        if (envelope is AzureServiceBusEnvelope e)
+        {
+            e.Exception = exception;
+            await _deadLetter.PostAsync(e);
+        }
+    }
+
+    public bool NativeDeadLetterQueueEnabled => true;
 }

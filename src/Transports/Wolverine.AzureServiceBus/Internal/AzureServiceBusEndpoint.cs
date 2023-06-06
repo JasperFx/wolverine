@@ -53,7 +53,7 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
 
     protected override bool supportsMode(EndpointMode mode)
     {
-        return mode != EndpointMode.Inline;
+        return true;
     }
 
 

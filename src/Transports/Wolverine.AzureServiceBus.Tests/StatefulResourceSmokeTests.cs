@@ -34,6 +34,10 @@ public class StatefulResourceSmokeTests
 
                 opts.PublishMessage<SRMessage3>()
                     .ToAzureServiceBusQueue("sr" + starting++);
+                
+                opts.ListenToAzureServiceBusSubscription("subscription1").FromTopic("topic1");
+
+                opts.PublishMessage<SRMessage4>().ToAzureServiceBusTopic("sr" + starting++);
             });
     }
 

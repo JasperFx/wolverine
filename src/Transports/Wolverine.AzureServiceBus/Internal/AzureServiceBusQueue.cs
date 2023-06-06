@@ -114,19 +114,48 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         _hasInitialized = true;
     }
 
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var messageReceiver = Parent.BusClient.CreateReceiver(QueueName);
         var mapper = BuildMapper(runtime);
-        var listener = new BatchedAzureServiceBusListener(this, runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper);
 
-        return ValueTask.FromResult<IListener>(listener);
+        var requeue = CreateSender(runtime);
+        
+        if (Mode == EndpointMode.Inline)
+        {
+            var messageProcessor = Parent.BusClient.CreateProcessor(QueueName);
+            var inlineListener = new InlineAzureServiceBusListener(this,
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver,
+                mapper,
+                requeue);
+
+            await inlineListener.StartAsync();
+
+            return inlineListener;
+        }
+        
+        var messageReceiver = Parent.BusClient.CreateReceiver(QueueName);
+        var logger = runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>();
+        var listener = new BatchedAzureServiceBusListener(this, logger, receiver, messageReceiver, mapper, requeue);
+
+        return listener;
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         var mapper = BuildMapper(runtime);
         var sender = Parent.BusClient.CreateSender(QueueName);
+
+        if (Mode == EndpointMode.Inline)
+        {
+            var inlineSender = new InlineAzureServiceBusSender(this, mapper, sender,
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+
+            return inlineSender;
+        }
+        
+        
+        
+        
         var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
 
         return new BatchedSender(Uri, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());

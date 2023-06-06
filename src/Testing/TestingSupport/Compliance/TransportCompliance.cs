@@ -95,6 +95,8 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
         options.Services.AddSingleton<IMessageSerializer, GreenTextWriter>();
         options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        
+        options.UseNewtonsoftForSerialization();
     }
 
     public async Task ReceiverIs(Action<WolverineOptions> configure)
@@ -117,6 +119,8 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
             .IncludeType<ErrorCausingMessageHandler>()
             .IncludeType<BlueHandler>()
             .IncludeType<PingHandler>();
+        
+        options.UseNewtonsoftForSerialization();
 
         options.AddSerializer(new BlueTextReader());
 
