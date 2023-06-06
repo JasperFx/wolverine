@@ -270,7 +270,7 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/DocumentationSamples.cs#L11-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatically_scan_assemblies' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: 
+::: info
 Wolverine was originally going to use the out of the box `[HttpVerb]` attributes in MVC Core, but switched to custom
 attributes to hopefully make the code more explicit about what is happening at runtime and also to avoid the package
 dependencies to the very large MVC Core libraries if that's not necessary for your application.
