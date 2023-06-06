@@ -123,6 +123,7 @@ internal class Executor : IExecutor
         {
             Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             _tracker.ExecutionFinished(envelope, e);
+            _logger.LogError(e, "Inline invocation of {Message} failed", envelope.Message);
             throw;
         }
         finally
@@ -186,7 +187,7 @@ internal class Executor : IExecutor
         {
             _messageFailed(_logger, _messageTypeName, envelope.Id, envelope.Destination!.ToString(), e);
             
-            _tracker.LogException(e, envelope!.Id, "Failure during message processing execution");
+            _logger.LogError(e, "Failure during message processing execution of message {Id}, {Message}", context.Envelope.Id, context.Envelope.Message);
             _tracker
                 .ExecutionFinished(envelope, e); // Need to do this to make the MessageHistory complete
 
@@ -216,7 +217,7 @@ internal class Executor : IExecutor
         }
         catch (Exception e)
         {
-            _tracker.LogException(e, message: $"Invocation of {context.Envelope} failed!");
+            _logger.LogError(e, "Invocation failed!");
 
             var retry = _rules.TryFindInlineContinuation(e, context.Envelope);
             if (retry == null)
