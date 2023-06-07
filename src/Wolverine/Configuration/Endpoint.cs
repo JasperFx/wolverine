@@ -368,4 +368,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return
             $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
     }
+
+    public virtual bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
+    {
+        deadLetterSender = default;
+        return false;
+    }
 }

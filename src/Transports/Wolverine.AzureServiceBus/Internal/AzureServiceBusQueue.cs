@@ -24,6 +24,8 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
         QueueName = EndpointName = queueName ?? throw new ArgumentNullException(nameof(queueName));
         Options = new CreateQueueOptions(QueueName);
+
+        Options.DeadLetteringOnMessageExpiration = false;
     }
 
     public CreateQueueOptions Options { get; }
@@ -161,10 +163,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
             return inlineSender;
         }
-        
-        
-        
-        
+
         var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
 
         return new BatchedSender(Uri, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());

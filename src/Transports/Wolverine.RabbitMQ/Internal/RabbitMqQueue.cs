@@ -7,6 +7,7 @@ using RabbitMQ.Client.Exceptions;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -322,5 +323,12 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         return ListenerCount > 1
             ? new ParallelRabbitMqListener(runtime, this, _parent, receiver)
             : new RabbitMqListener(runtime, this, _parent, receiver);
+    }
+
+    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
+    {
+        var dlq = _parent.Queues[DeadLetterQueue?.QueueName ?? _parent.DeadLetterQueue.QueueName];
+        deadLetterSender = dlq.CreateSender(runtime);
+        return true;
     }
 }

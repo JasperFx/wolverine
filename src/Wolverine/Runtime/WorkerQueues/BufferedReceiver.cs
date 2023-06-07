@@ -5,11 +5,12 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
-internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling
+internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue
 {
     private readonly RetryBlock<Envelope> _completeBlock;
     private readonly RetryBlock<Envelope> _deferBlock;
@@ -25,6 +26,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _logger = runtime.LoggerFactory.CreateLogger<BufferedReceiver>();
         _settings = runtime.DurabilitySettings;
         Pipeline = pipeline;
+        
 
         _scheduler = new InMemoryScheduledJobProcessor(this);
 
@@ -58,7 +60,31 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 _logger.LogError(e, "Unexpected error in Pipeline invocation");
             }
         }, endpoint.ExecutionOptions);
+        
+        
+        
+        if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
+        {
+            _deadLetterSender = dlq;
+            
+            _moveToErrors = new RetryBlock<Envelope>(
+                async (envelope, _) =>
+                {
+                    await _deadLetterSender!.SendAsync(envelope);
+                }, _logger,
+                _settings.Cancellation);
+        }
     }
+    
+    private readonly ISender? _deadLetterSender;
+    private readonly RetryBlock<Envelope>? _moveToErrors;
+
+    public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        return _moveToErrors!.PostAsync(envelope);
+    }
+
+    public bool NativeDeadLetterQueueEnabled => _deadLetterSender != null;
 
     public IHandlerPipeline Pipeline { get; }
 
@@ -101,6 +127,11 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         await _completeBlock.DrainAsync();
         await _deferBlock.DrainAsync();
+
+        if (_moveToErrors != null)
+        {
+            await _moveToErrors.DrainAsync();
+        }
 
         await _receivingBlock.Completion;
     }
@@ -166,6 +197,12 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _receivingBlock.Complete();
         _completeBlock.Dispose();
         _deferBlock.Dispose();
+        
+        if (_deadLetterSender is IDisposable d) d.SafeDispose();
+        if (_moveToErrors != null)
+        {
+            _moveToErrors.Dispose();
+        }
     }
 
     Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)

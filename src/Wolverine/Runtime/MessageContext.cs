@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Transactions;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;

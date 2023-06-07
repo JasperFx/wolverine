@@ -11,10 +11,6 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-internal interface IRabbitMqEndpoint
-{
-}
-
 internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
 {
     private readonly string _exchangeName;
