@@ -69,6 +69,7 @@ public partial class Envelope
 
     public IListener? Listener { get; private set; }
     public bool IsResponse { get; set; }
+    public Exception Failure { get; set; }
 
     internal void StartTiming()
     {
