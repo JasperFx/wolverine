@@ -236,7 +236,7 @@ public partial class Envelope
         return MessageType == PingMessageType;
     }
 
-    internal static Envelope ForPing(Uri destination)
+    public static Envelope ForPing(Uri destination)
     {
         return new Envelope
         {

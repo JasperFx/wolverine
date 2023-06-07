@@ -12,6 +12,43 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     }
 
     /// <summary>
+    /// Completely disable all SQS dead letter queueing for just this queue
+    /// </summary>
+    /// <returns></returns>
+    public AmazonSqsListenerConfiguration DisableDeadLetterQueueing()
+    {
+        add(e => e.DeadLetterQueueName = null);
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the dead letter queueing for just this queue
+    /// </summary>
+    /// <param name="deadLetterQueue"></param>
+    /// <param name="configure">Optionally configure properties of the dead letter queue itself</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public AmazonSqsListenerConfiguration ConfigureDeadLetterQueue(string deadLetterQueue,
+        Action<AmazonSqsQueue>? configure = null)
+    {
+        if (deadLetterQueue == null)
+        {
+            throw new ArgumentNullException(nameof(deadLetterQueue));
+        }
+        
+        add(e =>
+        {
+            e.DeadLetterQueueName = AmazonSqsTransport.SanitizeSqsName(deadLetterQueue);
+            if (configure != null)
+            {
+                e.ConfigureDeadLetterQueue(configure);
+            }
+        });
+
+        return this;
+    }
+
+    /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>

@@ -10,6 +10,10 @@ namespace Wolverine.AmazonSqs.Internal;
 
 public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 {
+    public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
+
+    public const string Separator = "-";
+    
     public AmazonSqsTransport() : base("sqs", "Amazon SQS")
     {
         Queues = new LightweightCache<string, AmazonSqsQueue>(name => new AmazonSqsQueue(name, this));
@@ -34,7 +38,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public bool UseLocalStackInDevelopment { get; set; }
 
-    public override string SanitizeIdentifier(string identifier)
+    public static string SanitizeSqsName(string identifier)
     {
         //AWS requires FIFO queues to have a `.fifo` suffix
         var suffixIndex = identifier.LastIndexOf(".fifo", StringComparison.OrdinalIgnoreCase);
@@ -44,18 +48,29 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
             var prefix = identifier[..suffixIndex];
             var suffix = identifier[suffixIndex..];
 
-            prefix = prefix.Replace(".", IdentifierDelimiter);
+            prefix = prefix.Replace(".", Separator);
 
             return prefix + suffix;
         }
         else // ".fifo" suffix not found
         {
-            return identifier.Replace(".", IdentifierDelimiter);
+            return identifier.Replace(".", Separator);
         }
+    }
+
+    public override string SanitizeIdentifier(string identifier)
+    {
+        return SanitizeSqsName(identifier);
     }
 
     protected override IEnumerable<AmazonSqsQueue> endpoints()
     {
+        var dlqNames = Queues.Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
+        foreach (var dlqName in dlqNames)
+        {
+            Queues.FillDefault(dlqName!);
+        }
+        
         return Queues;
     }
 
