@@ -194,6 +194,11 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     public int MaximumEnvelopeRetryStorage { get; set; } = 100;
 
+    /// <summary>
+    /// Number of parallel listeners for this endpoint
+    /// </summary>
+    public int ListenerCount { get; set; }
+
     public virtual IDictionary<string, object> DescribeProperties()
     {
         var dict = new Dictionary<string, object>

@@ -27,6 +27,25 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     {
         add(e => e.IsListener = true);
     }
+    
+    /// <summary>
+    ///     To optimize the message listener throughput,
+    ///     start up multiple listening endpoints. This is
+    ///     most necessary when using inline processing
+    /// </summary>
+    /// <param name="count"></param>
+    /// <returns></returns>
+    public TSelf ListenerCount(int count)
+    {
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count), "Must be greater than zero");
+        }
+
+        add(e => e.ListenerCount = count);
+
+        return this.As<TSelf>();
+    }
 
     public TSelf MaximumParallelMessages(int maximumParallelHandlers, ProcessingOrder? order = null)
     {

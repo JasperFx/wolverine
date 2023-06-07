@@ -31,11 +31,6 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     internal bool HasDeclared { get; private set; }
 
     /// <summary>
-    ///     Number of parallel listeners for this queue endpoint
-    /// </summary>
-    public int ListenerCount { get; set; }
-
-    /// <summary>
     ///     Limit on the combined size of pre-fetched messages. The default in Wolverine is 0, which
     ///     denotes an unlimited size.
     /// </summary>
@@ -320,9 +315,19 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     {
         await InitializeAsync(runtime.LoggerFactory.CreateLogger<RabbitMqQueue>());
 
-        return ListenerCount > 1
-            ? new ParallelRabbitMqListener(runtime, this, _parent, receiver)
-            : new RabbitMqListener(runtime, this, _parent, receiver);
+        if (ListenerCount > 1)
+        {
+            var listeners = new List<RabbitMqListener>();
+            for (int i = 0; i < ListenerCount; i++)
+            {
+                var listener = new RabbitMqListener(runtime, this, _parent, receiver);
+                listeners.Add(listener);
+            }
+
+            return new ParallelListener(Uri, listeners);
+        }
+
+        return new RabbitMqListener(runtime, this, _parent, receiver);
     }
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
