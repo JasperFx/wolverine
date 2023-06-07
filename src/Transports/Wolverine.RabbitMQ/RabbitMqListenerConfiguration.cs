@@ -13,25 +13,6 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
     }
 
     /// <summary>
-    ///     To optimize the message listener throughput,
-    ///     start up multiple listening endpoints. This is
-    ///     most necessary when using inline processing
-    /// </summary>
-    /// <param name="count"></param>
-    /// <returns></returns>
-    public RabbitMqListenerConfiguration ListenerCount(int count)
-    {
-        if (count <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(count), "Must be greater than zero");
-        }
-
-        add(e => e.ListenerCount = count);
-
-        return this;
-    }
-
-    /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>

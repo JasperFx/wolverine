@@ -163,7 +163,22 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _receiver ??= await buildReceiverAsync();
 
-        _listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
+
+        if (Endpoint.ListenerCount > 1)
+        {
+            var listeners = new List<IListener>();
+            for (int i = 0; i < Endpoint.ListenerCount; i++)
+            {
+                var listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
+                listeners.Add(listener);
+            }
+
+            _listener = new ParallelListener(Uri, listeners);
+        }
+        else
+        {
+            _listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
+        }
 
         Status = ListeningStatus.Accepting;
         _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
