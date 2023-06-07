@@ -153,4 +153,15 @@ internal class SqsListener : IListener
         // TODO -- the visibility timeout needs to be configurable by timeout
         return _transport.Client!.ChangeMessageVisibilityAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle, 1000);
     }
+
+    public async Task<bool> TryRequeueAsync(Envelope envelope)
+    {
+        if (envelope is AmazonSqsEnvelope e)
+        {
+            await DeferAsync(e.SqsMessage);
+            return true;
+        }
+
+        return false;
+    }
 }

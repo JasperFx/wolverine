@@ -14,6 +14,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 {
     public const string ProtocolName = "asb";
     public const string ResponseEndpointName = "AzureServiceBusResponses";
+    public const string RetryEndpointName = "AzureServiceBusRetries";
     private readonly Lazy<ServiceBusClient> _busClient;
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
 
@@ -71,7 +72,19 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         queue.IsListener = true;
         queue.EndpointName = ResponseEndpointName;
         queue.IsUsedForReplies = true;
+
+
+        var retryName = SanitizeIdentifier($"wolverine.retries.{runtime.Options.ServiceName}".ToLower());
+        var retryQueue = Queues[retryName];
+        retryQueue.Mode = EndpointMode.BufferedInMemory;
+        retryQueue.IsListener = true;
+        retryQueue.EndpointName = RetryEndpointName;
+
+        RetryQueue = retryQueue;
+
     }
+
+    internal AzureServiceBusQueue? RetryQueue { get; set; }
 
     protected override IEnumerable<AzureServiceBusEndpoint> endpoints()
     {

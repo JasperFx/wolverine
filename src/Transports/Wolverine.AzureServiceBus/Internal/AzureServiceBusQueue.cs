@@ -118,7 +118,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
     {
         var mapper = BuildMapper(runtime);
 
-        var requeue = CreateSender(runtime);
+        var requeue = BuildInlineSender(runtime);
         
         if (Mode == EndpointMode.Inline)
         {
@@ -138,6 +138,15 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         var listener = new BatchedAzureServiceBusListener(this, logger, receiver, messageReceiver, mapper, requeue);
 
         return listener;
+    }
+    
+    internal ISender BuildInlineSender(IWolverineRuntime runtime)
+    {
+        var mapper = BuildMapper(runtime);
+        var sender = Parent.BusClient.CreateSender(QueueName);
+        return new InlineAzureServiceBusSender(this, mapper, sender,
+            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
