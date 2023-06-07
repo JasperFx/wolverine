@@ -12,7 +12,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 {
     private readonly CancellationTokenSource _cancellation = new();
     private readonly RetryBlock<AzureServiceBusEnvelope> _complete;
-    private readonly RetryBlock<AzureServiceBusEnvelope> _defer;
+    private readonly RetryBlock<Envelope> _defer;
     private readonly AzureServiceBusEndpoint _endpoint;
     private readonly ILogger _logger;
     private readonly IIncomingMapper<ServiceBusReceivedMessage> _mapper;
@@ -39,10 +39,9 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
             return _receiver.CompleteMessageAsync(e.AzureMessage);
         }, _logger, _cancellation.Token);
 
-        _defer = new RetryBlock<AzureServiceBusEnvelope>((e, _) =>
+        _defer = new RetryBlock<Envelope>(async (envelope, _) =>
         {
-            return _receiver.DeferMessageAsync(e.AzureMessage,
-                new Dictionary<string, object> { { EnvelopeConstants.AttemptsKey, e.Attempts + 1 } });
+            await _requeue.SendAsync(envelope);
         }, logger, _cancellation.Token);
 
         _deadLetter =
@@ -63,13 +62,18 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        if (envelope is AzureServiceBusEnvelope e)
+        await _defer.PostAsync(envelope);
+    }
+
+    public async Task<bool> TryRequeueAsync(Envelope envelope)
+    {
+        if (envelope is AzureServiceBusEnvelope)
         {
-            await _receiver.CompleteMessageAsync(e.AzureMessage);
-            e.IsCompleted = true;
+            await _defer.PostAsync(envelope);
+            return true;
         }
-        
-        await _requeue.SendAsync(envelope);
+
+        return false;
     }
 
     public ValueTask DisposeAsync()

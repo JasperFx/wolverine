@@ -35,7 +35,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var requeue = Topic.BuildInlineSender(runtime);
+        var requeue = Parent.RetryQueue != null ? Parent.RetryQueue.BuildInlineSender(runtime) : Topic.BuildInlineSender(runtime);
         var mapper = BuildMapper(runtime);
         
         if (Mode == EndpointMode.Inline)
