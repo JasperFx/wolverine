@@ -44,7 +44,7 @@ internal class SqsListener : IListener
                     {
                         MessageAttributeNames = headers
                     };
-
+                    
                     _queue.ConfigureRequest(request);
 
                     var results = await _transport.Client.ReceiveMessageAsync(request, _cancellation.Token);

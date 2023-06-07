@@ -57,6 +57,11 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
     /// </summary>
     public CreateQueueRequest Configuration { get; }
 
+    /// <summary>
+    /// Name of the dead letter queue for this SQS queue where failed messages will be moved
+    /// </summary>
+    public string? DeadLetterQueueName { get; set; } = AmazonSqsTransport.DeadLetterQueueName;
+
     public async ValueTask<bool> CheckAsync()
     {
         var response = await _parent.Client!.GetQueueUrlAsync(QueueName);
@@ -237,5 +242,24 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
         {
             QueueUrl = QueueUrl
         }, token);
+    }
+
+    internal void ConfigureDeadLetterQueue(Action<AmazonSqsQueue> configure)
+    {
+        var dlq = _parent.Queues[DeadLetterQueueName];
+        configure(dlq);
+    }
+
+    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
+    {
+        if (DeadLetterQueueName.IsNotEmpty())
+        {
+            var dlq = _parent.Queues[DeadLetterQueueName];
+            deadLetterSender = new InlineSqsSender(runtime, dlq, _parent.Client!);
+            return true;
+        }
+
+        deadLetterSender = default;
+        return false;
     }
 }

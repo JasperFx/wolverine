@@ -8,6 +8,61 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
+internal class InlineSqsSender : ISender
+{
+    private readonly ILogger _logger;
+    private readonly AmazonSqsMapper _mapper;
+    private readonly AmazonSqsQueue _queue;
+    private readonly IAmazonSQS _sqs;
+    
+    public InlineSqsSender(IWolverineRuntime runtime, AmazonSqsQueue queue, IAmazonSQS sqs)
+    {
+        _queue = queue;
+        _sqs = sqs;
+        _mapper = queue.BuildMapper(runtime);
+        _logger = runtime.LoggerFactory.CreateLogger<InlineSqsSender>();
+    }
+
+    public bool SupportsNativeScheduledSend { get; } = false;
+    public Uri Destination => _queue.Uri;
+    public async Task<bool> PingAsync()
+    {
+        var envelope = Envelope.ForPing(Destination);
+        try
+        {
+            await SendAsync(envelope);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    public async ValueTask SendAsync(Envelope envelope)
+    {
+        await _queue.InitializeAsync(_logger);
+
+        // TODO -- This is awful. See if this could be collapsed. The mapping I mean
+        var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(),
+            Encoding.Default.GetString(envelope.Data!));
+        _mapper.MapEnvelopeToOutgoing(envelope, entry);
+
+        var request = new SendMessageRequest(_queue.QueueUrl, entry.MessageBody);
+        foreach (var pair in entry.MessageAttributes)
+        {
+            request.MessageAttributes[pair.Key] = pair.Value;
+        }
+
+        foreach (var pair in entry.MessageSystemAttributes)
+        {
+            request.MessageSystemAttributes[pair.Key] = pair.Value;
+        }
+
+        await _sqs.SendMessageAsync(request);
+    }
+}
+
 internal class SqsSenderProtocol : ISenderProtocol
 {
     private readonly ILogger _logger;

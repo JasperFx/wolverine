@@ -11,6 +11,13 @@ namespace Wolverine.AmazonSqs.Tests.Internal;
 public class AmazonSqsQueueTests
 {
     [Fact]
+    public void default_dead_letter_queue_name_is_transport_default()
+    {
+        new AmazonSqsQueue("foo", new AmazonSqsTransport())
+            .DeadLetterQueueName.ShouldBe(AmazonSqsTransport.DeadLetterQueueName);
+    }
+    
+    [Fact]
     public void default_mode_is_buffered()
     {
         new AmazonSqsQueue("foo", new AmazonSqsTransport())
