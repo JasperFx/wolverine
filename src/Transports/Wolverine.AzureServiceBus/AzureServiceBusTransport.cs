@@ -19,6 +19,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
 
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
+    public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
 
     public AzureServiceBusTransport() : base(ProtocolName, "Azure Service Bus")
     {
@@ -88,6 +89,12 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
     protected override IEnumerable<AzureServiceBusEndpoint> endpoints()
     {
+        var dlqNames = Queues.Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
+        foreach (var dlqName in dlqNames)
+        {
+            Queues.FillDefault(dlqName!);
+        }
+        
         foreach (var queue in Queues) yield return queue;
 
         foreach (var topic in Topics) yield return topic;

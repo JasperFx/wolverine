@@ -168,4 +168,30 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
         return new BatchedSender(Uri, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
     }
+    
+    /// <summary>
+    /// Name of the dead letter queue for this SQS queue where failed messages will be moved
+    /// </summary>
+    public string? DeadLetterQueueName { get; set; } = AzureServiceBusTransport.DeadLetterQueueName;
+    
+    
+    internal void ConfigureDeadLetterQueue(Action<AzureServiceBusQueue> configure)
+    {
+        var dlq = Parent.Queues[DeadLetterQueueName];
+        configure(dlq);
+    }
+
+    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
+    {
+        if (DeadLetterQueueName.IsNotEmpty())
+        {
+            var dlq = Parent.Queues[DeadLetterQueueName];
+            deadLetterSender = dlq.BuildInlineSender(runtime);
+            return true;
+        }
+
+        deadLetterSender = default;
+        return false;
+    }
+
 }

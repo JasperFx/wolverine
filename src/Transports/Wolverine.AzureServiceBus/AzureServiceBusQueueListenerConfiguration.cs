@@ -62,4 +62,41 @@ public class
         add(e => e.MaximumWaitTime = time);
         return this;
     }
+    
+    /// <summary>
+    /// Completely disable all SQS dead letter queueing for just this queue
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration DisableDeadLetterQueueing()
+    {
+        add(e => e.DeadLetterQueueName = null);
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the dead letter queueing for just this queue
+    /// </summary>
+    /// <param name="deadLetterQueue"></param>
+    /// <param name="configure">Optionally configure properties of the dead letter queue itself</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public AzureServiceBusQueueListenerConfiguration ConfigureDeadLetterQueue(string deadLetterQueue,
+        Action<AzureServiceBusQueue>? configure = null)
+    {
+        if (deadLetterQueue == null)
+        {
+            throw new ArgumentNullException(nameof(deadLetterQueue));
+        }
+
+        add(e =>
+        {
+            e.DeadLetterQueueName = new AzureServiceBusTransport().SanitizeIdentifier(deadLetterQueue);
+            if (configure != null)
+            {
+                e.ConfigureDeadLetterQueue(configure);
+            }
+        });
+
+        return this;
+    }
 }
