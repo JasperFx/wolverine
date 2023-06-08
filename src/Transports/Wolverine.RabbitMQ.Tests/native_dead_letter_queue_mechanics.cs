@@ -75,14 +75,23 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
     [Fact]
     public async Task no_dead_letter_queue_if_disabled()
     {
-        theOptions.UseRabbitMq().DisableDeadLetterQueueConfiguration();
+        var queueName = "queue_with_no_native_dead_letter_queue";
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueConfiguration();
+                opts.ListenToRabbitQueue(queueName);
+                
+                
+            }).StartAsync();
+
+
+        var transport = host.Services.GetRequiredService<IWolverineRuntime>().Options.RabbitMqTransport();
         
-        await afterBootstrapping();
+        transport.Exchanges.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
+        transport.Queues.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
         
-        theTransport.Exchanges.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
-        theTransport.Queues.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
-        
-        theTransport.Queues[QueueName].Arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
+        transport.Queues[QueueName].Arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
     }
 
     [Fact]

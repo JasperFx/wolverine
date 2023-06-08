@@ -67,7 +67,7 @@ public class end_to_end
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_durable_transport_option()
     {
-        var queueName = "durable_test_queue";
+        var queueName = "durable_test_queue_no_dlq";
         using var publisher = WolverineHost.For(opts =>
         {
             opts.UseRabbitMq().DisableDeadLetterQueueConfiguration().AutoProvision().AutoPurgeOnStartup();
@@ -243,6 +243,8 @@ public class end_to_end
                 .ToQueue(queueName, "key2");
 
             opts.PublishAllMessages().ToRabbitExchange(exchangeName);
+
+            opts.Services.AddResourceSetupOnStartup();
         });
 
         var receiver = WolverineHost.For(opts =>
@@ -253,6 +255,8 @@ public class end_to_end
                 .BindExchange(exchangeName).ToQueue(queueName, "key2");
 
             opts.Services.AddSingleton<ColorHistory>();
+            
+            opts.Services.AddResourceSetupOnStartup();
 
             opts.ListenToRabbitQueue(queueName);
         });

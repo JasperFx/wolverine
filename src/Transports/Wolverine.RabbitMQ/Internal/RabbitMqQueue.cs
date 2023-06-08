@@ -25,7 +25,12 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         _parent = parent;
         QueueName = EndpointName = queueName;
         Mode = EndpointMode.Inline;
-        DeadLetterQueue = _parent.DeadLetterQueue;
+
+        if (QueueName != _parent.DeadLetterQueue.QueueName)
+        {
+            DeadLetterQueue = _parent.DeadLetterQueue;
+        }
+        
     }
 
     internal bool HasDeclared { get; private set; }
