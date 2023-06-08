@@ -186,7 +186,10 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     private IEnumerable<DeadLetterQueue> enabledDeadLetterQueues()
     {
-        yield return DeadLetterQueue;
+        if (DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage)
+        {
+            yield return DeadLetterQueue;
+        }
 
         foreach (var queue in Queues)
         {

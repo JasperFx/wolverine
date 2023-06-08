@@ -14,12 +14,12 @@ public class InlineRabbitMqTransportFixture : TransportComplianceFixture, IAsync
 
     public async Task InitializeAsync()
     {
-        var queueName = RabbitTesting.NextQueueName();
+        var queueName = RabbitTesting.NextQueueName() + "_inline";
         OutboundAddress = $"rabbitmq://queue/{queueName}".ToUri();
 
         await SenderIs(opts =>
         {
-            var listener = RabbitTesting.NextQueueName();
+            var listener = RabbitTesting.NextQueueName() + "_inline";
 
             opts
                 .ListenToRabbitQueue(listener)

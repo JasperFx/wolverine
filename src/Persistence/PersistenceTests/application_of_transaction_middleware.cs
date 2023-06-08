@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using Oakton.Resources;
 using PersistenceTests.EFCore;
 using Shouldly;
 using Wolverine;
@@ -42,6 +43,8 @@ public class application_of_transaction_middleware : IAsyncLifetime
             opts.Policies.AutoApplyTransactions();
 
             opts.Services.AddScoped<ISomeService, SomeService>();
+
+            opts.Services.AddResourceSetupOnStartup();
         }).StartAsync();
 
         theHandlers = _host.Services.GetRequiredService<IWolverineRuntime>().ShouldBeOfType<WolverineRuntime>()

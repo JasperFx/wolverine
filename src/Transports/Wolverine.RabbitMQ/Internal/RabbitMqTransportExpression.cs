@@ -111,6 +111,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     public RabbitMqTransportExpression DisableDeadLetterQueueConfiguration()
     {
         Transport.DeadLetterQueue.Mode = DeadLetterQueueMode.WolverineStorage;
+        Transport.Exchanges.Remove(Transport.DeadLetterQueue.ExchangeName);
 
         return this;
     }
