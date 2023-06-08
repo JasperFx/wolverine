@@ -103,7 +103,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     internal string? SourceCode => _generatedType?.SourceCode;
 
-    string ICodeFile.FileName => TypeName + ".cs";
+    string ICodeFile.FileName => TypeName;
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
