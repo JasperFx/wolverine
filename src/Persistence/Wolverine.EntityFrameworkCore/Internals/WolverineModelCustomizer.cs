@@ -13,6 +13,15 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
     {
         base.Customize(modelBuilder, context);
 
-        modelBuilder.MapWolverineEnvelopeStorage();
+        var customizationOptions = context.Database.GetService<WolverineDbContextCustomizationOptions>();
+        
+        modelBuilder.MapWolverineEnvelopeStorage(customizationOptions?.DatabaseSchema);
     }
+}
+
+public class WolverineDbContextCustomizationOptions
+{
+    public string? DatabaseSchema { get; init; }
+
+    public static WolverineDbContextCustomizationOptions Default => new WolverineDbContextCustomizationOptions { DatabaseSchema = null };
 }

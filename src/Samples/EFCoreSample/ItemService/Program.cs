@@ -4,6 +4,7 @@ using Oakton;
 using Oakton.Resources;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,7 +18,7 @@ var connectionString = builder.Configuration.GetConnectionString("sqlserver");
 // If you're okay with this, this will register the DbContext as normally,
 // but make some Wolverine specific optimizations at the same time
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
-    x => x.UseSqlServer(connectionString));
+    x => x.UseSqlServer(connectionString), "wolverine");
 
 #endregion
 
@@ -35,7 +36,7 @@ builder.Host.UseWolverine(opts =>
 {
     // Setting up Sql Server-backed message storage
     // This requires a reference to Wolverine.SqlServer
-    opts.PersistMessagesWithSqlServer(connectionString);
+    opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
 
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware

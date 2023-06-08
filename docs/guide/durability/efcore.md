@@ -135,6 +135,13 @@ That registration will:
    objects at runtime when the configuration options do not vary by scope
 3. Automatically registers the EF Core support for Wolverine transactional middlware and stateful saga support
 
+The AddDbContextWithWolverineIntegration has an additional last default parameter wolverineDatabaseSchema. It lets you control the name of a database schema where
+Wolverine database table will be placed. The default value is null and creates Wolverine tables in the default schema.
+
+If you want to place Wolverine tables in a different schema you have to do the following:
+1. Use `AddDbContextWithWolverineIntegration()` passing schema name as the last parameter.
+2. Use the same schema name as a last parameter in call to `PersistMessagesWithSqlServer()` or `PersistMessagesWithPostgresql()`
+ 
 ## Manually adding Envelope Mapping
 
 If not using the `AddDbContextWithWolverineIntegration()` extension method to register a `DbContext` in your system, you 
