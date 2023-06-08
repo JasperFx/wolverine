@@ -1,5 +1,6 @@
 using Amazon.SQS.Model;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs;
 
@@ -24,7 +25,7 @@ internal class DefaultSqsEnvelopeMapper : ISqsEnvelopeMapper
 
     public IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope)
     {
-        yield break;
+        yield return new KeyValuePair<string, MessageAttributeValue>(TransportConstants.ProtocolVersion, new MessageAttributeValue{StringValue = "1.0"});
     }
 
     public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
