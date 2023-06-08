@@ -1,6 +1,10 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
 using TestingSupport.Compliance;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
@@ -39,4 +43,24 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 [Collection("acceptance")]
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
 {
+    [Fact]
+    public virtual async Task dlq_mechanics()
+    {
+        throwOnAttempt<DivideByZeroException>(1);
+        throwOnAttempt<DivideByZeroException>(2);
+        throwOnAttempt<DivideByZeroException>(3);
+
+        await shouldMoveToErrorQueueOnAttempt(1);
+
+        var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
+
+        var transport = runtime.Options.Transports.GetOrCreate<AzureServiceBusTransport>();
+        var queue = transport.Queues[AzureServiceBusTransport.DeadLetterQueueName];
+        await queue.InitializeAsync(NullLogger.Instance);
+        
+        var messageReceiver = transport.BusClient.CreateReceiver(AzureServiceBusTransport.DeadLetterQueueName);
+        var queued = await messageReceiver.ReceiveMessageAsync();
+        queued.ShouldNotBeNull();
+
+    }
 }

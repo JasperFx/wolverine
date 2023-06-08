@@ -36,4 +36,24 @@ public class AzureServiceBusTransportTests
 
         subscription.SubscriptionName.ShouldBe("red");
     }
+    
+    [Fact]
+    public void return_all_endpoints_gets_dead_letter_queue_too()
+    {
+        var transport = new AzureServiceBusTransport();
+        var one = transport.Queues["one"];
+        var two = transport.Queues["two"];
+        var three = transport.Queues["three"];
+
+        one.DeadLetterQueueName = null;
+        two.DeadLetterQueueName = "two-dead-letter-queue";
+
+        var endpoints = transport.Endpoints().OfType<AzureServiceBusQueue>().ToArray();
+
+        endpoints.ShouldContain(x => x.QueueName == AzureServiceBusTransport.DeadLetterQueueName);
+        endpoints.ShouldContain(x => x.QueueName == "two-dead-letter-queue");
+        endpoints.ShouldContain(x => x.QueueName == "one");
+        endpoints.ShouldContain(x => x.QueueName == "two");
+        endpoints.ShouldContain(x => x.QueueName == "three");
+    }
 }
