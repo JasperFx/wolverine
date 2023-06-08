@@ -10,4 +10,5 @@ internal class AmazonSqsEnvelope : Envelope
     }
 
     public Message SqsMessage { get; }
+    public bool WasDeleted { get; set; }
 }

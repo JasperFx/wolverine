@@ -8,11 +8,11 @@ using Wolverine.Runtime;
 
 namespace Wolverine.AmazonSqs.Tests;
 
-public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
+public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public static int Number = 0;
     
-    public BufferedComplianceFixture() : base(new Uri("sqs://receiver"), 120)
+    public InlineComplianceFixture() : base(new Uri("sqs://buffered-receiver"), 120)
     {
     }
 
@@ -29,6 +29,8 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .AutoPurgeOnStartup();
 
             opts.ListenToSqsQueue("sender-" + number);
+
+            opts.PublishAllMessages().To(OutboundAddress).SendInline();
         });
 
         await ReceiverIs(opts =>
@@ -37,7 +39,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 
-            opts.ListenToSqsQueue("receiver-" + number).Named("receiver").BufferedInMemory();
+            opts.ListenToSqsQueue("receiver-" + number).Named("receiver").ProcessInline();
         });
     }
 
@@ -48,7 +50,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 }
 
 [Collection("acceptance")]
-public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
+public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
 {
     [Fact]
     public virtual async Task dlq_mechanics()

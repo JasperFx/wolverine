@@ -1,8 +1,4 @@
-using System;
-using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -37,19 +33,15 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
     public bool AllLocally { get; set; }
 
-    public void Dispose()
-    {
-        Sender?.Dispose();
-        if (!ReferenceEquals(Sender, Receiver))
-        {
-            Receiver?.Dispose();
-        }
-    }
-    
+    public bool MustReset { get; set; } = false;
+
     public async ValueTask DisposeAsync()
     {
-        if (Sender == null) return;
-        
+        if (Sender == null)
+        {
+            return;
+        }
+
         await Sender.StopAsync();
         if (Receiver != null)
         {
@@ -57,6 +49,15 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
             {
                 await Receiver.StopAsync();
             }
+        }
+    }
+
+    public void Dispose()
+    {
+        Sender?.Dispose();
+        if (!ReferenceEquals(Sender, Receiver))
+        {
+            Receiver?.Dispose();
         }
     }
 
@@ -76,7 +77,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
     protected async Task SenderIs(Action<WolverineOptions> configure)
     {
-        Sender = WolverineHost.For(opts =>
+        Sender = await WolverineHost.ForAsync(opts =>
         {
             configure(opts);
             configureSender(opts);
@@ -95,13 +96,13 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
         options.Services.AddSingleton<IMessageSerializer, GreenTextWriter>();
         options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        
+
         options.UseNewtonsoftForSerialization();
     }
 
     public async Task ReceiverIs(Action<WolverineOptions> configure)
     {
-        Receiver = WolverineHost.For(opts =>
+        Receiver = await WolverineHost.ForAsync(opts =>
         {
             configure(opts);
             configureReceiver(opts);
@@ -119,7 +120,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
             .IncludeType<ErrorCausingMessageHandler>()
             .IncludeType<BlueHandler>()
             .IncludeType<PingHandler>();
-        
+
         options.UseNewtonsoftForSerialization();
 
         options.AddSerializer(new BlueTextReader());
@@ -207,7 +208,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
             .Timeout(15.Seconds())
-            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message2()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync(new Message2()));
 
         session.FindSingleTrackedMessageOfType<Message2>(MessageEventType.MessageSucceeded)
             .ShouldNotBeNull();
@@ -219,7 +220,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync(new Message1()));
 
 
         session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
@@ -251,7 +252,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync(new Message1()));
 
 
         session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
@@ -284,7 +285,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync(new Message1()));
 
 
         session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
@@ -317,7 +318,6 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .AlsoTrack(theReceiver)
             .Timeout(30.Seconds())
             .InvokeMessageAndWaitAsync(message1);
-
     }
 
     [Fact]
@@ -338,7 +338,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync( new Message1()));
+            .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync(new Message1()));
 
 
         var record = session.FindEnvelopesWithMessageType<Message1>(MessageEventType.MessageSucceeded).Single();
@@ -405,7 +405,8 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .SendMessageAndWaitAsync(theMessage);
 
         return _session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(x =>
-            x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
+            x.MessageEventType == MessageEventType.MessageSucceeded ||
+            x.MessageEventType == MessageEventType.MovedToErrorQueue);
     }
 
     protected async Task shouldSucceedOnAttempt(int attempt)
@@ -419,7 +420,8 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         var record = session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(
             x =>
-                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded ||
+                x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
         if (record == null)
         {
@@ -457,7 +459,8 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         var record = session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(
             x =>
-                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded ||
+                x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
         if (record == null)
         {

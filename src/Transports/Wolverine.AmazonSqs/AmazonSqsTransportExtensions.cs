@@ -1,3 +1,4 @@
+using System.Net;
 using Amazon.SQS;
 using JasperFx.Core.Reflection;
 using Wolverine.AmazonSqs.Internal;
@@ -45,6 +46,7 @@ public static class AmazonSqsTransportExtensions
         int port = 4566)
     {
         var transport = options.AmazonSqsTransport();
+
         transport.ConnectToLocalStack(port);
 
         return new AmazonSqsTransportConfiguration(transport, options);
