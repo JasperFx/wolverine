@@ -163,4 +163,32 @@ public class when_initializing_the_endpoint
 
         await theClient.Received().PurgeQueueAsync(theSqsQueueUrl);
     }
+
+    [Fact]
+    public void set_maximum_message_size()
+    {
+        theQueue.MaximumMessageSize(20000);
+        theQueue.Configuration.Attributes[QueueAttributeName.MaximumMessageSize].ShouldBe("20000");
+    }
+
+    [Fact]
+    public void set_retention_period()
+    {
+        theQueue.MessageRetentionPeriod(100);
+        theQueue.Configuration.Attributes[QueueAttributeName.MessageRetentionPeriod].ShouldBe("100");
+    }
+
+    [Fact]
+    public void set_receive_message_wait_time_seconds()
+    {
+        theQueue.ReceiveMessageWaitTimeSeconds(44);
+        theQueue.Configuration.Attributes[QueueAttributeName.ReceiveMessageWaitTimeSeconds].ShouldBe("44");
+    }
+
+    [Fact]
+    public void set_visibility_timeout()
+    {
+        theQueue.VisibilityTimeout(55);
+        theQueue.Configuration.Attributes[QueueAttributeName.VisibilityTimeout].ShouldBe("55");
+    }
 }

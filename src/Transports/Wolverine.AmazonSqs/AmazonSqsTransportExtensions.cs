@@ -61,7 +61,7 @@ public static class AmazonSqsTransportExtensions
     ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
     ///     <returns></returns>
     public static AmazonSqsListenerConfiguration ListenToSqsQueue(this WolverineOptions endpoints, string queueName,
-        Action<IAmazonSqsListeningEndpoint>? configure = null)
+        Action<AmazonSqsQueue>? configure = null)
     {
         var transport = endpoints.AmazonSqsTransport();
 
