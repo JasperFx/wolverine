@@ -1,4 +1,6 @@
+using System.Runtime.Intrinsics.X86;
 using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
@@ -16,6 +18,8 @@ internal class MartenAggregateHandlerStrategy : IHandlerPolicy
             {
                 continue;
             }
+            
+            if (chain.Handlers.SelectMany(x => x.Creates).Any(x => x.VariableType.CanBeCastTo<StartStream>())) continue;
 
             new AggregateHandlerAttribute(ConcurrencyStyle.Optimistic).Modify(chain, rules, container);
         }

@@ -119,6 +119,7 @@ public class MessageBus : IMessageBus
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
+        
         trackEnvelopeCorrelation(Activity.Current, outgoing);
 
         if (outgoing.Any())

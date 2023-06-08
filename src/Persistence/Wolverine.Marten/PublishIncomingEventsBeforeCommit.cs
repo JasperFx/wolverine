@@ -23,3 +23,8 @@ internal class PublishIncomingEventsBeforeCommit : DocumentSessionListenerBase
         }
     }
 }
+
+internal interface IMartenEventPublisher
+{
+    ValueTask PublishAsync(IEnumerable<IEvent> events, IMessageBus bus);
+}
