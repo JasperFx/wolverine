@@ -12,9 +12,12 @@ namespace Wolverine.AmazonSqs.Internal;
 public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueue
 {
     private readonly AmazonSqsTransport _parent;
+    
+    // This will vary later
+    private ISqsEnvelopeMapper _mapper = new DefaultSqsEnvelopeMapper();
 
     private bool _initialized;
-
+    
     internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base(new Uri($"sqs://{queueName}"),
         EndpointRole.Application)
     {
@@ -24,6 +27,35 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
         Configuration = new CreateQueueRequest(QueueName);
     }
+
+    /// <summary>
+    /// Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming SQS requests
+    /// are read and how outgoing messages are written to SQS
+    /// </summary>
+    /// <exception cref="ArgumentNullException"></exception>
+    public ISqsEnvelopeMapper Mapper
+    {
+        get => _mapper;
+        set => _mapper = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
+    {
+        if (!_initialized)
+        {
+            await InitializeAsync(logger);
+        }
+
+        var body = _mapper.BuildMessageBody(envelope);
+        var request = new SendMessageRequest(QueueUrl, body);
+        foreach (var attribute in _mapper.ToAttributes(envelope))
+        {
+            request.MessageAttributes.Add(attribute.Key, attribute.Value);
+        }
+
+        await _parent.Client!.SendMessageAsync(request);
+    }
+
 
     public string QueueName { get; }
 
@@ -207,7 +239,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        if (Mode == EndpointMode.Inline) return new InlineSqsSender(runtime, this, _parent.Client);
+        if (Mode == EndpointMode.Inline) return new InlineSqsSender(runtime, this);
         
         var protocol = new SqsSenderProtocol(runtime, this,
             _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
@@ -259,7 +291,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
         if (DeadLetterQueueName.IsNotEmpty())
         {
             var dlq = _parent.Queues[DeadLetterQueueName];
-            deadLetterSender = new InlineSqsSender(runtime, dlq, _parent.Client!);
+            deadLetterSender = new InlineSqsSender(runtime, dlq);
             return true;
         }
 

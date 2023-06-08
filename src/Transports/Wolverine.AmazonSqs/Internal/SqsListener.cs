@@ -47,18 +47,12 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
                 await CompleteAsync(env.SqsMessage);
             }
 
-            var data = EnvelopeSerializer.Serialize(env);
-            var request = new SendMessageRequest(_queue.QueueUrl, Convert.ToBase64String(data));
-            await _transport.Client.SendMessageAsync(request);
+            await _queue.SendMessageAsync(env, logger);
         }, runtime.LoggerFactory.CreateLogger<SqsListener>(), runtime.Cancellation);
 
         _deadLetterBlock = new RetryBlock<Envelope>(async (e, c) =>
         {
-            await _deadLetterQueue.InitializeAsync(logger);
-            
-            var data = EnvelopeSerializer.Serialize(e);
-            var request = new SendMessageRequest(_deadLetterQueue.QueueUrl, Convert.ToBase64String(data));
-            await _transport.Client.SendMessageAsync(request, _cancellation.Token);
+            await _deadLetterQueue!.SendMessageAsync(e, logger);
         }, logger, runtime.Cancellation);
 
         _task = Task.Run(async () =>
@@ -169,8 +163,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
         var envelope = new AmazonSqsEnvelope(message);
-        var buffer = Convert.FromBase64String(message.Body);
-        EnvelopeSerializer.ReadEnvelopeData(envelope, buffer);
+        _queue.Mapper.ReadEnvelopeData(envelope, message.Body, message.MessageAttributes);
+        
         return envelope;
     }
 
@@ -192,7 +186,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        return _deadLetterBlock.PostAsync(envelope);
+        return _deadLetterBlock!.PostAsync(envelope);
     }
 
     public bool NativeDeadLetterQueueEnabled { get; }
