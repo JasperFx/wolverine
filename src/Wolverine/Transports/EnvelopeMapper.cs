@@ -21,11 +21,12 @@ public interface IOutgoingMapper<TOutgoing>
 public interface IIncomingMapper<TIncoming>
 {
     void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
+    IEnumerable<string> AllHeaders();
 }
 
 public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>
 {
-    IEnumerable<string> AllHeaders();
+
 }
 
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>

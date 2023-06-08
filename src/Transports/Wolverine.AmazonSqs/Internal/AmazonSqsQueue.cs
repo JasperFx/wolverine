@@ -157,7 +157,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
         if (_parent.AutoPurgeAllQueues)
         {
-            await client.PurgeQueueAsync(QueueUrl);
+            await PurgeAsync(logger);
             logger.LogInformation("Purging Amazon SQS queue {Name}", QueueUrl);
         }
 
@@ -180,7 +180,14 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
             QueueUrl = response.QueueUrl;
         }
 
-        await client.PurgeQueueAsync(QueueUrl);
+        try
+        {
+            await client.PurgeQueueAsync(QueueUrl);
+        }
+        catch (PurgeQueueInProgressException e)
+        {
+            Console.WriteLine(e.Message);
+        }
     }
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
@@ -200,6 +207,8 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
+        if (Mode == EndpointMode.Inline) return new InlineSqsSender(runtime, this, _parent.Client);
+        
         var protocol = new SqsSenderProtocol(runtime, this,
             _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
         return new BatchedSender(Uri, protocol, runtime.Cancellation,
@@ -208,7 +217,7 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
 
     protected override bool supportsMode(EndpointMode mode)
     {
-        return mode != EndpointMode.Inline;
+        return true;
     }
 
     internal void ConfigureRequest(ReceiveMessageRequest request)
@@ -216,11 +225,6 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
         request.WaitTimeSeconds = WaitTimeSeconds;
         request.MaxNumberOfMessages = MaxNumberOfMessages;
         request.VisibilityTimeout = VisibilityTimeout;
-    }
-
-    internal AmazonSqsMapper BuildMapper(IWolverineRuntime runtime)
-    {
-        return new AmazonSqsMapper(this, runtime);
     }
 
 

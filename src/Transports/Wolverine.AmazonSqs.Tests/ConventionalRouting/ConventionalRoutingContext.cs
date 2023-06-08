@@ -16,7 +16,7 @@ public abstract class ConventionalRoutingContext : IDisposable
         get
         {
             _host ??= WolverineHost.For(opts =>
-                opts.UseAmazonSqsTransportLocally().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
+                opts.UseAmazonSqsTransport().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
 
             return _host.Services.GetRequiredService<IWolverineRuntime>();
         }
@@ -32,7 +32,7 @@ public abstract class ConventionalRoutingContext : IDisposable
         _host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally().UseConventionalRouting(configure).AutoProvision()
+                opts.UseAmazonSqsTransport().UseConventionalRouting(configure).AutoProvision()
                     .AutoPurgeOnStartup();
             }).Start();
     }

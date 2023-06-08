@@ -4,18 +4,21 @@ using Amazon.SQS.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class SqsListener : IListener
+internal class SqsListener : IListener, ISupportDeadLetterQueue
 {
     private readonly CancellationTokenSource _cancellation = new();
-    private readonly ILogger _logger;
-    private readonly AmazonSqsMapper _mapper;
     private readonly AmazonSqsQueue _queue;
     private readonly Task _task;
     private readonly AmazonSqsTransport _transport;
+    private readonly RetryBlock<AmazonSqsEnvelope> _requeueBlock;
+    private readonly AmazonSqsQueue? _deadLetterQueue;
+    private readonly RetryBlock<Envelope>? _deadLetterBlock;
 
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
@@ -25,14 +28,38 @@ internal class SqsListener : IListener
             throw new InvalidOperationException("Parent transport has not been initialized");
         }
 
-        _mapper = new AmazonSqsMapper(queue, runtime);
-        _logger = runtime.LoggerFactory.CreateLogger<SqsListener>();
+        var logger = runtime.LoggerFactory.CreateLogger<SqsListener>();
         _queue = queue;
         _transport = transport;
 
-        var headers = _mapper.AllHeaders().ToList();
+        if (_queue.DeadLetterQueueName != null)
+        {
+            NativeDeadLetterQueueEnabled = true;
+            _deadLetterQueue = _transport.Queues[_queue.DeadLetterQueueName];
+        }
 
         var failedCount = 0;
+
+        _requeueBlock = new RetryBlock<AmazonSqsEnvelope>(async (env, c) =>
+        {
+            if (!env.WasDeleted)
+            {
+                await CompleteAsync(env.SqsMessage);
+            }
+
+            var data = EnvelopeSerializer.Serialize(env);
+            var request = new SendMessageRequest(_queue.QueueUrl, Convert.ToBase64String(data));
+            await _transport.Client.SendMessageAsync(request);
+        }, runtime.LoggerFactory.CreateLogger<SqsListener>(), runtime.Cancellation);
+
+        _deadLetterBlock = new RetryBlock<Envelope>(async (e, c) =>
+        {
+            await _deadLetterQueue.InitializeAsync(logger);
+            
+            var data = EnvelopeSerializer.Serialize(e);
+            var request = new SendMessageRequest(_deadLetterQueue.QueueUrl, Convert.ToBase64String(data));
+            await _transport.Client.SendMessageAsync(request, _cancellation.Token);
+        }, logger, runtime.Cancellation);
 
         _task = Task.Run(async () =>
         {
@@ -40,11 +67,8 @@ internal class SqsListener : IListener
             {
                 try
                 {
-                    var request = new ReceiveMessageRequest(_queue.QueueUrl)
-                    {
-                        MessageAttributeNames = headers
-                    };
-                    
+                    var request = new ReceiveMessageRequest(_queue.QueueUrl);
+
                     _queue.ConfigureRequest(request);
 
                     var results = await _transport.Client.ReceiveMessageAsync(request, _cancellation.Token);
@@ -59,14 +83,13 @@ internal class SqsListener : IListener
                             try
                             {
                                 var envelope = buildEnvelope(message);
-                                _mapper.MapIncomingToEnvelope(envelope, message);
 
                                 envelopes.Add(envelope);
                             }
                             catch (Exception e)
                             {
                                 await tryMoveToDeadLetterQueue(_transport.Client, message);
-                                _logger.LogError(e, "Error while reading message {Id} from {Uri}", message.MessageId,
+                                logger.LogError(e, "Error while reading message {Id} from {Uri}", message.MessageId,
                                     _queue.Uri);
                             }
                         }
@@ -83,12 +106,16 @@ internal class SqsListener : IListener
                         await Task.Delay(250.Milliseconds());
                     }
                 }
+                catch (TaskCanceledException)
+                {
+                    // do nothing here, it's all good
+                }
                 catch (Exception e)
                 {
                     failedCount++;
                     var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
-                    _logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}",
+                    logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}",
                         queue.Uri);
                     await Task.Delay(pauseTime);
                 }
@@ -106,19 +133,23 @@ internal class SqsListener : IListener
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask DeferAsync(Envelope envelope)
+    public async ValueTask DeferAsync(Envelope envelope)
     {
         if (envelope is AmazonSqsEnvelope e)
         {
-            return new ValueTask(DeferAsync(e.SqsMessage));
+            await _requeueBlock.PostAsync(e);
         }
-
-        return ValueTask.CompletedTask;
     }
 
     public ValueTask DisposeAsync()
     {
+        _requeueBlock.Dispose();
         _cancellation.Cancel();
+        if (_deadLetterBlock != null)
+        {
+            _deadLetterBlock.Dispose();
+        }
+
         _task.SafeDispose();
         return ValueTask.CompletedTask;
     }
@@ -138,8 +169,8 @@ internal class SqsListener : IListener
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
         var envelope = new AmazonSqsEnvelope(message);
-        _mapper.MapIncomingToEnvelope(envelope, message);
-        envelope.Data = Encoding.Default.GetBytes(message.Body);
+        var buffer = Convert.FromBase64String(message.Body);
+        EnvelopeSerializer.ReadEnvelopeData(envelope, buffer);
         return envelope;
     }
 
@@ -148,20 +179,21 @@ internal class SqsListener : IListener
         return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
     }
 
-    public Task DeferAsync(Message sqsMessage)
-    {
-        // TODO -- the visibility timeout needs to be configurable by timeout
-        return _transport.Client!.ChangeMessageVisibilityAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle, 1000);
-    }
-
     public async Task<bool> TryRequeueAsync(Envelope envelope)
     {
         if (envelope is AmazonSqsEnvelope e)
         {
-            await DeferAsync(e.SqsMessage);
+            await _requeueBlock.PostAsync(e);
             return true;
         }
 
         return false;
     }
+
+    public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        return _deadLetterBlock.PostAsync(envelope);
+    }
+
+    public bool NativeDeadLetterQueueEnabled { get; }
 }

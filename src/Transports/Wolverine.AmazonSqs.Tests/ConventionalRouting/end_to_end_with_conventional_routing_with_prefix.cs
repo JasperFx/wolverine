@@ -15,7 +15,7 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
     {
         _sender = WolverineHost.For(opts =>
         {
-            opts.UseAmazonSqsTransportLocally()
+            opts.UseAmazonSqsTransport()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
@@ -24,7 +24,7 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
 
         _receiver = WolverineHost.For(opts =>
         {
-            opts.UseAmazonSqsTransportLocally()
+            opts.UseAmazonSqsTransport()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";

@@ -123,12 +123,29 @@ public static class EnvelopeSerializer
         return readSingle(br);
     }
 
+    public static void ReadEnvelopeData(Envelope envelope, byte[] buffer)
+    {
+        using var ms = new MemoryStream(buffer);
+        using var br = new BinaryReader(ms);
+        envelope.SentAt = DateTime.FromBinary(br.ReadInt64());
+        var headerCount = br.ReadInt32();
+
+        for (var j = 0; j < headerCount; j++)
+        {
+            readData(envelope, br.ReadString(), br.ReadString());
+        }
+
+        var byteCount = br.ReadInt32();
+        envelope.Data = br.ReadBytes(byteCount);
+    }
+
     private static Envelope readSingle(BinaryReader br)
     {
         var msg = new Envelope
         {
             SentAt = DateTime.FromBinary(br.ReadInt64())
         };
+        
         var headerCount = br.ReadInt32();
 
         for (var j = 0; j < headerCount; j++)

@@ -14,11 +14,11 @@ public class StatefulResourceSmokeTests
             {
                 if (autoProvision)
                 {
-                    opts.UseAmazonSqsTransportLocally().AutoProvision();
+                    opts.UseAmazonSqsTransport().AutoProvision();
                 }
                 else
                 {
-                    opts.UseAmazonSqsTransportLocally();
+                    opts.UseAmazonSqsTransport();
                 }
 
                 opts.PublishMessage<SRMessage1>()
