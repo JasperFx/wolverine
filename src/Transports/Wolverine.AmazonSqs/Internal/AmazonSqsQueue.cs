@@ -9,7 +9,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueue
+public class AmazonSqsQueue : Endpoint, IBrokerQueue
 {
     private readonly AmazonSqsTransport _parent;
     
@@ -17,7 +17,8 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
     private ISqsEnvelopeMapper _mapper = new DefaultSqsEnvelopeMapper();
 
     private bool _initialized;
-    
+    private int _visibilityTimeout = 120;
+
     internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base(new Uri($"sqs://{queueName}"),
         EndpointRole.Application)
     {
@@ -67,7 +68,18 @@ public class AmazonSqsQueue : Endpoint, IAmazonSqsListeningEndpoint, IBrokerQueu
     ///     requests after being retrieved by a <code>ReceiveMessage</code> request. The default is
     ///     120.
     /// </summary>
-    public int VisibilityTimeout { get; set; } = 120;
+    public int VisibilityTimeout
+    {
+        get => _visibilityTimeout;
+        set
+        {
+            _visibilityTimeout = value;
+            if (value > 0)
+            {
+                this.VisibilityTimeout(value);
+            }
+        }
+    }
 
     /// <summary>
     ///     The duration (in seconds) for which the call waits for a message to arrive in the
