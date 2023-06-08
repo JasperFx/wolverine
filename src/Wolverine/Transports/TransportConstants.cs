@@ -27,4 +27,6 @@ public static class TransportConstants
 
     public static readonly int AnyNode = 0;
     public const string Agents = "agents";
+
+    public const string ProtocolVersion = "wolverine-protocol-version";
 }
