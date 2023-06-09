@@ -124,8 +124,23 @@ export default {
                                         {text: 'Topics', link:'/guide/messaging/transports/rabbitmq/topics'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/rabbitmq/interoperability'}
                                     ]},
-                                {text: 'Azure Service Bus', link: '/guide/messaging/transports/azure-service-bus'},
-                                {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs'},
+                                {text: 'Azure Service Bus', link: '/guide/messaging/transports/azure-service-bus/', items:[
+                                        {text: 'Publishing', link:'/guide/messaging/transports/azure-service-bus/publishing'},
+                                        {text: 'Listening', link:'/guide/messaging/transports/azure-service-bus/listening'},
+                                        {text: 'Dead Letter Queues', link:'/guide/messaging/transports/azure-service-bus/deadletterqueues'},
+                                        {text: 'Conventional Routing', link:'/guide/messaging/transports/azure-service-bus/conventional-routing'},
+                                        {text: 'Queue, Topics, and Subscriptions', link:'/guide/messaging/transports/azure-service-bus/object-management'},
+                                        {text: 'Topics and Subscriptions', link:'/guide/messaging/transports/azure-service-bus/topics'},
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/azure-service-bus/interoperability'}
+                                    ]},
+                                {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs/', items:[
+                                        {text: 'Publishing', link:'/guide/messaging/transports/sqs/publishing'},
+                                        {text: 'Listening', link:'/guide/messaging/transports/sqs/listening'},
+                                        {text: 'Dead Letter Queues', link:'/guide/messaging/transports/sqs/deadletterqueues'},
+                                        {text: 'Configuring Queues', link:'/guide/messaging/transports/sqs/queues'},
+                                        {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
+                                    ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
                                 {text: 'Pulsar', link: '/guide/messaging/transports/pulsar'},
                             ]

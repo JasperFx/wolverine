@@ -75,10 +75,3 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L12-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-## Configuring Queues
-
-## Listening to Queues
-
-## Publishing to Queues
-
-## Conventional Message Routing
