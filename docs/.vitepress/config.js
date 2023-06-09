@@ -115,7 +115,15 @@ export default {
                             collapsed: true,
                             items: [
                                 {text: 'Local Queues', link: '/guide/messaging/transports/local'},
-                                {text: 'Rabbit MQ', link: '/guide/messaging/transports/rabbitmq'},
+                                {text: 'Rabbit MQ', link: '/guide/messaging/transports/rabbitmq/', items:[
+                                        {text: 'Publishing', link:'/guide/messaging/transports/rabbitmq/publishing'},
+                                        {text: 'Listening', link:'/guide/messaging/transports/rabbitmq/listening'},
+                                        {text: 'Dead Letter Queues', link:'/guide/messaging/transports/rabbitmq/deadletterqueues'},
+                                        {text: 'Conventional Routing', link:'/guide/messaging/transports/rabbitmq/conventional-routing'},
+                                        {text: 'Queue, Topic, and Binding Management', link:'/guide/messaging/transports/rabbitmq/object-management'},
+                                        {text: 'Topics', link:'/guide/messaging/transports/rabbitmq/topics'},
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/rabbitmq/interoperability'}
+                                    ]},
                                 {text: 'Azure Service Bus', link: '/guide/messaging/transports/azure-service-bus'},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
