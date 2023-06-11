@@ -86,7 +86,7 @@ namespace build
                 Directory.SetCurrentDirectory(original);
             });
 
-            Target("ci", DependsOn("default"));
+            Target("ci", DependsOn("compile"));
 
             Target("install", () =>
                 RunNpm("install"));
