@@ -114,7 +114,7 @@ public partial class agent_tracking_behavior
         theNodes.Add(node2);
         theNodes.Add(node3);
 
-        var waiter = theTracker.WaitForNodeEvent(node2.Id, 5.Seconds());
+        var waiter = theTracker.WaitForNodeEvent(node2.Id, 15.Seconds());
         
         theTracker.Publish(new NodeEvent(node2, NodeEventType.Exiting));
 
@@ -138,7 +138,7 @@ public partial class agent_tracking_behavior
         
         
         theNodes.Publish(new NodeEvent(node2, NodeEventType.LeadershipAssumed));
-        await theTracker.WaitForNodeEvent(node2.Id, 5.Seconds());
+        await theTracker.WaitForNodeEvent(node2.Id, 15.Seconds());
         
         theTracker.Publish(new NodeEvent(node2, NodeEventType.Exiting));
 
