@@ -251,7 +251,7 @@ namespace build
             }
 
             
-            Run("dotnet", "test --no-build --no-restore --framework net7.0 " + path);
+            Run("dotnet", "test --no-build --no-restore --logger GitHubActions --framework net7.0 " + path);
 
         }
 
