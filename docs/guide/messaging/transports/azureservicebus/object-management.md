@@ -16,7 +16,7 @@ using var host = await Host.CreateDefaultBuilder()
         var azureServiceBusConnectionString = context
             .Configuration
             .GetConnectionString("azure-service-bus");
-~~~~~~~~
+
         // Connect to the broker in the simplest possible way
         opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
 

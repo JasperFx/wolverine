@@ -399,10 +399,7 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
         // May not be super useful to the average user, but it's been crucial
         // to test Wolverine itself
         .AlsoTrack(otherWolverineSystem)
-        
-        // SERIOUSLY be careful with this
-        .DoNotAssertTimeout()
-        
+
         // This is actually helpful if you are testing for error handling 
         // functionality in your system
         .DoNotAssertOnExceptionsDetected()
@@ -417,6 +414,6 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L126-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L126-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

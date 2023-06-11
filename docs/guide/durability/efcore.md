@@ -20,7 +20,7 @@ builder.Host.UseWolverine(opts =>
 {
     // Setting up Sql Server-backed message storage
     // This requires a reference to Wolverine.SqlServer
-    opts.PersistMessagesWithSqlServer(connectionString);
+    opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
 
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware
@@ -31,7 +31,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L32-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L33-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -122,9 +122,9 @@ this syntax for the service registration:
 // If you're okay with this, this will register the DbContext as normally,
 // but make some Wolverine specific optimizations at the same time
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
-    x => x.UseSqlServer(connectionString));
+    x => x.UseSqlServer(connectionString), "wolverine");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L15-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_efcore_registration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L16-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_efcore_registration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That registration will:

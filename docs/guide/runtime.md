@@ -16,6 +16,9 @@ code generation with Roslyn](https://jeremydmiller.com/2015/11/11/using-roslyn-f
 ```cs
 public interface IMessageHandler
 {
+    Type MessageType { get; }
+
+    LogLevel ExecutionLogLevel { get; }
     Task HandleAsync(MessageContext context, CancellationToken cancellation);
 }
 
@@ -24,9 +27,13 @@ public abstract class MessageHandler : IMessageHandler
     public HandlerChain? Chain { get; set; }
 
     public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
+
+    public Type MessageType => Chain!.MessageType;
+
+    public LogLevel ExecutionLogLevel => Chain!.ExecutionLogLevel;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Handlers/MessageHandler.cs#L6-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Handlers/MessageHandler.cs#L5-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
