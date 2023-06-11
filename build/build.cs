@@ -35,7 +35,8 @@ namespace build
             {
                 RunTests("CoreTests");
 
-                RunTests("Extensions", "Wolverine.FluentValidation.Tests");
+                RunTests("Extensions", "Wolverine.FluentValidation.Te" +
+                                       "sts");
                 RunTests("Extensions", "Wolverine.MemoryPack.Tests");
                 RunTests("Extensions", "Wolverine.MessagePack.Tests");
             });
