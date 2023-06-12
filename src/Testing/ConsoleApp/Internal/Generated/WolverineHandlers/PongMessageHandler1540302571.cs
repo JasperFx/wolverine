@@ -10,7 +10,7 @@ namespace Internal.Generated.WolverineHandlers
 
         public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var pongHandler = new MyApp.PongHandler();
+            var pongHandler = new ConsoleApp.PongHandler();
             var pongMessage = (TestingSupport.Compliance.PongMessage)context.Envelope.Message;
             return pongHandler.Handle(pongMessage);
         }

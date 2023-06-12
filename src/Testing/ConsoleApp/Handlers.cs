@@ -1,7 +1,7 @@
 using TestingSupport.Compliance;
 using Wolverine;
 
-namespace MyApp;
+namespace ConsoleApp;
 
 public class PingHandler
 {

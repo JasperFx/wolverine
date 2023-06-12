@@ -1,6 +1,6 @@
 ﻿using TestMessages;
 
-namespace MyApp;
+namespace ConsoleApp;
 
 public class MessageHandler
 {

@@ -10,7 +10,7 @@ namespace Internal.Generated.WolverineHandlers
 
         public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var messageHandler = new MyApp.MessageHandler();
+            var messageHandler = new ConsoleApp.MessageHandler();
             var message3 = (TestMessages.Message3)context.Envelope.Message;
             messageHandler.Handle(message3);
             return System.Threading.Tasks.Task.CompletedTask;

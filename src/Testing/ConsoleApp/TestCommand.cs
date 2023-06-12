@@ -3,7 +3,7 @@ using Oakton;
 using TestingSupport.Compliance;
 using Wolverine;
 
-namespace MyApp;
+namespace ConsoleApp;
 
 public class TestCommand : OaktonAsyncCommand<NetCoreInput>
 {

@@ -3,22 +3,22 @@
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: Message4Handler700775185
-    public class Message4Handler700775185 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: Message5Handler700775186
+    public class Message5Handler700775186 : Wolverine.Runtime.Handlers.MessageHandler
     {
 
 
         public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var messageHandler = new MyApp.MessageHandler();
-            var message4 = (TestMessages.Message4)context.Envelope.Message;
-            messageHandler.Handle(message4);
+            var messageHandler = new ConsoleApp.MessageHandler();
+            var message5 = (TestMessages.Message5)context.Envelope.Message;
+            messageHandler.Handle(message5);
             return System.Threading.Tasks.Task.CompletedTask;
         }
 
     }
 
-    // END: Message4Handler700775185
+    // END: Message5Handler700775186
     
     
 }

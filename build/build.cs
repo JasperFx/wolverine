@@ -66,7 +66,7 @@ namespace build
   end
                  */
 
-                Directory.SetCurrentDirectory(Path.Combine(original, "src", "Samples", "ConsoleApp"));
+                Directory.SetCurrentDirectory(Path.Combine(original, "src", "Testing", "ConsoleApp"));
                 RunCurrentProject("?");
                 RunCurrentProject("describe");
                 
