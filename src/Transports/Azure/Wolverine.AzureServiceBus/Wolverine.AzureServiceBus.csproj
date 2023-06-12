@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
 
     <ItemGroup>
