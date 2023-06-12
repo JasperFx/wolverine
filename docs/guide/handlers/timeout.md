@@ -17,7 +17,7 @@ To override the default message timeout of 60 seconds, use this syntax at bootst
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts => { opts.DefaultExecutionTimeout = 1.Minutes(); }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/ScheduledJobTests/message_timeout_mechanics.cs#L18-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_set_default_timeout' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/ScheduledJobTests/message_timeout_mechanics.cs#L18-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_set_default_timeout' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To override the message timeout on a message type by message type basis, you can use the `[MessageTimeout]`
@@ -29,5 +29,5 @@ attribute as shown below:
 [MessageTimeout(1)]
 public async Task Handle(PotentiallySlowMessage message, CancellationToken cancellationToken)
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/ScheduledJobTests/message_timeout_mechanics.cs#L94-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagetimeout_on_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/ScheduledJobTests/message_timeout_mechanics.cs#L94-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagetimeout_on_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

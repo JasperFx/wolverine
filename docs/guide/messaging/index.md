@@ -34,6 +34,7 @@ For an example, here's connecting to a Rabbit MQ broker:
 <!-- snippet: sample_configuring_connection_to_rabbit_mq -->
 <a id='snippet-sample_configuring_connection_to_rabbit_mq'></a>
 ```cs
+using Oakton;
 using Wolverine;
 using Wolverine.RabbitMQ;
 
@@ -59,7 +60,7 @@ builder.Host.UseWolverine(opts =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/RabbitMqBootstrapping/Program.cs#L1-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_connection_to_rabbit_mq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/RabbitMqBootstrapping/Program.cs#L3-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_connection_to_rabbit_mq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Listening Endpoint Configuration

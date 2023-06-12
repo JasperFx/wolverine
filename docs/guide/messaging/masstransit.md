@@ -36,7 +36,7 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         .DefaultIncomingMessage<ResponseMessage>().UseForReplies();
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Wolverine.RabbitMQ.Tests/Interop/MassTransit/MassTransitSpecs.cs#L23-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransit_interoperability' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/InteropTests/MassTransit/MassTransitSpecs.cs#L21-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransit_interoperability' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 MORE SOON!
