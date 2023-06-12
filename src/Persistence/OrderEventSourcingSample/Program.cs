@@ -36,8 +36,15 @@ builder.Host.UseWolverine(opts =>
 
 #endregion
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
 
+app.UseSwagger();
+app.UseSwaggerUI();
+
 app.MapPost("/items/ready", (MarkItemReady command, IMessageBus bus) => bus.InvokeAsync(command));
+app.MapGet("/", () => Results.Redirect("/swagger"));
 
 return await app.RunOaktonCommands(args);
