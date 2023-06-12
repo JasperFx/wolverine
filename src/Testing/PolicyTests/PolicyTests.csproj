@@ -25,7 +25,6 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
-        <ProjectReference Include="..\..\Transports\Wolverine.AmazonSqs\Wolverine.AmazonSqs.csproj" />
         <ProjectReference Include="..\TestingSupport\TestingSupport.csproj" />
     </ItemGroup>
 
