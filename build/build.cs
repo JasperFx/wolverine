@@ -50,6 +50,11 @@ namespace build
 
             IntegrationTestTarget("test-pulsar", "Transports", "Wolverine.Pulsar.Tests");
 
+            Target("test-samples", DependsOn("compile", "docker-up"), () =>
+            {
+                RunTests("samples", "TodoWebService", "TodoWebServiceTests");
+            });
+
             Target("full", DependsOn("default", "test-persistence", "test-rabbit", "test-pulsar"), () =>
             {
                 Console.WriteLine("Look Ma, I'm running full!");
