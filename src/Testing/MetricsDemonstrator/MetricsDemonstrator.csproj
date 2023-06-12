@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
     <PropertyGroup>
+        <TargetFrameworks>net7.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-MetricsDemonstrator-88B6BC0A-D21F-4B47-8970-5354EBE2A42F</UserSecretsId>
     </PropertyGroup>

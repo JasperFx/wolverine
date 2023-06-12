@@ -8,6 +8,9 @@ using Wolverine.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Using Weasel to make sure the items table exists
+builder.Services.AddHostedService<DatabaseSchemaCreator>();
+
 var connectionString = builder.Configuration.GetConnectionString("SqlServer");
 
 builder.Host.UseWolverine(opts =>
