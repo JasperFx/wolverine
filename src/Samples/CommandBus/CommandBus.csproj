@@ -5,15 +5,18 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>CommandBusSamples</RootNamespace>
         <LangVersion>10</LangVersion>
+        <TargetFrameworks>net7.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
+        <PackageReference Include="Marten.AspNetCore" Version="6.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
 
 </Project>

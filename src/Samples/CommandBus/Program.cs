@@ -1,6 +1,7 @@
 using CommandBusSamples;
 using JasperFx.Core;
 using Marten;
+using Marten.AspNetCore;
 using Npgsql;
 using Oakton;
 using Oakton.Resources;
@@ -12,6 +13,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.ApplyOaktonExtensions();
 
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 builder.Services.AddSingleton<IRestaurantProxy, RealRestaurantProxy>();
 
 // Normal Marten integration
@@ -19,7 +24,7 @@ builder.Services.AddMarten(opts =>
     {
         opts.Connection("Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres");
     })
-    // NEW! Adding Wolverine outbox integration to Marten in the "messages"
+    // Adding Wolverine outbox integration to Marten in the "messages"
     // database schema
     .IntegrateWithWolverine("messages");
 
@@ -30,14 +35,9 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.OnException<NpgsqlException>().OrInner<NpgsqlException>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
 
-    // NEW! Apply the durable inbox/outbox functionality to the two in-memory queues
+    // Apply the durable inbox/outbox functionality to the two in-memory queues
     opts.DefaultLocalQueue.UseDurableInbox();
     opts.LocalQueue("Notifications").UseDurableInbox();
-
-    // And I just opened a GitHub issue to make this config easier...
-
-    // BOO! Got to do this at least temporarily to help out a test runner
-    opts.ApplicationAssembly = typeof(Program).Assembly;
 });
 
 builder.Services.AddResourceSetupOnStartup();
@@ -49,6 +49,13 @@ var app = builder.Build();
 // but it's simple to understand, so please just let it go...
 app.MapPost("/reservations", (AddReservation command, IMessageBus bus) => bus.PublishAsync(command));
 app.MapPost("/reservations/confirm", (ConfirmReservation command, IMessageBus bus) => bus.PublishAsync(command));
+
+// Query for all open reserviationsoutloo
+app.MapGet("/reservations",
+    (HttpContext context, IQuerySession session) => session.Query<Reservation>().WriteArray(context));
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // This opts into using Oakton for extended command line options for this app
 // Oakton is also a transitive dependency of Wolverine itself
