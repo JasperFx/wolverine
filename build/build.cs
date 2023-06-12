@@ -18,7 +18,7 @@ namespace build
         private static void Main(string[] args)
         {
 
-            Target("default", DependsOn("test", "commands"));
+            Target("default", DependsOn("test", "commands", "test-http"));
 
             Target("restore", () =>
             {
@@ -34,6 +34,7 @@ namespace build
             Target("test", DependsOn("compile"),() =>
             {
                 RunTests("CoreTests");
+                RunTests("PolicyTests");
 
                 RunTests("Extensions", "Wolverine.FluentValidation.Te" +
                                        "sts");
