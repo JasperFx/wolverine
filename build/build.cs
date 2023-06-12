@@ -54,6 +54,8 @@ namespace build
             {
                 RunTests("samples", "TodoWebService", "TodoWebServiceTests");
                 RunTests("samples", "TestHarness", "BankingService.Tests");
+                RunTests("samples", "Middleware", "AppWithMiddleware.Tests");
+                RunTests("samples", "EFCoreSample", "ItemService.Tests");
             });
 
             Target("full", DependsOn("default", "test-persistence", "test-rabbit", "test-pulsar"), () =>

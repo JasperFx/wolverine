@@ -17,7 +17,7 @@ public class ItemsDbContext : DbContext
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {
-            map.ToTable("items");
+            map.ToTable("items", "sample");
             map.HasKey(x => x.Id);
             map.Property(x => x.Name);
         });
@@ -42,7 +42,7 @@ public class ItemsDbContextWithoutOutbox : DbContext
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {
-            map.ToTable("items");
+            map.ToTable("items", "sample");
             map.HasKey(x => x.Id);
             map.Property(x => x.Name);
         });

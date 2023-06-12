@@ -7,13 +7,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="7.0.1"/>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="7.0.1" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
-        <ProjectReference Include="..\..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
     </ItemGroup>
 
 </Project>

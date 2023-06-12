@@ -4,10 +4,12 @@ using Oakton;
 using Oakton.Resources;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
-using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Using Weasel to make sure the items table exists
+builder.Services.AddHostedService<DatabaseSchemaCreator>();
 
 // Just the normal work to get the connection string out of
 // application configuration
@@ -61,9 +63,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
-
-// Make sure the EF Core db is set up
-await app.Services.GetRequiredService<ItemsDbContext>().Database.EnsureCreatedAsync();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
