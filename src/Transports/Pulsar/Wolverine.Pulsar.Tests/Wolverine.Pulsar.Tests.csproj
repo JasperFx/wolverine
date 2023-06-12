@@ -17,7 +17,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Pulsar\Wolverine.Pulsar.csproj"/>
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
+        <ProjectReference Include="..\..\..\Testing\TestingSupport\TestingSupport.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
