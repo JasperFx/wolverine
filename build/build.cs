@@ -18,7 +18,7 @@ namespace build
         private static void Main(string[] args)
         {
 
-            Target("default", DependsOn("test", "commands", "test-http"));
+            Target("default", DependsOn("test-core", "test-policy", "test-extensions", "test-http", "commands"));
 
             Target("restore", () =>
             {
@@ -31,38 +31,26 @@ namespace build
                     $"build wolverine.sln --no-restore --framework net7.0");
             });
             
-            Target("test", DependsOn("compile"),() =>
-            {
-                RunTests("CoreTests");
-                RunTests("PolicyTests");
+            TestTarget("test-core", "CoreTests");
+            TestTarget("test-policy", "PolicyTests");
 
+            Target("test-extensions", DependsOn("compile"),() =>
+            {
                 RunTests("Extensions", "Wolverine.FluentValidation.Te" +
                                        "sts");
                 RunTests("Extensions", "Wolverine.MemoryPack.Tests");
                 RunTests("Extensions", "Wolverine.MessagePack.Tests");
             });
             
-            Target("test-http", DependsOn("compile", "docker-up"), () =>
-            {
-                RunTests("Http", "Wolverine.Http.Tests");
-            });
-            
-            Target("test-persistence", DependsOn("compile", "docker-up"), () =>
-            {
-                RunTests("Persistence", "PersistenceTests");
-            });
-            
-            Target("test-rabbit", DependsOn("compile", "docker-up"), () =>
-            {
-                RunTests("Transports", "Wolverine.RabbitMQ.Tests");
-            });
-            
-            Target("test-pulsar", DependsOn("compile", "docker-up"), () =>
-            {
-                RunTests("Transports", "Wolverine.Pulsar.Tests");
-            });
-            
-            Target("full", DependsOn("test", "test-persistence", "test-rabbit", "test-pulsar"), () =>
+            IntegrationTestTarget("test-http", "Http", "Wolverine.Http.Tests");
+
+            IntegrationTestTarget("test-persistence", "Persistence", "PersistenceTests");
+
+            IntegrationTestTarget("test-rabbit", "Transports", "Wolverine.RabbitMQ.Tests");
+
+            IntegrationTestTarget("test-pulsar", "Transports", "Wolverine.Pulsar.Tests");
+
+            Target("full", DependsOn("default", "test-persistence", "test-rabbit", "test-pulsar"), () =>
             {
                 Console.WriteLine("Look Ma, I'm running full!");
             });
@@ -182,6 +170,22 @@ namespace build
                     Thread.Sleep(250);
                     attempt++;
                 }
+        }
+
+        public static void TestTarget(string taskName, params string[] testTarget)
+        {
+            Target(taskName, DependsOn("compile"), () =>
+            {
+                RunTests(testTarget);
+            });
+        }
+        
+        public static void IntegrationTestTarget(string taskName, params string[] testTarget)
+        {
+            Target(taskName, DependsOn("compile", "docker-up"), () =>
+            {
+                RunTests(testTarget);
+            });
         }
 
 
