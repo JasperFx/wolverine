@@ -1,25 +1,10 @@
 ﻿{
-  "iisSettings": {
-    "windowsAuthentication": false,
-    "anonymousAuthentication": true,
-    "iisExpress": {
-      "applicationUrl": "http://localhost:15345",
-      "sslPort": 44329
-    }
-  },
   "profiles": {
     "WebApiWithMarten": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "applicationUrl": "https://localhost:7051;http://localhost:5215",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
-    },
-    "IIS Express": {
-      "commandName": "IISExpress",
-      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5215",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

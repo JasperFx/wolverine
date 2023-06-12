@@ -2,14 +2,17 @@
 
     <PropertyGroup>
         <ImplicitUsings>enable</ImplicitUsings>
+        <TargetFrameworks>net7.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Marten.AspNetCore" Version="6.0.0-alpha.8"/>
+        <PackageReference Include="Marten.AspNetCore" Version="6.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
     </ItemGroup>
 
 </Project>

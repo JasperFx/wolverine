@@ -39,6 +39,11 @@ builder.Host.UseWolverine(opts =>
 
 #endregion
 
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+
 var app = builder.Build();
 
 
@@ -75,6 +80,11 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 });
 
 #endregion
+
+app.MapGet("/", () => Results.Redirect("/swagger"));
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Lot of Wolverine and Marten diagnostics and administrative tools
 // come through Oakton command line support

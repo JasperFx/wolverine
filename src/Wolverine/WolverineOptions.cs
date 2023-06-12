@@ -105,7 +105,7 @@ public sealed partial class WolverineOptions
     ///     Direct Wolverine to make any necessary database patches for envelope storage upon
     ///     application start
     /// </summary>
-    public bool AutoBuildEnvelopeStorageOnStartup { get; set; }
+    public bool AutoBuildEnvelopeStorageOnStartup { get; set; } = true;
 
     internal TypeLoadMode ProductionTypeLoadMode { get; set; }
 

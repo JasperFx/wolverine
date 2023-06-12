@@ -129,3 +129,11 @@ public class LonghandOrderHandler
 
     #endregion
 }
+
+public class OrderCreatedHandler
+{
+    public static void Handle(OrderCreated created)
+    {
+        Console.WriteLine($"I got an OrderCreated {created.Id}");
+    }
+}
