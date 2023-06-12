@@ -6,6 +6,10 @@ using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The almost inevitable inclusion of Swashbuckle:)
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 // For now, this is enough to integrate Wolverine into
 // your application, but there'll be *much* more
 // options later of course :-)
@@ -24,6 +28,12 @@ app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeA
 
 // An endpoint to assign an issue to an existing user
 app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
+
+// Swashbuckle inclusion
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.MapGet("/", () => Results.Redirect("/swagger"));
 
 // Opt into using Oakton for command line parsing
 // to unlock built in diagnostics and utility tools within
