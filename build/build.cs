@@ -53,6 +53,7 @@ namespace build
             Target("test-samples", DependsOn("compile", "docker-up"), () =>
             {
                 RunTests("samples", "TodoWebService", "TodoWebServiceTests");
+                RunTests("samples", "TestHarness", "BankingService.Tests");
             });
 
             Target("full", DependsOn("default", "test-persistence", "test-rabbit", "test-pulsar"), () =>
