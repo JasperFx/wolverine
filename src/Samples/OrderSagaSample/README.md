@@ -8,7 +8,7 @@ persistence. This web api service has functionality to:
 3. Apply a timeout of 1 minute on any created order so that it's automatically deleted if there's no activity for over 1
    minute
 
-To run the sample, first start the Postgresql database by running:
+To run the sample, first start the PostgreSQL database by running:
 
 ```bash
 docker compose up -d
