@@ -17,6 +17,8 @@ public interface IMessageStorageStrategy
 {
     void ConfigureReceiverPersistence(WolverineOptions options);
     void ConfigureSenderPersistence(WolverineOptions options);
+    Task ClearMessageRecords(IContainer services);
+    Task<long> FindOutstandingMessageCount(IContainer container, CancellationToken cancellation);
 }
 
 public class TransportConfiguration
@@ -93,12 +95,8 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
         // as clearing out queues
         await sender.ResetResourceState();
 
-        using (var nested = sender.Services.As<IContainer>().GetNestedContainer())
-        {
-            var storage = nested.GetInstance<IMessageRecordRepository>();
-            await storage.ClearMessageRecords();
-        }
-
+        await _storage.ClearMessageRecords((IContainer)sender.Services);
+        
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -117,6 +115,20 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
     {
         var endingDate = DateTimeOffset.UtcNow.Add(duration);
         var bus = _senders[name].Services.GetRequiredService<IMessageBus>();
+        var random = new Random().Next(0, 10);
+        if (random > 8)
+        {
+            bus.TenantId = "tenant1";
+        }
+        else if (random > 4)
+        {
+            bus.TenantId = "tenant2";
+        }
+        else
+        {
+            bus.TenantId = "tenant3";
+        }
+        
         var task = Task.Factory.StartNew(async () =>
         {
             _output.WriteLine($"Starting to continuously send messages from node {name} in batches of {batchSize}");
@@ -134,6 +146,20 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
     {
         var original = number;
         var bus = _senders[name].Services.GetRequiredService<IMessageBus>();
+        var random = new Random().Next(0, 10);
+        if (random > 8)
+        {
+            bus.TenantId = "tenant1";
+        }
+        else if (random > 4)
+        {
+            bus.TenantId = "tenant2";
+        }
+        else
+        {
+            bus.TenantId = "tenant3";
+        }
+        
         while (number > 0)
         {
             if (number > 100)
@@ -161,15 +187,13 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
         await WaitForAllSendingToComplete(time);
 
         var receiver = _receivers.Values.FirstOrDefault();
-        using var nested = receiver.Services.As<IContainer>().GetNestedContainer();
-        var repository = nested.GetInstance<IMessageRecordRepository>();
 
-        var count = await repository.FindOutstandingMessageCount(CancellationToken.None);
+        var count = await _storage.FindOutstandingMessageCount(receiver.Services.As<IContainer>(), CancellationToken.None);
         var attempts = 0;
 
         while (attempts < 20)
         {
-            var newCount = await repository.FindOutstandingMessageCount(CancellationToken.None);
+            var newCount = await _storage.FindOutstandingMessageCount(receiver.Services.As<IContainer>(), CancellationToken.None);
             if (newCount == 0)
             {
                 _output.WriteLine("Reached zero outstanding messages!");

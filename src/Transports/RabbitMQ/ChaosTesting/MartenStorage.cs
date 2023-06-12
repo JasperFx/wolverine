@@ -1,11 +1,15 @@
 ﻿using IntegrationTests;
 using JasperFx.Core;
+using Lamar;
 using Marten;
+using Marten.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Oakton.Resources;
 using Weasel.Core;
+using Weasel.Postgresql;
+using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
@@ -59,6 +63,131 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         
         opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
     }
+
+    public Task ClearMessageRecords(IContainer services)
+    {
+        var store = services.GetInstance<IDocumentStore>();
+        return store.Advanced.Clean.DeleteAllDocumentsAsync();
+    }
+
+    public async Task<long> FindOutstandingMessageCount(IContainer container, CancellationToken cancellation)
+    {
+        var store = container.GetInstance<IDocumentStore>();
+        await using var session = store.LightweightSession();
+        
+        return await session.Query<MessageRecord>().CountLongAsync(cancellation);
+    }
+}
+
+public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
+{
+    private string tenant1ConnectionString;
+    private string tenant2ConnectionString;
+    private string tenant3ConnectionString;
+
+    public async Task InitializeAsync()
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync();
+        
+        tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant1");
+        tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant2");
+        tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant3");
+    }
+    
+    private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
+
+        var exists = await conn.DatabaseExists(databaseName);
+        if (!exists)
+        {
+            await new DatabaseSpecification().BuildDatabase(conn, databaseName);
+        }
+
+        builder.Database = databaseName;
+
+        return builder.ConnectionString;
+    }
+    
+    public override string ToString()
+    {
+        return "Marten Persistence";
+    }
+    
+    public Task ClearMessageRecords(IContainer services)
+    {
+        var store = services.GetInstance<IDocumentStore>();
+        return store.Advanced.Clean.DeleteAllDocumentsAsync();
+    }
+
+    public async Task<long> FindOutstandingMessageCount(IContainer container, CancellationToken cancellation)
+    {
+        var store = container.GetInstance<IDocumentStore>();
+        
+        long count = 0;
+
+        foreach (var database in await store.Storage.AllDatabases())
+        {
+            await using var session = store.OpenSession(SessionOptions.ForDatabase(database));
+            count += await session.Query<MessageRecord>().CountLongAsync(cancellation);
+        }
+
+        return count;
+    }
+
+    public void ConfigureReceiverPersistence(WolverineOptions opts)
+    {
+        opts.Services.AddMarten(m =>
+        {
+            m.MultiTenantedDatabases(tenancy =>
+            {
+                tenancy.AddSingleTenantDatabase(tenant1ConnectionString, "tenant1");
+                tenancy.AddSingleTenantDatabase(tenant2ConnectionString, "tenant2");
+                tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
+            });
+            
+            m.DatabaseSchemaName = "chaos";
+            
+            m.RegisterDocumentType<MessageRecord>();
+
+            m.AutoCreateSchemaObjects = AutoCreate.None;
+        }).IntegrateWithWolverine("chaos_receiver", masterDatabaseConnectionString: Servers.PostgresConnectionString);
+
+        opts.Services.AddResourceSetupOnStartup();
+        
+        opts.Policies.AutoApplyTransactions();
+
+        opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
+    }
+
+    public void ConfigureSenderPersistence(WolverineOptions opts)
+    {
+        opts.Policies.OnException<PostgresException>()
+            .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+
+        opts.Services.AddMarten(m =>
+        {
+            m.MultiTenantedDatabases(tenancy =>
+            {
+                tenancy.AddSingleTenantDatabase(tenant1ConnectionString, "tenant1");
+                tenancy.AddSingleTenantDatabase(tenant2ConnectionString, "tenant2");
+                tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
+            });
+            
+            m.DatabaseSchemaName = "chaos";
+            
+            m.RegisterDocumentType<MessageRecord>();
+            
+            m.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
+        }).IntegrateWithWolverine("chaos_sender", masterDatabaseConnectionString: Servers.PostgresConnectionString);
+        
+        opts.Services.AddResourceSetupOnStartup();
+                
+        opts.Policies.AutoApplyTransactions();
+        
+        opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
+    }
 }
 
 public class MartenMessageRecordRepository : IMessageRecordRepository
@@ -70,9 +199,17 @@ public class MartenMessageRecordRepository : IMessageRecordRepository
         _session = session;
     }
 
-    public Task<long> FindOutstandingMessageCount(CancellationToken token)
+    public async Task<long> FindOutstandingMessageCount(CancellationToken token)
     {
-        return _session.Query<MessageRecord>().CountLongAsync(token);
+        long count = 0;
+        var store = _session.DocumentStore;
+        foreach (var database in await store.Storage.AllDatabases())
+        {
+            using var session = store.OpenSession(SessionOptions.ForDatabase(database));
+            count += await session.Query<MessageRecord>().CountLongAsync(token);
+        }
+
+        return count;
     }
 
     public void MarkNew(MessageRecord record)
