@@ -46,7 +46,7 @@ namespace build
 
             IntegrationTestTarget("test-persistence", "Persistence", "PersistenceTests");
 
-            IntegrationTestTarget("test-rabbit", "Transports", "Wolverine.RabbitMQ.Tests");
+            IntegrationTestTarget("test-rabbit", "Transports", "RabbitMQ", "Wolverine.RabbitMQ.Tests");
 
             IntegrationTestTarget("test-pulsar", "Transports", "Wolverine.Pulsar.Tests");
 

@@ -5,13 +5,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3"/>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj"/>
-        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-        <ProjectReference Include="..\..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,16 +1,14 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using MassTransit;
 using MassTransitService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine;
+using Wolverine.RabbitMQ;
 using Wolverine.Tracking;
-using Xunit;
 
-namespace Wolverine.RabbitMQ.Tests.Interop.MassTransit;
+namespace InteropTests.MassTransit;
 
 public class MassTransitFixture : IAsyncLifetime
 {

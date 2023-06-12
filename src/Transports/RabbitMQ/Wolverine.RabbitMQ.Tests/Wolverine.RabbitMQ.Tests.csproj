@@ -16,15 +16,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-        <ProjectReference Include="..\MassTransitRabbitMqService\MassTransitRabbitMqService.csproj" />
-        <ProjectReference Include="..\NServiceBusRabbitMqService\NServiceBusRabbitMqService.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
+        <ProjectReference Include="..\..\..\Testing\TestingSupport\TestingSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="..\..\Servers.cs">
+        <Compile Include="..\..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>
     </ItemGroup>

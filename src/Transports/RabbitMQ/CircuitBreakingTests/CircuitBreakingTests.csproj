@@ -6,11 +6,13 @@
         <Nullable>enable</Nullable>
 
         <IsPackable>false</IsPackable>
+
+        <LangVersion>10</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.3.2"/>
-        <PackageReference Include="Shouldly" Version="4.1.0"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0"/>
+        <PackageReference Include="Shouldly" Version="4.0.3"/>
         <PackageReference Include="xunit" Version="2.4.2"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -23,14 +25,18 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-        <ProjectReference Include="..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\..\..\Testing\TestingSupport\TestingSupport.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="..\..\Servers.cs">
+        <Compile Include="..\..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
 </Project>

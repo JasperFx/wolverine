@@ -1,8 +1,7 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using NServiceBusRabbitMqService;
+using MassTransitService;
+using Wolverine;
 
-namespace Wolverine.RabbitMQ.Tests.Interop.NServiceBus;
+namespace InteropTests.MassTransit;
 
 public class ResponseHandler
 {
@@ -11,21 +10,8 @@ public class ResponseHandler
     public static ValueTask Handle(ResponseMessage message, Envelope envelope, IMessageContext context)
     {
         Received.Add(envelope);
-
         return context.RespondToSenderAsync(new ToExternal { Id = message.Id });
     }
-    
-    public static ValueTask Handle(ConcreteMessage message, Envelope envelope, IMessageContext context)
-    {
-        Received.Add(envelope);
-
-        return context.RespondToSenderAsync(new ToExternal { Id = message.Id });
-    }
-}
-
-public class ConcreteMessage : IInterfaceMessage
-{
-    public Guid Id { get; set; }
 }
 
 public class ToWolverineHandler

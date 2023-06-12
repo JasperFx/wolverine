@@ -1,9 +1,7 @@
 using JasperFx.Core;
-using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.RabbitMQ.Internal;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;

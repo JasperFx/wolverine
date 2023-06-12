@@ -1,15 +1,12 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using NServiceBus;
 using NServiceBusRabbitMqService;
 using Shouldly;
+using Wolverine;
 using Wolverine.Tracking;
-using Xunit;
 
-namespace Wolverine.RabbitMQ.Tests.Interop.NServiceBus;
+namespace InteropTests.NServiceBus;
 
 public class NServiceBusSpecs : IClassFixture<NServiceBusFixture>
 {

@@ -12,11 +12,11 @@
         <RootNamespace>Wolverine.RabbitMQ</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="RabbitMQ.Client" Version="6.5.0" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../../Analysis.Build.props" />
 </Project>

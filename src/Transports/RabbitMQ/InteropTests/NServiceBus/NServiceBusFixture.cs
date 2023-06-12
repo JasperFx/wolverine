@@ -1,11 +1,9 @@
-using System;
-using System.Threading.Tasks;
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using NServiceBusRabbitMqService;
-using Xunit;
+using Wolverine;
+using Wolverine.RabbitMQ;
 
-namespace Wolverine.RabbitMQ.Tests.Interop.NServiceBus;
+namespace InteropTests.NServiceBus;
 
 public class NServiceBusFixture : IAsyncLifetime
 {
