@@ -18,6 +18,7 @@ public class WolverineHttpOptions
     public WolverineHttpOptions()
     {
         Policies.Add(new HttpAwarePolicy());
+        Policies.Add(new RequestIdPolicy());
     }
 
     internal JsonSerializerOptions JsonSerializerOptions { get; set; } = new();
