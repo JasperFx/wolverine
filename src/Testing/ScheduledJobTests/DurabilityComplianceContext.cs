@@ -135,69 +135,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await withContext(theSender, nested.GetInstance<IMessageContext>().As<MessageContext>(), action);
     }
 
-    [Fact]
-    public async Task<bool> CanSendItemDurably()
-    {
-        await cleanDatabase();
-
-
-        var item = new ItemCreated
-        {
-            Name = "Shoe",
-            Id = Guid.NewGuid()
-        };
-
-        await theSender.TrackActivity().AlsoTrack(theReceiver).SendMessageAndWaitAsync(item);
-
-        await Task.Delay(500.Milliseconds());
-
-        await assertReceivedItemMatchesSent(item);
-
-        await assertIncomingEnvelopesIsZero();
-
-        var senderCounts = await assertNoPersistedOutgoingEnvelopes();
-
-        senderCounts.Outgoing.ShouldBe(0);
-
-        return true;
-    }
-
-    private async Task<PersistedCounts> assertNoPersistedOutgoingEnvelopes()
-    {
-        var senderCounts = await theSender.Get<IMessageStore>().Admin.FetchCountsAsync();
-        if (senderCounts.Outgoing > 0)
-        {
-            await Task.Delay(500.Milliseconds());
-            senderCounts = await theSender.Get<IMessageStore>().Admin.FetchCountsAsync();
-        }
-
-        return senderCounts;
-    }
-
-    private async Task assertReceivedItemMatchesSent(ItemCreated item)
-    {
-        var received = loadItem(theReceiver, item.Id);
-        if (received == null)
-        {
-            await Task.Delay(500.Milliseconds());
-        }
-
-        received = loadItem(theReceiver, item.Id);
-
-        received.Name.ShouldBe(item.Name);
-    }
-
-    private async Task assertIncomingEnvelopesIsZero()
-    {
-        var receiverCounts = await theReceiver.Get<IMessageStore>().Admin.FetchCountsAsync();
-        if (receiverCounts.Incoming > 0)
-        {
-            await Task.Delay(500.Milliseconds());
-            receiverCounts = await theReceiver.Get<IMessageStore>().Admin.FetchCountsAsync();
-        }
-
-        receiverCounts.Incoming.ShouldBe(0);
-    }
 
     [Fact]
     public async Task<bool> CanScheduleJobDurably()

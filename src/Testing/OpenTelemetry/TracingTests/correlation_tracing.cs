@@ -58,7 +58,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         var envelope = theSession.Executed.SingleEnvelope<LocalMessage1>();
 
         envelope.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
-        envelope.Source.ShouldBe("WebApi");
+        envelope.Source.ShouldBe("OtelWebApi");
         envelope.ConversationId.ShouldBe(theOriginalEnvelope.Id);
     }
 
@@ -68,7 +68,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         var envelope = theSession.Executed.SingleEnvelope<LocalMessage2>();
 
         envelope.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
-        envelope.Source.ShouldBe("WebApi");
+        envelope.Source.ShouldBe("OtelWebApi");
         envelope.ConversationId.ShouldBe(theOriginalEnvelope.Id);
     }
 
@@ -105,8 +105,8 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         var atSubscriber1 = envelopes[0];
         var atSubscriber2 = envelopes[1];
 
-        atSubscriber1.Source.ShouldBe("WebApi");
-        atSubscriber2.Source.ShouldBe("WebApi");
+        atSubscriber1.Source.ShouldBe("OtelWebApi");
+        atSubscriber2.Source.ShouldBe("OtelWebApi");
 
         atSubscriber1.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
         atSubscriber2.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
