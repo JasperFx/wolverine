@@ -6,9 +6,16 @@ interoperability with commonly used .NET messaging frameworks.
 
 ## Connecting to non-Wolverine Applications
 
-TODO - content!
+Wolverine has not yet exposed the necessary APIs to create interoperability with arbitrary message schemes with Rabbit MQ,
+but it wouldn't be hard to get there. If you need this functionality, please ask the [Wolverine community on Discord](https://discord.gg/xqym37VMZM) and we'll
+get you started. 
 
 ## Interoperability with NServiceBus
+
+::: warning
+You may need to override Wolverine's Rabbit MQ dead letter queue settings to avoid Wolverine and NServiceBus declaring queues
+with different settings and stomping all over each other. The Wolverine team blames NServiceBus for this one:-)
+:::
 
 Wolverine is the new kid on the block, and it's quite likely that many folks will already be using NServiceBus for messaging.
 Fortunately, Wolverine has some ability to exchange messages with NServiceBus applications, so both tools can live and

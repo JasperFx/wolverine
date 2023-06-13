@@ -32,8 +32,7 @@ public class NServiceBusFixture : IAsyncLifetime
             opts.ListenToRabbitQueue("wolverine")
                 .UseNServiceBusInterop()
                 
-                //.DefaultIncomingMessage<ResponseMessage>()
-                
+
                 .UseForReplies();
             
             // This facilitates messaging from NServiceBus (or MassTransit) sending as interface

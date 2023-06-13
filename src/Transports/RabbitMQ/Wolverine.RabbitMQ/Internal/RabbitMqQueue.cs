@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
@@ -30,7 +27,6 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         {
             DeadLetterQueue = _parent.DeadLetterQueue;
         }
-        
     }
 
     internal bool HasDeclared { get; private set; }
@@ -64,6 +60,11 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         }
         set => _preFetchCount = value;
     }
+
+    /// <summary>
+    ///     Use to override the dead letter queue for this queue
+    /// </summary>
+    public DeadLetterQueue? DeadLetterQueue { get; set; }
 
     public override ValueTask<bool> CheckAsync()
     {
@@ -125,7 +126,10 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         }
         catch (Exception e)
         {
-            if (e.Message.Contains("NOT_FOUND - no queue")) return ValueTask.CompletedTask;
+            if (e.Message.Contains("NOT_FOUND - no queue"))
+            {
+                return ValueTask.CompletedTask;
+            }
 
             throw;
         }
@@ -145,24 +149,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         return ValueTask.FromResult(dict);
     }
 
-    /// <summary>
-    /// Mostly for testing
-    /// </summary>
-    /// <returns></returns>
-    public long QueuedCount()
-    {
-        using var channel = _parent.ListeningConnection.CreateModel();
-
-        var result = channel.QueueDeclarePassive(QueueName);
-        return result.MessageCount;
-    }
-
     public string QueueName { get; }
-    
-    /// <summary>
-    /// Use to override the dead letter queue for this queue
-    /// </summary>
-    public DeadLetterQueue? DeadLetterQueue { get; set; }
 
     /// <summary>
     ///     If true, this queue will be deleted when the connection is closed. This is mostly useful
@@ -200,6 +187,18 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     ///     of all existing messages on startup
     /// </summary>
     public bool PurgeOnStartup { get; set; }
+
+    /// <summary>
+    ///     Mostly for testing
+    /// </summary>
+    /// <returns></returns>
+    public long QueuedCount()
+    {
+        using var channel = _parent.ListeningConnection.CreateModel();
+
+        var result = channel.QueueDeclarePassive(QueueName);
+        return result.MessageCount;
+    }
 
     public override ValueTask InitializeAsync(ILogger logger)
     {
@@ -323,7 +322,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         if (ListenerCount > 1)
         {
             var listeners = new List<RabbitMqListener>();
-            for (int i = 0; i < ListenerCount; i++)
+            for (var i = 0; i < ListenerCount; i++)
             {
                 var listener = new RabbitMqListener(runtime, this, _parent, receiver);
                 listeners.Add(listener);
