@@ -8,9 +8,14 @@ namespace Wolverine.RabbitMQ;
 
 public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListenerConfiguration, RabbitMqQueue>
 {
+    private readonly RabbitMqQueue _queue;
+
     public RabbitMqListenerConfiguration(RabbitMqQueue endpoint) : base(endpoint)
     {
+        _queue = endpoint;
     }
+
+    public string QueueName => _queue.QueueName;
 
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
@@ -122,15 +127,13 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
     /// <summary>
     /// Customize the dead letter queueing for this specific endpoint
     /// </summary>
-    /// <param name="deadLetterQueueName"></param>
     /// <param name="configure">Optional configuration</param>
     /// <returns></returns>
-    public RabbitMqListenerConfiguration CustomizeDeadLetterQueueing(string deadLetterQueueName, Action<DeadLetterQueue>? configure = null)
+    public RabbitMqListenerConfiguration DeadLetterQueueing(DeadLetterQueue dlq)
     {
         add(e =>
         {
-            e.DeadLetterQueue = new DeadLetterQueue(deadLetterQueueName);
-            configure?.Invoke(e.DeadLetterQueue);
+            e.DeadLetterQueue = dlq;
         });
         
         return this;

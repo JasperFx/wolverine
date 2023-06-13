@@ -35,6 +35,12 @@ public class DeadLetterQueue
         _queueName = queueName;
     }
 
+    public DeadLetterQueue(string queueName, DeadLetterQueueMode mode)
+    {
+        _queueName = queueName;
+        Mode = mode;
+    }
+
     public string ExchangeName
     {
         get => _exchangeName ?? _queueName;

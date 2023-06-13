@@ -79,7 +79,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueConfiguration();
+                opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueing();
                 opts.ListenToRabbitQueue(queueName);
                 
                 
@@ -97,11 +97,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
     [Fact]
     public async Task customize_dead_letter_queueing()
     {
-        theOptions.UseRabbitMq().CustomizeDeadLetterQueueing(x =>
-        {
-            x.QueueName = "dlq";
-            x.ExchangeName = "dlq";
-        });
+        theOptions.UseRabbitMq().CustomizeDeadLetterQueueing(new DeadLetterQueue("dlq"){ExchangeName = "dlq"});
         
         await afterBootstrapping();
         
@@ -142,7 +138,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
     public async Task overriding_dead_letter_queue_for_specific_queue()
     {
         var deadLetterQueueName = QueueName + "_dlq";
-        theOptions.ListenToRabbitQueue(QueueName).CustomizeDeadLetterQueueing(deadLetterQueueName);
+        theOptions.ListenToRabbitQueue(QueueName).DeadLetterQueueing(new DeadLetterQueue(deadLetterQueueName));
         
         await afterBootstrapping();
 

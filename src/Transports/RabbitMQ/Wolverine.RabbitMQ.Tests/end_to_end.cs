@@ -70,7 +70,7 @@ public class end_to_end
         var queueName = "durable_test_queue_no_dlq";
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().DisableDeadLetterQueueConfiguration().AutoProvision().AutoPurgeOnStartup();
+            opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
                 .ToRabbitQueue(queueName)
@@ -89,7 +89,7 @@ public class end_to_end
 
         using var receiver = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueConfiguration();
+            opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueing();
 
             opts.ListenToRabbitQueue(queueName);
             opts.Services.AddSingleton<ColorHistory>();

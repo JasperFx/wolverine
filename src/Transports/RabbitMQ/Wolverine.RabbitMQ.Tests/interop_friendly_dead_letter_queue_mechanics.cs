@@ -25,7 +25,7 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
         theOptions.PublishAllMessages()
             .ToRabbitQueue(QueueName);
 
-        theOptions.ListenToRabbitQueue(QueueName).CustomizeDeadLetterQueueing(QueueName + "_DLQ", q => q.Mode = DeadLetterQueueMode.InteropFriendly);
+        theOptions.ListenToRabbitQueue(QueueName).DeadLetterQueueing(new DeadLetterQueue(QueueName + "_DLQ", DeadLetterQueueMode.InteropFriendly));
 
         theOptions.LocalRoutingConventionDisabled = true;
         

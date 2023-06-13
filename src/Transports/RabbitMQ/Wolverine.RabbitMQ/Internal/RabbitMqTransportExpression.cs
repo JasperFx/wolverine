@@ -108,7 +108,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     /// </summary>
     /// <returns></returns>
     /// <exception cref="NotImplementedException"></exception>
-    public RabbitMqTransportExpression DisableDeadLetterQueueConfiguration()
+    public RabbitMqTransportExpression DisableDeadLetterQueueing()
     {
         Transport.DeadLetterQueue.Mode = DeadLetterQueueMode.WolverineStorage;
         Transport.Exchanges.Remove(Transport.DeadLetterQueue.ExchangeName);
@@ -170,15 +170,16 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     /// <param name="configure"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public RabbitMqTransportExpression CustomizeDeadLetterQueueing(Action<DeadLetterQueue> configure)
+    public RabbitMqTransportExpression CustomizeDeadLetterQueueing(DeadLetterQueue dlq)
     {
-        if (configure == null)
-        {
-            throw new ArgumentNullException(nameof(configure));
-        }
+        // copying because this is a fallback to other queues by reference
+        Transport.DeadLetterQueue.Mode = dlq.Mode;
+        Transport.DeadLetterQueue.QueueName = dlq.QueueName;
+        Transport.DeadLetterQueue.ExchangeName = dlq.ExchangeName;
+        Transport.DeadLetterQueue.BindingName = dlq.BindingName;
+        Transport.DeadLetterQueue.ConfigureQueue = dlq.ConfigureQueue;
+        Transport.DeadLetterQueue.ConfigureExchange = dlq.ConfigureExchange;
 
-        configure(Transport.DeadLetterQueue);
-        
         return this;
     }
 }

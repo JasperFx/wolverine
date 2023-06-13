@@ -243,4 +243,85 @@ public class Samples
 
         #endregion
     }
+
+    public static async Task customize_dead_letter_queueing()
+    {
+        #region sample_overriding_rabbit_mq_dead_letter_queue
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Use a different default deal letter queue name
+                opts.UseRabbitMq()
+                    .CustomizeDeadLetterQueueing(new DeadLetterQueue("error-queue"))
+
+                    // or conventionally
+                    .ConfigureListeners(l =>
+                    {
+                        l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors"));
+                    });
+                    
+
+                // Use a different dead letter queue for this specific queue
+                opts.ListenToRabbitQueue("incoming")
+                    .DeadLetterQueueing(new DeadLetterQueue("incoming-errors"));
+
+            }).StartAsync();
+
+        #endregion
+    }
+    
+    public static async Task customize_dead_letter_queueing_to_interop()
+    {
+        #region sample_overriding_rabbit_mq_dead_letter_queue_interop_friendly
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Use a different default deal letter queue name
+                opts.UseRabbitMq()
+                    .CustomizeDeadLetterQueueing(new DeadLetterQueue("error-queue", DeadLetterQueueMode.InteropFriendly))
+
+                    // or conventionally
+                    .ConfigureListeners(l =>
+                    {
+                        l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors", DeadLetterQueueMode.InteropFriendly));
+                    });
+                    
+
+                // Use a different dead letter queue for this specific queue
+                opts.ListenToRabbitQueue("incoming")
+                    .DeadLetterQueueing(new DeadLetterQueue("incoming-errors", DeadLetterQueueMode.InteropFriendly));
+
+            }).StartAsync();
+
+        #endregion
+    }
+    
+    public static async Task disable_dead_letter_queueing_to_wolverine()
+    {
+        #region sample_disable_rabbit_mq_dead_letter_queue
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Disable dead letter queueing by default
+                opts.UseRabbitMq()
+                    .DisableDeadLetterQueueing()
+
+                    // or conventionally
+                    .ConfigureListeners(l =>
+                    {
+                        // Really does the same thing as the first usage
+                        l.DisableDeadLetterQueueing();
+                    });
+                    
+
+                // Disable the dead letter queue for this specific queue
+                opts.ListenToRabbitQueue("incoming").DisableDeadLetterQueueing();
+
+            }).StartAsync();
+
+        #endregion
+    }
 }
