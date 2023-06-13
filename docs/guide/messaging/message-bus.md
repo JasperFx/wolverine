@@ -1,4 +1,4 @@
-# Message Operations at Runtime
+# Sending Messages with IMessageBus
 
 The main entry point into Wolverine to initiate any message handling or publishing is the `IMessageBus` service
 that is registered by Wolverine into your application's IoC container as a scoped service. Here's a brief sample

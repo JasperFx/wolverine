@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Lamar;
 using Wolverine.Persistence.Durability;
@@ -32,8 +27,6 @@ public class MessageBus : IMessageBus
 
     public string? CorrelationId { get; set; }
 
-    public string? TenantId { get; set; }
-
     public IWolverineRuntime Runtime { get; }
     public IMessageStore Storage { get; }
 
@@ -41,6 +34,8 @@ public class MessageBus : IMessageBus
 
     public IEnvelopeTransaction? Transaction { get; protected set; }
     public Guid ConversationId { get; protected set; }
+
+    public string? TenantId { get; set; }
 
     public IDestinationEndpoint EndpointFor(string endpointName)
     {
@@ -119,7 +114,7 @@ public class MessageBus : IMessageBus
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
-        
+
         trackEnvelopeCorrelation(Activity.Current, outgoing);
 
         if (outgoing.Any())

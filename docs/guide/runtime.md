@@ -1,40 +1,212 @@
-# Message Handling Runtime
+# Runtime Architecture
 
-Next, even though I said that Wolverine does not require an adapter interface in *your* code, Wolverine itself does actually need that for its own internal runtime pipeline. To that end
-Wolverine uses [dynamically generated code](./codegen) to "weave" adapter code around your message handler code. It also weaves in the calls to any middleware applied to your system.
-In ideal circumstances, Wolverine is able to completely remove the runtime usage of an IoC container for even better performance. The 
-end result is a runtime pipeline that is able to accomplish its tasks with potentially much less overhead than comparable .NET frameworks that depend on adapter interfaces.
+::: info
+Wolverine makes absolutely no differentiation between logical [events and commands](https://codeopinion.com/commands-events-whats-the-difference) within your system. To Wolverine,
+everything is just a message.
+:::
 
+The two key parts of a Wolverine application are messages:
 
-## How Wolverine Consumes Your Message Handlers
-
-If you're worried about the performance implications of Wolverine calling into your code without any interfaces or base classes, nothing to worry about because Wolverine **does not use Reflection at runtime** to call your actions. Instead, Wolverine uses [runtime
-code generation with Roslyn](https://jeremydmiller.com/2015/11/11/using-roslyn-for-runtime-code-generation-in-marten/) to write the "glue" code around your actions. Internally, Wolverine is generating a subclass of `MessageHandler` for each known message type:
-
-<!-- snippet: sample_MessageHandler -->
-<a id='snippet-sample_messagehandler'></a>
+<!-- snippet: sample_DebutAccount_command -->
+<a id='snippet-sample_debutaccount_command'></a>
 ```cs
-public interface IMessageHandler
+// A "command" message
+public record DebitAccount(long AccountId, decimal Amount);
+
+// An "event" message
+public record AccountOverdrawn(long AccountId);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L69-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debutaccount_command' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And the message handling code for the messages, which in Wolverine's case just means a function or method that accepts the message type as its first argument like so:
+
+<!-- snippet: sample_DebitAccountHandler -->
+<a id='snippet-sample_debitaccounthandler'></a>
+```cs
+public static class DebitAccountHandler
 {
-    Type MessageType { get; }
-
-    LogLevel ExecutionLogLevel { get; }
-    Task HandleAsync(MessageContext context, CancellationToken cancellation);
-}
-
-public abstract class MessageHandler : IMessageHandler
-{
-    public HandlerChain? Chain { get; set; }
-
-    public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
-
-    public Type MessageType => Chain!.MessageType;
-
-    public LogLevel ExecutionLogLevel => Chain!.ExecutionLogLevel;
+    public static void Handle(DebitAccount account)
+    {
+        Console.WriteLine($"I'm supposed to debit {account.Amount} from account {account.AccountId}");
+    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Handlers/MessageHandler.cs#L5-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L57-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Invoking a Message Inline
+
+At runtime, you can use Wolverine to invoke the message handling for a message *inline* in the current executing thread with Wolverine effectively acting as a mediator:
+
+![Invoke Wolverine Handler](/invoke-handler.png)
+
+It's a bit more complicated than that though, as the inline invocation looks like this simplified sequence diagram:
+
+![Invoke a Message Inline](/invoke-message-sequence-diagram.png)
+
+As you can hopefully see, even the inline invocation is adding some value beyond merely "mediating" between the caller
+and the actual message handler by:
+
+1. Wrapping Open Telemetry tracing and execution metrics around the execution
+2. Correlating the execution in logs to the original calling activity
+3. Providing some inline retry [error handling policies](/guide/handlers/error-handling) for transient errors
+4. Publishing [cascading messages](/guide/handlers/cascading) from the message execution only *after* the execution succeeds as an in memory outbox
+
+
+## Asynchronous Messaging
+
+::: info
+You can, of course, happily publish messages to an external queue and consume those very same messages later in the
+same process.
+:::
+
+The other main usage of Wolverine is to send messages from your current process to another process through some kind of external transport like a Rabbit MQ/Azure Service Bus/Amazon SQS queue and
+have Wolverine execute that message in another process (or back to the original process):
+
+![Send a Message](/sending-message.png)
+
+The internals of publishing a message are shown in this simplified sequence diagram:
+
+![Publish a Message](/publish-message-sequence-diagram.png)
+
+Along the way, Wolverine has to:
+
+1. Serialize the message body
+2. Route the outgoing message to the proper subscriber(s)
+3. Utilize any publishing rules like "this message should be discarded after 10 seconds"
+4. Map the outgoing Wolverine `Envelope` representation of the message into whatever the underlying transport (Azure Service Bus et al.) uses
+5. Actually invoke the actual messaging infrastructure to send out the message
+
+On the flip side, listening for a message follows this sequence shown for the "happy path" of receiving a message through Rabbit MQ:
+
+![Listen for a Message](/listen-for-message-sequence-diagram.png)
+
+During the listening process, Wolverine has to:
+
+1. Map the incoming Rabbit MQ message to Wolverine's own `Envelope` structure
+2. Determine what the actual message type is based on the `Envelope` data
+3. Find the correct executor strategy for the message type
+4. Deserialize the raw message data to the actual message body
+5. Call the inner message executor for that message type
+6. Carry out quite a bit of Open Telemetry activity tracing, report metrics, and just plain logging
+7. Evaluate any errors against the error handling policies of the application or the specific message type
+
+
+## Endpoint Types
+
+::: info
+Not all transports support all three types of endpoint modes, and will helpfully assert when you try to choose
+an invalid option.
+:::
+
+### Inline Endpoints
+
+Wolverine endpoints come in three basic flavors, with the first being **Inline** endpoints:
+
+<!-- snippet: sample_using_process_inline -->
+<a id='snippet-sample_using_process_inline'></a>
+```cs
+// Configuring a Wolverine application to listen to
+// an Azure Service Bus queue with the "Inline" mode
+opts.ListenToAzureServiceBusQueue("inline-receiver").ProcessInline();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/InlineSendingAndReceivingCompliance.cs#L27-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_process_inline' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With inline endpoints, as the name implies, calling `IMessageBus.SendAsync()` immediately sends the message to the external
+message broker. Likewise, messages received from an external message queue are processed inline before Wolverine acknowledges
+to the message broker that the message is received.
+
+![Inline Endpoints](/inline-endpoint.png)
+
+In the absence of a durable inbox/outbox, using inline endpoints is "safer" in terms of guaranteed delivery. As you might 
+think, using inline agents can bottle neck the message processing, but that can be alleviated by opting into parallel listeners.
+
+### Buffered Endpoints
+
+In the second **Buffered** option, messages are queued locally between the actual external broker and the Wolverine handlers or senders.
+
+To opt into buffering, you use this syntax:
+
+<!-- snippet: sample_buffered_in_memory -->
+<a id='snippet-sample_buffered_in_memory'></a>
+```cs
+// I overrode the buffering limits just to show
+// that they exist for "back pressure"
+opts.ListenToAzureServiceBusQueue("incoming")
+    .BufferedInMemory(new BufferingLimits(1000, 200));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L128-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_buffered_in_memory' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+At runtime, you have a local [TPL Dataflow queue](https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) between the Wolverine callers and the broker:
+
+![Buffered Endpoints](/buffered-endpoint.png)
+
+On the listening side, buffered endpoints do support [back pressure](https://www.educative.io/answers/techniques-to-exert-back-pressure-in-distributed-systems) (of sorts) where Wolverine will stop the actual message 
+listener if too many messages are queued in memory to avoid chewing up your application memory. In transports like Amazon SQS that only support batched
+message sending or receiving, `Buffered` is the default mode as that facilitates message batching.
+
+`Buffered` message sending and receiving can lead to higher throughput, and should be considered for cases where messages
+are ephemeral or expire and throughput is more important than delivery guarantees. The downside is that messages in the 
+in memory queues can be lost in the case of the application shutting down unexpectedly -- but Wolverine tries to "drain"
+the in memory queues on normal application shutdown.
+
+### Durable Endpoints
+
+**Durable** endpoints behave like **buffered** endpoints, but also use the [durable inbox/outbox message storage](http://localhost:5050/guide/durability/) to create much
+stronger guarantees about message delivery and processing. You will need to use `Durable` endpoints in order to truly
+take advantage of the persistent outbox mechanism in Wolverine. To opt into making an endpoint durable, use this syntax:
+
+<!-- snippet: sample_durable_endpoint -->
+<a id='snippet-sample_durable_endpoint'></a>
+```cs
+// I overrode the buffering limits just to show
+// that they exist for "back pressure"
+opts.ListenToAzureServiceBusQueue("incoming")
+    .UseDurableInbox(new BufferingLimits(1000, 200));
+
+opts.PublishAllMessages().ToAzureServiceBusQueue("outgoing")
+    .UseDurableOutbox();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L160-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or use policies to do this in one fell swoop (which may not be what you actually want, but you could do this!):
+
+<!-- snippet: sample_all_outgoing_are_durable -->
+<a id='snippet-sample_all_outgoing_are_durable'></a>
+```cs
+opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L138-L142' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_all_outgoing_are_durable' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+As shown below, the `Durable` endpoint option adds an extra step to the `Buffered` behavior to add database storage of the 
+incoming and outgoing messages:
+
+![Durable Endpoints](/durable-endpoints.png)
+
+Outgoing messages are deleted in the durable outbox upon successful sending acknowledgements from the external broker. Likewise,
+incoming messages are also deleted from the durable inbox upon successful message execution.
+
+The `Durable` endpoint option makes Wolverine's [local queueing](/guide/messaging/transports/local) robust enough to use for cases where you need 
+guaranteed processing of messages, but don't want to use an external broker.
+
+## How Wolverine Calls Your Message Handlers
+
+![A real wolverine](/real_wolverine.jpeg)
+
+Wolverine is a little different animal from the tools with similar features in the .NET ecosystem (pun intended:). Instead of the typical strategy of
+requiring you to implement an adapter interface of some sort in *your* code, Wolverine uses [dynamically generated code](./codegen) to "weave" its internal adapter code and 
+even middleware around your message handler code. 
+
+In ideal circumstances, Wolverine is able to comp~~~~letely remove the runtime usage of an IoC container for even better performance. The
+end result is a runtime pipeline that is able to accomplish its tasks with potentially much less performance overhead than comparable .NET frameworks 
+that depend on adapter interfaces and copious runtime usage of IoC containers.
+
+See [Code Generation in Wolverine](/guide/codegen) for much more information about this model and how it relates to the execution pipeline.
 
 
 ## IoC Container Integration

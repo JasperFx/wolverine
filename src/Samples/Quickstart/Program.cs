@@ -11,7 +11,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // For now, this is enough to integrate Wolverine into
-// your application, but there'll be *much* more
+// your application, but there'll be *many* more
 // options later of course :-)
 builder.Host.UseWolverine();
 
@@ -23,10 +23,10 @@ builder.Services.AddSingleton<IssueRepository>();
 
 var app = builder.Build();
 
-// An endpoint to create a new issue
+// An endpoint to create a new issue that delegates to Wolverine as a mediator
 app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
-// An endpoint to assign an issue to an existing user
+// An endpoint to assign an issue to an existing user that delegates to Wolverine as a mediator
 app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
 // Swashbuckle inclusion

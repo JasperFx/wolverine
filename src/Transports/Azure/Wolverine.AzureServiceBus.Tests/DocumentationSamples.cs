@@ -111,6 +111,66 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task configure_buffered_listener()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                // One way or another, you're probably pulling the Azure Service Bus
+                // connection string out of configuration
+                var azureServiceBusConnectionString = context
+                    .Configuration
+                    .GetConnectionString("azure-service-bus");
+
+                // Connect to the broker in the simplest possible way
+                opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+                #region sample_buffered_in_memory
+
+                // I overrode the buffering limits just to show
+                // that they exist for "back pressure"
+                opts.ListenToAzureServiceBusQueue("incoming")
+                    .BufferedInMemory(new BufferingLimits(1000, 200));
+
+                #endregion
+
+
+                #region sample_all_outgoing_are_durable
+
+                opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+
+                #endregion
+            }).StartAsync();
+    }
+    
+    public async Task configure_durable_listener()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                // One way or another, you're probably pulling the Azure Service Bus
+                // connection string out of configuration
+                var azureServiceBusConnectionString = context
+                    .Configuration
+                    .GetConnectionString("azure-service-bus");
+
+                // Connect to the broker in the simplest possible way
+                opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+                #region sample_durable_endpoint
+
+                // I overrode the buffering limits just to show
+                // that they exist for "back pressure"
+                opts.ListenToAzureServiceBusQueue("incoming")
+                    .UseDurableInbox(new BufferingLimits(1000, 200));
+
+                opts.PublishAllMessages().ToAzureServiceBusQueue("outgoing")
+                    .UseDurableOutbox();
+
+                #endregion
+            }).StartAsync();
+    }
+
     public async Task publishing_to_queue()
     {
         #region sample_publishing_to_specific_azure_service_bus_queue

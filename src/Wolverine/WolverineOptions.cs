@@ -29,7 +29,6 @@ public sealed partial class WolverineOptions
 
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
 
-        //UseNewtonsoftForSerialization();
         UseSystemTextJsonForSerialization();
 
         CodeGeneration = new GenerationRules("Internal.Generated");

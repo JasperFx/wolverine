@@ -9,7 +9,22 @@ replacement for the older StructureMap tool.
 :::
 
 Wolverine is configured with the `IHostBuilder.UseWolverine()` extension methods, with the actual configuration
-living on a single `WolverineOptions` object.
+living on a single `WolverineOptions` object. The `WolverineOptions` is the configuration model for your Wolverine application,
+and as such it can be used to configure directives about:
+
+* Basic elements of your Wolverine system like the system name itself
+* Connections to [external messaging infrastructure](/guide/messaging/introduction) through Wolverine's *transport* model
+* Messaging endpoints for either listening for incoming messages or subscribing endpoints
+* [Subscription rules](/guide/messaging/subscriptions) for outgoing messages
+* How [message handlers](/guide/messages) are discovered within your application and from what assemblies
+* Policies to control how message handlers function, or endpoints are configured, or error handling policies
+
+![Wolverine Configuration Model](/configuration-model.png)
+
+::: info
+At this point, Wolverine only supports [IHostBuilder](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.ihostbuilder?view=dotnet-plat-ext-7.0) for bootstrapping, but may also support the newer [HostApplicationBuilder](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.hostapplicationbuilder?view=dotnet-plat-ext-7.0)
+model in the future.
+:::
 
 ## With ASP.NET Core
 
@@ -25,8 +40,12 @@ using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The almost inevitable inclusion of Swashbuckle:)
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 // For now, this is enough to integrate Wolverine into
-// your application, but there'll be *much* more
+// your application, but there'll be *many* more
 // options later of course :-)
 builder.Host.UseWolverine();
 
@@ -38,18 +57,24 @@ builder.Services.AddSingleton<IssueRepository>();
 
 var app = builder.Build();
 
-// An endpoint to create a new issue
+// An endpoint to create a new issue that delegates to Wolverine as a mediator
 app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
-// An endpoint to assign an issue to an existing user
+// An endpoint to assign an issue to an existing user that delegates to Wolverine as a mediator
 app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
+
+// Swashbuckle inclusion
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.MapGet("/", () => Results.Redirect("/swagger"));
 
 // Opt into using Oakton for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## "Headless" Applications
@@ -94,7 +119,10 @@ return await Host.CreateDefaultBuilder(args)
                 .AddSource("Wolverine");
         });
     })
+    
+    // Executing with Oakton as the command line parser to unlock
+    // quite a few utilities and diagnostics in our Wolverine application
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

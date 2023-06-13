@@ -73,11 +73,11 @@ export default {
                     items: [
                         {text: 'Basic Concepts', link: '/guide/basics'},
                         {text: 'Configuration', link: '/guide/configuration'},
+                        {text: 'Runtime Architecture', link: '/guide/runtime'},
                         {text: 'Instrumentation and Metrics', link: '/guide/logging'},
                         {text: 'Diagnostics', link: '/guide/diagnostics'},
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
-                        {text: 'Runtime Architecture', link: '/guide/runtime'},
                         {text: 'Code Generation', link: '/guide/codegen'},
                         {text: 'Extensions', link: '/guide/extensions'}
                     ]
@@ -106,7 +106,8 @@ export default {
                     collapsible: true,
                     collapsed: true,
                     items: [
-                        {text: 'Working with IMessageBus', link: '/guide/messaging/message-bus'},
+                        {text: 'Introduction to Messaging', link: '/guide/messaging/introduction'},
+                        {text: 'Sending Messages', link: '/guide/messaging/message-bus'},
                         {text: 'Subscriptions & Message Routing', link: '/guide/messaging/subscriptions'},
                         {text: 'Message Listeners', link: '/guide/messaging/listeners'},
                         {
@@ -148,8 +149,7 @@ export default {
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},
-                        {text: 'Interoperability with NServiceBus', link: '/guide/messaging/nservicebus'},
-                        {text: 'Interoperability with MassTransit', link: '/guide/messaging/masstransit'},
+                        {text: 'Endpoint Policies', link: '/guide/messaging/policies'}
                     ]
                 },
                 {

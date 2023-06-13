@@ -31,7 +31,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L33-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L35-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -124,7 +124,7 @@ this syntax for the service registration:
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
     x => x.UseSqlServer(connectionString), "wolverine");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L16-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_efcore_registration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L18-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_efcore_registration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That registration will:
