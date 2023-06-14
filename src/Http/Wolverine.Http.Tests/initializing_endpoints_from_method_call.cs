@@ -72,14 +72,14 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     public void capturing_metadata_for_resource_type()
     {
         var chain = HttpChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
-        chain.ResourceType.ShouldBe(typeof(Results));
+        chain.ResourceType.ShouldBe(typeof(ArithmeticResults));
 
         var endpoint = chain.BuildEndpoint();
         var metadata = endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().ToArray();
         metadata.Length.ShouldBeGreaterThanOrEqualTo(3);
 
         var responseBody = metadata.FirstOrDefault(x => x.StatusCode == 200);
-        responseBody.Type.ShouldBe(typeof(Results));
+        responseBody.Type.ShouldBe(typeof(ArithmeticResults));
         responseBody.ContentTypes.Single().ShouldBe("application/json");
 
         var badRequest = metadata.FirstOrDefault(x => x.StatusCode == 400);

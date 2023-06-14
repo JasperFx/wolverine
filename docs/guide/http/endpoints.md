@@ -12,9 +12,9 @@ First, a little terminology about Wolverine HTTP endpoints. Consider the followi
 <a id='snippet-sample_simple_wolverine_http_endpoint'></a>
 ```cs
 [WolverinePost("/question")]
-public static Results PostJson(Question question)
+public static ArithmeticResults PostJson(Question question)
 {
-    return new Results
+    return new ArithmeticResults
     {
         Sum = question.One + question.Two,
         Product = question.One * question.Two
@@ -31,9 +31,9 @@ If instead that method were asynchronous like this:
 <a id='snippet-sample_simple_wolverine_http_endpoint_async'></a>
 ```cs
 [WolverinePost("/question2")]
-public static Task<Results> PostJsonAsync(Question question)
+public static Task<ArithmeticResults> PostJsonAsync(Question question)
 {
-    var results = new Results
+    var results = new ArithmeticResults
     {
         Sum = question.One + question.Two,
         Product = question.One * question.Two
@@ -101,9 +101,9 @@ public static readonly Dictionary<Type, string> TypeOutputs = new()
     { typeof(ushort), "ushort" },
     { typeof(uint), "uint" },
     { typeof(ulong), "ulong" },
-    { typeof(Guid), typeof(Guid).FullName },
-    { typeof(DateTime), typeof(DateTime).FullName },
-    { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName }
+    { typeof(Guid), typeof(Guid).FullName! },
+    { typeof(DateTime), typeof(DateTime).FullName! },
+    { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName! }
 };
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L53-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
@@ -214,7 +214,7 @@ public async Task post_json_happy_path()
         x.WithRequestHeader("accepts", "application/json");
     });
 
-    var result = await response.ReadAsJsonAsync<Results>();
+    var result = await response.ReadAsJsonAsync<ArithmeticResults>();
 
     result.Product.ShouldBe(12);
     result.Sum.ShouldBe(7);

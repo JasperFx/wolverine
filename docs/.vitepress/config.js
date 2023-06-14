@@ -157,7 +157,8 @@ export default {
                     collapsible: true,
                     collapsed: true,
                     items: [
-                        {text: 'HTTP Services', link: '/guide/http/'},
+                        {text: 'Http Services with Wolverine', link: '/guide/http/'},
+                        {text: 'Integration with ASP.Net Core', link: '/guide/http/integration'},
                         {text: 'Endpoints', link: '/guide/http/endpoints'},
                         {text: 'Headers', link: '/guide/http/headers'},
                         {text: 'Middleware', link: '/guide/http/middleware.md'},

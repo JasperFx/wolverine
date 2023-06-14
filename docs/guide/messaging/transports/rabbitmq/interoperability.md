@@ -45,8 +45,7 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
     opts.ListenToRabbitQueue("wolverine")
         .UseNServiceBusInterop()
         
-        //.DefaultIncomingMessage<ResponseMessage>()
-        
+
         .UseForReplies();
     
     // This facilitates messaging from NServiceBus (or MassTransit) sending as interface
@@ -54,7 +53,7 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
     opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/InteropTests/NServiceBus/NServiceBusFixture.cs#L16-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_interoperability' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/InteropTests/NServiceBus/NServiceBusFixture.cs#L16-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_interoperability' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Interoperability with Mass Transit

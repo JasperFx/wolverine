@@ -13,9 +13,9 @@ public static class TestEndpoints
     }
 
     [WolverineGet("/results/static")]
-    public static Results FetchStaticResults()
+    public static ArithmeticResults FetchStaticResults()
     {
-        return new Results
+        return new ArithmeticResults
         {
             Sum = 3,
             Product = 4
@@ -73,9 +73,9 @@ public static class TestEndpoints
     #region sample_simple_wolverine_http_endpoint
 
     [WolverinePost("/question")]
-    public static Results PostJson(Question question)
+    public static ArithmeticResults PostJson(Question question)
     {
-        return new Results
+        return new ArithmeticResults
         {
             Sum = question.One + question.Two,
             Product = question.One * question.Two
@@ -87,9 +87,9 @@ public static class TestEndpoints
     #region sample_simple_wolverine_http_endpoint_async
 
     [WolverinePost("/question2")]
-    public static Task<Results> PostJsonAsync(Question question)
+    public static Task<ArithmeticResults> PostJsonAsync(Question question)
     {
-        var results = new Results
+        var results = new ArithmeticResults
         {
             Sum = question.One + question.Two,
             Product = question.One * question.Two
@@ -101,7 +101,7 @@ public static class TestEndpoints
     #endregion
 }
 
-public class Results
+public class ArithmeticResults
 {
     public int Sum { get; set; }
     public int Product { get; set; }

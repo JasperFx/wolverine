@@ -22,7 +22,7 @@ public class posting_json : IntegrationContext
             x.WithRequestHeader("accepts", "application/json");
         });
 
-        var result = await response.ReadAsJsonAsync<Results>();
+        var result = await response.ReadAsJsonAsync<ArithmeticResults>();
 
         result.Product.ShouldBe(12);
         result.Sum.ShouldBe(7);

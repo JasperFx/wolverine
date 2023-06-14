@@ -35,7 +35,7 @@ public class end_to_end : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("application/json; charset=utf-8");
         });
 
-        var results = body.ReadAsJson<Results>();
+        var results = body.ReadAsJson<ArithmeticResults>();
         results.Product.ShouldBe(4);
         results.Sum.ShouldBe(3);
     }
