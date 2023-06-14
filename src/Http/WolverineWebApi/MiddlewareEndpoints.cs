@@ -1,7 +1,56 @@
+using System.Diagnostics;
 using System.Text.Json.Serialization;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core;
+using Wolverine;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
+
+#region sample_http_stopwatch_middleware
+
+public class StopwatchMiddleware
+{
+    private readonly Stopwatch _stopwatch = new();
+
+    public void Before()
+    {
+        _stopwatch.Start();
+    }
+
+    public void Finally(ILogger logger, HttpContext context)
+    {
+        _stopwatch.Stop();
+        logger.LogDebug("Request for route {Route} ran in {Duration} milliseconds",
+            context.Request.Path, _stopwatch.ElapsedMilliseconds);
+    }
+}
+
+#endregion
+
+#region sample_applying_middleware_programmatically_to_one_chain
+
+public class MeasuredEndpoint
+{
+    // The signature is meaningful here
+    public static void Configure(HttpChain chain)
+    {
+        // Call this method before the normal endpoint
+        chain.Middleware.Add(MethodCall.For<StopwatchMiddleware>(x => x.Before()));
+        
+        // Call this method after the normal endpoint
+        chain.Postprocessors.Add(MethodCall.For<StopwatchMiddleware>(x => x.Finally(null, null)));
+    }
+
+    [WolverineGet("/timed")]
+    public async Task<string> Get()
+    {
+        await Task.Delay(100.Milliseconds());
+        return "how long did I take?";
+    }
+}
+
+#endregion
 
 public class MiddlewareEndpoints
 {
@@ -51,13 +100,23 @@ public interface IAmAuthenticated
     bool Authenticated { get; set; }
 }
 
+#region sample_fake_authentication_middleware
+
 public class FakeAuthenticationMiddleware
 {
     public static IResult Before(IAmAuthenticated message)
     {
-        return message.Authenticated ? WolverineContinue.Result() : Microsoft.AspNetCore.Http.Results.Unauthorized();
+        return message.Authenticated 
+            // This tells Wolverine to just keep going
+            ? WolverineContinue.Result() 
+            
+            // If the IResult is not WolverineContinue, Wolverine
+            // will execute the IResult and stop processing otherwise
+            : Results.Unauthorized();
     }
 }
+
+#endregion
 
 public class AuthenticatedRequest : IAmAuthenticated
 {

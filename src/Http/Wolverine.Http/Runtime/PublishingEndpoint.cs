@@ -11,7 +11,7 @@ public class PublishingEndpoint<T>
         response.StatusCode = 202;
         return "Success.";
     }
-
+Ï
     public static void Configure(HttpChain chain)
     {
         chain.Metadata.Add(builder =>
