@@ -3,15 +3,21 @@ using Wolverine.Http;
 
 namespace WolverineWebApi;
 
+#region sample_using_openapi_attributes
+
 public class SignupEndpoint
 {
+    // The first couple attributes are ASP.Net Core 
+    // attributes that add OpenAPI metadata to this endpoint
     [Tags("Users")]
-    [WolverinePost("/users/sign-up")]
     [ProducesResponseType(204)]
+    [WolverinePost("/users/sign-up")]
     public static IResult SignUp(SignUpRequest request)
     {
-        return Microsoft.AspNetCore.Http.Results.NoContent();
+        return Results.NoContent();
     }
 }
+
+#endregion
 
 public record SignUpRequest(string User, string Password);

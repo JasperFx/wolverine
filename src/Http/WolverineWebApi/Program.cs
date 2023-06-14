@@ -66,19 +66,30 @@ app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>>(int o
 app.MapPost("/orders", Results<BadRequest, Ok<Order>>(CreateOrder command)
     => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(command.OrderId)));
 
+#region sample_using_configure_endpoints
+
 app.MapWolverineEndpoints(opts =>
 {
     // This is strictly to test the endpoint policy
-    opts.ConfigureEndpoints(c =>
+    
+    
+    opts.ConfigureEndpoints(httpChain =>
     {
+        // The HttpChain model is a configuration time
+        // model of how the HTTP endpoint handles requests
+
         // This adds metadata for OpenAPI
-        c.WithMetadata(new CustomMetadata());
-        c.WithTags("wolverine");
+        httpChain.WithMetadata(new CustomMetadata());
+        httpChain.WithTags("wolverine");
     });
+    
+    // more configuration for HTTP...
     
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
+
+    #endregion
     
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),

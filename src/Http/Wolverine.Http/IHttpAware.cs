@@ -54,6 +54,8 @@ public static class EndpointBuilderExtensions
         return builder;
     }
 }
+    
+#region sample_CreationResponse
 
 /// <summary>
 /// Base class for resource types that denote some kind of resource being created
@@ -76,3 +78,5 @@ public record CreationResponse(string Url) : IHttpAware
         context.Response.StatusCode = 201;
     }
 }
+
+#endregion

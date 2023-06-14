@@ -3,6 +3,8 @@ using Lamar;
 
 namespace Wolverine.Http;
 
+#region sample_IHttpPolicy
+
 /// <summary>
 ///     Use to apply your own conventions or policies to HTTP endpoint handlers
 /// </summary>
@@ -16,6 +18,8 @@ public interface IHttpPolicy
     /// <param name="container">The application's underlying Lamar Container</param>
     void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container);
 }
+
+#endregion
 
 internal class LambdaHttpPolicy : IHttpPolicy
 {

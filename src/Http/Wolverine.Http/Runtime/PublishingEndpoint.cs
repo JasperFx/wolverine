@@ -11,13 +11,20 @@ public class PublishingEndpoint<T>
         response.StatusCode = 202;
         return "Success.";
     }
-Ï
+
+    #region sample_programmatic_one_off_openapi_metadata
+
     public static void Configure(HttpChain chain)
     {
+        // This sample is from Wolverine itself on endpoints where all you do is forward
+        // a request directly to a Wolverine messaging endpoint for later processing
         chain.Metadata.Add(builder =>
         {
+            // Adding and modifying data
             builder.Metadata.Add(new ProducesResponseTypeMetadata { StatusCode = 202, Type = null });
             builder.RemoveStatusCodeResponse(200);
         });
     }
+
+    #endregion
 }
