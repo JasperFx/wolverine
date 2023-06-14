@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Wolverine.Runtime.RemoteInvocation;
 
 namespace Wolverine;
@@ -13,7 +8,6 @@ namespace Wolverine;
 /// </summary>
 public class TestMessageContext : IMessageContext
 {
-
     private readonly List<object> _invoked = new();
     private readonly List<object> _published = new();
     private readonly List<object> _responses = new();
@@ -27,16 +21,6 @@ public class TestMessageContext : IMessageContext
 
     public TestMessageContext() : this(new object())
     {
-    }
-
-    public IDestinationEndpoint EndpointFor(string endpointName)
-    {
-        return new DestinationEndpoint(this, null, endpointName);
-    }
-
-    public IDestinationEndpoint EndpointFor(Uri uri)
-    {
-        return new DestinationEndpoint(this, uri, uri.ToString());
     }
 
     /// <summary>
@@ -67,6 +51,16 @@ public class TestMessageContext : IMessageContext
     /// </summary>
     public IReadOnlyList<object> ResponsesToSender => _responses;
 
+    public IDestinationEndpoint EndpointFor(string endpointName)
+    {
+        return new DestinationEndpoint(this, null, endpointName);
+    }
+
+    public IDestinationEndpoint EndpointFor(Uri uri)
+    {
+        return new DestinationEndpoint(this, uri, uri.ToString());
+    }
+
     public string? CorrelationId { get; set; }
     public Envelope? Envelope { get; }
 
@@ -76,7 +70,8 @@ public class TestMessageContext : IMessageContext
         return Task.CompletedTask;
     }
 
-    Task<T> IMessageBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout) where T : default
+    Task<T> IMessageBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout)
+        where T : default
     {
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
@@ -118,43 +113,6 @@ public class TestMessageContext : IMessageContext
 
     public string? TenantId { get; set; }
 
-    internal class DestinationEndpoint : IDestinationEndpoint
-    {
-        private readonly TestMessageContext _parent;
-        private readonly Uri? _destination;
-        private readonly string? _endpointName;
-
-        public DestinationEndpoint(TestMessageContext parent, Uri? destination, string? endpointName)
-        {
-            _parent = parent;
-            _destination = destination;
-            _endpointName = endpointName;
-        }
-
-        public Uri Uri => _destination!;
-        public string EndpointName => _endpointName!;
-        public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
-        {
-            var envelope = new Envelope { Message = message, Destination = _destination, EndpointName = _endpointName};
-            options?.Override(envelope);
-            
-            _parent._sent.Add(envelope);
-            return ValueTask.CompletedTask;
-        }
-
-        public Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
-        {
-            var envelope = new Envelope { Message = message, Destination = _destination, EndpointName = _endpointName};
-            _parent._sent.Add(envelope);
-            return Task.FromResult(new Acknowledgement());
-        }
-
-        public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
-        {
-            throw new NotSupportedException();
-        }
-    }
-
     ValueTask IMessageContext.RespondToSenderAsync(object response)
     {
         _responses.Add(response);
@@ -172,5 +130,45 @@ public class TestMessageContext : IMessageContext
             .OfType<Envelope>()
             .Where(x => x.Status == EnvelopeStatus.Scheduled)
             .ToArray();
+    }
+
+    internal class DestinationEndpoint : IDestinationEndpoint
+    {
+        private readonly Uri? _destination;
+        private readonly string? _endpointName;
+        private readonly TestMessageContext _parent;
+
+        public DestinationEndpoint(TestMessageContext parent, Uri? destination, string? endpointName)
+        {
+            _parent = parent;
+            _destination = destination;
+            _endpointName = endpointName;
+        }
+
+        public Uri Uri => _destination!;
+        public string EndpointName => _endpointName!;
+
+        public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
+        {
+            var envelope = new Envelope { Message = message, Destination = _destination, EndpointName = _endpointName };
+            options?.Override(envelope);
+
+            _parent._sent.Add(envelope);
+            return ValueTask.CompletedTask;
+        }
+
+        public Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default,
+            TimeSpan? timeout = null)
+        {
+            var envelope = new Envelope { Message = message, Destination = _destination, EndpointName = _endpointName };
+            _parent._sent.Add(envelope);
+            return Task.FromResult(new Acknowledgement());
+        }
+
+        public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default,
+            TimeSpan? timeout = null) where T : class
+        {
+            throw new NotSupportedException();
+        }
     }
 }

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
@@ -192,7 +190,7 @@ public class TrackedSessionConfiguration
 
         return (session, response);
     }
-    
+
     /// <summary>
     ///     Execute a request with expected reply
     /// </summary>
@@ -203,7 +201,10 @@ public class TrackedSessionConfiguration
     {
         T? response = default;
 
-        Func<IMessageContext, Task> invocation = async c => { response = await c.EndpointFor(address).InvokeAsync<T>(request, timeout: _session.Timeout); };
+        Func<IMessageContext, Task> invocation = async c =>
+        {
+            response = await c.EndpointFor(address).InvokeAsync<T>(request, timeout: _session.Timeout);
+        };
 
         var session = await ExecuteAndWaitAsync(invocation);
 

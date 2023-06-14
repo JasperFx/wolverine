@@ -22,7 +22,7 @@ internal class InteropAttributeForwardingNaming : IMessageTypeNaming
             return true;
         }
 
-        messageTypeName = default;
+        messageTypeName = default!;
         return false;
     }
 }
@@ -31,15 +31,14 @@ internal class MessageIdentityAttributeNaming : IMessageTypeNaming
 {
     public bool TryDetermineName(Type messageType, out string messageTypeName)
     {
-        if (messageType.HasAttribute<MessageIdentityAttribute>())
+        if (messageType.TryGetAttribute<MessageIdentityAttribute>(out var att))
         {
-            var att = messageType.GetAttribute<MessageIdentityAttribute>();
-            messageTypeName = att.GetName();
+            messageTypeName = att.GetName()!;
 
             return true;
         }
 
-        messageTypeName = default;
+        messageTypeName = default!;
         return false;
     }
 }
@@ -50,12 +49,13 @@ internal class ForwardNaming : IMessageTypeNaming
     {
         if (messageType.Closes(typeof(IForwardsTo<>)))
         {
-            var forwardedType = messageType.FindInterfaceThatCloses(typeof(IForwardsTo<>))!.GetGenericArguments().Single();
+            var forwardedType = messageType.FindInterfaceThatCloses(typeof(IForwardsTo<>))!.GetGenericArguments()
+                .Single();
             messageTypeName = forwardedType.ToMessageTypeName();
             return true;
         }
 
-        messageTypeName = default;
+        messageTypeName = default!;
         return false;
     }
 }
@@ -63,7 +63,7 @@ internal class ForwardNaming : IMessageTypeNaming
 internal class FullTypeNaming : IMessageTypeNaming
 {
     private static readonly Regex _aliasSanitizer = new("<|>", RegexOptions.Compiled);
-    
+
     public bool TryDetermineName(Type messageType, out string messageTypeName)
     {
         var nameToAlias = messageType.FullName;
@@ -98,7 +98,7 @@ internal class InteropAssemblyInterfaces : IMessageTypeNaming
             return true;
         }
 
-        messageTypeName = default;
+        messageTypeName = default!;
         return false;
     }
 }
@@ -116,9 +116,11 @@ public static class WolverineMessageNaming
         new FullTypeNaming()
     };
 
+
+
     /// <summary>
-    /// Tag an assembly as containing message types that should be used for interoperability with
-    /// NServiceBus or MassTransit
+    ///     Tag an assembly as containing message types that should be used for interoperability with
+    ///     NServiceBus or MassTransit
     /// </summary>
     /// <param name="assembly"></param>
     public static void AddMessageInterfaceAssembly(Assembly assembly)
@@ -126,19 +128,6 @@ public static class WolverineMessageNaming
         var naming = _namingStrategies.OfType<InteropAssemblyInterfaces>().Single();
         naming.Assemblies.Fill(assembly);
     }
-    
-    
-    private static readonly Type[] _tupleTypes =
-    {
-        typeof(ValueTuple<>),
-        typeof(ValueTuple<,>),
-        typeof(ValueTuple<,,>),
-        typeof(ValueTuple<,,,>),
-        typeof(ValueTuple<,,,,>),
-        typeof(ValueTuple<,,,,,>),
-        typeof(ValueTuple<,,,,,,>),
-        typeof(ValueTuple<,,,,,,,>)
-    };
 
     public static string GetPrettyName(this Type t)
     {
@@ -182,5 +171,4 @@ public static class WolverineMessageNaming
 
         return type.Name;
     }
-
 }

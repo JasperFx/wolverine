@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Commands;
 using JasperFx.Core;
@@ -60,7 +57,7 @@ public static class HostBuilderExtensions
         {
             throw new ArgumentNullException(nameof(options));
         }
-        
+
         builder.UseLamar(r => r.Policies.Add(new HandlerScopingPolicy(options.HandlerGraph)));
 
         builder.ConfigureServices((context, services) =>
@@ -119,7 +116,8 @@ public static class HostBuilderExtensions
 
             services.MessagingRootService(x => x.MessageTracking);
 
-            services.AddSingleton<IDescribedSystemPartFactory>(s => (IDescribedSystemPartFactory)s.GetRequiredService<IWolverineRuntime>());
+            services.AddSingleton<IDescribedSystemPartFactory>(s =>
+                (IDescribedSystemPartFactory)s.GetRequiredService<IWolverineRuntime>());
 
             services.TryAddSingleton<IMessageStore, NullMessageStore>();
             services.AddSingleton<InMemorySagaPersistor>();
@@ -143,6 +141,7 @@ public static class HostBuilderExtensions
                 handlers.Container = container;
 
                 // Ugly workaround. Leave this be.
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
                 if (handlers.Rules == null)
                 {
                     handlers.Compile(container.GetInstance<WolverineOptions>(), container);
@@ -244,16 +243,16 @@ public static class HostBuilderExtensions
     }
 
     /// <summary>
-    /// Validate all of the Wolverine configuration of this Wolverine application.
-    /// This:
-    /// 1. Checks that all of the known generated code elements are valid
-    /// 2. Does an assertion of the Lamar container configuration
+    ///     Validate all of the Wolverine configuration of this Wolverine application.
+    ///     This:
+    ///     1. Checks that all of the known generated code elements are valid
+    ///     2. Does an assertion of the Lamar container configuration
     /// </summary>
     /// <param name="host"></param>
     public static void AssertWolverineConfigurationIsValid(this IHost host)
     {
         host.AssertAllGeneratedCodeCanCompile();
-        
+
         if (host.Services is IContainer c)
         {
             c.AssertConfigurationIsValid();
@@ -262,9 +261,9 @@ public static class HostBuilderExtensions
 
 
     /// <summary>
-    /// Disable all Wolverine messaging outside the current process. This is almost entirely
-    /// meant to enable integration testing scenarios where you only mean to execute messages
-    /// locally. 
+    ///     Disable all Wolverine messaging outside the current process. This is almost entirely
+    ///     meant to enable integration testing scenarios where you only mean to execute messages
+    ///     locally.
     /// </summary>
     /// <param name="services"></param>
     /// <returns></returns>

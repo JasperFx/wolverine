@@ -1,5 +1,4 @@
 using System.Reflection;
-using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -20,7 +19,7 @@ internal class MessageBusStrategy : IParameterStrategy
             return true;
         }
 
-        variable = null;
+        variable = default!;
         return false;
     }
 }

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 
@@ -23,7 +19,7 @@ public static class TestingExtensions
     {
         if (message is Envelope e)
         {
-            return e.Message;
+            return e.Message!;
         }
 
         return message;
@@ -31,6 +27,7 @@ public static class TestingExtensions
 
     private static object[] resolveMessages(this IEnumerable<object> messages)
     {
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         return messages.Select(x => x.toMessage()).Where(x => x != null)
             .ToArray();
     }
@@ -45,8 +42,7 @@ public static class TestingExtensions
             return "[no messages]";
         }
 
-        return actual
-            .Select(x => x.ToString()).Join(", ");
+        return actual.Select(x => x.ToString()!).Join(", ");
     }
 
     /// <summary>
@@ -59,9 +55,10 @@ public static class TestingExtensions
     /// <exception cref="WolverineMessageExpectationException"></exception>
     public static Envelope FindForMessageType<T>(this IEnumerable<Envelope> envelopes)
     {
-        return envelopes.FirstOrDefault(x => x.Message is T) ?? throw new WolverineMessageExpectationException(
-            $"Could not find an envelope with message type {typeof(T).FullNameInCode()}. The actual messages were {envelopes.toListOfMessages()}",
-            envelopes.resolveMessages());
+        var values = envelopes.ToArray();
+        return values.FirstOrDefault(x => x.Message is T) ?? throw new WolverineMessageExpectationException(
+            $"Could not find an envelope with message type {typeof(T).FullNameInCode()}. The actual messages were {values.toListOfMessages()}",
+            values.resolveMessages());
     }
 
     /// <summary>
@@ -76,6 +73,7 @@ public static class TestingExtensions
             return;
         }
 
+        // ReSharper disable once PossibleMultipleEnumeration
         if (messages.Any())
         {
             throw new WolverineMessageExpectationException(

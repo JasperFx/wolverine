@@ -1,14 +1,10 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using FastExpressionCompiler;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
-using Wolverine.Runtime;
 using Wolverine.Util;
 
 namespace Wolverine.Transports;
@@ -26,12 +22,11 @@ public interface IIncomingMapper<TIncoming>
 
 public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>
 {
-
 }
 
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>
 {
-    private const string datetimeoffset_format = "yyyy-MM-dd HH:mm:ss:ffffff Z";
+    private const string DateTimeOffsetFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
     private readonly Endpoint _endpoint;
 
     private readonly Dictionary<PropertyInfo, string> _envelopeToHeader = new();
@@ -39,14 +34,12 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     private readonly Dictionary<PropertyInfo, Action<Envelope, TOutgoing>> _envelopeToOutgoing = new();
 
     private readonly Dictionary<PropertyInfo, Action<Envelope, TIncoming>> _incomingToEnvelope = new();
-    private readonly IWolverineRuntime _runtime;
-    private readonly Lazy<Action<Envelope, TIncoming>> _mapIncoming = null!;
-    private readonly Lazy<Action<Envelope, TOutgoing>> _mapOutgoing = null!;
+    private readonly Lazy<Action<Envelope, TIncoming>> _mapIncoming;
+    private readonly Lazy<Action<Envelope, TOutgoing>> _mapOutgoing;
 
-    public EnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime)
+    public EnvelopeMapper(Endpoint endpoint)
     {
         _endpoint = endpoint;
-        _runtime = runtime;
 
         _mapIncoming = new Lazy<Action<Envelope, TIncoming>>(compileIncoming);
         _mapOutgoing = new Lazy<Action<Envelope, TOutgoing>>(compileOutgoing);
@@ -54,7 +47,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         MapPropertyToHeader(x => x.CorrelationId!, EnvelopeConstants.CorrelationIdKey);
         MapPropertyToHeader(x => x.SagaId!, EnvelopeConstants.SagaIdKey);
         MapPropertyToHeader(x => x.Id, EnvelopeConstants.IdKey);
-        MapPropertyToHeader(x => x.ConversationId!, EnvelopeConstants.ConversationIdKey);
+        MapPropertyToHeader(x => x.ConversationId, EnvelopeConstants.ConversationIdKey);
         MapPropertyToHeader(x => x.ParentId!, EnvelopeConstants.ParentIdKey);
         MapPropertyToHeader(x => x.ContentType!, EnvelopeConstants.ContentTypeKey);
         MapPropertyToHeader(x => x.Source!, EnvelopeConstants.SourceKey);
@@ -399,13 +392,13 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (value.HasValue)
         {
-            writeOutgoingHeader(outgoing, key, value.Value.ToUniversalTime().ToString(datetimeoffset_format)!);
+            writeOutgoingHeader(outgoing, key, value.Value.ToUniversalTime().ToString(DateTimeOffsetFormat));
         }
     }
 
     protected void writeDateTimeOffset(TOutgoing outgoing, string key, DateTimeOffset value)
     {
-        writeOutgoingHeader(outgoing, key, value.ToUniversalTime().ToString(datetimeoffset_format));
+        writeOutgoingHeader(outgoing, key, value.ToUniversalTime().ToString(DateTimeOffsetFormat));
     }
 
     protected Guid readGuid(TIncoming incoming, string key)
@@ -451,7 +444,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
-            if (DateTimeOffset.TryParseExact(raw, datetimeoffset_format, null, DateTimeStyles.AssumeUniversal,
+            if (DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat, null, DateTimeStyles.AssumeUniversal,
                     out var flag))
             {
                 return flag;

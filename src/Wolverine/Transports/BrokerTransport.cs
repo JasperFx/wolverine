@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Oakton.Resources;
@@ -74,21 +72,18 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     public sealed override async ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
         runtime.Logger.LogInformation("Initializing the Wolverine {TransportName}", GetType().Name);
-        
+
         tryBuildSystemEndpoints(runtime);
 
         await ConnectAsync(runtime);
 
-        foreach (var endpoint in endpoints())
-        {
-            await endpoint.InitializeAsync(runtime.Logger);
-        }
+        foreach (var endpoint in endpoints()) await endpoint.InitializeAsync(runtime.Logger);
     }
 
 
     /// <summary>
-    /// Template method hook to build dedicated response endpoints
-    /// or dead letter queue endpoints for the transport
+    ///     Template method hook to build dedicated response endpoints
+    ///     or dead letter queue endpoints for the transport
     /// </summary>
     /// <param name="runtime"></param>
     protected virtual void tryBuildSystemEndpoints(IWolverineRuntime runtime)

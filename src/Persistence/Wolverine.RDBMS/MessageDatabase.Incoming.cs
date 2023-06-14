@@ -9,18 +9,9 @@ public abstract partial class MessageDatabase<T>
 {
     private readonly string _deleteIncomingEnvelopeById;
     private readonly string _incrementIncominEnvelopeAttempts;
-    public abstract Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception);
 
     public abstract Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     public abstract Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
-
-    public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
-    {
-        return CreateCommand(_deleteIncomingEnvelopeById)
-            .With("id", envelope.Id)
-            .With("keepUntil", DateTimeOffset.UtcNow.Add(Durability.KeepAfterMessageHandling))
-            .ExecuteOnce(_cancellation);
-    }
 
     public Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
@@ -31,7 +22,44 @@ public abstract partial class MessageDatabase<T>
 
         return cmd.ExecuteNonQueryAsync(_cancellation);
     }
-    
+
+    public async Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+
+        var cmd = conn.CreateCommand(
+            $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id");
+        cmd.With("id", id);
+
+        await using var reader = await cmd.ExecuteReaderAsync(_cancellation);
+        if (!await reader.ReadAsync(_cancellation))
+        {
+            return null;
+        }
+
+        var body = await reader.GetFieldValueAsync<byte[]>(2, _cancellation);
+        var envelope = EnvelopeSerializer.Deserialize(body);
+
+        var report = new ErrorReport(envelope)
+        {
+            ExceptionType = await reader.GetFieldValueAsync<string>(6, _cancellation),
+            ExceptionMessage = await reader.GetFieldValueAsync<string>(7, _cancellation)
+        };
+
+        return report;
+    }
+
+    public abstract Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception);
+
+    public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
+    {
+        return CreateCommand(_deleteIncomingEnvelopeById)
+            .With("id", envelope.Id)
+            .With("keepUntil", DateTimeOffset.UtcNow.Add(Durability.KeepAfterMessageHandling))
+            .ExecuteOnce(_cancellation);
+    }
+
     public Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
         return CreateCommand(_incrementIncominEnvelopeAttempts)
@@ -71,33 +99,6 @@ public abstract partial class MessageDatabase<T>
         cmd.Connection = conn;
 
         await cmd.ExecuteNonQueryAsync(_cancellation);
-    }
-
-    public async Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
-    {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
-        var cmd = conn.CreateCommand(
-            $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id");
-        cmd.With("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(_cancellation);
-        if (!await reader.ReadAsync(_cancellation))
-        {
-            return null;
-        }
-
-        var body = await reader.GetFieldValueAsync<byte[]>(2, _cancellation);
-        var envelope = EnvelopeSerializer.Deserialize(body);
-
-        var report = new ErrorReport(envelope)
-        {
-            ExceptionType = await reader.GetFieldValueAsync<string>(6, _cancellation),
-            ExceptionMessage = await reader.GetFieldValueAsync<string>(7, _cancellation)
-        };
-
-        return report;
     }
 
     protected abstract bool isExceptionFromDuplicateEnvelope(Exception ex);

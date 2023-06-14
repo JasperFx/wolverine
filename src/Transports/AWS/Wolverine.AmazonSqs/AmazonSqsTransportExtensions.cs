@@ -1,4 +1,3 @@
-using System.Net;
 using Amazon.SQS;
 using JasperFx.Core.Reflection;
 using Wolverine.AmazonSqs.Internal;

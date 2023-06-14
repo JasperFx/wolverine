@@ -1,10 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using JasperFx.Core.Reflection;
-using JasperFx.TypeDiscovery;
 
 namespace Wolverine.Runtime.Serialization;
 
@@ -19,14 +14,7 @@ internal class Forwarders
             .GetGenericArguments()
             .Single();
 
-        if (Relationships.ContainsKey(type))
-        {
-            Relationships[type] = forwardedType;
-        }
-        else
-        {
-            Relationships.Add(type, forwardedType);
-        }
+        Relationships[type] = forwardedType;
     }
 
     public void FindForwards(Assembly assembly)

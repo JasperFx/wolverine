@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
@@ -20,18 +15,17 @@ namespace Wolverine.Runtime.Routing;
 
 public class MessageRoute : IMessageRoute, IMessageInvoker
 {
-    private readonly IReplyTracker _replyTracker;
-
     private static ImHashMap<Type, IList<IEnvelopeRule>> _rulesByMessageType =
         ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 
-    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies) : this(endpoint.DefaultSerializer!, endpoint.Agent!,
+    private readonly IReplyTracker _replyTracker;
+
+    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies) : this(endpoint.DefaultSerializer!,
+        endpoint.Agent!,
         endpoint.OutgoingRules.Concat(RulesForMessageType(messageType)), replies)
     {
         IsLocal = endpoint is LocalQueue;
     }
-
-    public bool IsLocal { get; }
 
     public MessageRoute(IMessageSerializer serializer, ISendingAgent sender, IEnumerable<IEnvelopeRule> rules,
         IReplyTracker replyTracker)
@@ -44,10 +38,18 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         IsLocal = sender.Endpoint is LocalQueue;
     }
 
+    public bool IsLocal { get; }
+
     public IMessageSerializer Serializer { get; }
     public ISendingAgent Sender { get; }
 
     public IList<IEnvelopeRule> Rules { get; } = new List<IEnvelopeRule>();
+
+    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
+    {
+        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout);
+    }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime)
@@ -57,7 +59,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         {
             envelope.Status = EnvelopeStatus.Incoming;
         }
-        
+
         if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != envelope.ContentType)
         {
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
@@ -84,6 +86,43 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         return envelope;
     }
 
+    public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        bus.Runtime.RegisterMessageType(typeof(T));
+
+        timeout ??= 5.Seconds();
+
+
+        var envelope = new Envelope(message, Sender);
+        foreach (var rule in Rules) rule.Modify(envelope);
+        if (typeof(T) == typeof(Acknowledgement))
+        {
+            envelope.AckRequested = true;
+        }
+        else
+        {
+            envelope.ReplyRequested = typeof(T).ToMessageTypeName();
+        }
+
+        envelope.DeliverWithin = timeout.Value;
+        envelope.Sender = Sender;
+
+        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
+
+        var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout.Value);
+
+        await Sender.EnqueueOutgoingAsync(envelope);
+
+        return await waiter;
+    }
+
     public static IEnumerable<IEnvelopeRule> RulesForMessageType(Type type)
     {
         if (_rulesByMessageType.TryFind(type, out var rules))
@@ -96,47 +135,4 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
         return rules;
     }
-
-    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
-    {
-        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout);
-    }
-
-    public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
-        CancellationToken cancellation = default,
-        TimeSpan? timeout = null) 
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-        
-        bus.Runtime.RegisterMessageType(typeof(T));
-        
-        timeout ??= 5.Seconds();
-        
-
-        var envelope = new Envelope(message, Sender);
-        foreach (var rule in Rules) rule.Modify(envelope);
-        if (typeof(T) == typeof(Acknowledgement))
-        {
-            envelope.AckRequested = true;
-        }
-        else
-        {
-            envelope.ReplyRequested = typeof(T).ToMessageTypeName();
-        }
-        
-        envelope.DeliverWithin = timeout.Value;
-        envelope.Sender = Sender;
-
-        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
-
-        var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout!.Value);
-
-        await Sender.EnqueueOutgoingAsync(envelope);
-
-        return await waiter;
-    }
-
 }

@@ -1,4 +1,3 @@
-using System;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.Extensions.Logging;
 
@@ -6,13 +5,11 @@ namespace Wolverine.Runtime.Handlers;
 
 public class LoggerVariableSource : IVariableSource
 {
-    private readonly Type _messageType;
-    private readonly Type _loggerType;
     private readonly InjectedField _field;
+    private readonly Type _loggerType;
 
     public LoggerVariableSource(Type messageType)
     {
-        _messageType = messageType;
         _loggerType = typeof(ILogger<>).MakeGenericType(messageType);
 
         _field = new InjectedField(_loggerType, "loggerForMessage");
@@ -25,9 +22,15 @@ public class LoggerVariableSource : IVariableSource
 
     public Variable Create(Type type)
     {
-        if (type == typeof(ILogger)) return new CastVariable(_field, typeof(ILogger));
+        if (type == typeof(ILogger))
+        {
+            return new CastVariable(_field, typeof(ILogger));
+        }
 
-        if (type == _loggerType) return _field;
+        if (type == _loggerType)
+        {
+            return _field;
+        }
 
         throw new ArgumentOutOfRangeException(nameof(type));
     }

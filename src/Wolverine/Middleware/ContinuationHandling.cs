@@ -5,22 +5,25 @@ namespace Wolverine.Middleware;
 
 public static class ContinuationHandling
 {
-    public static readonly string CONTINUATIONS = "CONTINUATIONS";
+    public static readonly string Continuations = "CONTINUATIONS";
 
     public static List<IContinuationStrategy> ContinuationStrategies(this GenerationRules rules)
     {
-        if (rules.Properties.TryGetValue(CONTINUATIONS, out var raw) &&
-            raw is List<IContinuationStrategy> list) return list;
+        if (rules.Properties.TryGetValue(Continuations, out var raw) &&
+            raw is List<IContinuationStrategy> list)
+        {
+            return list;
+        }
 
-        return new List<IContinuationStrategy>{new HandlerContinuationPolicy()};
+        return new List<IContinuationStrategy> { new HandlerContinuationPolicy() };
     }
-    
+
     /// <summary>
     ///     The currently known strategy for code generating transaction middleware
     /// </summary>
     public static void AddContinuationStrategy<T>(this GenerationRules rules) where T : IContinuationStrategy, new()
     {
-        if (rules.Properties.TryGetValue(CONTINUATIONS, out var raw) && raw is List<IContinuationStrategy> list)
+        if (rules.Properties.TryGetValue(Continuations, out var raw) && raw is List<IContinuationStrategy> list)
         {
             if (!list.OfType<T>().Any())
             {
@@ -32,21 +35,21 @@ public static class ContinuationHandling
             list = new List<IContinuationStrategy>();
             list.Add(new HandlerContinuationPolicy());
             list.Add(new T());
-            rules.Properties[CONTINUATIONS] = list;
+            rules.Properties[Continuations] = list;
         }
     }
-    
+
     public static bool TryFindContinuationHandler(this GenerationRules rules, MethodCall call, out Frame? frame)
     {
         var strategies = rules.ContinuationStrategies();
         foreach (var strategy in strategies)
-        {
-            if (strategy.TryFindContinuationHandler(call, out frame)) return true;
-        }
+            if (strategy.TryFindContinuationHandler(call, out frame))
+            {
+                return true;
+            }
 
         frame = null;
         return false;
-
     }
 }
 

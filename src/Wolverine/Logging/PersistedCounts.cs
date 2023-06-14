@@ -21,7 +21,7 @@ public class PersistedCounts
     ///     Number of previously handled messages temporarily persisted in the durable inbox for idempotency checks
     /// </summary>
     public int Handled { get; set; }
-    
+
     /// <summary>
     ///     Number of error messages currently persisted in the dead letter
     /// </summary>

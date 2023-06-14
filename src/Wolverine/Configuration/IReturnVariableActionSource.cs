@@ -4,8 +4,8 @@ using Wolverine.Runtime.Handlers;
 namespace Wolverine.Configuration;
 
 /// <summary>
-/// Given a return variable from a handler method, return a Frame
-/// for how Wolverine should handle that return value
+///     Given a return variable from a handler method, return a Frame
+///     for how Wolverine should handle that return value
 /// </summary>
 public interface IReturnVariableActionSource
 {
@@ -19,4 +19,3 @@ internal class CascadingMessageActionSource : IReturnVariableActionSource
         return new CascadeMessage(variable);
     }
 }
-

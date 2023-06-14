@@ -1,8 +1,8 @@
 namespace Wolverine.Attributes;
 
 /// <summary>
-/// Marks a member on a message type to be audited in message activity logging, Open Telemetry activity tags,
-/// and in performance metrics
+///     Marks a member on a message type to be audited in message activity logging, Open Telemetry activity tags,
+///     and in performance metrics
 /// </summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
 public class AuditAttribute : Attribute
@@ -12,7 +12,7 @@ public class AuditAttribute : Attribute
     }
 
     /// <summary>
-    /// Override the audit heading instead of using the member name
+    ///     Override the audit heading instead of using the member name
     /// </summary>
     /// <param name="heading"></param>
     public AuditAttribute(string? heading)
@@ -21,7 +21,7 @@ public class AuditAttribute : Attribute
     }
 
     /// <summary>
-    /// Optional 
+    ///     Optional
     /// </summary>
     public string? Heading { get; set; }
 }

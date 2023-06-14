@@ -23,7 +23,7 @@ public partial class Envelope
 {
     private bool _enqueued;
 
-    private List<KeyValuePair<string, object?>> _metricHeaders;
+    private List<KeyValuePair<string, object?>>? _metricHeaders;
     private Stopwatch? _timer;
 
     internal Envelope(object message, ISendingAgent agent)
@@ -69,7 +69,7 @@ public partial class Envelope
 
     public IListener? Listener { get; private set; }
     public bool IsResponse { get; set; }
-    public Exception Failure { get; set; }
+    public Exception? Failure { get; set; }
 
     internal void StartTiming()
     {
@@ -127,7 +127,7 @@ public partial class Envelope
     {
         _metricHeaders ??= new List<KeyValuePair<string, object?>>();
 
-        _metricHeaders.Add(new KeyValuePair<string, object>(tagName, value));
+        _metricHeaders.Add(new KeyValuePair<string, object?>(tagName, value));
     }
 
     internal void MarkReceived(IListener listener, DateTimeOffset now, DurabilitySettings settings)
@@ -273,6 +273,4 @@ public partial class Envelope
 
         return ValueTask.CompletedTask;
     }
-
-
 }

@@ -1,12 +1,11 @@
-﻿using System;
-using JasperFx.CodeGeneration;
-using JasperFx.Core.Reflection;
+﻿using JasperFx.Core.Reflection;
 
 namespace Wolverine.Runtime.Routing;
 
 public class IndeterminateRoutesException : Exception
 {
-    public IndeterminateRoutesException(Envelope? envelope) : base($"Could not determine any valid routes for {envelope}")
+    public IndeterminateRoutesException(Envelope? envelope) : base(
+        $"Could not determine any valid routes for {envelope}")
     {
     }
 

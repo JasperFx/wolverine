@@ -86,7 +86,7 @@ public static class EnvelopeSerializer
                 case EnvelopeConstants.DeliverByKey:
                     env.DeliverBy = DateTime.Parse(value);
                     break;
-                
+
                 case EnvelopeConstants.TenantIdKey:
                     env.TenantId = value;
                     break;
@@ -145,7 +145,7 @@ public static class EnvelopeSerializer
         {
             SentAt = DateTime.FromBinary(br.ReadInt64())
         };
-        
+
         var headerCount = br.ReadInt32();
 
         for (var j = 0; j < headerCount; j++)
@@ -216,7 +216,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.SagaIdKey, env.SagaId);
         writer.WriteProp(ref count, EnvelopeConstants.ParentIdKey, env.ParentId);
         writer.WriteProp(ref count, EnvelopeConstants.TenantIdKey, env.TenantId);
-        
+
         if (env.AcceptedContentTypes.Any())
         {
             writer.WriteProp(ref count, EnvelopeConstants.AcceptedContentTypesKey,

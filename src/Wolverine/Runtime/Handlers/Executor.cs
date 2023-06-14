@@ -29,22 +29,23 @@ internal class Executor : IExecutor
     public const int MessageFailedEventId = 105;
     public const int ExecutionStartedEventId = 102;
     public const int ExecutionFinishedEventId = 103;
-    
+
     private readonly ObjectPool<MessageContext> _contextPool;
-    private readonly IMessageHandler _handler;
-    private readonly IMessageTracker _tracker;
-    private readonly FailureRuleCollection _rules;
-    private readonly TimeSpan _timeout;
-    private readonly ILogger _logger;
-    
-    private readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
-    private readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
     private readonly Action<ILogger, string, string, Guid, Exception?> _executionFinished;
     private readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
-    
-    private readonly string _messageTypeName;
+    private readonly IMessageHandler _handler;
+    private readonly ILogger _logger;
 
-    public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler, FailureRuleCollection rules, TimeSpan timeout)
+    private readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
+    private readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
+
+    private readonly string _messageTypeName;
+    private readonly FailureRuleCollection _rules;
+    private readonly TimeSpan _timeout;
+    private readonly IMessageTracker _tracker;
+
+    public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler,
+        FailureRuleCollection rules, TimeSpan timeout)
     {
         _handler = handler;
         _timeout = timeout;
@@ -53,7 +54,7 @@ internal class Executor : IExecutor
         _contextPool = contextPool;
 
         _logger = runtime.LoggerFactory.CreateLogger(handler.MessageType);
-        
+
         _messageSucceeded =
             LoggerMessage.Define<string, Guid, string>(handler.ExecutionLogLevel, MessageSucceededEventId,
                 "Successfully processed message {Name}#{envelope} from {ReplyUri}");
@@ -66,18 +67,21 @@ internal class Executor : IExecutor
 
         _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
             "{CorrelationId}: Finished processing {Name}#{Id}");
+        
+        _messageTypeName = handler.MessageType.ToMessageTypeName();
     }
 
-    public Executor(ObjectPool<MessageContext> contextPool, ILogger logger, IMessageHandler handler, IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout)
+    public Executor(ObjectPool<MessageContext> contextPool, ILogger logger, IMessageHandler handler,
+        IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout)
     {
         _contextPool = contextPool;
         _handler = handler;
         _tracker = tracker;
         _rules = rules;
         _timeout = timeout;
-        
+
         _logger = logger;
-        
+
         _messageSucceeded =
             LoggerMessage.Define<string, Guid, string>(LogLevel.Information, MessageSucceededEventId,
                 "Successfully processed message {Name}#{envelope} from {ReplyUri}");
@@ -86,13 +90,12 @@ internal class Executor : IExecutor
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
         _messageTypeName = handler.MessageType.ToMessageTypeName();
-        
+
         _executionStarted = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
             "{CorrelationId}: Started processing {Name}#{Id}");
 
         _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
             "{CorrelationId}: Finished processing {Name}#{Id}");
-
     }
 
     public async Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation)
@@ -117,7 +120,7 @@ internal class Executor : IExecutor
             await context.FlushOutgoingMessagesAsync();
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
-            _executionFinished(_logger, envelope!.CorrelationId, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
         catch (Exception e)
         {
@@ -128,13 +131,13 @@ internal class Executor : IExecutor
         }
         finally
         {
-            
             _contextPool.Return(context);
             activity?.Stop();
         }
     }
 
-    public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
     {
         var envelope = new Envelope(message)
         {
@@ -142,20 +145,21 @@ internal class Executor : IExecutor
             ReplyRequested = typeof(T).ToMessageTypeName(),
             ResponseType = typeof(T)
         };
-        
+
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
-        
+
         await InvokeInlineAsync(envelope, cancellation);
 
         if (envelope.Response == null)
         {
-            return default;
+            return default!;
         }
 
         return (T)envelope.Response;
     }
 
-    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
     {
         var envelope = new Envelope(message);
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
@@ -166,9 +170,9 @@ internal class Executor : IExecutor
     {
         var envelope = context.Envelope;
         _tracker.ExecutionStarted(envelope!);
-        _executionStarted(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
-        
-        envelope!.Attempts++;
+        _executionStarted(_logger, envelope!.CorrelationId!, _messageTypeName, envelope.Id, null);
+
+        envelope.Attempts++;
 
         using var timeout = new CancellationTokenSource(_timeout);
         using var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellation);
@@ -180,14 +184,15 @@ internal class Executor : IExecutor
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
                 envelope.Destination!.ToString(), null);
-            
+
             return MessageSucceededContinuation.Instance;
         }
         catch (Exception e)
         {
             _messageFailed(_logger, _messageTypeName, envelope.Id, envelope.Destination!.ToString(), e);
-            
-            _logger.LogError(e, "Failure during message processing execution of message {Id}, {Message}", context.Envelope.Id, context.Envelope.Message);
+
+            _logger.LogError(e, "Failure during message processing execution of message {Id}, {Message}",
+                context.Envelope!.Id, context.Envelope.Message);
             _tracker
                 .ExecutionFinished(envelope, e); // Need to do this to make the MessageHistory complete
 
@@ -198,7 +203,7 @@ internal class Executor : IExecutor
         }
         finally
         {
-            _tracker.ExecutionFinished(envelope!);
+            _tracker.ExecutionFinished(envelope);
             _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }
@@ -236,10 +241,12 @@ internal class Executor : IExecutor
 
     internal Executor WrapWithMessageTracking(IMessageSuccessTracker tracker)
     {
-        return new Executor(_contextPool, _logger, new CircuitBreakerWrappedMessageHandler(_handler, tracker), _tracker, _rules, _timeout);
+        return new Executor(_contextPool, _logger, new CircuitBreakerWrappedMessageHandler(_handler, tracker), _tracker,
+            _rules, _timeout);
     }
 
-    public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool, HandlerGraph handlerGraph, Type messageType)
+    public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool,
+        HandlerGraph handlerGraph, Type messageType)
     {
         var handler = handlerGraph.HandlerFor(messageType);
         if (handler == null)

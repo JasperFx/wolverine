@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -24,7 +22,10 @@ internal class NpgsqlConnectionInstance : Instance
         Name = Variable.DefaultArgName(serviceType);
     }
 
-    public override bool RequiresServiceProvider(IMethodVariables method) => false;
+    public override bool RequiresServiceProvider(IMethodVariables method)
+    {
+        return false;
+    }
 
 
     public override Func<Scope, object> ToResolver(Scope topScope)

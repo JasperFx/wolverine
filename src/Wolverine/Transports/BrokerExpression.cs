@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 
@@ -9,7 +7,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     TSubscriber, TSelf>
     where TSelf : BrokerExpression<TTransport, TListenerEndpoint, TSubscriberEndpoint, TListenerExpression, TSubscriber,
         TSelf>
-    where TTransport : IBrokerTransport
+    where TTransport : class, IBrokerTransport
     where TListenerEndpoint : Endpoint
     where TSubscriberEndpoint : Endpoint
 {
@@ -73,7 +71,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     /// <returns></returns>
     public TSelf ConfigureListeners(Action<TListenerExpression> configure)
     {
-        var policy = new LambdaEndpointPolicy<TListenerEndpoint>((e, runtime) =>
+        var policy = new LambdaEndpointPolicy<TListenerEndpoint>((e, _) =>
         {
             if (e.Role == EndpointRole.System)
             {
@@ -105,7 +103,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
     /// <returns></returns>
     public TSelf ConfigureSenders(Action<TSubscriber> configure)
     {
-        var policy = new LambdaEndpointPolicy<TSubscriberEndpoint>((e, runtime) =>
+        var policy = new LambdaEndpointPolicy<TSubscriberEndpoint>((e, _) =>
         {
             if (e.Role == EndpointRole.System)
             {

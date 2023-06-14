@@ -1,7 +1,6 @@
 #nullable enable
 
 using System.Threading.Tasks.Dataflow;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
@@ -175,6 +174,11 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     public Type? MessageType { get; set; }
 
+    /// <summary>
+    ///     Number of parallel listeners for this endpoint
+    /// </summary>
+    public int ListenerCount { get; set; }
+
 
     /// <summary>
     ///     Duration of time to wait before attempting to "ping" a transport
@@ -193,11 +197,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     ///     if an outgoing transport fails.
     /// </summary>
     public int MaximumEnvelopeRetryStorage { get; set; } = 100;
-
-    /// <summary>
-    /// Number of parallel listeners for this endpoint
-    /// </summary>
-    public int ListenerCount { get; set; }
 
     public virtual IDictionary<string, object> DescribeProperties()
     {
@@ -254,7 +253,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
 
-        foreach (var configuration in DelayedConfiguration.ToArray()) configuration?.Apply();
+        foreach (var configuration in DelayedConfiguration.ToArray()) configuration.Apply();
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 

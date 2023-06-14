@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core.Reflection;
 
 namespace Wolverine.Runtime;
@@ -22,6 +19,6 @@ public partial class WolverineRuntime : IAsyncDisposable
 
         DurabilitySettings.Cancel();
 
-        ScheduledJobs?.Dispose();
+        ScheduledJobs.Dispose();
     }
 }

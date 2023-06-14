@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using Wolverine.Attributes;
 using Wolverine.Util;
 
@@ -13,7 +11,11 @@ public partial class Envelope
     private byte[]? _data;
     private DateTimeOffset? _deliverBy;
 
+    private TimeSpan? _deliverWithin;
+
     private object? _message;
+
+    private TimeSpan? _scheduleDelay;
     private DateTimeOffset? _scheduledTime;
 
     public Envelope()
@@ -59,30 +61,30 @@ public partial class Envelope
         set => _scheduledTime = value?.ToUniversalTime();
     }
 
-    private TimeSpan? _deliverWithin;
-
     /// <summary>
-    /// Set the DeliverBy property to have this message thrown away
-    /// if it cannot be sent before the allotted time. This value if set
-    /// is retained for testing purposes
+    ///     Set the DeliverBy property to have this message thrown away
+    ///     if it cannot be sent before the allotted time. This value if set
+    ///     is retained for testing purposes
     /// </summary>
     /// <value></value>
     public TimeSpan? DeliverWithin
     {
         set
         {
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            if (value == null)
+            {
+                throw new ArgumentNullException(nameof(value));
+            }
+
             DeliverBy = DateTimeOffset.Now.Add(value.Value);
             _deliverWithin = value;
         }
         get => _deliverWithin;
     }
 
-    private TimeSpan? _scheduleDelay;
-    
     /// <summary>
-    /// Set the ScheduleTime to now plus the value of the supplied TimeSpan.
-    /// If set, this value is retained just for the sake of testing
+    ///     Set the ScheduleTime to now plus the value of the supplied TimeSpan.
+    ///     If set, this value is retained just for the sake of testing
     /// </summary>
     public TimeSpan? ScheduleDelay
     {
@@ -197,10 +199,10 @@ public partial class Envelope
     ///     activity across services
     /// </summary>
     public string? ParentId { get; internal set; }
-    
+
     /// <summary>
-    /// User defined tenant identifier for multi-tenancy strategies. This is
-    /// part of metrics reporting and message correlation
+    ///     User defined tenant identifier for multi-tenancy strategies. This is
+    ///     part of metrics reporting and message correlation
     /// </summary>
     public string? TenantId { get; set; }
 
@@ -264,7 +266,7 @@ public partial class Envelope
         {
             text += $"/CorrelationId={CorrelationId}";
         }
-        
+
         if (Message != null)
         {
             text += $" ({Message.GetType().Name})";
@@ -312,6 +314,7 @@ public partial class Envelope
 
     public override int GetHashCode()
     {
+        // ReSharper disable once NonReadonlyMemberInGetHashCode
         return Id.GetHashCode();
     }
 

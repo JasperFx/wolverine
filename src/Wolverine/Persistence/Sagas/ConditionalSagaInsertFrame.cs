@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -25,7 +24,7 @@ internal class ConditionalSagaInsertFrame : Frame
         _insert.GenerateCode(method, writer);
 
         writer.FinishBlock();
-        
+
         _commit.GenerateCode(method, writer);
 
         Next?.GenerateCode(method, writer);

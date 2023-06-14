@@ -17,9 +17,7 @@ internal class InternalMessageHandler<T> : IMessageHandler
         var message = (T)context.Envelope!.Message!;
 
         await foreach (var outgoing in _handler.HandleAsync(message).WithCancellation(cancellation))
-        {
             await context.EnqueueCascadingAsync(outgoing);
-        }
     }
 
     public Type MessageType => typeof(T);

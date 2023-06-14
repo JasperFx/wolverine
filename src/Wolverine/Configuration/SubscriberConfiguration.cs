@@ -1,4 +1,3 @@
-using System;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
@@ -102,6 +101,12 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         return this.As<T>();
     }
 
+    public T DeliverWithin(TimeSpan timeToLive)
+    {
+        add(e => e.OutgoingRules.Add(new DeliverWithinRule(timeToLive)));
+        return this.As<T>();
+    }
+
     /// <summary>
     ///     Add an outgoing envelope rule to modify how messages are sent from this
     ///     endpoint
@@ -111,12 +116,6 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
     public T AddOutgoingRule(IEnvelopeRule rule)
     {
         add(e => e.OutgoingRules.Add(rule));
-        return this.As<T>();
-    }
-
-    public T DeliverWithin(TimeSpan timeToLive)
-    {
-        add(e => e.OutgoingRules.Add(new DeliverWithinRule(timeToLive)));
         return this.As<T>();
     }
 }

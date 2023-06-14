@@ -6,7 +6,8 @@ namespace Wolverine.AmazonSqs;
 public static class CreateQueueRequestExtensions
 {
     /// <summary>
-    /// Override the maximum message size for this SQS queue. See https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
+    ///     Override the maximum message size for this SQS queue. See
+    ///     https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
     /// </summary>
     /// <param name="queue"></param>
     /// <param name="maximumSize"></param>
@@ -19,7 +20,8 @@ public static class CreateQueueRequestExtensions
     }
 
     /// <summary>
-    /// The length of time, in seconds, for which Amazon SQS retains a message. See https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
+    ///     The length of time, in seconds, for which Amazon SQS retains a message. See
+    ///     https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
     /// </summary>
     /// <param name="queue"></param>
     /// <param name="numberOfSeconds"></param>
@@ -31,7 +33,8 @@ public static class CreateQueueRequestExtensions
     }
 
     /// <summary>
-    /// The length of time, in seconds, for which a ReceiveMessage action waits for a message to arrive. See https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
+    ///     The length of time, in seconds, for which a ReceiveMessage action waits for a message to arrive. See
+    ///     https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
     /// </summary>
     /// <param name="queue"></param>
     /// <param name="numberOfSeconds"></param>
@@ -43,7 +46,8 @@ public static class CreateQueueRequestExtensions
     }
 
     /// <summary>
-    /// The visibility timeout for the queue, in seconds. See https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
+    ///     The visibility timeout for the queue, in seconds. See
+    ///     https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SetQueueAttributes.html
     /// </summary>
     /// <param name="queue"></param>
     /// <param name="numberOfSeconds"></param>

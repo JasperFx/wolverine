@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Reflection;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.TypeDiscovery;
@@ -10,8 +9,8 @@ namespace Wolverine.Configuration;
 // TODO -- this goes to Core
 public interface IFilter<T>
 {
-    bool Matches(T item);
     string Description { get; }
+    bool Matches(T item);
 }
 
 public class CanCastToFilter : IFilter<Type>
@@ -33,15 +32,10 @@ public class CanCastToFilter : IFilter<Type>
         : $"Inherits from {_baseType.FullNameInCode()}";
 }
 
-public class CompositeFilter<T> : IEnumerable<IFilter<T>> 
+public class CompositeFilter<T> : IEnumerable<IFilter<T>>
 {
     internal List<IFilter<T>> Filters { get; } = new();
-    
-    public bool Matches(T item)
-    {
-        return Filters.Any(x => x.Matches(item));
-    }
-    
+
     public IEnumerator<IFilter<T>> GetEnumerator()
     {
         return Filters.GetEnumerator();
@@ -51,13 +45,18 @@ public class CompositeFilter<T> : IEnumerable<IFilter<T>>
     {
         return GetEnumerator();
     }
-    
+
+    public bool Matches(T item)
+    {
+        return Filters.Any(x => x.Matches(item));
+    }
+
     /// <summary>
-    /// User defined matching condition
+    ///     User defined matching condition
     /// </summary>
     /// <param name="description">Diagnostic description of this condition</param>
     /// <param name="filter"></param>
-    public void WithCondition(string description, Func<T,bool> filter)
+    public void WithCondition(string description, Func<T, bool> filter)
     {
         Filters.Add(new LambdaFilter<T>(description, filter));
     }
@@ -65,8 +64,10 @@ public class CompositeFilter<T> : IEnumerable<IFilter<T>>
 
 public class CompositeTypeFilter : CompositeFilter<Type>
 {
+    public string Description => Filters.Select(x => x.Description).Join(" or ");
+
     /// <summary>
-    /// Match types that have the designated attribute
+    ///     Match types that have the designated attribute
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public void WithAttribute<T>() where T : Attribute
@@ -75,7 +76,7 @@ public class CompositeTypeFilter : CompositeFilter<Type>
     }
 
     /// <summary>
-    /// Match types with the given suffix in the type name. This is case sensitive!
+    ///     Match types with the given suffix in the type name. This is case sensitive!
     /// </summary>
     /// <param name="suffix"></param>
     public void WithNameSuffix(string suffix)
@@ -84,7 +85,7 @@ public class CompositeTypeFilter : CompositeFilter<Type>
     }
 
     /// <summary>
-    /// Match types within the given namespace
+    ///     Match types within the given namespace
     /// </summary>
     /// <param name="ns"></param>
     public void InNamespace(string ns)
@@ -93,7 +94,7 @@ public class CompositeTypeFilter : CompositeFilter<Type>
     }
 
     /// <summary>
-    /// Match types that implement or inherit from type T
+    ///     Match types that implement or inherit from type T
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public void Implements<T>()
@@ -102,7 +103,7 @@ public class CompositeTypeFilter : CompositeFilter<Type>
     }
 
     /// <summary>
-    /// Match types that implement or inherit from the designated type
+    ///     Match types that implement or inherit from the designated type
     /// </summary>
     /// <param name="type"></param>
     public void Implements(Type type)
@@ -115,12 +116,10 @@ public class CompositeTypeFilter : CompositeFilter<Type>
         WithCondition("Is Public", t => t.IsPublic);
     }
 
-    public bool Matches(Type type)
+    public new bool Matches(Type type)
     {
         return Filters.Any(x => x.Matches(type));
     }
-
-    public string Description => Filters.Select(x => x.Description).Join(" or ");
 
     public void IsNotPublic()
     {
@@ -131,25 +130,27 @@ public class CompositeTypeFilter : CompositeFilter<Type>
     {
         WithCondition("Is Static", t => t.IsStatic());
     }
-
-
 }
 
 public class TypeQuery
 {
     private readonly TypeClassification _classification;
-    public CompositeTypeFilter Includes { get; } = new();
-    public CompositeTypeFilter Excludes { get; } = new();
 
     public TypeQuery(TypeClassification classification)
     {
         _classification = classification;
     }
 
-    public TypeQuery(TypeClassification classification, Func<Type, bool> filter) : this(classification)
+    public TypeQuery(TypeClassification classification, Func<Type, bool>? filter) : this(classification)
     {
-        Includes.WithCondition("User-defined", filter);
+        if (filter != null)
+        {
+            Includes.WithCondition("User-defined", filter);
+        }
     }
+
+    public CompositeTypeFilter Includes { get; } = new();
+    public CompositeTypeFilter Excludes { get; } = new();
 
     public IEnumerable<Type> Find(AssemblyTypes assembly)
     {
@@ -209,13 +210,13 @@ public class NameSuffixFilter : IFilter<Type>
 
 public class LambdaFilter<T> : IFilter<T>
 {
-    public Func<T, bool> Filter { get; }
-
     public LambdaFilter(string description, Func<T, bool> filter)
     {
         Filter = filter ?? throw new ArgumentNullException(nameof(filter));
         Description = description ?? throw new ArgumentNullException(nameof(description));
     }
+
+    public Func<T, bool> Filter { get; }
 
     public bool Matches(T item)
     {
@@ -310,7 +311,11 @@ public static class TypeRepository
         TypeClassification classification, Func<Type, bool>? filter = null)
     {
         var query = new TypeQuery(classification);
-        query.Includes.WithCondition("User defined", filter);
+        if (filter != null)
+        {
+            query.Includes.WithCondition("User defined", filter);
+        }
+
         return assemblies.Select(ForAssembly).SelectMany(query.Find);
     }
 

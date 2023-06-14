@@ -7,10 +7,10 @@ namespace Wolverine;
 
 public sealed partial class WolverineOptions
 {
-    private IMessageSerializer? _defaultSerializer;
-
     private readonly IDictionary<string, IMessageSerializer>
         _serializers = new Dictionary<string, IMessageSerializer>();
+
+    private IMessageSerializer? _defaultSerializer;
 
     /// <summary>
     ///     Override or get the default message serializer for the application. The default is based around Newtonsoft.Json
@@ -35,7 +35,7 @@ public sealed partial class WolverineOptions
             _defaultSerializer = value;
         }
     }
-    
+
     internal IMessageSerializer DetermineSerializer(Envelope envelope)
     {
         if (envelope.ContentType.IsEmpty())
@@ -50,8 +50,8 @@ public sealed partial class WolverineOptions
 
         return DefaultSerializer;
     }
-    
-    
+
+
     /// <summary>
     ///     Use Newtonsoft.Json as the default JSON serialization with optional configuration
     /// </summary>
@@ -81,7 +81,7 @@ public sealed partial class WolverineOptions
 
         _serializers[serializer.ContentType] = serializer;
     }
-    
+
     internal IMessageSerializer FindSerializer(string contentType)
     {
         if (_serializers.TryGetValue(contentType, out var serializer))
@@ -110,5 +110,4 @@ public sealed partial class WolverineOptions
     {
         _serializers[serializer.ContentType] = serializer;
     }
-
 }

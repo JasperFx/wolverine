@@ -1,28 +1,32 @@
-using System.Runtime.CompilerServices;
-
 namespace Wolverine.Runtime.Agents;
 
 public record CheckAgentHealth : IInternalMessage;
 
 public record VerifyAssignments : IInternalMessage;
 
-
 public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
 {
     private DateTimeOffset? _lastAssignmentCheck;
-    
+
     public async IAsyncEnumerable<object> HandleAsync(CheckAgentHealth message)
     {
-        if (_cancellation.IsCancellationRequested) yield break;
-        if (_tracker.Self == null) yield break;
-        
+        if (_cancellation.IsCancellationRequested)
+        {
+            yield break;
+        }
+
+        if (_tracker.Self == null)
+        {
+            yield break;
+        }
+
         // write health check regardless
         await _persistence.MarkHealthCheckAsync(_tracker.Self.Id);
-        
+
         // Check for stale nodes that are no longer writing health checks
         var staleTime = DateTimeOffset.UtcNow.Subtract(_runtime.Options.Durability.StaleNodeTimeout);
         var staleNodes = await _persistence.LoadAllStaleNodesAsync(staleTime, _cancellation);
-        
+
         if (_tracker.Self.IsLeader())
         {
             foreach (var staleNode in staleNodes)
@@ -69,7 +73,4 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
             }
         }
     }
-    
-
 }
-

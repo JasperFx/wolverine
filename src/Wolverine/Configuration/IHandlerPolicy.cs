@@ -5,7 +5,7 @@ using Wolverine.Runtime.Handlers;
 namespace Wolverine.Configuration;
 
 /// <summary>
-/// Generic middleware chain policy that spans messaging and HTTP endpoints
+///     Generic middleware chain policy that spans messaging and HTTP endpoints
 /// </summary>
 public interface IChainPolicy : IWolverinePolicy
 {

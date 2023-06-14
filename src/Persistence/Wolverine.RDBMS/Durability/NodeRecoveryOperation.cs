@@ -17,7 +17,8 @@ internal class NodeRecoveryOperation : IAgentCommand
     public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        runtime.Logger.LogInformation("Releasing node ownership in the inbox/outbox from dormant node {Node}", _ownerNodeId);
+        runtime.Logger.LogInformation("Releasing node ownership in the inbox/outbox from dormant node {Node}",
+            _ownerNodeId);
         await runtime.Storage.Admin.ReleaseAllOwnershipAsync();
 
         yield break;

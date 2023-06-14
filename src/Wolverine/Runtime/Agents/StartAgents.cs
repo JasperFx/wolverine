@@ -8,41 +8,37 @@ internal record AgentsStarted(Uri[] AgentUris);
 
 internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var startAgents = new StartAgents(AgentIds);
         var response = await runtime.Agents.InvokeAsync<AgentsStarted>(NodeId, startAgents);
-        
+
         runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeId}", AgentIds, NodeId);
 
-        foreach (var uri in response.AgentUris)
-        {
-            runtime.Tracker.Publish(new AgentStarted(NodeId, uri));
-        }
-        
-        yield break;    
+        foreach (var uri in response.AgentUris) runtime.Tracker.Publish(new AgentStarted(NodeId, uri));
+
+        yield break;
     }
 }
 
 internal record StopRemoteAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var startAgents = new StopAgents(AgentIds);
         var response = await runtime.Agents.InvokeAsync<AgentsStopped>(NodeId, startAgents);
 
-        foreach (var uri in response.AgentUris)
-        {
-            runtime.Tracker.Publish(new AgentStopped(uri));
-        }
-        
+        foreach (var uri in response.AgentUris) runtime.Tracker.Publish(new AgentStopped(uri));
+
         yield break;
     }
 }
 
 internal record StartAgents(Uri[] AgentUris) : IAgentCommand
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var successful = new List<Uri>();
         foreach (var agentUri in AgentUris)
@@ -87,12 +83,12 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand
     }
 }
 
-
 internal record AgentsStopped(Uri[] AgentUris);
 
 internal record StopAgents(Uri[] AgentUris) : IAgentCommand
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var successful = new List<Uri>();
         foreach (var agentUri in AgentUris)

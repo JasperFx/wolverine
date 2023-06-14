@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
@@ -13,8 +10,6 @@ namespace Wolverine.Runtime.Routing;
 public abstract class MessageRouterBase<T> : IMessageRouter
 {
     private readonly MessageRoute[] _topicRoutes;
-    
-    private ImHashMap<string, IMessageRoute> _routeByName = ImHashMap<string, IMessageRoute>.Empty;
 
     private ImHashMap<Uri, IMessageRoute> _specificRoutes = ImHashMap<Uri, IMessageRoute>.Empty;
 
@@ -64,6 +59,8 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         return RouteToTopic((T)message, topicName, options);
     }
 
+    public abstract IMessageRoute FindSingleRouteForSending();
+
     public abstract Envelope[] RouteForSend(T message, DeliveryOptions? options);
     public abstract Envelope[] RouteForPublish(T message, DeliveryOptions? options);
 
@@ -92,8 +89,6 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         return route;
     }
 
-    public abstract IMessageRoute FindSingleRouteForSending();
-
     public Envelope[] RouteToTopic(T message, string topicName, DeliveryOptions? options)
     {
         if (message == null)
@@ -115,5 +110,4 @@ public abstract class MessageRouterBase<T> : IMessageRouter
 
         return envelopes;
     }
-
 }

@@ -1,8 +1,10 @@
+using System.Runtime.CompilerServices;
+
 namespace Wolverine.Runtime.Agents;
 
 internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         if (NodeId == runtime.Options.UniqueNodeId)
         {
@@ -12,7 +14,7 @@ internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand
         {
             await runtime.Agents.InvokeAsync(NodeId, new StopAgent(AgentUri));
         }
-        
+
         runtime.Tracker.Publish(new AgentStopped(AgentUri));
 
         yield break;

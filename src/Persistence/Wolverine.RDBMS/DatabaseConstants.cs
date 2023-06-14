@@ -21,7 +21,7 @@ public static class DatabaseConstants
     public const string OutgoingTable = "wolverine_outgoing_envelopes";
     public const string IncomingTable = "wolverine_incoming_envelopes";
     public const string DeadLetterTable = "wolverine_dead_letters";
-    
+
     public const string ControlQueueTableName = "wolverine_control_queue";
 
     public const string NodeTableName = "wolverine_nodes";

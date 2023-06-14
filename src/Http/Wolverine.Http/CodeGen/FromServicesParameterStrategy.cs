@@ -10,7 +10,7 @@ internal class FromServicesParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
-        variable = default;
+        variable = default!;
         if (parameter.HasAttribute<FromServicesAttribute>() || parameter.HasAttribute<NotBodyAttribute>())
         {
             // No variable here, that will happen later in the compilation

@@ -1,9 +1,5 @@
-﻿using System;
-using System.IO;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Logging;
 
@@ -15,10 +11,10 @@ public class SocketListener : IListener, IDisposable
     private readonly ILogger _logger;
     private readonly CancellationToken _parentToken;
     private readonly int _port;
+    private readonly IReceiver _receiver;
     private CancellationToken _cancellationToken;
     private TcpListener? _listener;
     private CancellationTokenSource? _listenerCancellation;
-    private readonly IReceiver _receiver;
     private Task? _receivingLoop;
     private ActionBlock<Socket>? _socketHandling;
 

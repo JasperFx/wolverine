@@ -11,7 +11,7 @@ internal class ReadJsonBody : AsyncFrame
 {
     public ReadJsonBody(ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name, this);
+        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
     }
 
     public Variable Variable { get; }
@@ -31,7 +31,7 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
-        variable = default;
+        variable = default!;
 
         if (chain.HttpMethods.Contains("GET"))
         {

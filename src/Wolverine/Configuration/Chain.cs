@@ -94,7 +94,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             .SelectMany(x => x.GetTypeInfo().GetMethods())
             .Where(isConfigureMethod);
 
-        foreach (var method in configureMethods) method?.Invoke(null, new object[] { this });
+        foreach (var method in configureMethods) method.Invoke(null, new object[] { this });
 
         var handlerAtts = handlers.SelectMany(x => x.HandlerType.GetTypeInfo()
             .GetCustomAttributes<TModifyAttribute>());
@@ -124,18 +124,18 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 if (parameter.ParameterType != InputType() && !parameter.ParameterType.IsPrimitive)
                 {
                     yield return parameter.ParameterType;
-                    
-                    if (parameter.ParameterType.Assembly != GetType().Assembly || !stopAtTypes.Contains(parameter.ParameterType))
+
+                    if (parameter.ParameterType.Assembly != GetType().Assembly ||
+                        !stopAtTypes.Contains(parameter.ParameterType))
                     {
                         var candidate = container.Model.For(parameter.ParameterType).Default;
                         if (candidate != null)
                         {
-                            foreach (var dependency in candidate.Instance.Dependencies) yield return dependency.ServiceType;
+                            foreach (var dependency in candidate.Instance.Dependencies)
+                                yield return dependency.ServiceType;
                         }
                     }
                 }
-
-
             }
 
             // Don't have to consider dependencies of a static handler

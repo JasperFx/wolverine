@@ -1,14 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Wolverine;
 
 public static class MessageBusExtensions
 {
     /// <summary>
-    /// Schedule the publishing or execution of a message until a later time
+    ///     Schedule the publishing or execution of a message until a later time
     /// </summary>
     /// <param name="message"></param>
     /// <param name="time"></param>
@@ -29,7 +24,7 @@ public static class MessageBusExtensions
     }
 
     /// <summary>
-    /// Schedule the publishing or execution of a message until a later time
+    ///     Schedule the publishing or execution of a message until a later time
     /// </summary>
     /// <param name="message"></param>
     /// <param name="delay"></param>
@@ -50,14 +45,16 @@ public static class MessageBusExtensions
 }
 
 /// <summary>
-/// Entry point for processing or publishing messages with Wolverine
+///     Entry point for processing or publishing messages with Wolverine
 /// </summary>
-public interface IMessageBus 
+public interface IMessageBus
 {
+    string? TenantId { get; set; }
+
     /// <summary>
-    /// Execute the message handling for this message *right now* and wait for the completion.
-    /// If the message is handled locally, this delegates immediately
-    /// If the message is handled remotely, the message is sent and the method waits for the response
+    ///     Execute the message handling for this message *right now* and wait for the completion.
+    ///     If the message is handled locally, this delegates immediately
+    ///     If the message is handled remotely, the message is sent and the method waits for the response
     /// </summary>
     /// <param name="message"></param>
     /// <param name="cancellation"></param>
@@ -67,9 +64,10 @@ public interface IMessageBus
 
 
     /// <summary>
-    /// Execute the message handling for this message *right now* and wait for the completion and the designated response type T.
-    /// If the message is handled locally, this delegates immediately
-    /// If the message is handled remotely, the message is sent and the method waits for the response
+    ///     Execute the message handling for this message *right now* and wait for the completion and the designated response
+    ///     type T.
+    ///     If the message is handled locally, this delegates immediately
+    ///     If the message is handled remotely, the message is sent and the method waits for the response
     /// </summary>
     /// <param name="message"></param>
     /// <param name="cancellation"></param>
@@ -77,31 +75,31 @@ public interface IMessageBus
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
-    
-    
+
+
     /// <summary>
-    /// Publish or process messages at a specific endpoint by
-    /// endpoint name
+    ///     Publish or process messages at a specific endpoint by
+    ///     endpoint name
     /// </summary>
     /// <param name="endpointName"></param>
     /// <returns></returns>
     IDestinationEndpoint EndpointFor(string endpointName);
-    
+
     /// <summary>
-    /// Publish or process messages at a specific endpoint
-    /// by the endpoint's Uri
+    ///     Publish or process messages at a specific endpoint
+    ///     by the endpoint's Uri
     /// </summary>
     /// <param name="uri"></param>
     /// <returns></returns>
     IDestinationEndpoint EndpointFor(Uri uri);
 
     /// <summary>
-    /// Preview how Wolverine where and how this message would be sent. Use this as a debugging tool.
+    ///     Preview how Wolverine where and how this message would be sent. Use this as a debugging tool.
     /// </summary>
     /// <param name="message"></param>
     /// <returns></returns>
     IReadOnlyList<Envelope> PreviewSubscriptions(object message);
-    
+
     /// <summary>
     ///     Sends a message to the expected, one subscriber. Will throw an exception if there are no known subscribers
     /// </summary>
@@ -123,7 +121,6 @@ public interface IMessageBus
     ///     Send a message to a specific topic name. This relies
     ///     on having a backing transport endpoint that supports
     ///     topic routing.
-    ///
     ///     At this point, this feature pretty well only matters with Rabbit MQ topic exchanges!
     /// </summary>
     /// <param name="topicName"></param>
@@ -131,7 +128,4 @@ public interface IMessageBus
     /// <param name="options"></param>
     /// <returns></returns>
     ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null);
-
-
-    string? TenantId { get; set; }
 }

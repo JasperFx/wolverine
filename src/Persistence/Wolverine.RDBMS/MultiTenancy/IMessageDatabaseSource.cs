@@ -1,7 +1,7 @@
 namespace Wolverine.RDBMS.MultiTenancy;
 
 /// <summary>
-/// Source of known tenant databases
+///     Source of known tenant databases
 /// </summary>
 public interface IMessageDatabaseSource
 {

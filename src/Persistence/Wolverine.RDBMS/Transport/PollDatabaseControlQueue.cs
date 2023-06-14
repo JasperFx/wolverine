@@ -1,7 +1,5 @@
 using System.Data.Common;
 using System.Runtime.CompilerServices;
-using Microsoft.Extensions.Logging;
-using Weasel.Core;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -13,10 +11,10 @@ namespace Wolverine.RDBMS.Transport;
 
 internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
 {
-    private readonly DatabaseControlTransport _transport;
-    private readonly IReceiver _receiver;
-    private readonly DatabaseControlListener _listener;
     private readonly List<Envelope> _envelopes = new();
+    private readonly DatabaseControlListener _listener;
+    private readonly IReceiver _receiver;
+    private readonly DatabaseControlTransport _transport;
 
     public PollDatabaseControlQueue(DatabaseControlTransport transport, IReceiver receiver,
         DatabaseControlListener listener)
@@ -24,6 +22,16 @@ internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
         _transport = transport;
         _receiver = receiver;
         _listener = listener;
+    }
+
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await _receiver.ReceivedAsync(_listener, _envelopes.ToArray());
+
+        await _transport.DeleteEnvelopesAsync(_envelopes, cancellationToken);
+
+        yield break;
     }
 
     public string Description { get; } = "Polling for new control messages";
@@ -52,15 +60,4 @@ internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
             yield return this;
         }
     }
-
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        await _receiver.ReceivedAsync(_listener, _envelopes.ToArray());
-
-        await _transport.DeleteEnvelopesAsync(_envelopes, cancellationToken);
-        
-        yield break;
-    }
-
 }

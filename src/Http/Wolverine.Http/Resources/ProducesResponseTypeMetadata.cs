@@ -6,5 +6,5 @@ internal class ProducesResponseTypeMetadata : IProducesResponseTypeMetadata
 {
     public Type? Type { get; init; }
     public int StatusCode { get; init; }
-    public IEnumerable<string> ContentTypes => new string[] { "application/json" };
+    public IEnumerable<string> ContentTypes => new[] { "application/json" };
 }

@@ -12,6 +12,11 @@ public class ParallelListener : IListener, IDisposable
         _listeners.AddRange(listeners);
     }
 
+    public void Dispose()
+    {
+        foreach (var listener in _listeners.OfType<IDisposable>()) listener.SafeDispose();
+    }
+
     // These should never be called, but still
     public async ValueTask CompleteAsync(Envelope envelope)
     {
@@ -24,17 +29,10 @@ public class ParallelListener : IListener, IDisposable
     }
 
     public Uri Address { get; }
+
     public async ValueTask StopAsync()
     {
-        foreach (var listener in _listeners)
-        {
-            await listener.StopAsync();
-        }
-    }
-
-    public void Dispose()
-    {
-        foreach (var listener in _listeners.OfType<IDisposable>()) listener.SafeDispose();
+        foreach (var listener in _listeners) await listener.StopAsync();
     }
 
     public async ValueTask DisposeAsync()

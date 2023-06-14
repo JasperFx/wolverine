@@ -1,8 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Runtime.Scheduled;
@@ -79,7 +75,7 @@ internal class InMemoryScheduledJobProcessor : IScheduledJobProcessor
 
             _cancellation = new CancellationTokenSource();
             var delayTime = ExecutionTime.Subtract(DateTimeOffset.Now);
-            _task = Task.Delay(delayTime, _cancellation.Token).ContinueWith(obj => publish(), TaskScheduler.Default);
+            _task = Task.Delay(delayTime, _cancellation.Token).ContinueWith(_ => publish(), TaskScheduler.Default);
 
             ReceivedAt = DateTimeOffset.Now;
         }

@@ -6,7 +6,7 @@ public sealed partial class WolverineOptions
 {
     private readonly IList<Type> _extensionTypes = new List<Type>();
     internal List<IWolverineExtension> AppliedExtensions { get; } = new();
-    
+
     /// <summary>
     ///     Applies the extension to this application
     /// </summary>
@@ -29,7 +29,7 @@ public sealed partial class WolverineOptions
 
         _extensionTypes.Fill(extensions.Select(x => x.GetType()));
     }
-    
+
     /// <summary>
     ///     Applies the extension with optional configuration to the application
     /// </summary>

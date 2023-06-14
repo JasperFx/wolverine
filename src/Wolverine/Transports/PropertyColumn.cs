@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
@@ -14,6 +13,7 @@ public record PropertyColumn(string Header, string AttributeName, Justify Alignm
     {
         if (dict.TryGetValue(AttributeName, out var value))
         {
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             if (value != null)
             {
                 return new Markup(value);

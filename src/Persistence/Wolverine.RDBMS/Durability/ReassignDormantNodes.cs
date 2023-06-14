@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
 using Weasel.Core;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -8,20 +8,17 @@ namespace Wolverine.RDBMS.Durability;
 public class ReassignDormantNodes : IAgentCommand
 {
     private readonly IMessageDatabase _database;
-    private readonly ILogger _logger;
     private readonly INodeAgentPersistence _nodes;
-    private readonly List<int> _owners = new();
 
-    public ReassignDormantNodes(INodeAgentPersistence nodes, IMessageDatabase database, ILogger logger)
+    public ReassignDormantNodes(INodeAgentPersistence nodes, IMessageDatabase database)
     {
         _nodes = nodes;
         _database = database;
-        _logger = logger;
     }
 
     public string Description { get; } = "Reassigning persisted messages from obsolete nodes";
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var sql =
             $"select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.IncomingTable} union select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.OutgoingTable};";

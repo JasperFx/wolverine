@@ -7,7 +7,7 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 internal class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage>
 {
-    public AzureServiceBusEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime)
+    public AzureServiceBusEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {
         MapProperty(x => x.ContentType!, (e, m) => e.ContentType = m.ContentType,
             (e, m) => m.ContentType = e.ContentType);

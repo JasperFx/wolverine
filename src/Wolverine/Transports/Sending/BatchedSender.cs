@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
@@ -43,7 +40,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
                     {
                         e.Data = e.Serializer.Write(e);
                     }
-                    
+
                     await _batching!.SendAsync(e);
                 }
                 catch (Exception? ex)

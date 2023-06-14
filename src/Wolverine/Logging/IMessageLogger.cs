@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Logging;
 
 #region sample_IMessageTracker
@@ -40,9 +38,9 @@ public interface IMessageTracker
     /// </summary>
     /// <param name="envelope"></param>
     void ExecutionFinished(Envelope envelope);
-    
+
     /// <summary>
-    /// Marks the end of message execution with a failure
+    ///     Marks the end of message execution with a failure
     /// </summary>
     /// <param name="envelope"></param>
     /// <param name="exception"></param>
@@ -86,8 +84,6 @@ public interface IMessageTracker
     /// </summary>
     /// <param name="envelope"></param>
     void DiscardedEnvelope(Envelope envelope);
-
-    
 }
 
 #endregion

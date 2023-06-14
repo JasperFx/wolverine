@@ -66,14 +66,14 @@ internal class MappedEnvelopeTransaction : IEnvelopeTransaction
         var typeDbContext = typeof(DbContext);
         var typeInternalContext = typeDbContext.Assembly.GetType("System.Data.Entity.Internal.InternalContext");
  
-        var fi_InternalContext = typeDbContext.GetField("_internalContext", BindingFlags.NonPublic | BindingFlags.Instance);
-        var pi_IsDisposed = typeInternalContext.GetProperty("IsDisposed");
+        var internalContextField = typeDbContext.GetField("_internalContext", BindingFlags.NonPublic | BindingFlags.Instance);
+        var isDisposedProperty = typeInternalContext!.GetProperty("IsDisposed");
  
-        var ic = fi_InternalContext.GetValue(context);
+        var ic = internalContextField!.GetValue(context);
  
         if (ic != null)
         {
-            result = (bool)pi_IsDisposed.GetValue(ic);
+            result = (bool)isDisposedProperty!.GetValue(ic)!;
         }
  
         return result;

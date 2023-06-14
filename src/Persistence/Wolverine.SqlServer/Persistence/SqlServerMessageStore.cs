@@ -1,5 +1,4 @@
 ﻿using System.Data;
-using System.Data.Common;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
@@ -34,7 +33,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         _moveToDeadLetterStorageSql = $"EXEC {SchemaName}.uspDeleteIncomingEnvelopes @IDLIST;";
     }
 
-    protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings)
+    protected override INodeAgentPersistence buildNodeStorage(DatabaseSettings databaseSettings)
     {
         return new SqlServerNodePersistence(databaseSettings);
     }

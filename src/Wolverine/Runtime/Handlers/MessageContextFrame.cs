@@ -7,17 +7,16 @@ namespace Wolverine.Runtime.Handlers;
 
 public class MessageContextFrame : SyncFrame
 {
-    private Variable _runtime;
+    private Variable? _runtime;
 
     public MessageContextFrame()
     {
         Variable = new Variable(typeof(MessageContext), this);
-        
+
         creates.Add(new CastVariable(Variable, typeof(IMessageContext)));
         creates.Add(new CastVariable(Variable, typeof(IMessageBus)));
-        
     }
-    
+
     public Variable Variable { get; }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
@@ -28,7 +27,7 @@ public class MessageContextFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Variable.Usage} = new {typeof(MessageContext).FullNameInCode()}({_runtime.Usage});");
+        writer.Write($"var {Variable.Usage} = new {typeof(MessageContext).FullNameInCode()}({_runtime!.Usage});");
         Next?.GenerateCode(method, writer);
     }
 }

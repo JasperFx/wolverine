@@ -1,4 +1,3 @@
-using Lamar;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -12,11 +11,6 @@ namespace Wolverine.Persistence.Durability;
 public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
-
-    public Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
-    {
-        return Task.CompletedTask;
-    }
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
@@ -105,6 +99,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         throw new NotSupportedException();
     }
 
+    public Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task InitializeAsync(IWolverineRuntime runtime)
     {
         return Task.CompletedTask;
@@ -119,11 +118,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
     {
         throw new NotSupportedException();
-    }
-
-    public Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
-    {
-        return Task.CompletedTask;
     }
 
     public void Describe(TextWriter writer)
@@ -188,6 +182,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public Task DeleteIncomingEnvelopesAsync(Envelope[] envelopes)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
     {
         throw new NotSupportedException();
@@ -207,5 +206,4 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     {
         throw new NotSupportedException();
     }
-
 }

@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using Wolverine.Logging;
+﻿using Wolverine.Logging;
 
 namespace Wolverine.Persistence.Durability;
 
@@ -15,7 +12,7 @@ public interface IMessageStoreAdmin
 
     /// <summary>
     ///     Marks the Envelopes in DeadLetterTable
-    ///     as replayable. DurabilityAgent will move the envelopes to IncomingTable. 
+    ///     as replayable. DurabilityAgent will move the envelopes to IncomingTable.
     /// </summary>
     /// <param name="exceptionType">Exception Type that should be marked. Default is any.</param>
     /// <returns>Number of envelopes marked.</returns>

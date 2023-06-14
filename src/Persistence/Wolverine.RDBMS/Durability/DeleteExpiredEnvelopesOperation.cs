@@ -1,5 +1,4 @@
 using System.Data.Common;
-using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime.Agents;
@@ -19,9 +18,11 @@ internal class DeleteExpiredEnvelopesOperation : IDatabaseOperation, IDoNotRetur
     }
 
     public string Description => "Delete expired incoming envelopes";
+
     public void ConfigureCommand(DbCommandBuilder builder)
     {
-        builder.Append($"delete from {_incomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= ");
+        builder.Append(
+            $"delete from {_incomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= ");
         builder.AppendParameter(_utcNow);
         builder.Append(";");
     }

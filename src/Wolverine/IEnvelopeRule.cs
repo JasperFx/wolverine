@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine;
 
 /// <summary>
@@ -13,11 +11,16 @@ public interface IEnvelopeRule
 
 internal class DeliverWithinRule : IEnvelopeRule
 {
-    public TimeSpan Time { get; }
-
     public DeliverWithinRule(TimeSpan time)
     {
         Time = time;
+    }
+
+    public TimeSpan Time { get; }
+
+    public void Modify(Envelope envelope)
+    {
+        envelope.DeliverWithin = Time;
     }
 
     public override string ToString()
@@ -42,7 +45,7 @@ internal class DeliverWithinRule : IEnvelopeRule
             return true;
         }
 
-        if (obj.GetType() != this.GetType())
+        if (obj.GetType() != GetType())
         {
             return false;
         }
@@ -53,11 +56,6 @@ internal class DeliverWithinRule : IEnvelopeRule
     public override int GetHashCode()
     {
         return Time.GetHashCode();
-    }
-
-    public void Modify(Envelope envelope)
-    {
-        envelope.DeliverWithin = Time;
     }
 }
 

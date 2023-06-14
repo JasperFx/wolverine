@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
@@ -35,6 +33,13 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
         return ValueTask.CompletedTask;
     }
 
+    public ValueTask StoreAndForwardAsync(Envelope envelope)
+    {
+        return EnqueueOutgoingAsync(envelope);
+    }
+
+    public bool SupportsNativeScheduledSend { get; } = true;
+
     internal void EnqueueDirectly(Envelope envelope)
     {
         _messageLogger.Sent(envelope);
@@ -49,11 +54,4 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
             Enqueue(envelope);
         }
     }
-
-    public ValueTask StoreAndForwardAsync(Envelope envelope)
-    {
-        return EnqueueOutgoingAsync(envelope);
-    }
-
-    public bool SupportsNativeScheduledSend { get; } = true;
 }

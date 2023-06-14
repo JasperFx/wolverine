@@ -23,7 +23,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
     {
         var dbContextType = TryDetermineDbContextType(entityType, container);
-        persistenceService = dbContextType;
+        persistenceService = dbContextType!;
         return dbContextType != null;
     }
 
@@ -62,9 +62,9 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var method =
             dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
 
-        var call = new MethodCall(dbContextType, method);
+        var call = new MethodCall(dbContextType, method!);
         call.CommentText = "Committing any pending entity changes to the database";
-        call.ReturnVariable.OverrideName(call.ReturnVariable.Usage + "1");
+        call.ReturnVariable!.OverrideName(call.ReturnVariable.Usage + "1");
 
         return call;
     }
@@ -95,7 +95,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var saveChangesAsync =
             dbType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
 
-        var call = new MethodCall(dbType, saveChangesAsync)
+        var call = new MethodCall(dbType, saveChangesAsync!)
         {
             CommentText = "Added by EF Core Transaction Middleware"
         };
@@ -207,7 +207,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         public override IEnumerable<Variable> Creates
         {
-            get { yield return _envelopeTransaction; }
+            get { yield return _envelopeTransaction!; }
         }
 
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -216,7 +216,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             writer.WriteComment(
                 "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
             writer.Write(
-                $"var {_envelopeTransaction.Usage} = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction({_dbContext!.Usage}, {_context!.Usage});");
+                $"var {_envelopeTransaction!.Usage} = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction({_dbContext!.Usage}, {_context!.Usage});");
             writer.Write(
                 $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
 

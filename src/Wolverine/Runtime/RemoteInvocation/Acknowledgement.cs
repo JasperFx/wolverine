@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Wolverine.Runtime.RemoteInvocation;
+﻿namespace Wolverine.Runtime.RemoteInvocation;
 
 /// <summary>
 ///     Successful receipt of an outgoing message
@@ -45,6 +43,7 @@ public class Acknowledgement
 
     public override int GetHashCode()
     {
+        // ReSharper disable once NonReadonlyMemberInGetHashCode
         return RequestId.GetHashCode();
     }
 }

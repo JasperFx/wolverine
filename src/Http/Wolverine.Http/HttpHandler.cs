@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
@@ -29,7 +28,7 @@ public abstract class HttpHandler
 
     public static string[] ReadManyHeaderValues(HttpContext context, string headerKey)
     {
-        return context.Request.Headers[headerKey].ToArray();
+        return context.Request.Headers[headerKey].ToArray()!;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

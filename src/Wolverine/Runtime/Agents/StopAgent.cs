@@ -1,12 +1,14 @@
+using System.Runtime.CompilerServices;
+
 namespace Wolverine.Runtime.Agents;
 
 /// <summary>
-/// Command message used to stop and un-assign an agent on a running node
+///     Command message used to stop and un-assign an agent on a running node
 /// </summary>
 /// <param name="AgentUri"></param>
 internal record StopAgent(Uri AgentUri) : IAgentCommand
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await runtime.Agents.StopLocallyAsync(AgentUri);
         yield break;

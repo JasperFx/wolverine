@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -17,9 +14,9 @@ namespace Wolverine.Transports.Local;
 
 internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 {
+    private readonly IMessageInbox _inbox;
     private readonly ILogger _logger;
     private readonly IMessageTracker _messageLogger;
-    private readonly IMessageInbox _inbox;
     private readonly WolverineRuntime _runtime;
     private readonly IMessageSerializer _serializer;
     private readonly DurabilitySettings _settings;

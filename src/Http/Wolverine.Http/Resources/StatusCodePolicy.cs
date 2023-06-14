@@ -23,7 +23,7 @@ internal class StatusCodePolicy : IResourceWriterPolicy
 internal class WriteStatusCodeFrame : SyncFrame
 {
     private readonly Variable _statusCode;
-    private Variable _context;
+    private Variable? _context;
 
     public WriteStatusCodeFrame(Variable statusCode)
     {
@@ -40,6 +40,6 @@ internal class WriteStatusCodeFrame : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write(
-            $"{_context.Usage}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.StatusCode)} = {_statusCode.Usage};");
+            $"{_context!.Usage}.{nameof(HttpContext.Response)}.{nameof(HttpResponse.StatusCode)} = {_statusCode.Usage};");
     }
 }

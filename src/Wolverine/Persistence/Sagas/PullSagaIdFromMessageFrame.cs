@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
+﻿using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Oakton.Parsing;
 
 namespace Wolverine.Persistence.Sagas;
 
@@ -28,10 +24,10 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
         if (!SagaChain.ValidSagaIdTypes.Contains(_sagaIdType))
         {
             throw new ArgumentOutOfRangeException(nameof(messageType),
-                $"SagaId must be one of {SagaChain.ValidSagaIdTypes.Select(x => x.NameInCode()).Join(", ")}, but was {_sagaIdType.NameInCode()}");
+                $"SagaId must be one of {SagaChain.ValidSagaIdTypes.Select(x => x.NameInCode()).Join(", ")}, but was {_sagaIdType!.NameInCode()}");
         }
 
-        SagaId = new Variable(_sagaIdType, SagaChain.SagaIdVariableName, this);
+        SagaId = new Variable(_sagaIdType!, SagaChain.SagaIdVariableName, this);
     }
 
     public Variable SagaId { get; }
@@ -49,7 +45,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
         {
             var typeNameInCode = _sagaIdType == typeof(Guid)
                 ? typeof(Guid).FullName
-                : _sagaIdType.NameInCode();
+                : _sagaIdType!.NameInCode();
 
 
             writer.Write(

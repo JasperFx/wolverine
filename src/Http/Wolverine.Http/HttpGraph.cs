@@ -74,12 +74,12 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         var table = new Table()
             .AddColumns("Route", "Http Method", "Handler Method", "Generated Type Name");
 
-        foreach (var chain in _chains.OrderBy(x => x.RoutePattern.RawText))
+        foreach (var chain in _chains.OrderBy(x => x.RoutePattern!.RawText))
         {
             var handlerCode = $"{chain.Method.HandlerType.FullNameInCode()}.{chain.Method.Method.Name}()";
             var verbs = chain.HttpMethods.Select(x => x.ToUpper()).Join("/");
 
-            table.AddRow(chain.RoutePattern.RawText.EscapeMarkup(), verbs, handlerCode.EscapeMarkup(),
+            table.AddRow(chain.RoutePattern!.RawText.EscapeMarkup(), verbs, handlerCode.EscapeMarkup(),
                 chain.Description.EscapeMarkup());
         }
 
@@ -113,7 +113,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
 
     public HttpChain? ChainFor(string httpMethod, string urlPattern)
     {
-        return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern.RawText == urlPattern);
+        return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern!.RawText == urlPattern);
     }
 
     public HttpChain Add(MethodCall method, HttpMethod httpMethod, string url)

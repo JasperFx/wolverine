@@ -1,7 +1,6 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
-using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;

@@ -11,14 +11,15 @@ namespace Wolverine.RDBMS.MultiTenancy;
 
 public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin
 {
-    private readonly ILogger _logger;
-    private readonly IWolverineRuntime _runtime;
     private readonly IMessageDatabaseSource _databases;
+    private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
+    private readonly IWolverineRuntime _runtime;
     private bool _initialized;
 
 
-    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource databases)
+    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime,
+        IMessageDatabaseSource databases)
     {
         _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageDatabase>();
         _runtime = runtime;
@@ -29,94 +30,8 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
         Master = master;
     }
-    
-    public IMessageDatabase Master { get;}
 
-    public IReadOnlyList<IMessageDatabase> ActiveDatabases() =>
-        databases().ToArray();
-
-    public ValueTask<IMessageDatabase> GetDatabaseAsync(string? tenantId)
-    {
-        return tenantId.IsEmpty() || tenantId == TransportConstants.Default
-            ? new ValueTask<IMessageDatabase>(Master) 
-            : _databases.FindDatabaseAsync(tenantId);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        foreach (var database in databases())
-        {
-            await database.DisposeAsync();
-        }
-    }
-
-    public async Task InitializeAsync(IWolverineRuntime runtime)
-    {
-        if (_initialized) return;
-        
-        await _databases.InitializeAsync();
-
-        foreach (var database in databases())
-        {
-            await database.InitializeAsync(runtime);
-        }
-
-        _initialized = true;
-    }
-
-    public IMessageInbox Inbox => this;
-    public IMessageOutbox Outbox => this;
-    public INodeAgentPersistence Nodes => Master.Nodes;
-    public IMessageStoreAdmin Admin => this;
-    public void Describe(TextWriter writer)
-    {
-        Master.Describe(writer);
-    }
-
-    public async Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
-    {
-        foreach (var database in databases())
-        {
-            var report = await database.LoadDeadLetterEnvelopeAsync(id);
-            if (report != null) return report;
-        }
-
-        return null;
-    }
-
-    private IEnumerable<IMessageDatabase> databases()
-    {
-        yield return Master;
-
-        foreach (var database in _databases.AllActive())
-        {
-            yield return database;
-        }
-    }
-
-    private async Task executeOnAllAsync(Func<IMessageDatabase, Task> action)
-    {
-        var exceptions = new List<Exception>();
-
-        foreach (var database in databases())
-        {
-            try
-            {
-                await action(database);
-            }   
-            catch (Exception e)
-            {
-                exceptions.Add(e);
-            }
-        }
-
-        if (exceptions.Any()) throw new AggregateException(exceptions);
-    }
-
-    public Task DrainAsync()
-    {
-        return executeOnAllAsync(d => d.DrainAsync());
-    }
+    public IMessageDatabase Master { get; }
 
     async Task IMessageInbox.ScheduleExecutionAsync(Envelope envelope)
     {
@@ -152,8 +67,8 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             await database.Inbox.StoreIncomingAsync(envelopes);
             return;
         }
-        
-        foreach (var group in groups)    
+
+        foreach (var group in groups)
         {
             try
             {
@@ -163,7 +78,8 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             }
             catch (UnknownTenantException e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes", group.Key);
+                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
+                    group.Key);
             }
         }
     }
@@ -211,8 +127,8 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             await database.Outbox.DeleteOutgoingAsync(envelopes);
             return;
         }
-        
-        foreach (var group in groups)    
+
+        foreach (var group in groups)
         {
             try
             {
@@ -222,7 +138,8 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             }
             catch (UnknownTenantException e)
             {
-                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes", group.Key);
+                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
+                    group.Key);
             }
         }
     }
@@ -236,7 +153,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     async Task IMessageOutbox.DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
         var discardGroups = discards.GroupBy(x => x.TenantId ?? TransportConstants.Default).ToArray();
-        var reassignedGroups = reassigned.GroupBy(x => x.TenantId?? TransportConstants.Default).ToArray();
+        var reassignedGroups = reassigned.GroupBy(x => x.TenantId ?? TransportConstants.Default).ToArray();
 
         var dict = new Dictionary<string, DiscardAndReassignOutgoingAsyncGroup>();
 
@@ -247,7 +164,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
                 var database = await GetDatabaseAsync(group.Key);
                 var command = new DiscardAndReassignOutgoingAsyncGroup(database, nodeId);
                 dict[group.Key] = command;
-                
+
                 command.AddDiscards(group);
             }
             catch (Exception e)
@@ -269,7 +186,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
                     var database = await GetDatabaseAsync(group.Key);
                     command = new DiscardAndReassignOutgoingAsyncGroup(database, nodeId);
                     dict[group.Key] = command;
-                
+
                     command.AddReassigns(group);
                 }
                 catch (Exception e)
@@ -279,10 +196,55 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             }
         }
 
-        foreach (var value in dict.Values)
+        foreach (var value in dict.Values) await _retryBlock.PostAsync(value);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var database in databases()) await database.DisposeAsync();
+    }
+
+    public async Task InitializeAsync(IWolverineRuntime runtime)
+    {
+        if (_initialized)
         {
-            await _retryBlock.PostAsync(value);
+            return;
         }
+
+        await _databases.InitializeAsync();
+
+        foreach (var database in databases()) await database.InitializeAsync(runtime);
+
+        _initialized = true;
+    }
+
+    public IMessageInbox Inbox => this;
+    public IMessageOutbox Outbox => this;
+    public INodeAgentPersistence Nodes => Master.Nodes;
+    public IMessageStoreAdmin Admin => this;
+
+    public void Describe(TextWriter writer)
+    {
+        Master.Describe(writer);
+    }
+
+    public async Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
+    {
+        foreach (var database in databases())
+        {
+            var report = await database.LoadDeadLetterEnvelopeAsync(id);
+            if (report != null)
+            {
+                return report;
+            }
+        }
+
+        return null;
+    }
+
+    public Task DrainAsync()
+    {
+        return executeOnAllAsync(d => d.DrainAsync());
     }
 
     Task IMessageStoreAdmin.ClearAllAsync()
@@ -293,7 +255,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     async Task<int> IMessageStoreAdmin.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
     {
         var size = 0;
-        
+
         foreach (var database in databases())
         {
             try
@@ -302,10 +264,11 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Error trying to mark dead letter envelopes as replayable for database {Name}", database.Name);
+                _logger.LogError(e, "Error trying to mark dead letter envelopes as replayable for database {Name}",
+                    database.Name);
             }
         }
-        
+
         return size;
     }
 
@@ -330,7 +293,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     async Task<IReadOnlyList<Envelope>> IMessageStoreAdmin.AllIncomingAsync()
     {
         var list = new List<Envelope>();
-        
+
         foreach (var database in databases())
         {
             var envelopes = await database.Admin.AllIncomingAsync();
@@ -343,7 +306,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     async Task<IReadOnlyList<Envelope>> IMessageStoreAdmin.AllOutgoingAsync()
     {
         var list = new List<Envelope>();
-        
+
         foreach (var database in databases())
         {
             var envelopes = await database.Admin.AllOutgoingAsync();
@@ -369,7 +332,48 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         {
             await InitializeAsync(_runtime);
         }
-        
+
         await executeOnAllAsync(d => d.Admin.MigrateAsync());
+    }
+
+    public IReadOnlyList<IMessageDatabase> ActiveDatabases()
+    {
+        return databases().ToArray();
+    }
+
+    public ValueTask<IMessageDatabase> GetDatabaseAsync(string? tenantId)
+    {
+        return tenantId.IsEmpty() || tenantId == TransportConstants.Default
+            ? new ValueTask<IMessageDatabase>(Master)
+            : _databases.FindDatabaseAsync(tenantId);
+    }
+
+    private IEnumerable<IMessageDatabase> databases()
+    {
+        yield return Master;
+
+        foreach (var database in _databases.AllActive()) yield return database;
+    }
+
+    private async Task executeOnAllAsync(Func<IMessageDatabase, Task> action)
+    {
+        var exceptions = new List<Exception>();
+
+        foreach (var database in databases())
+        {
+            try
+            {
+                await action(database);
+            }
+            catch (Exception e)
+            {
+                exceptions.Add(e);
+            }
+        }
+
+        if (exceptions.Any())
+        {
+            throw new AggregateException(exceptions);
+        }
     }
 }

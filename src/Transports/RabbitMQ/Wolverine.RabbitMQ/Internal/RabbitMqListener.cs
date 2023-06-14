@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Diagnostics;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -16,12 +14,14 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
     private readonly RetryBlock<Envelope> _sendBlock;
 
 
-    public RabbitMqInteropFriendlyCallback(RabbitMqTransport transport, RabbitMqQueue deadLetterQueue, IWolverineRuntime runtime)
+    public RabbitMqInteropFriendlyCallback(RabbitMqTransport transport, RabbitMqQueue deadLetterQueue,
+        IWolverineRuntime runtime)
     {
-        _inner = transport.Callback;
+        _inner = transport.Callback!;
         var sender = new RabbitMqSender(deadLetterQueue, transport, RoutingMode.Static, runtime);
 
-        _sendBlock = new RetryBlock<Envelope>((e, c) => sender.SendAsync(e).AsTask(), runtime.Logger, runtime.Cancellation);
+        _sendBlock =
+            new RetryBlock<Envelope>((e, _) => sender.SendAsync(e).AsTask(), runtime.Logger, runtime.Cancellation);
     }
 
     public ValueTask CompleteAsync(Envelope envelope)
@@ -45,9 +45,9 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
 internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDeadLetterQueue
 {
     private readonly IChannelCallback _callback;
-    private readonly ISupportDeadLetterQueue _deadLetterQueueCallback;
     private readonly CancellationToken _cancellation = CancellationToken.None;
     private readonly WorkerQueueMessageConsumer? _consumer;
+    private readonly ISupportDeadLetterQueue _deadLetterQueueCallback;
     private readonly IReceiver _receiver;
     private readonly RabbitMqSender _sender;
 
@@ -78,7 +78,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
 
         try
         {
-            var result = Channel.QueueDeclarePassive(queue.QueueName);
+            var result = Channel!.QueueDeclarePassive(queue.QueueName);
             Logger.LogInformation("{Count} messages in queue {QueueName}", result.MessageCount, queue.QueueName);
         }
         catch (Exception e)
@@ -95,15 +95,16 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         Channel!.BasicQos(Queue.PreFetchSize, Queue.PreFetchCount, false);
         Channel.BasicConsume(_consumer, queue.QueueName);
 
-        _callback = queue.DeadLetterQueue != null & queue.DeadLetterQueue.Mode == DeadLetterQueueMode.InteropFriendly 
-                ? new RabbitMqInteropFriendlyCallback(transport, transport.Queues[queue.DeadLetterQueue.QueueName], runtime)
-                : transport.Callback;
+        _callback = (queue.DeadLetterQueue != null) &
+                    (queue.DeadLetterQueue?.Mode == DeadLetterQueueMode.InteropFriendly)
+            ? new RabbitMqInteropFriendlyCallback(transport, transport.Queues[queue.DeadLetterQueue!.QueueName],
+                runtime)
+            : transport.Callback!;
 
         _deadLetterQueueCallback = _callback.As<ISupportDeadLetterQueue>();
         // Need to disable this if using WolverineStorage
         NativeDeadLetterQueueEnabled = queue.DeadLetterQueue != null &&
                                        queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage;
-
     }
 
     public RabbitMqQueue Queue { get; }
@@ -148,6 +149,8 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         return _deadLetterQueueCallback.MoveToErrorsAsync(envelope, exception);
     }
 
+    public bool NativeDeadLetterQueueEnabled { get; }
+
     public void Stop()
     {
         if (_consumer == null)
@@ -160,7 +163,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
 
     public override void Dispose()
     {
-        _receiver?.Dispose();
+        _receiver.Dispose();
         base.Dispose();
         _sender.Dispose();
     }
@@ -179,6 +182,4 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
     {
         Channel!.BasicAck(deliveryTag, true);
     }
-    
-    public bool NativeDeadLetterQueueEnabled { get; } = true;
 }

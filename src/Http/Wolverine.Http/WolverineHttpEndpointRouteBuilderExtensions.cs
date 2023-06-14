@@ -80,6 +80,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <param name="endpoints"></param>
     /// <param name="url"></param>
     /// <typeparam name="TRequest"></typeparam>
+    /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
     public static RouteHandlerBuilder MapPostToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
         string url)
@@ -98,6 +99,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <param name="endpoints"></param>
     /// <param name="url"></param>
     /// <typeparam name="TRequest"></typeparam>
+    /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
     public static RouteHandlerBuilder MapPutToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
         string url)
@@ -116,6 +118,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <param name="endpoints"></param>
     /// <param name="url"></param>
     /// <typeparam name="TRequest"></typeparam>
+    /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
     public static RouteHandlerBuilder MapDeleteToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
         string url)

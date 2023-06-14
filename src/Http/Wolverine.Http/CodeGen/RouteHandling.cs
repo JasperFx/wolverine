@@ -28,7 +28,7 @@ internal class ParsedRouteArgumentFrame : SyncFrame
 {
     public ParsedRouteArgumentFrame(ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name, this);
+        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
     }
 
     public Variable Variable { get; }
@@ -67,9 +67,9 @@ internal class RouteParameterStrategy : IParameterStrategy
         { typeof(ushort), "ushort" },
         { typeof(uint), "uint" },
         { typeof(ulong), "ulong" },
-        { typeof(Guid), typeof(Guid).FullName },
-        { typeof(DateTime), typeof(DateTime).FullName },
-        { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName }
+        { typeof(Guid), typeof(Guid).FullName! },
+        { typeof(DateTime), typeof(DateTime).FullName! },
+        { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName! }
     };
 
     #endregion
@@ -89,12 +89,12 @@ internal class RouteParameterStrategy : IParameterStrategy
 
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
-        var matches = chain.RoutePattern.Parameters.Any(x => x.Name == parameter.Name);
+        var matches = chain.RoutePattern!.Parameters.Any(x => x.Name == parameter.Name);
         if (matches)
         {
             if (parameter.ParameterType == typeof(string))
             {
-                variable = new ReadStringRouteValue(parameter.Name).Variable;
+                variable = new ReadStringRouteValue(parameter.Name!).Variable;
                 return true;
             }
 
@@ -105,7 +105,7 @@ internal class RouteParameterStrategy : IParameterStrategy
             }
         }
 
-        variable = null;
+        variable = default!;
         return matches;
     }
 

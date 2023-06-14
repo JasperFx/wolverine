@@ -1,10 +1,8 @@
-using System.Text;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
@@ -13,12 +11,12 @@ namespace Wolverine.AmazonSqs.Internal;
 internal class SqsListener : IListener, ISupportDeadLetterQueue
 {
     private readonly CancellationTokenSource _cancellation = new();
+    private readonly RetryBlock<Envelope>? _deadLetterBlock;
+    private readonly AmazonSqsQueue? _deadLetterQueue;
     private readonly AmazonSqsQueue _queue;
+    private readonly RetryBlock<AmazonSqsEnvelope> _requeueBlock;
     private readonly Task _task;
     private readonly AmazonSqsTransport _transport;
-    private readonly RetryBlock<AmazonSqsEnvelope> _requeueBlock;
-    private readonly AmazonSqsQueue? _deadLetterQueue;
-    private readonly RetryBlock<Envelope>? _deadLetterBlock;
 
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
@@ -40,7 +38,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
         var failedCount = 0;
 
-        _requeueBlock = new RetryBlock<AmazonSqsEnvelope>(async (env, c) =>
+        _requeueBlock = new RetryBlock<AmazonSqsEnvelope>(async (env, _) =>
         {
             if (!env.WasDeleted)
             {
@@ -50,10 +48,9 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
             await _queue.SendMessageAsync(env, logger);
         }, runtime.LoggerFactory.CreateLogger<SqsListener>(), runtime.Cancellation);
 
-        _deadLetterBlock = new RetryBlock<Envelope>(async (e, c) =>
-        {
-            await _deadLetterQueue!.SendMessageAsync(e, logger);
-        }, logger, runtime.Cancellation);
+        _deadLetterBlock =
+            new RetryBlock<Envelope>(async (e, _) => { await _deadLetterQueue!.SendMessageAsync(e, logger); }, logger,
+                runtime.Cancellation);
 
         _task = Task.Run(async () =>
         {
@@ -155,24 +152,6 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
         return DisposeAsync();
     }
 
-    private Task tryMoveToDeadLetterQueue(IAmazonSQS client, Message message)
-    {
-        return Task.CompletedTask;
-    }
-
-    private AmazonSqsEnvelope buildEnvelope(Message message)
-    {
-        var envelope = new AmazonSqsEnvelope(message);
-        _queue.Mapper.ReadEnvelopeData(envelope, message.Body, message.MessageAttributes);
-        
-        return envelope;
-    }
-
-    public Task CompleteAsync(Message sqsMessage)
-    {
-        return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
-    }
-
     public async Task<bool> TryRequeueAsync(Envelope envelope)
     {
         if (envelope is AmazonSqsEnvelope e)
@@ -190,4 +169,23 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     }
 
     public bool NativeDeadLetterQueueEnabled { get; }
+
+    private Task tryMoveToDeadLetterQueue(IAmazonSQS client, Message message)
+    {
+        // TODO -- do something here!
+        return Task.CompletedTask;
+    }
+
+    private AmazonSqsEnvelope buildEnvelope(Message message)
+    {
+        var envelope = new AmazonSqsEnvelope(message);
+        _queue.Mapper.ReadEnvelopeData(envelope, message.Body, message.MessageAttributes);
+
+        return envelope;
+    }
+
+    public Task CompleteAsync(Message sqsMessage)
+    {
+        return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
+    }
 }

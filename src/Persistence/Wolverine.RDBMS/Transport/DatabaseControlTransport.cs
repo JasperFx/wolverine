@@ -46,10 +46,19 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
 
     public WolverineOptions Options { get; }
 
+    public async ValueTask DisposeAsync()
+    {
+        if (_deleteBlock != null)
+        {
+            await _deleteBlock.DrainAsync();
+            _deleteBlock.SafeDispose();
+        }
+    }
+
     public string Protocol => ProtocolName;
     public string Name => "Simple Database Control Message Transport for Wolverine Control Messages";
 
-    public Endpoint? ReplyEndpoint()
+    public Endpoint ReplyEndpoint()
     {
         return _endpoints[_options.UniqueNodeId];
     }
@@ -87,7 +96,9 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
     public Task DeleteEnvelopesAsync(List<Envelope> envelopes, CancellationToken cancellationToken)
     {
         if (_deleteBlock == null)
+        {
             throw new InvalidOperationException("The DatabaseControlTransport has not been initialized");
+        }
 
         return _deleteBlock.PostAsync(envelopes);
     }
@@ -118,14 +129,5 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
         }
 
         await conn.CloseAsync();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_deleteBlock != null)
-        {
-            await _deleteBlock.DrainAsync();
-            _deleteBlock.SafeDispose();
-        }
     }
 }

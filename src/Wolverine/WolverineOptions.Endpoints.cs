@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
@@ -138,7 +135,7 @@ public partial class WolverineOptions : IAsyncDisposable
     }
 
     /// <summary>
-    /// Configure the local queue that handles the message type T
+    ///     Configure the local queue that handles the message type T
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
@@ -146,19 +143,19 @@ public partial class WolverineOptions : IAsyncDisposable
     {
         return LocalQueueFor(typeof(T));
     }
-    
+
     /// <summary>
-    /// Configure the local queue that handles the given message type
+    ///     Configure the local queue that handles the given message type
     /// </summary>
     /// <returns></returns>
     public LocalQueueConfiguration LocalQueueFor(Type messageType)
     {
         return LocalRouting.ConfigureQueueFor(messageType);
     }
-    
+
     /// <summary>
     ///     For testing mode, this directs Wolverine to stub out all outbound message sending
-    /// or inbound listening from message brokers
+    ///     or inbound listening from message brokers
     /// </summary>
     public void StubAllExternalTransports()
     {

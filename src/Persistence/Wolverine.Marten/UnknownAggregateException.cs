@@ -1,4 +1,3 @@
-using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 
 namespace Wolverine.Marten;

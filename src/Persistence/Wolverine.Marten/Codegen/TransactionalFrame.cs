@@ -3,17 +3,12 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
-using Wolverine.Configuration;
 using Wolverine.Marten.Publishing;
-using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten.Codegen;
 
 internal class TransactionalFrame : Frame
 {
-    private readonly IList<Loaded> _loadedDocs = new List<Loaded>();
-
-    private readonly IList<Variable> _saved = new List<Variable>();
     private Variable? _cancellation;
     private Variable? _context;
     private bool _createsSession;
@@ -21,7 +16,6 @@ internal class TransactionalFrame : Frame
 
     public TransactionalFrame() : base(true)
     {
-
     }
 
     public Variable? Session { get; private set; }
@@ -65,20 +59,12 @@ internal class TransactionalFrame : Frame
                 $"using var {Session!.Usage} = {_factory!.Usage}.{nameof(OutboxedSessionFactory.OpenSession)}({_context!.Usage});");
         }
 
-        foreach (var loaded in _loadedDocs) loaded.Write(writer, Session!);
-
         Next?.GenerateCode(method, writer);
-
-
-        foreach (var saved in _saved)
-        {
-            writer.Write($"{Session!.Usage}.{nameof(IDocumentSession.Store)}({saved.Usage});");
-        }
 
         writer.BlankLine();
         writer.WriteComment("Commit the unit of work");
         writer.Write(
-            $"await {Session!.Usage}.{nameof(IDocumentSession.SaveChangesAsync)}({_cancellation.Usage}).ConfigureAwait(false);");
+            $"await {Session!.Usage}.{nameof(IDocumentSession.SaveChangesAsync)}({_cancellation!.Usage}).ConfigureAwait(false);");
     }
 
     public class Loaded

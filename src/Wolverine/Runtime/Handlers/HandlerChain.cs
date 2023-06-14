@@ -58,12 +58,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         }
     }
 
-    /// <summary>
-    /// At what level should Wolverine log messages about execution completing or succeeding? The default
-    /// is Information
-    /// </summary>
-    public LogLevel ExecutionLogLevel { get; set; } = LogLevel.Information;
-
 
     private HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
     {
@@ -80,7 +74,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var create in handler.Creates)
             i = DisambiguateOutgoingVariableName(create, i);
     }
-    
+
+    /// <summary>
+    ///     At what level should Wolverine log messages about execution completing or succeeding? The default
+    ///     is Information
+    /// </summary>
+    public LogLevel ExecutionLogLevel { get; set; } = LogLevel.Information;
+
     /// <summary>
     ///     A textual description of this HandlerChain
     /// </summary>
@@ -111,10 +111,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             if (handler.Creates.Any(x => x.VariableType == typeof(Envelope)))
             {
-                throw new InvalidHandlerException($"Invalid Wolverine handler signature. Method {handler} creates a {typeof(Envelope).FullNameInCode()}");
+                throw new InvalidHandlerException(
+                    $"Invalid Wolverine handler signature. Method {handler} creates a {typeof(Envelope).FullNameInCode()}");
             }
         }
-        
+
         _generatedType = assembly.AddType(TypeName, typeof(MessageHandler));
 
         foreach (var handler in Handlers) assembly.ReferenceAssembly(handler.HandlerType.Assembly);
@@ -144,14 +145,14 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             $"context.{nameof(IMessageContext.Envelope)}"));
     }
 
-    Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider services,
+    Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
         var found = this.As<ICodeFile>().AttachTypesSynchronously(rules, assembly, services, containingNamespace);
         return Task.FromResult(found);
     }
 
-    bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider services,
+    bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
         _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
@@ -161,7 +162,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             return false;
         }
 
-        Handler = (MessageHandler)services.As<IContainer>().QuickBuild(_handlerType);
+        Handler = (MessageHandler)services!.As<IContainer>().QuickBuild(_handlerType);
         Handler.Chain = this;
 
         Debug.WriteLine(_generatedType?.SourceCode);
@@ -179,7 +180,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return Handlers.Any(x => x.Method.HasAttribute<T>() || x.HandlerType.HasAttribute<T>());
     }
 
-    public override Type? InputType()
+    public override Type InputType()
     {
         return MessageType;
     }
@@ -210,7 +211,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public static HandlerChain For<T>(Expression<Action<T>> expression, HandlerGraph parent)
     {
         var method = ReflectionHelper.GetMethod(expression);
-        var call = new MethodCall(typeof(T), method);
+        var call = new MethodCall(typeof(T), method!);
 
         return new HandlerChain(call, parent);
     }

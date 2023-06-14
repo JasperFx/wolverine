@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-
-namespace Wolverine.Transports;
+﻿namespace Wolverine.Transports;
 
 public interface IListener : IChannelCallback, IAsyncDisposable
 {
@@ -13,5 +10,4 @@ public interface IListener : IChannelCallback, IAsyncDisposable
     /// </summary>
     /// <returns></returns>
     ValueTask StopAsync();
-
 }

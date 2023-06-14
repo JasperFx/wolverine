@@ -113,12 +113,12 @@ public record StartStreamMessage2(string Id);
 
 public static class StartStreamMessageHandler
 {
-    public static StartStream Handle(StartStreamMessage message)
+    public static IStartStream Handle(StartStreamMessage message)
     {
         return MartenOps.StartStream<NamedDocument>(message.Id, new AEvent(), new BEvent());
     }
     
-    public static StartStream Handle(StartStreamMessage2 message)
+    public static IStartStream Handle(StartStreamMessage2 message)
     {
         return MartenOps.StartStream<NamedDocument>(message.Id, new CEvent(), new BEvent());
     }

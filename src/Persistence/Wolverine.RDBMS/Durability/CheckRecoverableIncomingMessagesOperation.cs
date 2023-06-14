@@ -16,11 +16,12 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
 {
     private readonly IMessageDatabase _database;
     private readonly IEndpointCollection _endpoints;
-    private readonly DurabilitySettings _settings;
-    private readonly ILogger _logger;
     private readonly List<IncomingCount> _incoming = new();
+    private readonly ILogger _logger;
+    private readonly DurabilitySettings _settings;
 
-    public CheckRecoverableIncomingMessagesOperation(IMessageDatabase database, IEndpointCollection endpoints, DurabilitySettings settings, ILogger logger)
+    public CheckRecoverableIncomingMessagesOperation(IMessageDatabase database, IEndpointCollection endpoints,
+        DurabilitySettings settings, ILogger logger)
     {
         _database = database;
         _endpoints = endpoints;
@@ -32,7 +33,8 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {
-        builder.Append($"select {DatabaseConstants.ReceivedAt}, count(*) from {_database.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt};");
+        builder.Append(
+            $"select {DatabaseConstants.ReceivedAt}, count(*) from {_database.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt};");
     }
 
     public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
@@ -44,7 +46,7 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
             var count = await reader.GetFieldValueAsync<int>(1, token).ConfigureAwait(false);
 
             var incoming = new IncomingCount(address, count);
-            
+
             _incoming.Add(incoming);
         }
     }
@@ -57,12 +59,15 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
 
             if (listener.Status == ListeningStatus.Accepting)
             {
-                _logger.LogInformation("Issuing a command to recover {Count} incoming messages from the inbox to destination {Destination}", incoming.Count, incoming.Destination);
-                yield return new RecoverableIncomingMessagesOperation(_database, incoming, listener, _settings, _logger);
+                _logger.LogInformation(
+                    "Issuing a command to recover {Count} incoming messages from the inbox to destination {Destination}",
+                    incoming.Count, incoming.Destination);
+                yield return
+                    new RecoverableIncomingMessagesOperation(_database, incoming, listener, _settings, _logger);
             }
         }
     }
-    
+
     private IListenerCircuit findListenerCircuit(IncomingCount count)
     {
         if (count.Destination.Scheme == TransportConstants.Local)
@@ -74,17 +79,15 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
                        _endpoints.FindListeningAgent(TransportConstants.Durable);
         return listener!;
     }
-    
-
 }
 
 internal class RecoverableIncomingMessagesOperation : IAgentCommand
 {
-    private readonly IMessageDatabase _database;
-    private readonly IncomingCount _count;
     private readonly IListenerCircuit _circuit;
-    private readonly DurabilitySettings _settings;
+    private readonly IncomingCount _count;
+    private readonly IMessageDatabase _database;
     private readonly ILogger _logger;
+    private readonly DurabilitySettings _settings;
 
     public RecoverableIncomingMessagesOperation(IMessageDatabase database, IncomingCount count,
         IListenerCircuit circuit, DurabilitySettings settings, ILogger logger)
@@ -95,11 +98,40 @@ internal class RecoverableIncomingMessagesOperation : IAgentCommand
         _settings = settings;
         _logger = logger;
     }
-    
+
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var pageSize = DeterminePageSize(_circuit, _count, _settings);
+        if (pageSize == 0)
+        {
+            _logger.LogInformation(
+                "Unable to recover inbox messages to destination {Destination}. Listener has status {Status} and queued count {QueuedCount}",
+                _count.Destination, _circuit.Status, _circuit.QueueCount);
+            yield break;
+        }
+
+        var envelopes = await _database.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
+        await _database.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
+
+        _circuit.EnqueueDirectly(envelopes);
+        _logger.RecoveredIncoming(envelopes);
+
+        _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",
+            envelopes.Count, _count.Destination);
+
+        if (pageSize < _count.Count)
+        {
+            var count = _count with { Count = _count.Count - pageSize };
+
+            yield return new RecoverableIncomingMessagesOperation(_database, count, _circuit, _settings, _logger);
+        }
+    }
+
     public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count,
         DurabilitySettings durabilitySettings)
     {
-        if (listener!.Status != ListeningStatus.Accepting)
+        if (listener.Status != ListeningStatus.Accepting)
         {
             return 0;
         }
@@ -122,32 +154,4 @@ internal class RecoverableIncomingMessagesOperation : IAgentCommand
 
         return pageSize;
     }
-
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var pageSize = DeterminePageSize(_circuit, _count, _settings);
-        if (pageSize == 0)
-        {
-            _logger.LogInformation("Unable to recover inbox messages to destination {Destination}. Listener has status {Status} and queued count {QueuedCount}", _count.Destination, _circuit.Status, _circuit.QueueCount);
-            yield break;
-        }
-        
-        var envelopes = await _database.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
-        await _database.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
-        
-        _circuit.EnqueueDirectly(envelopes);
-        _logger.RecoveredIncoming(envelopes);
-        
-        _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}", envelopes.Count, _count.Destination);
-
-        if (pageSize < _count.Count)
-        {
-            var count = _count with {Count = _count.Count - pageSize};
-
-            yield return new RecoverableIncomingMessagesOperation(_database, count, _circuit, _settings, _logger);
-        }
-    }
 }
-
-
-

@@ -1,7 +1,4 @@
-﻿using System;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.ErrorHandling;
@@ -15,11 +12,11 @@ public class HandlerPipeline : IHandlerPipeline
 {
     private readonly CancellationToken _cancellation;
     private readonly ObjectPool<MessageContext> _contextPool;
+
+    private readonly LightweightCache<Type, IExecutor> _executors;
     private readonly HandlerGraph _graph;
 
     private readonly WolverineRuntime _runtime;
-
-    private readonly LightweightCache<Type, IExecutor> _executors;
 
     internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory)
     {
@@ -158,18 +155,16 @@ public class HandlerPipeline : IHandlerPipeline
         if (envelope.IsResponse)
         {
             _runtime.Replies.Complete(envelope);
-            
+
             // TODO -- log the successful reply here. 
             return MessageSucceededContinuation.Instance;
         }
 
-        var executor =_executors[envelope.Message!.GetType()];
+        var executor = _executors[envelope.Message!.GetType()];
 
         var continuation = await executor.ExecuteAsync(context, _cancellation).ConfigureAwait(false);
-        
+
 
         return continuation;
     }
-
-
 }

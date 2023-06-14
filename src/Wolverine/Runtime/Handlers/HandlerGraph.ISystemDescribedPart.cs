@@ -1,7 +1,3 @@
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Oakton.Descriptions;
@@ -37,7 +33,8 @@ public partial class HandlerGraph : IDescribedSystemPart, IWriteToConsole
         }
         else
         {
-            AnsiConsole.Write("[yellow]No message handlers were discovered, you may want to review the discovery rules above.[/]");
+            AnsiConsole.Write(
+                "[yellow]No message handlers were discovered, you may want to review the discovery rules above.[/]");
         }
 
         return Task.CompletedTask;
@@ -69,37 +66,23 @@ public partial class HandlerGraph : IDescribedSystemPart, IWriteToConsole
     {
         var tree = new Tree("Handler Discovery Rules");
         var assemblies = tree.AddNode("Assemblies");
-        foreach (var assembly in Discovery.Assemblies)
-        {
-            assemblies.AddNode(assembly.GetName().Name.EscapeMarkup());
-        }
+        foreach (var assembly in Discovery.Assemblies) assemblies.AddNode(assembly.GetName().Name.EscapeMarkup());
 
         var typeRules = tree.AddNode("Handler Type Rules");
         var includedNode = typeRules.AddNode("Include:");
-        foreach (var filter in Discovery.HandlerQuery.Includes)
-        {
-            includedNode.AddNode(filter.Description.EscapeMarkup());
-        }
+        foreach (var filter in Discovery.HandlerQuery.Includes) includedNode.AddNode(filter.Description.EscapeMarkup());
 
         var excludedNode = typeRules.AddNode("Exclude:");
         foreach (var exclude in Discovery.HandlerQuery.Excludes)
-        {
             excludedNode.AddNode(exclude.Description.EscapeMarkup());
-        }
 
         var methodRules = tree.AddNode("Handler Method Rules");
         var includedMethods = methodRules.AddNode("Include:");
-        foreach (var include in Discovery.MethodIncludes)
-        {
-            includedMethods.AddNode(include.Description.EscapeMarkup());
-        }
+        foreach (var include in Discovery.MethodIncludes) includedMethods.AddNode(include.Description.EscapeMarkup());
 
         var excludedMethods = methodRules.AddNode("Exclude:");
-        foreach (var filter in Discovery.MethodExcludes)
-        {
-            excludedMethods.AddNode(filter.Description.EscapeMarkup());
-        }
-        
+        foreach (var filter in Discovery.MethodExcludes) excludedMethods.AddNode(filter.Description.EscapeMarkup());
+
         AnsiConsole.Write(tree);
 
         AnsiConsole.WriteLine();

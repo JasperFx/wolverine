@@ -40,13 +40,13 @@ public class FromHeaderStrategy : IParameterStrategy
 
 internal class FromHeaderValue : SyncFrame
 {
-    private Variable _httpContext;
+    private Variable? _httpContext;
     private readonly string _header;
 
     public FromHeaderValue(IFromHeaderMetadata header, ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name, this);
-        _header = header.Name ?? parameter.Name;
+        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
+        _header = header.Name ?? parameter.Name!;
     }
 
     public Variable Variable { get; }
@@ -60,7 +60,7 @@ internal class FromHeaderValue : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write(
-            $"var {Variable.Usage} = {nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext.Usage}, \"{_header}\");");
+            $"var {Variable.Usage} = {nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext!.Usage}, \"{_header}\");");
         Next?.GenerateCode(method, writer);
     }
 }

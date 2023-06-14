@@ -1,7 +1,4 @@
-using System;
 using System.Buffers;
-using System.Threading;
-using System.Threading.Tasks;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
 using Wolverine.Runtime;
@@ -12,10 +9,10 @@ namespace Wolverine.Pulsar;
 internal class PulsarListener : IListener
 {
     private readonly CancellationToken _cancellation;
+    private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
     private readonly CancellationTokenSource _localCancellation;
     private readonly Task? _receivingLoop;
     private readonly PulsarSender _sender;
-    private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
@@ -52,7 +49,7 @@ internal class PulsarListener : IListener
                 };
 
                 mapper.MapIncomingToEnvelope(envelope, message);
-                
+
                 await receiver.ReceivedAsync(this, envelope);
             }
         }, combined.Token);

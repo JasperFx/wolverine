@@ -1,10 +1,8 @@
-using System.Threading.Tasks;
-
 namespace Wolverine;
 
 /// <summary>
-/// Helper to return messages back to the original sender
-/// through cascading messages
+///     Helper to return messages back to the original sender
+///     through cascading messages
 /// </summary>
 public static class Respond
 {

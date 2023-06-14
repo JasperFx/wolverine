@@ -9,6 +9,7 @@ namespace Wolverine.Runtime;
 
 public class MessageBus : IMessageBus
 {
+    // ReSharper disable once InconsistentNaming
     protected readonly List<Envelope> _outstanding = new();
 
     [DefaultConstructor]

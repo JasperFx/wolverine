@@ -29,7 +29,7 @@ public static class WolverineEntityCoreExtensions
 
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
 
-        services.AddSingleton<WolverineDbContextCustomizationOptions>(ctx => 
+        services.AddSingleton<WolverineDbContextCustomizationOptions>(_ => 
             string.IsNullOrEmpty(wolverineDatabaseSchema) ? 
                 WolverineDbContextCustomizationOptions.Default : new WolverineDbContextCustomizationOptions { DatabaseSchema = wolverineDatabaseSchema});
 
@@ -74,8 +74,7 @@ public static class WolverineEntityCoreExtensions
 
         modelBuilder.Entity<IncomingMessage>(eb =>
         {
-            var table = eb.ToTable(DatabaseConstants.IncomingTable, databaseSchema, x => x.ExcludeFromMigrations());
-
+            eb.ToTable(DatabaseConstants.IncomingTable, databaseSchema, x => x.ExcludeFromMigrations());
 
             eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
             eb.HasKey(x => x.Id);

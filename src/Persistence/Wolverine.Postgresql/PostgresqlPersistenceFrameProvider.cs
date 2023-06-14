@@ -35,7 +35,7 @@ internal class PostgresqlPersistenceFrameProvider : IPersistenceFrameProvider
 
     public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
     {
-        persistenceService = default;
+        persistenceService = default!;
         return false;
     }
 

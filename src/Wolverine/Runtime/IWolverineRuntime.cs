@@ -27,6 +27,9 @@ public interface IWolverineRuntime
     Meter Meter { get; }
     ILoggerFactory LoggerFactory { get; }
 
+
+    IAgentRuntime Agents { get; }
+
     /// <summary>
     ///     Schedule an envelope for later execution in memory
     /// </summary>
@@ -49,10 +52,6 @@ public interface IWolverineRuntime
 
     IMessageInvoker FindInvoker(Type messageType);
     void AssertHasStarted();
-    
-    
-    IAgentRuntime Agents { get; }
-
 }
 
 public interface IAgentRuntime

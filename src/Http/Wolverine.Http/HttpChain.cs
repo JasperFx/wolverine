@@ -9,7 +9,6 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
@@ -41,13 +40,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
 
-    private string _fileName;
+    private string? _fileName;
     private readonly List<string> _httpMethods = new();
 
     private readonly HttpGraph _parent;
 
     // Make the assumption that the route argument has to match the parameter name
-    private GeneratedType _generatedType;
+    private GeneratedType? _generatedType;
     private Type? _handlerType;
     private string _description;
 
@@ -135,7 +134,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             DisplayName = displayName;
         }
 
-        _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern.RawText.Replace("/", "_")
+        _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern!.RawText!.Replace("/", "_")
             .Replace("{", "").Replace("}", "").Replace("-", "_");
 
         _description = _fileName;
@@ -143,7 +142,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         _parent.ApplyParameterMatching(this);
     }
 
-    public RoutePattern RoutePattern { get; internal set; }
+    public RoutePattern? RoutePattern { get; private set; }
 
     public Type? RequestType { get; internal set; }
 
@@ -155,7 +154,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {
         var method = ReflectionHelper.GetMethod(expression);
-        var call = new MethodCall(typeof(T), method);
+        var call = new MethodCall(typeof(T), method!);
 
         return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), new Container(x =>
         {
@@ -202,7 +201,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override string ToString()
     {
-        return _fileName;
+        return _fileName!;
     }
 
     public override bool RequiresOutbox()

@@ -1,12 +1,9 @@
-using System;
 using System.Net;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
-using Wolverine.Util;
 
 namespace Wolverine.Transports.Tcp;
 
@@ -69,6 +66,7 @@ public class TcpEndpoint : Endpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new BatchedSender(Uri, new SocketSenderProtocol(), runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<SocketSenderProtocol>());
+        return new BatchedSender(Uri, new SocketSenderProtocol(), runtime.DurabilitySettings.Cancellation,
+            runtime.LoggerFactory.CreateLogger<SocketSenderProtocol>());
     }
 }

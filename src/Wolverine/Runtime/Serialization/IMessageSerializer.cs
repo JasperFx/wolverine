@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Runtime.Serialization;
 
 /// <summary>
@@ -8,7 +6,7 @@ namespace Wolverine.Runtime.Serialization;
 public interface IMessageSerializer
 {
     string ContentType { get; }
-    
+
     byte[] Write(Envelope envelope);
 
     object ReadFromData(Type messageType, Envelope envelope);

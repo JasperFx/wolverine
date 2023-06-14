@@ -107,7 +107,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         var asyncEnumerable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(IAsyncEnumerable<object>));
         if (asyncEnumerable != null)
         {
-            asyncEnumerable.UseReturnAction(v =>
+            asyncEnumerable.UseReturnAction(_ =>
             {
                 return typeof(ApplyEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(asyncEnumerable,
                     AggregateType!);
@@ -124,7 +124,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         
         if (eventsVariable != null)
         {
-            var action = eventsVariable.UseReturnAction(
+            eventsVariable.UseReturnAction(
                 v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, AggregateType!)
                     .WrapIfNotNull(v), "Append events to the Marten event stream");
 
@@ -137,14 +137,14 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         // then assume that the default behavior of each return value is to be an event
         if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
         {
-            chain.ReturnVariableActionSource = new EventCaptureActionSource(AggregateType);
+            chain.ReturnVariableActionSource = new EventCaptureActionSource(AggregateType!);
         }
     }
 
     private void relayAggregateToHandlerMethod(MethodCall loader, MethodCall firstCall)
     {
-        var aggregateVariable = new Variable(AggregateType,
-            $"{loader.ReturnVariable.Usage}.{nameof(IEventStream<string>.Aggregate)}");
+        var aggregateVariable = new Variable(AggregateType!,
+            $"{loader.ReturnVariable!.Usage}.{nameof(IEventStream<string>.Aggregate)}");
 
         if (firstCall.HandlerType == AggregateType)
         {
@@ -256,13 +256,13 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
         var variableName = (typeof(T).Name + "Event").ToCamelCase();
         
         writer.WriteComment(Description);
-        writer.Write($"await foreach (var {variableName} in {_returnValue.Usage}) {_stream.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
+        writer.Write($"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
         Next?.GenerateCode(method, writer);
     }
 
     public string Description => "Apply events to Marten event stream";
 
-    public IEnumerable<Type> Dependencies()
+    public new IEnumerable<Type> Dependencies()
     {
         yield break;
     }

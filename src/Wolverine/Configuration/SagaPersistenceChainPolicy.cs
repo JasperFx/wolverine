@@ -13,7 +13,7 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
         var providers = rules.PersistenceProviders();
-        
+
         foreach (var chain in chains)
         {
             var returnedSagas = chain.ReturnVariablesOfType<Saga>();
@@ -25,12 +25,12 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
                         "No known Saga persistence provider 'knows' how to insert an entity of type " +
                         saga.VariableType.FullNameInCode() + " referenced in chain " + chain);
                 }
-                
             }
         }
     }
 
-    private static bool attachSagaPersistenceFrame(IContainer container, List<IPersistenceFrameProvider> providers, Variable saga, IChain chain)
+    private static bool attachSagaPersistenceFrame(IContainer container, List<IPersistenceFrameProvider> providers,
+        Variable saga, IChain chain)
     {
         foreach (var provider in providers)
         {
@@ -40,7 +40,7 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
 
                 saga.UseReturnAction(v => provider.DetermineInsertFrame(v, container),
                     "Persisting the new Saga entity");
-                
+
                 provider.ApplyTransactionSupport(chain, container);
                 return true;
             }

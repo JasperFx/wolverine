@@ -3,8 +3,8 @@
 ::: tip
 Wolverine's guiding philosophy is to remove code ceremony from a developer's day to day coding, but that comes
 at the cost of using conventions that some developers will decry as "too much magic." If you actually prefer having
-explicit interfaces or base classes or required attributes to direct your code, Wolverine might not be for you. If you instead
-prefer low code ceremony where the framework stays out of your code, jump on in!
+explicit interfaces or base classes or required attributes to direct your code, Wolverine will let you do that too, so don't go 
+anywhere!
 :::
 
 Since the whole purpose of Wolverine is to connect incoming messages to handling code, most of your time as a user of Wolverine is going to be spent

@@ -1,10 +1,7 @@
-﻿using System;
-using System.Linq;
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
-using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -30,7 +27,7 @@ public class HandlerCall : MethodCall
 
     public new static HandlerCall For<T>(Expression<Action<T>> method)
     {
-        return new HandlerCall(typeof(T), ReflectionHelper.GetMethod(method));
+        return new HandlerCall(typeof(T), ReflectionHelper.GetMethod(method)!);
     }
 
     public bool CouldHandleOtherMessageType(Type messageType)

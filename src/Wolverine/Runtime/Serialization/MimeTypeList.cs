@@ -1,6 +1,4 @@
 ﻿using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
 using JasperFx.Core;
 
 namespace Wolverine.Runtime.Serialization;
@@ -16,7 +14,7 @@ internal class MimeTypeList : IEnumerable<string>
         Raw = mimeType;
 
 
-        IEnumerable<string> types =
+        var types =
             mimeType.ToDelimitedArray().Select(x => x.Split(';')[0]).Where(x => x.IsNotEmpty());
 
         _mimeTypes.AddRange(types);

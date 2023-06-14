@@ -1,5 +1,3 @@
-using System;
-using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -12,7 +10,7 @@ namespace Wolverine;
 public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
 {
     /// <summary>
-    /// Add a new Wolverine policy
+    ///     Add a new Wolverine policy
     /// </summary>
     /// <typeparam name="T"></typeparam>
     void Add<T>() where T : IWolverinePolicy, new();
@@ -57,22 +55,22 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void AllLocalQueues(Action<IListenerConfiguration> configure);
 
     /// <summary>
-    /// Override the routing for locally handled messages
+    ///     Override the routing for locally handled messages
     /// </summary>
     /// <returns></returns>
     ILocalMessageRoutingConvention ConfigureConventionalLocalRouting();
 
     /// <summary>
-    /// Opt out of Wolverine's default convention of routing messages to the local node's queues
-    /// Use this to force messages without explicit routing rules to be sent to external transports
-    /// even if the node has a message handler for the message type
+    ///     Opt out of Wolverine's default convention of routing messages to the local node's queues
+    ///     Use this to force messages without explicit routing rules to be sent to external transports
+    ///     even if the node has a message handler for the message type
     /// </summary>
     void DisableConventionalLocalRouting();
 
-    
+
     /// <summary>
-    /// In place of using [Transactional] attributes, apply transactional middleware
-    /// to every message handler that uses transactional services
+    ///     In place of using [Transactional] attributes, apply transactional middleware
+    ///     to every message handler that uses transactional services
     /// </summary>
     void AutoApplyTransactions();
 
@@ -91,23 +89,23 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null);
 
     /// <summary>
-    /// For the purposes of interoperability with NServiceBus or MassTransit, register
-    /// the assemblies for shared message types to make Wolverine try to forward the message
-    /// names of its messages to the interfaces of NServiceBus or MassTransit message types
+    ///     For the purposes of interoperability with NServiceBus or MassTransit, register
+    ///     the assemblies for shared message types to make Wolverine try to forward the message
+    ///     names of its messages to the interfaces of NServiceBus or MassTransit message types
     /// </summary>
     /// <param name="assembly"></param>
     void RegisterInteropMessageAssembly(Assembly assembly);
 
     /// <summary>
-    /// Write a log message with the given log level when message execution starts.
-    /// This would also include any audited members of the message
+    ///     Write a log message with the given log level when message execution starts.
+    ///     This would also include any audited members of the message
     /// </summary>
     /// <param name="logLevel"></param>
     void LogMessageStarting(LogLevel logLevel);
 
     /// <summary>
-    /// Specify policies for the handling of every message type that can
-    /// be cast to T
+    ///     Specify policies for the handling of every message type that can
+    ///     be cast to T
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>

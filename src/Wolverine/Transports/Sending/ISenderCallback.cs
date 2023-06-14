@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-
-namespace Wolverine.Transports.Sending;
+﻿namespace Wolverine.Transports.Sending;
 
 public interface ISenderCallback
 {

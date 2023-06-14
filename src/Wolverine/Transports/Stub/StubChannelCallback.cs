@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
-
-namespace Wolverine.Transports.Stub;
+﻿namespace Wolverine.Transports.Stub;
 
 internal class StubChannelCallback : IChannelCallback
 {

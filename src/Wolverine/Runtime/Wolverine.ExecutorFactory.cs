@@ -1,5 +1,4 @@
-﻿using System;
-using Wolverine.Runtime.Handlers;
+﻿using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime;
 
@@ -12,6 +11,6 @@ public partial class WolverineRuntime : IExecutorFactory
             ? new NoHandlerExecutor(messageType, this)
             : Executor.Build(this, ExecutionPool, Handlers, messageType);
 
-        return executor!;
+        return executor;
     }
 }

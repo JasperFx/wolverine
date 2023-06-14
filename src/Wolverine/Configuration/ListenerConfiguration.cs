@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
@@ -26,25 +25,6 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     public ListenerConfiguration(Func<TEndpoint> source) : base(source)
     {
         add(e => e.IsListener = true);
-    }
-    
-    /// <summary>
-    ///     To optimize the message listener throughput,
-    ///     start up multiple listening endpoints. This is
-    ///     most necessary when using inline processing
-    /// </summary>
-    /// <param name="count"></param>
-    /// <returns></returns>
-    public TSelf ListenerCount(int count)
-    {
-        if (count <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(count), "Must be greater than zero");
-        }
-
-        add(e => e.ListenerCount = count);
-
-        return this.As<TSelf>();
     }
 
     public TSelf MaximumParallelMessages(int maximumParallelHandlers, ProcessingOrder? order = null)
@@ -141,19 +121,38 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
         return this.As<TSelf>();
     }
+
+    /// <summary>
+    ///     To optimize the message listener throughput,
+    ///     start up multiple listening endpoints. This is
+    ///     most necessary when using inline processing
+    /// </summary>
+    /// <param name="count"></param>
+    /// <returns></returns>
+    public TSelf ListenerCount(int count)
+    {
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count), "Must be greater than zero");
+        }
+
+        add(e => e.ListenerCount = count);
+
+        return this.As<TSelf>();
+    }
 }
 
 public enum ProcessingOrder
 {
     /// <summary>
-    /// Should the messages be processed in the strict order in which they
-    /// were received?
+    ///     Should the messages be processed in the strict order in which they
+    ///     were received?
     /// </summary>
     StrictOrdered,
-    
+
     /// <summary>
-    /// Is it okay to allow the local queue to process messages in any order? This
-    /// may give better throughput
+    ///     Is it okay to allow the local queue to process messages in any order? This
+    ///     may give better throughput
     /// </summary>
     UnOrdered
 }

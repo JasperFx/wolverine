@@ -1,4 +1,3 @@
-using System.Runtime.Intrinsics.X86;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -19,7 +18,7 @@ internal class MartenAggregateHandlerStrategy : IHandlerPolicy
                 continue;
             }
             
-            if (chain.Handlers.SelectMany(x => x.Creates).Any(x => x.VariableType.CanBeCastTo<StartStream>())) continue;
+            if (chain.Handlers.SelectMany(x => x.Creates).Any(x => x.VariableType.CanBeCastTo<IStartStream>())) continue;
 
             new AggregateHandlerAttribute(ConcurrencyStyle.Optimistic).Modify(chain, rules, container);
         }

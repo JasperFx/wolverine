@@ -79,7 +79,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     public async Task the_only_known_node_is_automatically_the_leader()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadership(10.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(10.Seconds());
         tracker.IsLeader().ShouldBeTrue();
     }
 
@@ -118,7 +118,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     public async Task send_node_event_for_starting_on_startup()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadership(5.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
         var waiter = _originalHost.GetRuntime().Tracker.WaitForNodeEvent(NodeEventType.Started, 10.Seconds());
 
@@ -166,7 +166,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     public async Task leader_switchover_between_nodes()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadership(5.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();
@@ -174,18 +174,18 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
 
         await _originalHost.StopAsync();
 
-        await host2.GetRuntime().Tracker.WaitUntilAssumesLeadership(15.Seconds());
+        await host2.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
 
         await host2.StopAsync();
 
-        await host3.GetRuntime().Tracker.WaitUntilAssumesLeadership(30.Seconds());
+        await host3.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(30.Seconds());
     }
 
     [Fact]
     public async Task spin_up_several_nodes_take_away_original_node()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadership(5.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();
@@ -214,7 +214,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     public async Task spin_up_several_nodes_take_away_non_leader_node()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadership(5.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();
@@ -234,7 +234,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     public async Task verify_assignments_can_make_corrections()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadership(5.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();
@@ -271,7 +271,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     public async Task eject_a_stale_node()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadership(5.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();
@@ -305,7 +305,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     public async Task take_over_leader_ship_if_leader_becomes_stale()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadership(5.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();
@@ -324,7 +324,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         
         var runtime2 = host2.GetRuntime();
         await host2.InvokeMessageAndWaitAsync(new CheckAgentHealth());
-        await runtime2.Tracker.WaitUntilAssumesLeadership(5.Seconds());
+        await runtime2.Tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
         
         await host2.WaitUntilAssignmentsChangeTo(w =>

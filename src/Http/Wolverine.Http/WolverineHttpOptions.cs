@@ -1,10 +1,7 @@
 using System.Text.Json;
-using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Lamar;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Runtime;
@@ -29,7 +26,7 @@ public class WolverineHttpOptions
     public List<IHttpPolicy> Policies { get; } = new();
 
     /// <summary>
-    /// Customize Wolverine's handling of parameters to HTTP endpoint methods
+    ///     Customize Wolverine's handling of parameters to HTTP endpoint methods
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public void AddParameterHandlingStrategy<T>() where T : IParameterStrategy, new()
@@ -38,13 +35,13 @@ public class WolverineHttpOptions
     }
 
     /// <summary>
-    /// Customize Wolverine's handling of parameters to HTTP endpoint methods
+    ///     Customize Wolverine's handling of parameters to HTTP endpoint methods
     /// </summary>
     /// <param name="strategy"></param>
     /// <exception cref="NotImplementedException"></exception>
     public void AddParameterHandlingStrategy(IParameterStrategy strategy)
     {
-        Endpoints.InsertParameterStrategy(strategy);
+        Endpoints!.InsertParameterStrategy(strategy);
     }
 
 
@@ -98,14 +95,14 @@ public class WolverineHttpOptions
         Func<IChain, bool> chainFilter = c => c is HttpChain;
         if (filter != null)
         {
-            chainFilter = c => c is HttpChain e && filter!(e);
+            chainFilter = c => c is HttpChain e && filter(e);
         }
 
         Middleware.AddType(middlewareType, chainFilter);
     }
 
     /// <summary>
-    /// From this url, forward a JSON serialized message by publishing through Wolverine
+    ///     From this url, forward a JSON serialized message by publishing through Wolverine
     /// </summary>
     /// <param name="httpMethod"></param>
     /// <param name="url"></param>
@@ -113,8 +110,10 @@ public class WolverineHttpOptions
     /// <typeparam name="T"></typeparam>
     public void PublishMessage<T>(HttpMethod httpMethod, string url, Action<HttpChain>? customize = null)
     {
-        var method = MethodCall.For<PublishingEndpoint<T>>(x => x.PublishAsync(default, null, null));
-        var chain = Endpoints.Add(method, httpMethod, url);
+#pragma warning disable CS4014
+        var method = MethodCall.For<PublishingEndpoint<T>>(x => x.PublishAsync(default!, null!, null!));
+#pragma warning restore CS4014
+        var chain = Endpoints!.Add(method, httpMethod, url);
 
         chain.MapToRoute(httpMethod.ToString(), url);
         chain.DisplayName = $"Forward {typeof(T).FullNameInCode()} to Wolverine";

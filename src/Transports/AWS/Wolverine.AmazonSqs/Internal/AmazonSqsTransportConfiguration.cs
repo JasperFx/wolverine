@@ -29,7 +29,7 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     /// <returns></returns>
     public AmazonSqsTransportConfiguration Credentials(AWSCredentials credentials)
     {
-        Transport.CredentialSource = r => credentials;
+        Transport.CredentialSource = _ => credentials;
         return this;
     }
 

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using System.Threading.Tasks.Dataflow;
 using Microsoft.Extensions.Logging;
@@ -60,6 +59,12 @@ public class WatchedObservable<T> : IObservable<T>, IDisposable
         }
     }
 
+    internal Task DrainAsync()
+    {
+        _block.Complete();
+        return _block.Completion;
+    }
+
     private class Unsubscriber : IDisposable
     {
         private readonly IObserver<T> _observer;
@@ -75,11 +80,5 @@ public class WatchedObservable<T> : IObservable<T>, IDisposable
         {
             _tracker._listeners = _tracker._listeners.Remove(_observer);
         }
-    }
-    
-    internal Task DrainAsync()
-    {
-        _block.Complete();
-        return _block.Completion;
     }
 }

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using Spectre.Console;
@@ -56,7 +54,7 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
                 table.AddRow("Outgoing", counts.Outgoing.ToString());
                 table.AddRow("Scheduled", counts.Scheduled.ToString());
                 table.AddRow("Dead Letter", counts.DeadLetter.ToString());
-                
+
                 AnsiConsole.Write(table);
 
                 break;
@@ -77,13 +75,15 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
                 await persistence.Admin.ReleaseAllOwnershipAsync();
 
                 break;
-            
+
             case StorageAction.replay:
-                var markedCount = await persistence.Admin.MarkDeadLetterEnvelopesAsReplayableAsync(input.ExceptionTypeForReplayFlag);
+                var markedCount =
+                    await persistence.Admin.MarkDeadLetterEnvelopesAsReplayableAsync(input.ExceptionTypeForReplayFlag);
                 var exceptionType = string.IsNullOrEmpty(input.ExceptionTypeForReplayFlag)
-                    ? "any" 
+                    ? "any"
                     : input.ExceptionTypeForReplayFlag;
-                AnsiConsole.Write($"[green]Successfully replayed {markedCount} envelope(s) in dead letter with exception type '{exceptionType}'");
+                AnsiConsole.Write(
+                    $"[green]Successfully replayed {markedCount} envelope(s) in dead letter with exception type '{exceptionType}'");
 
                 break;
         }

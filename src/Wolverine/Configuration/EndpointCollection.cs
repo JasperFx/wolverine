@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
@@ -10,7 +6,6 @@ using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
-using Wolverine.Util;
 
 namespace Wolverine.Configuration;
 
@@ -193,15 +188,18 @@ public class EndpointCollection : IEndpointCollection
         switch (endpoint.Mode)
         {
             case EndpointMode.Durable:
-                return new DurableSendingAgent(sender, _options.Durability, _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTracking,
+                return new DurableSendingAgent(sender, _options.Durability,
+                    _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTracking,
                     _runtime.Storage, endpoint);
 
             case EndpointMode.BufferedInMemory:
-                return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(), _runtime.MessageTracking, sender, _runtime.DurabilitySettings,
+                return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(),
+                    _runtime.MessageTracking, sender, _runtime.DurabilitySettings,
                     endpoint);
 
             case EndpointMode.Inline:
-                return new InlineSendingAgent(_runtime.LoggerFactory.CreateLogger<InlineSendingAgent>(), sender, endpoint, _runtime.MessageTracking,
+                return new InlineSendingAgent(_runtime.LoggerFactory.CreateLogger<InlineSendingAgent>(), sender,
+                    endpoint, _runtime.MessageTracking,
                     _runtime.DurabilitySettings);
         }
 

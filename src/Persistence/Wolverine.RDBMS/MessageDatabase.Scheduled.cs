@@ -5,6 +5,8 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
+    public abstract void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
+
     public Task ScheduleExecutionAsync(Envelope envelope)
     {
         return CreateCommand(
@@ -12,7 +14,7 @@ public abstract partial class MessageDatabase<T>
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
-            .ExecuteOnce(cancellation: _cancellation);
+            .ExecuteOnce(_cancellation);
     }
 
 
@@ -23,7 +25,4 @@ public abstract partial class MessageDatabase<T>
 
         return StoreIncomingAsync(envelope);
     }
-    
-
-    public abstract void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
 }

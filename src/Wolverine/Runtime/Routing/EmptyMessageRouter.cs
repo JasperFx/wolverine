@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Runtime.Routing;
 
 public class EmptyMessageRouter<T> : MessageRouterBase<T>
@@ -7,6 +5,8 @@ public class EmptyMessageRouter<T> : MessageRouterBase<T>
     public EmptyMessageRouter(WolverineRuntime runtime) : base(runtime)
     {
     }
+
+    public override MessageRoute[] Routes => Array.Empty<MessageRoute>();
 
     public override Envelope[] RouteForSend(T message, DeliveryOptions? options)
     {
@@ -22,6 +22,4 @@ public class EmptyMessageRouter<T> : MessageRouterBase<T>
     {
         throw new IndeterminateRoutesException(typeof(T));
     }
-
-    public override MessageRoute[] Routes => Array.Empty<MessageRoute>();
 }

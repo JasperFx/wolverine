@@ -16,12 +16,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
+        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Weasel.Postgresql" Version="6.0.0-rc.3" />
+        <PackageReference Include="Weasel.Postgresql" Version="6.0.0-rc.3"/>
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
+    <Import Project="../../../Analysis.Build.props"/>
 </Project>

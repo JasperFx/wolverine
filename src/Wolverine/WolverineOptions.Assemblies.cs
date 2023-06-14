@@ -14,9 +14,9 @@ public sealed partial class WolverineOptions
     ///     that assuming that the IDE or test runner assembly is the application assembly
     /// </summary>
     public static Assembly? RememberedApplicationAssembly;
-    
+
     private Assembly? _applicationAssembly;
-    
+
     /// <summary>
     ///     The main application assembly for this Wolverine system. You may need or want to explicitly set this in automated
     ///     test harness
@@ -44,7 +44,7 @@ public sealed partial class WolverineOptions
             }
         }
     }
-    
+
     /// <summary>
     ///     All of the assemblies that Wolverine is searching for message handlers and
     ///     other Wolverine items
@@ -57,7 +57,7 @@ public sealed partial class WolverineOptions
         var stack = new StackTrace();
         var frames = stack.GetFrames();
         var wolverineFrame = frames.LastOrDefault(x =>
-            x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly?.GetName().Name == "Wolverine");
+            x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly.GetName().Name == "Wolverine");
 
         var index = frames.IndexOf(wolverineFrame);
         for (var i = index; i < frames.Length; i++)

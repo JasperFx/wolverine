@@ -6,12 +6,12 @@ public class DatabaseSettings
     public string? SchemaName { get; set; }
 
     /// <summary>
-    /// Is this database the master database for node storage and any kind of command queueing?
+    ///     Is this database the master database for node storage and any kind of command queueing?
     /// </summary>
     public bool IsMaster { get; set; }
 
     /// <summary>
-    /// Is this database exposing command queues?
+    ///     Is this database exposing command queues?
     /// </summary>
     public bool CommandQueuesEnabled { get; set; } = true;
 }

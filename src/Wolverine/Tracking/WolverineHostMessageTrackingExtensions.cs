@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
@@ -100,7 +98,8 @@ public static class WolverineHostMessageTrackingExtensions
         int timeoutInMilliseconds = 5000)
     {
         T? returnValue = default;
-        var tracked = await host.ExecuteAndWaitAsync(async c => returnValue = await c.InvokeAsync<T>(message), timeoutInMilliseconds);
+        var tracked = await host.ExecuteAndWaitAsync(async c => returnValue = await c.InvokeAsync<T>(message),
+            timeoutInMilliseconds);
 
         return (tracked, returnValue);
     }

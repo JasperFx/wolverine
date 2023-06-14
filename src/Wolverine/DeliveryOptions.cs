@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using JasperFx.Core;
 using Wolverine.Util;
 
@@ -58,9 +56,9 @@ public class DeliveryOptions
     ///     the underlying saga state object
     /// </summary>
     public string? SagaId { get; internal set; }
-    
+
     /// <summary>
-    /// Override the tenant id metadata for a single envelope
+    ///     Override the tenant id metadata for a single envelope
     /// </summary>
     public string? TenantId { get; set; }
 

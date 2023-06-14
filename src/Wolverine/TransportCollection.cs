@@ -1,8 +1,4 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Transports;
@@ -26,14 +22,18 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
     }
 
     /// <summary>
-    /// The endpoint to use for sending system messages to a specific Node
+    ///     The endpoint to use for sending system messages to a specific Node
     /// </summary>
     public Endpoint? NodeControlEndpoint
     {
         get => _nodeControlEndpoint;
         set
         {
-            if (value != null) value.IsListener = true;
+            if (value != null)
+            {
+                value.IsListener = true;
+            }
+
             _nodeControlEndpoint = value;
         }
     }

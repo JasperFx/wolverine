@@ -16,9 +16,11 @@ namespace Wolverine.RDBMS;
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin where T : DbConnection, new()
 {
+    // ReSharper disable once InconsistentNaming
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
     protected readonly DatabaseSettings _settings;
+    private readonly ILogger _logger;
     private DatabaseBatcher? _batcher;
     private string _schemaName;
 
@@ -33,6 +35,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         }
 
         _settings = databaseSettings;
+        _logger = logger;
         _schemaName = databaseSettings.SchemaName ?? defaultSchema;
 
         IncomingFullName = $"{SchemaName}.{DatabaseConstants.IncomingTable}";
@@ -50,20 +53,22 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         // ReSharper disable once VirtualMemberCallInConstructor
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(settings);
 
-        Nodes = buildNodeStorage(databaseSettings);
+        // ReSharper disable once VirtualMemberCallInConstructor
+        Nodes = buildNodeStorage(databaseSettings)!;
     }
-    
-    
+
+    public string OutgoingFullName { get; private set; }
+
+    public string IncomingFullName { get; private set; }
+
+    public DurabilitySettings Durability { get; }
+
 
     public bool IsMaster => Settings.IsMaster;
 
     public string Name { get; set; } = TransportConstants.Default;
 
     public DatabaseSettings Settings => _settings;
-
-    public string OutgoingFullName { get; private set; }
-
-    public string IncomingFullName { get; private set; }
 
     public INodeAgentPersistence Nodes { get; }
 
@@ -82,8 +87,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             OutgoingFullName = $"{value}.{DatabaseConstants.OutgoingTable}";
         }
     }
-
-    public DurabilitySettings Durability { get; }
 
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
@@ -116,7 +119,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public Task DrainAsync()
     {
-        return _batcher.DrainAsync();
+        return _batcher!.DrainAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -160,6 +163,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             .With("owner", ownerId)
             .With("uri", receivedAt.ToString())
             .ExecuteNonQueryAsync(_cancellation);
+        
+        _logger.LogInformation("Reassigned {Impacted} incoming messages from {Owner} and endpoint at {Uri} to any node in the durable inbox", impacted, ownerId, receivedAt);
     }
 
     protected abstract INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings);
@@ -182,5 +187,5 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return cmd;
     }
 
-    public abstract IEnumerable<ISchemaObject> AllObjects();
+    public new abstract IEnumerable<ISchemaObject> AllObjects();
 }

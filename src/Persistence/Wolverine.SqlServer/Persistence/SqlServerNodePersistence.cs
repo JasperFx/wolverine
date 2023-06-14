@@ -32,7 +32,7 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
 
         var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
         
-        var cmd = (SqlCommand)conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
+        var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
             .With("id", node.Id)
             .With("uri", node.ControlUri.ToString()).With("description", node.Description)
             .With("capabilities", strings);
@@ -135,7 +135,7 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
                 $"select id, node_number, description, uri, started, capabilities from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
             .With("id", nodeId);
 
-        WolverineNode returnValue = null;
+        WolverineNode returnValue = default!;
         
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
@@ -303,7 +303,7 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
 
         await conn.CloseAsync();
 
-        return list.Select(x => x.ToUri()).ToList();
+        return list.Select(x => x!.ToUri()).ToList();
     }
     
     public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()

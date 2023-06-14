@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.Persistence.Sagas;
 
 public class InvalidSagaException : Exception

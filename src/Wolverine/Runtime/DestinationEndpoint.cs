@@ -1,7 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Runtime.RemoteInvocation;
@@ -43,7 +40,7 @@ internal class DestinationEndpoint : IDestinationEndpoint
         {
             envelope.Serializer = _parent.Runtime.Options.FindSerializer(options.ContentType);
         }
-        
+
         foreach (var rule in route.Rules) rule.Modify(envelope);
 
         // Delivery options win
@@ -56,13 +53,14 @@ internal class DestinationEndpoint : IDestinationEndpoint
                 _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
             envelope = envelope.ForScheduledSend(localDurableQueue);
         }
-        
+
         _parent.TrackEnvelopeCorrelation(envelope, Activity.Current);
 
         return _parent.PersistOrSendAsync(envelope);
     }
 
-    public Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    public Task<Acknowledgement> InvokeAsync(object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
     {
         if (message == null)
         {
@@ -73,10 +71,11 @@ internal class DestinationEndpoint : IDestinationEndpoint
         return route.InvokeAsync<Acknowledgement>(message, _parent, cancellation, timeout);
     }
 
-    public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null) where T : class
+    public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
+        where T : class
     {
         _parent.Runtime.RegisterMessageType(typeof(T));
-        
+
         if (message == null)
         {
             throw new ArgumentNullException(nameof(message));

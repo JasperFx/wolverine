@@ -14,32 +14,28 @@ public class MiddlewarePolicy : IChainPolicy
 {
     public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync", "Load", "LoadAsync" };
     public static readonly string[] AfterMethodNames = { "After", "AfterAsync", "PostProcess", "PostProcessAsync" };
-    public static readonly string[] FinallyMethodNames = {"Finally", "FinallyAsync"};
+    public static readonly string[] FinallyMethodNames = { "Finally", "FinallyAsync" };
 
     private readonly List<Application> _applications = new();
-    
-    
+
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    {
+        var applications = _applications;
+
+        foreach (var chain in chains) ApplyToChain(applications, rules, chain);
+    }
+
+
     public static void AssertMethodDoesNotHaveDuplicateReturnValues(MethodCall call)
     {
         if (call.Method.ReturnType.IsValueType)
         {
-            var duplicates = call.Method.ReturnType.GetGenericArguments().GroupBy(x => x);
+            var duplicates = call.Method.ReturnType.GetGenericArguments().GroupBy(x => x).ToArray();
             if (duplicates.Any(x => x.Count() > 1))
             {
                 throw new InvalidWolverineMiddlewareException(
                     $"Wolverine middleware cannot support multiple 'creates' variables of the same type. Method {call}, arguments {duplicates.Select(x => x.Key.Name).Join(", ")}");
             }
-        }
-
-    }
-
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
-    {
-        var applications = _applications;
-        
-        foreach (var chain in chains)
-        {
-            ApplyToChain(applications, rules, chain);
         }
     }
 
@@ -85,8 +81,8 @@ public class MiddlewarePolicy : IChainPolicy
     {
         private readonly MethodInfo[] _afters;
         private readonly MethodInfo[] _befores;
-        private readonly MethodInfo[] _finals;
         private readonly ConstructorInfo? _constructor;
+        private readonly MethodInfo[] _finals;
 
         public Application(Type middlewareType, Func<IChain, bool> filter)
         {
@@ -132,7 +128,7 @@ public class MiddlewarePolicy : IChainPolicy
             var frames = buildBefores(chain, rules).ToArray();
             if (frames.Any() && !MiddlewareType.IsStatic())
             {
-                var constructorFrame = new ConstructorFrame(MiddlewareType, _constructor);
+                var constructorFrame = new ConstructorFrame(MiddlewareType, _constructor!);
                 if (MiddlewareType.CanBeCastTo<IDisposable>() || MiddlewareType.CanBeCastTo<IAsyncDisposable>())
                 {
                     constructorFrame.Mode = ConstructorCallMode.UsingNestedVariable;
@@ -153,7 +149,7 @@ public class MiddlewarePolicy : IChainPolicy
                     call.Next = frame;
                 }
 
-                var finals = _finals.Select(x => new MethodCall(MiddlewareType, x)).ToArray();
+                Frame[] finals = _finals.Select(x => new MethodCall(MiddlewareType, x)).OfType<Frame>().ToArray();
 
                 yield return new TryFinallyWrapperFrame(call, finals);
             }
@@ -162,7 +158,7 @@ public class MiddlewarePolicy : IChainPolicy
                 yield return call;
                 if (rules.TryFindContinuationHandler(call, out var frame))
                 {
-                    yield return frame;
+                    yield return frame!;
                 }
             }
         }
@@ -173,10 +169,10 @@ public class MiddlewarePolicy : IChainPolicy
             {
                 var inputType = chain.InputType();
                 var messageType = before.MessageType();
-                
+
                 if (messageType != null && inputType.CanBeCastTo(messageType))
                 {
-                    return new MethodCallAgainstMessage(MiddlewareType, before, inputType);
+                    return new MethodCallAgainstMessage(MiddlewareType, before, inputType!);
                 }
             }
             else
@@ -209,10 +205,7 @@ public class MiddlewarePolicy : IChainPolicy
                 {
                     AssertMethodDoesNotHaveDuplicateReturnValues(call);
 
-                    foreach (var frame in wrapBeforeFrame(call, rules))
-                    {
-                        yield return frame;
-                    }
+                    foreach (var frame in wrapBeforeFrame(call, rules)) yield return frame;
                 }
             }
         }
@@ -239,20 +232,20 @@ public class MiddlewarePolicy : IChainPolicy
 
         public IEnumerable<Frame> BuildAfterCalls(IChain chain, GenerationRules rules)
         {
-            var afters = buildAfters(chain, rules).ToArray();
+            var afters = buildAfters(chain).ToArray();
 
             if (afters.Any() && !MiddlewareType.IsStatic())
             {
                 if (chain.Middleware.OfType<ConstructorFrame>().All(x => x.Variable.VariableType != MiddlewareType))
                 {
-                    yield return new ConstructorFrame(MiddlewareType, _constructor);
+                    yield return new ConstructorFrame(MiddlewareType, _constructor!);
                 }
             }
 
             foreach (var after in afters) yield return after;
         }
 
-        private IEnumerable<Frame> buildAfters(IChain chain, GenerationRules rules)
+        private IEnumerable<Frame> buildAfters(IChain chain)
         {
             if (!Filter(chain))
             {

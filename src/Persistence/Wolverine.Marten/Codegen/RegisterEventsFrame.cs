@@ -18,7 +18,7 @@ internal class RegisterEventsFrame<T> : MethodCall
     internal static MethodInfo FindMethod(Type responseType)
     {
         return responseType.CanBeCastTo<IEnumerable<object>>()
-            ? ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendMany(new List<object>()))
-            : ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendOne(null));
+            ? ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendMany(new List<object>()))!
+            : ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendOne(null))!;
     }
 }

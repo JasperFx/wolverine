@@ -28,7 +28,7 @@ internal class ParsedQueryStringValue : SyncFrame
 {
     public ParsedQueryStringValue(ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name, this);
+        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
     }
 
     public Variable Variable { get; }
@@ -49,7 +49,7 @@ internal class ParsedNullableQueryStringValue : SyncFrame
 
     public ParsedNullableQueryStringValue(ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name, this);
+        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
         _alias = parameter.ParameterType.GetInnerTypeFromNullable().ShortNameInCode();
     }
 
@@ -69,11 +69,11 @@ internal class QueryStringParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
-        variable = null;
+        variable = default!;
 
         if (parameter.ParameterType == typeof(string))
         {
-            variable = new ReadStringQueryStringValue(parameter.Name).Variable;
+            variable = new ReadStringQueryStringValue(parameter.Name!).Variable;
             return true;
         }
 

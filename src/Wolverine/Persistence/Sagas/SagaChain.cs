@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -93,6 +90,7 @@ public class SagaChain : HandlerChain
         {
             generateCodeForMaybeExisting(container, frameProvider, list);
         }
+
 // .Concat(handlerReturnValueFrames)
         return Middleware.Concat(list).Concat(Postprocessors).ToList();
     }
@@ -129,9 +127,7 @@ public class SagaChain : HandlerChain
         {
             frames.Add(startingCall);
             foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
-            {
                 frames.Add(frame);
-            }
         }
 
         var ifNotCompleted = buildFrameForConditionalInsert(creator.Saga, frameProvider, container);
@@ -156,10 +152,7 @@ public class SagaChain : HandlerChain
                 yield return call;
                 foreach (var create in call.Creates)
                 {
-                    foreach (var frame in create.ReturnAction(this).Frames())
-                    {
-                        yield return frame;
-                    }
+                    foreach (var frame in create.ReturnAction(this).Frames()) yield return frame;
                 }
             }
 

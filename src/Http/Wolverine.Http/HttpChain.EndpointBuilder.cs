@@ -23,7 +23,7 @@ public partial class HttpChain : IEndpointConventionBuilder
         _builderConfigurations.Add(convention);
     }
 
-    private void tryApplyAsEndpointMetadataProvider(Type type, RouteEndpointBuilder builder)
+    private void tryApplyAsEndpointMetadataProvider(Type? type, RouteEndpointBuilder builder)
     {
         if (type != null && type.CanBeCastTo(typeof(IEndpointMetadataProvider)))
         {
@@ -40,7 +40,7 @@ public partial class HttpChain : IEndpointConventionBuilder
             return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
         });
 
-        var builder = new RouteEndpointBuilder(c => handler.Value.Handle(c), RoutePattern, Order)
+        var builder = new RouteEndpointBuilder(c => handler.Value.Handle(c), RoutePattern!, Order)
         {
             DisplayName = DisplayName
         };
@@ -61,7 +61,7 @@ public partial class HttpChain : IEndpointConventionBuilder
 
         Endpoint = (RouteEndpoint?)builder.Build();
 
-        return Endpoint;
+        return Endpoint!;
     }
 
     internal interface IApplier

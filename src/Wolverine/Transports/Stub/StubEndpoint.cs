@@ -1,13 +1,9 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
-using Wolverine.Util;
 
 namespace Wolverine.Transports.Stub;
 
@@ -60,6 +56,7 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
         {
             return new ValueTask(_pipeline.InvokeAsync(envelope, new StubChannelCallback(this, envelope)));
         }
+
         return ValueTask.CompletedTask;
     }
 

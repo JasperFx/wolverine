@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks.Dataflow;
+﻿using System.Threading.Tasks.Dataflow;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
@@ -83,8 +82,8 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
 
 
     /// <summary>
-    /// Fine tune the internal message handling queue for this listener. This only applies
-    /// to buffered or durable listeners.
+    ///     Fine tune the internal message handling queue for this listener. This only applies
+    ///     to buffered or durable listeners.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -96,8 +95,6 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// </summary>
     /// <returns></returns>
     T UseForReplies();
-
-
 }
 
 public interface IListenerConfiguration : IListenerConfiguration<IListenerConfiguration>

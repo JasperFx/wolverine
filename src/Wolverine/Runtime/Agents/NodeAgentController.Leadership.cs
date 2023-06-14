@@ -6,12 +6,13 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
 {
     public async IAsyncEnumerable<object> HandleAsync(TryAssumeLeadership command)
     {
-        if (_tracker.Self.IsLeader())
+        if (_tracker.Self!.IsLeader())
         {
-            _logger.LogInformation("Already the current leader ({NodeId}), ignoring the request to assume leadership", _tracker.Self.Id);
+            _logger.LogInformation("Already the current leader ({NodeId}), ignoring the request to assume leadership",
+                _tracker.Self.Id);
             yield break;
         }
-        
+
         var assigned = await _persistence.MarkNodeAsLeaderAsync(command.CurrentLeaderId, _tracker.Self!.Id);
 
         if (assigned.HasValue)
@@ -36,7 +37,7 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
                     _tracker.RegisterAgents(agents);
                 }
 
-                await requestAssignmentEvaluation();
+                await requestAssignmentEvaluationAsync();
             }
             else
             {
@@ -44,7 +45,9 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
 
                 if (leader != null)
                 {
-                    _logger.LogInformation("Tried to assume leadership at node {NodeId}, but another node {LeaderId} has assumed leadership beforehand", _tracker.Self.Id, assigned.Value);
+                    _logger.LogInformation(
+                        "Tried to assume leadership at node {NodeId}, but another node {LeaderId} has assumed leadership beforehand",
+                        _tracker.Self.Id, assigned.Value);
                     _tracker.Publish(new NodeEvent(leader, NodeEventType.LeadershipAssumed));
                 }
                 else
@@ -52,16 +55,15 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
                     // The referenced leader doesn't exist -- which shouldn't happen, but real life, so try again...
                     yield return new TryAssumeLeadership();
                 }
-
             }
 
             yield break;
         }
 
-        _logger.LogInformation("Node {NodeId} was unable to assume leadership, and no leader was found", _tracker.Self.Id);
-        
+        _logger.LogInformation("Node {NodeId} was unable to assume leadership, and no leader was found",
+            _tracker.Self.Id);
+
         // Try it again
         yield return new TryAssumeLeadership();
     }
-    
 }

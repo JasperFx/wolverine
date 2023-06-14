@@ -111,7 +111,7 @@ public sealed partial class WolverineOptions
     /// <summary>
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
     /// </summary>
-    public string ServiceName { get; set; } = Assembly.GetEntryAssembly().GetName().Name;
+    public string ServiceName { get; set; } = Assembly.GetEntryAssembly()!.GetName().Name ?? "WolverineService";
 
     /// <summary>
     ///     This should probably *only* be used in development or testing

@@ -36,11 +36,16 @@ public interface IChain
     Dictionary<string, object> Tags { get; }
 
     /// <summary>
+    ///     Strategy for dealing with any return values from the handler methods
+    /// </summary>
+    IReturnVariableActionSource ReturnVariableActionSource { get; set; }
+
+    /// <summary>
     ///     Used internally by Wolverine for "outbox" mechanics
     /// </summary>
     /// <returns></returns>
     bool ShouldFlushOutgoingMessages();
-    
+
     bool RequiresOutbox();
 
     MethodCall[] HandlerCalls();
@@ -55,47 +60,44 @@ public interface IChain
     IEnumerable<Type> ServiceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes);
 
     /// <summary>
-    /// Does this chain have the designated attribute type anywhere in
-    /// its handlers?
+    ///     Does this chain have the designated attribute type anywhere in
+    ///     its handlers?
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     bool HasAttribute<T>() where T : Attribute;
 
     /// <summary>
-    /// The input type for this chain
+    ///     The input type for this chain
     /// </summary>
     /// <returns></returns>
     Type? InputType();
 
     /// <summary>
-    /// Add a member of the message type to be audited during execution
+    ///     Add a member of the message type to be audited during execution
     /// </summary>
     /// <param name="member"></param>
     /// <param name="heading"></param>
     void Audit(MemberInfo member, string? heading = null);
 
     /// <summary>
-    /// Find all variables returned by any handler call in this chain
-    /// that can be cast to T
+    ///     Find all variables returned by any handler call in this chain
+    ///     that can be cast to T
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public IEnumerable<Variable> ReturnVariablesOfType<T>() =>
-        HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo<T>());
+    public IEnumerable<Variable> ReturnVariablesOfType<T>()
+    {
+        return HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo<T>());
+    }
 
     /// <summary>
-    /// Help out the code generation a little bit by telling this chain
-    /// about a service dependency that will be used. Helps connect
-    /// transactional middleware
+    ///     Help out the code generation a little bit by telling this chain
+    ///     about a service dependency that will be used. Helps connect
+    ///     transactional middleware
     /// </summary>
     /// <param name="type"></param>
     public void AddDependencyType(Type type);
-    
-    /// <summary>
-    /// Strategy for dealing with any return values from the handler methods
-    /// </summary>
-    IReturnVariableActionSource ReturnVariableActionSource { get; set; }
 }
 
 #endregion

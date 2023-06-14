@@ -1,7 +1,4 @@
-using System;
 using System.Buffers;
-using System.IO;
-using System.Linq;
 using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -80,7 +77,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
 
     public byte[] WriteMessage(object message)
     {
-        var bytes = _bytePool.Rent(_bufferSize); 
+        var bytes = _bytePool.Rent(_bufferSize);
         var stream = new MemoryStream(bytes);
 
 
@@ -92,7 +89,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
                 ArrayPool = _jsonCharPool,
                 CloseOutput = false,
 
-                AutoCompleteOnClose = false 
+                AutoCompleteOnClose = false
             };
 
             _serializer.Serialize(jsonWriter, message);

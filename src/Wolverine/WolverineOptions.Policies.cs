@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
@@ -20,7 +19,6 @@ public sealed partial class WolverineOptions : IPolicies
     internal List<IWolverinePolicy> RegisteredPolicies { get; } = new();
 
 
-
     void IPolicies.AutoApplyTransactions()
     {
         this.As<IPolicies>().Add(new AutoApplyTransactions());
@@ -33,7 +31,11 @@ public sealed partial class WolverineOptions : IPolicies
 
     void IPolicies.Add(IWolverinePolicy policy)
     {
-        if (policy is IEndpointPolicy e) Transports.AddPolicy(e);
+        if (policy is IEndpointPolicy e)
+        {
+            Transports.AddPolicy(e);
+        }
+
         RegisteredPolicies.Add(policy);
     }
 
@@ -54,7 +56,7 @@ public sealed partial class WolverineOptions : IPolicies
 
     void IPolicies.AllListeners(Action<ListenerConfiguration> configure)
     {
-        var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
+        var policy = new LambdaEndpointPolicy<Endpoint>((e, _) =>
         {
             if (e.Role == EndpointRole.System)
             {
@@ -82,7 +84,7 @@ public sealed partial class WolverineOptions : IPolicies
 
     void IPolicies.AllSenders(Action<ISubscriberConfiguration> configure)
     {
-        var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
+        var policy = new LambdaEndpointPolicy<Endpoint>((e, _) =>
         {
             if (e is LocalQueue)
             {
@@ -110,7 +112,7 @@ public sealed partial class WolverineOptions : IPolicies
 
     void IPolicies.AllLocalQueues(Action<IListenerConfiguration> configure)
     {
-        var policy = new LambdaEndpointPolicy<Endpoint>((e, runtime) =>
+        var policy = new LambdaEndpointPolicy<Endpoint>((e, _) =>
         {
             if (e is LocalQueue local)
             {
@@ -133,30 +135,20 @@ public sealed partial class WolverineOptions : IPolicies
     {
         return Transports.GetOrCreate<LocalTransport>();
     }
-    
+
     void IPolicies.DisableConventionalLocalRouting()
     {
         LocalRoutingConventionDisabled = true;
     }
-    
-    internal MiddlewarePolicy FindOrCreateMiddlewarePolicy()
-    {
-        var policy = RegisteredPolicies.OfType<MiddlewarePolicy>().FirstOrDefault();
-        if (policy == null)
-        {
-            policy = new MiddlewarePolicy();
-            RegisteredPolicies.Add(policy);
-        }
 
-        return policy;
-    }
-
+#pragma warning disable CS1066
     void IPolicies.AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null)
+#pragma warning restore CS1066
     {
+        filter ??= _ => true;
+        
         FindOrCreateMiddlewarePolicy().AddType(middlewareType, chain =>
         {
-            if (filter == null) return true;
-
             if (chain is HandlerChain c)
             {
                 return filter(c);
@@ -166,7 +158,9 @@ public sealed partial class WolverineOptions : IPolicies
         });
     }
 
+#pragma warning disable CS1066
     void IPolicies.AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
+#pragma warning restore CS1066
     {
         this.As<IPolicies>().AddMiddleware(typeof(T), filter);
     }
@@ -182,8 +176,8 @@ public sealed partial class WolverineOptions : IPolicies
     }
 
     FailureRuleCollection IWithFailurePolicies.Failures => HandlerGraph.Failures;
-    
-    
+
+
     /// <summary>
     ///     For the purposes of interoperability with NServiceBus or MassTransit, register
     ///     the assemblies for shared message types to make Wolverine try to forward the message
@@ -204,5 +198,17 @@ public sealed partial class WolverineOptions : IPolicies
     public void LogMessageStarting(LogLevel logLevel)
     {
         RegisteredPolicies.Insert(0, new LogStartingActivityPolicy(logLevel));
+    }
+
+    internal MiddlewarePolicy FindOrCreateMiddlewarePolicy()
+    {
+        var policy = RegisteredPolicies.OfType<MiddlewarePolicy>().FirstOrDefault();
+        if (policy == null)
+        {
+            policy = new MiddlewarePolicy();
+            RegisteredPolicies.Add(policy);
+        }
+
+        return policy;
     }
 }

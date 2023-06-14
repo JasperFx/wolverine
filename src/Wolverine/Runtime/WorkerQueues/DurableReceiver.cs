@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -15,20 +13,23 @@ namespace Wolverine.Runtime.WorkerQueues;
 internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
     IAsyncDisposable
 {
+    private readonly RetryBlock<Envelope> _completeBlock;
+    private readonly RetryBlock<Envelope> _deferBlock;
+    private readonly IMessageInbox _inbox;
     private readonly RetryBlock<Envelope> _incrementAttempts;
+    // ReSharper disable once InconsistentNaming
     protected readonly ILogger _logger;
     private readonly RetryBlock<Envelope> _markAsHandled;
     private readonly RetryBlock<Envelope> _moveToErrors;
-    private readonly IMessageInbox _inbox;
     private readonly ActionBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
     private readonly RetryBlock<Envelope> _scheduleExecution;
     private readonly DurabilitySettings _settings;
 
+    private readonly ISender? _deadLetterSender;
+
     // These members are for draining
     private bool _latched;
-    private readonly RetryBlock<Envelope> _deferBlock;
-    private readonly RetryBlock<Envelope> _completeBlock;
 
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
@@ -61,9 +62,11 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
                 _logger.LogError(e, "Unexpected pipeline invocation error");
             }
         }, endpoint.ExecutionOptions);
-        
-        _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger, runtime.Cancellation);
-        _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger, runtime.Cancellation);
+
+        _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
+            runtime.Cancellation);
+        _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
+            runtime.Cancellation);
 
 
         _markAsHandled = new RetryBlock<Envelope>((e, _) => _inbox.MarkIncomingEnvelopeAsHandledAsync(e), _logger,
@@ -80,18 +83,19 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
                     await _deadLetterSender.SendAsync(envelope);
                     return;
                 }
-                
-                var report = new ErrorReport(envelope, envelope.Failure);
+
+                var report = new ErrorReport(envelope, envelope.Failure!);
                 await _inbox.MoveToDeadLetterStorageAsync(report.Envelope, report.Exception);
             }, _logger,
             _settings.Cancellation);
 
         _receivingOne = new RetryBlock<Envelope>((e, _) => receiveOneAsync(e), _logger, _settings.Cancellation);
 
-        if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq)) _deadLetterSender = dlq;
+        if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
+        {
+            _deadLetterSender = dlq;
+        }
     }
-
-    private ISender? _deadLetterSender;
 
     public Uri Uri { get; }
 
@@ -105,10 +109,14 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         _markAsHandled.Dispose();
         _moveToErrors.Dispose();
         _receivingOne.Dispose();
-        
-        if (_deadLetterSender is IDisposable d) d.SafeDispose();
+
+        if (_deadLetterSender is IDisposable d)
+        {
+            d.SafeDispose();
+        }
+
         _moveToErrors.Dispose();
-        
+
         _completeBlock.Dispose();
         _deferBlock.Dispose();
     }
@@ -154,7 +162,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
         {
             throw new ArgumentNullException(nameof(envelope));
         }
-        
+
         if (envelope.IsExpired())
         {
             await _completeBlock.PostAsync(envelope);
@@ -189,7 +197,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
         await _completeBlock.DrainAsync();
         await _deferBlock.DrainAsync();
-        
+
 
         await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
     }
@@ -199,7 +207,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     {
         // Might need to drain the block
         _receiver.Complete();
-        
+
         _completeBlock.Dispose();
         _deferBlock.Dispose();
     }
@@ -210,6 +218,8 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
         return _moveToErrors.PostAsync(envelope);
     }
+
+    public bool NativeDeadLetterQueueEnabled => true;
 
     public Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
@@ -227,7 +237,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             await _deferBlock.PostAsync(envelope);
             return;
         }
-        
+
         try
         {
             await _inbox.StoreIncomingAsync(envelope);
@@ -311,6 +321,4 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
     {
         return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
     }
-
-    public bool NativeDeadLetterQueueEnabled => true;
 }

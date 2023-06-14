@@ -104,7 +104,7 @@ public static class MartenOps
     /// <param name="events"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static StartStream StartStream<T>(params object[] events) where T : class
+    public static IStartStream StartStream<T>(params object[] events) where T : class
     {
         var streamId = CombGuidIdGeneration.NewGuid();
         return new StartStream<T>(streamId, events);
@@ -117,7 +117,7 @@ public static class MartenOps
     /// <param name="events"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static StartStream StartStream<T>(string streamKey, params object[] events) where T : class
+    public static IStartStream StartStream<T>(string streamKey, params object[] events) where T : class
     {
         return new StartStream<T>(streamKey, events);
     }
@@ -142,7 +142,7 @@ public class NoOp : IMartenOp
     }
 }
 
-public interface StartStream : IMartenOp
+public interface IStartStream : IMartenOp
 {
     string StreamKey { get; }
     Guid StreamId { get; }
@@ -152,9 +152,9 @@ public interface StartStream : IMartenOp
     IReadOnlyList<object> Events { get; }
 }
 
-public class StartStream<T> : StartStream where T : class
+public class StartStream<T> : IStartStream where T : class
 {
-    public string StreamKey { get; }
+    public string StreamKey { get; } = string.Empty;
     public Guid StreamId { get; }
 
     public StartStream(Guid streamId, params object[] events)
@@ -196,9 +196,9 @@ public class StartStream<T> : StartStream where T : class
         }
     }
 
-    Type StartStream.AggregateType => typeof(T);
+    Type IStartStream.AggregateType => typeof(T);
 
-    IReadOnlyList<object> StartStream.Events => Events;
+    IReadOnlyList<object> IStartStream.Events => Events;
 }
 
 

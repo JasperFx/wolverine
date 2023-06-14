@@ -1,18 +1,10 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
-using Wolverine.Runtime.RemoteInvocation;
 
 namespace Wolverine.Tracking;
 
@@ -305,7 +297,10 @@ internal class TrackedSession : ITrackedSession
         }
 
         // Ignore these
-        if (envelope.Message is IInternalMessage || envelope.Message is IAgentCommand) return;
+        if (envelope.Message is IInternalMessage || envelope.Message is IAgentCommand)
+        {
+            return;
+        }
 
         var history = _envelopes[envelope.Id];
 
@@ -339,8 +334,11 @@ internal class TrackedSession : ITrackedSession
 
     public bool IsCompleted()
     {
-        if (_conditions.Any(x => x.IsCompleted())) return true;
-        
+        if (_conditions.Any(x => x.IsCompleted()))
+        {
+            return true;
+        }
+
         if (!_envelopes.All(x => x.IsComplete()))
         {
             return false;

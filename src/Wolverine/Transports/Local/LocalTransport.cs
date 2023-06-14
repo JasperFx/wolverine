@@ -11,11 +11,11 @@ namespace Wolverine.Transports.Local;
 
 internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingConvention
 {
+    private readonly List<IDelayedEndpointConfiguration> _delayedConfigurations = new();
     private readonly Cache<string, LocalQueue> _queues;
 
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
     private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace("+", ".");
-    private readonly List<IDelayedEndpointConfiguration> _delayedConfigurations = new();
 
 
     public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)")
@@ -28,14 +28,14 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         var scheduledQueue = _queues[TransportConstants.Scheduled];
         scheduledQueue.Mode = EndpointMode.Durable;
         scheduledQueue.Role = EndpointRole.System;
-        
+
 
         var systemQueue = _queues[TransportConstants.System];
         systemQueue.Role = EndpointRole.System;
         systemQueue.ExecutionOptions.EnsureOrdered = true;
         systemQueue.ExecutionOptions.MaxDegreeOfParallelism = 1;
         systemQueue.Mode = EndpointMode.BufferedInMemory;
-        
+
         systemQueue.Subscriptions.Add(new Subscription
         {
             Scope = RoutingScope.Implements,
@@ -47,7 +47,8 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         durableQueue.Role = EndpointRole.System;
 
         var agentQueue = _queues[TransportConstants.Agents];
-        agentQueue.Subscriptions.Add(new Subscription{Scope = RoutingScope.Implements, BaseType = typeof(IAgentCommand)});
+        agentQueue.Subscriptions.Add(new Subscription
+            { Scope = RoutingScope.Implements, BaseType = typeof(IAgentCommand) });
         agentQueue.ExecutionOptions.MaxDegreeOfParallelism = 20;
         agentQueue.Role = EndpointRole.System;
         agentQueue.Mode = EndpointMode.BufferedInMemory;
@@ -152,7 +153,10 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     internal LocalQueue FindQueueForMessageType(Type messageType)
     {
-        if (Assignments.TryGetValue(messageType, out var queue)) return queue;
+        if (Assignments.TryGetValue(messageType, out var queue))
+        {
+            return queue;
+        }
 
         return FindOrCreateQueueForMessageTypeByConvention(messageType);
     }
@@ -161,17 +165,11 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     {
         if (!runtime.Options.LocalRoutingConventionDisabled)
         {
-            foreach (var messageType in handledMessageTypes)
-            {
-                FindOrCreateQueueForMessageTypeByConvention(messageType);
-            }
+            foreach (var messageType in handledMessageTypes) FindOrCreateQueueForMessageTypeByConvention(messageType);
         }
 
         // Apply individual queue configuration
-        foreach (var delayedConfiguration in _delayedConfigurations)
-        {
-            delayedConfiguration.Apply();
-        }
+        foreach (var delayedConfiguration in _delayedConfigurations) delayedConfiguration.Apply();
     }
 
     internal LocalQueue FindOrCreateQueueForMessageTypeByConvention(Type messageType)
@@ -191,13 +189,10 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         {
             queue = QueueFor(queueName);
 
-            if (_customization != null)
-            {
-                var listener = new ListenerConfiguration(queue);
-                _customization(messageType, listener);
+            var listener = new ListenerConfiguration(queue);
+            _customization(messageType, listener);
 
-                listener.As<IDelayedEndpointConfiguration>().Apply();
-            }
+            listener.As<IDelayedEndpointConfiguration>().Apply();
         }
 
         queue.HandledMessageTypes.Add(messageType);

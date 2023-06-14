@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Lamar.IoC.Instances;
@@ -17,17 +15,6 @@ internal class HandlerScopingPolicy : IRegistrationPolicy, IFamilyPolicy
         _handlers = handlers;
     }
 
-    public void Apply(ServiceRegistry services)
-    {
-        var handlerTypes = _handlers.Chains.SelectMany(x => x.Handlers)
-            .Select(x => x.HandlerType).Where(x => !x.IsStatic());
-
-        foreach (var handlerType in handlerTypes)
-        {
-            services.AddScoped(handlerType);
-        }
-    }
-
     public ServiceFamily? Build(Type type, ServiceGraph serviceGraph)
     {
         if (type.IsConcrete() && matches(type))
@@ -37,6 +24,14 @@ internal class HandlerScopingPolicy : IRegistrationPolicy, IFamilyPolicy
         }
 
         return null;
+    }
+
+    public void Apply(ServiceRegistry services)
+    {
+        var handlerTypes = _handlers.Chains.SelectMany(x => x.Handlers)
+            .Select(x => x.HandlerType).Where(x => !x.IsStatic());
+
+        foreach (var handlerType in handlerTypes) services.AddScoped(handlerType);
     }
 
     private bool matches(Type type)

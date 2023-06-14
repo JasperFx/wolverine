@@ -12,6 +12,9 @@ public interface IMessageDatabase : IMessageStore
 
     bool IsMaster { get; }
 
+    string SchemaName { get; set; }
+    DatabaseSettings Settings { get; }
+
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
 
@@ -24,13 +27,10 @@ public interface IMessageDatabase : IMessageStore
     Task<PersistedCounts> FetchCountsAsync();
 
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
-    
-    string SchemaName { get; set; }
-    DatabaseSettings Settings { get; }
 
 
     DbConnection CreateConnection();
-    Weasel.Core.DbCommandBuilder ToCommandBuilder();
+    DbCommandBuilder ToCommandBuilder();
 
     Task EnqueueAsync(IDatabaseOperation operation);
     void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);

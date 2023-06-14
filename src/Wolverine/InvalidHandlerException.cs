@@ -1,7 +1,7 @@
 ﻿namespace Wolverine;
 
 /// <summary>
-/// Denotes a Handler method that is invalid for Wolverine 
+///     Denotes a Handler method that is invalid for Wolverine
 /// </summary>
 public class InvalidHandlerException : Exception
 {

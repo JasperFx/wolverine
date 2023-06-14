@@ -28,10 +28,9 @@ internal class AuditToActivityFrame : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         foreach (var member in _members)
-        {
-            writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input.Usage}.{member.Member.Name});");
-        }
-        
+            writer.WriteLine(
+                $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input!.Usage}.{member.Member.Name});");
+
         Next?.GenerateCode(method, writer);
     }
 }

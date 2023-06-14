@@ -40,7 +40,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     public DeadLetterQueue DeadLetterQueue { get; } = new(DeadLetterQueueName);
 
-    internal RabbitMqChannelCallback Callback { get; private set; }
+    internal RabbitMqChannelCallback? Callback { get; private set; }
 
     internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
     internal IConnection SendingConnection => _sendingConnection ??= BuildConnection();
@@ -91,19 +91,19 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     {
         logger.LogInformation("Opened new Rabbit MQ connection '{Name}'", connectionName);
         
-        connection.CallbackException += (sender, args) =>
+        connection.CallbackException += (_, args) =>
         {
             logger.LogError(args.Exception, "Rabbit Mq connection callback exception on {Name} connection",
                 connectionName);
         };
 
-        connection.ConnectionBlocked += (sender, args) =>
+        connection.ConnectionBlocked += (_, args) =>
         {
             logger.LogInformation("Rabbit Mq {Name} connection was blocked with reason {Reason}", connectionName,
                 args.Reason);
         };
 
-        connection.ConnectionShutdown += (sender, args) =>
+        connection.ConnectionShutdown += (_, args) =>
         {
             logger.LogInformation(
                 "Rabbit Mq connection {Name} was shutdown with Cause {Cause}, Initiator {Initiator}, ClassId {ClassId}, MethodId {MethodId}, ReplyCode {ReplyCode}, and ReplyText {ReplyText}"
@@ -111,9 +111,9 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
                 args.ReplyText);
         };
 
-        connection.ConnectionUnblocked += (sender, args) =>
+        connection.ConnectionUnblocked += (_, _) =>
         {
-            logger.LogInformation("Rabbit Mq connection {Name} was un-blocked");
+            logger.LogInformation("Rabbit Mq connection {Name} was un-blocked", connection);
         };
     }
 

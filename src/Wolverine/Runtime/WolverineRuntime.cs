@@ -32,7 +32,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public WolverineRuntime(WolverineOptions options,
         IContainer container,
-        ILoggerFactory loggers, IHostEnvironment environment)
+        ILoggerFactory loggers)
     {
         DurabilitySettings = options.Durability;
         Options = options;
@@ -46,7 +46,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             Meter.Name, Meter.Version);
 
         _uniqueNodeId = options.UniqueNodeId;
-        _serviceName = options.ServiceName ?? "WolverineService";
+        _serviceName = options.ServiceName;
 
         var provider = container.GetInstance<ObjectPoolProvider>();
         ExecutionPool = provider.Create(this);

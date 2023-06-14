@@ -1,5 +1,4 @@
 using System.Reflection;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.TypeDiscovery;
@@ -13,6 +12,8 @@ public sealed partial class HandlerDiscovery
 {
     private readonly IList<Type> _explicitTypes = new List<Type>();
 
+    private readonly TypeQuery _messageQuery = new(TypeClassification.Concretes | TypeClassification.Closed);
+
     private readonly string[] _validMethods =
     {
         HandlerChain.Handle, HandlerChain.Handles, HandlerChain.Consume, HandlerChain.Consumes, SagaChain.Orchestrate,
@@ -21,8 +22,6 @@ public sealed partial class HandlerDiscovery
     };
 
     private bool _conventionalDiscoveryDisabled;
-
-    private readonly TypeQuery _messageQuery = new(TypeClassification.Concretes | TypeClassification.Closed);
 
     public HandlerDiscovery()
     {
@@ -40,6 +39,11 @@ public sealed partial class HandlerDiscovery
 
     internal CompositeFilter<MethodInfo> MethodExcludes { get; } = new();
 
+    internal TypeQuery HandlerQuery { get; } = new(TypeClassification.Concretes | TypeClassification.Closed);
+
+
+    internal IList<Assembly> Assemblies { get; } = new List<Assembly>();
+
     private void specifyHandlerMethodRules()
     {
         foreach (var methodName in _validMethods)
@@ -50,7 +54,8 @@ public sealed partial class HandlerDiscovery
             MethodIncludes.WithCondition($"Method name is '{asyncName}' (case sensitive)", m => m.Name == asyncName);
         }
 
-        MethodIncludes.WithCondition("Has attribute [WolverineHandler]", m => m.HasAttribute<WolverineHandlerAttribute>());
+        MethodIncludes.WithCondition("Has attribute [WolverineHandler]",
+            m => m.HasAttribute<WolverineHandlerAttribute>());
 
         MethodExcludes.WithCondition("Method is declared by object", method => method.DeclaringType == typeof(object));
         MethodExcludes.WithCondition("IDisposable.Dispose()", method => method.Name == nameof(IDisposable.Dispose));
@@ -60,14 +65,14 @@ public sealed partial class HandlerDiscovery
         MethodExcludes.WithCondition("Special Name", method => method.IsSpecialName);
         MethodExcludes.WithCondition("Has attribute [WolverineIgnore]",
             method => method.HasAttribute<WolverineIgnoreAttribute>());
-        
-        
-        
+
+
         MethodExcludes.WithCondition("Has no arguments", m => !m.GetParameters().Any());
-        
-        MethodExcludes.WithCondition("Cannot determine a valid message type",m => m.MessageType() == null);
-        
-        MethodExcludes.WithCondition("Returns a primitive type", m => m.ReturnType != typeof(void) && m.ReturnType.IsPrimitive);
+
+        MethodExcludes.WithCondition("Cannot determine a valid message type", m => m.MessageType() == null);
+
+        MethodExcludes.WithCondition("Returns a primitive type",
+            m => m.ReturnType != typeof(void) && m.ReturnType.IsPrimitive);
     }
 
     private void specifyHandlerDiscovery()
@@ -82,21 +87,23 @@ public sealed partial class HandlerDiscovery
         HandlerQuery.Excludes.WithAttribute<WolverineIgnoreAttribute>();
     }
 
-    internal TypeQuery HandlerQuery { get; } = new(TypeClassification.Concretes | TypeClassification.Closed);
-
     private static bool isNotPublicType(Type type)
     {
-        if (type.IsPublic) return false;
-        if (type.IsNestedPublic) return false;
+        if (type.IsPublic)
+        {
+            return false;
+        }
+
+        if (type.IsNestedPublic)
+        {
+            return false;
+        }
 
         return true;
     }
 
-
-    internal IList<Assembly> Assemblies { get; } = new List<Assembly>();
-
     /// <summary>
-    /// Customize the conventional filtering on the handler type discovery 
+    ///     Customize the conventional filtering on the handler type discovery
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -111,10 +118,10 @@ public sealed partial class HandlerDiscovery
         configure(HandlerQuery);
         return this;
     }
-    
+
     /// <summary>
-    /// Disables *all* conventional discovery of message handlers from type scanning. This is mostly useful for
-    /// testing scenarios or folks who just really want to have full control over everything!
+    ///     Disables *all* conventional discovery of message handlers from type scanning. This is mostly useful for
+    ///     testing scenarios or folks who just really want to have full control over everything!
     /// </summary>
     public HandlerDiscovery DisableConventionalDiscovery(bool value = true)
     {
@@ -133,17 +140,11 @@ public sealed partial class HandlerDiscovery
         {
             yield return chain.MessageType;
 
-            foreach (var publishedType in chain.PublishedTypes())
-            {
-                yield return publishedType;
-            }
+            foreach (var publishedType in chain.PublishedTypes()) yield return publishedType;
         }
 
         var discovered = _messageQuery.Find(Assemblies);
-        foreach (var type in discovered)
-        {
-            yield return type;
-        }
+        foreach (var type in discovered) yield return type;
     }
 
     internal (Type, MethodInfo)[] FindCalls(WolverineOptions options)
@@ -157,7 +158,7 @@ public sealed partial class HandlerDiscovery
         {
             Assemblies.Fill(options.ApplicationAssembly);
         }
-        
+
         return HandlerQuery.Find(Assemblies)
             .Concat(_explicitTypes)
             .Distinct()
@@ -203,7 +204,7 @@ public sealed partial class HandlerDiscovery
             throw new ArgumentOutOfRangeException(nameof(type),
                 "Handler types must be public, concrete, and closed (not generic) types");
         }
-        
+
         if (!type.IsStatic() && (type.IsNotConcrete() || type.IsOpenGeneric()))
         {
             throw new ArgumentOutOfRangeException(nameof(type),
@@ -216,9 +217,9 @@ public sealed partial class HandlerDiscovery
     }
 
     /// <summary>
-    /// Customize how messages are discovered through type scanning. Note that any message
-    /// type that is handled by this application or returned as a cascading message type
-    /// will be discovered automatically
+    ///     Customize how messages are discovered through type scanning. Note that any message
+    ///     type that is handled by this application or returned as a cascading message type
+    ///     will be discovered automatically
     /// </summary>
     /// <param name="customize"></param>
     /// <returns></returns>
@@ -234,4 +235,3 @@ public sealed partial class HandlerDiscovery
         return this;
     }
 }
-

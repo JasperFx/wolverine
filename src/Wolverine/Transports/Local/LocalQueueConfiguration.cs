@@ -1,4 +1,3 @@
-using System;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 
@@ -15,8 +14,8 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
     }
 
     /// <summary>
-    /// Limit all outgoing messages to a certain "deliver within" time span after which the messages
-    /// will be discarded even if not successfully delivered or processed
+    ///     Limit all outgoing messages to a certain "deliver within" time span after which the messages
+    ///     will be discarded even if not successfully delivered or processed
     /// </summary>
     /// <param name="timeToLive"></param>
     /// <returns></returns>

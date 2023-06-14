@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
@@ -11,10 +12,9 @@ namespace Wolverine.RDBMS.Durability;
 internal class RunScheduledMessagesOperation : IDatabaseOperation, IAgentCommand
 {
     private readonly IMessageDatabase _database;
-    private readonly DurabilitySettings _settings;
-    private readonly ILocalQueue _localQueue;
     private readonly List<Envelope> _envelopes = new();
-    public string Description { get; } = "Run Scheduled Messages";
+    private readonly ILocalQueue _localQueue;
+    private readonly DurabilitySettings _settings;
 
     public RunScheduledMessagesOperation(IMessageDatabase database, DurabilitySettings settings, ILocalQueue localQueue)
     {
@@ -22,6 +22,22 @@ internal class RunScheduledMessagesOperation : IDatabaseOperation, IAgentCommand
         _settings = settings;
         _localQueue = localQueue;
     }
+
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await _database.ReassignIncomingAsync(_settings.AssignedNodeNumber, _envelopes);
+
+        foreach (var envelope in _envelopes)
+        {
+            runtime.Logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
+                envelope.MessageType);
+            _localQueue.Enqueue(envelope);
+        }
+
+        yield break;
+    }
+
+    public string Description { get; } = "Run Scheduled Messages";
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {
@@ -45,18 +61,5 @@ internal class RunScheduledMessagesOperation : IDatabaseOperation, IAgentCommand
         }
 
         yield return this;
-    }
-
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
-    {
-        await _database.ReassignIncomingAsync(_settings.AssignedNodeNumber, _envelopes);
-
-        foreach (var envelope in _envelopes)
-        {
-            runtime.Logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id, envelope.MessageType);
-            _localQueue.Enqueue(envelope);
-        }
-        
-        yield break;
     }
 }

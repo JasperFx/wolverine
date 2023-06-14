@@ -1,7 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-
-namespace Wolverine.Transports;
+﻿namespace Wolverine.Transports;
 
 /// <summary>
 ///     Marks an IChannelCallback as supporting a native dead letter queue
@@ -9,9 +6,8 @@ namespace Wolverine.Transports;
 /// </summary>
 public interface ISupportDeadLetterQueue
 {
-    Task MoveToErrorsAsync(Envelope envelope, Exception exception);
-    
     bool NativeDeadLetterQueueEnabled { get; }
+    Task MoveToErrorsAsync(Envelope envelope, Exception exception);
 }
 
 /// <summary>

@@ -2,7 +2,6 @@ using JasperFx.Core;
 
 namespace Wolverine;
 
-
 // TODO -- thin this down after eliminating the old DurabilityAgent
 public class DurabilitySettings
 {
@@ -64,23 +63,23 @@ public class DurabilitySettings
     public int AssignedNodeNumber { get; internal set; } = Guid.NewGuid().ToString().GetDeterministicHashCode();
 
     public CancellationToken Cancellation => _cancellation.Token;
-    
+
     // TODO -- add Xml API comments
     public TimeSpan FirstHealthCheckExecution { get; set; } = 3.Seconds();
     public TimeSpan HealthCheckPollingTime { get; set; } = 10.Seconds();
 
     public TimeSpan StaleNodeTimeout { get; set; } = 1.Minutes();
-    
+
     /// <summary>
-    /// How long should Wolverine buffer requests to evaluate assignments
-    /// to prevent unnecessary assignment operations
+    ///     How long should Wolverine buffer requests to evaluate assignments
+    ///     to prevent unnecessary assignment operations
     /// </summary>
     public TimeSpan EvaluateAssignmentBufferTime { get; set; } = 1.Seconds();
 
     /// <summary>
-    /// How often should Wolverine do a full check that all assigned agents are
-    /// really running and try to restart (or stop) any differences from the last
-    /// good set of assignments
+    ///     How often should Wolverine do a full check that all assigned agents are
+    ///     really running and try to restart (or stop) any differences from the last
+    ///     good set of assignments
     /// </summary>
     public TimeSpan CheckAssignmentPeriod { get; set; } = 30.Seconds();
 

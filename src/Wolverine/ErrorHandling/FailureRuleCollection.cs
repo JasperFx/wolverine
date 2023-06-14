@@ -1,6 +1,4 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
 
@@ -14,6 +12,16 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
     ///     Maximum number of attempts allowed for this message type
     /// </summary>
     public int? MaximumAttempts { get; set; }
+
+    public IEnumerator<FailureRule> GetEnumerator()
+    {
+        return _rules.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 
     internal FailureRuleCollection CombineRules(FailureRuleCollection parent)
     {
@@ -86,15 +94,5 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
     internal void Add(FailureRule rule)
     {
         _rules.Add(rule);
-    }
-
-    public IEnumerator<FailureRule> GetEnumerator()
-    {
-        return _rules.GetEnumerator();
-    }
-
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
     }
 }

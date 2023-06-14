@@ -9,7 +9,7 @@ namespace Wolverine.Pulsar;
 
 public class PulsarEnvelopeMapper : EnvelopeMapper<IMessage<ReadOnlySequence<byte>>, MessageMetadata>
 {
-    public PulsarEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime)
+    public PulsarEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {
     }
 

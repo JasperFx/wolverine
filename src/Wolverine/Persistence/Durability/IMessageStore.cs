@@ -1,5 +1,4 @@
-﻿using Lamar;
-using Wolverine.Runtime;
+﻿using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Persistence.Durability;
@@ -12,9 +11,9 @@ public interface IMessageInbox
     Task StoreIncomingAsync(Envelope envelope);
     Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes);
     Task ScheduleJobAsync(Envelope envelope);
-    
+
     Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope);
-    
+
     // Good as is
     Task ReleaseIncomingAsync(int ownerId);
 
@@ -25,7 +24,7 @@ public interface IMessageInbox
 public interface IMessageOutbox
 {
     Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination);
-    
+
     Task StoreOutgoingAsync(Envelope envelope, int ownerId);
     Task DeleteOutgoingAsync(Envelope[] envelopes);
     Task DeleteOutgoingAsync(Envelope envelope);
@@ -35,27 +34,27 @@ public interface IMessageOutbox
 
 public interface IMessageStore : IAsyncDisposable
 {
+    IMessageInbox Inbox { get; }
+
+    IMessageOutbox Outbox { get; }
+
+    INodeAgentPersistence Nodes { get; }
+
+    IMessageStoreAdmin Admin { get; }
+
     /// <summary>
-    /// Called to initialize the Wolverine storage on application bootstrapping
+    ///     Called to initialize the Wolverine storage on application bootstrapping
     /// </summary>
     /// <param name="runtime"></param>
     /// <returns></returns>
     Task InitializeAsync(IWolverineRuntime runtime);
-    
-    IMessageInbox Inbox { get; }
-    
-    IMessageOutbox Outbox { get; }
-    
-    INodeAgentPersistence Nodes { get; }
-
-    IMessageStoreAdmin Admin { get; }
 
     void Describe(TextWriter writer);
 
 
     [Obsolete("Will have to have tenant id now?, or all dead letter queue goes to main DB?")]
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
-    
+
     Task DrainAsync();
 }
 

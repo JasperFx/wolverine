@@ -1,7 +1,3 @@
-using System;
-using Newtonsoft.Json;
-using Wolverine.Runtime.Serialization;
-
 namespace Wolverine.Configuration;
 
 public interface ISubscriberConfiguration<T> : IEndpointConfiguration<T> where T : ISubscriberConfiguration<T>
@@ -47,8 +43,8 @@ public interface ISubscriberConfiguration<T> : IEndpointConfiguration<T> where T
     T CustomizeOutgoingMessagesOfType<TMessage>(Action<Envelope, TMessage> customize);
 
     /// <summary>
-    /// Limit all outgoing messages to a certain "deliver within" time span after which the messages
-    /// will be discarded even if not successfully delivered or processed
+    ///     Limit all outgoing messages to a certain "deliver within" time span after which the messages
+    ///     will be discarded even if not successfully delivered or processed
     /// </summary>
     /// <param name="timeToLive"></param>
     /// <returns></returns>

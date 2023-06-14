@@ -21,7 +21,7 @@ internal class HttpContextElements : IParameterStrategy
 
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
-        variable = default;
+        variable = default!;
 
         var prop = _properties.FirstOrDefault(x => x.PropertyType == parameter.ParameterType);
         if (prop != null)
@@ -31,7 +31,7 @@ internal class HttpContextElements : IParameterStrategy
         }
 
         if (parameter.ParameterType == typeof(string) &&
-            parameter.Name.EqualsIgnoreCase(nameof(HttpContext.TraceIdentifier)))
+            parameter.Name!.EqualsIgnoreCase(nameof(HttpContext.TraceIdentifier)))
         {
             variable = new Variable(parameter.ParameterType, $"httpContext.{nameof(HttpContext.TraceIdentifier)}");
             return true;

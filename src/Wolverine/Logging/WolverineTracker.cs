@@ -32,13 +32,13 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
     {
         Nodes[node.Id] = node;
 
-        if (node.IsLeader()) Leader = node;
-
-        foreach (var agent in node.ActiveAgents)
+        if (node.IsLeader())
         {
-            Agents[agent] = node.Id;
+            Leader = node;
         }
-        
+
+        foreach (var agent in node.ActiveAgents) Agents[agent] = node.Id;
+
         return node;
     }
 
@@ -54,7 +54,7 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
     {
         return Nodes.Values.MinBy(x => x.AssignedNodeId);
     }
-    
+
     IEnumerable<WolverineNode> INodeStateTracker.OtherNodes()
     {
         return Nodes.Values.Where(x => x != Self);
@@ -65,8 +65,49 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
         Publish(@event);
     }
 
-    public WolverineNode Self { get; private set; }
+    public WolverineNode? Self { get; private set; }
     public WolverineNode? Leader { get; internal set; }
+
+    public WolverineNode? FindOwnerOfAgent(Uri agentUri)
+    {
+        if (Agents.TryGetValue(agentUri, out var nodeId))
+        {
+            if (nodeId != null && Nodes.TryGetValue(nodeId.Value, out var node))
+            {
+                return node;
+            }
+        }
+
+        return Nodes.Values.FirstOrDefault(x => x.ActiveAgents.Contains(agentUri));
+    }
+
+    public void Remove(WolverineNode node)
+    {
+        new NodeEvent(node, NodeEventType.Exiting).ModifyState(this);
+
+        foreach (var pair in Agents.ToArray())
+        {
+            if (pair.Value == node.Id)
+            {
+                Agents[pair.Key] = null;
+            }
+        }
+    }
+
+    public IEnumerable<Uri> AllAgents()
+    {
+        return Agents.Keys.ToArray();
+    }
+
+    void INodeStateTracker.RegisterAgents(IReadOnlyList<Uri> agents)
+    {
+        foreach (var agent in agents) Agents.TryAdd(agent, null);
+    }
+
+    public IEnumerable<WolverineNode> AllNodes()
+    {
+        return Nodes.Values;
+    }
 
 
     void IObserver<IWolverineEvent>.OnCompleted()
@@ -144,7 +185,7 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
 
         return waiter.Completion;
     }
-    
+
 #pragma warning disable VSTHRD200
     public Task<NodeEvent> WaitForNodeEvent(NodeEventType type, TimeSpan timeout)
 #pragma warning restore VSTHRD200
@@ -154,59 +195,23 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
         return waiter.Completion;
     }
 
-    public Task<NodeEvent> WaitUntilAssumesLeadership(TimeSpan timeout)
+    public Task<NodeEvent> WaitUntilAssumesLeadershipAsync(TimeSpan timeout)
     {
-        if (IsLeader()) return Task.FromResult(new NodeEvent(Self, NodeEventType.LeadershipAssumed));
-        
-        var waiter = new ConditionalWaiter<IWolverineEvent, NodeEvent>(e => e.Type == NodeEventType.LeadershipAssumed && e.Node.Id == Self.Id, this, timeout);
+        if (IsLeader())
+        {
+            return Task.FromResult(new NodeEvent(Self!, NodeEventType.LeadershipAssumed));
+        }
+
+        var waiter =
+            new ConditionalWaiter<IWolverineEvent, NodeEvent>(
+                e => e.Type == NodeEventType.LeadershipAssumed && e.Node.Id == Self!.Id, this, timeout);
 
         return waiter.Completion;
     }
 
     public bool IsLeader()
     {
-        return Self.IsLeader();
-    }
-
-    public WolverineNode? FindOwnerOfAgent(Uri agentUri)
-    {
-        if (Agents.TryGetValue(agentUri, out var nodeId))
-        {
-            if (nodeId != null && Nodes.TryGetValue(nodeId.Value, out var node)) return node;
-        }
-
-        return Nodes.Values.FirstOrDefault(x => x.ActiveAgents.Contains(agentUri));
-    }
-
-    public void Remove(WolverineNode node)
-    {
-        new NodeEvent(node, NodeEventType.Exiting).ModifyState(this);
-
-        foreach (var pair in Agents.ToArray())
-        {
-            if (pair.Value == node.Id)
-            {
-                Agents[pair.Key] = null;
-            }
-        }
-    }
-
-    public IEnumerable<Uri> AllAgents()
-    {
-        return Agents.Keys.ToArray();
-    }
-
-    void INodeStateTracker.RegisterAgents(IReadOnlyList<Uri> agents)
-    {
-        foreach (var agent in agents)
-        {
-            Agents.TryAdd(agent, null);
-        }
-    }
-
-    public IEnumerable<WolverineNode> AllNodes()
-    {
-        return Nodes.Values;
+        return Self!.IsLeader();
     }
 
     public bool AgentIsRunning(Uri agentUri)

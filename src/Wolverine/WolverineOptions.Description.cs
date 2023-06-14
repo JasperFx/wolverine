@@ -1,4 +1,3 @@
-using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Oakton.Descriptions;
 using Spectre.Console;
@@ -81,13 +80,13 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
     private void writeAssemblies(Tree root)
     {
         var tree = root.AddNode("Assemblies");
-        tree.AddNode(ApplicationAssembly.GetName().Name + " (application)");
+        tree.AddNode(ApplicationAssembly!.GetName().Name + " (application)");
 
         var assemblies = Assemblies
             .Where(x => x != ApplicationAssembly)
             .Select(x => x.GetName().Name)
             .OrderBy(x => x);
-        foreach (var assembly in assemblies) tree.AddNode(assembly);
+        foreach (var assembly in assemblies) tree.AddNode(assembly!);
     }
 
     internal Dictionary<string, IMessageSerializer> ToSerializerDictionary()

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace Wolverine.Configuration;
@@ -11,10 +9,10 @@ public interface IDelayedEndpointConfiguration
 
 public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpointConfiguration where TEndpoint : Endpoint
 {
-    private readonly Func<TEndpoint>? _source;
     private readonly List<Action<TEndpoint>> _configurations = new();
     private readonly TEndpoint? _endpoint;
-    private readonly object _locker = new ();
+    private readonly object _locker = new();
+    private readonly Func<TEndpoint>? _source;
     private bool _haveApplied;
 
     protected DelayedEndpointConfiguration(TEndpoint endpoint)
@@ -30,12 +28,20 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
 
     void IDelayedEndpointConfiguration.Apply()
     {
-        if (_haveApplied) return;
+        if (_haveApplied)
+        {
+            return;
+        }
+
         lock (_locker)
         {
-            if (_haveApplied) return;
+            if (_haveApplied)
+            {
+                return;
+            }
+
             var endpoint = _endpoint ?? _source!();
-        
+
             foreach (var action in _configurations) action(endpoint);
 
             _haveApplied = true;

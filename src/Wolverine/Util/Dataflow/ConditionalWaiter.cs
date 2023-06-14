@@ -1,13 +1,10 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Wolverine.Util.Dataflow;
 
-internal sealed class ConditionalWaiter<TObservedEvent, TSpecificEvent> : IObserver<TObservedEvent> where TSpecificEvent : TObservedEvent
+internal sealed class ConditionalWaiter<TObservedEvent, TSpecificEvent> : IObserver<TObservedEvent>
+    where TSpecificEvent : TObservedEvent
 {
-    private readonly Func<TSpecificEvent, bool> _match;
     private readonly TaskCompletionSource<TSpecificEvent> _completion;
+    private readonly Func<TSpecificEvent, bool> _match;
     private readonly IDisposable _unsubscribe;
 
     public ConditionalWaiter(Func<TSpecificEvent, bool> match, IObservable<TObservedEvent> parent, TimeSpan timeout)
@@ -45,8 +42,5 @@ internal sealed class ConditionalWaiter<TObservedEvent, TSpecificEvent> : IObser
             _completion.SetResult(e);
             _unsubscribe.Dispose();
         }
-        
-
     }
-
 }

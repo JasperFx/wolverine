@@ -7,9 +7,8 @@ namespace Wolverine.Runtime.Handlers;
 
 internal class CaptureCascadingMessages : MethodCall
 {
-    private static readonly MethodInfo _method 
+    private static readonly MethodInfo _method
         = ReflectionHelper.GetMethod<MessageContext>(x => x.EnqueueCascadingAsync(null))!;
-
 
 
     public CaptureCascadingMessages(Variable messages) : base(typeof(IMessageContext),

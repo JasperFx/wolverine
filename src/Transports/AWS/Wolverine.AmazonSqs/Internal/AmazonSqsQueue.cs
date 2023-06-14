@@ -12,11 +12,11 @@ namespace Wolverine.AmazonSqs.Internal;
 public class AmazonSqsQueue : Endpoint, IBrokerQueue
 {
     private readonly AmazonSqsTransport _parent;
-    
-    // This will vary later
-    private ISqsEnvelopeMapper _mapper = new DefaultSqsEnvelopeMapper();
 
     private bool _initialized;
+
+    // This will vary later
+    private ISqsEnvelopeMapper _mapper = new DefaultSqsEnvelopeMapper();
     private int _visibilityTimeout = 120;
 
     internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base(new Uri($"sqs://{queueName}"),
@@ -30,31 +30,14 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
     }
 
     /// <summary>
-    /// Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming SQS requests
-    /// are read and how outgoing messages are written to SQS
+    ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming SQS requests
+    ///     are read and how outgoing messages are written to SQS
     /// </summary>
     /// <exception cref="ArgumentNullException"></exception>
     public ISqsEnvelopeMapper Mapper
     {
         get => _mapper;
         set => _mapper = value ?? throw new ArgumentNullException(nameof(value));
-    }
-
-    internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
-    {
-        if (!_initialized)
-        {
-            await InitializeAsync(logger);
-        }
-
-        var body = _mapper.BuildMessageBody(envelope);
-        var request = new SendMessageRequest(QueueUrl, body);
-        foreach (var attribute in _mapper.ToAttributes(envelope))
-        {
-            request.MessageAttributes.Add(attribute.Key, attribute.Value);
-        }
-
-        await _parent.Client!.SendMessageAsync(request);
     }
 
 
@@ -102,7 +85,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
     public CreateQueueRequest Configuration { get; }
 
     /// <summary>
-    /// Name of the dead letter queue for this SQS queue where failed messages will be moved
+    ///     Name of the dead letter queue for this SQS queue where failed messages will be moved
     /// </summary>
     public string? DeadLetterQueueName { get; set; } = AmazonSqsTransport.DeadLetterQueueName;
 
@@ -171,6 +154,21 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
                 atts.ApproximateNumberOfMessagesNotVisible.ToString()
             }
         };
+    }
+
+    internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
+    {
+        if (!_initialized)
+        {
+            await InitializeAsync(logger);
+        }
+
+        var body = _mapper.BuildMessageBody(envelope);
+        var request = new SendMessageRequest(QueueUrl, body);
+        foreach (var attribute in _mapper.ToAttributes(envelope))
+            request.MessageAttributes.Add(attribute.Key, attribute.Value);
+
+        await _parent.Client!.SendMessageAsync(request);
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)
@@ -251,8 +249,11 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        if (Mode == EndpointMode.Inline) return new InlineSqsSender(runtime, this);
-        
+        if (Mode == EndpointMode.Inline)
+        {
+            return new InlineSqsSender(runtime, this);
+        }
+
         var protocol = new SqsSenderProtocol(runtime, this,
             _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
         return new BatchedSender(Uri, protocol, runtime.Cancellation,
@@ -294,8 +295,11 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
     internal void ConfigureDeadLetterQueue(Action<AmazonSqsQueue> configure)
     {
-        var dlq = _parent.Queues[DeadLetterQueueName];
-        configure(dlq);
+        if (DeadLetterQueueName != null)
+        {
+            var dlq = _parent.Queues[DeadLetterQueueName];
+            configure(dlq);
+        }
     }
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)

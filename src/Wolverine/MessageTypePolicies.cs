@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using JasperFx.Core.Reflection;
-using Wolverine.Configuration;
 using Wolverine.Logging;
 
 namespace Wolverine;
@@ -15,9 +14,9 @@ public class MessageTypePolicies<T>
     }
 
     /// <summary>
-    /// Specify that the following members on every message that can be cast
-    /// to type T should be audited as part of telemetry, logging, and metrics
-    /// data exported from this application
+    ///     Specify that the following members on every message that can be cast
+    ///     to type T should be audited as part of telemetry, logging, and metrics
+    ///     data exported from this application
     /// </summary>
     /// <param name="members"></param>
     /// <typeparam name="T"></typeparam>
@@ -42,7 +41,7 @@ public class MessageTypePolicies<T>
         policy.AddType(middlewareType, c => c.InputType().CanBeCastTo<T>()).MatchByMessageType = true;
         return this;
     }
-    
+
     /// <summary>
     ///     Add middleware only on handlers where the message type can be cast to the message
     ///     type of the middleware type
@@ -52,5 +51,4 @@ public class MessageTypePolicies<T>
     {
         return AddMiddleware(typeof(TMiddleware));
     }
-
 }

@@ -8,20 +8,18 @@ namespace Wolverine.RDBMS.Polling;
 
 public class DatabaseBatchCommandException : Exception
 {
+    public DatabaseBatchCommandException(DbCommand command, Exception inner) : base(toMessage(command), inner)
+    {
+    }
+
     private static string toMessage(DbCommand command)
     {
         var message = "Database operation batch failure:\n";
         message += command.CommandText;
         foreach (DbParameter parameter in command.Parameters)
-        {
             message += $"\n{parameter.ParameterName}: {parameter.Value}";
-        }
 
         return message;
-    }
-    
-    public DatabaseBatchCommandException(DbCommand command, Exception inner) : base(toMessage(command), inner)
-    {
     }
 }
 
@@ -36,13 +34,11 @@ internal class DatabaseOperationBatch : IAgentCommand
         _operations = operations;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var builder = _database.ToCommandBuilder();
-        foreach (var operation in _operations)
-        {
-            operation.ConfigureCommand(builder);
-        }
+        foreach (var operation in _operations) operation.ConfigureCommand(builder);
 
         var cmd = builder.Compile();
         var conn = cmd.Connection;
@@ -59,22 +55,17 @@ internal class DatabaseOperationBatch : IAgentCommand
             await reader.CloseAsync();
 
             await tx.CommitAsync(cancellationToken);
-            
         }
         catch (Exception e)
         {
             throw new DatabaseBatchCommandException(cmd, e);
         }
 
-        foreach (var command in _operations.SelectMany(x => x.PostProcessingCommands()))
-        {
-            yield return command;
-        }
+        foreach (var command in _operations.SelectMany(x => x.PostProcessingCommands())) yield return command;
 
         await conn.CloseAsync();
-
     }
-    
+
     public static async Task ApplyCallbacksAsync(IReadOnlyList<IDatabaseOperation> operations, DbDataReader reader,
         IList<Exception> exceptions,
         CancellationToken token)
@@ -90,6 +81,7 @@ internal class DatabaseOperationBatch : IAgentCommand
             }
             catch (Exception e)
             {
+                // ReSharper disable once SuspiciousTypeConversion.Global
                 if (first is IExceptionTransform t && t.TryTransform(e, out var transformed))
                 {
                     throw transformed;
@@ -113,6 +105,7 @@ internal class DatabaseOperationBatch : IAgentCommand
             }
             catch (Exception e)
             {
+                // ReSharper disable once SuspiciousTypeConversion.Global
                 if (operation is IExceptionTransform t && t.TryTransform(e, out var transformed))
                 {
                     throw transformed;
@@ -121,8 +114,5 @@ internal class DatabaseOperationBatch : IAgentCommand
                 throw;
             }
         }
-        
-        
     }
-
 }

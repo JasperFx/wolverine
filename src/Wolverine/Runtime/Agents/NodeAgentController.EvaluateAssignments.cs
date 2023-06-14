@@ -4,6 +4,8 @@ namespace Wolverine.Runtime.Agents;
 
 public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
 {
+    public AssignmentGrid? LastAssignments { get; internal set; }
+
     // Tested w/ integration tests all the way
     public async IAsyncEnumerable<object> HandleAsync(EvaluateAssignments command)
     {
@@ -14,13 +16,15 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
             try
             {
                 var allAgents = await controller.AllKnownAgentsAsync();
-                grid.WithAgents(allAgents.ToArray()); // Just in case something has gotten lost, and this is master anyway
+                grid.WithAgents(allAgents
+                    .ToArray()); // Just in case something has gotten lost, and this is master anyway
 
                 await controller.EvaluateAssignmentsAsync(grid);
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Error trying to reevaluate agent assignments for '{Scheme}' agents", controller.Scheme);
+                _logger.LogError(e, "Error trying to reevaluate agent assignments for '{Scheme}' agents",
+                    controller.Scheme);
             }
         }
 
@@ -32,8 +36,8 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
             {
                 commands.Add(agentCommand);
             }
-        }   
-        
+        }
+
         _tracker.Publish(new AgentAssignmentsChanged(commands, grid));
 
         LastAssignments = grid;
@@ -42,15 +46,10 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
         if (commands.Any())
         {
             batchCommands(commands);
-        
-            foreach (var agentCommand in commands)
-            {
-                yield return agentCommand;
-            }
+
+            foreach (var agentCommand in commands) yield return agentCommand;
         }
     }
-    
-    public AssignmentGrid? LastAssignments { get; internal set; }
 
     private static void batchCommands(List<IAgentCommand> commands)
     {
@@ -58,28 +57,23 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
         {
             var assignAgents = new AssignAgents(group.Key, group.Select(x => x.AgentUri).ToArray());
 
-            foreach (var message in group)
-            {
-                commands.Remove(message);
-            }
+            foreach (var message in group) commands.Remove(message);
 
             commands.Add(assignAgents);
         }
-        
-        foreach (var group in commands.OfType<StopRemoteAgent>().GroupBy(x => x.NodeId).Where(x => x.Count() > 1).ToArray())
+
+        foreach (var group in commands.OfType<StopRemoteAgent>().GroupBy(x => x.NodeId).Where(x => x.Count() > 1)
+                     .ToArray())
         {
             var stopAgents = new StopRemoteAgents(group.Key, group.Select(x => x.AgentUri).ToArray());
 
-            foreach (var message in group)
-            {
-                commands.Remove(message);
-            }
+            foreach (var message in group) commands.Remove(message);
 
             commands.Add(stopAgents);
         }
     }
-    
-    private async Task requestAssignmentEvaluation()
+
+    private async Task requestAssignmentEvaluationAsync()
     {
         await _assignmentBufferBlock.SendAsync(new EvaluateAssignments());
     }

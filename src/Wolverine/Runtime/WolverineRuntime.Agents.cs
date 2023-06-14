@@ -9,15 +9,15 @@ namespace Wolverine.Runtime;
 
 public class UnknownWolverineNodeException : Exception
 {
-    public UnknownWolverineNodeException(Guid nodeId) : base($"Attempting to make a remote call to an unknown node {nodeId}. This could be from that node having gone offline before the message was processed.")
+    public UnknownWolverineNodeException(Guid nodeId) : base(
+        $"Attempting to make a remote call to an unknown node {nodeId}. This could be from that node having gone offline before the message was processed.")
     {
     }
 }
 
 public partial class WolverineRuntime : IAgentRuntime
 {
-    private readonly List<IAgent> _activeAgents = new();
-    private BufferedLocalQueue _systemQueue;
+    private BufferedLocalQueue? _systemQueue;
 
     internal Timer? AgentTimer { get; private set; }
 
@@ -43,14 +43,14 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public async Task InvokeAsync(Guid nodeId, IAgentCommand command)
     {
-        if (Tracker.Self.Id == nodeId)
+        if (Tracker.Self!.Id == nodeId)
         {
             await new MessageBus(this).InvokeAsync(command, Cancellation);
         }
         else if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            await new MessageBus(this).EndpointFor(endpoint).InvokeAsync(command, Cancellation, 10.Seconds());
+            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, Cancellation, 10.Seconds());
         }
         else
         {
@@ -60,14 +60,15 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public async Task<T> InvokeAsync<T>(Guid nodeId, IAgentCommand command) where T : class
     {
-        if (Tracker.Self.Id == nodeId)
+        if (Tracker.Self!.Id == nodeId)
         {
             return await new MessageBus(this).InvokeAsync<T>(command, Cancellation);
         }
+
         if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            return await new MessageBus(this).EndpointFor(endpoint).InvokeAsync<T>(command, Cancellation, 10.Seconds());
+            return await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync<T>(command, Cancellation, 10.Seconds());
         }
 
         throw new UnknownWolverineNodeException(nodeId);
@@ -75,7 +76,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public Uri[] AllRunningAgentUris()
     {
-        return _agents.AllRunningAgentUris();
+        return _agents!.AllRunningAgentUris();
     }
 
     public IAgentRuntime Agents => this;
@@ -105,7 +106,7 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         try
         {
-            _systemQueue.EnqueueDirectly(new Envelope(new CheckAgentHealth())
+            _systemQueue!.EnqueueDirectly(new Envelope(new CheckAgentHealth())
             {
                 Serializer = Options.DefaultSerializer,
                 Destination = TransportConstants.SystemQueueUri
@@ -140,7 +141,7 @@ public partial class WolverineRuntime : IAgentRuntime
     }
 
     /// <summary>
-    /// STRICTLY FOR TESTING!!!!
+    ///     STRICTLY FOR TESTING!!!!
     /// </summary>
     /// <param name="lastHeartbeatTime"></param>
     internal async Task DisableAgentsAsync(DateTimeOffset lastHeartbeatTime)

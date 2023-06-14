@@ -50,7 +50,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         // All of this is to seed the handler and its associated retry policies
         // for scheduling outgoing messages
         AddMessageHandler(typeof(Envelope), new ScheduledSendEnvelopeHandler(this));
-        
+
         _messageTypes = _messageTypes.AddOrUpdate(TransportConstants.ScheduledEnvelope, typeof(Envelope));
 
         RegisterMessageType(typeof(Acknowledgement));
@@ -133,10 +133,8 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
                 _handlers = _handlers.AddOrUpdate(messageType, handler);
                 return handler;
             }
-            else
-            {
-                throw new NotSupportedException();
-            }
+
+            throw new NotSupportedException();
         }
 
         if (_chains.TryFind(messageType, out var chain))
@@ -152,7 +150,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
                     Debug.WriteLine("Starting to compile chain " + chain.MessageType.NameInCode());
                     if (chain.Handler == null)
                     {
-                        chain.InitializeSynchronously(Rules!, this, Container);
+                        chain.InitializeSynchronously(Rules, this, Container);
                         handler = chain.CreateHandler(Container!);
                     }
                     else

@@ -41,7 +41,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
                                          $";update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
     }
 
-    protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings)
+    protected override INodeAgentPersistence buildNodeStorage(DatabaseSettings databaseSettings)
     {
         return new PostgresqlNodePersistence(databaseSettings);
     }
@@ -114,6 +114,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         builder.Append(_deleteIncomingEnvelopesSql);
         var param = (NpgsqlParameter)builder.AddNamedParameter("ids", DBNull.Value);
         param.Value = new[] { envelope.Id };
+        // ReSharper disable once BitwiseOperatorOnEnumWithoutFlags
         param.NpgsqlDbType = NpgsqlDbType.Uuid | NpgsqlDbType.Array;
 
         DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);

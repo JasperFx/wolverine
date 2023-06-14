@@ -1,6 +1,3 @@
-using System.Data;
-using FastExpressionCompiler;
-using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Oakton.Descriptions;
 using Spectre.Console;
@@ -13,7 +10,7 @@ namespace Wolverine.Runtime;
 public sealed partial class WolverineRuntime : IDescribedSystemPartFactory
 {
     public List<IDescribedSystemPart> AdditionalDescribedParts { get; } = new();
-    
+
     IDescribedSystemPart[] IDescribedSystemPartFactory.Parts()
     {
         Handlers.Compile(Options, _container);
@@ -30,15 +27,9 @@ public sealed partial class WolverineRuntime : IDescribedSystemPartFactory
         yield return new SenderDescription(this);
         yield return new FailureRuleDescription(this);
 
-        foreach (var systemPart in Options.Transports.OfType<IDescribedSystemPart>())
-        {
-            yield return systemPart;
-        }
+        foreach (var systemPart in Options.Transports.OfType<IDescribedSystemPart>()) yield return systemPart;
 
-        foreach (var describedPart in AdditionalDescribedParts)
-        {
-            yield return describedPart;
-        }
+        foreach (var describedPart in AdditionalDescribedParts) yield return describedPart;
     }
 }
 
@@ -57,6 +48,7 @@ internal class MessageSubscriptions : IDescribedSystemPart, IWriteToConsole
     }
 
     public string Title => "Wolverine Message Routing";
+
     public async Task WriteToConsole()
     {
         // "start" the Wolverine app in a lightweight way
@@ -71,7 +63,7 @@ internal class MessageSubscriptions : IDescribedSystemPart, IWriteToConsole
             AnsiConsole.Markup("[gray]No message routes[/]");
             return;
         }
-        
+
         writeMessageRouting(messageTypes);
     }
 
@@ -107,20 +99,18 @@ internal class SenderDescription : IDescribedSystemPart, IWriteToConsole
     }
 
     public string Title => "Wolverine Sending Endpoints";
+
     public async Task WriteToConsole()
     {
         // "start" the Wolverine app in a lightweight way
         // to discover endpoints, but don't start the actual
         // external endpoint listening or sending
         await _runtime.StartLightweightAsync();
-        
+
         // This just forces Wolverine to go find and build any extra sender agents
         var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);
-        foreach (var messageType in messageTypes)
-        {
-            _runtime.RoutingFor(messageType);
-        }
-            
+        foreach (var messageType in messageTypes) _runtime.RoutingFor(messageType);
+
 
         writeEndpoints();
     }
@@ -169,13 +159,14 @@ internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
     }
 
     public string Title => "Wolverine Listeners";
+
     public async Task WriteToConsole()
     {
         // "start" the Wolverine app in a lightweight way
         // to discover endpoints, but don't start the actual
         // external endpoint listening or sending
         await _runtime.StartLightweightAsync();
-        
+
         var table = new Table();
 
         table.AddColumn("Uri");
@@ -190,7 +181,7 @@ internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
             .SelectMany(x => x.Endpoints())
             .Where(x => x.IsListener || x is LocalQueue)
             .OrderBy(x => x.EndpointName);
-        
+
         foreach (var listener in listeners)
         {
             table.AddRow(
@@ -221,17 +212,18 @@ internal class FailureRuleDescription : IDescribedSystemPart, IWriteToConsole
     }
 
     public string Title => "Wolverine Error Handling";
+
     public async Task WriteToConsole()
     {
         // "start" the Wolverine app in a lightweight way
         // to discover endpoints, but don't start the actual
         // external endpoint listening or sending
         await _runtime.StartLightweightAsync();
-        
+
         AnsiConsole.WriteLine("Failure rules specific to a message type");
         AnsiConsole.WriteLine("are applied before the global failure rules");
         AnsiConsole.WriteLine();
-        
+
         Action<FailureRuleCollection, string> writeTree = (rules, name) =>
         {
             var tree = new Tree(name);
@@ -241,10 +233,7 @@ internal class FailureRuleDescription : IDescribedSystemPart, IWriteToConsole
                 foreach (var failure in rules)
                 {
                     var node = tree.AddNode(failure.Match.Description);
-                    foreach (var slot in failure)
-                    {
-                        node.AddNode(slot.Describe());
-                    }
+                    foreach (var slot in failure) node.AddNode(slot.Describe());
 
                     node.AddNode(new MoveToErrorQueue(new Exception()).ToString());
                 }
@@ -265,6 +254,5 @@ internal class FailureRuleDescription : IDescribedSystemPart, IWriteToConsole
             AnsiConsole.WriteLine();
             writeTree(chain.Failures, $"Message: {chain.MessageType.FullNameInCode()}");
         }
-        
     }
 }

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -167,7 +163,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         if (Endpoint.ListenerCount > 1)
         {
             var listeners = new List<IListener>();
-            for (int i = 0; i < Endpoint.ListenerCount; i++)
+            for (var i = 0; i < Endpoint.ListenerCount; i++)
             {
                 var listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
                 listeners.Add(listener);

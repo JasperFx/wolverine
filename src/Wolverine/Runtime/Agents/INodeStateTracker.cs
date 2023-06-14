@@ -1,11 +1,10 @@
-using System.Collections;
 using Wolverine.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
 internal interface INodeStateTracker
 {
-    WolverineNode Self { get; }
+    WolverineNode? Self { get; }
 
     WolverineNode? Leader { get; }
 
@@ -19,7 +18,7 @@ internal interface INodeStateTracker
 
     WolverineNode? FindOwnerOfAgent(Uri agentUri);
     void Remove(WolverineNode node);
-    IEnumerable<Uri> AllAgents();
+    IEnumerable<Uri> AllAgents();   
     void RegisterAgents(IReadOnlyList<Uri> agents);
     IEnumerable<WolverineNode> AllNodes();
 }

@@ -1,5 +1,3 @@
-using System;
-
 namespace Wolverine.ErrorHandling.Matches;
 
 public interface IExceptionMatch

@@ -9,7 +9,7 @@ namespace Wolverine.RabbitMQ.Internal;
 
 internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicProperties>
 {
-    public RabbitMqEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime)
+    public RabbitMqEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {
         MapProperty(x => x.CorrelationId!, (e, p) => e.CorrelationId = p.CorrelationId,
             (e, p) => p.CorrelationId = e.CorrelationId);

@@ -19,10 +19,7 @@ internal class AuditMembersPolicy<T> : IChainPolicy
     {
         foreach (var chain in chains.Where(x => x.InputType().CanBeCastTo<T>()))
         {
-            foreach (var member in _members)
-            {
-                chain.Audit(member);
-            }
+            foreach (var member in _members) chain.Audit(member);
         }
     }
 }

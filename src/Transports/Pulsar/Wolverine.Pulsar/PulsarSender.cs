@@ -1,7 +1,4 @@
-using System;
 using System.Buffers;
-using System.Threading;
-using System.Threading.Tasks;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
@@ -13,19 +10,18 @@ namespace Wolverine.Pulsar;
 public class PulsarSender : ISender, IAsyncDisposable
 {
     private readonly CancellationToken _cancellation;
-    private readonly PulsarEndpoint _endpoint;
     private readonly PulsarEnvelopeMapper _mapper;
     private readonly IProducer<ReadOnlySequence<byte>> _producer;
 
     public PulsarSender(IWolverineRuntime runtime, PulsarEndpoint endpoint, PulsarTransport transport,
         CancellationToken cancellation)
     {
-        _endpoint = endpoint;
+        var endpoint1 = endpoint;
         _cancellation = cancellation;
 
-        _producer = transport.Client!.NewProducer().Topic(_endpoint.PulsarTopic()).Create();
+        _producer = transport.Client!.NewProducer().Topic(endpoint1.PulsarTopic()).Create();
 
-        Destination = _endpoint.Uri;
+        Destination = endpoint1.Uri;
         _mapper = endpoint.BuildMapper(runtime);
     }
 

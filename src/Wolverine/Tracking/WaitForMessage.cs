@@ -10,7 +10,8 @@ internal class WaitForMessage<T> : ITrackedCondition
 
     public void Record(EnvelopeRecord record)
     {
-        if (record.MessageEventType != MessageEventType.MessageSucceeded && record.MessageEventType != MessageEventType.MessageFailed)
+        if (record.MessageEventType != MessageEventType.MessageSucceeded &&
+            record.MessageEventType != MessageEventType.MessageFailed)
         {
             return;
         }

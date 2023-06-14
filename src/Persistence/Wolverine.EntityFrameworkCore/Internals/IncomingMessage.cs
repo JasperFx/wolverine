@@ -16,7 +16,7 @@ public class IncomingMessage
         ExecutionTime = envelope.ScheduledTime?.ToUniversalTime();
         Attempts = envelope.Attempts;
         Body = EnvelopeSerializer.Serialize(envelope);
-        MessageType = envelope.MessageType;
+        MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination?.ToString();
     }
 

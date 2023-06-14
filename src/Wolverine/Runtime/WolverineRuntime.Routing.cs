@@ -1,13 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
-using Wolverine.Transports;
-using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
@@ -16,21 +10,6 @@ public partial class WolverineRuntime
 {
     private ImHashMap<Type, IMessageRouter> _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
 
-    internal IEnumerable<Endpoint> findEndpoints(Type messageType)
-    {
-        // If there are explicit rules, that's where you go
-        var explicits = Options.Transports.AllEndpoints().Where(x => x.ShouldSendMessage(messageType)).ToArray();
-        if (explicits.Any()) return explicits;
-
-        if (!Options.LocalRoutingConventionDisabled && Options.HandlerGraph.CanHandle(messageType))
-        {
-            var endpoints = Options.LocalRouting.DiscoverSenders(messageType, this).ToArray();
-            if (endpoints.Any()) return endpoints;
-        }
-
-        return Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, this));
-    }
-    
 
     public IMessageRouter RoutingFor(Type messageType)
     {
@@ -47,7 +26,7 @@ public partial class WolverineRuntime
 
         var routes = findEndpoints(messageType).Select(x => new MessageRoute(messageType, x, Replies))
             .ToArray();
-        
+
         var router = routes.Any()
             ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
             : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
@@ -55,6 +34,27 @@ public partial class WolverineRuntime
         _messageTypeRouting = _messageTypeRouting.AddOrUpdate(messageType, router);
 
         return router;
+    }
+
+    internal IEnumerable<Endpoint> findEndpoints(Type messageType)
+    {
+        // If there are explicit rules, that's where you go
+        var explicits = Options.Transports.AllEndpoints().Where(x => x.ShouldSendMessage(messageType)).ToArray();
+        if (explicits.Any())
+        {
+            return explicits;
+        }
+
+        if (!Options.LocalRoutingConventionDisabled && Options.HandlerGraph.CanHandle(messageType))
+        {
+            var endpoints = Options.LocalRouting.DiscoverSenders(messageType, this).ToArray();
+            if (endpoints.Any())
+            {
+                return endpoints;
+            }
+        }
+
+        return Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, this));
     }
 
     internal ISendingAgent? DetermineLocalSendingAgent(Type messageType)

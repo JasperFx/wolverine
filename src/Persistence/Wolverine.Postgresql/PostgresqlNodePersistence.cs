@@ -23,7 +23,8 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
     {
         _settings = settings;
         _nodeTable = new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeTableName);
-        _assignmentTable = new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeAssignmentsTableName);
+        _assignmentTable =
+            new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeAssignmentsTableName);
     }
 
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
@@ -44,7 +45,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
 
         await conn.CloseAsync();
 
-        return (int)raw;
+        return (int)raw!;
     }
 
     public async Task DeleteAsync(Guid nodeId)
@@ -98,16 +99,16 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await conn.OpenAsync(cancellationToken);
 
         var cmd = CommandExtensions.CreateCommand(conn,
-            $"select id, node_number, description, uri, started, capabilities from {_nodeTable} where id = :id;select id, node_id, started from {_assignmentTable} where node_id = :id;")
+                $"select id, node_number, description, uri, started, capabilities from {_nodeTable} where id = :id;select id, node_id, started from {_assignmentTable} where node_id = :id;")
             .With("id", nodeId);
 
-        WolverineNode returnValue = null;
-        
+        WolverineNode returnValue = default!;
+
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
         {
             returnValue = await readNodeAsync(reader);
-            
+
             await reader.NextResultAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -118,7 +119,6 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
 
         return returnValue;
     }
-
 
 
     public async Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
@@ -151,7 +151,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
             .With("id", agentUri.ToString())
             .With("node", nodeId)
             .ExecuteNonQueryAsync(cancellationToken);
-        
+
         await conn.CloseAsync();
     }
 
@@ -160,11 +160,12 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await using var conn = new NpgsqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        await conn.CreateCommand($"insert into {_assignmentTable} (id, node_id) values (:id, :node) on conflict (id) do update set node_id = :node;")
+        await conn.CreateCommand(
+                $"insert into {_assignmentTable} (id, node_id) values (:id, :node) on conflict (id) do update set node_id = :node;")
             .With("id", agentUri.ToString())
             .With("node", nodeId)
             .ExecuteNonQueryAsync(cancellationToken);
-        
+
         await conn.CloseAsync();
     }
 
@@ -197,7 +198,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
                 {
                     return null;
                 }
-                
+
                 throw;
             }
 
@@ -218,14 +219,17 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await using var conn = new NpgsqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
 
-        var raw = await conn.CreateCommand($"select uri from {_nodeTable} inner join {_assignmentTable} on {_nodeTable}.id = {_assignmentTable}.node_id where {_assignmentTable}.id = :id").With("id", NodeAgentController.LeaderUri.ToString())
+        var raw = await conn
+            .CreateCommand(
+                $"select uri from {_nodeTable} inner join {_assignmentTable} on {_nodeTable}.id = {_assignmentTable}.node_id where {_assignmentTable}.id = :id")
+            .With("id", NodeAgentController.LeaderUri.ToString())
             .ExecuteScalarAsync();
 
         await conn.CloseAsync();
 
         return raw == null ? null : new Uri((string)raw);
     }
-    
+
     public async Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
     {
         await using var conn = new NpgsqlConnection(_settings.ConnectionString);
@@ -236,7 +240,70 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
 
         await conn.CloseAsync();
 
-        return list.Select(x => x.ToUri()).ToList();
+        return list.Select(x => x!.ToUri()).ToList();
+    }
+
+    public async Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime,
+        CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        var cmd = conn
+            .CreateCommand($"select id, uri from {_nodeTable} where health_check < :stale")
+            .With("stale", staleTime);
+        var nodes = await cmd.FetchListAsync<WolverineNode>(async reader =>
+        {
+            var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+            var raw = await reader.GetFieldValueAsync<string>(1, cancellationToken);
+
+            return new WolverineNode
+            {
+                Id = id,
+                ControlUri = new Uri(raw)
+            };
+        }, cancellationToken);
+
+        await conn.CloseAsync();
+
+        return nodes;
+    }
+
+    public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        await conn.CreateCommand($"update {_nodeTable} set health_check = :now where id = :id")
+            .With("id", nodeId)
+            .With("now", lastHeartbeatTime)
+            .ExecuteNonQueryAsync();
+
+        await conn.CloseAsync();
+    }
+
+    public async Task MarkHealthCheckAsync(Guid nodeId)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        await conn.CreateCommand($"update {_nodeTable} set health_check = now() where id = :id")
+            .With("id", nodeId).ExecuteNonQueryAsync();
+
+        await conn.CloseAsync();
+    }
+
+    public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        var result = await conn.CreateCommand($"select node_number from {_nodeTable}")
+            .FetchListAsync<int>();
+
+        await conn.CloseAsync();
+
+        return result;
     }
 
     private async Task<WolverineNode> readNodeAsync(DbDataReader reader)
@@ -269,67 +336,5 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         }
 
         return null;
-    }
-    
-    public async Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime, CancellationToken cancellationToken)
-    {
-        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync(cancellationToken);
-
-        var cmd = conn
-            .CreateCommand($"select id, uri from {_nodeTable} where health_check < :stale")
-            .With("stale", staleTime);
-        var nodes = await cmd.FetchListAsync<WolverineNode>(async reader =>
-        {
-            var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
-            var raw = await reader.GetFieldValueAsync<string>(1, cancellationToken);
-
-            return new WolverineNode
-            {
-                Id = id,
-                ControlUri = new Uri(raw)
-            };
-        }, cancellation: cancellationToken);
-
-        await conn.CloseAsync();
-
-        return nodes;
-    }
-
-    public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
-    {
-        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
-
-        await conn.CreateCommand($"update {_nodeTable} set health_check = :now where id = :id")
-            .With("id", nodeId)
-            .With("now", lastHeartbeatTime)
-            .ExecuteNonQueryAsync();
-
-        await conn.CloseAsync();
-    }
-    
-    public async Task MarkHealthCheckAsync(Guid nodeId)
-    {
-        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
-
-        await conn.CreateCommand($"update {_nodeTable} set health_check = now() where id = :id")
-            .With("id", nodeId).ExecuteNonQueryAsync();
-
-        await conn.CloseAsync();
-    }
-
-    public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
-    {
-        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
-
-        var result = await conn.CreateCommand($"select node_number from {_nodeTable}")
-            .FetchListAsync<int>();
-
-        await conn.CloseAsync();
-
-        return result;
     }
 }

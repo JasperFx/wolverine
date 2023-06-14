@@ -19,7 +19,7 @@ public partial class WolverineRuntime
         try
         {
             Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}",
-                Options.ApplicationAssembly.GetName());
+                Options.ApplicationAssembly!.GetName());
 
             // Build up the message handlers
             Handlers.Compile(Options, _container);
@@ -140,7 +140,7 @@ public partial class WolverineRuntime
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
     }
-    
+
     internal async Task StartLightweightAsync()
     {
         if (_hasStarted)

@@ -1,12 +1,19 @@
 ﻿using System.Data.Common;
-using JasperFx.Core;
 using Weasel.Core;
-using Wolverine.Util;
 
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
+    public Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
+    {
+        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.AssignedNodeNumber, this);
+        cmd.Connection = tx.Connection;
+        cmd.Transaction = tx;
+
+        return cmd.ExecuteNonQueryAsync(_cancellation);
+    }
+
     public abstract Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
     public abstract Task DeleteOutgoingAsync(Envelope[] envelopes);
 
@@ -36,15 +43,6 @@ public abstract partial class MessageDatabase<T>
     {
         return DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, this)
             .ExecuteOnce(_cancellation);
-    }
-
-    public Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
-    {
-        var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.AssignedNodeNumber, this);
-        cmd.Connection = tx.Connection;
-        cmd.Transaction = tx;
-
-        return cmd.ExecuteNonQueryAsync(_cancellation);
     }
 
     protected abstract string

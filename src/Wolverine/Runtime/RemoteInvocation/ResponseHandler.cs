@@ -1,7 +1,4 @@
-using System;
 using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +9,7 @@ public interface IReplyTracker : IDisposable
 #pragma warning disable VSTHRD200
     Task<T> RegisterListener<T>(Envelope envelope, CancellationToken cancellationToken, TimeSpan timeout)
 #pragma warning restore VSTHRD200
-    ;
+        ;
 
     void Complete(Envelope response);
 }
@@ -33,7 +30,7 @@ internal class ReplyTracker : IReplyTracker
     {
         envelope.DeliverWithin = timeout; // Make the message expire so it doesn't cruft up the receivers
         var listener = new ReplyListener<T>(envelope, this, timeout, cancellationToken);
-        _listeners.AddOrUpdate(envelope.Id, listener, (id, l) => listener);
+        _listeners.AddOrUpdate(envelope.Id, listener, (_, _) => listener);
 
         return listener.Task;
     }
@@ -68,7 +65,7 @@ internal class ReplyTracker : IReplyTracker
 
     internal void Unregister(IReplyListener replyListener)
     {
-        _listeners.TryRemove(replyListener.RequestId, out var listener);
+        _listeners.TryRemove(replyListener.RequestId, out var _);
         replyListener.SafeDispose();
     }
 }

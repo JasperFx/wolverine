@@ -1,8 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling;
@@ -44,23 +39,26 @@ internal class NoHandlerExecutor : IExecutor
             .HandlerGraph
             .Discovery
             .Assemblies
-            .Select(x => x.FullName)
+            .Select(x => x.FullName!)
             .Join(", ");
-        
-        throw new NotSupportedException($"No known handler for message type {_messageType.FullNameInCode()}. Wolverine was looking for handlers in assemblies {handlerAssemblies}");
+
+        throw new NotSupportedException(
+            $"No known handler for message type {_messageType.FullNameInCode()}. Wolverine was looking for handlers in assemblies {handlerAssemblies}");
     }
 
-    public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
     {
         if (Exception != null)
         {
             throw Exception;
         }
-        
+
         throw new IndeterminateRoutesException(_messageType);
     }
 
-    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null)
+    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
     {
         if (Exception != null)
         {

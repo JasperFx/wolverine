@@ -2,18 +2,18 @@ namespace Wolverine.Runtime.Agents;
 
 internal class NodeMessage : ISendMyself
 {
-    public object Message { get; }
-    public WolverineNode Node { get; }
-
     public NodeMessage(object message, WolverineNode node)
     {
         Message = message;
         Node = node;
     }
 
+    public object Message { get; }
+    public WolverineNode Node { get; }
+
     public async ValueTask ApplyAsync(IMessageContext context)
     {
-        await context.EndpointFor(Node.ControlUri).SendAsync(Message);
+        await context.EndpointFor(Node.ControlUri!).SendAsync(Message);
     }
 }
 

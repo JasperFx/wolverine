@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-
 namespace Wolverine.Runtime.Serialization;
 
 internal static class BinaryWriterExtensions

@@ -39,18 +39,22 @@ internal class DeleteOutgoingAsyncGroup : IEnvelopeCommand
     }
 }
 
-
 internal class DiscardAndReassignOutgoingAsyncGroup : IEnvelopeCommand
 {
     private readonly IMessageDatabase _database;
     private readonly List<Envelope> _discards = new();
-    private readonly List<Envelope> _reassigned = new();
     private readonly int _nodeId;
+    private readonly List<Envelope> _reassigned = new();
 
     public DiscardAndReassignOutgoingAsyncGroup(IMessageDatabase database, int nodeId)
     {
         _database = database;
         _nodeId = nodeId;
+    }
+
+    public Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        return _database.Outbox.DiscardAndReassignOutgoingAsync(_discards.ToArray(), _reassigned.ToArray(), _nodeId);
     }
 
     public void AddDiscards(IEnumerable<Envelope> discards)
@@ -62,10 +66,4 @@ internal class DiscardAndReassignOutgoingAsyncGroup : IEnvelopeCommand
     {
         _reassigned.AddRange(reassigns);
     }
-
-    public Task ExecuteAsync(CancellationToken cancellationToken)
-    {
-        return _database.Outbox.DiscardAndReassignOutgoingAsync(_discards.ToArray(), _reassigned.ToArray(), _nodeId);
-    }
 }
-

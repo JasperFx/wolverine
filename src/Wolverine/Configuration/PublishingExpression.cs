@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
+﻿using System.Reflection;
 using JasperFx.Core;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
-using Wolverine.Util;
 
 namespace Wolverine.Configuration;
 
@@ -182,12 +178,12 @@ public class PublishingExpression : IPublishToExpression
     }
 
     /// <summary>
-    /// Publish all messages implementing a marker interface or inheriting from a common
-    /// base class
+    ///     Publish all messages implementing a marker interface or inheriting from a common
+    ///     base class
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public void MessagesImplementing<T>()
     {
-        _subscriptions.Add(new Subscription{BaseType = typeof(T), Scope = RoutingScope.Implements});
+        _subscriptions.Add(new Subscription { BaseType = typeof(T), Scope = RoutingScope.Implements });
     }
 }

@@ -10,11 +10,11 @@ namespace Wolverine.Logging;
 
 internal class LogStartingActivity : SyncFrame
 {
-    private readonly LogLevel _level;
     private readonly Type _inputType;
+    private readonly LogLevel _level;
     private readonly List<AuditedMember> _members;
-    private Variable? _input;
     private Variable? _envelope;
+    private Variable? _input;
     private Variable? _logger;
 
     public LogStartingActivity(LogLevel level, IChain chain)
@@ -28,7 +28,7 @@ internal class LogStartingActivity : SyncFrame
     {
         _envelope = chain.FindVariable(typeof(Envelope));
         yield return _envelope;
-        
+
         _input = chain.FindVariable(_inputType);
         yield return _input;
 
@@ -44,10 +44,11 @@ internal class LogStartingActivity : SyncFrame
             template += " with " + _members.Select(m => $"{m.MemberName}: {{{m.Member.Name}}}").Join(", ");
         }
 
-        var args = new string[] { $"{_envelope.Usage}.{nameof(Envelope.Id)}" };
-        args = args.Concat(_members.Select(x => $"{_input.Usage}.{x.Member.Name}")).ToArray();
-        
-        writer.WriteLine($"{_logger.Usage}.{nameof(ILogger.Log)}({typeof(LogLevel).FullNameInCode()}.{_level.ToString()}, \"{template}\", {args.Join(", ")});");
+        var args = new[] { $"{_envelope!.Usage}.{nameof(Envelope.Id)}" };
+        args = args.Concat(_members.Select(x => $"{_input!.Usage}.{x.Member.Name}")).ToArray();
+
+        writer.WriteLine(
+            $"{_logger!.Usage}.{nameof(ILogger.Log)}({typeof(LogLevel).FullNameInCode()}.{_level.ToString()}, \"{template}\", {args.Join(", ")});");
         Next?.GenerateCode(method, writer);
     }
 }

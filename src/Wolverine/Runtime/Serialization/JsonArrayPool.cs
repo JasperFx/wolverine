@@ -1,5 +1,4 @@
-﻿using System;
-using System.Buffers;
+﻿using System.Buffers;
 using Newtonsoft.Json;
 
 namespace Wolverine.Runtime.Serialization;

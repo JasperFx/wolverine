@@ -15,7 +15,7 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
 
         var customizationOptions = context.Database.GetService<WolverineDbContextCustomizationOptions>();
         
-        modelBuilder.MapWolverineEnvelopeStorage(customizationOptions?.DatabaseSchema);
+        modelBuilder.MapWolverineEnvelopeStorage(customizationOptions.DatabaseSchema);
     }
 }
 

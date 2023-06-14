@@ -12,7 +12,10 @@ internal class AutoApplyTransactions : IChainPolicy
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
         var providers = rules.PersistenceProviders();
-        if (!providers.Any()) return;
+        if (!providers.Any())
+        {
+            return;
+        }
 
         foreach (var chain in chains.Where(x => !x.HasAttribute<TransactionalAttribute>()))
         {
@@ -22,7 +25,7 @@ internal class AutoApplyTransactions : IChainPolicy
                 potentials.Single().ApplyTransactionSupport(chain, container);
             }
         }
-        
+
         Debug.WriteLine("done");
     }
 }
