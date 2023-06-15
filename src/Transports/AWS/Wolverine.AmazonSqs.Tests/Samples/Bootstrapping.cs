@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
+using TestMessages;
 
 namespace Wolverine.AmazonSqs.Tests.Samples;
 
@@ -29,6 +30,8 @@ public class Bootstrapping
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // This does depend on the server having an AWS credentials file
+                // See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html for more information
                 opts.UseAmazonSqsTransport()
 
                     // Let Wolverine create missing queues as necessary
@@ -71,6 +74,8 @@ public class Bootstrapping
 
     public async Task setting_credentials()
     {
+        #region sample_setting_aws_credentials
+
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine((context, opts) =>
             {
@@ -93,10 +98,14 @@ public class Bootstrapping
                     // Warning though, this is potentially slow
                     .AutoPurgeOnStartup();
             }).StartAsync();
+
+        #endregion
     }
 
     public async Task configuring_queues()
     {
+        #region sample_listen_to_sqs_queue
+
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -116,8 +125,36 @@ public class Bootstrapping
 
                     queue.Configuration.Attributes[QueueAttributeName.MessageRetentionPeriod]
                         = 4.Days().TotalSeconds.ToString();
-                });
+                })
+                    // You can optimize the throughput by running multiple listeners
+                    // in parallel
+                    .ListenerCount(5);
             }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task publishing()
+    {
+        #region sample_subscriber_rules_for_sqs
+
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport();
+
+                opts.PublishMessage<Message1>()
+                    .ToSqsQueue("outbound1");
+
+
+                opts.PublishMessage<Message2>()
+                    .ToSqsQueue("outbound2").ConfigureQueueCreation(request =>
+                    {
+                        request.Attributes[QueueAttributeName.MaximumMessageSize] = "1024";
+                    });
+            }).StartAsync();
+
+        #endregion
     }
 
     public async Task using_conventional_routing()
@@ -133,5 +170,17 @@ public class Bootstrapping
             }).StartAsync();
 
         #endregion
+    }
+
+    public async Task overriding_dead_letter_queueing()
+    {
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport()
+                    ;
+
+                // TODO -- SHOW MORE OPTIONS
+            }).StartAsync();
     }
 }
