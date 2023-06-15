@@ -11,11 +11,25 @@ public record ReservationBooked(string ReservationId, DateTimeOffset Time);
 
 public static class ReservationEndpoint
 {
+    #region sample_starting_saga_from_http_endpoint
+
     [WolverinePost("/reservation")]
-    public static (ReservationBooked, Reservation, ReservationTimeout) Post(StartReservation start)
+    public static (
+        // The first return value would be written out as the HTTP response body
+        ReservationBooked, 
+        
+        // Because this subclasses from Saga, Wolverine will persist this entity
+        // with saga persistence
+        Reservation, 
+        
+        // Other return values that trigger no special handling will be treated
+        // as cascading messages
+        ReservationTimeout) Post(StartReservation start)
     {
         return (new ReservationBooked(start.ReservationId, DateTimeOffset.UtcNow), new Reservation { Id = start.ReservationId }, new ReservationTimeout(start.ReservationId));
     }
+
+    #endregion
 }
 
 public record BookReservation(string Id);
