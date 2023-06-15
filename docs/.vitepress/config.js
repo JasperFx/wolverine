@@ -126,14 +126,14 @@ export default {
                                         {text: 'Topics', link:'/guide/messaging/transports/rabbitmq/topics'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/rabbitmq/interoperability'}
                                     ]},
-                                {text: 'Azure Service Bus', link: '/guide/messaging/transports/azure-service-bus/', items:[
-                                        {text: 'Publishing', link:'/guide/messaging/transports/azure-service-bus/publishing'},
-                                        {text: 'Listening', link:'/guide/messaging/transports/azure-service-bus/listening'},
-                                        {text: 'Dead Letter Queues', link:'/guide/messaging/transports/azure-service-bus/deadletterqueues'},
-                                        {text: 'Conventional Routing', link:'/guide/messaging/transports/azure-service-bus/conventional-routing'},
-                                        {text: 'Queue, Topics, and Subscriptions', link:'/guide/messaging/transports/azure-service-bus/object-management'},
-                                        {text: 'Topics and Subscriptions', link:'/guide/messaging/transports/azure-service-bus/topics'},
-                                        {text: 'Interoperability', link:'/guide/messaging/transports/azure-service-bus/interoperability'}
+                                {text: 'Azure Service Bus', link: '/guide/messaging/transports/azureservicebus/', items:[
+                                        {text: 'Publishing', link:'/guide/messaging/transports/azureservicebus/publishing'},
+                                        {text: 'Listening', link:'/guide/messaging/transports/azureservicebus/listening'},
+                                        {text: 'Dead Letter Queues', link:'/guide/messaging/transports/azureservicebus/deadletterqueues'},
+                                        {text: 'Conventional Routing', link:'/guide/messaging/transports/azureservicebus/conventional-routing'},
+                                        {text: 'Queues', link:'/guide/messaging/transports/azureservicebus/object-management'},
+                                        {text: 'Topics and Subscriptions', link:'/guide/messaging/transports/azureservicebus/topics'},
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/azureservicebus/interoperability'}
                                     ]},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/sqs/publishing'},

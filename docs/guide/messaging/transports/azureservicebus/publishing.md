@@ -1,7 +1,5 @@
 # Publishing
 
-## Publishing to Queues
-
 You can configure explicit subscription rules to Azure Service Bus queues
 with this usage:
 

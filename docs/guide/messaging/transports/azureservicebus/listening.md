@@ -1,7 +1,4 @@
-# Listening
-
-
-## Listening to Queues
+# Listening for Messages
 
 ::: warning
 The Azure Service Bus transport uses batching to both send and receive messages. As such,

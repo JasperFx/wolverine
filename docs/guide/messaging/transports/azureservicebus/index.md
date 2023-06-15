@@ -1,8 +1,7 @@
 # Using Azure Service Bus
 
 ::: tip
-Wolverine is only supporting Azure Service Bus queues for right now, but support for publishing
-or subscribing through [Azure Service Bus topics and subscriptions](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-queues-topics-subscriptions) is planned.
+Wolverine.AzureServiceBus is able to support inline, buffered, or durable endpoints.
 :::
 
 Wolverine supports [Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-messaging-overview) as a messaging transport through the WolverineFx.AzureServiceBus nuget.
@@ -52,6 +51,12 @@ For security purposes, there are overloads of `UseAzureServiceBus()` that will a
 1. [TokenCredential](https://learn.microsoft.com/en-us/dotnet/api/azure.core.tokencredential?view=azure-dotnet)
 2. [AzureNamedKeyCredential](https://learn.microsoft.com/en-us/dotnet/api/azure.azurenamedkeycredential?view=azure-dotnet)
 3. [AzureSasCredential](https://learn.microsoft.com/en-us/dotnet/api/azure.azuresascredential?view=azure-dotnet)
+
+## Request/Reply
+
+[Request/reply](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) mechanics (`IMessageBus.InvokeAsync<T>()`) are possible with the Azure Service Bus transport *if* Wolverine has the ability to auto-provision
+a specific response queue for each node. That queue would be named like `wolverine.response.[application node id]` if you happen
+to notice that in the Azure Portal.
 
 
 

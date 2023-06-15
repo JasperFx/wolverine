@@ -4,6 +4,11 @@ Wolverine logs through the standard .NET `ILogger` abstraction, and there's noth
 to enable that logging other than using one of the standard approaches for bootstrapping a .NET application
 using `IHostBuilder`. Wolverine is logging all messages sent, received, and executed inline.
 
+::: info
+Inside of message handling, Wolverine is using `ILogger<T>` where `T` is the **message type**. So if you want
+to selectively filter logging levels in your application, rely on the message type rather than the handler type.
+:::
+
 ## Log Message Execution Start
 
 Wolverine is absolutely meant for "grown up development," so there's a few options for logging and instrumentation. While Open Telemetry logging 

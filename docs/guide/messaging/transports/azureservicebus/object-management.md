@@ -1,4 +1,64 @@
-# Queue, Topic, and Binding Management
+# Object Management
+
+When using the Azure Service Bus transport, Wolverine is able to use the stateful resource model where all missing 
+queues, topics, and subscriptions would be built at application start up time with this option applied:
+
+<!-- snippet: sample_resource_setup_with_azure_service_bus -->
+<a id='snippet-sample_resource_setup_with_azure_service_bus'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAzureServiceBus("some connection string");
+
+        // Make sure that all known resources like
+        // the Azure Service Bus queues, topics, and subscriptions
+        // configured for this application exist at application start up
+        opts.Services.AddResourceSetupOnStartup();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L52-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resource_setup_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+You can also direct Wolverine to build out Azure Service Bus object on demand as needed with:
+
+<!-- snippet: sample_auto_provision_with_azure_service_bus -->
+<a id='snippet-sample_auto_provision_with_azure_service_bus'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAzureServiceBus("some connection string")
+            
+            // Wolverine will build missing queues, topics, and subscriptions
+            // as necessary at runtime
+            .AutoProvision();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L70-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_provision_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+You can also opt to auto-purge all queues (there's also an option to do this queue by queue) on application
+start up time with:
+
+<!-- snippet: sample_auto_purge_with_azure_service_bus -->
+<a id='snippet-sample_auto_purge_with_azure_service_bus'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAzureServiceBus("some connection string")
+            .AutoPurgeOnStartup();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L87-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_purge_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And lastly, because Azure Service Bus is a centralized broker model and you may have to share a single
+environment between multiple developers or development environments, you can use prefixing with Azure Service Bus
+so that every queue, topic, and subscription is quietly prefixed for uniqueness:
+
+
 
 ## Configuring Queues
 
