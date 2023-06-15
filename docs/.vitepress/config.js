@@ -167,6 +167,7 @@ export default {
                         {text: 'Middleware', link: '/guide/http/middleware.md'},
                         {text: 'Policies', link: '/guide/http/policies.md'},
                         {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
+                        {text: 'Using as Mediator', link: '/guide/mediator'},
                         {text: 'Publishing Messages', link: '/guide/http/messaging'},
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},

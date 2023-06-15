@@ -102,12 +102,19 @@ app.MapWolverineEndpoints(opts =>
     opts.PublishMessage<HttpMessage2>("/publish/message2");
 });
 
+
+#region sample_optimized_mediator_usage
+
+// Functional equivalent to MapPost(pattern, (command, IMessageBus) => bus.Invoke(command))
 app.MapPostToWolverine<HttpMessage1>("/wolverine");
 app.MapPutToWolverine<HttpMessage2>("/wolverine");
 app.MapDeleteToWolverine<HttpMessage3>("/wolverine");
 
+// Functional equivalent to MapPost(pattern, (command, IMessageBus) => bus.Invoke<IResponse>(command))
 app.MapPostToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
 app.MapDeleteToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
 app.MapPutToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+
+    #endregion
 
 await app.RunOaktonCommands(args);
