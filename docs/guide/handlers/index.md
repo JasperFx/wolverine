@@ -344,7 +344,6 @@ public class EnvelopeUsingHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L191-L202' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingenvelope' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-TODO -- link to documentation on Envelope?
 
 ## Using the Current IMessageContext
 

@@ -160,9 +160,27 @@ Any custom serializers should follow some kind of naming convention for content 
 
 ## Serialization
 
+::: warning
+Just in time for 1.0, Wolverine switched to using System.Text.Json as the default serializer instead of Newtonsoft.Json. Fingers crossed!
+:::
+
 Wolverine needs to be able to serialize and deserialize your message objects when sending messages with external transports like Rabbit MQ or when using the inbox/outbox message storage.
-To that end, the default serialization is performed with Newtonsoft.Json because of its ubiquity and "battle testedness," but
-you may also opt into using [System.Text.Json](https://docs.microsoft.com/en-us/dotnet/api/system.text.json?view=net-6.0).
+To that end, the default serialization is performed with [System.Text.Json](https://docs.microsoft.com/en-us/dotnet/api/system.text.json?view=net-6.0) but
+you may also opt into using old, battle tested Newtonsoft.Json.
+
+And to instead opt into using System.Text.Json with different defaults -- which can give you better performance but with
+increased risk of serialization failures -- use this syntax where `opts` is a `WolverineOptions` object:
+
+<!-- snippet: sample_opting_into_STJ -->
+<a id='snippet-sample_opting_into_stj'></a>
+```cs
+opts.UseSystemTextJsonForSerialization(stj =>
+{
+    stj.UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode;
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L28-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 When using Newtonsoft.Json, the default configuration is:
 
@@ -195,19 +213,70 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageVersioning.cs#L162-L173' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customizingjsonserialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-And to instead opt into using System.Text.Json -- which can give you better performance but with
-increased risk of serialization failures -- use this syntax where `opts` is a `WolverineOptions` object:
+### MessagePack Serialization
 
-<!-- snippet: sample_opting_into_STJ -->
-<a id='snippet-sample_opting_into_stj'></a>
+Wolverine supports the [MessagePack](https://github.com/neuecc/MessagePack-CSharp) serializer for message serialization through the `WolverineFx.MessagePack` Nuget package.
+To enable MessagePack serialization through the entire application, use:
+
+<!-- snippet: sample_using_messagepack_for_the_default_for_the_app -->
+<a id='snippet-sample_using_messagepack_for_the_default_for_the_app'></a>
 ```cs
-opts.UseSystemTextJsonForSerialization(stj =>
-{
-    stj.UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode;
-});
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Make MessagePack the default serializer throughout this application
+        opts.UseMessagePackSerialization();
+    }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L28-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MessagePack.Tests/Samples.cs#L10-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_messagepack_for_the_default_for_the_app' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+Likewise, you can use MessagePack on selected endpoints like this:
+
+sample_using_messagepack_on_selected_endpoints
+
+### MemoryPack Serialization
+
+Wolverine supports the high performance [MemoryPack](https://github.com/Cysharp/MemoryPack) serializer through the `WolverineFx.MemoryPack` Nuget package.
+To enable MemoryPack serialization through the entire application, use:
+
+<!-- snippet: sample_using_memorypack_for_the_default_for_the_app -->
+<a id='snippet-sample_using_memorypack_for_the_default_for_the_app'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Make MemoryPack the default serializer throughout this application
+        opts.UseMemoryPackSerialization();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MemoryPack.Tests/Samples.cs#L10-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_memorypack_for_the_default_for_the_app' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Likewise, you can use MemoryPack on selected endpoints like this:
+
+<!-- snippet: sample_using_memorypack_on_selected_endpoints -->
+<a id='snippet-sample_using_memorypack_on_selected_endpoints'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Use MemoryPack on a local queue
+        opts.LocalQueue("one").UseMemoryPackSerialization();
+
+        // Use MemoryPack on a listening endpoint
+        opts.ListenAtPort(2223).UseMemoryPackSerialization();
+
+        // Use MemoryPack on one subscriber
+        opts.PublishAllMessages().ToPort(2222).UseMemoryPackSerialization();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MemoryPack.Tests/Samples.cs#L24-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_memorypack_on_selected_endpoints' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+
+
 
 
 ## Versioned Message Forwarding
@@ -280,45 +349,6 @@ public class PersonBornV2
 Using this strategy, other systems could still send your system the original `application/vnd.person-born.v1+json` formatted
 message, and on the receiving end, Wolverine would know to deserialize the Json data into the `PersonBorn` object, then call its
 `Transform()` method to build out the `PersonBornV2` type that matches up with your message handler.
-
-## MemoryPack Serialization
-
-Wolverine supports the high performance [MemoryPack](https://github.com/Cysharp/MemoryPack) serializer through the `WolverineFx.MemoryPack` Nuget package.
-To enable MemoryPack serialization through the entire application, use:
-
-<!-- snippet: sample_using_memorypack_for_the_default_for_the_app -->
-<a id='snippet-sample_using_memorypack_for_the_default_for_the_app'></a>
-```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        // Make MemoryPack the default serializer throughout this application
-        opts.UseMemoryPackSerialization();
-    }).StartAsync();
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MemoryPack.Tests/Samples.cs#L10-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_memorypack_for_the_default_for_the_app' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-Likewise, you can use MemoryPack on selected endpoints like this:
-
-<!-- snippet: sample_using_memorypack_on_selected_endpoints -->
-<a id='snippet-sample_using_memorypack_on_selected_endpoints'></a>
-```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        // Use MemoryPack on a local queue
-        opts.LocalQueue("one").UseMemoryPackSerialization();
-
-        // Use MemoryPack on a listening endpoint
-        opts.ListenAtPort(2223).UseMemoryPackSerialization();
-
-        // Use MemoryPack on one subscriber
-        opts.PublishAllMessages().ToPort(2222).UseMemoryPackSerialization();
-    }).StartAsync();
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MemoryPack.Tests/Samples.cs#L24-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_memorypack_on_selected_endpoints' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 
 
