@@ -182,7 +182,7 @@ export default {
                         {text: 'Sagas', link: '/guide/durability/sagas'},
                         {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
                                 {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'},
-                                {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/aggregates'}
+                                {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/event-sourcing'}
                             ]},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},

@@ -7,17 +7,15 @@ using Wolverine.Marten;
 
 namespace WolverineWebApi.Marten;
 
+#region sample_order_aggregate_for_http
+
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 
 public record OrderShipped;
-
 public record OrderCreated(Item[] Items);
-
 public record OrderReady;
-
 public record ShipOrder(Guid OrderId);
-
 public record ItemReady(string Name);
 
 public class Item
@@ -63,6 +61,8 @@ public class Order
 
 }
 
+#endregion
+
 public record OrderStatus(Guid OrderId, bool IsReady);
 
 public record OrderStarted;
@@ -76,7 +76,8 @@ public static class MarkItemEndpoint
 
     [AggregateHandler]
     [WolverinePost("/orders/ship"), EmptyResponse]
-    // The OrderShipped return value is treated as a cascading message
+    // The OrderShipped return value is treated as an event being posted
+    // to a Marten even stream
     // instead of as the HTTP response body because of the presence of 
     // the [EmptyResponse] attribute
     public static OrderShipped Ship(ShipOrder command, Order order)
@@ -86,7 +87,6 @@ public static class MarkItemEndpoint
 
     #endregion
     
-    // TODO -- return the StartStream? Mark whole class w/ AggregateHandler. Don't do anything w/ StartStream
     [Transactional]
     [WolverinePost("/orders/create")]
     public static OrderStatus StartOrder(StartOrder command, IDocumentSession session)
@@ -96,7 +96,9 @@ public static class MarkItemEndpoint
 
         return new OrderStatus(orderId, false);
     }
-    
+
+    #region sample_returning_multiple_events_from_http_endpoint
+
     [AggregateHandler]
     [WolverinePost("/orders/itemready")]
     public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
@@ -124,5 +126,7 @@ public static class MarkItemEndpoint
 
         return (new OrderStatus(order.Id, order.IsReadyToShip()), events);
     }
+
+    #endregion
 
 }

@@ -162,7 +162,8 @@ code. Here's an example from the tests:
 ```cs
 [AggregateHandler]
 [WolverinePost("/orders/ship"), EmptyResponse]
-// The OrderShipped return value is treated as a cascading message
+// The OrderShipped return value is treated as an event being posted
+// to a Marten even stream
 // instead of as the HTTP response body because of the presence of 
 // the [EmptyResponse] attribute
 public static OrderShipped Ship(ShipOrder command, Order order)
@@ -170,7 +171,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L75-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L75-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## JSON Handling
