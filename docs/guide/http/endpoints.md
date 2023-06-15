@@ -302,3 +302,77 @@ public string UseTraceIdentifier(string traceIdentifier)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HttpContextEndpoints.cs#L35-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_trace_identifier' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Customizing Parameter Handling
+
+There's actually a way to customize how Wolverine handles parameters in HTTP endpoints to create your own conventions.
+To do so, you'd need to write an implementation of the `IParameterStrategy` interface from Wolverine.Http:
+
+<!-- snippet: sample_IParameterStrategy -->
+<a id='snippet-sample_iparameterstrategy'></a>
+```cs
+/// <summary>
+/// Apply custom handling to a Wolverine.Http endpoint/chain based on a parameter within the
+/// implementing Wolverine http endpoint method
+/// </summary>
+/// <param name="variable">The Variable referring to the input of this parameter</param>
+public interface IParameterStrategy
+{
+    bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/IParameterStrategy.cs#L7-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iparameterstrategy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+As an example, let's say that you want any parameter of type `DateTimeOffset` that's named "now" to receive the current
+system time. To do that, we can write this class:
+
+<!-- snippet: sample_NowParameterStrategy -->
+<a id='snippet-sample_nowparameterstrategy'></a>
+```cs
+public class NowParameterStrategy : IParameterStrategy
+{
+    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable)
+    {
+        if (parameter.Name == "now" && parameter.ParameterType == typeof(DateTimeOffset))
+        {
+            // This is tying into Wolverine's code generation model
+            variable = new Variable(typeof(DateTimeOffset),
+                $"{typeof(DateTimeOffset).FullNameInCode()}.{nameof(DateTimeOffset.UtcNow)}");
+            return true;
+        }
+
+        variable = default;
+        return false;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/CustomParameter.cs#L10-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nowparameterstrategy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+and register that strategy within our `MapWolverineEndpoints()` set up like so:
+
+<!-- snippet: sample_adding_custom_parameter_handling -->
+<a id='snippet-sample_adding_custom_parameter_handling'></a>
+```cs
+// Customizing parameter handling
+opts.AddParameterHandlingStrategy<NowParameterStrategy>();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L105-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And lastly, here's the application within an HTTP endpoint for extra context:
+
+<!-- snippet: sample_http_endpoint_receiving_now -->
+<a id='snippet-sample_http_endpoint_receiving_now'></a>
+```cs
+[WolverineGet("/now")]
+public static string GetNow(DateTimeOffset now) // using the custom parameter strategy for "now"
+{
+    return now.ToString();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/CustomParameterEndpoint.cs#L7-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_http_endpoint_receiving_now' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+

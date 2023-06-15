@@ -4,6 +4,8 @@ using Lamar;
 
 namespace Wolverine.Http.CodeGen;
 
+#region sample_IParameterStrategy
+
 /// <summary>
 /// Apply custom handling to a Wolverine.Http endpoint/chain based on a parameter within the
 /// implementing Wolverine http endpoint method
@@ -13,3 +15,5 @@ public interface IParameterStrategy
 {
     bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable);
 }
+
+#endregion

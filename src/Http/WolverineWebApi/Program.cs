@@ -12,6 +12,7 @@ using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
 using Wolverine.Marten;
 using WolverineWebApi;
+using WolverineWebApi.Samples;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -100,6 +101,13 @@ app.MapWolverineEndpoints(opts =>
     // Publish messages coming from 
     opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1");
     opts.PublishMessage<HttpMessage2>("/publish/message2");
+
+    #region sample_adding_custom_parameter_handling
+
+    // Customizing parameter handling
+    opts.AddParameterHandlingStrategy<NowParameterStrategy>();
+
+    #endregion
 });
 
 
