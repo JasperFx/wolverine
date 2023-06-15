@@ -139,19 +139,10 @@ For naming conventions:
 
 Also see [stateful sagas](/guide/durability/sagas) as they have some additional rules.
 
-The valid return types are:
+See [return values](./return-values) for much more information about what types can be returned from a handler method and how Wolverine
+would use those values.
 
-| Return Type                      | Description                                                                                                |
-|----------------------------------|------------------------------------------------------------------------------------------------------------|
-| `void`                           | Synchronous methods because hey, who wants to litter their code with `Task.CompletedTask` every which way? |
-| `Task`                           | If you need to do asynchronous work                                                                        |
-| `ValueTask`                      | If you need to *maybe* do asynchronous work with other people's APIs                                       |
-| *Your message type*              | By returning another type, Wolverine treats the return value as "cascaded" message to publish                 |
-| `Task<T>`                        | Where `T` is a message type in your system. Again a "cascaded" message                                     |
-| `ValueTask<T>`                   | See the description for `Task<T>`                                                                          |
-| `IEnumerable<object>`            | Published 0 to many cascading messages                                                                     |
-| `Task<IEnumerable<object>>`      | Asynchronous method that will lead to 0 to many cascading messages                                         |
-| `ValueTask<IEnumerable<object>>` | See the description above                                                                                  |
+## Message Handler Parameters
 
 ::: info
 If you're thinking to yourself, hmm, the method injection seems a lot like ASP.NET Core Minimal APIs,
