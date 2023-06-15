@@ -49,136 +49,131 @@ The resource type is still `Answer`. Likewise, if an endpoint returns `ValueTask
 is also `Answer`, and Wolverine will worry about the asynchronous (or `return Task.CompletedTask;`) mechanisms
 for you in the generated code.
 
-## Routing
+## Legal Endpoint Signatures
 
-::: warning
-The route argument to method name matching is case sensitive.
+::: info
+It's actually possible to create custom conventions for 
 :::
 
-Wolverine HTTP endpoints need to be decorated with one of the `[WolverineVerb("route")]` attributes
-that expresses the routing argument path in standard ASP.Net Core syntax (i.e., the same as when using
-MVC Core or Minimal API).
+First off, every endpoint method must be a `public` method on a `public` type to accomodate the runtime code generation.
+After that, you have quite a bit of flexibility. 
 
-If a parameter argument to the HTTP handler method *exactly matches* a route argument, Wolverine will
-treat that as a route argument and pass the route argument value at runtime from ASP.Net Core to your
-handler method. To make that concrete, consider this simple case from the test suite:
+In terms of what the legal parameters to your endpoint method, Wolverine uses these rules *in order of precedence*
+to determine how to source that parameter at runtime:
 
-sample: sample_using_string_route_parameter
+| Type or Description                        | Behavior                                                                                                                 |
+|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| Decorated with `[FromServices]`            | The argument is resolved as an IoC service                                                                               |
+| `IMessageBus`                              | Creates a new Wolverine message bus object                                                                               |
+| `HttpContext` or its members               | See the section below on accessing the HttpContext                                                                       |
+| Parameter name matches a route parameter   | See the [routing page](/guide/http/routing) for more information                                                         |
+| Decorated with `[FromHeader]`              | See [working with headers](/guide/http/headers) for more information                                                     |
+| `string`, `int`, `Guid`, etc.              | All other "simple" .NET types are assumed to be [query string values](http://localhost:5050/guide/http/querystring.html) |
+| The first concrete, "not simple" parameter | Deserializes the HTTP request body as JSON to this type                                                                  |
+| Every thing else                           | Wolverine will try to source the type as an IoC service |
 
-In the sample above, the `name` argument will be the value of the route argument
-at runtime. Here's another example, but this time using a numeric value:
+You can force Wolverine to ignore a parameter as the request body type by decorating
+the parameter with the `[NotBody` attribute like this:
 
-<!-- snippet: sample_using_numeric_route_parameter -->
-<a id='snippet-sample_using_numeric_route_parameter'></a>
+<!-- snippet: sample_using_not_body_attribute -->
+<a id='snippet-sample_using_not_body_attribute'></a>
 ```cs
-[WolverineGet("/age/{age}")]
-public static string IntRouteArgument(int age)
+[WolverinePost("/notbody")]
+// The Recorder parameter will be sourced as an IoC service
+// instead of being treated as the HTTP request body
+public string PostNotBody([NotBody] Recorder recorder)
 {
-    return $"Age is {age}";
+    recorder.Actions.Add("Called AttributesEndpoints.Post()");
+    return "all good";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L35-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/AttributeEndpoints.cs#L15-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_not_body_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The following code snippet from `WolverineFx.Http` itself shows the valid route
-parameter types that are supported at this time:
+In terms of the response type, you can use:
 
-<!-- snippet: sample_supported_route_parameter_types -->
-<a id='snippet-sample_supported_route_parameter_types'></a>
+| Type                           | Body         | Status Code       | Notes                                                                          |
+|--------------------------------|--------------|-------------------|--------------------------------------------------------------------------------|
+| `void` / `Task` / `ValueTask`  | Empty        | 200               |                                                                                |
+| `string`                       | "text/plain" | 200               | Writes the result to the response                                              |
+| `int`                          | Empty        | Value of response |                                                                                |
+| Type that implements `IResult` | Varies       | Varies            | The `IResult.ExecuteAsync()` method is executed                                |
+| `CreationResponse` or subclass | JSON         | 201               | The response is serialized, and writes a `location` response header            |
+| Any other type                 | JSON         | 200               | The response is serialized to JSON                                             |
+
+In all cases up above, if the endpoint method is asynchronous using either `Task<T>` or `ValueTask<T>`, the `T` is the 
+response type. In other words, a response of `Task<string>` has the same rules as a response of `string` and `ValueTask<int>`
+behaves the same as a response of `int`. 
+
+And now to complicate *everything*, but I promise this is potentially valuable, you can also use [Tuples](https://learn.microsoft.com/en-us/dotnet/api/system.tuple?view=net-7.0) as the return
+type of an HTTP endpoint. In this case, the first item in the tuple is the official response type that is treated by the 
+rules above. To make that concrete, consider this sample that we wrote in the introduction to Wolverine.Http:
+
+<!-- snippet: sample_using_wolverine_endpoint_for_create_todo -->
+<a id='snippet-sample_using_wolverine_endpoint_for_create_todo'></a>
 ```cs
-public static readonly Dictionary<Type, string> TypeOutputs = new()
+// Introducing this special type just for the http response
+// gives us back the 201 status code
+public record TodoCreationResponse(int Id) 
+    : CreationResponse("/todoitems/" + Id);
+
+// The "Endpoint" suffix is meaningful, but you could use
+// any name if you don't mind adding extra attributes or a marker interface
+// for discovery
+public static class TodoCreationEndpoint
 {
-    { typeof(bool), "bool" },
-    { typeof(byte), "byte" },
-    { typeof(sbyte), "sbyte" },
-    { typeof(char), "char" },
-    { typeof(decimal), "decimal" },
-    { typeof(float), "float" },
-    { typeof(short), "short" },
-    { typeof(int), "int" },
-    { typeof(double), "double" },
-    { typeof(long), "long" },
-    { typeof(ushort), "ushort" },
-    { typeof(uint), "uint" },
-    { typeof(ulong), "ulong" },
-    { typeof(Guid), typeof(Guid).FullName! },
-    { typeof(DateTime), typeof(DateTime).FullName! },
-    { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName! }
-};
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L53-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-::: warning
-Wolverine will return a 404 status code if a route parameter cannot
-be correctly parsed. So passing "ABC" into what is expected to be an
-integer will result in a 404 response.
-:::
-
-
-## Working with QueryString
-
-::: tip
-Wolverine can handle both nullable types and the primitive values here. So 
-`int` and `int?` are both valid. In all cases, if the query string does not exist -- or
-cannot be parsed -- the value passed to your method will be the `default` for whatever that
-type is.
-:::
-
-Wolverine supports passing query string values to your HTTP method arguments for
-the exact same set of value types supported for route arguments. In this case,
-Wolverine treats any value type parameter where the parameter name does not
-match a route argument name as coming from the HTTP query string. 
-
-When Wolverine does the runtime matching, it's using the exact parameter name as the 
-query string key. Here's a quick sample:
-
-<!-- snippet: sample_using_string_value_as_query_string -->
-<a id='snippet-sample_using_string_value_as_query_string'></a>
-```cs
-[WolverineGet("/querystring/string")]
-public static string UsingQueryString(string name) // name is from the query string
-{
-    return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L45-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_query_string' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-And the corresponding tests:
-
-<!-- snippet: sample_query_string_usage -->
-<a id='snippet-sample_query_string_usage'></a>
-```cs
-[Fact]
-public async Task use_string_querystring_hit()
-{
-    var body = await Scenario(x =>
+    [WolverinePost("/todoitems")]
+    public static (TodoCreationResponse, TodoCreated) Post(CreateTodo command, IDocumentSession session)
     {
-        x.Get.Url("/querystring/string?name=Magic");
-        x.Header("content-type").SingleValueShouldEqual("text/plain");
-    });
+        var todo = new Todo { Name = command.Name };
+        
+        // Just telling Marten that there's a new entity to persist,
+        // but I'm assuming that the transactional middleware in Wolverine is
+        // handling the asynchronous persistence outside of this handler
+        session.Store(todo);
 
-    body.ReadAsText().ShouldBe("Name is Magic");
-}
-
-[Fact]
-public async Task use_string_querystring_miss()
-{
-    var body = await Scenario(x =>
-    {
-        x.Get.Url("/querystring/string");
-        x.Header("content-type").SingleValueShouldEqual("text/plain");
-    });
-
-    body.ReadAsText().ShouldBe("Name is missing");
+        // By Wolverine.Http conventions, the first "return value" is always
+        // assumed to be the Http response, and any subsequent values are
+        // handled independently
+        return (
+            new TodoCreationResponse(todo.Id), 
+            new TodoCreated(todo.Id)
+        );
+    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/end_to_end.cs#L149-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L80-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_endpoint_for_create_todo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+In the case above, `TodoCreationResponse` is the first item in the tuple, so Wolverine treats that as 
+the response for the HTTP endpoint. The second `TodoCreated` value in the tuple is treated as a [cascading message](http://localhost:5050/guide/messaging/transports/local.html)
+that will be published through Wolverine's messaging (or a local queue depending on the routing).
 
-## Working with JSON
+How Wolverine handles those extra "return values" is the same [return value rules](/guide/handlers/return-values)
+from the messaging handlers.
+
+In the case of wanting to leverage Wolverine "return value" actions but you want your endpoint to return an
+empty response body, you can use the `[Wolverine.Http.EmptyResponse]` attribute to tell Wolverine *not*
+to use any return values as a the endpoint response and to return an empty response with a `204` status
+code. Here's an example from the tests:
+
+<!-- snippet: sample_using_EmptyResponse -->
+<a id='snippet-sample_using_emptyresponse'></a>
+```cs
+[AggregateHandler]
+[WolverinePost("/orders/ship"), EmptyResponse]
+// The OrderShipped return value is treated as a cascading message
+// instead of as the HTTP response body because of the presence of 
+// the [EmptyResponse] attribute
+public static OrderShipped Ship(ShipOrder command, Order order)
+{
+    return new OrderShipped();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L75-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## JSON Handling
 
 ::: warning
 At this point WolverineFx.Http **only** supports `System.Text.Json` for the HTTP endpoints,
@@ -269,6 +264,7 @@ public IResult Redirect(GoToColor request)
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/DocumentationSamples.cs#L31-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditional_iresult_return' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
 
 ## Using IoC Services
 

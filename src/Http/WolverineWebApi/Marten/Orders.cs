@@ -72,12 +72,19 @@ public record StartOrder(string[] Items);
 
 public static class MarkItemEndpoint
 {
+    #region sample_using_EmptyResponse
+
     [AggregateHandler]
     [WolverinePost("/orders/ship"), EmptyResponse]
+    // The OrderShipped return value is treated as a cascading message
+    // instead of as the HTTP response body because of the presence of 
+    // the [EmptyResponse] attribute
     public static OrderShipped Ship(ShipOrder command, Order order)
     {
         return new OrderShipped();
     }
+
+    #endregion
     
     // TODO -- return the StartStream? Mark whole class w/ AggregateHandler. Don't do anything w/ StartStream
     [Transactional]

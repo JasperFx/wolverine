@@ -92,6 +92,7 @@ export default {
                             text: 'Message Handlers', link: '/guide/handlers/', items: [
                                 {text: 'Discovery', link: '/guide/handlers/discovery'},
                                 {text: 'Error Handling', link: '/guide/handlers/error-handling'},
+                                {text: 'Return Values', link: '/guide/handlers/return-values'},
                                 {text: 'Cascading Messages', link: '/guide/handlers/cascading'},
                                 {text: 'Side Effects', link: '/guide/handlers/side-effects'},
                                 {text: 'Middleware', link: '/guide/handlers/middleware'},
@@ -160,6 +161,8 @@ export default {
                         {text: 'Http Services with Wolverine', link: '/guide/http/'},
                         {text: 'Integration with ASP.Net Core', link: '/guide/http/integration'},
                         {text: 'Endpoints', link: '/guide/http/endpoints'},
+                        {text: 'Routing', link: '/guide/http/routing'},
+                        {text: 'Working with Querystring', link: '/guide/http/querystring'},
                         {text: 'Headers', link: '/guide/http/headers'},
                         {text: 'Middleware', link: '/guide/http/middleware.md'},
                         {text: 'Policies', link: '/guide/http/policies.md'},
