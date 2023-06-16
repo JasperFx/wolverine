@@ -40,7 +40,7 @@ builder.Host.UseWolverine(opts =>
 
     #endregion
 
-    opts.UseRabbitMq().UseConventionalRouting();
+    opts.UseRabbitMq().AutoProvision().UseConventionalRouting();
 
     opts.Policies.OnException<BadImageFormatException>().Discard();
     opts.Policies.OnException<InvalidOperationException>()

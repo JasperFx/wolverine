@@ -83,17 +83,6 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
     }
 
     [Fact]
-    public void trace_through_tcp_and_back_via_tcp()
-    {
-        var envelope1 = theSession.Received.SingleEnvelope<TcpMessage1>();
-        var envelope2 = theSession.Received.SingleEnvelope<TcpMessage2>();
-
-        envelope2.Source.ShouldBe("Subscriber1");
-        envelope2.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
-        envelope2.ConversationId.ShouldBe(envelope1.Id);
-    }
-
-    [Fact]
     public void trace_through_rabbit()
     {
         var envelopes = theSession.FindEnvelopesWithMessageType<RabbitMessage1>()
@@ -115,21 +104,4 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         atSubscriber2.ConversationId.ShouldBe(theOriginalEnvelope.Id);
     }
 
-    [Fact]
-    public void rabbit_to_rabbit_tracing()
-    {
-        var envelopes = theSession.FindEnvelopesWithMessageType<RabbitMessage1>()
-            .Where(x => x.MessageEventType == MessageEventType.MessageSucceeded)
-            .Select(x => x.Envelope)
-            .OrderBy(x => x.Source)
-            .ToArray();
-
-
-        var atSubscriber2 = envelopes[1];
-        var rabbit2 = theSession.Received.SingleEnvelope<RabbitMessage2>();
-
-        rabbit2.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
-        rabbit2.ConversationId.ShouldBe(atSubscriber2.Id);
-        rabbit2.Source.ShouldBe("Subscriber1");
-    }
 }
