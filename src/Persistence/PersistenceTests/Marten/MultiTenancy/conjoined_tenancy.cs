@@ -1,10 +1,9 @@
 using IntegrationTests;
-using Lamar;
 using Marten;
 using Marten.Metadata;
-using Marten.Schema;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;
@@ -25,6 +24,8 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
                     .IntegrateWithWolverine()
                     .UseLightweightSessions();
                 
+                opts.Policies.AutoApplyTransactions();
+                
             }).StartAsync();
 
         var store = _host.Services.GetRequiredService<IDocumentStore>();
@@ -39,40 +40,55 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
     [Fact]
     public async Task execute_with_tenancy()
     {
-        // In normal usage, only resolve IMessageBus from a scoped
-        // container, which either ASP.Net Core or Wolverine will do 
-        // for you in normal Controller / Minimal API / Wolverine message
-        // handling does for you
-        var container = (IContainer)_host.Services;
-        using var nested = container.GetNestedContainer();
-
-        var bus = nested.GetInstance<IMessageBus>();
-
+        var id = Guid.NewGuid();
         
+        await _host.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("one", new CreateTenantDocument(id, "Andor")));
         
-        bus.TenantId = "one";
-        await bus.InvokeAsync(new CreateTenantDocument("Rand Al'Thor", "Andor"));
+        await _host.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("two", new CreateTenantDocument(id, "Tear")));
+        
+        await _host.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("three", new CreateTenantDocument(id, "Illian")));
 
-        throw new Exception("Come back to this");
+        var store = _host.Services.GetRequiredService<IDocumentStore>();
 
-
+        // Check the first tenant
+        using (var session = store.LightweightSession("one"))
+        {
+            var document = await session.LoadAsync<TenantedDocument>(id);
+            document.Location.ShouldBe("Andor");
+        }
+        
+        // Check the second tenant
+        using (var session = store.LightweightSession("two"))
+        {
+            var document = await session.LoadAsync<TenantedDocument>(id);
+            document.Location.ShouldBe("Tear");
+        }
+        
+        // Check the third tenant
+        using (var session = store.LightweightSession("three"))
+        {
+            var document = await session.LoadAsync<TenantedDocument>(id);
+            document.Location.ShouldBe("Illian");
+        }
     }
 }
 
-public record CreateTenantDocument(string Name, string Location);
+public record CreateTenantDocument(Guid Id, string Location);
 
 public static class CreateTenantDocumentHandler
 {
     public static IMartenOp Handle(CreateTenantDocument command)
     {
-        return MartenOps.Insert(new TenantedDocument{Name = command.Name, Location = command.Location});
+        return MartenOps.Insert(new TenantedDocument{Id = command.Id, Location = command.Location});
     }
 }
 
 public class TenantedDocument : ITenanted
 {
-    [Identity]
-    public string Name { get; init; }
+    public Guid Id { get; init; }
 
     public string TenantId { get; set; }
     public string Location { get; set; }
