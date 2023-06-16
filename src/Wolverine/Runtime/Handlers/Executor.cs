@@ -83,14 +83,14 @@ internal class Executor : IExecutor
         _logger = logger;
 
         _messageSucceeded =
-            LoggerMessage.Define<string, Guid, string>(LogLevel.Information, MessageSucceededEventId,
+            LoggerMessage.Define<string, Guid, string>(handler.ExecutionLogLevel, MessageSucceededEventId,
                 "Successfully processed message {Name}#{envelope} from {ReplyUri}");
 
         _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
         _messageTypeName = handler.MessageType.ToMessageTypeName();
-
+        
         _executionStarted = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
             "{CorrelationId}: Started processing {Name}#{Id}");
 
@@ -103,7 +103,6 @@ internal class Executor : IExecutor
         using var activity = WolverineTracing.StartExecuting(envelope);
 
         _tracker.ExecutionStarted(envelope);
-        _executionStarted(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
 
         var context = _contextPool.Get();
         context.ReadEnvelope(envelope, InvocationCallback.Instance);
@@ -120,7 +119,6 @@ internal class Executor : IExecutor
             await context.FlushOutgoingMessagesAsync();
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
         catch (Exception e)
         {
