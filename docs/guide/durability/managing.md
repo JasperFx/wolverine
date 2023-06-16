@@ -13,7 +13,19 @@ message broker queues.
 
 To disable the automatic storage migration, just flip this flag:
 
-snippet: sample_disable_auto_build_envelope_storage
+<!-- snippet: sample_disable_auto_build_envelope_storage -->
+<a id='snippet-sample_disable_auto_build_envelope_storage'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Disable automatic database migrations for message
+        // storage
+        opts.AutoBuildMessageStorageOnStartup = false;
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingStorageConstruction.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_auto_build_envelope_storage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Programmatic Management
 

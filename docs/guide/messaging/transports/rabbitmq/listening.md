@@ -18,7 +18,6 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Set up a listener for a queue
         opts.ListenToRabbitQueue("incoming1")
-            .PreFetchSize(5)
             .PreFetchCount(100)
             .ListenerCount(5) // use 5 parallel listeners
             .CircuitBreaker(cb =>
@@ -39,7 +38,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L53-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listening_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L53-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listening_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To optimize and tune the message processing, you may want to read more about the [Rabbit MQ prefetch count and prefetch
@@ -61,7 +60,6 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Set up a listener for a queue
         opts.ListenToRabbitQueue("incoming1")
-            .PreFetchSize(5)
             .PreFetchCount(100)
             .ListenerCount(5) // use 5 parallel listeners
             .CircuitBreaker(cb =>
@@ -82,5 +80,5 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L53-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listening_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L53-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listening_to_rabbitmq_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

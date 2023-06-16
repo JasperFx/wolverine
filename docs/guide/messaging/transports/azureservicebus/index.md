@@ -65,7 +65,23 @@ And also see the next section.
 If your application will not have permissions to create temporary queues in Azure Service Bus, you will probably want
 to disable system queues to avoid having some annoying error messages popping up. That's easy enough though:
 
-snippet: sample_disable_system_queues_in_azure_service_bus
+<!-- snippet: sample_disable_system_queues_in_azure_service_bus -->
+<a id='snippet-sample_disable_system_queues_in_azure_service_bus'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAzureServiceBusTesting()
+            .AutoProvision().AutoPurgeOnStartup()
+            .SystemQueuesAreEnabled(false);
+
+        opts.ListenToAzureServiceBusQueue("send_and_receive");
+
+        opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L52-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 

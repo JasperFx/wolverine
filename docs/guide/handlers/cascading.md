@@ -337,5 +337,18 @@ tuple-ized signature makes the code more self-documenting and easier to unit tes
 If in a message handler you need to send a message directly back to the original sender, you can 
 use this cascaded message option:
 
-snippet: sample_respond_to_sender
+<!-- snippet: sample_respond_to_sender -->
+<a id='snippet-sample_respond_to_sender'></a>
+```cs
+public object Handle(PingMessage message)
+{
+    var pong = new PongMessage { Id = message.Id };
+
+    // This will send the pong message back
+    // to the original sender of the PingMessage
+    return Respond.ToSender(pong);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/TestingSupport/Compliance/Messages.cs#L54-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_respond_to_sender' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 

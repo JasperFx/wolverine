@@ -145,7 +145,6 @@ export default {
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
                                     ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
-                                {text: 'Pulsar', link: '/guide/messaging/transports/pulsar'},
                             ]
                         },
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
