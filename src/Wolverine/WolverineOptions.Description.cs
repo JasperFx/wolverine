@@ -36,7 +36,7 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
         writeSerializers(root);
 
         root.AddNode(nameof(DefaultExecutionTimeout)).AddNode(DefaultExecutionTimeout.ToString());
-        root.AddNode(nameof(AutoBuildEnvelopeStorageOnStartup)).AddNode(AutoBuildEnvelopeStorageOnStartup.ToString());
+        root.AddNode(nameof(AutoBuildMessageStorageOnStartup)).AddNode(AutoBuildMessageStorageOnStartup.ToString());
         root.AddNode(nameof(CodeGeneration.TypeLoadMode)).AddNode(CodeGeneration.TypeLoadMode.ToString());
         root.AddNode(nameof(ExternalTransportsAreStubbed)).AddNode(ExternalTransportsAreStubbed.ToString());
 

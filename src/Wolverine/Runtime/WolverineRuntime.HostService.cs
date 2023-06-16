@@ -24,7 +24,7 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
-            if (Options.AutoBuildEnvelopeStorageOnStartup && Storage is not NullMessageStore)
+            if (Options.AutoBuildMessageStorageOnStartup && Storage is not NullMessageStore)
             {
                 await Storage.Admin.MigrateAsync();
             }

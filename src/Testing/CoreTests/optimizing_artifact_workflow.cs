@@ -20,7 +20,7 @@ public class optimizing_artifact_workflow
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeTrue();
-        options.AutoBuildEnvelopeStorageOnStartup.ShouldBeTrue();
+        options.AutoBuildMessageStorageOnStartup.ShouldBeTrue();
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public class optimizing_artifact_workflow
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
-        options.AutoBuildEnvelopeStorageOnStartup.ShouldBeFalse();
+        options.AutoBuildMessageStorageOnStartup.ShouldBeFalse();
     }
 
     [Fact]
@@ -50,6 +50,6 @@ public class optimizing_artifact_workflow
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Static);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
-        options.AutoBuildEnvelopeStorageOnStartup.ShouldBeFalse();
+        options.AutoBuildMessageStorageOnStartup.ShouldBeFalse();
     }
 }

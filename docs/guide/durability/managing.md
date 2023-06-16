@@ -1,8 +1,19 @@
 # Managing Message Storage
 
+::: info
+Wolverine will automatically check for the existence of necessary database tables and functions to support the
+configured message storage, and will also apply any necessary database changes to comply with the configuration automatically.
+:::
+
 Wolverine uses the [Oakton "Stateful Resource"](https://jasperfx.github.io/oakton/guide/host/resources.html) model for managing
 infrastructure configuration at development or even deployment time for configured items like the database-backed message storage or
 message broker queues.
+
+## Disable Automatic Storage Migration
+
+To disable the automatic storage migration, just flip this flag:
+
+snippet: sample_disable_auto_build_envelope_storage
 
 ## Programmatic Management
 

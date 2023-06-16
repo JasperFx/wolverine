@@ -18,13 +18,13 @@ internal class OptimizeArtifactWorkflow : IWolverineExtension
         {
             options.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             options.CodeGeneration.SourceCodeWritingEnabled = true;
-            options.AutoBuildEnvelopeStorageOnStartup = true;
+            options.AutoBuildMessageStorageOnStartup = true;
         }
         else
         {
             options.CodeGeneration.TypeLoadMode = options.ProductionTypeLoadMode;
             options.CodeGeneration.SourceCodeWritingEnabled = false;
-            options.AutoBuildEnvelopeStorageOnStartup = false;
+            options.AutoBuildMessageStorageOnStartup = false;
         }
     }
 }

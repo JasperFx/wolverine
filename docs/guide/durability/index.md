@@ -1,8 +1,8 @@
 # Durable Inbox and Outbox Messaging
 
 ::: tip
-The database schema objects for durable inbox or outbox usage within Wolverine require just a little bit of
-explicit configuration or explicit action on your part. See the [Managing Message Storage](./managing) for more detail.
+As of 1.0, Wolverine will happily build out the necessary database tables and functions to support durable storage 
+automatically for a quicker "getting started" story. See the [Managing Message Storage](./managing) for more detail.
 :::
 
 See the blog post [Transactional Outbox/Inbox with Wolverine and why you care](https://jeremydmiller.com/2022/12/15/transactional-outbox-inbox-with-wolverine-and-why-you-care/) for more context.
