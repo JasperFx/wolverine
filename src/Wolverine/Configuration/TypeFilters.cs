@@ -6,7 +6,6 @@ using JasperFx.TypeDiscovery;
 
 namespace Wolverine.Configuration;
 
-// TODO -- this goes to Core
 public interface IFilter<T>
 {
     string Description { get; }

@@ -24,7 +24,6 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
-            // TODO -- eliminate the below and use Stateful Resource model
             if (Options.AutoBuildEnvelopeStorageOnStartup && Storage is not NullMessageStore)
             {
                 await Storage.Admin.MigrateAsync();

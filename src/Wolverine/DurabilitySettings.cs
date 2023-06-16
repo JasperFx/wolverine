@@ -2,7 +2,6 @@ using JasperFx.Core;
 
 namespace Wolverine;
 
-// TODO -- thin this down after eliminating the old DurabilityAgent
 public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -13,18 +12,10 @@ public class DurabilitySettings
     /// </summary>
     public bool DurabilityAgentEnabled { get; set; } = true;
 
-
     /// <summary>
     ///     How long should successfully handled messages be kept to use in idempotency checking
     /// </summary>
     public TimeSpan KeepAfterMessageHandling { get; set; } = 5.Minutes();
-
-    /// <summary>
-    ///     Default is false. Turn this on to see when every polling DurabilityAgent
-    ///     action executes. Warning, it's a LOT of noise
-    /// </summary>
-    public bool VerboseDurabilityAgentLogging { get; set; } = false;
-
 
     /// <summary>
     ///     Governs the page size for how many persisted incoming or outgoing messages
@@ -64,10 +55,21 @@ public class DurabilitySettings
 
     public CancellationToken Cancellation => _cancellation.Token;
 
-    // TODO -- add Xml API comments
+    
+    /// <summary>
+    /// Time span before the first health check is executed
+    /// </summary>
     public TimeSpan FirstHealthCheckExecution { get; set; } = 3.Seconds();
+    
+    /// <summary>
+    /// Polling time between health checks
+    /// </summary>
     public TimeSpan HealthCheckPollingTime { get; set; } = 10.Seconds();
 
+    /// <summary>
+    /// Age of health check data before a node is considered to be "stale" or dormant and
+    /// will be recovered by the durability agent
+    /// </summary>
     public TimeSpan StaleNodeTimeout { get; set; } = 1.Minutes();
 
     /// <summary>

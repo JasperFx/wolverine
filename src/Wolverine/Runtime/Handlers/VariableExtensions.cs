@@ -105,8 +105,6 @@ public static class VariableExtensions
         variable.UseReturnAction(action);
     }
 
-    // TODO -- create an overload of the method up above for if not null
-
     /// <summary>
     ///     Mark this return variable as being ignored as a cascaded message.
     /// </summary>

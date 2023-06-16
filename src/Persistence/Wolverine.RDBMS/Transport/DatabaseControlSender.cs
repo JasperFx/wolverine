@@ -49,7 +49,6 @@ internal class DatabaseControlSender : ISender, IAsyncDisposable
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        // TODO -- make this be configurable
         envelope.DeliverWithin = 10.Seconds();
 
         await _retryBlock.PostAsync(envelope);

@@ -153,7 +153,6 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         return returnValue;
     }
 
-    // TODO -- unit test this
     public async Task MarkHealthCheckAsync(Guid nodeId)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);

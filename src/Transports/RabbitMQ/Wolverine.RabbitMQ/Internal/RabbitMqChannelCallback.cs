@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client.Exceptions;
 using Wolverine.Transports;
@@ -99,8 +98,7 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         return Task.CompletedTask;
     }
 
-    // TODO -- about to change
-    public bool NativeDeadLetterQueueEnabled { get; } = true;
+    public bool NativeDeadLetterQueueEnabled => true;
 
     public virtual void Dispose()
     {

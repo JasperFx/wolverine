@@ -155,8 +155,6 @@ public class HandlerPipeline : IHandlerPipeline
         if (envelope.IsResponse)
         {
             _runtime.Replies.Complete(envelope);
-
-            // TODO -- log the successful reply here. 
             return MessageSucceededContinuation.Instance;
         }
 
