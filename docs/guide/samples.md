@@ -1,0 +1,18 @@
+# Sample Projects
+
+There are several sample projects in the Wolverine codebase showing off bits and pieces of Wolverine functionality:
+
+| Project                                                                                                                        | Description                                                                                              |
+|--------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| [Quickstart](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Quickstart)                                           | The sample application in the quick start tutorial                                                       |
+| [CQRSWithMarten](https://github.com/JasperFx/wolverine/tree/main/src/Samples/CQRSWithMarten)                                   | Shows off the event sourcing integration between [Marten](https://martendb.io) and Wolverine             |
+| [CommandBus](https://github.com/JasperFx/wolverine/tree/main/src/Samples/CommandBus)                                           | Wolverine as an in memory "command bus" for asynchronous processing                                      |
+| [InMemoryMediator](https://github.com/JasperFx/wolverine/tree/main/src/Samples/InMemoryMediator)                               | Wolverine with EF Core and Sql Server as a mediator inside an ASP.Net Core service                       |
+| [OptimizedArtifactWorkflowSample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OptimizedArtifactWorkflowSample) | Using Wolverine's optimized workflow for pre-generating handler types                                    |
+| [OrderSagaSample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderSagaSample)                                 | Stateful sagas with Marten                                                                               |
+| [WebApiWithMarten](https://github.com/JasperFx/wolverine/tree/main/src/Samples/WebApiWithMarten)                               | Using Marten with Wolverine for ASP.Net Core web services                                                |
+| [ItemService](https://github.com/JasperFx/wolverine/tree/main/src/Samples/EFCoreSample/ItemService)                            | EF Core, Sql Server, and Wolverine.Http to integrate the Wolverine inbox/outbox                          |
+| [AppWithMiddleware](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Middleware/AppWithMiddleware)                  | Building middleware for Wolverine handlers                                                               |
+| [PingPong](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPong)                                               | A classic "ping/pong" sample of sending messages between two Wolverine processes using the TCP transport |
+| [PingPongWithRabbitMq](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithRabbitMq)                       | Another "ping/pong" sample, but this time using Rabbit MQ                                                |
+| [TodoWebService](https://github.com/JasperFx/wolverine/tree/main/src/Samples/TodoWebService/TodoWebService)                    | Using Marten, Wolverine, and Wolverine.Http to build a simple ASP.Net Core service                       | 
