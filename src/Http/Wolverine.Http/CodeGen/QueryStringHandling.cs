@@ -35,7 +35,7 @@ internal class ParsedQueryStringValue : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var alias = Variable.VariableType.ShortNameInCode();
+        var alias = Variable.VariableType.FullNameInCode();
         writer.Write($"{alias} {Variable.Usage} = default;");
         writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
 
@@ -50,7 +50,7 @@ internal class ParsedNullableQueryStringValue : SyncFrame
     public ParsedNullableQueryStringValue(ParameterInfo parameter)
     {
         Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
-        _alias = parameter.ParameterType.GetInnerTypeFromNullable().ShortNameInCode();
+        _alias = parameter.ParameterType.GetInnerTypeFromNullable().FullNameInCode();
     }
 
     public Variable Variable { get; }

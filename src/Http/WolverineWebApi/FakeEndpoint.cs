@@ -63,6 +63,12 @@ public class FakeEndpoint
     {
         return $"name is {name}";
     }
+
+    [WolverineGet("/enum/{direction}")]
+    public string ReadEnumArgument(Direction direction)
+    {
+        return $"Direction is {direction}";
+    }
 }
 
 public class BigResponse

@@ -35,9 +35,22 @@ internal class ParsedRouteArgumentFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var alias = Variable.VariableType.ShortNameInCode();
-        writer.Write(
-            $"BLOCK:if (!{alias}.TryParse((string)httpContext.GetRouteValue(\"{Variable.Usage}\"), out var {Variable.Usage}))");
+        var alias = Variable.VariableType.FullNameInCode();
+
+        if (Variable.VariableType.IsEnum)
+        {
+            writer.Write(
+                $"BLOCK:if (!{alias}.TryParse((string)httpContext.GetRouteValue(\"{Variable.Usage}\"), true, out {alias} {Variable.Usage}))");
+        }
+        else
+        {
+            writer.Write(
+                $"BLOCK:if (!{alias}.TryParse((string)httpContext.GetRouteValue(\"{Variable.Usage}\"), out var {Variable.Usage}))");
+        }
+        
+
+        
+        
         writer.WriteLine(
             $"httpContext.Response.{nameof(HttpResponse.StatusCode)} = 404;");
         writer.WriteLine(method.ToExitStatement());
@@ -111,6 +124,6 @@ internal class RouteParameterStrategy : IParameterStrategy
 
     public static bool CanParse(Type argType)
     {
-        return TypeOutputs.ContainsKey(argType);
+        return TypeOutputs.ContainsKey(argType) || argType.IsEnum;
     }
 }

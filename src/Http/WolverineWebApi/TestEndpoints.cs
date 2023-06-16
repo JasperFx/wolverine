@@ -99,6 +99,18 @@ public static class TestEndpoints
     }
 
     #endregion
+
+    [WolverineGet("/querystring/enum")]
+    public static string UsingEnumQuerystring(Direction direction)
+    {
+        return direction.ToString();
+    }
+    
+    [WolverineGet("/querystring/enum/nullable")]
+    public static string UsingNullableEnumQuerystring(Direction? direction)
+    {
+        return direction?.ToString() ?? "none";
+    }
 }
 
 public class ArithmeticResults
@@ -111,4 +123,9 @@ public class Question
 {
     public int One { get; set; }
     public int Two { get; set; }
+}
+
+public enum Direction
+{
+    North, East, West, South
 }

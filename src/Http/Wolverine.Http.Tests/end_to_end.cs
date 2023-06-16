@@ -53,6 +53,17 @@ public class end_to_end : IntegrationContext
     }
 
     [Fact]
+    public async Task use_enum_route_argument()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/enum/west");
+        });
+        
+        body.ReadAsText().ShouldBe("Direction is West");
+    }
+
+    [Fact]
     public async Task use_int_route_argument_happy_path()
     {
         var body = await Scenario(x =>
@@ -84,6 +95,31 @@ public class end_to_end : IntegrationContext
         });
 
         body.ReadAsText().ShouldBe("Age is 8");
+    }
+    
+    [Fact]
+    public async Task use_parsed_enum_querystring_hit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/enum?direction=north");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("North");
+    }
+    
+        
+    [Fact]
+    public async Task use_parsed_enum_querystring_hit_2()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/enum?direction=North");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("North");
     }
 
     [Fact]
@@ -174,3 +210,4 @@ public class end_to_end : IntegrationContext
 
     #endregion
 }
+
