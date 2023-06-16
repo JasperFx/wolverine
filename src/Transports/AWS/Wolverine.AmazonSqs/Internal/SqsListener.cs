@@ -79,7 +79,18 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
                             }
                             catch (Exception e)
                             {
-                                await tryMoveToDeadLetterQueue(_transport.Client, message);
+                                if (_deadLetterQueue != null)
+                                {
+                                    try
+                                    {
+                                        await _transport.Client.SendMessageAsync(new SendMessageRequest(_deadLetterQueue.QueueUrl,
+                                            message.Body));
+                                    }
+                                    catch (Exception exception)
+                                    {
+                                        logger.LogError(exception, "Error while trying to directly send a dead letter message {Id} from {Uri}", message.MessageId, _queue.Uri);
+                                    }
+                                }
                                 logger.LogError(e, "Error while reading message {Id} from {Uri}", message.MessageId,
                                     _queue.Uri);
                             }
@@ -169,12 +180,6 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     }
 
     public bool NativeDeadLetterQueueEnabled { get; }
-
-    private Task tryMoveToDeadLetterQueue(IAmazonSQS client, Message message)
-    {
-        // TODO -- do something here!
-        return Task.CompletedTask;
-    }
 
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
