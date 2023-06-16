@@ -1,5 +1,11 @@
 # Cascading Messages
 
+::: info
+One of Wolverine's advantages over previous .NET messaging frameworks is the ability to express many message
+handlers as pure functions for better testability and hopefully more self-explanatory code. Cascading messages are
+one of the ways that Wolverine uses to enable pure function handler methods.
+:::
+
 Many times during the processing of a message you will need to create and send out other messages. Maybe you need to respond back to the original sender with a reply,
 maybe you need to trigger a subsequent action, or send out additional messages to start some kind of background processing. You can do that by just having
 your handler class use the `IMessageContext` interface as shown in this sample:
@@ -54,12 +60,15 @@ service bus as part of the same transaction with whatever routing rules apply to
   to [state-based](http://blog.jayfields.com/2008/02/state-based-testing.html) where you mostly need to verify the state of the response
   objects instead of mock-heavy testing against calls to `IMessageContext`.
 
-The response types of your message handlers can be:
+See [return types](/guide/handlers/return-values) for more information on valid handler signatures.
+
+In terms of response types that become cascading messages, the response types of your message handlers can be:
 
 1. A specific message type
-1. `object`
-1. The Wolverine `Envelope` if you need to customize how the cascading response is to be sent (schedule send, mark expiration times, route yourself, etc.)
-1. `IEnumerable<object>` or `object[]` to make multiple responses
+1. `object` if the cascaded message type is variable
+1. An object that implements `ISendMyself` to customize how a cascaded message is sent (timeouts? specific destinations?)
+1. `IEnumerable<object>` or `object[]` or `Task<object[]>` to make multiple responses
+2. `IAsyncEnumerable<object>` to make multiple cascading messages out of an asynchronous handler
 1. A [Tuple](https://docs.microsoft.com/en-us/dotnet/csharp/tuples) type to express the exact kinds of responses your message handler returns
 
 ## Using OutgoingMessages
@@ -136,6 +145,11 @@ public IEnumerable<object> Consume(Incoming incoming)
 <!-- endSnippet -->
 
 ## Request/Reply Scenarios
+
+::: warning
+Just know that in the case of using `InvokeAsync<T>()` for request/reply, that the reply type of `T` **is not also published
+as a cascaded message**. Instead, it is only returned to the original caller.
+:::
 
 Normally, cascading messages are just sent out according to the configured subscription rules for that message type, but there's
 an exception case. If the original sender requested a response, Wolverine will automatically send the cascading messages returned
@@ -320,8 +334,8 @@ tuple-ized signature makes the code more self-documenting and easier to unit tes
 
 ## Responding to Sender
 
-TODO -- show ResponseToSender
+If in a message handler you need to send a message directly back to the original sender, you can 
+use this cascaded message option:
 
-## Custom Outgoing Publishing
+snippet: sample_respond_to_sender
 
-TODO -- talk about 

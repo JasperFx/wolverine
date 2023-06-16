@@ -102,8 +102,33 @@ public class PublishingSamples
 
         return bus.InvokeAsync(@event);
     }
+    
+    
 
     #endregion
+
+    #region sample_question_and_answer
+
+    public class AnswerHandler
+    {
+        public Answer Handle(Question question)
+        {
+            return new Answer { Value = 42 };
+        }
+    }
+    
+    #endregion
+
+    #region sample_invoke_with_response
+
+    public async Task InvokeWithResponse(IMessageContext bus)
+    {
+        var answer = await bus.InvokeAsync<Answer>(new Question());
+    }
+
+    #endregion
+
+
 
     #region sample_IServiceBus.Enqueue
 
@@ -220,7 +245,10 @@ public class PublishingSamples
 
     public record Question;
 
-    public record Answer;
+    public record Answer
+    {
+        public int Value { get; set; }
+    }
 
     public class InvoiceCreated
     {

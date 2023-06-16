@@ -371,16 +371,16 @@ public class MarkItemReady
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L8-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-
-
-
-
-
-
 ## Publishing Events
 
 ::: tip
 This functionality is *brand spanking new* and will likely be enhanced after user feedback.
+:::
+
+::: warning
+The Wolverine team recommends against combining this functionality with **also** using events as either a handler response
+or cascaded messages as the behavior can easily become confusing. Instead, prefer using custom types for handler responses
+instead of the raw event types when using the event forwarding.
 :::
 
 You can also opt to automatically publish any event types captured by Marten through Wolverine's persistent

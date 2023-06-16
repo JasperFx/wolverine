@@ -51,12 +51,18 @@ public class ImplicitPong
 
 public class PingHandler
 {
-    public ValueTask Handle(PingMessage message, IMessageContext context)
+    #region sample_respond_to_sender
+
+    public object Handle(PingMessage message)
     {
         var pong = new PongMessage { Id = message.Id };
 
-        return context.RespondToSenderAsync(pong);
+        // This will send the pong message back
+        // to the original sender of the PingMessage
+        return Respond.ToSender(pong);
     }
+
+    #endregion
 
     public ImplicitPong Handle(ImplicitPing ping)
     {
