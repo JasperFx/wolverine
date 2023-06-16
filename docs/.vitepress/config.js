@@ -167,10 +167,12 @@ export default {
                         {text: 'Middleware', link: '/guide/http/middleware.md'},
                         {text: 'Policies', link: '/guide/http/policies.md'},
                         {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
-                        {text: 'Using as Mediator', link: '/guide/mediator'},
+                        {text: 'Using as Mediator', link: '/guide/http/mediator'},
+                        {text: 'Multi-Tenancy and ASP.Net Core', link: '/guide/http/multi-tenancy'},
                         {text: 'Publishing Messages', link: '/guide/http/messaging'},
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
+                        
                     ]
                 },
                 {
@@ -182,7 +184,8 @@ export default {
                         {text: 'Sagas', link: '/guide/durability/sagas'},
                         {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
                                 {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'},
-                                {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/event-sourcing'}
+                                {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/event-sourcing'},
+                                {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'}
                             ]},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},

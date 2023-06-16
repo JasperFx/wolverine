@@ -1,0 +1,1 @@
+# Multi-Tenancy and ASP.Net Core

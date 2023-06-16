@@ -36,12 +36,11 @@ public class OutboxedSessionFactory
         {
             _builder = c =>
             {
-                if (c.TenantId.IsEmpty())
-                {
-                    return _factory.OpenSession();
-                }
-
-                return _store.LightweightSession(c.TenantId);
+                var tenantId = c.Envelope?.TenantId ?? c.TenantId;
+                
+                return tenantId.IsEmpty() 
+                    ? _factory.OpenSession() 
+                    : _store.LightweightSession(tenantId);
             };
         }
     }
@@ -50,8 +49,9 @@ public class OutboxedSessionFactory
     /// <returns></returns>
     public IQuerySession QuerySession(MessageContext context)
     {
-        return context.TenantId.IsNotEmpty() 
-            ? _store.QuerySession(context.TenantId) 
+        var tenantId = context.Envelope?.TenantId ?? context.TenantId;
+        return tenantId.IsNotEmpty() 
+            ? _store.QuerySession(tenantId) 
             : _factory.QuerySession();
     }
 
