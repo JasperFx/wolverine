@@ -1,6 +1,7 @@
 using System;
 using Shouldly;
 using Wolverine.AzureServiceBus.Internal;
+using Wolverine.Configuration;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
@@ -36,6 +37,14 @@ public class AzureServiceBusTransportTests
 
         subscription.SubscriptionName.ShouldBe("red");
     }
+
+    [Fact]
+    public void retry_and_response_queues_are_enabled_by_default()
+    {
+        var transport = new AzureServiceBusTransport();
+        transport.SystemQueuesEnabled.ShouldBeTrue();
+    }
+
     
     [Fact]
     public void return_all_endpoints_gets_dead_letter_queue_too()

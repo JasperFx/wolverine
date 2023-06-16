@@ -55,4 +55,16 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
 
         return this;
     }
+
+    /// <summary>
+    /// Is Wolverine enabled to create system queues automatically for responses and retries? This
+    /// should probably be set to false if the application does not have permissions to create queues
+    /// </summary>
+    /// <param name="enabled"></param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration SystemQueuesAreEnabled(bool enabled)
+    {
+        Transport.SystemQueuesEnabled = enabled;
+        return this;
+    }
 }

@@ -2,6 +2,7 @@ using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
@@ -149,8 +150,18 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
-                _logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}",
-                    _endpoint.Uri);
+                if (_endpoint.Role == EndpointRole.Application)
+                {
+                    _logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}",
+                        _endpoint.Uri);
+                }
+                else
+                {
+                    _logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}. Check if system queues should be enabled for this application because this could be from the application being unable to create the system queues for Azure Service Bus",
+                        _endpoint.Uri);
+                }
+
+
                 await Task.Delay(pauseTime);
             }
         }

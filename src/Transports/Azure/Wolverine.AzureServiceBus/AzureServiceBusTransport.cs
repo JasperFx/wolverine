@@ -33,6 +33,12 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         IdentifierDelimiter = ".";
     }
 
+    /// <summary>
+    /// Is this transport connection allowed to build and use response and retry queues
+    /// for just this node?
+    /// </summary>
+    public bool SystemQueuesEnabled { get; set; } = true;
+
     public LightweightCache<string, AzureServiceBusQueue> Queues { get; }
     public LightweightCache<string, AzureServiceBusTopic> Topics { get; }
 
@@ -64,6 +70,8 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
+        if (!SystemQueuesEnabled) return;
+        
         var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
 
         var queue = Queues[queueName];
@@ -73,6 +81,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         queue.IsListener = true;
         queue.EndpointName = ResponseEndpointName;
         queue.IsUsedForReplies = true;
+        queue.Role = EndpointRole.System;
 
 
         var retryName = SanitizeIdentifier($"wolverine.retries.{runtime.Options.ServiceName}".ToLower());
@@ -80,6 +89,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         retryQueue.Mode = EndpointMode.BufferedInMemory;
         retryQueue.IsListener = true;
         retryQueue.EndpointName = RetryEndpointName;
+        retryQueue.Role = EndpointRole.System;
 
         RetryQueue = retryQueue;
 
