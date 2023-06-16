@@ -25,7 +25,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\MultiTenantedTodoService\MultiTenantedTodoWebService\MultiTenantedTodoWebService.csproj" />
+      <ProjectReference Include="..\MultiTenantedTodoService\MultiTenantedTodoWebService.csproj" />
     </ItemGroup>
 
 </Project>

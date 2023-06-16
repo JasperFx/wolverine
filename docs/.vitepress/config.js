@@ -97,6 +97,7 @@ export default {
                                 {text: 'Cascading Messages', link: '/guide/handlers/cascading'},
                                 {text: 'Side Effects', link: '/guide/handlers/side-effects'},
                                 {text: 'Middleware', link: '/guide/handlers/middleware'},
+                                {text: 'Multi-Tenancy', link: '/guide/handlers/multi-tenancy'},
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'}
                             ]

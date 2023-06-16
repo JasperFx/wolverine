@@ -6,6 +6,7 @@ using Oakton;
 using Shouldly;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
+using Wolverine;
 using Wolverine.Tracking;
 
 namespace MultiTenantedTodoWebService.Tests;
@@ -93,4 +94,29 @@ public class end_to_end : IAsyncLifetime
         });
     }
 
+    #region sample_invoking_by_tenant
+
+    public static async Task invoking_by_tenant(IMessageBus bus)
+    {
+        // Invoke inline
+        await bus.InvokeForTenantAsync("tenant1", new CreateTodo("Release Wolverine 1.0"));
+
+        // Invoke with an expected result (request/response)
+        var created =
+            await bus.InvokeForTenantAsync<TodoCreated>("tenant2", new CreateTodo("Update the Documentation"));
+    }
+
+    #endregion
+
+    #region sample_publish_by_tenant
+
+    public static async Task publish_by_tenant(IMessageBus bus)
+    {
+        await bus.PublishAsync(new CreateTodo("Fix that last broken test"),
+            new DeliveryOptions { TenantId = "tenant3" });
+    }
+
+    #endregion
+
 }
+

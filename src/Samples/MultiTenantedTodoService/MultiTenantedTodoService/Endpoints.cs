@@ -52,6 +52,8 @@ public static class TodoEndpoints
         return todo;
     }
 
+    #region sample_calling_invoke_for_tenant_async_with_expected_result
+
     [WolverinePost("/todoitems/{tenant}")]
     public static async Task<IResult> Create(string tenant, CreateTodo command, IMessageBus bus)
     {
@@ -64,6 +66,10 @@ public static class TodoEndpoints
         return Results.Created($"/todoitems/{tenant}/{created.Id}", created);
     }
 
+    #endregion
+
+    #region sample_invoke_for_tenant
+
     [WolverineDelete("/todoitems/{tenant}")]
     public static async Task Delete(
         string tenant, 
@@ -73,6 +79,8 @@ public static class TodoEndpoints
         // Invoke inline for the specified tenant
         await bus.InvokeForTenantAsync(tenant, command);
     }
+
+    #endregion
 }
 
 

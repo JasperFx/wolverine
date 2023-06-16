@@ -17,6 +17,8 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        #region sample_setup_with_conjoined_tenancy
+
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -28,6 +30,8 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
                 
             }).StartAsync();
 
+        #endregion
+
         var store = _host.Services.GetRequiredService<IDocumentStore>();
         await store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(CreateTenantDocument));
     }
@@ -36,6 +40,8 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
     {
         await _host.StopAsync();
     }
+
+    #region sample_using_conjoined_tenancy
 
     [Fact]
     public async Task execute_with_tenancy()
@@ -74,10 +80,29 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
             document.Location.ShouldBe("Illian");
         }
     }
+
+    #endregion
 }
 
+#region sample_conjoined_multi_tenancy_sample_code
+
+// Implementing Marten's ITenanted interface
+// also makes Marten treat this document type as
+// having "conjoined" multi-tenancy
+public class TenantedDocument : ITenanted
+{
+    public Guid Id { get; init; }
+
+    public string TenantId { get; set; }
+    public string Location { get; set; }
+}
+
+// A command to create a new document that's multi-tenanted
 public record CreateTenantDocument(Guid Id, string Location);
 
+// A message handler to create a new document. Notice there's
+// absolutely NO code related to a tenant id, but yet it's
+// fully respecting multi-tenancy here in a second
 public static class CreateTenantDocumentHandler
 {
     public static IMartenOp Handle(CreateTenantDocument command)
@@ -86,10 +111,5 @@ public static class CreateTenantDocumentHandler
     }
 }
 
-public class TenantedDocument : ITenanted
-{
-    public Guid Id { get; init; }
+#endregion
 
-    public string TenantId { get; set; }
-    public string Location { get; set; }
-}

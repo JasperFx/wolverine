@@ -12,8 +12,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\Http\Wolverine.Http\Wolverine.Http.csproj" />
-      <ProjectReference Include="..\..\src\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+      <ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
+      <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
     </ItemGroup>
 
 </Project>
