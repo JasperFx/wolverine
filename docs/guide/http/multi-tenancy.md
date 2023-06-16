@@ -27,7 +27,7 @@ public static async Task Delete(
     await bus.InvokeForTenantAsync(tenant, command);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/MultiTenantedTodoService/MultiTenantedTodoWebService/Endpoints.cs#L71-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L72-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and with an expected result:
@@ -47,7 +47,7 @@ public static async Task<IResult> Create(string tenant, CreateTodo command, IMes
     return Results.Created($"/todoitems/{tenant}/{created.Id}", created);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/MultiTenantedTodoService/MultiTenantedTodoWebService/Endpoints.cs#L55-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_invoke_for_tenant_async_with_expected_result' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L56-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_invoke_for_tenant_async_with_expected_result' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [Multi-Tenancy with Wolverine](/guide/handlers/multi-tenancy) for a little more information.

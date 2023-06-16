@@ -10,6 +10,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = "Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres";
 
+#region sample_configuring_wolverine_for_marten_multi_tenancy
+
 // Adding Marten for persistence
 builder.Services.AddMarten(m =>
     {
@@ -21,17 +23,23 @@ builder.Services.AddMarten(m =>
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant1;Username=postgres;password=postgres", "tenant1");
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant2;Username=postgres;password=postgres", "tenant2");
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant3;Username=postgres;password=postgres", "tenant3");
-
         });
-
         
         m.DatabaseSchemaName = "mttodo";
     })
     .IntegrateWithWolverine(masterDatabaseConnectionString:connectionString);
 
+#endregion
 
+
+
+#region sample_add_resource_setup_on_startup
 
 builder.Services.AddResourceSetupOnStartup();
+
+#endregion
+
+#region sample_wolverine_setup_for_marten_multitenancy
 
 // Wolverine usage is required for WolverineFx.Http
 builder.Host.UseWolverine(opts =>
@@ -44,6 +52,8 @@ builder.Host.UseWolverine(opts =>
     // background tasks
     opts.Policies.UseDurableLocalQueues();
 });
+
+#endregion
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

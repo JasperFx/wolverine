@@ -25,6 +25,7 @@ public record DeleteTodo(int Id);
 
 public record TodoCreated(int Id);
 
+
 public static class TodoEndpoints
 {
     [WolverineGet("/todoitems/{tenant}")]
