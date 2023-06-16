@@ -91,7 +91,7 @@ public class end_to_end
         {
             opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueing();
 
-            opts.ListenToRabbitQueue(queueName);
+            opts.ListenToRabbitQueue(queueName).PreFetchCount(10);
             opts.Services.AddSingleton<ColorHistory>();
 
             opts.Services.AddMarten(x =>

@@ -18,14 +18,6 @@ public class RabbitMqEndpointTests
         endpoint.RoutingType.ShouldBe(RoutingMode.Static);
     }
 
-    // TODO -- move things that are specific to RabbitMqQueue to its
-    // own test lib
-    [Fact]
-    public void default_prefetch_size_is_0()
-    {
-        var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
-        endpoint.PreFetchSize.ShouldBe((uint)0);
-    }
 
     [Fact]
     public void override_the_prefetch_count()

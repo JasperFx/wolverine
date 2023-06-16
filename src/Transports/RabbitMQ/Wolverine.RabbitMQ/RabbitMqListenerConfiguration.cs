@@ -71,18 +71,6 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
     }
 
     /// <summary>
-    ///     Override the Rabbit MQ PreFetchSize value for just this endpoint for the total size of the
-    ///     messages that can be pre-fetched into memory before being handled
-    /// </summary>
-    /// <param name="count"></param>
-    /// <returns></returns>
-    public RabbitMqListenerConfiguration PreFetchSize(uint size)
-    {
-        add(e => e.PreFetchSize = size);
-        return this;
-    }
-
-    /// <summary>
     ///     Add MassTransit interoperability to this Rabbit MQ listening endpoint
     /// </summary>
     /// <param name="configure">Optionally configure the JSON serialization on this endpoint</param>

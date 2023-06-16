@@ -30,13 +30,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     }
 
     internal bool HasDeclared { get; private set; }
-
-    /// <summary>
-    ///     Limit on the combined size of pre-fetched messages. The default in Wolverine is 0, which
-    ///     denotes an unlimited size.
-    /// </summary>
-    public uint PreFetchSize { get; set; }
-
+    
     /// <summary>
     ///     The number of unacknowledged messages that can be processed concurrently
     /// </summary>

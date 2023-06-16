@@ -92,7 +92,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         _consumer = new WorkerQueueMessageConsumer(Channel!, receiver, Logger, this, mapper, Address,
             _cancellation);
 
-        Channel!.BasicQos(Queue.PreFetchSize, Queue.PreFetchCount, false);
+        Channel!.BasicQos(0, Queue.PreFetchCount, false);
         Channel.BasicConsume(_consumer, queue.QueueName);
 
         _callback = (queue.DeadLetterQueue != null) &

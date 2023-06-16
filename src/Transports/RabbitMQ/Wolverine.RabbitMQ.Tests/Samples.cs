@@ -61,7 +61,6 @@ public class Samples
 
                 // Set up a listener for a queue
                 opts.ListenToRabbitQueue("incoming1")
-                    .PreFetchSize(5)
                     .PreFetchCount(100)
                     .ListenerCount(5) // use 5 parallel listeners
                     .CircuitBreaker(cb =>
