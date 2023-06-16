@@ -207,7 +207,7 @@ public partial class Envelope
             : TransportConstants.AnyNode;
     }
 
-    internal ValueTask QuickSendAsync()
+    internal async ValueTask QuickSendAsync()
     {
         if (_enqueued)
         {
@@ -221,9 +221,16 @@ public partial class Envelope
 
         _enqueued = true;
 
-        return Sender.Latched
-            ? ValueTask.CompletedTask
-            : Sender.EnqueueOutgoingAsync(this);
+        if (Sender.Latched) return;
+        using var activity = WolverineTracing.StartSending(this);
+        try
+        {
+            await Sender.EnqueueOutgoingAsync(this);
+        }
+        finally
+        {
+            activity?.Stop();
+        }
     }
 
     /// <summary>
