@@ -144,6 +144,9 @@ public static class AzureServiceBusTransportExtensions
                 throw new ArgumentNullException(nameof(topicName));
             }
 
+            // Gather any naming prefix
+            topicName = _transport.MaybeCorrectName(topicName);
+
             var topic = _transport.Topics[topicName];
             configureTopic?.Invoke(topic.Options);
             
@@ -175,7 +178,7 @@ public static class AzureServiceBusTransportExtensions
 
 
         var transport = endpoints.AzureServiceBusTransport();
-        return new SubscriptionExpression(subscriptionName, configureSubscriptions,
+        return new SubscriptionExpression(transport.MaybeCorrectName(subscriptionName), configureSubscriptions,
             transport);
     }
 
