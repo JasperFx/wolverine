@@ -48,16 +48,18 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
 
         var bus = nested.GetInstance<IMessageBus>();
 
+        
+        
         bus.TenantId = "one";
-        await bus.InvokeAsync(new CreateTenantDocument("Rand Al'Thor"));
-        
-        
+        await bus.InvokeAsync(new CreateTenantDocument("Rand Al'Thor", "Andor"));
+
+        throw new Exception("Come back to this");
 
 
     }
 }
 
-public record CreateTenantDocument(string Name);
+public record CreateTenantDocument(string Name, string Location);
 
 public static class CreateTenantDocumentHandler
 {
@@ -73,4 +75,5 @@ public class TenantedDocument : ITenanted
     public string Name { get; init; }
 
     public string TenantId { get; set; }
+    public string Location { get; set; }
 }

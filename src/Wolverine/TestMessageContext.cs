@@ -51,6 +51,12 @@ public class TestMessageContext : IMessageContext
     /// </summary>
     public IReadOnlyList<object> ResponsesToSender => _responses;
 
+    public async Task<T> InvokeForTenantAsync<T>(string tenantId, object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
+    }
+
     public IDestinationEndpoint EndpointFor(string endpointName)
     {
         return new DestinationEndpoint(this, null, endpointName);
@@ -76,9 +82,15 @@ public class TestMessageContext : IMessageContext
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
 
+    public async Task InvokeForTenantAsync(string tenantId, object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
+    }
+
     IReadOnlyList<Envelope> IMessageBus.PreviewSubscriptions(object message)
     {
-        throw new NotSupportedException();
+        throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
 
     ValueTask IMessageBus.SendAsync<T>(T message, DeliveryOptions? options)
@@ -170,5 +182,7 @@ public class TestMessageContext : IMessageContext
         {
             throw new NotSupportedException();
         }
+        
+        
     }
 }

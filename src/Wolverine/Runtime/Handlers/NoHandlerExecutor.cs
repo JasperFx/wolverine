@@ -47,7 +47,7 @@ internal class NoHandlerExecutor : IExecutor
     }
 
     public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null, string? tenantId = default)
     {
         if (Exception != null)
         {
@@ -58,7 +58,7 @@ internal class NoHandlerExecutor : IExecutor
     }
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null, string? tenantId = default)
     {
         if (Exception != null)
         {

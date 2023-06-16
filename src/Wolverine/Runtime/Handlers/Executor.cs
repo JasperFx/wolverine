@@ -135,13 +135,14 @@ internal class Executor : IExecutor
     }
 
     public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null, string? tenantId = null)
     {
         var envelope = new Envelope(message)
         {
             ReplyUri = TransportConstants.RepliesUri,
             ReplyRequested = typeof(T).ToMessageTypeName(),
-            ResponseType = typeof(T)
+            ResponseType = typeof(T),
+            TenantId = tenantId ?? bus.TenantId
         };
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
@@ -157,9 +158,13 @@ internal class Executor : IExecutor
     }
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null, string? tenantId = null)
     {
-        var envelope = new Envelope(message);
+        var envelope = new Envelope(message)
+        {
+            TenantId = tenantId ?? bus.TenantId
+        };
+        
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         return InvokeInlineAsync(envelope, cancellation);
     }

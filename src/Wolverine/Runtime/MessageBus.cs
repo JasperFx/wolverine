@@ -87,6 +87,28 @@ public class MessageBus : IMessageBus
         return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout);
     }
 
+    public Task InvokeForTenantAsync(string tenantId, object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, tenantId);
+    }
+
+    public Task<T> InvokeForTenantAsync<T>(string tenantId, object message, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, tenantId);
+    }
+
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
     {
         return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, null);

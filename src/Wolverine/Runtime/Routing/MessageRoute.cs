@@ -46,9 +46,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     public IList<IEnvelopeRule> Rules { get; } = new List<IEnvelopeRule>();
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null, string? tenantId = null)
     {
-        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout);
+        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, tenantId);
     }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
@@ -88,7 +88,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
     public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
-        TimeSpan? timeout = null)
+        TimeSpan? timeout = null, string? tenantId = null)
     {
         if (message == null)
         {
@@ -100,7 +100,11 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         timeout ??= 5.Seconds();
 
 
-        var envelope = new Envelope(message, Sender);
+        var envelope = new Envelope(message, Sender)
+        {
+            TenantId = tenantId ?? bus.TenantId
+        };
+        
         foreach (var rule in Rules) rule.Modify(envelope);
         if (typeof(T) == typeof(Acknowledgement))
         {
