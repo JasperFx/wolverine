@@ -21,5 +21,5 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L136-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L139-L157' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

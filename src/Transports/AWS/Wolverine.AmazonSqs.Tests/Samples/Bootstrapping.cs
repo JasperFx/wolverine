@@ -174,13 +174,27 @@ public class Bootstrapping
 
     public async Task overriding_dead_letter_queueing()
     {
+        #region sample_configuring_dead_letter_queue_for_sqs
+
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransport()
-                    ;
+                opts.UseAmazonSqsTransport();
 
-                // TODO -- SHOW MORE OPTIONS
+                // No dead letter queueing
+                opts.ListenToSqsQueue("incoming")
+                    .DisableDeadLetterQueueing();
+                
+                // Use a different dead letter queue
+                opts.ListenToSqsQueue("important")
+                    .ConfigureDeadLetterQueue("important_errors", q =>
+                    {
+                        // optionally configure how the dead letter queue itself
+                        // is built by Wolverine
+                        q.MaxNumberOfMessages = 1000;
+                    });
             }).StartAsync();
+
+        #endregion
     }
 }

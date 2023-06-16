@@ -56,5 +56,5 @@ public async Task use_string_querystring_miss()
     body.ReadAsText().ShouldBe("Name is missing");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/end_to_end.cs#L149-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/end_to_end.cs#L185-L211' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

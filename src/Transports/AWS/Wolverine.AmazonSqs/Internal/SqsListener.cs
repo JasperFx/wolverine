@@ -1,4 +1,3 @@
-using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
