@@ -24,7 +24,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransport()
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 
@@ -35,7 +35,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransport()
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 

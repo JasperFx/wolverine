@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using TestingSupport.Compliance;
@@ -21,7 +22,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransport()
+            opts.UseAmazonSqsTransportLocally()
                 .PrefixIdentifiers("foo")
                 .AutoProvision()
                 .AutoPurgeOnStartup();
@@ -31,7 +32,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransport()
+            opts.UseAmazonSqsTransportLocally()
                 .PrefixIdentifiers("foo")
                 .AutoProvision()
                 .AutoPurgeOnStartup();

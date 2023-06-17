@@ -25,6 +25,7 @@ public class MassTransitFixture : IAsyncLifetime
             opts.ApplicationAssembly = GetType().Assembly;
 
             opts.UseRabbitMq()
+                .CustomizeDeadLetterQueueing(new DeadLetterQueue("errors", DeadLetterQueueMode.InteropFriendly))
                 .AutoProvision().AutoPurgeOnStartup()
                 .BindExchange("wolverine").ToQueue("wolverine")
                 .BindExchange("masstransit").ToQueue("masstransit");

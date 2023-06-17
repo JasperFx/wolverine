@@ -77,7 +77,10 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
     /// <returns></returns>
     public RabbitMqListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
-        add(e => e.UseMassTransitInterop(configure));
+        add(e =>
+        {
+            e.UseMassTransitInterop(configure);
+        });
         return this;
     }
 

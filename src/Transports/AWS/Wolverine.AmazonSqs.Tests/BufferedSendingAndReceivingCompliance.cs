@@ -24,7 +24,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransport()
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 
@@ -33,7 +33,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransport()
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 
