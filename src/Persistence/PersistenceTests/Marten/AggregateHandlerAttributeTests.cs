@@ -10,7 +10,7 @@ using Xunit;
 
 namespace PersistenceTests.Marten;
 
-public class MartenCommandWorkflowAttributeTests
+public class AggregateHandlerAttributeTests
 {
     [Fact]
     public void determine_version_member_for_aggregate()
