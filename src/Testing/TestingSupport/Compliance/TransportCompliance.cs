@@ -283,6 +283,9 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
             listener.Status.ShouldBe(ListeningStatus.Accepting);
         }
+        
+        // I FEEL DIRTY
+        await Task.Delay(5.Seconds());
 
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
