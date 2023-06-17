@@ -290,7 +290,7 @@ public interface ISomeService
 public static class MarkItemReadyHandler2
 {
 
-    #region sample_using_events_and_messages_from_MartenCommandWorkflow
+    #region sample_using_events_and_messages_from_AggregateHandler
 
     [AggregateHandler]
     public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)

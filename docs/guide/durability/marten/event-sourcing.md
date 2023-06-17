@@ -148,7 +148,7 @@ across basically all your command handlers. Likewise, it would be best if you co
 isolate your business logic that *decides* what new events should be appended completely
 away from the infrastructure code so that you can more easily reason about that code and
 easily test that business logic. To that end, Wolverine supports the [Decider](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider)
-pattern with Marten using the `[MartenCommandWorkflow]` middleware.
+pattern with Marten using the `[AggregateHandler]` middleware.
 Using that middleware, we get this slimmer code:
 
 <!-- snippet: sample_MarkItemReadyHandler -->
@@ -235,7 +235,7 @@ before you use this middleware strategy.
 
 The Marten workflow command handler method signature needs to follow these rules:
 
-* Either explicitly use the `[MartenCommandWorkflow]` attribute on the handler method **or use the `AggregateHandler` suffix** on the message handler type to tell Wolverine to opt into the aggregate command workflow.
+* Either explicitly use the `[AggregateHandler]` attribute on the handler method **or use the `AggregateHandler` suffix** on the message handler type to tell Wolverine to opt into the aggregate command workflow.
 * The first argument should be the command type, just like any other Wolverine message handler
 * The 2nd argument should be the aggregate -- either the aggregate itself (`Order`) or wrapped
   in the Marten `IEventStream<T>` type (`IEventStream<Order>`). There is an example of that usage below:
@@ -290,8 +290,8 @@ As for the return values from these handler methods, you can use:
 
 Here's an alternative of the `MarkItemReady` handler that uses `Events`:
 
-<!-- snippet: sample_using_events_and_messages_from_MartenCommandWorkflow -->
-<a id='snippet-sample_using_events_and_messages_from_martencommandworkflow'></a>
+<!-- snippet: sample_using_events_and_messages_from_AggregateHandler -->
+<a id='snippet-sample_using_events_and_messages_from_AggregateHandler'></a>
 ```cs
 [AggregateHandler]
 public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
@@ -331,7 +331,7 @@ public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady c
     return (events, messages);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L293-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_martencommandworkflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L293-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_AggregateHandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
