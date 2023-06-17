@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -17,20 +18,21 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
     public async Task InitializeAsync()
     {
+        var queueName = Guid.NewGuid().ToString();
+        OutboundAddress = new Uri("asb://queue/" + queueName);
+        
         await SenderIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
 
-            opts.ListenToAzureServiceBusQueue("buffered-receiver").BufferedInMemory();
+            opts.ListenToAzureServiceBusQueue(queueName, q => q.Options.AutoDeleteOnIdle = 5.Minutes()).BufferedInMemory();
         });
     }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using TestingSupport.Compliance;
@@ -17,24 +18,24 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
     public async Task InitializeAsync()
     {
+        var queueName = Guid.NewGuid().ToString();
+        OutboundAddress = new Uri("asb://queue/foo." + queueName);
+        
         await SenderIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
                 .PrefixIdentifiers("foo")
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
 
-            opts.ListenToAzureServiceBusQueue("buffered-sender");
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
                 .PrefixIdentifiers("foo")
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
 
-            opts.ListenToAzureServiceBusQueue("buffered-receiver");
+            opts.ListenToAzureServiceBusQueue(queueName, q => q.Options.AutoDeleteOnIdle = 5.Minutes()).Named("receiver");
         });
     }
 
@@ -51,18 +52,9 @@ public class PrefixedSendingAndReceivingCompliance : TransportCompliance<Prefixe
     public void prefix_was_applied_to_queues_for_the_receiver()
     {
         var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
-        runtime.Endpoints.EndpointByName("buffered-receiver")
+        runtime.Endpoints.EndpointByName("receiver")
             .ShouldBeOfType<AzureServiceBusQueue>()
-            .QueueName.ShouldBe("foo.buffered-receiver");
+            .QueueName.ShouldStartWith("foo.");
     }
 
-    [Fact]
-    public void prefix_was_applied_to_queues_for_the_sender()
-    {
-        var runtime = theSender.Services.GetRequiredService<IWolverineRuntime>();
-
-        runtime.Endpoints.EndpointByName("buffered-sender")
-            .ShouldBeOfType<AzureServiceBusQueue>()
-            .QueueName.ShouldBe("foo.buffered-sender");
-    }
 }

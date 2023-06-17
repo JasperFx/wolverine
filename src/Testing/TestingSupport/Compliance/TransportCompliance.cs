@@ -61,27 +61,28 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
         }
     }
 
-    protected Task TheOnlyAppIs(Action<WolverineOptions> configure)
+    protected async Task TheOnlyAppIs(Action<WolverineOptions> configure)
     {
         AllLocally = true;
 
-        Sender = WolverineHost.For(options =>
-        {
-            configure(options);
-            configureReceiver(options);
-            configureSender(options);
-        });
-
-        return Task.CompletedTask;
+        Sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(options =>
+            {
+                configure(options);
+                configureReceiver(options);
+                configureSender(options);
+            }).StartAsync();
     }
 
     protected async Task SenderIs(Action<WolverineOptions> configure)
     {
-        Sender = await WolverineHost.ForAsync(opts =>
-        {
-            configure(opts);
-            configureSender(opts);
-        });
+        Sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                configure(opts);
+                configureSender(opts);
+            }).StartAsync();
+
     }
 
     private void configureSender(WolverineOptions options)
@@ -95,18 +96,19 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
         options.PublishAllMessages().To(OutboundAddress);
 
         options.Services.AddSingleton<IMessageSerializer, GreenTextWriter>();
-        options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        //options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
 
         options.UseNewtonsoftForSerialization();
     }
 
     public async Task ReceiverIs(Action<WolverineOptions> configure)
     {
-        Receiver = await WolverineHost.ForAsync(opts =>
-        {
-            configure(opts);
-            configureReceiver(opts);
-        });
+        Receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                configure(opts);
+                configureReceiver(opts);
+            }).StartAsync();
     }
 
     private static void configureReceiver(WolverineOptions options)
@@ -137,7 +139,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
         options.Services.AddSingleton(new ColorHistory());
 
-        options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        //options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
     }
 
     public virtual void BeforeEach()

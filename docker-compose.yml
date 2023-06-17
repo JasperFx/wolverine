@@ -1,7 +1,7 @@
 version: '3'
 services:
   postgresql:
-    image: "clkao/postgres-plv8:latest"
+    image: "postgres:latest"
     ports:
      - "5433:5432"
     environment:
@@ -15,7 +15,7 @@ services:
      - "5672:5672"
      - "15672:15672"
   sqlserver:
-    image: "mcr.microsoft.com/mssql/server:2019-latest"
+    image: "mcr.microsoft.com/mssql/server:latest"
     ports:
       - "1434:1433"
     environment:
@@ -23,19 +23,12 @@ services:
       - "SA_PASSWORD=P@55w0rd"
       - "MSSQL_PID=Developer"
   pulsar:
-    image: "apachepulsar/pulsar:2.8.1"
+    image: "apachepulsar/pulsar:latest"
     ports:
       - "6650:6650"
       - "8080:8080"
     command: bin/pulsar standalone
 
-  pgadmin4:
-    image: dpage/pgadmin4:latest
-    ports:
-      - 81:80
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=user@domain.com
-      - PGADMIN_DEFAULT_PASSWORD=SuperSecret
 
   localstack:
     image: localstack/localstack

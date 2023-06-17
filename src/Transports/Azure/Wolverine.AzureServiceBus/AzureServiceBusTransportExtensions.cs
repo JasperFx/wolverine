@@ -110,7 +110,7 @@ public static class AzureServiceBusTransportExtensions
     ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
     ///     <returns></returns>
     public static AzureServiceBusQueueListenerConfiguration ListenToAzureServiceBusQueue(
-        this WolverineOptions endpoints, string queueName, Action<IAzureServiceBusListeningEndpoint>? configure = null)
+        this WolverineOptions endpoints, string queueName, Action<AzureServiceBusQueue>? configure = null)
     {
         var transport = endpoints.AzureServiceBusTransport();
 

@@ -26,7 +26,7 @@ internal class DefaultSqsEnvelopeMapper : ISqsEnvelopeMapper
     public IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope)
     {
         yield return new KeyValuePair<string, MessageAttributeValue>(TransportConstants.ProtocolVersion,
-            new MessageAttributeValue { StringValue = "1.0" });
+            new MessageAttributeValue { StringValue = "1.0", DataType = "String"});
     }
 
     public void ReadEnvelopeData(Envelope envelope, string messageBody,

@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using TestingSupport.Compliance;
 using Xunit;
 
@@ -11,24 +12,25 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
     public async Task InitializeAsync()
     {
+        var queueName = Guid.NewGuid().ToString();
+        OutboundAddress = new Uri("asb://queue/" + queueName);
+        
         await SenderIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
 
             #region sample_using_process_inline
 
             // Configuring a Wolverine application to listen to
             // an Azure Service Bus queue with the "Inline" mode
-            opts.ListenToAzureServiceBusQueue("inline-receiver").ProcessInline();
+            opts.ListenToAzureServiceBusQueue(queueName, q => q.Options.AutoDeleteOnIdle = 5.Minutes()).ProcessInline();
 
             #endregion
         });

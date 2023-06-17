@@ -1,3 +1,4 @@
+using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,23 +11,20 @@ namespace Wolverine.AmazonSqs.Tests;
 
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public static int Number = 0;
-    
     public BufferedComplianceFixture() : base(new Uri("sqs://receiver"), 120)
     {
     }
 
     public async Task InitializeAsync()
     {
-        var number = ++Number;
+        var number = Guid.NewGuid().ToString();
 
         OutboundAddress = new Uri("sqs://receiver-" + number);
         
         await SenderIs(opts =>
         {
             opts.UseAmazonSqsTransportLocally()
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
 
             opts.ListenToSqsQueue("sender-" + number);
         });
@@ -34,8 +32,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         await ReceiverIs(opts =>
         {
             opts.UseAmazonSqsTransportLocally()
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
 
             opts.ListenToSqsQueue("receiver-" + number).Named("receiver").BufferedInMemory();
         });

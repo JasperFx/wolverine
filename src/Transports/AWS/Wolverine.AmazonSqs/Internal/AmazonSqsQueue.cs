@@ -165,6 +165,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
         var body = _mapper.BuildMessageBody(envelope);
         var request = new SendMessageRequest(QueueUrl, body);
+        
         foreach (var attribute in _mapper.ToAttributes(envelope))
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
 
@@ -209,9 +210,17 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
     internal async Task SetupAsync(IAmazonSQS client)
     {
         Configuration.QueueName = QueueName;
-        var response = await client.CreateQueueAsync(Configuration);
+        try
+        {
+            var response = await client.CreateQueueAsync(Configuration);
 
-        QueueUrl = response.QueueUrl;
+            QueueUrl = response.QueueUrl;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
     }
 
     public async Task PurgeAsync(IAmazonSQS client)

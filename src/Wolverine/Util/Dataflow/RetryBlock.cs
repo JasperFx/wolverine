@@ -91,8 +91,8 @@ public class RetryBlock<T> : IDisposable
         }
         catch (Exception e)
         {
-            Post(message);
             _logger.LogError(e, "Error while trying to retry {Item}", message);
+            Post(message);
         }
     }
 

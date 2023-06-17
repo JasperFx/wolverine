@@ -14,17 +14,13 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         await SenderIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
-                .AutoProvision()
-                .AutoPurgeOnStartup();
-
-            opts.ListenToAzureServiceBusQueue("buffered-sender");
+                .AutoProvision();
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
-                .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoProvision();
 
             opts.ListenToAzureServiceBusSubscription("subscription1").FromTopic("topic1");
         });
