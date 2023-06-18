@@ -34,7 +34,7 @@ public class local_durable_queue : CircuitBreakerIntegrationContext
         {
             opts.Connection(Servers.PostgresConnectionString);
             opts.DatabaseSchemaName = "circuit_breaker";
-        }).ApplyAllDatabaseChangesOnStartup();
+        }).IntegrateWithWolverine().ApplyAllDatabaseChangesOnStartup();
         
         opts.Services.AddResourceSetupOnStartup();
 

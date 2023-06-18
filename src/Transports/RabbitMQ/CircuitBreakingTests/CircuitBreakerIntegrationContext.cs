@@ -33,7 +33,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
             .ConfigureServices(services =>
             {
                 services.AddSingleton(output);
-                //services.AddSingleton(typeof(ILogger<>), typeof(OutputLogger<>));
+                services.AddSingleton(typeof(ILogger<>), typeof(OutputLogger<>));
             })
             .Start();
 
@@ -101,7 +101,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         return messages;
     }
 
-    protected void publishNow(int failures)
+    protected void publishHundredMessagesNow(int failures)
     {
         var messages = buildHundredMessages(failures);
         var publisher = new MessageBus(_runtime);
@@ -115,7 +115,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         _tasks.Add(task);
     }
 
-    protected void delayPublish(TimeSpan delay, int failures)
+    protected void delayPublishHundredMessages(TimeSpan delay, int failures)
     {
         var messages = buildHundredMessages(failures);
         var publisher = new MessageBus(_runtime);
@@ -141,18 +141,18 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
     {
         var messageWaiter = Recorder.WaitForMessagesToBeProcessed(_output, 1200, 2.Minutes());
 
-        publishNow(5);
-        publishNow(5);
-        publishNow(5);
-        publishNow(5);
-        delayPublish(5.Seconds(), 5);
-        delayPublish(5.Seconds(), 5);
-        delayPublish(5.Seconds(), 5);
-        delayPublish(5.Seconds(), 5);
-        delayPublish(10.Seconds(), 5);
-        delayPublish(10.Seconds(), 5);
-        delayPublish(10.Seconds(), 5);
-        delayPublish(10.Seconds(), 5);
+        publishHundredMessagesNow(5);
+        publishHundredMessagesNow(5);
+        publishHundredMessagesNow(5);
+        publishHundredMessagesNow(5);
+        delayPublishHundredMessages(5.Seconds(), 5);
+        delayPublishHundredMessages(5.Seconds(), 5);
+        delayPublishHundredMessages(5.Seconds(), 5);
+        delayPublishHundredMessages(5.Seconds(), 5);
+        delayPublishHundredMessages(10.Seconds(), 5);
+        delayPublishHundredMessages(10.Seconds(), 5);
+        delayPublishHundredMessages(10.Seconds(), 5);
+        delayPublishHundredMessages(10.Seconds(), 5);
 
         await afterAllMessagesArePublished();
 
@@ -165,12 +165,13 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
     [Fact]
     public async Task the_circuit_breaker_should_trip_and_restart()
     {
-        var messageWaiter = Recorder.WaitForMessagesToBeProcessed(_output, 1200, 2.Minutes());
+        var messageWaiter = Recorder.WaitForMessagesToBeProcessed(_output, 1200, 1.Minutes());
 
-        publishNow(10);
-        publishNow(80);
-        publishNow(10);
-        publishNow(25);
+        publishHundredMessagesNow(10);
+        publishHundredMessagesNow(80);
+        publishHundredMessagesNow(10);
+        publishHundredMessagesNow(25);
+        publishHundredMessagesNow(25);
 
 #pragma warning disable CS4014
         Task.Factory.StartNew(async () =>
@@ -180,14 +181,13 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
             Recorder.NeverFail = true;
         });
 
-        delayPublish(5.Seconds(), 5);
-        delayPublish(10.Seconds(), 5);
-        delayPublish(10.Seconds(), 10);
-        delayPublish(10.Seconds(), 5);
-        delayPublish(15.Seconds(), 10);
-        delayPublish(15.Seconds(), 10);
-        delayPublish(15.Seconds(), 10);
-        delayPublish(15.Seconds(), 10);
+        delayPublishHundredMessages(5.Seconds(), 5);
+        delayPublishHundredMessages(10.Seconds(), 5);
+        delayPublishHundredMessages(10.Seconds(), 10);
+        delayPublishHundredMessages(10.Seconds(), 5);
+        delayPublishHundredMessages(15.Seconds(), 10);
+        delayPublishHundredMessages(15.Seconds(), 10);
+        delayPublishHundredMessages(15.Seconds(), 10);
 
         await afterAllMessagesArePublished();
 
@@ -228,7 +228,8 @@ public class OutputLogger<T> : ILogger<T>, IDisposable
 
     public bool IsEnabled(LogLevel logLevel)
     {
-        return typeof(T).Name == "DurabilityAgent";
+        return true;
+        //return typeof(T).Name == "DurabilityAgent";
     }
 
     public IDisposable BeginScope<TState>(TState state)

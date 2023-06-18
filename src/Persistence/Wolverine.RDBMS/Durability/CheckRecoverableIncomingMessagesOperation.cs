@@ -65,6 +65,11 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
                 yield return
                     new RecoverableIncomingMessagesOperation(_database, incoming, listener, _settings, _logger);
             }
+            else
+            {
+                _logger.LogInformation("Found {Count} incoming messages from the inbox to destination {Destination}, but the listener is latched", incoming.Count, incoming.Destination);
+            }
+            
         }
     }
 

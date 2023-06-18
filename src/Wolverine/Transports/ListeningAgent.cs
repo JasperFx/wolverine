@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
