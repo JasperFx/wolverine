@@ -2,6 +2,7 @@
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Weasel.Core.Migrations;
 using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
@@ -29,11 +30,6 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null,
         string? masterDatabaseConnectionString = null)
     {
-        expression.Services.ConfigureMarten(opts =>
-        {
-            opts.Storage.Add(new MartenDatabaseSchemaFeature(schemaName ?? opts.DatabaseSchemaName));
-        });
-
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
         expression.Services.AddSingleton<IMessageStore>(s =>
@@ -54,10 +50,36 @@ public static class WolverineOptionsMartenExtensions
             return BuildMultiTenantedMessageDatabase(schemaName, masterDatabaseConnectionString, store, runtime);
         });
 
+        expression.Services.AddSingleton<IDatabaseSource, MartenMessageDatabaseDiscovery>();
+
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
         return expression;
+    }
+
+    internal class MartenMessageDatabaseDiscovery : IDatabaseSource
+    {
+        private readonly IWolverineRuntime _runtime;
+
+        public MartenMessageDatabaseDiscovery(IWolverineRuntime runtime)
+        {
+            _runtime = runtime;
+        }
+
+        public async ValueTask<IReadOnlyList<IDatabase>> BuildDatabases()
+        {
+            if (_runtime.Storage is PostgresqlMessageStore database)
+                return new List<IDatabase>{database};
+
+            if (_runtime.Storage is MultiTenantedMessageDatabase tenants)
+            {
+                await tenants.InitializeAsync(_runtime);
+                return tenants.AllDatabases();
+            }
+
+            return Array.Empty<IDatabase>();
+        }
     }
 
     internal static IMessageStore BuildMultiTenantedMessageDatabase(string schemaName,

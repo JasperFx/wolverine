@@ -1,5 +1,7 @@
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using Weasel.Core.Migrations;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -375,5 +377,10 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         {
             throw new AggregateException(exceptions);
         }
+    }
+
+    public IReadOnlyList<IDatabase> AllDatabases()
+    {
+        return _databases.AllActive().OfType<IDatabase>().ToList();
     }
 }
