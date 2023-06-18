@@ -109,9 +109,9 @@ Wolverine endpoints come in three basic flavors, with the first being **Inline**
 ```cs
 // Configuring a Wolverine application to listen to
 // an Azure Service Bus queue with the "Inline" mode
-opts.ListenToAzureServiceBusQueue("inline-receiver").ProcessInline();
+opts.ListenToAzureServiceBusQueue(queueName, q => q.Options.AutoDeleteOnIdle = 5.Minutes()).ProcessInline();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/InlineSendingAndReceivingCompliance.cs#L27-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_process_inline' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/InlineSendingAndReceivingCompliance.cs#L29-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_process_inline' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With inline endpoints, as the name implies, calling `IMessageBus.SendAsync()` immediately sends the message to the external

@@ -34,7 +34,7 @@ builder.Services.AddMarten(m =>
         {
             // You would probably be pulling the connection strings out of configuration,
             // but it's late in the afternoon and I'm being lazy building out this sample!
-            tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenasnt1;Username=postgres;password=postgres", "tenant1");
+            tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant1;Username=postgres;password=postgres", "tenant1");
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant2;Username=postgres;password=postgres", "tenant2");
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant3;Username=postgres;password=postgres", "tenant3");
         });
