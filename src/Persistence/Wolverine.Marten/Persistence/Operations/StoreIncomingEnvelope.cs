@@ -2,13 +2,14 @@
 using JasperFx.Core;
 using Marten.Internal;
 using Marten.Internal.Operations;
+using Marten.Services;
 using Weasel.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Marten.Persistence.Operations;
 
-internal class StoreIncomingEnvelope : IStorageOperation
+internal class StoreIncomingEnvelope : IStorageOperation, NoDataReturnedCall
 {
     private readonly string _incomingTable;
 
