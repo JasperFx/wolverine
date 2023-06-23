@@ -41,7 +41,7 @@ dotnet add package WolverineFx
 To start off, we're just going to build two API endpoints that accepts
 a POST from the client that...
 
-1. Creates a new `Issue`, stores it, and triggers an email to internal personal.
+1. Creates a new `Issue`, stores it, and triggers an email to internal personnel.
 2. Assigns an `Issue` to an existing `User` and triggers an email to that user letting them know there's more work on their plate
 
 The two *commands* for the POST endpoints are below:
