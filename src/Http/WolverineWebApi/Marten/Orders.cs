@@ -86,7 +86,7 @@ public static class MarkItemEndpoint
     }
 
     #endregion
-    
+
     [Transactional]
     [WolverinePost("/orders/create")]
     public static OrderStatus StartOrder(StartOrder command, IDocumentSession session)
@@ -95,6 +95,20 @@ public static class MarkItemEndpoint
         var orderId = session.Events.StartStream<Order>(new OrderCreated(items)).Id;
 
         return new OrderStatus(orderId, false);
+    }
+
+    [Transactional]
+    [WolverinePost("/orders/create2")]
+    public static (OrderStatus, IStartStream) StartOrder2(StartOrder command)
+    {
+        var items = command.Items.Select(x => new Item { Name = x }).ToArray();
+
+        var startStream = MartenOps.StartStream<Order>(new OrderCreated(items));
+
+        return (
+            new OrderStatus(startStream.StreamId, false),
+            startStream
+        );
     }
 
     #region sample_returning_multiple_events_from_http_endpoint
