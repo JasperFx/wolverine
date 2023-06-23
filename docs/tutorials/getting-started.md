@@ -165,7 +165,7 @@ Wolverine uses a naming convention to automatically discover message handler act
 application assembly, so at no point did we have to explicitly register the
 `CreateIssueHandler` in any way.
 
-We didn't have to use any kind of base class, marker interface, or .NET attribute to designame
+We didn't have to use any kind of base class, marker interface, or .NET attribute to designate
 any part of the behavior of the `CreateIssueHandler` class. In the `Handle()` method, the
 first argument is always assumed to be the message type for the handler action. It's not apparent
 in any of the quick start samples, but Wolverine message handler methods can be asynchronous as
