@@ -99,7 +99,7 @@ public static class MarkItemEndpoint
 
     [Transactional]
     [WolverinePost("/orders/create2")]
-    public static (OrderStatus, IStartStream) StartOrder2(StartOrder command)
+    public static (OrderStatus, IStartStream) StartOrder2(StartOrder command, IDocumentSession _)
     {
         var items = command.Items.Select(x => new Item { Name = x }).ToArray();
 
