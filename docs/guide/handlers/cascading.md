@@ -73,7 +73,7 @@ In terms of response types that become cascading messages, the response types of
 
 ## Using OutgoingMessages
 
-::: TIP
+::: tip
 In the case of mixing different return values from a handler (side effects, Marten events, etc.), it might well make
 your code more intention revealing to use `OutgoingMessages`
 :::
