@@ -1,20 +1,25 @@
 using JasperFx.CodeGeneration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Configuration;
 
 internal class OptimizeArtifactWorkflow : IWolverineExtension
 {
-    private readonly IHostEnvironment _environment;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly string _developmentEnvironment;
 
-    public OptimizeArtifactWorkflow(IHostEnvironment environment)
+    public OptimizeArtifactWorkflow(IServiceProvider serviceProvider, string developmentEnvironment = "Development")
     {
-        _environment = environment;
+        _serviceProvider = serviceProvider;
+        _developmentEnvironment = developmentEnvironment;
     }
 
     public void Configure(WolverineOptions options)
     {
-        if (_environment.IsDevelopment())
+        var environment = _serviceProvider.GetRequiredService<IHostEnvironment>();
+        
+        if (environment.IsEnvironment(_developmentEnvironment))
         {
             options.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             options.CodeGeneration.SourceCodeWritingEnabled = true;
