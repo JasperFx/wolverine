@@ -18,7 +18,16 @@ internal class DatabaseControlListener : IListener
     {
         _transport = transport;
         _receiver = receiver;
-        _timer = new Timer(fireTimer!, this, new Random().Next(100, 1000).Milliseconds(), 1.Seconds());
+        
+        _timer = new Timer(
+            fireTimer!, 
+            this, 
+            
+            // Purposely using a random time period to start the timer
+            // to keep each node starting up at the same time from hammering
+            // the database table at the exact same time
+            new Random().Next(100, 1000).Milliseconds(), 
+            1.Seconds());
 
         Address = endpoint.Uri;
 

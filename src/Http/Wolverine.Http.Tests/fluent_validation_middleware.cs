@@ -37,6 +37,8 @@ public class fluent_validation_middleware : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
+        // Just proving that we have ProblemDetails content
+        // in the request
         var problems = results.ReadAsJson<ProblemDetails>();
     }
 

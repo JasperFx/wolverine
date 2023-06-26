@@ -1,7 +1,7 @@
 using System.Reflection;
-using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using JasperFx.TypeDiscovery;
+using JasperFx.Core;
+using JasperFx.Core.TypeScanning;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Handlers;
@@ -35,9 +35,9 @@ public sealed partial class HandlerDiscovery
         _messageQuery.Excludes.IsNotPublic();
     }
 
-    internal CompositeFilter<MethodInfo> MethodIncludes { get; } = new();
+    internal JasperFx.Core.Filters.CompositeFilter<MethodInfo> MethodIncludes { get; } = new();
 
-    internal CompositeFilter<MethodInfo> MethodExcludes { get; } = new();
+    internal JasperFx.Core.Filters.CompositeFilter<MethodInfo> MethodExcludes { get; } = new();
 
     internal TypeQuery HandlerQuery { get; } = new(TypeClassification.Concretes | TypeClassification.Closed);
 
