@@ -1,6 +1,4 @@
-using System;
-using System.Threading.Tasks;
-using JasperFx.TypeDiscovery;
+using JasperFx.Core.TypeScanning;
 using Microsoft.Extensions.Hosting;
 using Oakton;
 using Oakton.Resources;

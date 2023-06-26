@@ -39,7 +39,7 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
     private void writeExchanges()
     {
         var rule = new Rule("[blue]Exchanges[/]");
-        rule.Alignment = Justify.Left;
+        rule.Justify(Justify.Left);
         AnsiConsole.Write(rule);
 
         var table = new Table()
@@ -80,7 +80,7 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
     private void writeQueues()
     {
         var rule = new Rule("[blue]Queues[/]");
-        rule.Alignment = Justify.Left;
+        rule.Justify(Justify.Left);
         AnsiConsole.Write(rule);
 
         var table = new Table();

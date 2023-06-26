@@ -1,7 +1,7 @@
 using System.Reflection;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using JasperFx.TypeDiscovery;
+using JasperFx.Core.TypeScanning;
 using Wolverine.Attributes;
 
 namespace Wolverine;

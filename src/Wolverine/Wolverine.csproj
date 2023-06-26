@@ -18,7 +18,7 @@
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="[6.0.0,8.0.0)" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="[6.0.0,8.0.0)" />
         <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="[6.0.0,8.0.0)" />
-        <PackageReference Include="Oakton" Version="6.0.0" />
+        <PackageReference Include="Oakton" Version="6.0.2" />
 
         <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="[6.0.0,8.0.0)" />
         <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />

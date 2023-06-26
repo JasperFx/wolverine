@@ -4,7 +4,7 @@ using Oakton;
 using Wolverine.Attributes;
 
 [assembly: IgnoreAssembly]
-[assembly: JasperFx.TypeDiscovery.IgnoreAssembly]
+[assembly: JasperFx.Core.TypeScanning.IgnoreAssembly]
 [assembly: OaktonCommandAssembly]
 [assembly: WolverineFeature]
 

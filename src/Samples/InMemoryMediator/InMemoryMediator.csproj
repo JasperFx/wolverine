@@ -7,7 +7,6 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.0.4" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
-        <PackageReference Include="Weasel.SqlServer" Version="6.0.0-rc.3" />
     </ItemGroup>
 
     <ItemGroup>
