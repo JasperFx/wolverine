@@ -43,7 +43,6 @@ public class environment_sensitive_configuration
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
-        ;
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeTrue();
         options.AutoBuildMessageStorageOnStartup.ShouldBeTrue();
     }
@@ -59,7 +58,6 @@ public class environment_sensitive_configuration
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
-        ;
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeTrue();
         options.AutoBuildMessageStorageOnStartup.ShouldBeTrue();
     }
