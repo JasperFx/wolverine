@@ -81,7 +81,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         if (_sendingConnection == null)
         {
             _sendingConnection = BuildConnection();
-            listenToEvents("Sender", _listenerConnection, logger);
+            listenToEvents("Sender", _sendingConnection, logger);
         }
 
         return ValueTask.CompletedTask;
