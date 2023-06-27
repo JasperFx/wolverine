@@ -19,7 +19,7 @@ public class posting_json : IntegrationContext
         var response = await Scenario(x =>
         {
             x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
-            x.WithRequestHeader("accepts", "application/json");
+            x.WithRequestHeader("accept", "application/json");
         });
 
         var result = await response.ReadAsJsonAsync<ArithmeticResults>();
@@ -29,6 +29,23 @@ public class posting_json : IntegrationContext
     }
 
     #endregion
+    
+    [Fact]
+    public async Task post_json_happy_path_with_star_slash_star()
+    {
+        // This test is using Alba to run an end to end HTTP request
+        // and interrogate the results
+        var response = await Scenario(x =>
+        {
+            x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
+            x.WithRequestHeader("accept", "*/*");
+        });
+
+        var result = await response.ReadAsJsonAsync<ArithmeticResults>();
+
+        result.Product.ShouldBe(12);
+        result.Sum.ShouldBe(7);
+    }
 
     [Fact]
     public async Task post_json_garbage_get_400()

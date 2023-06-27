@@ -47,7 +47,7 @@ public abstract class HttpHandler
             return true; // Sure, we'll just go with this.
         }
 
-        if (contentType.StartsWith("application/json") || contentType.StartsWith("text/json"))
+        if (contentType.StartsWith("application/json") || contentType.StartsWith("text/json") || contentType.Contains("*/*"))
         {
             return true;
         }
@@ -96,13 +96,8 @@ public abstract class HttpHandler
         {
             return true;
         }
-
-        if (headers.Accept.Any(x => x.MediaType.HasValue && x.MediaType.Value == "application/json"))
-        {
-            return true;
-        }
-
-        if (headers.Accept.Any(x => x.MediaType.HasValue && x.MediaType.Value == "text/json"))
+        
+        if (headers.Accept.Any(x => x.MediaType.HasValue && (x.MediaType.Value == "application/json" || x.MediaType.Value == "*/*" || x.MediaType.Value == "text/json")))
         {
             return true;
         }
