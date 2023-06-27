@@ -56,11 +56,25 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     public void Dispose()
     {
-        _listenerConnection?.Close();
-        _listenerConnection?.SafeDispose();
+        try
+        {
+            _listenerConnection?.Close();
+            _listenerConnection?.SafeDispose();
+        }
+        catch (ObjectDisposedException)
+        {
 
-        _sendingConnection?.Close();
-        _sendingConnection?.SafeDispose();
+        }
+
+        try
+        {
+            _sendingConnection?.Close();
+            _sendingConnection?.SafeDispose();
+        }
+        catch (ObjectDisposedException)
+        {
+
+        }
 
         Callback?.SafeDispose();
     }
@@ -124,6 +138,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
             yield return exchange;
 
             foreach (var topic in exchange.Topics) yield return topic;
+
+            foreach (var routing in exchange.Routings)
+            {
+                yield return routing;
+            }
         }
 
         foreach (var queue in Queues) yield return queue;
@@ -133,14 +152,21 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     {
         var type = uri.Host;
 
-        var name = uri.Segments.Last();
+        var name = uri.Segments[1].TrimEnd('/');
         switch (type)
         {
             case RabbitMqEndpoint.QueueSegment:
                 return Queues[name];
 
             case RabbitMqEndpoint.ExchangeSegment:
-                return Exchanges[name];
+                var exchange = Exchanges[name];
+
+                if (uri.Segments.Any(x => x.EqualsIgnoreCase("routing/")))
+                {
+                    return exchange.Routings[uri.Segments.Last()];
+                }
+
+                return exchange;
 
             case RabbitMqEndpoint.TopicSegment:
                 return Topics[uri];

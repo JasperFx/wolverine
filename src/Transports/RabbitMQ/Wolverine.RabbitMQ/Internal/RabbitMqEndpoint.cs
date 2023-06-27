@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -33,9 +29,9 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint
     public abstract ValueTask<bool> CheckAsync();
     public abstract ValueTask TeardownAsync(ILogger logger);
     public abstract ValueTask SetupAsync(ILogger logger);
-    
+
     internal abstract string RoutingKey();
-    
+
     public override IDictionary<string, object> DescribeProperties()
     {
         var dict = base.DescribeProperties();
@@ -52,7 +48,7 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint
     {
         return new RabbitMqSender(this, _parent, RoutingType, runtime);
     }
-    
+
     internal IEnvelopeMapper<IBasicProperties, IBasicProperties> BuildMapper(IWolverineRuntime runtime)
     {
         var mapper = new RabbitMqEnvelopeMapper(this, runtime);

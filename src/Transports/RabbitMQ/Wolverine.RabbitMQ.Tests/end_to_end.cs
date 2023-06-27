@@ -453,6 +453,107 @@ public class end_to_end
             receiver.Dispose();
         }
     }
+    
+    
+    [Fact]
+    public async Task use_direct_exchange_with_binding_key()
+    {
+        var exchangeName = "direct1";
+        var queueName1 = RabbitTesting.NextQueueName() + "e23";
+        var queueName2 = RabbitTesting.NextQueueName() + "e23";
+        var queueName3 = RabbitTesting.NextQueueName() + "e23";
+        var bindKey1 = $"{exchangeName}_{queueName1}";
+        var bindKey2 = $"{exchangeName}_{queueName2}";
+        var bindKey3 = $"{exchangeName}_{queueName3}";
+
+        using var publisher = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision()
+                .BindExchange(exchangeName, ExchangeType.Direct).ToQueue(queueName1, bindKey1)
+                .BindExchange(exchangeName, ExchangeType.Direct).ToQueue(queueName2, bindKey2)
+                .BindExchange(exchangeName, ExchangeType.Direct).ToQueue(queueName3, bindKey3);
+
+            opts.PublishAllMessages().ToRabbitRoutingKey(exchangeName, bindKey1);
+            opts.PublishAllMessages().ToRabbitRoutingKey(exchangeName, bindKey2);
+            opts.PublishAllMessages().ToRabbitRoutingKey(exchangeName, bindKey3);
+        });
+
+        using var receiver1 = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq();
+
+            opts.ListenToRabbitQueue(queueName1);
+            opts.Services.AddSingleton<ColorHistory>();
+        });
+
+        using var receiver2 = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq();
+
+            opts.ListenToRabbitQueue(queueName2);
+            opts.Services.AddSingleton<ColorHistory>();
+        });
+
+        using var receiver3 = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq();
+
+            opts.ListenToRabbitQueue(queueName3);
+            opts.Services.AddSingleton<ColorHistory>();
+        });
+        
+        var session = await publisher
+            .TrackActivity()
+            .AlsoTrack(receiver1, receiver2, receiver3)
+            .WaitForMessageToBeReceivedAt<ColorChosen>(receiver1)
+            .WaitForMessageToBeReceivedAt<ColorChosen>(receiver2)
+            .WaitForMessageToBeReceivedAt<ColorChosen>(receiver3)
+            .SendMessageAndWaitAsync(new ColorChosen { Name = "Purple" });
+
+
+        receiver1.Get<ColorHistory>().Name.ShouldBe("Purple");
+        receiver2.Get<ColorHistory>().Name.ShouldBe("Purple");
+        receiver3.Get<ColorHistory>().Name.ShouldBe("Purple");
+
+        publisher.Dispose();
+        receiver1.Dispose();
+        receiver2.Dispose();
+        receiver3.Dispose();
+    }
+
+    [Fact]
+    public async Task use_direct_exchange()
+    {
+        var exchangeName = "direct2";
+        var queueName = RabbitTesting.NextQueueName() + "e23";
+
+        using var publisher = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision()
+                .BindExchange(exchangeName, ExchangeType.Direct).ToQueue(queueName);
+
+            opts.PublishAllMessages().ToRabbitExchange(exchangeName);
+        });
+
+        using var receiver = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq();
+
+            opts.ListenToRabbitQueue(queueName);
+            opts.Services.AddSingleton<ColorHistory>();
+        });
+
+
+        var session = await publisher
+            .TrackActivity()
+            .AlsoTrack(receiver)
+            .WaitForMessageToBeReceivedAt<ColorChosen>(receiver)
+            .SendMessageAndWaitAsync(new ColorChosen { Name = "Purple" });
+
+
+        receiver.Get<ColorHistory>().Name.ShouldBe("Purple");
+
+    }
 }
 
 public class SpecialTopicGuy

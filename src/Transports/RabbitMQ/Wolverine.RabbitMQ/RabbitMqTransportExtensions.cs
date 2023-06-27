@@ -177,6 +177,33 @@ public static class RabbitMqTransportExtensions
         return new RabbitMqSubscriberConfiguration(endpoint);
     }
 
+    /// <summary>
+    ///     Publish matching messages to Rabbit MQ to the designated exchange. This is
+    ///     appropriate for "direct" exchanges where Rabbit MQ needs the routing key
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="exchangeName"></param>
+    /// <param name="routingKey"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static RabbitMqSubscriberConfiguration ToRabbitRoutingKey(this IPublishToExpression publishing, string exchangeName, string routingKey,
+        Action<IRabbitMqExchange>? configure = null)
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<RabbitMqTransport>();
+
+        var corrected = transport.MaybeCorrectName(exchangeName);
+        var exchange = transport.Exchanges[corrected];
+        configure?.Invoke(exchange);
+
+        var endpoint = exchange.Routings[routingKey];
+
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(endpoint.Uri);
+
+        return new RabbitMqSubscriberConfiguration(endpoint);
+    }
+
 
     /// <summary>
     ///     Publish matching messages to Rabbit MQ to the designated topic exchange, with

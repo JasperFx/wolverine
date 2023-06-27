@@ -58,6 +58,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         Queue = queue;
         Address = queue.Uri;
 
+        // TODO -- memoize this a bit
         _sender = new RabbitMqSender(Queue, transport, RoutingMode.Static, runtime);
 
         _cancellation.Register(teardownChannel);
@@ -79,7 +80,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         try
         {
             var result = Channel!.QueueDeclarePassive(queue.QueueName);
-            Logger.LogInformation("{Count} messages in queue {QueueName}", result.MessageCount, queue.QueueName);
+            Logger.LogInformation("{Count} messages in queue {QueueName} at listening start up time", result.MessageCount, queue.QueueName);
         }
         catch (Exception e)
         {

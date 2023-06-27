@@ -17,24 +17,24 @@ internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
     private readonly bool _isDurable;
     private readonly string _key;
     private readonly IEnvelopeMapper<IBasicProperties, IBasicProperties> _mapper;
-    private readonly RabbitMqEndpoint _queue;
+    private readonly RabbitMqEndpoint _endpoint;
     private readonly Func<Envelope, string> _toRoutingKey;
 
-    public RabbitMqSender(RabbitMqEndpoint queue, RabbitMqTransport transport,
+    public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,
         RoutingMode routingType, IWolverineRuntime runtime) : base(
         transport.SendingConnection, runtime.LoggerFactory.CreateLogger<RabbitMqSender>())
     {
-        Destination = queue.Uri;
+        Destination = endpoint.Uri;
 
-        _isDurable = queue.Mode == EndpointMode.Durable;
+        _isDurable = endpoint.Mode == EndpointMode.Durable;
 
-        _exchangeName = queue.ExchangeName;
-        _key = queue.RoutingKey();
+        _exchangeName = endpoint.ExchangeName;
+        _key = endpoint.RoutingKey();
 
         _toRoutingKey = routingType == RoutingMode.Static ? _ => _key : TopicRouting.DetermineTopicName;
 
-        _mapper = queue.BuildMapper(runtime);
-        _queue = queue;
+        _mapper = endpoint.BuildMapper(runtime);
+        _endpoint = endpoint;
 
         EnsureConnected();
     }
@@ -49,7 +49,7 @@ internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
             throw new InvalidOperationException("Channel has not been started for this sender");
         }
 
-        await _queue.InitializeAsync(Logger);
+        await _endpoint.InitializeAsync(Logger);
 
         if (State == AgentState.Disconnected)
         {

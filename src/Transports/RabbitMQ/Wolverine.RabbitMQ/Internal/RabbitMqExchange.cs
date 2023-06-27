@@ -29,9 +29,12 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         EndpointName = name;
 
         Topics = new(topic => new RabbitMqTopicEndpoint(topic, this, _parent));
+        Routings = new LightweightCache<string, RabbitMqRouting>(key => new RabbitMqRouting(this, key, _parent));
     }
 
     internal LightweightCache<string, RabbitMqTopicEndpoint> Topics { get; }
+    internal LightweightCache<string, RabbitMqRouting> Routings { get; }
+    
 
     public bool HasDeclared { get; private set; }
 
@@ -102,6 +105,16 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     internal override string RoutingKey()
     {
+        if (ExchangeType == ExchangeType.Direct)
+        {
+            if (_bindings.Count == 1)
+            {
+                return _bindings.Single().BindingKey;
+            }
+
+            throw new NotSupportedException("Direct exchanges with more than one binding are not yet supported by Wolverine");
+        }
+        
         return string.Empty;
     }
 
@@ -176,6 +189,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     {
         return _bindings;
     }
+
 }
 
 public class TopicBinding
