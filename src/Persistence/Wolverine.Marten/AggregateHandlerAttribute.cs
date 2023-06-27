@@ -103,7 +103,6 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
 
     private void determineEventCaptureHandling(IChain chain, MethodCall firstCall)
     {
-        
         var asyncEnumerable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(IAsyncEnumerable<object>));
         if (asyncEnumerable != null)
         {
@@ -120,7 +119,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ??
                              firstCall.Creates.FirstOrDefault(x =>
                                  x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
-                                 x.VariableType != typeof(OutgoingMessages));
+                                 !x.VariableType.CanBeCastTo<IWolverineReturnType>());
         
         if (eventsVariable != null)
         {

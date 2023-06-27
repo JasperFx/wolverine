@@ -8,6 +8,7 @@ using Marten.Events.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
+using PersistenceTests.SqlServer;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
@@ -201,6 +202,70 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
             a.DCount.ShouldBe(0);
         });
     }
+
+    [Fact]
+    public async Task if_only_returning_outgoing_messages_no_events()
+    {
+        var streamId = Guid.NewGuid();
+        using (var session = theStore.LightweightSession())
+        {
+            session.Events.StartStream<Aggregate>(streamId, new AEvent(), new BEvent());
+            await session.SaveChangesAsync();
+        }
+
+        var tracked = await theHost.SendMessageAndWaitAsync(new Event3(streamId));
+
+        var outgoing = tracked.FindSingleTrackedMessageOfType<Outgoing1>();
+        outgoing.Aggregate.Id.ShouldBe(streamId);
+        
+        using (var session = theStore.LightweightSession())
+        {
+            var events = await session.Events.FetchStreamAsync(streamId);
+            events.OfType<IEvent<OutgoingMessages>>().Any().ShouldBeFalse();
+        }
+    }
+}
+
+public record Event1(Guid AggregateId);
+public record Event2(Guid AggregateId);
+public record Event3(Guid AggregateId);
+
+public class Aggregate
+{
+    public Guid Id { get; set; }
+    
+    public int Count { get; set; }
+
+    public void Apply(AEvent e) => Count++;
+    public void Apply(BEvent e) => Count++;
+    public void Apply(CEvent e) => Count++;
+}
+
+[AggregateHandler]
+public static class FooHandler
+{
+    // AppendMany events to aggregate.
+    public static Events Handle(Event1 ev, Aggregate agg)
+        => new();
+
+    // AppendMany events to aggregate, cascaded messages.
+    public static (Events, OutgoingMessages) Handle(Event2 ev, Aggregate agg)
+        => (new(), new());
+
+    // BUG: AppendOne messages to aggregate.
+    public static OutgoingMessages Handle(Event3 ev, Aggregate agg) =>
+        new() { new Outgoing1 { Event = ev, Aggregate = agg } };
+}
+
+public static class Outgoing1Handler
+{
+    public static void Handle(Outgoing1 outgoing1) => Debug.WriteLine("Got an outgoing message");
+}
+
+public record Outgoing1
+{
+    public Event3 Event { get; set; }
+    public Aggregate Aggregate { get; set; }
 }
 
 public record LetterMessage1;

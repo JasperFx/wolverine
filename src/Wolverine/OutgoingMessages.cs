@@ -1,4 +1,7 @@
-﻿using Wolverine.Configuration;
+﻿using JasperFx.CodeGeneration;
+using Lamar;
+using Wolverine.Configuration;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine;
 
@@ -48,5 +51,20 @@ public class OutgoingMessages : List<object>, IWolverineReturnType
     public void Add<T>(T message, DeliveryOptions options)
     {
         Add(new DeliveryMessage<T>(message, options));
+    }
+}
+
+internal class OutgoingMessagesPolicy : IChainPolicy
+{
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    {
+        foreach (var chain in chains)
+        {
+            var outgoingVariables = chain.ReturnVariablesOfType<OutgoingMessages>();
+            foreach (var outgoing in outgoingVariables)
+            {
+                outgoing.UseReturnAction(v => new CaptureCascadingMessages(v));
+            }
+        }
     }
 }
