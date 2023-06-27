@@ -3,19 +3,23 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
+using Wolverine.Configuration;
 using Wolverine.Marten.Publishing;
+using Wolverine.Persistence.Sagas;
 
 namespace Wolverine.Marten.Codegen;
 
 internal class TransactionalFrame : Frame
 {
+    private readonly IChain _chain;
     private Variable? _cancellation;
     private Variable? _context;
     private bool _createsSession;
     private Variable? _factory;
 
-    public TransactionalFrame() : base(true)
+    public TransactionalFrame(IChain chain) : base(true)
     {
+        _chain = chain;
     }
 
     public Variable? Session { get; private set; }
@@ -61,10 +65,14 @@ internal class TransactionalFrame : Frame
 
         Next?.GenerateCode(method, writer);
 
-        writer.BlankLine();
-        writer.WriteComment("Commit the unit of work");
-        writer.Write(
-            $"await {Session!.Usage}.{nameof(IDocumentSession.SaveChangesAsync)}({_cancellation!.Usage}).ConfigureAwait(false);");
+        // Might need to change when HTTP actions can act on sagas?
+        if (_chain is not SagaChain)
+        {
+            writer.BlankLine();
+            writer.WriteComment("Commit the unit of work");
+            writer.Write(
+                $"await {Session!.Usage}.{nameof(IDocumentSession.SaveChangesAsync)}({_cancellation!.Usage}).ConfigureAwait(false);");
+        }
     }
 
     public class Loaded

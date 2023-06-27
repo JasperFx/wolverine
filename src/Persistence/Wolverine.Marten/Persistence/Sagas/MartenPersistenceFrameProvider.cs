@@ -29,7 +29,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
     {
         if (!chain.Middleware.OfType<TransactionalFrame>().Any())
         {
-            chain.Middleware.Add(new TransactionalFrame());
+            chain.Middleware.Add(new TransactionalFrame(chain));
         }
     }
 

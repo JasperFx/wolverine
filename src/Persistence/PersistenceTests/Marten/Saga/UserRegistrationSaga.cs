@@ -21,6 +21,13 @@ public class UserRegistrationSaga : Wolverine.Saga
     {
         var (companyName, subscriptionId) = subscribed;
     }
+
+    public static void NotFound(Subscribed subscribed)
+    {
+        NotFoundSubscribed = subscribed;
+    }
+
+    public static Subscribed NotFoundSubscribed { get; set; }
 }
 
 public record Subscribed(
