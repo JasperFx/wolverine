@@ -135,7 +135,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 On the incoming side, external transport endpoint listeners can be enrolled into Wolverine's transactional inbox mechanics
 where messages received will be immediately persisted to the durable message storage and tracked there until the message is
-successfully processed, expires, discarded due to error conditions, or moved to deal letter storage.
+successfully processed, expires, discarded due to error conditions, or moved to dead letter storage.
 
 To enroll individual listening endpoints or all listening endpoints in the Wolverine inbox mechanics, use
 one of these options:
