@@ -110,6 +110,20 @@ public static class MarkItemEndpoint
             startStream
         );
     }
+    
+    [Transactional]
+    [WolverinePost("/orders/create3")]
+    public static (CreationResponse, IStartStream) StartOrder3(StartOrder command)
+    {
+        var items = command.Items.Select(x => new Item { Name = x }).ToArray();
+    
+        var startStream = MartenOps.StartStream<Order>(new OrderCreated(items));
+    
+        return (
+            new CreationResponse($"/orders/{startStream.StreamId}"),
+            startStream
+        );
+    }
 
     #region sample_returning_multiple_events_from_http_endpoint
 
