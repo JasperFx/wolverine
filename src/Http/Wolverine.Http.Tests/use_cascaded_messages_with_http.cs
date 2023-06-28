@@ -28,7 +28,11 @@ public class use_cascaded_messages_with_http : IntegrationContext
     [Fact]
     public async Task no_content_chains_should_use_cascading_messages_for_create_variables()
     {
-        var (tracked, result) = await TrackedHttpCall(x => { x.Post.Url("/spawn2"); });
+        var (tracked, result) = await TrackedHttpCall(x =>
+        {
+            x.Post.Url("/spawn2");
+            x.StatusCodeShouldBe(204);
+        });
 
         tracked.Sent.SingleMessage<HttpMessage1>().ShouldNotBeNull();
         tracked.Sent.SingleMessage<HttpMessage2>().ShouldNotBeNull();

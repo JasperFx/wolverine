@@ -159,13 +159,15 @@ public static class MarkItemEndpoint
 
     #endregion
     
-    [Transactional]
+    [Transactional] // This can be omitted if you use auto-transactions
     [WolverinePost("/orders/create4")]
     public static (OrderStatus, IStartStream) StartOrder4(StartOrderWithId command)
     {
         var items = command.Items.Select(x => new Item { Name = x }).ToArray();
 
-        var startStream = MartenOps.StartStream<Order>(command.Id,new OrderCreated(items));
+        // This is unique to Wolverine (we think)
+        var startStream = MartenOps
+            .StartStream<Order>(command.Id,new OrderCreated(items));
 
         return (
             new OrderStatus(startStream.StreamId, false),

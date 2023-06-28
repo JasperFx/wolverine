@@ -52,7 +52,7 @@ builder.Host.UseWolverine(opts =>
 
     opts.UseFluentValidation();
     
-    //opts.OptimizeArtifactWorkflow();
+    opts.OptimizeArtifactWorkflow();
 });
 
 var app = builder.Build();

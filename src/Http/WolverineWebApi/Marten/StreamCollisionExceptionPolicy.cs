@@ -23,6 +23,7 @@ public class StreamCollisionExceptionPolicy : IHttpPolicy
     
     public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
     {
+        // Find *only* the HTTP routes where the route tries to create new Marten event streams
         foreach (var chain in chains.Where(shouldApply))
         {
             // Add the middleware on the outside
@@ -34,6 +35,7 @@ public class StreamCollisionExceptionPolicy : IHttpPolicy
         }
     }
 
+    // Make the codegen easier by doing most of the work in this one method
     public static Task RespondWithProblemDetails(ExistingStreamIdCollisionException e, HttpContext context)
     {
         var problems = new ProblemDetails
@@ -50,6 +52,8 @@ public class StreamCollisionExceptionPolicy : IHttpPolicy
     }
 }
 
+// This is the actual middleware that's injecting some code
+// into the runtime code generation
 internal class CatchStreamCollisionFrame : AsyncFrame
 {
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -68,5 +72,4 @@ END
 
 ");
     }
-
 }

@@ -69,7 +69,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
 
         var status1 = result1.ReadAsJson<OrderStatus>();
 
-        await Scenario(x => { x.Post.Json(new ShipOrder(status1.OrderId)).ToUrl("/orders/ship"); });
+        await Scenario(x =>
+        {
+            x.Post.Json(new ShipOrder(status1.OrderId)).ToUrl("/orders/ship");
+            x.StatusCodeShouldBe(204);
+        });
 
         using var session = Store.LightweightSession();
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
@@ -94,6 +98,8 @@ public class using_aggregate_handler_workflow : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
+        // And let's verify that we got what we expected for the ProblemDetails
+        // in the HTTP response body of the 2nd request
         var details = result2.ReadAsJson<ProblemDetails>();
         Guid.Parse(details.Extensions["Id"].ToString()).ShouldBe(id);
         details.Detail.ShouldBe($"Duplicated id '{id}'");
