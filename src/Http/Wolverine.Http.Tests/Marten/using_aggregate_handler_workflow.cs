@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Shouldly;
 using WolverineWebApi.Marten;
 
@@ -73,5 +74,28 @@ public class using_aggregate_handler_workflow : IntegrationContext
         using var session = Store.LightweightSession();
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
         order.Shipped.HasValue.ShouldBeTrue();
+    }
+    
+    [Fact]
+    public async Task use_stream_collision_policy()
+    {
+        var id = Guid.NewGuid();
+        
+        // First time should be fine
+        await Scenario(x =>
+        {
+            x.Post.Json(new StartOrderWithId(id, new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create4");
+        });
+        
+        // Second time hits an exception from stream id collision
+        var result2 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrderWithId(id, new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create4");
+            x.StatusCodeShouldBe(400);
+        });
+
+        var details = result2.ReadAsJson<ProblemDetails>();
+        Guid.Parse(details.Extensions["Id"].ToString()).ShouldBe(id);
+        details.Detail.ShouldBe($"Duplicated id '{id}'");
     }
 }

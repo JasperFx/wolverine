@@ -12,7 +12,9 @@ using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
 using Wolverine.Marten;
 using WolverineWebApi;
+using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
+using Order = WolverineWebApi.Order;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,7 +52,7 @@ builder.Host.UseWolverine(opts =>
 
     opts.UseFluentValidation();
     
-    opts.OptimizeArtifactWorkflow();
+    //opts.OptimizeArtifactWorkflow();
 });
 
 var app = builder.Build();
@@ -101,6 +103,8 @@ app.MapWolverineEndpoints(opts =>
     // Publish messages coming from 
     opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1");
     opts.PublishMessage<HttpMessage2>("/publish/message2");
+    
+    opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
     #region sample_adding_custom_parameter_handling
 

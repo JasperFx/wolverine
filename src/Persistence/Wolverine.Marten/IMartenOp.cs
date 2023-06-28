@@ -1,5 +1,6 @@
-﻿using Marten;
-using Marten.Schema.Identity;
+﻿using JasperFx.Core;
+using Marten;
+using CombGuidIdGeneration = Marten.Schema.Identity.CombGuidIdGeneration;
 
 namespace Wolverine.Marten;
 
@@ -188,7 +189,14 @@ public class StartStream<T> : IStartStream where T : class
     {   
         if (StreamId == Guid.Empty)
         {
-            session.Events.StartStream<T>(StreamKey, Events.ToArray());
+            if (StreamKey.IsNotEmpty())
+            {
+                session.Events.StartStream<T>(StreamKey, Events.ToArray());
+            }
+            else
+            {
+                session.Events.StartStream<T>(Events.ToArray());
+            }
         }
         else
         {

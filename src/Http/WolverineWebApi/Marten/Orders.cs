@@ -69,6 +69,8 @@ public record OrderStarted;
 
 public record StartOrder(string[] Items);
 
+public record StartOrderWithId(Guid Id, string[] Items);
+
 
 public static class MarkItemEndpoint
 {
@@ -156,5 +158,19 @@ public static class MarkItemEndpoint
     }
 
     #endregion
+    
+    [Transactional]
+    [WolverinePost("/orders/create4")]
+    public static (OrderStatus, IStartStream) StartOrder4(StartOrderWithId command)
+    {
+        var items = command.Items.Select(x => new Item { Name = x }).ToArray();
+
+        var startStream = MartenOps.StartStream<Order>(command.Id,new OrderCreated(items));
+
+        return (
+            new OrderStatus(startStream.StreamId, false),
+            startStream
+        );
+    }
 
 }

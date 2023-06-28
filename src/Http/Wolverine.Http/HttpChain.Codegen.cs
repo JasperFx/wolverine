@@ -5,6 +5,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Wolverine.Http.Resources;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
@@ -68,6 +69,10 @@ public partial class HttpChain
                     break;
                 }
             }
+        }
+        else
+        {
+            Postprocessors.Add(new WriteEmptyBodyStatusCode());
         }
 
         foreach (var frame in Middleware) yield return frame;

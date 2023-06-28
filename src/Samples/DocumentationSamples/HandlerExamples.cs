@@ -46,12 +46,6 @@ namespace DocumentationSamples
         {
         }
 
-        // It's also legal to handle a message by an abstract
-        // base class or an implemented interface.
-        public void Consume(IEvent @event)
-        {
-        }
-
         // You can inject additional services directly into the handler
         // method
         public ValueTask ConsumeAsync(Message3 weirdName, IEmailService service)

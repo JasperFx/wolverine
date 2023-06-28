@@ -58,42 +58,13 @@ internal class TransactionalFrame : Frame
         if (_createsSession)
         {
             writer.BlankLine();
-            writer.WriteComment("Open a new document session");
+            writer.WriteComment("Open a new document session registered with the Wolverine");
+            writer.WriteComment("message context to support the outbox functionality");
             writer.Write(
                 $"using var {Session!.Usage} = {_factory!.Usage}.{nameof(OutboxedSessionFactory.OpenSession)}({_context!.Usage});");
         }
 
         Next?.GenerateCode(method, writer);
-
-        // Might need to change when HTTP actions can act on sagas?
-        if (_chain is not SagaChain)
-        {
-            writer.BlankLine();
-            writer.WriteComment("Commit the unit of work");
-            writer.Write(
-                $"await {Session!.Usage}.{nameof(IDocumentSession.SaveChangesAsync)}({_cancellation!.Usage}).ConfigureAwait(false);");
-        }
     }
 
-    public class Loaded
-    {
-        private readonly Variable _docId;
-        private readonly Variable _document;
-        private readonly Type _documentType;
-
-        public Loaded(Variable document, Type documentType, Variable docId)
-        {
-            _documentType = documentType ?? throw new ArgumentNullException(nameof(documentType));
-
-            _document = document ?? throw new ArgumentNullException(nameof(document));
-
-            _docId = docId ?? throw new ArgumentNullException(nameof(docId));
-        }
-
-        public void Write(ISourceWriter writer, Variable session)
-        {
-            writer.Write(
-                $"var {_document.Usage} = await {session.Usage}.{nameof(IDocumentSession.LoadAsync)}<{_documentType.FullNameInCode()}>({_docId.Usage});");
-        }
-    }
 }

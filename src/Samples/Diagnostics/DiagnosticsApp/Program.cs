@@ -40,7 +40,13 @@ builder.Host.UseWolverine(opts =>
 
     #endregion
 
-    opts.UseRabbitMq().AutoProvision().UseConventionalRouting();
+    opts.ServiceName = "DescriptiveName";
+    
+    opts.UseRabbitMq().AutoProvision()
+        .UseConventionalRouting(c =>
+        {
+            c.QueueNameForListener(t => "service1." + t.FullName);
+        });
 
     opts.Policies.OnException<BadImageFormatException>().Discard();
     opts.Policies.OnException<InvalidOperationException>()

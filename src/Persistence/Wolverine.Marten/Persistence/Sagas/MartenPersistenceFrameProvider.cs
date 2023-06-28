@@ -30,6 +30,13 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         if (!chain.Middleware.OfType<TransactionalFrame>().Any())
         {
             chain.Middleware.Add(new TransactionalFrame(chain));
+
+            if (chain is not SagaChain)
+            {
+                var saveChanges = MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
+                saveChanges.CommentText = "Commit any outstanding Marten changes";
+                chain.Postprocessors.Add(saveChanges);
+            }
         }
     }
 
