@@ -87,18 +87,18 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void ExecutionFinished(Envelope envelope, Exception exception)
     {
         ExecutionFinished(envelope);
-        var tags = envelope.ToMetricsHeaders()
-            .Append(new KeyValuePair<string, object?>(MetricsConstants.ExceptionType, exception.GetType().Name))
-            .ToArray();
+        var tags = envelope.ToMetricsHeaders();
+        tags.Add(MetricsConstants.ExceptionType, exception.GetType().Name);
         _failureCounter.Add(1, tags);
     }
 
     public void MessageSucceeded(Envelope envelope)
     {
         var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-        _effectiveTime.Record(time, envelope.ToMetricsHeaders());
+        var tags = envelope.ToMetricsHeaders();
+        _effectiveTime.Record(time, tags);
 
-        _successCounter.Add(1, envelope.ToMetricsHeaders());
+        _successCounter.Add(1, tags);
 
         ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
     }
@@ -106,9 +106,10 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void MessageFailed(Envelope envelope, Exception ex)
     {
         var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-        _effectiveTime.Record(time, envelope.ToMetricsHeaders());
+        var tags = envelope.ToMetricsHeaders();
+        _effectiveTime.Record(time, tags);
 
-        _deadLetterQueueCounter.Add(1, envelope.ToMetricsHeaders());
+        _deadLetterQueueCounter.Add(1, tags);
 
         ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
     }

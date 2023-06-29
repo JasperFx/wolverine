@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
@@ -91,30 +92,20 @@ public partial class Envelope
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    internal KeyValuePair<string, object?>[] ToMetricsHeaders()
+    internal TagList ToMetricsHeaders()
     {
-        return toHeaders().ToArray();
-    }
-
-    private IEnumerable<KeyValuePair<string, object?>> toHeaders()
-    {
-        yield return new KeyValuePair<string, object?>(MetricsConstants.MessageTypeKey, MessageType);
-
+        var tagList = new TagList(CollectionsMarshal.AsSpan(_metricHeaders)) { { MetricsConstants.MessageTypeKey, MessageType } };
+        
         if (Destination != null)
         {
-            yield return new KeyValuePair<string, object?>(MetricsConstants.MessageDestinationKey,
-                Destination.ToString());
+            tagList.Add(MetricsConstants.MessageDestinationKey, Destination.ToString());
         }
-
         if (TenantId != null)
         {
-            yield return new KeyValuePair<string, object?>(MetricsConstants.TenantIdKey, TenantId);
+            tagList.Add(MetricsConstants.TenantIdKey, TenantId);
         }
-
-        if (_metricHeaders != null)
-        {
-            foreach (var header in _metricHeaders) yield return header;
-        }
+        
+        return tagList;
     }
 
     /// <summary>
@@ -126,7 +117,6 @@ public partial class Envelope
     public void SetMetricsTag(string tagName, object value)
     {
         _metricHeaders ??= new List<KeyValuePair<string, object?>>();
-
         _metricHeaders.Add(new KeyValuePair<string, object?>(tagName, value));
     }
 
