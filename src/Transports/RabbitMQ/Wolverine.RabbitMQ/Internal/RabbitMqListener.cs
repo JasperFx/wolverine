@@ -18,8 +18,8 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
         IWolverineRuntime runtime)
     {
         _inner = transport.Callback!;
-        var sender = new RabbitMqSender(deadLetterQueue, transport, RoutingMode.Static, runtime);
-
+        var sender = deadLetterQueue.ResolveSender(runtime);
+            
         _sendBlock =
             new RetryBlock<Envelope>((e, _) => sender.SendAsync(e).AsTask(), runtime.Logger, runtime.Cancellation);
     }
@@ -58,9 +58,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         Queue = queue;
         Address = queue.Uri;
 
-        // TODO -- memoize this a bit
-        _sender = new RabbitMqSender(Queue, transport, RoutingMode.Static, runtime);
-
+        _sender = Queue.ResolveSender(runtime);
         _cancellation.Register(teardownChannel);
 
         EnsureConnected();

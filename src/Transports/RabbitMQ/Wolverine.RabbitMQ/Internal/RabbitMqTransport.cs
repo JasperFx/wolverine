@@ -77,6 +77,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         }
 
         Callback?.SafeDispose();
+
+        foreach (var queue in Queues)
+        {
+            queue.SafeDispose();
+        }
     }
     
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)

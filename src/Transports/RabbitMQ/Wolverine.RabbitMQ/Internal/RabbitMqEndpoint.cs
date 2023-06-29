@@ -8,7 +8,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint
+public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IDisposable
 {
     public const string QueueSegment = "queue";
     public const string ExchangeSegment = "exchange";
@@ -46,7 +46,20 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new RabbitMqSender(this, _parent, RoutingType, runtime);
+        return ResolveSender(runtime);
+    }
+
+    private RabbitMqSender? _sender;
+    
+    internal RabbitMqSender ResolveSender(IWolverineRuntime runtime)
+    {
+        _sender ??= new RabbitMqSender(this, _parent, RoutingType, runtime);
+        return _sender;
+    }
+
+    public void Dispose()
+    {
+        _sender?.Dispose();
     }
 
     internal IEnvelopeMapper<IBasicProperties, IBasicProperties> BuildMapper(IWolverineRuntime runtime)
