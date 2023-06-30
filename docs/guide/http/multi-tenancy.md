@@ -1,7 +1,7 @@
 # Multi-Tenancy and ASP.Net Core
 
 ::: warning
-Neither Wolverine.HTTP now Wolverine message handling use the shared, scoped IoC/DI container
+Neither Wolverine.HTTP nor Wolverine message handling use the shared, scoped IoC/DI container
 from an ASP.Net Core request and any common mechanism for multi-tenancy inside of HTTP requests
 that relies on IoC trickery will probably not work -- with the possible exception of `IHttpContextAccessor` using `AsyncLocal`
 :::
