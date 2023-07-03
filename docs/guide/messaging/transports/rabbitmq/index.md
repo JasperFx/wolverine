@@ -5,7 +5,7 @@ Wolverine uses the [Rabbit MQ .NET Client](https://www.rabbitmq.com/dotnet.html)
 :::
 
 ## Installing
-~~~~
+
 All the code samples in this section are from the [Ping/Pong with Rabbit MQ sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithRabbitMq).
 
 To use [RabbitMQ](http://www.rabbitmq.com/) as a transport with Wolverine, first install the `Wolverine.RabbitMQ` library via nuget to your project. Behind the scenes, this package uses the [RabbitMQ C# Client](https://www.rabbitmq.com/dotnet.html) to both send and receive messages from RabbitMQ.
