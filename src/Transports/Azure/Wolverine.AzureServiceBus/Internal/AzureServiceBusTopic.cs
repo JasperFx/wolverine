@@ -72,10 +72,14 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
     
     public CreateTopicOptions Options { get; }
 
-    public override async ValueTask SetupAsync(ILogger logger)
+    public override ValueTask SetupAsync(ILogger logger)
     {
         var client = Parent.ManagementClient;
+        return SetupAsync(client, logger);
+    }
 
+    internal async ValueTask SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
+    {
         var exists = await client.TopicExistsAsync(TopicName, CancellationToken.None);
         if (!exists)
         {
@@ -92,12 +96,18 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
             return;
         }
 
-        if (Parent.AutoProvision)
-        {
-            await SetupAsync(logger);
-        }
+        var client = Parent.ManagementClient;
+        await InitializeAsync(client, logger);
 
         _hasInitialized = true;
+    }
+
+    internal async ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
+    {
+        if (Parent.AutoProvision)
+        {
+            await SetupAsync(client, logger);
+        }
     }
 
     public AzureServiceBusSubscription FindOrCreateSubscription(string subscriptionName)
