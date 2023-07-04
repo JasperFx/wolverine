@@ -9,6 +9,8 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 public class AzureServiceBusTopic : AzureServiceBusEndpoint
 {
+    private bool _hasInitialized;
+
     public AzureServiceBusTopic(AzureServiceBusTransport parent, string topicName) : base(parent,
         new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topicName}"), EndpointRole.Application)
     {
@@ -81,6 +83,21 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
 
             await client.CreateTopicAsync(Options);
         }
+    }
+
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        if (_hasInitialized)
+        {
+            return;
+        }
+
+        if (Parent.AutoProvision)
+        {
+            await SetupAsync(logger);
+        }
+
+        _hasInitialized = true;
     }
 
     public AzureServiceBusSubscription FindOrCreateSubscription(string subscriptionName)
