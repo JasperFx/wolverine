@@ -102,12 +102,14 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
         _hasInitialized = true;
     }
 
-    internal async ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
+    internal ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
         if (Parent.AutoProvision)
         {
-            await SetupAsync(client, logger);
+            return SetupAsync(client, logger);
         }
+
+        return ValueTask.CompletedTask;
     }
 
     public AzureServiceBusSubscription FindOrCreateSubscription(string subscriptionName)
