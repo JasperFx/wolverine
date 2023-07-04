@@ -77,10 +77,15 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         await client.DeleteSubscriptionAsync(Topic.TopicName, SubscriptionName);
     }
 
-    public override async ValueTask SetupAsync(ILogger logger)
+    public override ValueTask SetupAsync(ILogger logger)
     {
         var client = Parent.ManagementClient;
-        var exists = await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);;
+        return SetupAsync(client, logger);
+    }
+
+    internal async ValueTask SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
+    {
+        var exists = await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);
         if (!exists)
         {
             Options.SubscriptionName = SubscriptionName;
@@ -135,11 +140,17 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
             return;
         }
 
-        if (Parent.AutoProvision)
-        {
-            await SetupAsync(logger);
-        }
+        var client = Parent.ManagementClient;
+        await InitializeAsync(client, logger);
 
         _hasInitialized = true;
+    }
+
+    internal async ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
+    {
+        if (Parent.AutoProvision)
+        {
+            await SetupAsync(client, logger);
+        }
     }
 }
