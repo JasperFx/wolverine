@@ -11,6 +11,8 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 {
+    private bool _hasInitialized;
+
     public AzureServiceBusSubscription(AzureServiceBusTransport parent, AzureServiceBusTopic topic,
         string subscriptionName) : base(parent,
         new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topic.TopicName}/{subscriptionName}"),
@@ -124,5 +126,20 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
             
             { nameof(SubscriptionProperties.Status), props.Value.Status.ToString() },
         };
+    }
+
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        if (_hasInitialized)
+        {
+            return;
+        }
+
+        if (Parent.AutoProvision)
+        {
+            await SetupAsync(logger);
+        }
+
+        _hasInitialized = true;
     }
 }
