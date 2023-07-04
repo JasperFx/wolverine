@@ -82,7 +82,7 @@ public class BrokerResource : IStatefulResource
             }
             catch (Exception e)
             {
-                _runtime.Logger.LogError(e, "Error while attempting to tear down broker endpoint {Uri}", endpoint.Uri);
+                _runtime.Logger.LogError(e, "Error while attempting to setup broker endpoint {Uri}", endpoint.Uri);
             }
         }
     }
