@@ -30,6 +30,11 @@ namespace build
                 Run("dotnet",
                     $"build wolverine.sln --no-restore --framework net7.0");
             });
+
+            Target("clean",() =>
+            {
+                Run("dotnet", "clean wolverine.sln --framework net7.0");
+            });
             
             TestTarget("test-core", "CoreTests");
             TestTarget("test-policy", "PolicyTests");
