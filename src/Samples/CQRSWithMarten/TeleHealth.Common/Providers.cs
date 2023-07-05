@@ -27,4 +27,12 @@ public class Provider
     public Guid Id { get; set; }
     public string FirstName { get; set; }
     public string LastName { get; set; }
+
+    public bool CanJoin(Board board)
+    {
+        // Some kind of logic to validate if this provider can start
+        // a shift in this particular board?
+
+        return true;
+    }
 }

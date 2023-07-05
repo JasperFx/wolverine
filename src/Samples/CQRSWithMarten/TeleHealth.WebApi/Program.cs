@@ -8,6 +8,7 @@ using Oakton;
 using TeleHealth.Common;
 using Wolverine;
 using Wolverine.ErrorHandling;
+using Wolverine.Http;
 using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -89,8 +90,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseAuthorization();
-app.MapControllers(); // I'm sticking with controllers for now
+app.MapWolverineEndpoints();
 
 // This is using the Oakton library for command running
 await app.RunOaktonCommands(args);

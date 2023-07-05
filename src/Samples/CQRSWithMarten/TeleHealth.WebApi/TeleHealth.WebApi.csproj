@@ -3,17 +3,19 @@
     <PropertyGroup>
         <ImplicitUsings>enable</ImplicitUsings>
         <LangVersion>10</LangVersion>
+        <TargetFrameworks>net7.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Marten.AspNetCore" Version="6.0.0-alpha.8"/>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3"/>
+        <PackageReference Include="Marten.AspNetCore" Version="6.0.0-alpha.8" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
-        <ProjectReference Include="..\TeleHealth.Common\TeleHealth.Common.csproj"/>
+        <ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\TeleHealth.Common\TeleHealth.Common.csproj" />
     </ItemGroup>
 
 </Project>
