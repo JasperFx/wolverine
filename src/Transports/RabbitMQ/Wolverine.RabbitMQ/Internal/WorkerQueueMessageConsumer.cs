@@ -53,7 +53,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Error trying to map an incoming RabbitMQ message to an Envelope");
+            _logger.LogError(e, "Error trying to map an incoming RabbitMQ message {MessageId} to an Envelope", properties.MessageId);
             Model.BasicAck(envelope.DeliveryTag, false);
 
             return;

@@ -37,6 +37,7 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
         outgoing.Headers[key] = value;
     }
 
+    // TODO -- this needs to be open for customizations. See the NServiceBus interop
     protected override bool tryReadIncomingHeader(IBasicProperties incoming, string key, out string? value)
     {
         if (incoming.Headers.TryGetValue(key, out var raw))

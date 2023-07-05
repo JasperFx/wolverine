@@ -1,3 +1,4 @@
+using System.Text;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
 using Wolverine.Runtime.Serialization;
@@ -27,8 +28,11 @@ public abstract partial class RabbitMqEndpoint
 
             void ReadReplyUri(Envelope e, IBasicProperties props)
             {
-                var queueName = props.Headers["NServiceBus.ReplyToAddress"];
-                e.ReplyUri = new Uri($"rabbitmq://queue/{queueName}");
+                if (props.Headers.TryGetValue("NServiceBus.ReplyToAddress", out var raw))
+                {
+                    var queueName = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+                    e.ReplyUri = new Uri($"rabbitmq://queue/{queueName}");
+                }
             }
 
             m.MapProperty(x => x.ReplyUri!, ReadReplyUri, WriteReplyToAddress);
