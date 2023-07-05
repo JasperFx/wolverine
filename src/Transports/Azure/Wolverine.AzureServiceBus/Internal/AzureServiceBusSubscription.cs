@@ -146,13 +146,16 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         _hasInitialized = true;
     }
 
-    internal ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
+    internal async ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
         if (Parent.AutoProvision)
         {
-            return SetupAsync(client, logger);
+            await SetupAsync(client, logger);
         }
 
-        return ValueTask.CompletedTask;
+        if (Parent.AutoPurgeAllQueues)
+        {
+            await PurgeAsync(logger);
+        }
     }
 }
