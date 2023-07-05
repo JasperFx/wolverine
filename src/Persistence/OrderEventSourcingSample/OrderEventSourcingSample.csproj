@@ -4,7 +4,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="JasperFx.CodeGeneration.Commands" Version="3.0.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3"/>
     </ItemGroup>
 
