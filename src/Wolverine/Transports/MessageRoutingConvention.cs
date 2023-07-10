@@ -42,7 +42,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
             var corrected = transport.MaybeCorrectName(queueName);
 
-            var (configuration, endpoint) = findOrCreateListenerForIdentifier(corrected, transport);
+            var (configuration, endpoint) = FindOrCreateListenerForIdentifier(corrected, transport);
             endpoint.EndpointName = queueName;
 
             endpoint.IsListener = true;
@@ -77,7 +77,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
         var corrected = transport.MaybeCorrectName(destinationName);
 
-        var (configuration, endpoint) = findOrCreateSubscriber(corrected, transport);
+        var (configuration, endpoint) = FindOrCreateSubscriber(corrected, transport);
         endpoint.EndpointName = destinationName;
 
         _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
@@ -131,10 +131,10 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         return this.As<TSelf>();
     }
 
-    protected abstract (TListener, Endpoint) findOrCreateListenerForIdentifier(string identifier,
+    protected abstract (TListener, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
         TTransport transport);
 
-    protected abstract (TSubscriber, Endpoint) findOrCreateSubscriber(string identifier, TTransport transport);
+    protected abstract (TSubscriber, Endpoint) FindOrCreateSubscriber(string identifier, TTransport transport);
 
     /// <summary>
     ///     Override the convention for determining the queue name for receiving incoming messages of the message type.

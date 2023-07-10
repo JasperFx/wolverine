@@ -12,14 +12,14 @@ namespace Wolverine.RabbitMQ;
 public class RabbitMqMessageRoutingConvention : MessageRoutingConvention<RabbitMqTransport,
     RabbitMqListenerConfiguration, RabbitMqExchangeConfiguration, RabbitMqMessageRoutingConvention>
 {
-    protected override (RabbitMqListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(
+    protected override (RabbitMqListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(
         string identifier, RabbitMqTransport transport)
     {
         var queue = transport.Queues[identifier];
         return (new RabbitMqListenerConfiguration(queue), queue);
     }
 
-    protected override (RabbitMqExchangeConfiguration, Endpoint) findOrCreateSubscriber(string identifier,
+    protected override (RabbitMqExchangeConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,
         RabbitMqTransport transport)
     {
         var exchange = transport.Exchanges[identifier];
