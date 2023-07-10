@@ -75,7 +75,16 @@ public partial class HttpChain
             Postprocessors.Add(new WriteEmptyBodyStatusCode());
         }
 
-        foreach (var frame in Middleware) yield return frame;
+        var index = 0;
+        foreach (var frame in Middleware)
+        {
+            foreach (var result in frame.Creates.Where(x => x.VariableType.CanBeCastTo<IResult>()))
+            {
+                result.OverrideName("result" + ++index);
+            }
+            
+            yield return frame;
+        }
 
         yield return Method;
 
