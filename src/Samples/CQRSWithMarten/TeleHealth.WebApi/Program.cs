@@ -33,6 +33,11 @@ builder.Host.UseWolverine(opts =>
     // to the database happen
     opts.Policies.OnException<NpgsqlException>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+    
+    // Automatic usage of transactional middleware as 
+    // Wolverine recognizes that an HTTP endpoint or message handler
+    // persists data
+    opts.Policies.AutoApplyTransactions();
 });
 
 #endregion
@@ -60,8 +65,8 @@ builder.Services.AddMarten(opts =>
 
         // OR ???
 
-        opts.Projections
-            .Add<AppointmentDurationProjection>(ProjectionLifecycle.Inline);
+        // opts.Projections
+        //     .Add<AppointmentDurationProjection>(ProjectionLifecycle.Inline);
 
         opts.Projections.Add<AppointmentProjection>(ProjectionLifecycle.Inline);
         opts.Projections

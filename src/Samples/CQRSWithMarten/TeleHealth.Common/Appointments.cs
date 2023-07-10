@@ -44,7 +44,7 @@ public class AppointmentDurationProjection : EventProjection
         Options.DeleteDataInTableOnTeardown(table.Identifier);
     }
 
-    public void Apply(
+    public void Project(
         IEvent<AppointmentStarted> @event,
         IDocumentOperations ops)
     {
@@ -55,7 +55,7 @@ public class AppointmentDurationProjection : EventProjection
             @event.Timestamp);
     }
 
-    public void Apply(
+    public void Project(
         IEvent<AppointmentFinished> @event,
         IDocumentOperations ops)
     {

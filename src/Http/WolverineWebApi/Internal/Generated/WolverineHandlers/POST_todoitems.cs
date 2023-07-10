@@ -9,14 +9,14 @@ using Wolverine.Runtime;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: POST_reservation
-    public class POST_reservation : Wolverine.Http.HttpHandler
+    // START: POST_todoitems
+    public class POST_todoitems : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _options;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_reservation(Wolverine.Http.WolverineHttpOptions options, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(options)
+        public POST_todoitems(Wolverine.Http.WolverineHttpOptions options, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(options)
         {
             _options = options;
             _wolverineRuntime = wolverineRuntime;
@@ -29,26 +29,24 @@ namespace Internal.Generated.WolverineHandlers
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            var (start, jsonContinue) = await ReadJsonAsync<WolverineWebApi.StartReservation>(httpContext);
+            var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Samples.CreateTodo>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            (var reservationBooked, var reservation, var reservationTimeout) = WolverineWebApi.ReservationEndpoint.Post(start);
-            
-            // Register the document operation with the current session
-            documentSession.Insert(reservation);
+            (var todoCreationResponse, var todoCreated) = WolverineWebApi.Samples.TodoCreationEndpoint.Post(command, documentSession);
             
             // Outgoing, cascaded message
-            await messageContext.EnqueueCascadingAsync(reservationTimeout).ConfigureAwait(false);
+            await messageContext.EnqueueCascadingAsync(todoCreated).ConfigureAwait(false);
 
+            ((Wolverine.Http.IHttpAware)todoCreationResponse).Apply(httpContext);
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-            await WriteJsonAsync(httpContext, reservationBooked);
+            await WriteJsonAsync(httpContext, todoCreationResponse);
         }
 
     }
 
-    // END: POST_reservation
+    // END: POST_todoitems
     
     
 }

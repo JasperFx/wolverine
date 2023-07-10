@@ -12,6 +12,9 @@ public class use_cascaded_messages_with_http : IntegrationContext
     [Fact]
     public async Task send_cascaded_messages_from_tuple_response()
     {
+        // This would fail if the status code != 200 btw
+        // This method waits until *all* detectable Wolverine message
+        // processing has completed
         var (tracked, result) = await TrackedHttpCall(x =>
         {
             x.Post.Json(new SpawnInput("Chris Jones")).ToUrl("/spawn");
@@ -19,6 +22,8 @@ public class use_cascaded_messages_with_http : IntegrationContext
 
         result.ReadAsText().ShouldBe("got it");
 
+        // "tracked" is a Wolverine ITrackedSession object that lets us interrogate
+        // what messages were published, sent, and handled during the testing perioc
         tracked.Sent.SingleMessage<HttpMessage1>().Name.ShouldBe("Chris Jones");
         tracked.Sent.SingleMessage<HttpMessage2>().Name.ShouldBe("Chris Jones");
         tracked.Sent.SingleMessage<HttpMessage3>().Name.ShouldBe("Chris Jones");

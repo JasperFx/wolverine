@@ -13,9 +13,14 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Sorry folks, but this is absolutely necessary if you 
+        // use Oakton for command line processing and want to 
+        // use WebApplicationFactory and/or Alba for integration testing
         OaktonEnvironment.AutoStartHost = true;
 
-        await ResetHost();
+        // This is bootstrapping the actual application using
+        // its implied Program.Main() set up
+        Host = await AlbaHost.For<Program>(x => { });
     }
 
     public Task DisposeAsync()
@@ -51,10 +56,7 @@ public class AppFixture : IAsyncLifetime
             }
         }
 
-        // This is bootstrapping the actual application using
-        // its implied Program.Main() set up
-        Host = await AlbaHost.For<Program>(x => { });
-        await Host.GetAsText("/trace");
+
     }
 
     public async Task ResetHost()
@@ -102,6 +104,8 @@ public abstract class IntegrationContext : IAsyncLifetime
     {
         _fixture = fixture;
     }
+    
+    // more....
 
     public HttpGraph HttpChains => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
 
@@ -123,10 +127,6 @@ public abstract class IntegrationContext : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    protected Task reset()
-    {
-        return _fixture.ResetHost();
-    }
 
     public async Task<IScenarioResult> Scenario(Action<Scenario> configure)
     {

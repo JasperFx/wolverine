@@ -5,13 +5,13 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: ReservationTimeoutHandler457905910
-    public class ReservationTimeoutHandler457905910 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: BookReservationHandler1573485708
+    public class BookReservationHandler1573485708 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> _logger;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public ReservationTimeoutHandler457905910(Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public BookReservationHandler1573485708(Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _logger = logger;
             _outboxedSessionFactory = outboxedSessionFactory;
@@ -21,21 +21,21 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var reservationTimeout = (WolverineWebApi.ReservationTimeout)context.Envelope.Message;
+            var bookReservation = (WolverineWebApi.BookReservation)context.Envelope.Message;
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
-            string sagaId = context.Envelope.SagaId ?? reservationTimeout.Id;
+            string sagaId = context.Envelope.SagaId ?? bookReservation.Id;
             if (string.IsNullOrEmpty(sagaId)) throw new Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope);
             
             // Try to load the existing saga document
             var reservation = await documentSession.LoadAsync<WolverineWebApi.Reservation>(sagaId, cancellation).ConfigureAwait(false);
             if (reservation == null)
             {
-                return;
+                throw new Wolverine.Persistence.Sagas.UnknownSagaException(typeof(WolverineWebApi.Reservation), sagaId);
             }
 
             else
             {
-                reservation.Handle(reservationTimeout, _logger);
+                reservation.Handle(bookReservation, _logger);
                 if (reservation.IsCompleted())
                 {
                     
@@ -60,7 +60,7 @@ namespace Internal.Generated.WolverineHandlers
 
     }
 
-    // END: ReservationTimeoutHandler457905910
+    // END: BookReservationHandler1573485708
     
     
 }

@@ -14,6 +14,7 @@ using Wolverine.Marten;
 using WolverineWebApi;
 using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
+using WolverineWebApi.WebSockets;
 using Order = WolverineWebApi.Order;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +24,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<Broadcaster>();
 
 builder.Services.AddAuthorization();
 
@@ -53,6 +57,8 @@ builder.Host.UseWolverine(opts =>
     opts.UseFluentValidation();
     
     opts.OptimizeArtifactWorkflow();
+    
+    opts.Policies.Add<BroadcastClientMessages>();
 });
 
 var app = builder.Build();
@@ -68,6 +74,8 @@ app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>>(int o
 
 app.MapPost("/orders", Results<BadRequest, Ok<Order>>(CreateOrder command)
     => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(command.OrderId)));
+
+app.MapHub<BroadcastHub>("/updates");
 
 #region sample_using_configure_endpoints
 
