@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_querystring_enum
     public class GET_querystring_enum : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public GET_querystring_enum(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public GET_querystring_enum(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 
@@ -22,7 +22,7 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             WolverineWebApi.Direction direction = default;
-            WolverineWebApi.Direction.TryParse(httpContext.Request.Query["direction"], out direction);
+            WolverineWebApi.Direction.TryParse<WolverineWebApi.Direction>(httpContext.Request.Query["direction"], out direction);
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
             var result_of_UsingEnumQuerystring = WolverineWebApi.TestEndpoints.UsingEnumQuerystring(direction);
             await WriteString(httpContext, result_of_UsingEnumQuerystring);

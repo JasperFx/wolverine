@@ -40,7 +40,7 @@ internal class ParsedRouteArgumentFrame : SyncFrame
         if (Variable.VariableType.IsEnum)
         {
             writer.Write(
-                $"BLOCK:if (!{alias}.TryParse((string)httpContext.GetRouteValue(\"{Variable.Usage}\"), true, out {alias} {Variable.Usage}))");
+                $"BLOCK:if (!{alias}.TryParse<{alias}>((string)httpContext.GetRouteValue(\"{Variable.Usage}\"), true, out {alias} {Variable.Usage}))");
         }
         else
         {

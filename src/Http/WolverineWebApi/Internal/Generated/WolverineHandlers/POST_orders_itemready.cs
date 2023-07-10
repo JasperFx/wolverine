@@ -12,13 +12,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_orders_itemready
     public class POST_orders_itemready : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_orders_itemready(Wolverine.Http.WolverineHttpOptions options, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(options)
+        public POST_orders_itemready(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
             _outboxedSessionFactory = outboxedSessionFactory;
         }

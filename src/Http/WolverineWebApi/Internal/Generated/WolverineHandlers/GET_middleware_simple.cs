@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_middleware_simple
     public class GET_middleware_simple : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly WolverineWebApi.Recorder _recorder;
 
-        public GET_middleware_simple(Wolverine.Http.WolverineHttpOptions options, WolverineWebApi.Recorder recorder) : base(options)
+        public GET_middleware_simple(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, WolverineWebApi.Recorder recorder) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _recorder = recorder;
         }
 

@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_users_sign_up
     public class POST_users_sign_up : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public POST_users_sign_up(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public POST_users_sign_up(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 

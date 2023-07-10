@@ -54,6 +54,14 @@ public class OutboxedSessionFactory
             ? _store.QuerySession(tenantId) 
             : _factory.QuerySession();
     }
+    
+    public IQuerySession QuerySession(IMessageContext context)
+    {
+        var tenantId = context.Envelope?.TenantId ?? context.TenantId;
+        return tenantId.IsNotEmpty() 
+            ? _store.QuerySession(tenantId) 
+            : _factory.QuerySession();
+    }
 
     /// <summary>Build new instances of IDocumentSession on demand</summary>
     /// <returns></returns>

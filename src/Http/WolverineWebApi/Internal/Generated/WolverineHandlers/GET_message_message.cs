@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_message_message
     public class GET_message_message : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly WolverineWebApi.Recorder _recorder;
 
-        public GET_message_message(Wolverine.Http.WolverineHttpOptions options, WolverineWebApi.Recorder recorder) : base(options)
+        public GET_message_message(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, WolverineWebApi.Recorder recorder) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _recorder = recorder;
         }
 

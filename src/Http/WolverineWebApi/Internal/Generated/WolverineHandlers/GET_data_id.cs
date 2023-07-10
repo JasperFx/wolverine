@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_data_id
     public class GET_data_id : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Marten.ISessionFactory _sessionFactory;
 
-        public GET_data_id(Wolverine.Http.WolverineHttpOptions options, Marten.ISessionFactory sessionFactory) : base(options)
+        public GET_data_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Marten.ISessionFactory sessionFactory) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _sessionFactory = sessionFactory;
         }
 

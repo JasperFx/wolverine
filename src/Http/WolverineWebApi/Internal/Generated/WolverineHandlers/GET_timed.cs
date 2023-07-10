@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_timed
     public class GET_timed : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Microsoft.Extensions.Logging.ILogger<WolverineWebApi.MeasuredEndpoint> _loggerForMessage;
 
-        public GET_timed(Wolverine.Http.WolverineHttpOptions options, Microsoft.Extensions.Logging.ILogger<WolverineWebApi.MeasuredEndpoint> loggerForMessage) : base(options)
+        public GET_timed(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Microsoft.Extensions.Logging.ILogger<WolverineWebApi.MeasuredEndpoint> loggerForMessage) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _loggerForMessage = loggerForMessage;
         }
 

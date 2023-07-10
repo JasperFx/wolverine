@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_orders_create4
     public class POST_orders_create4 : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Marten.ISessionFactory _sessionFactory;
 
-        public POST_orders_create4(Wolverine.Http.WolverineHttpOptions options, Marten.ISessionFactory sessionFactory) : base(options)
+        public POST_orders_create4(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Marten.ISessionFactory sessionFactory) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _sessionFactory = sessionFactory;
         }
 

@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_fromservices
     public class POST_fromservices : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly WolverineWebApi.Recorder _recorder;
 
-        public POST_fromservices(Wolverine.Http.WolverineHttpOptions options, WolverineWebApi.Recorder recorder) : base(options)
+        public POST_fromservices(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, WolverineWebApi.Recorder recorder) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _recorder = recorder;
         }
 

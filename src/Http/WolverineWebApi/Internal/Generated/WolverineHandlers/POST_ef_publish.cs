@@ -12,15 +12,15 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_ef_publish
     public class POST_ef_publish : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
-        private readonly Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> _dbContextOptions;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
+        private readonly Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> _dbContextOptions;
 
-        public POST_ef_publish(Wolverine.Http.WolverineHttpOptions options, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(options)
+        public POST_ef_publish(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
-            _dbContextOptions = dbContextOptions;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
+            _dbContextOptions = dbContextOptions;
         }
 
 

@@ -37,7 +37,17 @@ internal class ParsedQueryStringValue : SyncFrame
     {
         var alias = Variable.VariableType.FullNameInCode();
         writer.Write($"{alias} {Variable.Usage} = default;");
-        writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
+
+        if (Variable.VariableType.IsEnum)
+        {
+            writer.Write($"{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
+        }
+        else
+        {
+            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
+        }
+        
+        
 
         Next?.GenerateCode(method, writer);
     }
@@ -46,11 +56,13 @@ internal class ParsedQueryStringValue : SyncFrame
 internal class ParsedNullableQueryStringValue : SyncFrame
 {
     private readonly string _alias;
+    private Type _innerTypeFromNullable;
 
     public ParsedNullableQueryStringValue(ParameterInfo parameter)
     {
         Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
-        _alias = parameter.ParameterType.GetInnerTypeFromNullable().FullNameInCode();
+        _innerTypeFromNullable = parameter.ParameterType.GetInnerTypeFromNullable();
+        _alias = _innerTypeFromNullable.FullNameInCode();
     }
 
     public Variable Variable { get; }
@@ -58,8 +70,16 @@ internal class ParsedNullableQueryStringValue : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write($"{_alias}? {Variable.Usage} = null;");
-        writer.Write(
-            $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+        if (_innerTypeFromNullable.IsEnum)
+        {
+            writer.Write(
+                $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+        }
+        else
+        {
+            writer.Write(
+                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+        }
 
         Next?.GenerateCode(method, writer);
     }

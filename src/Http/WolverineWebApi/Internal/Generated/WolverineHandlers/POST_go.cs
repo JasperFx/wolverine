@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_go
     public class POST_go : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public POST_go(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public POST_go(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 

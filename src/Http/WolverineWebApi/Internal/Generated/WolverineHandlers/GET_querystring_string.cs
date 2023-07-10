@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_querystring_string
     public class GET_querystring_string : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public GET_querystring_string(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public GET_querystring_string(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 

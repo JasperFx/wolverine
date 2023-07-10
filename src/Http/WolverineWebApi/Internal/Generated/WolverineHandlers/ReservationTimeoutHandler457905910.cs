@@ -8,13 +8,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: ReservationTimeoutHandler457905910
     public class ReservationTimeoutHandler457905910 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> _logger;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> _logger;
 
-        public ReservationTimeoutHandler457905910(Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public ReservationTimeoutHandler457905910(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> logger)
         {
-            _logger = logger;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _logger = logger;
         }
 
 

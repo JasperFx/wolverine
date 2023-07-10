@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_spawn3
     public class POST_spawn3 : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_spawn3(Wolverine.Http.WolverineHttpOptions options, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(options)
+        public POST_spawn3(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
         }
 

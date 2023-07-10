@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_question2
     public class POST_question2 : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public POST_question2(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public POST_question2(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 

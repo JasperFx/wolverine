@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_age_age
     public class GET_age_age : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public GET_age_age(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public GET_age_age(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 

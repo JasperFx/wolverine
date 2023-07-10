@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_status
     public class POST_status : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Microsoft.Extensions.Logging.ILogger<WolverineWebApi.StatusCodeRequest> _loggerForMessage;
 
-        public POST_status(Wolverine.Http.WolverineHttpOptions options, Microsoft.Extensions.Logging.ILogger<WolverineWebApi.StatusCodeRequest> loggerForMessage) : base(options)
+        public POST_status(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Microsoft.Extensions.Logging.ILogger<WolverineWebApi.StatusCodeRequest> loggerForMessage) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _loggerForMessage = loggerForMessage;
         }
 

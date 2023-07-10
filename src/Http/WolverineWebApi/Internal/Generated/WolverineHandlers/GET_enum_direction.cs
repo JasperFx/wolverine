@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_enum_direction
     public class GET_enum_direction : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public GET_enum_direction(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public GET_enum_direction(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 
@@ -22,7 +22,7 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var fakeEndpoint = new WolverineWebApi.FakeEndpoint();
-            if (!WolverineWebApi.Direction.TryParse((string)httpContext.GetRouteValue("direction"), true, out WolverineWebApi.Direction direction))
+            if (!WolverineWebApi.Direction.TryParse<WolverineWebApi.Direction>((string)httpContext.GetRouteValue("direction"), true, out WolverineWebApi.Direction direction))
             {
                 httpContext.Response.StatusCode = 404;
                 return;

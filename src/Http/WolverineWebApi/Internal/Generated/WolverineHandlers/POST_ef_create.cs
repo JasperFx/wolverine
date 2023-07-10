@@ -11,12 +11,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_ef_create
     public class POST_ef_create : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> _dbContextOptions;
 
-        public POST_ef_create(Wolverine.Http.WolverineHttpOptions options, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions) : base(options)
+        public POST_ef_create(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _dbContextOptions = dbContextOptions;
         }
 

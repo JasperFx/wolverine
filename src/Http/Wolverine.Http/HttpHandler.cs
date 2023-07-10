@@ -14,9 +14,9 @@ public abstract class HttpHandler
     private readonly WolverineHttpOptions _options;
 
     // ReSharper disable once PublicConstructorInAbstractClass
-    public HttpHandler(WolverineHttpOptions options)
+    public HttpHandler(WolverineHttpOptions wolverineHttpOptions)
     {
-        _options = options;
+        _options = wolverineHttpOptions;
     }
 
     public abstract Task Handle(HttpContext httpContext);

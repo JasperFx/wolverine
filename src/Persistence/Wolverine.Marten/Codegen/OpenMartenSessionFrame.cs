@@ -21,6 +21,7 @@ internal class OpenMartenSessionFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        
         var methodName = ReturnVariable.VariableType == typeof(IQuerySession)
             ? nameof(OutboxedSessionFactory.QuerySession)
             : nameof(OutboxedSessionFactory.OpenSession);

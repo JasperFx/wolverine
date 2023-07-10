@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_headers_accepts
     public class GET_headers_accepts : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public GET_headers_accepts(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public GET_headers_accepts(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 

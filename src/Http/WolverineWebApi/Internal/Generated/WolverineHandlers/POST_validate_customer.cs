@@ -12,13 +12,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_validate_customer
     public class POST_validate_customer : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> _problemDetailSource;
         private readonly FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> _validator;
 
-        public POST_validate_customer(Wolverine.Http.WolverineHttpOptions options, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> problemDetailSource, FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> validator) : base(options)
+        public POST_validate_customer(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> problemDetailSource, FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> validator) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
             _problemDetailSource = problemDetailSource;
             _validator = validator;
         }
@@ -29,10 +29,10 @@ namespace Internal.Generated.WolverineHandlers
         {
             var (customer, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Validation.CreateCustomer>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            var result = await Wolverine.Http.FluentValidation.Internals.FluentValidationHttpExecutor.ExecuteOne<WolverineWebApi.Validation.CreateCustomer>(_validator, _problemDetailSource, customer).ConfigureAwait(false);
-            if (!(result is Wolverine.Http.WolverineContinue))
+            var result1 = await Wolverine.Http.FluentValidation.Internals.FluentValidationHttpExecutor.ExecuteOne<WolverineWebApi.Validation.CreateCustomer>(_validator, _problemDetailSource, customer).ConfigureAwait(false);
+            if (!(result1 is Wolverine.Http.WolverineContinue))
             {
-                await result.ExecuteAsync(httpContext).ConfigureAwait(false);
+                await result1.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
 

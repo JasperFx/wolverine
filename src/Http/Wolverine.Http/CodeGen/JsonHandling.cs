@@ -11,7 +11,13 @@ internal class ReadJsonBody : AsyncFrame
 {
     public ReadJsonBody(ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
+        var parameterName = parameter.Name!;
+        if (parameterName == "_")
+        {
+            parameterName = Variable.DefaultArgName(parameter.ParameterType);
+        }
+        
+        Variable = new Variable(parameter.ParameterType, parameterName, this);
     }
 
     public Variable Variable { get; }

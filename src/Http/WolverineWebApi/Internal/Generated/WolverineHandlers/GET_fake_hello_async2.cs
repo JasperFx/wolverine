@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: GET_fake_hello_async2
     public class GET_fake_hello_async2 : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public GET_fake_hello_async2(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public GET_fake_hello_async2(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 

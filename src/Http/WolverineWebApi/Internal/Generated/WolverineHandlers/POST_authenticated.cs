@@ -10,11 +10,11 @@ namespace Internal.Generated.WolverineHandlers
     // START: POST_authenticated
     public class POST_authenticated : Wolverine.Http.HttpHandler
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _options;
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
 
-        public POST_authenticated(Wolverine.Http.WolverineHttpOptions options) : base(options)
+        public POST_authenticated(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
         {
-            _options = options;
+            _wolverineHttpOptions = wolverineHttpOptions;
         }
 
 
@@ -25,10 +25,10 @@ namespace Internal.Generated.WolverineHandlers
             var fakeAuthenticationMiddleware = new WolverineWebApi.FakeAuthenticationMiddleware();
             var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.AuthenticatedRequest>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            var result = WolverineWebApi.FakeAuthenticationMiddleware.Before(request);
-            if (!(result is Wolverine.Http.WolverineContinue))
+            var result1 = WolverineWebApi.FakeAuthenticationMiddleware.Before(request);
+            if (!(result1 is Wolverine.Http.WolverineContinue))
             {
-                await result.ExecuteAsync(httpContext).ConfigureAwait(false);
+                await result1.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
 
