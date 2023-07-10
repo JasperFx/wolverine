@@ -7,14 +7,14 @@ namespace Wolverine.AmazonSqs;
 public class AmazonSqsMessageRoutingConvention : MessageRoutingConvention<AmazonSqsTransport,
     AmazonSqsListenerConfiguration, AmazonSqsSubscriberConfiguration, AmazonSqsMessageRoutingConvention>
 {
-    protected override (AmazonSqsListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(string identifier,
+    protected override (AmazonSqsListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
         AmazonSqsTransport transport)
     {
         var queue = transport.EndpointForQueue(identifier);
         return (new AmazonSqsListenerConfiguration(queue), queue);
     }
 
-    protected override (AmazonSqsSubscriberConfiguration, Endpoint) findOrCreateSubscriber(string identifier,
+    protected override (AmazonSqsSubscriberConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,
         AmazonSqsTransport transport)
     {
         var queue = transport.EndpointForQueue(identifier);
