@@ -1,10 +1,12 @@
+using Wolverine.Configuration;
+
 namespace Wolverine;
 
 /// <summary>
 ///     Interface for cascading messages that require some customization of how
 ///     the resulting inner message is sent out
 /// </summary>
-public interface ISendMyself
+public interface ISendMyself : IWolverineReturnType
 {
     ValueTask ApplyAsync(IMessageContext context);
 }

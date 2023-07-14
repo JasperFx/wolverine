@@ -127,7 +127,7 @@ public static class UpdateEndpoint
     public static Task<Todo?> LoadAsync(int id, IDocumentSession session) 
         => session.LoadAsync<Todo>(id);
     
-    [WolverinePut("/todos/{id:int}"), EmptyResponse]
+    [WolverinePut("/todos/{id:int}")]
     public static StoreDoc<Todo> Put(int id, UpdateRequest request, [Required] Todo? todo)
     {
         todo.Name = request.Name;

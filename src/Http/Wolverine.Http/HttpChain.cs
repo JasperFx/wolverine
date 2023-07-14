@@ -103,6 +103,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             return false;
         }
+        
+        
 
         resourceType = method.Creates.First().VariableType;
         return IsValidResponseType(resourceType);

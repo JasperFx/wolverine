@@ -12,6 +12,7 @@ internal class EmptyBody204Policy : IResourceWriterPolicy
         if (chain.ResourceType == null || chain.ResourceType == typeof(void))
         {
             chain.Postprocessors.Insert(0, new WriteEmptyBodyStatusCode());
+            chain.Metadata.Produces(204);
             return true;
         }
 
