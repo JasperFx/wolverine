@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.Http;
+using Wolverine.Marten;
 
 namespace WolverineWebApi.Samples;
 
@@ -122,9 +123,15 @@ public record UpdateRequest(string Name, bool IsComplete);
 
 public static class UpdateEndpoint
 {
-    [WolverinePut("/todos/{id:int}")]
-    public static Task Put(int id, UpdateRequest request, IDocumentSession session)
+    public static Task<Todo?> LoadAsync(int id, IDocumentSession session) 
+        => session.LoadAsync<Todo>(id);
+    
+    [WolverinePut("/todos/{id:int}"), EmptyResponse]
+    public static StoreDoc<Todo> Put(int id, UpdateRequest request, Todo todo)
     {
-        return Task.CompletedTask;
+        todo.Name = request.Name;
+        todo.IsComplete = request.IsComplete;
+
+        return MartenOps.Store(todo);
     }
 }

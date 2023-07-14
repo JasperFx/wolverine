@@ -1,3 +1,4 @@
+using Shouldly;
 using WolverineWebApi.Samples;
 
 namespace Wolverine.Http.Tests;
@@ -24,5 +25,9 @@ public class todo_endpoint_specs : IntegrationContext
             opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos/" + todo.Id);
             opts.StatusCodeShouldBe(204);
         });
+
+        var changes = await session.LoadAsync<Todo>(todo.Id);
+        changes.IsComplete.ShouldBeTrue();
+        changes.Name.ShouldBe("Second");
     }
 }
