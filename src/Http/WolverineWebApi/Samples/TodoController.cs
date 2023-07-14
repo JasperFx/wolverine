@@ -117,3 +117,14 @@ public class Todo
     public string? Name { get; set; }
     public bool IsComplete { get; set; }
 }
+
+public record UpdateRequest(string Name, bool IsComplete);
+
+public static class UpdateEndpoint
+{
+    [WolverinePut("/todos/{id:int}")]
+    public static Task Put(int id, UpdateRequest request, IDocumentSession session)
+    {
+        return Task.CompletedTask;
+    }
+}

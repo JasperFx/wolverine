@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -93,5 +94,12 @@ public partial class HttpChain
         foreach (var frame in actionsOnOtherReturnValues) yield return frame;
 
         foreach (var frame in Postprocessors) yield return frame;
+    }
+
+    private string determineFileName()
+    {
+        var parts = RoutePattern.RawText.Replace("{", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
+        
+        return _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace("-", "_").Replace("__", "_");
     }
 }

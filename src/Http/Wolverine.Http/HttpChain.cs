@@ -134,8 +134,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             DisplayName = displayName;
         }
 
-        _fileName = _httpMethods.Select(x => x.ToUpper()).Join("_") + RoutePattern!.RawText!.Replace("/", "_")
-            .Replace("{", "").Replace("}", "").Replace("-", "_");
+        _fileName = determineFileName();
 
         _description = _fileName;
 
