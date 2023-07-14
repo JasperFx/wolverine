@@ -22,6 +22,8 @@ internal class TrackedSession : ITrackedSession
 
     private readonly TaskCompletionSource<TrackingStatus> _source;
 
+    private bool _executionComplete;
+
     private readonly Stopwatch _stopwatch = new();
 
     private TrackingStatus _status = TrackingStatus.Active;
@@ -32,6 +34,8 @@ internal class TrackedSession : ITrackedSession
         _source = new TaskCompletionSource<TrackingStatus>();
         _primaryLogger = host.GetRuntime();
     }
+    
+    
 
     public TimeSpan Timeout { get; set; } = 5.Seconds();
 
@@ -224,6 +228,7 @@ internal class TrackedSession : ITrackedSession
             await using var scope = _primaryHost.Services.As<IContainer>().GetNestedContainer();
             var context = scope.GetInstance<IMessageContext>();
             await Execution(context).WaitAsync(Timeout);
+            _executionComplete = true;
         }
         catch (TimeoutException)
         {
@@ -239,10 +244,17 @@ internal class TrackedSession : ITrackedSession
             cleanUp();
             throw;
         }
-
-        startTimeoutTracking();
-
-        await _source.Task;
+        
+        // This is for race conditions if the activity manages to finish really fast
+        if (IsCompleted())
+        {
+            Status = TrackingStatus.Completed;
+        }
+        else
+        {
+            startTimeoutTracking();
+            await _source.Task;
+        }
 
         cleanUp();
 
@@ -334,6 +346,8 @@ internal class TrackedSession : ITrackedSession
 
     public bool IsCompleted()
     {
+        if (!_executionComplete) return false;
+        
         if (_conditions.Any(x => x.IsCompleted()))
         {
             return true;
