@@ -6,7 +6,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Local;
 
-internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
+internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCircuit
 {
     private readonly IMessageTracker _messageLogger;
 
@@ -17,7 +17,27 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent
         Endpoint = endpoint;
     }
 
+    public ListeningStatus Status { get; }
     public Endpoint Endpoint { get; }
+
+    // Edge case, but this actually happened to someone
+    ValueTask IListenerCircuit.PauseAsync(TimeSpan pauseTime)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask IListenerCircuit.StartAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    void IListenerCircuit.EnqueueDirectly(IEnumerable<Envelope> envelopes)
+    {
+        foreach (var envelope in envelopes)
+        {
+            EnqueueDirectly(envelope);
+        }
+    }
 
     public Uri Destination { get; }
     public Uri? ReplyUri { get; set; } = TransportConstants.RepliesUri;
