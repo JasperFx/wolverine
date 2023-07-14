@@ -30,6 +30,24 @@ public class todo_endpoint_specs : IntegrationContext
         changes.IsComplete.ShouldBeTrue();
         changes.Name.ShouldBe("Second");
     }
+    
+    [Fact]
+    public async Task bug_466_codegen_error()
+    {
+        await using var session = Store.LightweightSession();
+        var todo = new Todo { Name = "First", IsComplete = false };
+        session.Store(todo);
+        await session.SaveChangesAsync();
+
+        await Scenario(opts =>
+        {
+            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos2/" + todo.Id);
+        });
+
+        var changes = await session.LoadAsync<Todo>(todo.Id);
+        changes.IsComplete.ShouldBeTrue();
+        changes.Name.ShouldBe("Second");
+    }
 
     [Fact]
     public async Task get_an_automatic_404_when_related_entity_does_not_exist()

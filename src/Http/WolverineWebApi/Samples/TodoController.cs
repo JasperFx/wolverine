@@ -136,3 +136,25 @@ public static class UpdateEndpoint
         return MartenOps.Store(todo);
     }
 }
+
+public static class Update2Endpoint
+{
+    public static async Task<(Todo? todo, IResult response)> LoadAsync(int id, UpdateRequest command, IDocumentSession session)
+    {
+        var todo = await session.LoadAsync<Todo>(id);
+        return todo != null 
+            ? (todo, response: new WolverineContinue()) 
+            : (todo, response: Results.NotFound());
+    }
+    
+    
+    [Tags("Todos")]
+    [WolverinePut("/todos2/{id}")]
+    public static Todo Put(int id, UpdateRequest request, Todo todo, IDocumentSession session)
+    {
+        todo.Name = request.Name;
+        todo.IsComplete = request.IsComplete;
+        session.Store(todo);
+        return todo;
+    }
+}
