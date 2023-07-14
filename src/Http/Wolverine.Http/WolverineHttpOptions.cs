@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
+using Wolverine.Http.Policies;
 using Wolverine.Http.Runtime;
 using Wolverine.Middleware;
 
@@ -16,6 +17,7 @@ public class WolverineHttpOptions
     {
         Policies.Add(new HttpAwarePolicy());
         Policies.Add(new RequestIdPolicy());
+        Policies.Add(new RequiredEntityPolicy());
     }
 
     internal JsonSerializerOptions JsonSerializerOptions { get; set; } = new();

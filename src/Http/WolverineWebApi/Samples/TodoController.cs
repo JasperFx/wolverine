@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -127,7 +128,7 @@ public static class UpdateEndpoint
         => session.LoadAsync<Todo>(id);
     
     [WolverinePut("/todos/{id:int}"), EmptyResponse]
-    public static StoreDoc<Todo> Put(int id, UpdateRequest request, Todo todo)
+    public static StoreDoc<Todo> Put(int id, UpdateRequest request, [Required] Todo? todo)
     {
         todo.Name = request.Name;
         todo.IsComplete = request.IsComplete;

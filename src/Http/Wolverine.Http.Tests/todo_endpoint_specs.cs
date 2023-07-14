@@ -30,4 +30,14 @@ public class todo_endpoint_specs : IntegrationContext
         changes.IsComplete.ShouldBeTrue();
         changes.Name.ShouldBe("Second");
     }
+
+    [Fact]
+    public async Task get_an_automatic_404_when_related_entity_does_not_exist()
+    {
+        await Scenario(opts =>
+        {
+            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos/1222222222");
+            opts.StatusCodeShouldBe(404);
+        });
+    }
 }
