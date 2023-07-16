@@ -23,8 +23,8 @@ namespace Internal.Generated.WolverineHandlers
         {
             int numberOfMembers = default;
             int.TryParse(httpContext.Request.Query["numberOfMembers"], out numberOfMembers);
-            var decimalValue = WolverineWebApi.Bugs.MyAppLandingEndpoint.GetRegistrationPrice(numberOfMembers);
-            await WriteJsonAsync(httpContext, decimalValue);
+            var decimalValue_response = WolverineWebApi.Bugs.MyAppLandingEndpoint.GetRegistrationPrice(numberOfMembers);
+            await WriteJsonAsync(httpContext, decimalValue_response);
         }
 
     }

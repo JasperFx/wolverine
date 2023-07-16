@@ -24,8 +24,8 @@ namespace Internal.Generated.WolverineHandlers
             var (question, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Question>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
-            var arithmeticResults = WolverineWebApi.TestEndpoints.PostJson(question);
-            await WriteJsonAsync(httpContext, arithmeticResults);
+            var arithmeticResults_response = WolverineWebApi.TestEndpoints.PostJson(question);
+            await WriteJsonAsync(httpContext, arithmeticResults_response);
         }
 
     }

@@ -22,8 +22,8 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
-            var arithmeticResults = WolverineWebApi.TestEndpoints.FetchStaticResults();
-            await WriteJsonAsync(httpContext, arithmeticResults);
+            var arithmeticResults_response = WolverineWebApi.TestEndpoints.FetchStaticResults();
+            await WriteJsonAsync(httpContext, arithmeticResults_response);
         }
 
     }

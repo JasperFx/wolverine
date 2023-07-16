@@ -39,6 +39,11 @@ public abstract class HttpHandler
         return context.Response.WriteAsync(text, context.RequestAborted);
     }
 
+    public void ApplyHttpAware(object target, HttpContext context)
+    {
+        if (target is IHttpAware a) a.Apply(context);
+    }
+
     private static bool isRequestJson(HttpContext context)
     {
         var contentType = context.Request.ContentType;

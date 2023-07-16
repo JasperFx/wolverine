@@ -28,17 +28,17 @@ namespace Internal.Generated.WolverineHandlers
             await using var documentSession = _sessionFactory.OpenSession();
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.CreateIssue>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            (var issueCreated, var insertDoc) = createEndpoint.Create(command);
+            (var issueCreated_response, var insertDoc) = createEndpoint.Create(command);
             
             // Placed by Wolverine's ISideEffect policy
             insertDoc.Execute(documentSession);
 
-            ((Wolverine.Http.IHttpAware)issueCreated).Apply(httpContext);
+            ApplyHttpAware(issueCreated_response, httpContext);
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-            await WriteJsonAsync(httpContext, issueCreated);
+            await WriteJsonAsync(httpContext, issueCreated_response);
         }
 
     }

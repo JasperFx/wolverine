@@ -3,6 +3,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Wolverine.Http.Resources;
 
@@ -58,6 +59,17 @@ public partial class HttpChain : IEndpointConventionBuilder
             builder.RemoveStatusCodeResponse(200);
             builder.Metadata.Add(new ProducesResponseTypeMetadata { StatusCode = 204, Type = null });
         }
+        
+                
+        // Set up OpenAPI data for ProblemDetails with status code 400 if not already exists
+        if (Middleware.SelectMany(x => x.Creates).Any(x => x.VariableType == typeof(ProblemDetails)))
+        {
+            if (!builder.Metadata.OfType<ProducesResponseTypeMetadata>()
+                    .Any(x => x.Type != null && x.Type.CanBeCastTo<ProblemDetails>()))
+            {
+                builder.Metadata.Add(new ProducesProblemDetailsResponseTypeMetadata());
+            }
+        }
 
         Endpoint = (RouteEndpoint?)builder.Build();
 
@@ -76,4 +88,11 @@ public partial class HttpChain : IEndpointConventionBuilder
             T.PopulateMetadata(method, builder);
         }
     }
+}
+
+internal class ProducesProblemDetailsResponseTypeMetadata : IProducesResponseTypeMetadata
+{
+    public Type? Type => typeof(ProblemDetails);
+    public int StatusCode => 400;
+    public IEnumerable<string> ContentTypes => new string[] {"application/problem+json" };
 }

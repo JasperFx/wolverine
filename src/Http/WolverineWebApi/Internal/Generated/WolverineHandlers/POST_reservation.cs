@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_reservation : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_reservation(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
+        public POST_reservation(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _wolverineRuntime = wolverineRuntime;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _wolverineRuntime = wolverineRuntime;
         }
 
 
@@ -31,7 +31,7 @@ namespace Internal.Generated.WolverineHandlers
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
             var (start, jsonContinue) = await ReadJsonAsync<WolverineWebApi.StartReservation>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            (var reservationBooked, var reservation, var reservationTimeout) = WolverineWebApi.ReservationEndpoint.Post(start);
+            (var reservationBooked_response, var reservation, var reservationTimeout) = WolverineWebApi.ReservationEndpoint.Post(start);
             
             // Register the document operation with the current session
             documentSession.Insert(reservation);
@@ -43,7 +43,7 @@ namespace Internal.Generated.WolverineHandlers
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-            await WriteJsonAsync(httpContext, reservationBooked);
+            await WriteJsonAsync(httpContext, reservationBooked_response);
         }
 
     }

@@ -35,14 +35,35 @@ internal class HttpAwarePolicy : IHttpPolicy
                 return;
             }
 
-            var apply = new MethodCall(typeof(IHttpAware), nameof(IHttpAware.Apply))
-            {
-                Target = new CastVariable(resource, typeof(IHttpAware))
-            };
+            var apply = new ApplyHttpAware(resource);
 
             // This will have to run before any kind of resource writing
             chain.Postprocessors.Insert(0, apply);
         }
+    }
+}
+
+internal class ApplyHttpAware : SyncFrame
+{
+    private readonly Variable _target;
+    private Variable _httpContext;
+
+    public ApplyHttpAware(Variable target)
+    {
+        _target = target;
+        uses.Add(target);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"{nameof(HttpHandler.ApplyHttpAware)}({_target.Usage}, {_httpContext.Usage});");
+        Next?.GenerateCode(method, writer);
     }
 }
 

@@ -144,8 +144,13 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
 
         var container = (IContainer)endpoints.ServiceProvider;
 
+        
+        // This let's Wolverine weave in middleware that might return ProblemDetails
+        runtime.Options.CodeGeneration.AddContinuationStrategy<ProblemDetailsContinuationPolicy>();
+        
         // This let's Wolverine weave in middleware that might return IResult
         runtime.Options.CodeGeneration.AddContinuationStrategy<ResultContinuationPolicy>();
+        
 
         // Making sure this exists
         var options = container.GetInstance<WolverineHttpOptions>();

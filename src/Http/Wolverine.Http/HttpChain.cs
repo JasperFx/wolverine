@@ -9,6 +9,7 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
@@ -103,10 +104,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             return false;
         }
-        
-        
 
-        resourceType = method.Creates.First().VariableType;
+
+        var responseBody = method.Creates.First();
+
+        resourceType = responseBody.VariableType;
         return IsValidResponseType(resourceType);
     }
 
@@ -233,9 +235,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             Metadata.Produces(200);
         }
-
+        
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
-
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
     }
 }

@@ -27,12 +27,12 @@ namespace Internal.Generated.WolverineHandlers
             await using var documentSession = _sessionFactory.OpenSession();
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Marten.StartOrder>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            var orderStatus = WolverineWebApi.Marten.MarkItemEndpoint.StartOrder(command, documentSession);
+            var orderStatus_response = WolverineWebApi.Marten.MarkItemEndpoint.StartOrder(command, documentSession);
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-            await WriteJsonAsync(httpContext, orderStatus);
+            await WriteJsonAsync(httpContext, orderStatus_response);
         }
 
     }

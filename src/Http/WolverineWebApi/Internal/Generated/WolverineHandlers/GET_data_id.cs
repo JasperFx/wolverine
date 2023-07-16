@@ -34,12 +34,12 @@ namespace Internal.Generated.WolverineHandlers
 
 
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
-            var data = await serviceEndpoints.GetData(id, documentSession).ConfigureAwait(false);
+            var data_response = await serviceEndpoints.GetData(id, documentSession).ConfigureAwait(false);
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-            await WriteJsonAsync(httpContext, data);
+            await WriteJsonAsync(httpContext, data_response);
         }
 
     }

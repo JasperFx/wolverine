@@ -29,17 +29,17 @@ namespace Internal.Generated.WolverineHandlers
             {
                 var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Marten.StartOrder>(httpContext);
                 if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-                (var creationResponse, var startStream) = WolverineWebApi.Marten.MarkItemEndpoint.StartOrder3(command);
+                (var creationResponse_response, var startStream) = WolverineWebApi.Marten.MarkItemEndpoint.StartOrder3(command);
                 
                 // Placed by Wolverine's ISideEffect policy
                 startStream.Execute(documentSession);
 
-                ((Wolverine.Http.IHttpAware)creationResponse).Apply(httpContext);
+                ApplyHttpAware(creationResponse_response, httpContext);
                 
                 // Commit any outstanding Marten changes
                 await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-                await WriteJsonAsync(httpContext, creationResponse);
+                await WriteJsonAsync(httpContext, creationResponse_response);
             }
 
 
