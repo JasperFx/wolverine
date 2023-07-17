@@ -173,7 +173,8 @@ export default {
                         {text: 'Publishing Messages', link: '/guide/http/messaging'},
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
-                        
+                        {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
+                        {text: 'Problem Details', link: '/guide/http/problemdetails'},
                     ]
                 },
                 {

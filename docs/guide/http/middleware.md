@@ -189,7 +189,73 @@ app.MapWolverineEndpoints(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L66-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_middleware_policy_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Required Inputs
 
+Here's a common pattern in HTTP service development. Based on a route argument, you first load some kind of entity
+from persistence. If the data is not found, return a status code 404 that means the resource was not found, but otherwise
+continue working against that entity data you just loaded. To help remove boilerplate code, Wolverine.Http 1.2 introduced
+support for this pattern using the standard `[Required]` attribute on the parameters of the inputs to the HTTP handler
+methods. Here's an example that tries to apply an update to an existing `Todo` entity:
+
+snippet: sample_update_with_required_entity
+
+You'll notice that the `LoadAsync()` method is looking up the `Todo` entity for the route parameter, where Wolverine would
+normally be passing that value to the matching `Todo` parameter of the main `Put` method. In this case though, because of 
+the `[Required]` attribute, Wolverine.Http will stop processing with a 404 status code if the `Todo` cannot be found.
+
+You can see this behavior in the generated code below:
+
+```csharp
+    public class PUT_todos_id : Wolverine.Http.HttpHandler
+    {
+        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
+        private readonly Marten.ISessionFactory _sessionFactory;
+
+        public PUT_todos_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Marten.ISessionFactory sessionFactory) : base(wolverineHttpOptions)
+        {
+            _wolverineHttpOptions = wolverineHttpOptions;
+            _sessionFactory = sessionFactory;
+        }
+
+
+
+        public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
+        {
+            await using var documentSession = _sessionFactory.OpenSession();
+            if (!int.TryParse((string)httpContext.GetRouteValue("id"), out var id))
+            {
+                httpContext.Response.StatusCode = 404;
+                return;
+            }
+
+
+            var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Samples.UpdateRequest>(httpContext);
+            if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
+            var todo = await WolverineWebApi.Samples.UpdateEndpoint.LoadAsync(id, documentSession).ConfigureAwait(false);
+            // 404 if this required object is null
+            if (todo == null)
+            {
+                httpContext.Response.StatusCode = 404;
+                return;
+            }
+
+            var storeDoc = WolverineWebApi.Samples.UpdateEndpoint.Put(id, request, todo);
+            
+            // Placed by Wolverine's ISideEffect policy
+            storeDoc.Execute(documentSession);
+
+            
+            // Commit any outstanding Marten changes
+            await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
+
+            // Wolverine automatically sets the status code to 204 for empty responses
+            httpContext.Response.StatusCode = 204;
+        }
+
+    }
+```
+
+Lastly, Wolverine is also updating the OpenAPI metadata to reflect the possibility of a 404 response.
 
 
 

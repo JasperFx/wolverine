@@ -15,6 +15,8 @@ public class problem_details_usage_in_http_middleware : IntegrationContext
     {
     }
 
+    #region sample_testing_problem_details_behavior
+
     [Fact]
     public async Task continue_happy_path()
     {
@@ -28,15 +30,17 @@ public class problem_details_usage_in_http_middleware : IntegrationContext
     [Fact]
     public async Task stop_with_problems_if_middleware_trips_off()
     {
+        // This is the "sad path" that should spawn a ProblemDetails
+        // object
         var result = await Scenario(x =>
         {
             x.Post.Json(new NumberMessage(10)).ToUrl("/problems");
             x.StatusCodeShouldBe(400);
             x.ContentTypeShouldBe("application/problem+json");
         });
-        
-        
     }
+
+    #endregion
 
     [Fact]
     public void adds_default_problem_details_to_open_api_metadata()

@@ -120,15 +120,27 @@ public class Todo
     public bool IsComplete { get; set; }
 }
 
+#region sample_update_with_required_entity
+
 public record UpdateRequest(string Name, bool IsComplete);
 
 public static class UpdateEndpoint
 {
+    // Find required Todo entity for the route handler below
     public static Task<Todo?> LoadAsync(int id, IDocumentSession session) 
         => session.LoadAsync<Todo>(id);
     
     [WolverinePut("/todos/{id:int}")]
-    public static StoreDoc<Todo> Put(int id, UpdateRequest request, [Required] Todo? todo)
+    public static StoreDoc<Todo> Put(
+        // Route argument
+        int id,
+        
+        // The request body
+        UpdateRequest request,
+        
+        // Entity loaded by the method above, 
+        // but note the [Required] attribute
+        [Required] Todo? todo)
     {
         todo.Name = request.Name;
         todo.IsComplete = request.IsComplete;
@@ -136,6 +148,8 @@ public static class UpdateEndpoint
         return MartenOps.Store(todo);
     }
 }
+
+#endregion
 
 public static class Update2Endpoint
 {
