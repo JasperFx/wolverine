@@ -197,7 +197,38 @@ continue working against that entity data you just loaded. To help remove boiler
 support for this pattern using the standard `[Required]` attribute on the parameters of the inputs to the HTTP handler
 methods. Here's an example that tries to apply an update to an existing `Todo` entity:
 
-snippet: sample_update_with_required_entity
+<!-- snippet: sample_update_with_required_entity -->
+<a id='snippet-sample_update_with_required_entity'></a>
+```cs
+public record UpdateRequest(string Name, bool IsComplete);
+
+public static class UpdateEndpoint
+{
+    // Find required Todo entity for the route handler below
+    public static Task<Todo?> LoadAsync(int id, IDocumentSession session) 
+        => session.LoadAsync<Todo>(id);
+    
+    [WolverinePut("/todos/{id:int}")]
+    public static StoreDoc<Todo> Put(
+        // Route argument
+        int id,
+        
+        // The request body
+        UpdateRequest request,
+        
+        // Entity loaded by the method above, 
+        // but note the [Required] attribute
+        [Required] Todo? todo)
+    {
+        todo.Name = request.Name;
+        todo.IsComplete = request.IsComplete;
+
+        return MartenOps.Store(todo);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L123-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_update_with_required_entity' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 You'll notice that the `LoadAsync()` method is looking up the `Todo` entity for the route parameter, where Wolverine would
 normally be passing that value to the matching `Todo` parameter of the main `Put` method. In this case though, because of 

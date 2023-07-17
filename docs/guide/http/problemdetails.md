@@ -78,7 +78,34 @@ To make that clearer, here's the generated code:
 
 And for more context, here's the matching "happy path" and "sad path" tests for the endpoint above:
 
-sample: sample_testing_problem_details_behavior
+<!-- snippet: sample_testing_problem_details_behavior -->
+<a id='snippet-sample_testing_problem_details_behavior'></a>
+```cs
+[Fact]
+public async Task continue_happy_path()
+{
+    // Should be good
+    await Scenario(x =>
+    {
+        x.Post.Json(new NumberMessage(3)).ToUrl("/problems");
+    });
+}
+
+[Fact]
+public async Task stop_with_problems_if_middleware_trips_off()
+{
+    // This is the "sad path" that should spawn a ProblemDetails
+    // object
+    var result = await Scenario(x =>
+    {
+        x.Post.Json(new NumberMessage(10)).ToUrl("/problems");
+        x.StatusCodeShouldBe(400);
+        x.ContentTypeShouldBe("application/problem+json");
+    });
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/problem_details_usage_in_http_middleware.cs#L18-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_problem_details_behavior' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Lastly, if Wolverine sees the existence of a `ProblemDetails` return value in any middleware, Wolverine will fill in OpenAPI
 metadata for the "application/problem+json" content type and a status code of 400. This behavior can be easily overridden
