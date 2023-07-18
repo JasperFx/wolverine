@@ -10,6 +10,7 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
+using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using Wolverine.Marten;
 using WolverineWebApi;
 using WolverineWebApi.Marten;
@@ -59,6 +60,7 @@ builder.Host.UseWolverine(opts =>
     opts.OptimizeArtifactWorkflow();
     
     opts.Policies.Add<BroadcastClientMessages>();
+    opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
 });
 
 var app = builder.Build();
