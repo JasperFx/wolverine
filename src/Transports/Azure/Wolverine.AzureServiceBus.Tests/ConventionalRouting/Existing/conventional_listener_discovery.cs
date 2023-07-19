@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using JasperFx.Core;
 using Shouldly;
 using TestMessages;
@@ -8,7 +6,7 @@ using Wolverine.Configuration;
 using Wolverine.Util;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
 
 public class conventional_listener_discovery : ConventionalRoutingContext
 {
