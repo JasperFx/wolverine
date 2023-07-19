@@ -6,7 +6,7 @@ using TestingSupport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
 
 public abstract class ConventionalRoutingContext : IDisposable
 {

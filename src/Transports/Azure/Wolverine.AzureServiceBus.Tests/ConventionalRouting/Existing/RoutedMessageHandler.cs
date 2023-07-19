@@ -1,4 +1,4 @@
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
 
 public class RoutedMessageHandler
 {

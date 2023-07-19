@@ -5,7 +5,7 @@ using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
 
 public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingContext
 {

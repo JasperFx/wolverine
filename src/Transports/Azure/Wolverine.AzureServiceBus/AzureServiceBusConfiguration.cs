@@ -46,6 +46,18 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     }
 
     public AzureServiceBusConfiguration UseConventionalRouting(
+        Action<AzureServiceBusQueueAndTopicMessageRoutingConvention>? configure)
+    {
+        var routing = new AzureServiceBusQueueAndTopicMessageRoutingConvention();
+        configure?.Invoke(routing);
+
+        Options.RouteWith(routing);
+
+        return this;
+    }
+
+    [Obsolete("Deprecated. Use the overload with Action<AzureServiceBusQueueAndTopicMessageRoutingConvention>")]
+    public AzureServiceBusConfiguration UseConventionalRouting(
         Action<AzureServiceBusMessageRoutingConvention>? configure = null)
     {
         var routing = new AzureServiceBusMessageRoutingConvention();

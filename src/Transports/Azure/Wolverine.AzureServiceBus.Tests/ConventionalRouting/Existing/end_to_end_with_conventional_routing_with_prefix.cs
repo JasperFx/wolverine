@@ -8,25 +8,29 @@ using TestingSupport;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
 
-public class end_to_end_with_conventional_routing : IDisposable
+public class end_to_end_with_conventional_routing_with_prefix : IDisposable
 {
     private readonly IHost _receiver;
     private readonly IHost _sender;
 
-    public end_to_end_with_conventional_routing()
+    public end_to_end_with_conventional_routing_with_prefix()
     {
         _sender = WolverineHost.For(opts =>
         {
-            opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.UseAzureServiceBusTesting()
+                .PrefixIdentifiers("shazaam")
+                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
 
         _receiver = WolverineHost.For(opts =>
         {
-            opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.UseAzureServiceBusTesting()
+                .PrefixIdentifiers("shazaam")
+                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
     }
@@ -53,5 +57,8 @@ public class end_to_end_with_conventional_routing : IDisposable
 
         received
             .ServiceName.ShouldBe("Receiver");
+
+        received.Envelope.Destination
+            .ShouldBe(new Uri("asb://queue/shazaam.routed"));
     }
 }
