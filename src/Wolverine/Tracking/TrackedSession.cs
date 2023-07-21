@@ -271,12 +271,7 @@ internal class TrackedSession : ITrackedSession
 
     public Task TrackAsync()
     {
-        _stopwatch.Start();
-
-
-        startTimeoutTracking();
-
-        return _source.Task;
+        return ExecuteAndTrackAsync();
     }
 
     private void cleanUp()

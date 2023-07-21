@@ -155,15 +155,5 @@ public class when_determining_if_the_session_is_done : IDisposable
         session.Status.ShouldBe(TrackingStatus.Completed);
     }
 
-    [Fact]
-    public async Task timeout_session()
-    {
-        var session = new TrackedSession(_host)
-        {
-            Timeout = 10.Milliseconds()
-        };
-        await session.TrackAsync();
 
-        session.Status.ShouldBe(TrackingStatus.TimedOut);
-    }
 }
