@@ -86,7 +86,7 @@ public class MiddlewarePolicy : IChainPolicy
 
         public Application(Type middlewareType, Func<IChain, bool> filter)
         {
-            if (!middlewareType.IsPublic)
+            if (!middlewareType.IsPublic && !middlewareType.IsVisible)
             {
                 throw new InvalidWolverineMiddlewareException(middlewareType);
             }

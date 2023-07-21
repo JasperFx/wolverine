@@ -338,6 +338,21 @@ public class middleware_usage
             "Back on Defense"
             );
     }
+    
+    [Fact]
+    public async Task use_implied_middleware_that_is_inner_type()
+    {
+        var list = await invokeMessage(new SnapBall("Go!"), x =>
+        {
+            x.AddMiddleware<MiddlewareWrapper.FootballMiddleware>();
+        });
+        
+        list.ShouldHaveTheSameElementsAs(
+            "Line up",
+            "Snap Ball",
+            "Score touchdown"
+        );
+    }
 }
 
 public class MiddlewareActivity
@@ -633,6 +648,8 @@ public class BaseballHandler
 
 public record JumpBall(string Name);
 
+public record SnapBall(string Name);
+
 public class BasketballHandler
 {
     [WolverineBefore]
@@ -652,4 +669,34 @@ public class BasketballHandler
         recorder.Actions.Add("Back on Defense");
     }
 
+}
+
+public class FootballHandler
+{
+
+    public static void Handle(SnapBall command, Recorder recorder)
+    {
+        recorder.Actions.Add("Snap Ball");
+    }
+
+
+}
+
+public class MiddlewareWrapper
+{
+    public class FootballMiddleware
+    {
+        [WolverineBefore]
+        public static void LineUp(Recorder recorder)
+        {
+            recorder.Actions.Add("Line up");
+        }
+
+        [WolverineAfter]
+        public static void BackOnDefense(Recorder recorder)
+        {
+            recorder.Actions.Add("Score touchdown");
+        }
+
+    }
 }
