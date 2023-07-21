@@ -162,6 +162,8 @@ public static class HostBuilderExtensions
 
             customization?.Invoke(context, options);
 
+            options.ApplyLazyConfiguration();
+
             options.CombineServices(services);
         });
 

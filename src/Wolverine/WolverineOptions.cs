@@ -19,6 +19,8 @@ namespace Wolverine;
 /// </summary>
 public sealed partial class WolverineOptions
 {
+    private readonly List<Action<WolverineOptions>> _lazyActions = new();
+    
     public WolverineOptions() : this(null)
     {
     }
@@ -169,5 +171,25 @@ public sealed partial class WolverineOptions
     public string DescribeHandlerMatch(Type handlerType)
     {
         return Discovery.DescribeHandlerMatch(this, handlerType);
+    }
+    
+    /// <summary>
+    /// Apply a change to this WolverineOptions after all other explicit configurations
+    /// are processed. Generally to avoid ordering issues 
+    /// </summary>
+    /// <param name="action"></param>
+    public void ConfigureLazily(Action<WolverineOptions> action)
+    {
+        _lazyActions.Add(action);
+    }
+
+    internal void ApplyLazyConfiguration()
+    {
+        foreach (var action in _lazyActions)
+        {
+            action(this);
+        }
+        
+        _lazyActions.Clear();
     }
 }

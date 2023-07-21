@@ -56,11 +56,12 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 
     opts.UseFluentValidation();
+    opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
     
     opts.OptimizeArtifactWorkflow();
     
     opts.Policies.Add<BroadcastClientMessages>();
-    opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
+    
 });
 
 var app = builder.Build();
