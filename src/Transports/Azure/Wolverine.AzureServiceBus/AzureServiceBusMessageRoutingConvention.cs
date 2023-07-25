@@ -7,7 +7,7 @@ public class AzureServiceBusMessageRoutingConvention
     : MessageRoutingConvention<AzureServiceBusTransport, AzureServiceBusQueueListenerConfiguration,
         AzureServiceBusQueueSubscriberConfiguration, AzureServiceBusMessageRoutingConvention>
 {
-    protected override (AzureServiceBusQueueListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(
+    protected override (AzureServiceBusQueueListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(
         string identifier,
         AzureServiceBusTransport transport)
     {
@@ -15,7 +15,7 @@ public class AzureServiceBusMessageRoutingConvention
         return (new AzureServiceBusQueueListenerConfiguration(queue), queue);
     }
 
-    protected override (AzureServiceBusQueueSubscriberConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,
+    protected override (AzureServiceBusQueueSubscriberConfiguration, Endpoint) findOrCreateSubscriber(string identifier,
         AzureServiceBusTransport transport)
     {
         var queue = transport.Queues[identifier];
