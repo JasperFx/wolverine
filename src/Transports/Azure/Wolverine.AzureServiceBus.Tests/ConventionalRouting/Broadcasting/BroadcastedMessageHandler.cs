@@ -1,4 +1,4 @@
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.New;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Broadcasting;
 
 public class BroadcastedMessageHandler
 {

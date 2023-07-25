@@ -5,7 +5,7 @@ using TestingSupport;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.New;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Broadcasting;
 
 public class end_to_end_with_conventional_routing : IDisposable
 {
@@ -17,7 +17,8 @@ public class end_to_end_with_conventional_routing : IDisposable
         _sender = WolverineHost.For(opts =>
         {
             opts.UseAzureServiceBusTesting()
-                .UseConventionalRouting(c => c.UsePublishingBroadcastFor(t => t == typeof(BroadcastedMessage), t => "test"))
+                .UseBroadcastingConventionRouting(c => c.IncludeTypes(t => t == typeof(BroadcastedMessage))
+                    .SubscriptionNameForListener(t => "tests"))
                 .AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
@@ -26,7 +27,8 @@ public class end_to_end_with_conventional_routing : IDisposable
         _receiver = WolverineHost.For(opts =>
         {
             opts.UseAzureServiceBusTesting()
-                .UseConventionalRouting(c => c.UsePublishingBroadcastFor(t => t == typeof(BroadcastedMessage), t => "test"))
+                .UseBroadcastingConventionRouting(c => c.IncludeTypes(t => t == typeof(BroadcastedMessage))
+                    .SubscriptionNameForListener(t => "tests"))
                 .AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
@@ -36,27 +38,6 @@ public class end_to_end_with_conventional_routing : IDisposable
     {
         _sender?.Dispose();
         _receiver?.Dispose();
-    }
-
-    [Fact]
-    public async Task send_from_one_node_to_another_all_with_conventional_routing()
-    {
-        var session = await _sender.TrackActivity()
-            .AlsoTrack(_receiver)
-            .IncludeExternalTransports()
-            .Timeout(30.Seconds())
-            .SendMessageAndWaitAsync(new NewRoutedMessage());
-
-        var received = session
-            .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(NewRoutedMessage))
-            .Single(x => x.MessageEventType == MessageEventType.Received);
-
-        received
-            .ServiceName.ShouldBe("Receiver");
-
-        received.Envelope.Destination
-            .ShouldBe(new Uri("asb://queue/newrouted"));
     }
 
     [Fact]
@@ -76,6 +57,6 @@ public class end_to_end_with_conventional_routing : IDisposable
         received.ServiceName.ShouldBe("Receiver");
 
         received.Envelope.Destination
-            .ShouldBe(new Uri("asb://topic/broadcasted/test"));
+            .ShouldBe(new Uri("asb://topic/broadcasted/tests"));
     }
 }

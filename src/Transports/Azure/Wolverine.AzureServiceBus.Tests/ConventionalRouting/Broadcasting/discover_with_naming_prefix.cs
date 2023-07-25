@@ -5,7 +5,7 @@ using Wolverine.Runtime;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.New;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Broadcasting;
 
 public class discover_with_naming_prefix : IDisposable
 {
@@ -19,7 +19,8 @@ public class discover_with_naming_prefix : IDisposable
             .UseWolverine(opts =>
             {
                 opts.UseAzureServiceBusTesting().PrefixIdentifiers("zztop")
-                    .UseConventionalRoutingWithBroadcast(c => c.UseBroadcastingFor(t => t == typeof(BroadcastedMessage), t => "test"))
+                .UseBroadcastingConventionRouting(c => c.IncludeTypes(t => t == typeof(BroadcastedMessage))
+                    .SubscriptionNameForListener(t => "tests"))
                     .AutoProvision().AutoPurgeOnStartup();
             }).Start();
     }
@@ -35,8 +36,6 @@ public class discover_with_naming_prefix : IDisposable
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
         var uris = runtime.Endpoints.ActiveListeners().Select(x => x.Uri).ToArray();
-        uris.ShouldContain(new Uri("asb://queue/zztop.newrouted"));
-        uris.ShouldContain(new Uri("asb://topic/zztop.broadcasted/test"));
-        uris.ShouldContain(new Uri("asb://queue/zztop.Wolverine.AzureServiceBus.Tests.AsbMessage"));
+        uris.ShouldContain(new Uri("asb://topic/zztop.broadcasted/tests"));
     }
 }

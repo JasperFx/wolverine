@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -8,7 +5,7 @@ using TestingSupport;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
 public class end_to_end_with_conventional_routing_with_prefix : IDisposable
 {
