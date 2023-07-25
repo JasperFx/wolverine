@@ -5,9 +5,9 @@ using TestingSupport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.New;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Broadcasting;
 
-public abstract class NewConventionalRoutingContext : IDisposable
+public abstract class BroadcastingConventionalRoutingContext : IDisposable
 {
     private IHost _host;
 
@@ -17,7 +17,8 @@ public abstract class NewConventionalRoutingContext : IDisposable
         {
             _host ??= WolverineHost.For(opts =>
                 opts.UseAzureServiceBusTesting()
-                    .UseConventionalRouting(c => c.UsePublishingBroadcastFor(t => t == typeof(BroadcastedMessage), t => "test"))
+                    .UseBroadcastingConventionRouting(c => c.IncludeTypes(t => t == typeof(BroadcastedMessage))
+                        .SubscriptionNameForListener(t => "tests"))
                     .AutoProvision().AutoPurgeOnStartup());
 
             return _host.Services.GetRequiredService<IWolverineRuntime>();
@@ -29,14 +30,16 @@ public abstract class NewConventionalRoutingContext : IDisposable
         _host?.Dispose();
     }
 
-    internal void ConfigureConventions(Action<AzureServiceBusQueueAndTopicMessageRoutingConvention> configure)
+    internal void ConfigureConventions(Action<AzureServiceBusBroadcastingMessageRoutingConvention> configure)
     {
         _host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseAzureServiceBusTesting()
-                    .UseConventionalRouting(c => configure(c.UsePublishingBroadcastFor(t => t == typeof(BroadcastedMessage), t => "test")))
+                    .UseBroadcastingConventionRouting(c => configure(c.IncludeTypes(t => t == typeof(BroadcastedMessage))
+                        .SubscriptionNameForListener(t => "tests")))
                     .AutoProvision().AutoPurgeOnStartup();
+
             }).Start();
     }
 

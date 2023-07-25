@@ -1,4 +1,3 @@
-using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -6,7 +5,7 @@ using TestingSupport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
 public abstract class ConventionalRoutingContext : IDisposable
 {

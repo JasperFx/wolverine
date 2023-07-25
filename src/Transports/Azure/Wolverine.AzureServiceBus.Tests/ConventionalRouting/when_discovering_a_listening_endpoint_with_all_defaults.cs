@@ -7,7 +7,7 @@ using Wolverine.Configuration;
 using Wolverine.Util;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
 public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
 {

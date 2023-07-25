@@ -7,7 +7,7 @@ using Wolverine.Runtime;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
 public class discover_with_naming_prefix : IDisposable
 {

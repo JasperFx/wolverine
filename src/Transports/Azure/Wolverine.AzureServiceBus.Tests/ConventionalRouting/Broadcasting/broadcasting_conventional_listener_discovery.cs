@@ -6,14 +6,14 @@ using Wolverine.Configuration;
 using Wolverine.Util;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.New;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Broadcasting;
 
-public class conventional_listener_discovery : NewConventionalRoutingContext
+public class broadcasting_conventional_listener_discovery : BroadcastingConventionalRoutingContext
 {
     [Fact]
     public void disable_sender_with_lambda()
     {
-        ConfigureConventions(c => c.IdentifierForSender(t =>
+        ConfigureConventions(c => c.TopicNameForSender(t =>
         {
             if (t == typeof(NewPublishedMessage))
             {
@@ -50,23 +50,12 @@ public class conventional_listener_discovery : NewConventionalRoutingContext
 
         PublishingRoutesFor<NewPublishedMessage>().Any().ShouldBeTrue();
 
-        var uri = "sqs://Message1".ToUri();
+        var uri = "asb://topic/newpublished.message\"".ToUri();
         var endpoint = theRuntime.Endpoints.EndpointFor(uri);
         endpoint.ShouldBeNull();
 
         theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
             .ShouldBeFalse();
-    }
-
-    [Fact]
-    public void configure_queue_sender_overrides()
-    {
-        ConfigureConventions(c => c.ConfigureQueueSending((c, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
-
-        var route = PublishingRoutesFor<NewPublishedMessage>().Single().Sender.Endpoint
-            .ShouldBeOfType<AzureServiceBusQueue>();
-
-        route.OutgoingRules.Single().ShouldBeOfType<FakeEnvelopeRule>();
     }
 
     [Fact]
@@ -83,7 +72,7 @@ public class conventional_listener_discovery : NewConventionalRoutingContext
     [Fact]
     public void disable_listener_by_lambda()
     {
-        ConfigureConventions(c => c.IdentifierForListener(t =>
+        ConfigureConventions(c => c.TopicNameForListener(t =>
         {
             if (t == typeof(NewRoutedMessage))
             {
@@ -102,22 +91,11 @@ public class conventional_listener_discovery : NewConventionalRoutingContext
     }
 
     [Fact]
-    public void configure_queue_listener()
-    {
-        ConfigureConventions(c => c.ConfigureQueueListeners((x, _) => { x.UseDurableInbox(); }));
-
-        var endpoint = theRuntime.Endpoints.EndpointFor("asb://queue/newrouted".ToUri())
-            .ShouldBeOfType<AzureServiceBusQueue>();
-
-        endpoint.Mode.ShouldBe(EndpointMode.Durable);
-    }
-
-    [Fact]
     public void configure_topic_listener()
     {
         ConfigureConventions(c => c.ConfigureSubscriptionListeners((x, _) => { x.UseDurableInbox(); }));
 
-        var endpoint = theRuntime.Endpoints.EndpointFor("asb://topic/broadcasted/test".ToUri())
+        var endpoint = theRuntime.Endpoints.EndpointFor("asb://topic/broadcasted/tests".ToUri())
             .ShouldBeOfType<AzureServiceBusSubscription>();
 
         endpoint.Mode.ShouldBe(EndpointMode.Durable);

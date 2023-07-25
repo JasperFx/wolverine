@@ -8,7 +8,7 @@ using TestingSupport;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Existing;
+namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
 public class end_to_end_with_conventional_routing : IDisposable
 {
