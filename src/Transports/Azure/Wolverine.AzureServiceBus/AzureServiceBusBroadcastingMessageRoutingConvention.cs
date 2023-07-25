@@ -9,15 +9,12 @@ using Endpoint = Wolverine.Configuration.Endpoint;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusQueueAndTopicMessageRoutingConvention : IMessageRoutingConvention
+public class AzureServiceBusBroadcastingMessageRoutingConvention : IMessageRoutingConvention
 {
     /// <summary>
     ///     Optionally include (allow list) or exclude (deny list) types. By default, this will apply to all message types
     /// </summary>
     private readonly CompositeFilter<Type> typeFilters = new();
-
-    private Action<AzureServiceBusQueueListenerConfiguration, MessageRoutingContext> configureQueueListener = (_, _) => { };
-    private Action<AzureServiceBusQueueSubscriberConfiguration, MessageRoutingContext> configureQueueSending = (_, _) => { };
 
     private Action<AzureServiceBusSubscriptionListenerConfiguration, MessageRoutingContext> configureSubscriptionListener = (_, _) => { };
     private Action<AzureServiceBusTopicSubscriberConfiguration, MessageRoutingContext> configureTopicSending = (_, _) => { };
@@ -25,7 +22,6 @@ public class AzureServiceBusQueueAndTopicMessageRoutingConvention : IMessageRout
     private Func<Type, string?> identifierForListener = t => t.ToMessageTypeName();
     private Func<Type, string?> identifierForSubscription = t => t.ToMessageTypeName();
     private Func<Type, string?> identifierForSender = t => t.ToMessageTypeName();
-    private Func<Type, bool> broadcastedTypesSelector = (_) => false;
 
     void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
@@ -80,52 +76,32 @@ public class AzureServiceBusQueueAndTopicMessageRoutingConvention : IMessageRout
 
     protected (IDelayedEndpointConfiguration, Endpoint) FindOrCreateSubscriber(string identifier, MessageRoutingContext context, AzureServiceBusTransport transport)
     {
-        // Broadcasted Types use Topics
-        if (broadcastedTypesSelector(context.MessageType))
-        {
-            AzureServiceBusTopic topic = transport.Topics[identifier];
+        AzureServiceBusTopic topic = transport.Topics[identifier];
 
-            AzureServiceBusTopicSubscriberConfiguration topicConfiguration = new AzureServiceBusTopicSubscriberConfiguration(topic);
-            configureTopicSending(topicConfiguration, context);
+        AzureServiceBusTopicSubscriberConfiguration topicConfiguration = new AzureServiceBusTopicSubscriberConfiguration(topic);
+        configureTopicSending(topicConfiguration, context);
 
-            return (topicConfiguration, topic);
-        }
-
-        var queue = transport.Queues[identifier];
-        AzureServiceBusQueueSubscriberConfiguration queueConfiguration = new AzureServiceBusQueueSubscriberConfiguration(queue);
-        configureQueueSending(queueConfiguration, context);
-
-        return (queueConfiguration, queue);
+        return (topicConfiguration, topic);
     }
 
     protected (IDelayedEndpointConfiguration, Endpoint) FindOrCreateListenerForIdentifier(string identifier, MessageRoutingContext context, AzureServiceBusTransport transport)
     {
-        // Broadcasted Types use Topics
-        if (broadcastedTypesSelector(context.MessageType))
-        {
-            string? subscriptionName = identifierForSubscription(context.MessageType);
+        string? subscriptionName = identifierForSubscription(context.MessageType);
 
-            AzureServiceBusTopic topic = transport.Topics[identifier];
-            AzureServiceBusSubscription subscription = topic.FindOrCreateSubscription(subscriptionName!);
+        AzureServiceBusTopic topic = transport.Topics[identifier];
+        AzureServiceBusSubscription subscription = topic.FindOrCreateSubscription(subscriptionName!);
 
-            AzureServiceBusSubscriptionListenerConfiguration subscriptionConfiguration = new AzureServiceBusSubscriptionListenerConfiguration(subscription);
+        AzureServiceBusSubscriptionListenerConfiguration subscriptionConfiguration = new AzureServiceBusSubscriptionListenerConfiguration(subscription);
 
-            configureSubscriptionListener(subscriptionConfiguration, context);
-            return (subscriptionConfiguration, subscription);
-        }
-
-        AzureServiceBusQueue queue = transport.Queues[identifier];
-        AzureServiceBusQueueListenerConfiguration queueConfiguration = new AzureServiceBusQueueListenerConfiguration(queue);
-
-        configureQueueListener(queueConfiguration, context);
-        return (queueConfiguration, queue);
+        configureSubscriptionListener(subscriptionConfiguration, context);
+        return (subscriptionConfiguration, subscription);
     }
 
     /// <summary>
     /// Create an allow list of included message types. This is accumulative.
     /// </summary>
     /// <param name="filter"></param>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention IncludeTypes(Func<Type, bool> filter)
+    public AzureServiceBusBroadcastingMessageRoutingConvention IncludeTypes(Func<Type, bool> filter)
     {
         typeFilters.Includes.Add(filter);
         return this;
@@ -135,7 +111,7 @@ public class AzureServiceBusQueueAndTopicMessageRoutingConvention : IMessageRout
     /// Create an deny list of included message types. This is accumulative.
     /// </summary>
     /// <param name="filter"></param>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention ExcludeTypes(Func<Type, bool> filter)
+    public AzureServiceBusBroadcastingMessageRoutingConvention ExcludeTypes(Func<Type, bool> filter)
     {
         typeFilters.Excludes.Add(filter);
         return this;
@@ -148,7 +124,7 @@ public class AzureServiceBusQueueAndTopicMessageRoutingConvention : IMessageRout
     /// <param name="nameSource"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention IdentifierForListener(Func<Type, string?> nameSource)
+    public AzureServiceBusBroadcastingMessageRoutingConvention TopicNameForListener(Func<Type, string?> nameSource)
     {
         identifierForListener = nameSource ?? throw new ArgumentNullException(nameof(nameSource));
         return this;
@@ -161,20 +137,22 @@ public class AzureServiceBusQueueAndTopicMessageRoutingConvention : IMessageRout
     /// <param name="nameSource"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention IdentifierForSender(Func<Type, string?> nameSource)
+    public AzureServiceBusBroadcastingMessageRoutingConvention TopicNameForSender(Func<Type, string?> nameSource)
     {
         identifierForSender = nameSource ?? throw new ArgumentNullException(nameof(nameSource));
         return this;
     }
 
     /// <summary>
-    /// Override the Rabbit MQ and Wolverine configuration for new listening endpoints created by message type.
+    /// Override the convention for determining the destination object name that should receive messages of the message type.
+    /// Returning null or empty is interpreted as "don't create a new queue for this message type". Default is the MessageTypeName
     /// </summary>
-    /// <param name="configure"></param>
+    /// <param name="nameSource"></param>
     /// <returns></returns>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention ConfigureQueueListeners(Action<AzureServiceBusQueueListenerConfiguration, MessageRoutingContext> configure)
+    /// <exception cref="ArgumentNullException"></exception>
+    public AzureServiceBusBroadcastingMessageRoutingConvention SubscriptionNameForListener(Func<Type, string?> nameSource)
     {
-        configureQueueListener = configure ?? throw new ArgumentNullException(nameof(configure));
+        this.identifierForSubscription = nameSource ?? throw new ArgumentNullException(nameof(nameSource));
         return this;
     }
 
@@ -184,7 +162,7 @@ public class AzureServiceBusQueueAndTopicMessageRoutingConvention : IMessageRout
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention ConfigureTopicSending(Action<AzureServiceBusTopicSubscriberConfiguration, MessageRoutingContext> configure)
+    public AzureServiceBusBroadcastingMessageRoutingConvention ConfigureTopicSending(Action<AzureServiceBusTopicSubscriberConfiguration, MessageRoutingContext> configure)
     {
         configureTopicSending = configure ?? throw new ArgumentNullException(nameof(configure));
         return this;
@@ -195,33 +173,9 @@ public class AzureServiceBusQueueAndTopicMessageRoutingConvention : IMessageRout
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention ConfigureSubscriptionListeners(Action<AzureServiceBusSubscriptionListenerConfiguration, MessageRoutingContext> configure)
+    public AzureServiceBusBroadcastingMessageRoutingConvention ConfigureSubscriptionListeners(Action<AzureServiceBusSubscriptionListenerConfiguration, MessageRoutingContext> configure)
     {
         configureSubscriptionListener = configure ?? throw new ArgumentNullException(nameof(configure));
-        return this;
-    }
-
-    /// <summary>
-    /// Override the Rabbit MQ and Wolverine configuration for sending endpoints, exchanges, and queue bindings
-    /// for a new sending endpoint
-    /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention ConfigureQueueSending(Action<AzureServiceBusQueueSubscriberConfiguration, MessageRoutingContext> configure)
-    {
-        configureQueueSending = configure ?? throw new ArgumentNullException(nameof(configure));
-        return this;
-    }
-
-    /// <summary>
-    ///     Specify naming rules for the subscribing queue for message types
-    /// </summary>
-    /// <param name="namingRule"></param>
-    /// <returns></returns>
-    public AzureServiceBusQueueAndTopicMessageRoutingConvention UsePublishingBroadcastFor(Func<Type, bool> selector, Func<Type, string?> topicSubscriberNameSource)
-    {
-        this.broadcastedTypesSelector = selector ?? throw new ArgumentNullException(nameof(selector));
-        this.identifierForSubscription = topicSubscriberNameSource ?? throw new ArgumentNullException(nameof(topicSubscriberNameSource));
         return this;
     }
 }
