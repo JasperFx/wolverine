@@ -16,7 +16,7 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
 
     public when_discovering_a_listening_endpoint_with_overridden_queue_naming()
     {
-        ConfigureConventions(c => c.UsePublishingBroadcastFor(t => t == typeof(BroadcastedMessage), t => "Test2")
+        ConfigureConventions(c => c.UseBroadcastingFor(t => t == typeof(BroadcastedMessage), t => "Test2")
             .IdentifierForListener(t => t.NameInCode() + "2"));
 
         var theRuntimeEndpoints = theRuntime.Endpoints.ActiveListeners().ToArray();

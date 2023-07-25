@@ -19,7 +19,7 @@ public class discover_with_naming_prefix : IDisposable
             .UseWolverine(opts =>
             {
                 opts.UseAzureServiceBusTesting().PrefixIdentifiers("zztop")
-                    .UseConventionalRouting(c => c.UsePublishingBroadcastFor(t => t == typeof(BroadcastedMessage), t => "test"))
+                    .UseConventionalRoutingWithBroadcast(c => c.UseBroadcastingFor(t => t == typeof(BroadcastedMessage), t => "test"))
                     .AutoProvision().AutoPurgeOnStartup();
             }).Start();
     }
