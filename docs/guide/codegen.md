@@ -50,6 +50,10 @@ directly under the root of your project folder.
 
 ## Optimized Workflow
 
+::: info
+Optimized Workflow overrides the storage migration [AutoBuildMessageStorageOnStartup](./durability/managing#disable-automatic-storage-migration) option, making it enabled for "Development" environment and disabled for other environments
+:::
+
 Lastly, you have a couple options about how Wolverine handles the dynamic code generation as shown below:
 
 <!-- snippet: sample_codegen_type_load_mode -->

@@ -37,15 +37,18 @@ public static class WolverineFluentValidationExtensions
         options.Services.Policies.Add<ValidatorLifetimePolicy>();
         options.Services.AddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
 
-        if (behavior == RegistrationBehavior.DiscoverAndRegisterValidators)
+        options.ConfigureLazily(o =>
         {
-            options.Services.Scan(x =>
+            if (behavior == RegistrationBehavior.DiscoverAndRegisterValidators)
             {
-                foreach (var assembly in options.Assemblies) x.Assembly(assembly);
+                options.Services.Scan(x =>
+                {
+                    foreach (var assembly in options.Assemblies) x.Assembly(assembly);
 
-                x.ConnectImplementationsToTypesClosing(typeof(IValidator<>));
-            });
-        }
+                    x.ConnectImplementationsToTypesClosing(typeof(IValidator<>));
+                });
+            }
+        });
 
         options.OnException<ValidationException>().Discard();
         options.Policies.Add<FluentValidationPolicy>();

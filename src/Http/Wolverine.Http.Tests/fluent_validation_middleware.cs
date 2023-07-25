@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Alba;
 using Microsoft.AspNetCore.Mvc;
 using Shouldly;
+using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using WolverineWebApi.Validation;
 
 namespace Wolverine.Http.Tests;
@@ -33,6 +34,22 @@ public class fluent_validation_middleware : IntegrationContext
         var results = await Scenario(x =>
         {
             x.Post.Json(createCustomer).ToUrl("/validate/customer");
+            x.ContentTypeShouldBe("application/problem+json");
+            x.StatusCodeShouldBe(400);
+        });
+
+        // Just proving that we have ProblemDetails content
+        // in the request
+        var problems = results.ReadAsJson<ProblemDetails>();
+    }
+    [Fact]
+    public async Task one_validator_sad_path_in_different_assembly()
+    {
+        var createCustomer = new CreateCustomer2(null, "Humphrey", "11111");
+
+        var results = await Scenario(x =>
+        {
+            x.Post.Json(createCustomer).ToUrl("/validate2/customer");
             x.ContentTypeShouldBe("application/problem+json");
             x.StatusCodeShouldBe(400);
         });
