@@ -41,7 +41,7 @@ internal class DatabaseControlListener : IListener
 
     public ValueTask DeferAsync(Envelope envelope)
     {
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
 
     public ValueTask DisposeAsync()

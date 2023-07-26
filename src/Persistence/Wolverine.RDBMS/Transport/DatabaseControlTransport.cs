@@ -84,7 +84,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
     {
         _deleteBlock = new RetryBlock<List<Envelope>>(deleteEnvelopesAsync,
             runtime.LoggerFactory.CreateLogger<DatabaseControlTransport>(), runtime.Options.Durability.Cancellation);
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
 
     public bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)

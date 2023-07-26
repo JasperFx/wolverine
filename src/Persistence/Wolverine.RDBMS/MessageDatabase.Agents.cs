@@ -39,6 +39,6 @@ public abstract partial class MessageDatabase<T> : IAgentFamily
         // run on leader
         assignments.RunOnLeader(_defaultAgent);
 
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
 }

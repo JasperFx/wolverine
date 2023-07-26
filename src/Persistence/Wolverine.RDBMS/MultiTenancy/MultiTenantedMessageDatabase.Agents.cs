@@ -34,6 +34,6 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
         assignments.DistributeEvenly(Scheme);
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
 }
