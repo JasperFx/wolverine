@@ -138,12 +138,12 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
-        return Task.FromResult((IReadOnlyList<Envelope>)new List<Envelope>());
+        return Task.FromResult((IReadOnlyList<Envelope>)Array.Empty<Envelope>());
     }
 
     public Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
     {
-        return Task.FromResult((IReadOnlyList<Envelope>)new List<Envelope>());
+        return Task.FromResult((IReadOnlyList<Envelope>)Array.Empty<Envelope>());
     }
 
     public Task ReleaseAllOwnershipAsync()

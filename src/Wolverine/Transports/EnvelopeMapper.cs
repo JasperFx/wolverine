@@ -140,12 +140,14 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         var getStringArray =
             GetType().GetMethod(nameof(readStringArray), BindingFlags.NonPublic | BindingFlags.Instance);
 
-        var list = new List<Expression>();
-
         var writeHeaders = Expression.Call(protocol,
             GetType().GetMethod(nameof(writeIncomingHeaders), BindingFlags.NonPublic | BindingFlags.Instance)!,
             incoming, envelope);
-        list.Add(writeHeaders);
+
+        var list = new List<Expression>
+        {
+            writeHeaders
+        };
 
         foreach (var pair in _envelopeToHeader.Where(x => !_envelopeToOutgoing.ContainsKey(x.Key)))
         {
@@ -222,12 +224,14 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         var setStringArray =
             GetType().GetMethod(nameof(writeStringArray), BindingFlags.NonPublic | BindingFlags.Instance);
 
-        var list = new List<Expression>();
-
         var writeHeaders = Expression.Call(protocol,
             GetType().GetMethod(nameof(writeOutgoingOtherHeaders), BindingFlags.NonPublic | BindingFlags.Instance)!,
             outgoing, envelope);
-        list.Add(writeHeaders);
+
+        var list = new List<Expression>
+        {
+            writeHeaders
+        };
 
         var headers = _envelopeToHeader.Where(x => !_incomingToEnvelope.ContainsKey(x.Key));
         foreach (var pair in headers)

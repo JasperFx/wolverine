@@ -24,8 +24,10 @@ public static class GenerationRulesExtensions
         }
         else
         {
-            list = new List<IPersistenceFrameProvider>();
-            list.Add(new T());
+            list = new List<IPersistenceFrameProvider>
+            {
+                new T()
+            };
             rules.Properties[PersistenceKey] = list;
         }
     }
