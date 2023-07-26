@@ -32,9 +32,11 @@ public static class ContinuationHandling
         }
         else
         {
-            list = new List<IContinuationStrategy>();
-            list.Add(new HandlerContinuationPolicy());
-            list.Add(new T());
+            list = new List<IContinuationStrategy>
+            {
+                new HandlerContinuationPolicy(),
+                new T()
+            };
             rules.Properties[Continuations] = list;
         }
     }

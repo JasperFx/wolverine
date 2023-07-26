@@ -315,7 +315,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 
         if (ListenerCount > 1)
         {
-            var listeners = new List<RabbitMqListener>();
+            var listeners = new List<RabbitMqListener>(ListenerCount);
             for (var i = 0; i < ListenerCount; i++)
             {
                 var listener = new RabbitMqListener(runtime, this, _parent, receiver);

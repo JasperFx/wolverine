@@ -7,9 +7,7 @@ public class OutgoingMessageBatch
     public OutgoingMessageBatch(Uri destination, IReadOnlyList<Envelope> messages)
     {
         Destination = destination;
-        var messagesList = new List<Envelope>();
-        messagesList.AddRange(messages);
-        Messages = messagesList;
+        Messages = new List<Envelope>(messages);
 
         foreach (var message in messages) message.Destination = destination;
 

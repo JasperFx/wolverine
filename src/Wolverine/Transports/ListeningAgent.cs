@@ -163,7 +163,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         if (Endpoint.ListenerCount > 1)
         {
-            var listeners = new List<IListener>();
+            var listeners = new List<IListener>(Endpoint.ListenerCount);
             for (var i = 0; i < Endpoint.ListenerCount; i++)
             {
                 var listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);

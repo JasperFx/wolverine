@@ -33,16 +33,16 @@ public static class DatabasePersistence
     private static void ConfigureOutgoingCommand(IMessageDatabase settings, DbCommandBuilder builder, Envelope envelope,
         DbParameter owner)
     {
-        var list = new List<DbParameter>();
-
-        list.Add(builder.AddParameter(EnvelopeSerializer.Serialize(envelope)));
-        list.Add(builder.AddParameter(envelope.Id));
-        list.Add(owner);
-        list.Add(builder.AddParameter(envelope.Destination!.ToString()));
-        list.Add(builder.AddParameter(envelope.DeliverBy));
-
-        list.Add(builder.AddParameter(envelope.Attempts));
-        list.Add(builder.AddParameter(envelope.MessageType));
+        var list = new List<DbParameter>
+        {
+            builder.AddParameter(EnvelopeSerializer.Serialize(envelope)),
+            builder.AddParameter(envelope.Id),
+            owner,
+            builder.AddParameter(envelope.Destination!.ToString()),
+            builder.AddParameter(envelope.DeliverBy),
+            builder.AddParameter(envelope.Attempts),
+            builder.AddParameter(envelope.MessageType)
+        };
 
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
@@ -75,7 +75,6 @@ public static class DatabasePersistence
             builder.AddParameter(envelope.Destination?.ToString())
         };
 
-
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
         builder.Append(
@@ -102,18 +101,19 @@ public static class DatabasePersistence
     public static void ConfigureDeadLetterCommands(Envelope envelope, Exception? exception, DbCommandBuilder builder,
         IMessageDatabase wolverineDatabase)
     {
-        var list = new List<DbParameter>();
-
-        list.Add(builder.AddParameter(envelope.Id));
-        list.Add(builder.AddParameter(envelope.ScheduledTime));
-        list.Add(builder.AddParameter(EnvelopeSerializer.Serialize(envelope)));
-        list.Add(builder.AddParameter(envelope.MessageType));
-        list.Add(builder.AddParameter(envelope.Destination?.ToString()));
-        list.Add(builder.AddParameter(envelope.Source));
-        list.Add(builder.AddParameter(exception?.GetType().FullNameInCode()));
-        list.Add(builder.AddParameter(exception?.Message));
-        list.Add(builder.AddParameter(envelope.SentAt.ToUniversalTime()));
-        list.Add(builder.AddParameter(false));
+        var list = new List<DbParameter>
+        {
+            builder.AddParameter(envelope.Id),
+            builder.AddParameter(envelope.ScheduledTime),
+            builder.AddParameter(EnvelopeSerializer.Serialize(envelope)),
+            builder.AddParameter(envelope.MessageType),
+            builder.AddParameter(envelope.Destination?.ToString()),
+            builder.AddParameter(envelope.Source),
+            builder.AddParameter(exception?.GetType().FullNameInCode()),
+            builder.AddParameter(exception?.Message),
+            builder.AddParameter(envelope.SentAt.ToUniversalTime()),
+            builder.AddParameter(false)
+        };
 
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
