@@ -125,10 +125,9 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         writer.WriteLine("No persistent envelope storage");
     }
 
-
     public ValueTask DisposeAsync()
     {
-        return new ValueTask();
+        return ValueTask.CompletedTask;
     }
 
     public Task DrainAsync()
