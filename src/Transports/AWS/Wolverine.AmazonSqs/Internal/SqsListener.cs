@@ -67,7 +67,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
                     if (results.Messages.Any())
                     {
-                        var envelopes = new List<Envelope>();
+                        var envelopes = new List<Envelope>(results.Messages.Count);
                         foreach (var message in results.Messages)
                         {
                             try

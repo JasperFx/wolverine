@@ -28,7 +28,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocol
     {
         await _endpoint.InitializeAsync(_logger);
 
-        var messages = new List<ServiceBusMessage>();
+        var messages = new List<ServiceBusMessage>(batch.Messages.Count);
 
         foreach (var envelope in batch.Messages)
         {
