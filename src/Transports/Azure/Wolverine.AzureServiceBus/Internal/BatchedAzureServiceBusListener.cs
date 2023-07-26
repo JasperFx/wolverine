@@ -111,7 +111,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
                 if (messages.Any())
                 {
-                    var envelopes = new List<Envelope>();
+                    var envelopes = new List<Envelope>(messages.Count);
                     foreach (var message in messages)
                     {
                         try
