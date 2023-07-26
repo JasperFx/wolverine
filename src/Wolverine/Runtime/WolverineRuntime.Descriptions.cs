@@ -42,10 +42,8 @@ internal class MessageSubscriptions : IDescribedSystemPart, IWriteToConsole
         _runtime = runtime;
     }
 
-    public async Task Write(TextWriter writer)
-    {
-        await writer.WriteLineAsync("Use the console output option.");
-    }
+    public Task Write(TextWriter writer) =>
+        writer.WriteLineAsync("Use the console output option.");
 
     public string Title => "Wolverine Message Routing";
 
@@ -93,10 +91,8 @@ internal class SenderDescription : IDescribedSystemPart, IWriteToConsole
         _runtime = runtime;
     }
 
-    public async Task Write(TextWriter writer)
-    {
-        await writer.WriteLineAsync("Use the console output option.");
-    }
+    public Task Write(TextWriter writer) =>
+        writer.WriteLineAsync("Use the console output option.");
 
     public string Title => "Wolverine Sending Endpoints";
 
@@ -153,10 +149,8 @@ internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
         _runtime = runtime;
     }
 
-    public async Task Write(TextWriter writer)
-    {
-        await writer.WriteLineAsync("Use the console output option.");
-    }
+    public Task Write(TextWriter writer) =>
+        writer.WriteLineAsync("Use the console output option.");
 
     public string Title => "Wolverine Listeners";
 
@@ -206,10 +200,8 @@ internal class FailureRuleDescription : IDescribedSystemPart, IWriteToConsole
         _runtime = runtime;
     }
 
-    public async Task Write(TextWriter writer)
-    {
-        await writer.WriteLineAsync("Use the console output option.");
-    }
+    public Task Write(TextWriter writer) =>
+        writer.WriteLineAsync("Use the console output option.");
 
     public string Title => "Wolverine Error Handling";
 

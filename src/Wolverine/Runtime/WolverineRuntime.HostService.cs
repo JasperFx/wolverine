@@ -140,16 +140,16 @@ public partial class WolverineRuntime
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
     }
 
-    internal async Task StartLightweightAsync()
+    internal Task StartLightweightAsync()
     {
         if (_hasStarted)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         Options.ExternalTransportsAreStubbed = true;
         Options.Durability.DurabilityAgentEnabled = false;
 
-        await StartAsync(CancellationToken.None);
+        return StartAsync(CancellationToken.None);
     }
 }
