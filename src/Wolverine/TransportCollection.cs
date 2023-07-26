@@ -40,10 +40,8 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 
     internal IEnumerable<IEndpointPolicy> EndpointPolicies => _policies;
 
-    async ValueTask IAsyncDisposable.DisposeAsync()
-    {
-        await _transports.Values.MaybeDisposeAllAsync();
-    }
+    ValueTask IAsyncDisposable.DisposeAsync() =>
+        _transports.Values.MaybeDisposeAllAsync();
 
     public IEnumerator<ITransport> GetEnumerator()
     {

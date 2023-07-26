@@ -136,11 +136,11 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
-    private async Task<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
+    private Task<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
     {
         if (envelope.IsExpired())
         {
-            return DiscardEnvelope.Instance;
+            return Task.FromResult<IContinuation>(DiscardEnvelope.Instance);
         }
 
         if (envelope.Message == null)
@@ -148,21 +148,18 @@ public class HandlerPipeline : IHandlerPipeline
             if (!tryDeserializeEnvelope(envelope, out var serializationError))
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
-                return serializationError;
+                return Task.FromResult(serializationError);
             }
         }
 
         if (envelope.IsResponse)
         {
             _runtime.Replies.Complete(envelope);
-            return MessageSucceededContinuation.Instance;
+            return Task.FromResult<IContinuation>(MessageSucceededContinuation.Instance);
         }
 
         var executor = _executors[envelope.Message!.GetType()];
 
-        var continuation = await executor.ExecuteAsync(context, _cancellation).ConfigureAwait(false);
-
-
-        return continuation;
+        return executor.ExecuteAsync(context, _cancellation);
     }
 }

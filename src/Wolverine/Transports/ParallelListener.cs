@@ -18,15 +18,11 @@ public class ParallelListener : IListener, IDisposable
     }
 
     // These should never be called, but still
-    public async ValueTask CompleteAsync(Envelope envelope)
-    {
-        await envelope.Listener!.CompleteAsync(envelope);
-    }
+    public ValueTask CompleteAsync(Envelope envelope) =>
+        envelope.Listener!.CompleteAsync(envelope);
 
-    public async ValueTask DeferAsync(Envelope envelope)
-    {
-        await envelope.Listener!.DeferAsync(envelope);
-    }
+    public ValueTask DeferAsync(Envelope envelope) =>
+        envelope.Listener!.DeferAsync(envelope);
 
     public Uri Address { get; }
 
@@ -35,8 +31,6 @@ public class ParallelListener : IListener, IDisposable
         foreach (var listener in _listeners) await listener.StopAsync();
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _listeners.MaybeDisposeAllAsync();
-    }
+    public ValueTask DisposeAsync() =>
+        _listeners.MaybeDisposeAllAsync();
 }

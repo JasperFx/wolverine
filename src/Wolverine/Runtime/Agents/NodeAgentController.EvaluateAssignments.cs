@@ -73,11 +73,9 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
         }
     }
 
-    private async Task requestAssignmentEvaluationAsync()
-    {
+    private Task requestAssignmentEvaluationAsync() =>
         // This buffers requests to reevaluate and reassign node
         // assignments so that the system isn't repeatedly redoing
         // this work as a node cluster spins up
-        await _assignmentBufferBlock.SendAsync(new EvaluateAssignments());
-    }
+        _assignmentBufferBlock.SendAsync(new EvaluateAssignments());
 }

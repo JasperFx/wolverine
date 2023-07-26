@@ -11,10 +11,8 @@ internal class NodeMessage : ISendMyself
     public object Message { get; }
     public WolverineNode Node { get; }
 
-    public async ValueTask ApplyAsync(IMessageContext context)
-    {
-        await context.EndpointFor(Node.ControlUri!).SendAsync(Message);
-    }
+    public ValueTask ApplyAsync(IMessageContext context) =>
+        context.EndpointFor(Node.ControlUri!).SendAsync(Message);
 }
 
 internal static class NodeMessageExtensions
