@@ -186,7 +186,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
 
         builder.AppendParameter(utcNow);
-        builder.Append($" LIMIT {Durability.RecoveryBatchSize};");
+        builder.Append($" order by execution_time LIMIT {Durability.RecoveryBatchSize} SKIP LOCKED;");
     }
 
     public override IEnumerable<ISchemaObject> AllObjects()

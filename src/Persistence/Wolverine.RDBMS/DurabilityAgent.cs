@@ -1,4 +1,5 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
@@ -6,6 +7,7 @@ using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 
@@ -23,6 +25,7 @@ internal class DurabilityAgent : IAgent
     private readonly ILogger<DurabilityAgent> _logger;
     private Timer? _reassignmentTimer;
     private Timer? _scheduledJobTimer;
+    private Timer? _recoveryTimer;
 
     public DurabilityAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database)
     {
@@ -62,16 +65,28 @@ internal class DurabilityAgent : IAgent
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _scheduledJobTimer = new Timer(_ =>
+        var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
+        
+        _recoveryTimer = new Timer(_ =>
         {
             var operations = new IDatabaseOperation[]
             {
-                new RunScheduledMessagesOperation(_database, _settings, _localQueue),
                 new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
                 new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
                 new DeleteExpiredEnvelopesOperation(
                     new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
                 new MoveReplayableErrorMessagesToIncomingOperation(_database)
+            };
+
+            var batch = new DatabaseOperationBatch(_database, operations);
+            _runningBlock.Post(batch);
+        }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
+        
+        _scheduledJobTimer = new Timer(_ =>
+        {
+            var operations = new IDatabaseOperation[]
+            {
+                new RunScheduledMessagesOperation(_database, _settings, _localQueue)
             };
 
             var batch = new DatabaseOperationBatch(_database, operations);
@@ -98,6 +113,11 @@ internal class DurabilityAgent : IAgent
         if (_reassignmentTimer != null)
         {
             await _reassignmentTimer.DisposeAsync();
+        }
+
+        if (_recoveryTimer != null)
+        {
+            await _recoveryTimer.DisposeAsync();
         }
     }
 
