@@ -19,6 +19,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
         var validatorInterface = typeof(IValidator<>).MakeGenericType(chain.RequestType!);
 
         var registered = container.Model.For(validatorInterface);
+        
         if (registered.Instances.Count() == 1)
         {
             chain.Metadata.ProducesProblem(400);
@@ -28,10 +29,8 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
                     .MakeGenericMethod(chain.RequestType);
 
             var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method);
-            chain.Middleware.Add(methodCall);
-
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-            chain.Middleware.Add(maybeResult);
+            chain.Middleware.InsertRange(0, new Frame[]{methodCall,maybeResult});
         }
         else if (registered.Instances.Count() > 1)
         {
@@ -42,10 +41,8 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
                     .MakeGenericMethod(chain.RequestType);
 
             var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method);
-            chain.Middleware.Add(methodCall);
-
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-            chain.Middleware.Add(maybeResult);
+            chain.Middleware.InsertRange(0, new Frame[]{methodCall,maybeResult});
         }
     }
 }
