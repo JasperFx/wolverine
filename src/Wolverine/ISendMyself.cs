@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Wolverine.Configuration;
 
 namespace Wolverine;
@@ -60,6 +61,28 @@ public static class ConfiguredMessageExtensions
     {
         return new DelayedMessage<T>(message, delay);
     }
+    
+    /// <summary>
+    /// Send a message directly to the named endpoint as a cascading message
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="endpointName"></param>
+    /// <returns></returns>
+    public static RoutedToEndpointMessage<T> ToEndpoint<T>(this T message, string endpointName, DeliveryOptions? options = null)
+    {
+        return new RoutedToEndpointMessage<T>(endpointName, message, options);
+    }
+
+    /// <summary>
+    /// Send a message directly to the specific destination as a cascading message
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="destination"></param>
+    /// <returns></returns>
+    public static RoutedToEndpointMessage<T> ToDestination<T>(this T message, Uri destination, DeliveryOptions? options = null)
+    {
+        return new RoutedToEndpointMessage<T>(destination, message, options);
+    }
 }
 
 /// <summary>
@@ -94,5 +117,45 @@ public class DeliveryMessage<T> : ISendMyself
     ValueTask ISendMyself.ApplyAsync(IMessageContext context)
     {
         return context.PublishAsync(Message, Options);
+    }
+}
+
+public class RoutedToEndpointMessage<T> : ISendMyself
+{
+    public string? EndpointName { get; set; }
+    public Uri? Destination { get; set; }
+    
+    public T Message { get; }
+    public DeliveryOptions? DeliveryOptions { get; }
+
+    public RoutedToEndpointMessage(string endpointName, T message, DeliveryOptions? deliveryOptions = null)
+    {
+        if (endpointName == null)
+        {
+            throw new ArgumentNullException(nameof(endpointName));
+        }
+
+        EndpointName = endpointName ?? throw new ArgumentNullException(nameof(endpointName));
+        Message = message ?? throw new ArgumentNullException(nameof(message));
+        DeliveryOptions = deliveryOptions;
+    }
+
+    public RoutedToEndpointMessage(Uri destination, T message, DeliveryOptions? deliveryOptions = null)
+    {
+        if (destination == null)
+        {
+            throw new ArgumentNullException(nameof(destination));
+        }
+
+        Destination = destination ?? throw new ArgumentNullException(nameof(destination));
+        Message = message ?? throw new ArgumentNullException(nameof(message));
+        DeliveryOptions = deliveryOptions;
+    }
+
+    ValueTask ISendMyself.ApplyAsync(IMessageContext context)
+    {
+        return EndpointName.IsNotEmpty()
+            ? context.EndpointFor(EndpointName).SendAsync(Message, DeliveryOptions)
+            : context.EndpointFor(Destination).SendAsync(Message, DeliveryOptions);
     }
 }

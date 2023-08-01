@@ -52,6 +52,30 @@ public class OutgoingMessages : List<object>, IWolverineReturnType
     {
         Add(new DeliveryMessage<T>(message, options));
     }
+
+    /// <summary>
+    /// Send a message to a specific endpoint by name, with optional delivery options
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="endpointName"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    public void ToEndpoint<T>(T message, string endpointName, DeliveryOptions? options = null)
+    {
+        Add(new RoutedToEndpointMessage<T>(endpointName, message, options));
+    }
+
+    /// <summary>
+    /// Send a message to a specific destination by Uri, with optional delivery options
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="destination"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    public void ToDestination<T>(T message, Uri destination, DeliveryOptions? options = null)
+    {
+        Add(new RoutedToEndpointMessage<T>(destination, message, options));
+    }
 }
 
 internal class OutgoingMessagesPolicy : IChainPolicy

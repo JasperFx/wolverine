@@ -28,4 +28,29 @@ public class ConfiguredMessageExtensionsTests
         configured.Options.ScheduledTime.ShouldBe(time);
         configured.Message.ShouldBe(inner);
     }
+
+    [Fact]
+    public void to_endpoint()
+    {
+        var inner = new Message1();
+        var message = inner.ToEndpoint("foo", new DeliveryOptions{DeliverWithin = 5.Seconds()});
+        
+        message.Message.ShouldBe(inner);
+        message.EndpointName.ShouldBe("foo");
+        message.DeliveryOptions.DeliverBy.HasValue.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void to_uri()
+    {
+        var inner = new Message1();
+        var destination = new Uri("rabbitmq://queue/foo");
+        var message = inner.ToDestination(destination, new DeliveryOptions{DeliverWithin = 5.Seconds()});
+        
+        message.Message.ShouldBe(inner);
+        message.Destination.ShouldBe(destination);
+        message.DeliveryOptions.DeliverBy.HasValue.ShouldBeTrue();
+    }
+    
+    
 }

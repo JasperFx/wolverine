@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Wolverine;
 
 namespace DocumentationSamples;
@@ -132,7 +133,7 @@ public class MultipleResponseHandler
         yield return new GoNorth();
 
         // Go West in an hour
-        yield return new Envelope(new GoWest()).ScheduleDelayed(TimeSpan.FromHours(1));
+        yield return new GoWest().DelayedFor(1.Hours());
     }
 }
 
@@ -147,6 +148,24 @@ public class TupleResponseHandler
     public (GoNorth, GoWest) Consume(MyMessage message)
     {
         return (new GoNorth(), new GoWest());
+    }
+}
+
+#endregion
+
+
+
+#region sample_ManuallyRoutedResponseHandler
+
+public class ManuallyRoutedResponseHandler
+{
+    public IEnumerable<object> Consume(MyMessage message)
+    {
+        // Go North now at the "important" queue
+        yield return new GoNorth().ToEndpoint("important");
+
+        // Go West in a lower priority queue
+        yield return new GoWest().ToDestination(new Uri("rabbitmq://queue/low"));
     }
 }
 

@@ -357,7 +357,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L117-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L120-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:

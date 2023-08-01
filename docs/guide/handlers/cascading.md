@@ -71,6 +71,15 @@ In terms of response types that become cascading messages, the response types of
 2. `IAsyncEnumerable<object>` to make multiple cascading messages out of an asynchronous handler
 1. A [Tuple](https://docs.microsoft.com/en-us/dotnet/csharp/tuples) type to express the exact kinds of responses your message handler returns
 
+## To Specific Endpoints
+
+Sometimes you'll want to explicitly send messages to specific endpoints rather than relying on Wolverine's message routing.
+You can still use cascading messages to an endpoint by name or by the destination `Uri` like so:
+
+snippet: sample_ManuallyRoutedResponseHandler
+
+You can also add optional `DeliveryOptions` to the outgoing messages to fine tune how the message is to be published. 
+
 ## Using OutgoingMessages
 
 ::: tip
