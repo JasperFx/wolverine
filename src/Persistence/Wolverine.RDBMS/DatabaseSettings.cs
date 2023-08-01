@@ -1,3 +1,5 @@
+using JasperFx.Core;
+
 namespace Wolverine.RDBMS;
 
 public class DatabaseSettings
@@ -14,4 +16,6 @@ public class DatabaseSettings
     ///     Is this database exposing command queues?
     /// </summary>
     public bool CommandQueuesEnabled { get; set; } = true;
+    
+    public int ScheduledJobLockId { get; set; } = 20000;
 }

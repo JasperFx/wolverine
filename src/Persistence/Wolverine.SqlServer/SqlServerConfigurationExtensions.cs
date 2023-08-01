@@ -24,7 +24,10 @@ public static class SqlServerConfigurationExtensions
             else
             {
                 schema = "dbo";
+                
             }
+
+            x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         });
     }
 }

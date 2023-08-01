@@ -2,6 +2,7 @@
 using Npgsql;
 using NpgsqlTypes;
 using Weasel.Core;
+using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine.Logging;
@@ -9,6 +10,7 @@ using Wolverine.Postgresql.Schema;
 using Wolverine.Postgresql.Util;
 using Wolverine.RDBMS;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 
 namespace Wolverine.Postgresql;
@@ -187,6 +189,56 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
         builder.AppendParameter(utcNow);
         builder.Append($" order by execution_time LIMIT {Durability.RecoveryBatchSize};");
+    }
+
+    public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger logger,
+        DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Envelope> envelopes;
+        
+        using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+        try
+        {
+            var tx = await conn.BeginTransactionAsync(cancellationToken);
+            if (await tx.TryGetGlobalTxLock(Settings.ScheduledJobLockId, cancellationToken) == AttainLockResult.Success)
+            {
+                var builder = new DbCommandBuilder(conn);
+                WriteLoadScheduledEnvelopeSql(builder, DateTimeOffset.UtcNow);
+                var cmd = builder.Compile();
+                cmd.Connection = conn;
+                cmd.Transaction = tx;
+
+                envelopes = await cmd.FetchListAsync(reader =>
+                    DatabasePersistence.ReadIncomingAsync(reader, cancellationToken), cancellation: cancellationToken);
+
+                if (!envelopes.Any())
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    return;
+                }
+
+                await conn.CreateCommand(_reassignIncomingSql)
+                    .With("owner", durabilitySettings.AssignedNodeNumber)
+                    .With("ids", envelopes.Select(x => x.Id).ToArray())
+                    .ExecuteNonQueryAsync(_cancellation);
+
+
+                await tx.CommitAsync(cancellationToken);
+                
+                // Judging that there's very little chance of errors here
+                foreach (var envelope in envelopes)
+                {
+                    logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
+                        envelope.MessageType);
+                    localQueue.Enqueue(envelope);
+                }
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     public override IEnumerable<ISchemaObject> AllObjects()

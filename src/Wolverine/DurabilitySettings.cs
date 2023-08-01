@@ -44,7 +44,7 @@ public class DurabilitySettings
     ///     How long to wait before the first execution of polling
     ///     for ready, persisted scheduled messages
     /// </summary>
-    public TimeSpan ScheduledJobFirstExecution { get; set; } = 0.Seconds();
+    public TimeSpan ScheduledJobFirstExecution { get; set; } = new Random().Next(500, 5000).Milliseconds();
 
     /// <summary>
     ///     Polling interval for executing scheduled messages

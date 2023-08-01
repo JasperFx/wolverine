@@ -1,7 +1,9 @@
 using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Polling;
+using Wolverine.Runtime.WorkerQueues;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
@@ -34,4 +36,7 @@ public interface IMessageDatabase : IMessageStore
 
     Task EnqueueAsync(IDatabaseOperation operation);
     void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
+    Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger runtimeLogger,
+        DurabilitySettings durabilitySettings,
+        CancellationToken cancellationToken);
 }

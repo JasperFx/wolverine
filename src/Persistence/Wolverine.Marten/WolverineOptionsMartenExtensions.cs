@@ -9,6 +9,7 @@ using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
+using JasperFx.Core;
 
 namespace Wolverine.Marten;
 
@@ -118,7 +119,8 @@ public static class WolverineOptionsMartenExtensions
         {
             ConnectionString = martenDatabase.CreateConnection().ConnectionString,
             SchemaName = schemaName,
-            IsMaster = true
+            IsMaster = true,
+            ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
 
         return new PostgresqlMessageStore(settings, runtime.Options.Durability, logger);

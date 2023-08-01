@@ -197,7 +197,10 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
     public void Unlatch()
     {
-        _logger.CircuitResumed(Destination);
+        if (Latched)
+        {
+            _logger.CircuitResumed(Destination);
+        }
 
         Latched = false;
     }

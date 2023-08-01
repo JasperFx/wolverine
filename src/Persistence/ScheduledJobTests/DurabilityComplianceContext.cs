@@ -1,6 +1,8 @@
+using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
+using Marten;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,6 +11,7 @@ using Shouldly;
 using TestingSupport;
 using Wolverine;
 using Wolverine.Logging;
+using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -29,12 +32,13 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
 
         var senderRegistry = new WolverineOptions();
+        senderRegistry.Durability.ScheduledJobFirstExecution = 0.Seconds(); // Start immediately!
+        senderRegistry.Durability.ScheduledJobPollingTime = 1.Seconds();
         senderRegistry.Services.ForSingletonOf<ILogger>().Use(NullLogger.Instance);
         senderRegistry
             .DisableConventionalDiscovery()
             .IncludeType<CascadeReceiver>()
             .IncludeType<ScheduledMessageHandler>();
-
 
         senderRegistry.Publish(x =>
         {
@@ -52,6 +56,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         configureSender(senderRegistry);
 
         theSender = WolverineHost.For(senderRegistry);
+        await theSender.ResetResourceState();
 
 
         var receiverRegistry = new WolverineOptions();

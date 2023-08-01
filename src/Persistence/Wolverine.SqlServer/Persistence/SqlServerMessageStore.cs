@@ -9,6 +9,7 @@ using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
 using Wolverine.RDBMS;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Util;
 using Wolverine.Transports;
@@ -21,6 +22,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 {
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _moveToDeadLetterStorageSql;
+    private readonly string _scheduledLockId;
 
 
     public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
@@ -31,6 +33,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             $"select top (@limit) {DatabaseConstants.IncomingFields} from {database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
 
         _moveToDeadLetterStorageSql = $"EXEC {SchemaName}.uspDeleteIncomingEnvelopes @IDLIST;";
+
+        _scheduledLockId = "Wolverine:Scheduled:" + database.ScheduledJobLockId.ToString();
     }
 
     protected override INodeAgentPersistence buildNodeStorage(DatabaseSettings databaseSettings)
@@ -178,7 +182,62 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         builder.Append(";");
     }
 
-    
+    public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue,
+        ILogger logger,
+        DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Envelope> envelopes;
+        
+        using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+        try
+        {
+            var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
+            if (await tx.TryGetGlobalTxLock(_scheduledLockId, cancellationToken))
+            {
+                var builder = new DbCommandBuilder(conn);
+                WriteLoadScheduledEnvelopeSql(builder, DateTimeOffset.UtcNow);
+                var cmd = builder.Compile();
+                cmd.Connection = conn;
+                cmd.Transaction = tx;
+
+                envelopes = await cmd.FetchListAsync(reader =>
+                    DatabasePersistence.ReadIncomingAsync(reader, cancellationToken), cancellation: cancellationToken);
+                
+                if (!envelopes.Any())
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    return;
+                }
+
+                var reassign = conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);
+                reassign.CommandType = CommandType.StoredProcedure;
+        
+                await cmd
+                    .WithIdList(this, envelopes)
+                    .With("owner", durabilitySettings.AssignedNodeNumber)
+                    .ExecuteNonQueryAsync(_cancellation);
+
+                await tx.CommitAsync(cancellationToken);
+                
+                // Judging that there's very little chance of errors here
+                foreach (var envelope in envelopes)
+                {
+                    logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
+                        envelope.MessageType);
+                    localQueue.Enqueue(envelope);
+                }
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+
+    }
+
+
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(SchemaName);

@@ -137,7 +137,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         await _receiver!.DrainAsync();
     }
 
-    void ILocalQueue.Enqueue(Envelope envelope)
+    void ILocalReceiver.Enqueue(Envelope envelope)
     {
         _receiver?.Enqueue(envelope);
     }

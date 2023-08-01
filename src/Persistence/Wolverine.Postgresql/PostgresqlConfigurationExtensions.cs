@@ -20,6 +20,8 @@ public static class PostgresqlConfigurationExtensions
             {
                 o.Settings.SchemaName = schema;
             }
+            
+            o.Settings.ScheduledJobLockId = $"{schema ?? "public"}:scheduled-jobs".GetDeterministicHashCode();
         });
     }
 }

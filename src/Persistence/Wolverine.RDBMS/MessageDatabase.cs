@@ -8,6 +8,7 @@ using Wolverine.RDBMS.Polling;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -97,6 +98,10 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         return _batcher.EnqueueAsync(operation);
     }
+
+    public abstract Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger runtimeLogger,
+        DurabilitySettings durabilitySettings,
+        CancellationToken cancellationToken);
 
     public Task InitializeAsync(IWolverineRuntime runtime)
     {

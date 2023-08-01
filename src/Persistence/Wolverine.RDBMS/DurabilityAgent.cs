@@ -81,16 +81,11 @@ internal class DurabilityAgent : IAgent
             var batch = new DatabaseOperationBatch(_database, operations);
             _runningBlock.Post(batch);
         }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
+
         
         _scheduledJobTimer = new Timer(_ =>
         {
-            var operations = new IDatabaseOperation[]
-            {
-                new RunScheduledMessagesOperation(_database, _settings, _localQueue)
-            };
-
-            var batch = new DatabaseOperationBatch(_database, operations);
-            _runningBlock.Post(batch);
+            _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings, _localQueue));
         }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
 
         _reassignmentTimer =
