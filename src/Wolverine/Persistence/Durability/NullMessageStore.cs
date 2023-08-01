@@ -136,6 +136,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public IAgent StartScheduledJobs(IWolverineRuntime wolverineRuntime)
+    {
+        throw new NotSupportedException();
+    }
+
     public Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
         return Task.FromResult((IReadOnlyList<Envelope>)Array.Empty<Envelope>());

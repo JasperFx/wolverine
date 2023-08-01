@@ -22,7 +22,7 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
             throw new ArgumentOutOfRangeException(nameof(uri), "Unknown database " + uri.Host);
         }
 
-        return new ValueTask<IAgent>(new DurabilityAgent(database.Name, _runtime, database));
+        return new ValueTask<IAgent>(new DurabilityAgent(database.Name, _runtime, database){AutoStartScheduledJobPolling = true});
     }
 
     public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
@@ -35,5 +35,25 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
     {
         assignments.DistributeEvenly(Scheme);
         return new ValueTask();
+    }
+
+    public IAgent StartScheduledJobs(IWolverineRuntime runtime)
+    {
+        return new DummyAgent();
+    }
+
+    private class DummyAgent : IAgent
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Uri Uri { get; } = new Uri("dummy://");
     }
 }

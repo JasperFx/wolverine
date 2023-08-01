@@ -26,6 +26,16 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         _assignmentTable =
             new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeAssignmentsTableName);
     }
+    
+    public async Task ClearAllAsync(CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await conn.CreateCommand($"delete from {_nodeTable}").ExecuteNonQueryAsync(cancellationToken);
+        
+        await conn.CloseAsync();
+    }
 
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {

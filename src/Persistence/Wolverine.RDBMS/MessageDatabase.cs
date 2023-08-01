@@ -193,4 +193,12 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     }
 
     public new abstract IEnumerable<ISchemaObject> AllObjects();
+
+    public IAgent StartScheduledJobs(IWolverineRuntime runtime)
+    {
+        var agent = new DurabilityAgent(TransportConstants.Default, runtime, this);
+        agent.StartScheduledJobPolling();
+
+        return agent;
+    }
 }

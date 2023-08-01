@@ -25,6 +25,16 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         _assignmentTable = new DbObjectName(settings.SchemaName ?? "dbo", DatabaseConstants.NodeAssignmentsTableName);
     }
 
+    public async Task ClearAllAsync(CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await conn.CreateCommand($"delete from {_nodeTable}").ExecuteNonQueryAsync(cancellationToken);
+        
+        await conn.CloseAsync();
+    }
+
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);

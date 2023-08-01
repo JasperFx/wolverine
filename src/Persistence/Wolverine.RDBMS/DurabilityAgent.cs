@@ -7,11 +7,15 @@ using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
-using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
+
+internal class ScheduledJobAgent
+{
+    
+}
 
 internal class DurabilityAgent : IAgent
 {
@@ -63,6 +67,8 @@ internal class DurabilityAgent : IAgent
         });
     }
 
+    public bool AutoStartScheduledJobPolling { get; set; } = false;
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
@@ -82,18 +88,24 @@ internal class DurabilityAgent : IAgent
             _runningBlock.Post(batch);
         }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
 
-        
-        _scheduledJobTimer = new Timer(_ =>
-        {
-            _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings, _localQueue));
-        }, _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
-
         _reassignmentTimer =
             new Timer(
                 _ => { _runningBlock.Post(new ReassignDormantNodes(_runtime.Storage.Nodes, _database)); },
                 _settings, _settings.FirstNodeReassignmentExecution, _settings.NodeReassignmentPollingTime);
 
+        if (AutoStartScheduledJobPolling)
+        {
+            StartScheduledJobPolling();
+        }
+
         return Task.CompletedTask;
+    }
+
+    public void StartScheduledJobPolling()
+    {
+        _scheduledJobTimer =
+            new Timer(_ => { _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings, _localQueue)); },
+                _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)

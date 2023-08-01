@@ -61,7 +61,8 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
 
             case StorageAction.clear:
                 await persistence.Admin.ClearAllAsync();
-                AnsiConsole.Write("[green]Successfully deleted all persisted envelopes[/]");
+                await persistence.Nodes.ClearAllAsync(CancellationToken.None);
+                AnsiConsole.Write("[green]Successfully deleted all persisted envelopes and existing node records[/]");
                 break;
 
             case StorageAction.rebuild:

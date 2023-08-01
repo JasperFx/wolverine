@@ -56,6 +56,7 @@ public interface IMessageStore : IAsyncDisposable
     Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id);
 
     Task DrainAsync();
+    IAgent StartScheduledJobs(IWolverineRuntime runtime);
 }
 
 public record IncomingCount(Uri Destination, int Count);

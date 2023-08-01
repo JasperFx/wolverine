@@ -18,6 +18,7 @@ public class UnknownWolverineNodeException : Exception
 public partial class WolverineRuntime : IAgentRuntime
 {
     private BufferedLocalQueue? _systemQueue;
+    private IAgent? _durableScheduledJobs;
 
     internal Timer? AgentTimer { get; private set; }
 
@@ -87,6 +88,8 @@ public partial class WolverineRuntime : IAgentRuntime
         {
             return;
         }
+
+        _durableScheduledJobs = Storage.StartScheduledJobs(this);
 
         _systemQueue = (BufferedLocalQueue)Endpoints.GetOrBuildSendingAgent(TransportConstants.SystemQueueUri);
 

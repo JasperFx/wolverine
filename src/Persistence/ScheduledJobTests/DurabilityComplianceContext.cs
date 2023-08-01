@@ -1,8 +1,6 @@
-using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
-using Marten;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,8 +8,7 @@ using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
 using Wolverine;
-using Wolverine.Logging;
-using Wolverine.Marten;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -56,8 +53,8 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         configureSender(senderRegistry);
 
         theSender = WolverineHost.For(senderRegistry);
-        await theSender.ResetResourceState();
 
+        await theSender.ClearAllPersistedWolverineDataAsync();
 
         var receiverRegistry = new WolverineOptions();
         receiverRegistry.Services.ForSingletonOf<ILogger>().Use(NullLogger.Instance);
