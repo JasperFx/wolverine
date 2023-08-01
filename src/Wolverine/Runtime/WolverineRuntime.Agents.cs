@@ -95,7 +95,9 @@ public partial class WolverineRuntime : IAgentRuntime
 
         _agents.AddHandlers(this);
 
-        AgentTimer = new Timer(fireHealthCheck, null, Options.Durability.FirstHealthCheckExecution,
+        var startingTime = new Random().Next(1000, 10000);
+        
+        AgentTimer = new Timer(fireHealthCheck, null, startingTime.Milliseconds(),
             Options.Durability.HealthCheckPollingTime);
 
         var bus = new MessageBus(this);
