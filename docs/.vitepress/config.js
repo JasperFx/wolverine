@@ -146,6 +146,7 @@ export default {
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
                                     ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
+                                {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'}
                             ]
                         },
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
@@ -189,6 +190,7 @@ export default {
                                 {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/event-sourcing'},
                                 {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'}
                             ]},
+                        {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},

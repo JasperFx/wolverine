@@ -234,6 +234,11 @@ public partial class Envelope
     public string? EndpointName { get; set; }
 
     /// <summary>
+    /// Used internally to understand where an envelope is in persisted state
+    /// </summary>
+    public bool WasPersistedInOutbox { get; set; }
+
+    /// <summary>
     ///     Schedule this envelope to be sent or executed
     ///     after a delay
     /// </summary>

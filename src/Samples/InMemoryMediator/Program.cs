@@ -16,6 +16,8 @@ var connectionString = builder.Configuration.GetConnectionString("SqlServer");
 builder.Host.UseWolverine(opts =>
 {
     opts.PersistMessagesWithSqlServer(connectionString);
+    
+    // If you're also using EF Core, you may want this as well
     opts.UseEntityFrameworkCoreTransactions();
 });
 

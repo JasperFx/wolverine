@@ -31,7 +31,7 @@ public record AgentStopped(Uri AgentUri) : IWolverineEvent
             node.ActiveAgents.Remove(AgentUri);
         }
 
-        tracker.Agents.Remove(AgentUri);
+        tracker.Agents.TryRemove(AgentUri, out var value);
     }
 
     public override int GetHashCode()

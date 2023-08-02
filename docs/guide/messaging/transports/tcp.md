@@ -71,7 +71,7 @@ await bus.EndpointFor("One").InvokeAsync(new SomeMessage());
 var answer = bus.EndpointFor("One")
     .InvokeAsync<Answer>(new Question());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L53-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L57-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 or use `ToServerAndPort()` to send messages to a port on another machine:

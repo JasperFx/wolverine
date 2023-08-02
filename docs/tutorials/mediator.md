@@ -40,6 +40,8 @@ var connectionString = builder.Configuration.GetConnectionString("SqlServer");
 builder.Host.UseWolverine(opts =>
 {
     opts.PersistMessagesWithSqlServer(connectionString);
+    
+    // If you're also using EF Core, you may want this as well
     opts.UseEntityFrameworkCoreTransactions();
 });
 
@@ -53,7 +55,7 @@ builder.Services.AddDbContext<ItemsDbContext>(
     // use this DbContext type
     optionsLifetime: ServiceLifetime.Singleton);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L7-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmediatorprogram' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L7-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmediatorprogram' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, let's add a Wolverine message handler that will:
@@ -114,7 +116,7 @@ Now, moving up to the API layer, we can add a new HTTP endpoint to delegate to W
 ```cs
 app.MapPost("/items/create", (CreateItemCommand cmd, IMessageBus bus) => bus.InvokeAsync(cmd));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L47-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_usewolverineasmediatorcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L49-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_usewolverineasmediatorcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There isn't much to this code -- and that's the entire point! When Wolverine registers itself into
@@ -205,7 +207,7 @@ example code simpler):
 ```cs
 app.MapPost("/items/create2", (CreateItemCommand cmd, IMessageBus bus) => bus.InvokeAsync<ItemCreated>(cmd));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L53-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_withresponsecontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L55-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_withresponsecontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using the `IMessageBus.Invoke<T>(message)` overload, the returned `ItemCreated` response

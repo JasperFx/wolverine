@@ -37,7 +37,10 @@ public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEven
             case NodeEventType.Exiting:
                 if (tracker.Nodes.TryGetValue(Node.Id, out var existing))
                 {
-                    foreach (var uri in existing.ActiveAgents) tracker.Agents.Remove(uri);
+                    foreach (var uri in existing.ActiveAgents)
+                    {
+                        tracker.Agents.TryRemove(uri, out var value);
+                    }
                 }
 
                 foreach (var uri in Node.ActiveAgents) tracker.Agents[uri] = null;
