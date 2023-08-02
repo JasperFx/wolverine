@@ -1,8 +1,12 @@
+using System.Drawing;
 using JasperFx.Core;
+using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Shouldly;
 using Wolverine;
 using Wolverine.Transports.Tcp;
+using Xunit;
 
 namespace DocumentationSamples;
 
@@ -285,4 +289,86 @@ public class PublishingSamples
     }
 
     #endregion
+
+    public record GenerateImage(string Prompt, Guid ImageId);
+
+    public record ImageRequest(string Prompt, string CustomerId);
+
+    public record ImageGenerated(Guid Id, byte[] Image);
+
+    public class Customer
+    {
+        public string Id { get; set; }
+        public bool PremiumMembership { get; set; }
+    }
+
+    public class ImageSaga : Saga
+    {
+        public Guid Id { get; set; }
+        
+        public string CustomerId { get; set; }
+
+        public Task Handle(ImageGenerated generated)
+        {
+            // look up the customer, figure out how to send the
+            // image to their client.
+            throw new NotImplementedException("Not done yet:)");
+            
+            MarkCompleted();
+        }
+    }
+    
+    public static class GenerateImageHandler
+    {
+        // Using Wolverine's compound handlers to remove all the asynchronous
+        // junk from the main Handle() method
+        public static Task<Customer> LoadAsync(
+            ImageRequest request, 
+            IDocumentSession session,
+            CancellationToken cancellationToken)
+        {
+            return session.LoadAsync<Customer>(request.CustomerId, cancellationToken);
+        }
+        
+        
+        public static (RoutedToEndpointMessage<GenerateImage>, ImageSaga) Handle(
+            ImageRequest request, 
+            Customer customer)
+        {
+
+            // I'm starting a new saga to track the state of the 
+            // image when we get the callback from the downstream
+            // image generation service
+            var imageSaga = new ImageSaga
+            {
+                // I need to assign the image id in memory
+                // to make this all work
+                Id = CombGuidIdGeneration.NewGuid()
+            };
+
+            var outgoing = new GenerateImage(request.Prompt, imageSaga.Id);
+            var destination = customer.PremiumMembership ? "premium-processing" : "basic-processing";
+            
+            return (outgoing.ToEndpoint(destination), imageSaga);
+        }
+    }
+
+    [Fact]
+    public void should_send_the_request_to_premium_processing_for_premium_customers()
+    {
+        var request = new ImageRequest("a wolverine ice skating in the country side", "alice");
+        var customer = new Customer
+        {
+            Id = "alice",
+            PremiumMembership = true
+        };
+
+        var (command, image) = GenerateImageHandler.Handle(request, customer);
+        
+        command.EndpointName.ShouldBe("premium-processing");
+        command.Message.Prompt.ShouldBe(request.Prompt);
+        command.Message.ImageId.ShouldBe(image.Id);
+        
+        image.CustomerId.ShouldBe(request.CustomerId);
+    }
 }

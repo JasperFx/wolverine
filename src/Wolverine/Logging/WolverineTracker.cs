@@ -1,4 +1,5 @@
-﻿using JasperFx.Core;
+﻿using System.Collections.Concurrent;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
@@ -26,7 +27,7 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
 
     internal Dictionary<Guid, WolverineNode> Nodes { get; } = new();
 
-    internal Dictionary<Uri, Guid?> Agents { get; } = new();
+    internal ConcurrentDictionary<Uri, Guid?> Agents { get; } = new();
 
     WolverineNode INodeStateTracker.Add(WolverineNode node)
     {
@@ -83,8 +84,8 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
 
     public void Remove(WolverineNode node)
     {
-        new NodeEvent(node, NodeEventType.Exiting).ModifyState(this);
-
+        Publish(new NodeEvent(node, NodeEventType.Exiting));
+        
         foreach (var pair in Agents.ToArray())
         {
             if (pair.Value == node.Id)

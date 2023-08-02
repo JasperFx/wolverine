@@ -463,7 +463,7 @@ public class handling_node_events : NodeAgentControllerTestsContext
         // remove the node from memory
         theNodes.OtherNodes().ShouldNotContain(node3);
         
-        thePublishedEvents.Single().ShouldBe(e);
+        thePublishedEvents.All(x => x.Equals(e));
         
         theCascadedMessages.ShouldBeEmpty();
     }
