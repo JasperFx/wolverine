@@ -157,7 +157,7 @@ public class data_operations : IAsyncLifetime
             await theQueue.SendAsync(envelope, CancellationToken.None);
         }
 
-        var popped = await theQueue.TryPopManyAsync(5, CancellationToken.None);
+        var popped = await theQueue.TryPopAsync(5, CancellationToken.None);
         popped.Count.ShouldBe(5);
         
         (await theQueue.CountAsync()).ShouldBe(5);
@@ -172,7 +172,7 @@ public class data_operations : IAsyncLifetime
             await theQueue.SendAsync(envelope, CancellationToken.None);
         }
 
-        var popped = await theQueue.TryMoveToIncomingAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, CancellationToken.None);
+        var popped = await theQueue.TryPopDurablyAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, CancellationToken.None);
         popped.Count.ShouldBe(5);
         
         (await theQueue.CountAsync()).ShouldBe(15);

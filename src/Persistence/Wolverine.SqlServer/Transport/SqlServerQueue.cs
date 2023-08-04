@@ -38,6 +38,12 @@ public class SqlServerQueue : Endpoint, IBrokerQueue
     internal Table QueueTable { get; private set; }
 
     internal Table ScheduledTable { get; private set; }
+    
+    /// <summary>
+    ///     The maximum number of messages to receive in a single batch when listening
+    ///     in either buffered or durable modes. The default is 20.
+    /// </summary>
+    public int MaximumMessagesToReceive { get; set; } = 20;
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
@@ -244,7 +250,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;
         return (int)await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}").ExecuteScalarAsync();
     }
 
-    public async Task<IReadOnlyList<Envelope>> TryPopManyAsync(int count, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, CancellationToken cancellationToken)
     {
         var sql = $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
@@ -275,7 +281,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
             }, cancellation: cancellationToken);
     }
     
-    public async Task<IReadOnlyList<Envelope>> TryMoveToIncomingAsync(int count, DurabilitySettings settings, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings, CancellationToken cancellationToken)
     {
         var sql = $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';

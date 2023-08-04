@@ -15,11 +15,20 @@ internal class QueueSender : ISender
     public Uri Destination => _queue.Uri;
     public async Task<bool> PingAsync()
     {
-        throw new NotImplementedException();
+        try
+        {
+            await _queue.CheckAsync();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        throw new NotImplementedException();
+        // TODO -- switch a little bit based on the durability
+        await _queue.SendAsync(envelope, CancellationToken.None);
     }
 }
