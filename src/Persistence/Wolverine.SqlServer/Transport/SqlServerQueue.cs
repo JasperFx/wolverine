@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.SqlServer;
@@ -193,7 +192,34 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;
             .ExecuteOnce(cancellationToken);
     }
     
-    // TODO -- will need a separate function for moving out scheduled messages!
+    public async Task MoveFromOutgoingToScheduledAsync(Envelope envelope, CancellationToken cancellationToken)
+    {
+        if (!envelope.ScheduledTime.HasValue)
+            throw new InvalidOperationException("This envelope has no scheduled time");
+        
+        await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
+
+        var sql = $@"
+DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
+IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
+SET NOCOUNT ON;
+
+INSERT into {ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil}) 
+SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, @time, {DatabaseConstants.DeliverBy} 
+FROM
+    {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} 
+WHERE {DatabaseConstants.Id} = @id;
+DELETE FROM {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
+
+IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
+IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;
+";
+
+        await conn.CreateCommand(sql)
+            .With("id", envelope.Id)
+            .With("time", envelope.ScheduledTime!.Value)
+            .ExecuteOnce(cancellationToken);
+    }
 
     public async Task DeleteExpiredAsync(CancellationToken cancellationToken)
     {
@@ -217,5 +243,72 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;
         await conn.OpenAsync();
         return (int)await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}").ExecuteScalarAsync();
     }
+
+    public async Task<IReadOnlyList<Envelope>> TryPopManyAsync(int count, CancellationToken cancellationToken)
+    {
+        var sql = $@"
+DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
+IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
+SET NOCOUNT ON;
+
+WITH message AS (
+    SELECT TOP(@count) {DatabaseConstants.Body}, {DatabaseConstants.KeepUntil}
+    FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
+    ORDER BY {QueueTable.Identifier}.timestamp)
+DELETE FROM message
+OUTPUT
+    deleted.{DatabaseConstants.Body};
+
+IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
+IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
+
+        await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        return await conn
+            .CreateCommand(sql)
+            .With("count", count)
+            .FetchListAsync<Envelope>(async reader =>
+            {
+                var data = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
+                return EnvelopeSerializer.Deserialize(data);
+            }, cancellation: cancellationToken);
+    }
+    
+    public async Task<IReadOnlyList<Envelope>> TryMoveToIncomingAsync(int count, DurabilitySettings settings, CancellationToken cancellationToken)
+    {
+        var sql = $@"
+DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
+IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
+SET NOCOUNT ON;
+
+select top(@count) id, body, message_type, keep_until into #temp_pop_{Name}
+FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
+ORDER BY {QueueTable.Identifier}.timestamp;
+delete from {QueueTable.Identifier} where id in (select id from #temp_pop_{Name});
+INSERT INTO {Parent.Settings.SchemaName}.{DatabaseConstants.IncomingTable}
+(id, status, owner_id, body, message_type, received_at, keep_until)
+ SELECT id, 'Incoming', @node, body, message_type, '{Uri}', keep_until FROM #temp_pop_{Name};
+select body from #temp_pop_{Name};
+
+IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
+IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
+
+        await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        return await conn
+            .CreateCommand(sql)
+            .With("count", count)
+            .With("node", settings.AssignedNodeNumber)
+            .FetchListAsync<Envelope>(async reader =>
+            {
+                var data = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
+                return EnvelopeSerializer.Deserialize(data);
+            }, cancellation: cancellationToken);
+    }
     
 }
+    
+
+

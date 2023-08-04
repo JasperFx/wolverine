@@ -128,9 +128,60 @@ public class data_operations : IAsyncLifetime
         var stats = await theMessageStore.Admin.FetchCountsAsync();
         stats.Outgoing.ShouldBe(0);
     }
+    
+    [Fact]
+    public async Task move_from_outgoing_to_scheduled_async()
+    {
+        (await theQueue.CountAsync()).ShouldBe(0);
+        
+        var envelope = ObjectMother.Envelope();
+        envelope.ScheduleDelay = 1.Hours();
+        envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
+        await theMessageStore.Outbox.StoreOutgoingAsync(envelope, 0);
 
-    // TODO -- move from scheduled to queued
-    // TODO -- pop off queue and move to inbox
-    // TODO -- pop off queue like for buffered
+        await theQueue.MoveFromOutgoingToScheduledAsync(envelope, CancellationToken.None);
+        
+        (await theQueue.ScheduledCountAsync()).ShouldBe(1);
+
+        var stats = await theMessageStore.Admin.FetchCountsAsync();
+        stats.Outgoing.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task pop_off_buffered()
+    {
+        var envelopes = new List<Envelope>();
+        for (int i = 0; i < 10; i++)
+        {
+            var envelope = Marten.Persistence.ObjectMother.Envelope();
+            await theQueue.SendAsync(envelope, CancellationToken.None);
+        }
+
+        var popped = await theQueue.TryPopManyAsync(5, CancellationToken.None);
+        popped.Count.ShouldBe(5);
+        
+        (await theQueue.CountAsync()).ShouldBe(5);
+    }
+    
+    [Fact]
+    public async Task move_to_incoming()
+    {
+        for (int i = 0; i < 20; i++)
+        {
+            var envelope = Marten.Persistence.ObjectMother.Envelope();
+            await theQueue.SendAsync(envelope, CancellationToken.None);
+        }
+
+        var popped = await theQueue.TryMoveToIncomingAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, CancellationToken.None);
+        popped.Count.ShouldBe(5);
+        
+        (await theQueue.CountAsync()).ShouldBe(15);
+
+        var incoming = await theMessageStore.Admin.AllIncomingAsync();
+        incoming.Count.ShouldBe(5);
+        incoming.All(x => x.OwnerId == 21).ShouldBeTrue();
+        
+    }
+    
 
 }
