@@ -221,15 +221,41 @@ public class FakeRoutingConvention : IMessageRoutingConvention
 
     public void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
+        if (_onlyApplyToOutboundMessages)
+        {
+            return;
+        }
+        
         // Nothing
     }
 
     public IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
+        if (_onlyApplyToInboundMessages)
+        {
+            yield break;
+        }
+        
         if (Senders.TryGetValue(messageType, out var port))
         {
             var endpoint = runtime.Endpoints.GetOrBuildSendingAgent(new Uri("tcp://localhost:" + port)).Endpoint;
             yield return endpoint;
         }
+    }
+
+    private bool _onlyApplyToOutboundMessages;
+    
+    public void OnlyApplyToOutboundMessages()
+    {
+        _onlyApplyToInboundMessages = false;
+        _onlyApplyToOutboundMessages = true;
+    }
+    
+    private bool _onlyApplyToInboundMessages;
+    
+    public void OnlyApplyToInboundMessages()
+    {
+        _onlyApplyToOutboundMessages = false;
+        _onlyApplyToInboundMessages = true;
     }
 }
