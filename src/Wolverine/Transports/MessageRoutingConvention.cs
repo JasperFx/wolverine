@@ -24,6 +24,11 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
     void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
+        if(_onlyApplyToOutboundMessages)
+        {
+            return;
+        }
+        
         var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
 
         foreach (var messageType in handledMessageTypes.Where(t => _typeFilters.Matches(t)))
@@ -52,6 +57,11 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
     IEnumerable<Endpoint> IMessageRoutingConvention.DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
+        if(_onlyApplyToInboundMessages)
+        {
+            yield break;
+        }
+        
         if (!_typeFilters.Matches(messageType))
         {
             yield break;
@@ -77,6 +87,28 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         // This will start up the sending agent
         var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
         yield return sendingAgent.Endpoint;
+    }
+    
+    private bool _onlyApplyToOutboundMessages;
+
+    /// <summary>
+    ///     Makes so that the convention only applies to outbound messages, and disables discovery of listeners
+    /// </summary>
+    public void OnlyApplyToOutboundMessages()
+    {
+        _onlyApplyToInboundMessages = false;
+        _onlyApplyToOutboundMessages = true;
+    }
+    
+    private bool _onlyApplyToInboundMessages;
+
+    /// <summary>
+    ///     Makes so that the convention only applies to inbound messages, and disables discovery of senders
+    /// </summary>
+    public void OnlyApplyToInboundMessages()
+    {
+        _onlyApplyToOutboundMessages = false;
+        _onlyApplyToInboundMessages = true;
     }
 
     /// <summary>
