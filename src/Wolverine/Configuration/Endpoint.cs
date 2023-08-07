@@ -16,6 +16,15 @@ using Wolverine.Transports.Sending;
 namespace Wolverine.Configuration;
 
 /// <summary>
+/// Marker interface that tells Wolverine internals that this endpoint directly
+/// integrates with the active transactional inbox
+/// </summary>
+public interface IDatabaseBackedEndpoint
+{
+    Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellation);
+}
+
+/// <summary>
 ///     Defines how message listening or sending functions
 ///     at runtime
 /// </summary>

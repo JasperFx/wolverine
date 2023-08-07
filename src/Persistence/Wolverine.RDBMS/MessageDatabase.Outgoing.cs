@@ -5,13 +5,18 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
-    public Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
+    public async Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes)
     {
         var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, Durability.AssignedNodeNumber, this);
         cmd.Connection = tx.Connection;
         cmd.Transaction = tx;
 
-        return cmd.ExecuteNonQueryAsync(_cancellation);
+        await cmd.ExecuteNonQueryAsync(_cancellation);
+
+        foreach (var envelope in envelopes)
+        {
+            envelope.WasPersistedInOutbox = true;
+        }
     }
 
     public abstract Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
@@ -39,10 +44,12 @@ public abstract partial class MessageDatabase<T>
             .ExecuteOnce(_cancellation);
     }
 
-    public Task StoreOutgoingAsync(Envelope envelope, int ownerId)
+    public async Task StoreOutgoingAsync(Envelope envelope, int ownerId)
     {
-        return DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, this)
+        await DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, this)
             .ExecuteOnce(_cancellation);
+
+        envelope.WasPersistedInOutbox = true;
     }
 
     protected abstract string

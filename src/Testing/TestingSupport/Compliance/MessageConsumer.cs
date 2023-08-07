@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using TestMessages;
 using Wolverine;
 using Wolverine.Attributes;
@@ -9,6 +10,7 @@ public class MessageConsumer
 {
     public void Consume(Message1 message, Envelope envelope)
     {
+        Debug.WriteLine("Hey");
     }
 
     [RequeueOn(typeof(DivideByZeroException))]
