@@ -3,7 +3,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore;
 
-internal class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : DbContext
+public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : DbContext
 {
     public DbContextOutbox(IWolverineRuntime runtime, T dbContext) : base(runtime)
     {
@@ -26,7 +26,7 @@ internal class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T 
     }
 }
 
-internal class DbContextOutbox : MessageContext, IDbContextOutbox
+public class DbContextOutbox : MessageContext, IDbContextOutbox
 {
     public DbContextOutbox(IWolverineRuntime runtime) : base(runtime)
     {
