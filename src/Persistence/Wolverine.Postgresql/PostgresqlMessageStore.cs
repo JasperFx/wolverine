@@ -110,18 +110,26 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     }
 
 
-    public override Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
+    public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
-        var builder = ToCommandBuilder();
-        builder.Append(_deleteIncomingEnvelopesSql);
-        var param = (NpgsqlParameter)builder.AddNamedParameter("ids", DBNull.Value);
-        param.Value = new[] { envelope.Id };
-        // ReSharper disable once BitwiseOperatorOnEnumWithoutFlags
-        param.NpgsqlDbType = NpgsqlDbType.Uuid | NpgsqlDbType.Array;
+        try
+        {
+            var builder = ToCommandBuilder();
+            builder.Append(_deleteIncomingEnvelopesSql);
+            var param = (NpgsqlParameter)builder.AddNamedParameter("ids", DBNull.Value);
+            param.Value = new[] { envelope.Id };
+            // ReSharper disable once BitwiseOperatorOnEnumWithoutFlags
+            param.NpgsqlDbType = NpgsqlDbType.Uuid | NpgsqlDbType.Array;
 
-        DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
+            DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
 
-        return builder.Compile().ExecuteOnce(_cancellation);
+            await builder.Compile().ExecuteOnce(_cancellation);
+        }
+        catch (Exception e)
+        {
+            if (isExceptionFromDuplicateEnvelope(e)) return;
+            throw;
+        }
     }
 
 

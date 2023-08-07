@@ -96,7 +96,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     /// </summary>
     public string DatabasePrincipal { get; set; } = "dbo";
 
-    public override Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
+    public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         var table = new DataTable();
         table.Columns.Add(new DataColumn("ID", typeof(Guid)));
@@ -112,7 +112,15 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
         DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
 
-        return builder.Compile().ExecuteOnce(_cancellation);
+        try
+        {
+            await builder.Compile().ExecuteOnce(_cancellation);
+        }
+        catch (Exception e)
+        {
+            if (isExceptionFromDuplicateEnvelope(e)) return;
+            throw;
+        }
     }
 
     public override void Describe(TextWriter writer)
