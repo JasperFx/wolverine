@@ -64,6 +64,7 @@ public interface IAdditionalActions
     /// <param name="source"></param>
     /// <returns></returns>
     IAdditionalActions And(IContinuationSource source);
+    
 }
 
 internal class FailureActions : IAdditionalActions, IFailureActions
@@ -133,6 +134,13 @@ internal class FailureActions : IAdditionalActions, IFailureActions
             _slots.Add(slot);
         }
 
+        return this;
+    }
+
+    public IAdditionalActions PauseThenRequeue(TimeSpan delay)
+    {
+        var slot = _rule.AddSlot(new RequeueContinuation(delay));
+        _slots.Add(slot);
         return this;
     }
 
@@ -287,6 +295,15 @@ public interface IFailureActions
     /// <param name="delays"></param>
     /// <param name="maxAttempts"></param>
     IAdditionalActions RetryWithCooldown(params TimeSpan[] delays);
+
+    /// <summary>
+    /// Pause the current thread for a set amount of time, then requeue the message.
+    /// This was created specifically to create retries without incurring concurrency
+    /// issues from subsequent messages being processed simultaneously
+    /// </summary>
+    /// <param name="delay"></param>
+    /// <returns></returns>
+    IAdditionalActions PauseThenRequeue(TimeSpan delay);
 }
 
 public class PolicyExpression : IFailureActions
@@ -367,6 +384,16 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions RetryWithCooldown(params TimeSpan[] delays)
     {
         return new FailureActions(_match, _parent).RetryWithCooldown(delays);
+    }
+
+    /// <summary>
+    /// Pause the current thread to slow down processing, then requeue this message
+    /// </summary>
+    /// <param name="delay"></param>
+    /// <returns></returns>
+    public IAdditionalActions PauseThenRequeue(TimeSpan delay)
+    {
+        return new FailureActions(_match, _parent).PauseThenRequeue(delay);
     }
 
     /// <summary>

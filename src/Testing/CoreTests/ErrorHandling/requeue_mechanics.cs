@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using TestingSupport.ErrorHandling;
 using Wolverine.ErrorHandling;
 using Xunit;
@@ -12,7 +13,7 @@ public class requeue_mechanics : ErrorHandlingContext
     {
         theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
         {
-            chain.OnException<DivideByZeroException>().Requeue();
+            chain.OnException<DivideByZeroException>().PauseThenRequeue(25.Milliseconds());
         });
     }
 

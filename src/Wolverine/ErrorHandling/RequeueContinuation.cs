@@ -11,11 +11,23 @@ internal class RequeueContinuation : IContinuation, IContinuationSource
     {
     }
 
-    public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+    internal RequeueContinuation(TimeSpan delay)
+    {
+        Delay = delay;
+    }
+    
+    public TimeSpan? Delay { get; }
+
+    public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity)
     {
+        if (Delay != null)
+        {
+            await Task.Delay(Delay.Value).ConfigureAwait(false);
+        }
+        
         activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeRequeued));
-        return lifecycle.DeferAsync();
+        await lifecycle.DeferAsync();
     }
 
     public string Description { get; } = "Defer or Re-queue the message for later processing";
