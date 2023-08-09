@@ -13,7 +13,9 @@ public class requeue_mechanics : ErrorHandlingContext
     {
         theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
         {
-            chain.OnException<DivideByZeroException>().PauseThenRequeue(25.Milliseconds());
+            chain.OnException<DivideByZeroException>()
+                .PauseThenRequeue(25.Milliseconds())
+                .Then.PauseThenRequeue(25.Milliseconds());
         });
     }
 

@@ -65,7 +65,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         Replies = new ReplyTracker(loggers.CreateLogger<ReplyTracker>());
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
-        Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies));
+        Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies, LoggerFactory.CreateLogger<FailureAcknowledgementHandler>()));
 
         _sentCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSent, MetricsConstants.Messages,
             "Number of messages sent");
