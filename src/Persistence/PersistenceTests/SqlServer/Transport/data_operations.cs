@@ -87,6 +87,19 @@ public class data_operations : IAsyncLifetime
         (await theQueue.CountAsync()).ShouldBe(1);
         (await theQueue.ScheduledCountAsync()).ShouldBe(0);
     }
+    
+    [Fact]
+    public async Task send_not_scheduled_is_idempotent_smoke_test()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
+        await theQueue.SendAsync(envelope, CancellationToken.None);
+        await theQueue.SendAsync(envelope, CancellationToken.None);
+        await theQueue.SendAsync(envelope, CancellationToken.None);
+        
+        (await theQueue.CountAsync()).ShouldBe(1);
+        (await theQueue.ScheduledCountAsync()).ShouldBe(0);
+    }
 
     [Fact]
     public async Task send_scheduled_smoke_test()
@@ -95,6 +108,23 @@ public class data_operations : IAsyncLifetime
         envelope.ScheduleDelay = 1.Hours();
         envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
         envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
+        await theQueue.SendAsync(envelope, CancellationToken.None);
+        
+        (await theQueue.CountAsync()).ShouldBe(0);
+        (await theQueue.ScheduledCountAsync()).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task does_fine_with_double_schedule()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.ScheduleDelay = 1.Hours();
+        envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
+        envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
+        await theQueue.SendAsync(envelope, CancellationToken.None);
+        
+        // Does not blow up
+        await theQueue.SendAsync(envelope, CancellationToken.None);
         await theQueue.SendAsync(envelope, CancellationToken.None);
         
         (await theQueue.CountAsync()).ShouldBe(0);

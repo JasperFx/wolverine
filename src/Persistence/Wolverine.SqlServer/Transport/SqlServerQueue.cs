@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.SqlServer;
@@ -38,8 +39,17 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         
         QueueTable = new QueueTable(Parent.Settings, _queueTableName);
         ScheduledTable = new ScheduledMessageTable(Parent.Settings, _scheduledTableName);
-        _writeDirectlyToQueueTableSql = $"insert into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (@id, @body, @type, @expires)";
-        _writeDirectlyToTheScheduledTable = $"insert into {ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, {DatabaseConstants.ExecutionTime}) values (@id, @body, @type, @expires, @time)";
+        
+        _writeDirectlyToQueueTableSql = $@"insert into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (@id, @body, @type, @expires)";
+        
+        _writeDirectlyToTheScheduledTable = $@"
+merge {ScheduledTable.Identifier} as target
+using (values (@id, @body, @type, @expires, @time)) as source ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, {DatabaseConstants.ExecutionTime})
+on target.id = @id
+WHEN MATCHED THEN UPDATE set target.body = @body, @time = @time
+WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, {DatabaseConstants.ExecutionTime}) values (source.{DatabaseConstants.Id}, source.{DatabaseConstants.Body}, source.{DatabaseConstants.MessageType}, source.{DatabaseConstants.KeepUntil}, source.{DatabaseConstants.ExecutionTime});
+";
+
         _moveFromOutgoingToQueueSql = $@"
 INSERT into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) 
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy} 
@@ -87,6 +97,7 @@ OUTPUT
 
 IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
 IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
+        
         _tryPopMessagesToInboxSql = $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
 IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
@@ -233,12 +244,21 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         }
         else
         {
-            await conn.CreateCommand(_writeDirectlyToQueueTableSql)
-                .With("id", envelope.Id)
-                .With("body", EnvelopeSerializer.Serialize(envelope))
-                .With("type", envelope.MessageType)
-                .With("expires", envelope.DeliverBy)
-                .ExecuteOnce(cancellationToken);
+            try
+            {
+                await conn.CreateCommand(_writeDirectlyToQueueTableSql)
+                    .With("id", envelope.Id)
+                    .With("body", EnvelopeSerializer.Serialize(envelope))
+                    .With("type", envelope.MessageType)
+                    .With("expires", envelope.DeliverBy)
+                    .ExecuteOnce(cancellationToken);
+            }
+            catch (SqlException e)
+            {
+                // Making this idempotent, but optimistically
+                if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint")) return;
+                throw;
+            }
         }
     }
 
@@ -282,12 +302,21 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
 
         await conn.OpenAsync(cancellationToken);
-        
-        var count = await conn.CreateCommand(_moveFromOutgoingToQueueSql)
-            .With("id", envelope.Id)
-            .ExecuteNonQueryAsync(cancellationToken);
 
-        if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
+        try
+        {
+            var count = await conn.CreateCommand(_moveFromOutgoingToQueueSql)
+                .With("id", envelope.Id)
+                .ExecuteNonQueryAsync(cancellationToken);
+            
+            if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
+        }
+        catch (SqlException e)
+        {
+            // Making this idempotent, but optimistically
+            if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint")) return;
+            throw;
+        }
 
         await conn.CloseAsync();
     }
@@ -300,12 +329,28 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
 
         await conn.OpenAsync(cancellationToken);
-        var count = await conn.CreateCommand(_moveFromOutgoingToScheduledSql)
-            .With("id", envelope.Id)
-            .With("time", envelope.ScheduledTime!.Value)
-            .ExecuteNonQueryAsync(cancellationToken);
-
-        if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
+        try
+        {
+            var count = await conn.CreateCommand(_moveFromOutgoingToScheduledSql)
+                .With("id", envelope.Id)
+                .With("time", envelope.ScheduledTime!.Value)
+                .ExecuteNonQueryAsync(cancellationToken);
+            
+            if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
+        }
+        catch (SqlException e)
+        {
+            if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint"))
+            {
+                await conn.CreateCommand(
+                        $"delete * from {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
+                    .With("id", envelope.Id)
+                    .ExecuteNonQueryAsync(cancellationToken);
+                
+                return;
+            }
+            throw;
+        }
 
         await conn.CloseAsync();
     }
