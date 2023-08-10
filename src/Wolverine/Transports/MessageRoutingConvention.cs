@@ -42,7 +42,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
             var corrected = transport.MaybeCorrectName(queueName);
 
-            var (configuration, endpoint) = findOrCreateListenerForIdentifier(corrected, transport);
+            var (configuration, endpoint) = findOrCreateListenerForIdentifier(corrected, transport, messageType);
             endpoint.EndpointName = queueName;
 
             endpoint.IsListener = true;
@@ -132,7 +132,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     }
 
     protected abstract (TListener, Endpoint) findOrCreateListenerForIdentifier(string identifier,
-        TTransport transport);
+        TTransport transport, Type messageType);
 
     protected abstract (TSubscriber, Endpoint) findOrCreateSubscriber(string identifier, TTransport transport);
 
@@ -145,6 +145,19 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     public TSelf QueueNameForListener(Func<Type, string?> nameSource)
+    {
+        return IdentifierForListener(nameSource);
+    }
+    
+    /// <summary>
+    ///     Override the convention for determining the queue name for receiving incoming messages of the message type.
+    ///     Returning null or empty is interpreted as "don't create a new queue for this message type". Default is the
+    ///     MessageTypeName
+    /// </summary>
+    /// <param name="nameSource"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public TSelf IdentifierForListener(Func<Type, string?> nameSource)
     {
         _queueNameForListener = nameSource ?? throw new ArgumentNullException(nameof(nameSource));
         return this.As<TSelf>();

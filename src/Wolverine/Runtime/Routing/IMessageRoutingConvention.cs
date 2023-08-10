@@ -9,6 +9,5 @@ public interface IMessageRoutingConvention
 {
     void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes);
     IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime);
-    void OnlyApplyToOutboundMessages();
-    void OnlyApplyToInboundMessages();
+
 }

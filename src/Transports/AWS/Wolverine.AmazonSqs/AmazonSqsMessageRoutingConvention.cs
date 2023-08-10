@@ -8,7 +8,7 @@ public class AmazonSqsMessageRoutingConvention : MessageRoutingConvention<Amazon
     AmazonSqsListenerConfiguration, AmazonSqsSubscriberConfiguration, AmazonSqsMessageRoutingConvention>
 {
     protected override (AmazonSqsListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(string identifier,
-        AmazonSqsTransport transport)
+        AmazonSqsTransport transport, Type messageType)
     {
         var queue = transport.EndpointForQueue(identifier);
         return (new AmazonSqsListenerConfiguration(queue), queue);

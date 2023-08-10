@@ -12,8 +12,8 @@ namespace Wolverine.RabbitMQ;
 public class RabbitMqMessageRoutingConvention : MessageRoutingConvention<RabbitMqTransport,
     RabbitMqListenerConfiguration, RabbitMqExchangeConfiguration, RabbitMqMessageRoutingConvention>
 {
-    protected override (RabbitMqListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(
-        string identifier, RabbitMqTransport transport)
+    protected override (RabbitMqListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(string identifier,
+        RabbitMqTransport transport, Type messageType)
     {
         var queue = transport.Queues[identifier];
         return (new RabbitMqListenerConfiguration(queue), queue);

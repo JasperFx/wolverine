@@ -45,10 +45,16 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
         return this;
     }
 
-    public AzureServiceBusConfiguration UseBroadcastingConventionRouting(
-        Action<AzureServiceBusBroadcastingMessageRoutingConvention>? configure)
+    /// <summary>
+    /// Opt into using conventional message routing using topics and topic
+    /// subscriptions based on message type names
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration UseTopicAndSubscriptionConventionalRouting(
+        Action<AzureServiceBusTopicBroadcastingRoutingConvention>? configure = null)
     {
-        var routing = new AzureServiceBusBroadcastingMessageRoutingConvention();
+        var routing = new AzureServiceBusTopicBroadcastingRoutingConvention();
         configure?.Invoke(routing);
 
         Options.RouteWith(routing);
@@ -56,6 +62,12 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
         return this;
     }
 
+    /// <summary>
+    /// Opt into using conventional message routing using
+    /// queues based on message type names
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
     public AzureServiceBusConfiguration UseConventionalRouting(
         Action<AzureServiceBusMessageRoutingConvention>? configure = null)
     {
