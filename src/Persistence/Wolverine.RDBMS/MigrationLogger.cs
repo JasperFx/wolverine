@@ -4,7 +4,7 @@ using Weasel.Core.Migrations;
 
 namespace Wolverine.RDBMS;
 
-internal class MigrationLogger : IMigrationLogger
+public class MigrationLogger : IMigrationLogger
 {
     private readonly ILogger _logger;
 

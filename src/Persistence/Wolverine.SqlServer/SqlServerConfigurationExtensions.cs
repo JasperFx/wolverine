@@ -1,5 +1,7 @@
 ﻿using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
+using Weasel.Core.Migrations;
 using Wolverine.Configuration;
 using Wolverine.SqlServer.Transport;
 
@@ -73,6 +75,8 @@ public static class SqlServerConfigurationExtensions
             schema = "dbo";
                 
         }
+
+        options.Services.AddTransient<IDatabase, SqlServerTransportDatabase>();
 
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         options.Include(extension);
