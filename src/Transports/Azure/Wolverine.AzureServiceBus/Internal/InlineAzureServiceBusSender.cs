@@ -22,7 +22,7 @@ public class InlineAzureServiceBusSender : ISender
         _cancellationToken = cancellationToken;
     }
 
-    public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledSend => true;
     public Uri Destination => _endpoint.Uri;
     public async Task<bool> PingAsync()
     {

@@ -8,7 +8,7 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue
+public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling
 {
     private readonly AzureServiceBusEndpoint _endpoint;
     private readonly ILogger _logger;
@@ -170,4 +170,9 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
     public bool NativeDeadLetterQueueEnabled => true;
 
+    public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
+    {
+        envelope.ScheduledTime = time;
+        await _requeue.SendAsync(envelope);
+    }
 }

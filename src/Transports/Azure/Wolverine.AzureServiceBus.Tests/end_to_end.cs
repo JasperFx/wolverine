@@ -93,7 +93,7 @@ public class end_to_end : IAsyncLifetime
         session.Received.SingleMessage<AsbMessage1>()
             .Name.ShouldBe(message.Name);
     }
-    
+
     [Fact]
     public async Task send_and_receive_multiple_messages_to_queue_with_session_identifier()
     {

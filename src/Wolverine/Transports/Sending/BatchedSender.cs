@@ -69,6 +69,8 @@ public class BatchedSender : ISender, ISenderRequiresCallback
 
         _batchWriting.LinkTo(_sender);
         _batching = new BatchingBlock<Envelope>(200, _batchWriting, _cancellation);
+
+        SupportsNativeScheduledSend = _protocol is ISenderProtocolWithNativeScheduling;
     }
 
     public int QueuedCount => _queued + _batching.ItemCount + _serializing.InputCount;
@@ -90,7 +92,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         return true;
     }
 
-    public bool SupportsNativeScheduledSend { get; } = false;
+    public bool SupportsNativeScheduledSend { get; set; } = false;
 
     public ValueTask SendAsync(Envelope message)
     {

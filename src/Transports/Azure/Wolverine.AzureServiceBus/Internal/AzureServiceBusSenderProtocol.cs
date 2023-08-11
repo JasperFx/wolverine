@@ -6,7 +6,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class AzureServiceBusSenderProtocol : ISenderProtocol
+public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 {
     private readonly AzureServiceBusEndpoint _endpoint;
     private readonly IOutgoingMapper<ServiceBusMessage> _mapper;

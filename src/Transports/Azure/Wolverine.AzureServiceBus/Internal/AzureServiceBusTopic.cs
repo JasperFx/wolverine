@@ -91,7 +91,14 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
         {
             Options.Name = TopicName;
 
-            await client.CreateTopicAsync(Options);
+            try
+            {
+                await client.CreateTopicAsync(Options);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Error trying to initialize topic {Name}", TopicName);
+            }
         }
     }
 

@@ -98,13 +98,19 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     internal async ValueTask SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
-        var exists = await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);
-        if (!exists)
+        try
         {
-            Options.SubscriptionName = SubscriptionName;
-            Options.TopicName = Topic.TopicName;
-
-            await client.CreateSubscriptionAsync(Options);
+            var exists = await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);
+            if (!exists)
+            {
+                Options.SubscriptionName = SubscriptionName;
+                Options.TopicName = Topic.TopicName;
+                await client.CreateSubscriptionAsync(Options);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error trying to initialize subscription {Name} to topic {Topic}", SubscriptionName, Topic.TopicName);
         }
     }
 
