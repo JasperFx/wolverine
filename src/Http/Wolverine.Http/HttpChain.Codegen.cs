@@ -52,6 +52,8 @@ public partial class HttpChain
         {
             return false;
         }
+        
+        Debug.WriteLine(_generatedType?.SourceCode);
 
         return true;
     }

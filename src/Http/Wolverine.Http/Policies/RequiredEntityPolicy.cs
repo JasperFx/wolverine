@@ -14,20 +14,17 @@ internal class RequiredEntityPolicy : IHttpPolicy
     {
         foreach (var chain in chains)
         {
-            if (chain.RoutePattern.Parameters.Any())
+            var requiredParameters = chain.Method.Method.GetParameters()
+                .Where(x => x.HasAttribute<RequiredAttribute>() && x.ParameterType.IsClass).ToArray();
+
+            if (requiredParameters.Any())
             {
-                var requiredParameters = chain.Method.Method.GetParameters()
-                    .Where(x => x.HasAttribute<RequiredAttribute>() && x.ParameterType.IsClass).ToArray();
+                chain.Metadata.Produces(404);
 
-                if (requiredParameters.Any())
+                foreach (var parameter in requiredParameters)
                 {
-                    chain.Metadata.Produces(404);
-
-                    foreach (var parameter in requiredParameters)
-                    {
-                        var frame = new SetStatusCodeAndReturnFrame(parameter.ParameterType);
-                        chain.Middleware.Add(frame);
-                    }
+                    var frame = new SetStatusCodeAndReturnFrame(parameter.ParameterType);
+                    chain.Middleware.Add(frame);
                 }
             }
         }
