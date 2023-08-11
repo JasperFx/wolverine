@@ -2,6 +2,7 @@ using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Lamar;
+using Microsoft.AspNetCore.Builder;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
@@ -46,6 +47,13 @@ public class WolverineHttpOptions
         Endpoints!.InsertParameterStrategy(strategy);
     }
 
+    /// <summary>
+    /// Equivalent of calling RequireAuthorization() on all wolverine endpoints
+    /// </summary>
+    public void RequireAuthorizeOnAll()
+    {
+        ConfigureEndpoints(e => e.RequireAuthorization());
+    }
 
     /// <summary>
     ///     Add a new IEndpointPolicy for the Wolverine endpoints
