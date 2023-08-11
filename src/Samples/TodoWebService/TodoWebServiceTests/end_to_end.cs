@@ -106,4 +106,17 @@ public class end_to_end : IAsyncLifetime
             x.StatusCodeShouldBe(404);
         });
     }
+
+    [Fact]
+    public async Task use_iresult_as_main_response_body()
+    {
+        await _host.Scenario(x =>
+        {
+            x.Post.Json(new CreateTodoListRequest("Help me Obi Wan Kenobi!")).ToUrl("/api/todo-lists/");
+            x.StatusCodeShouldBe(201);
+            
+        });
+        
+        
+    }
 }

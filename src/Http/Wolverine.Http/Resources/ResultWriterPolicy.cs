@@ -8,7 +8,7 @@ internal class ResultWriterPolicy : IResourceWriterPolicy
 {
     public bool TryApply(HttpChain chain)
     {
-        if (chain.Method.ReturnType.CanBeCastTo<IResult>())
+        if (chain.ResourceType.CanBeCastTo<IResult>())
         {
             var call = MethodCall.For<IResult>(x => x.ExecuteAsync(null!));
             call.Target = chain.Method.Creates.First();
