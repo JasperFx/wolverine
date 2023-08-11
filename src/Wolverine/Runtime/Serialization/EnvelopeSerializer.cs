@@ -62,6 +62,10 @@ public static class EnvelopeSerializer
                 case EnvelopeConstants.ParentIdKey:
                     env.ParentId = value;
                     break;
+                
+                case EnvelopeConstants.GroupIdKey:
+                    env.GroupId = value;
+                    break;
 
                 case EnvelopeConstants.ReplyRequestedKey:
                     env.ReplyRequested = value;
@@ -227,6 +231,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.ReplyRequestedKey, env.ReplyRequested);
         writer.WriteProp(ref count, EnvelopeConstants.AckRequestedKey, env.AckRequested);
         writer.WriteProp(ref count, EnvelopeConstants.IsResponseKey, env.IsResponse);
+        writer.WriteProp(ref count, EnvelopeConstants.GroupIdKey, env.GroupId);
 
         if (env.ScheduledTime.HasValue)
         {

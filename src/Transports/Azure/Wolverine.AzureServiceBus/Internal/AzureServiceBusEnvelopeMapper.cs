@@ -33,6 +33,9 @@ internal class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceived
                 m.ScheduledEnqueueTime = e.ScheduledTime.Value.ToUniversalTime();
             }
         });
+        
+        MapProperty(x => x.GroupId, (e, m) => e.GroupId = m.SessionId, (e, m) => m.SessionId = e.GroupId);
+
     }
 
     protected override void writeOutgoingHeader(ServiceBusMessage outgoing, string key, string value)

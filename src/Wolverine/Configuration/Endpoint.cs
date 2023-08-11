@@ -186,7 +186,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// <summary>
     ///     Number of parallel listeners for this endpoint
     /// </summary>
-    public int ListenerCount { get; set; }
+    public int ListenerCount { get; set; } = 1;
 
 
     /// <summary>

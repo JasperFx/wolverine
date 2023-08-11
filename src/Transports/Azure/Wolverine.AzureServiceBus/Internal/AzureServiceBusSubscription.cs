@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -35,10 +36,22 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public AzureServiceBusTopic Topic { get; }
 
+    public override Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken)
+    {
+        return Parent.BusClient.AcceptNextSessionAsync(Topic.TopicName, SubscriptionName,
+            cancellationToken: cancellationToken);
+    }
+
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         var requeue = Parent.RetryQueue != null ? Parent.RetryQueue.BuildInlineSender(runtime) : Topic.BuildInlineSender(runtime);
         var mapper = BuildMapper(runtime);
+        
+        if (Options.RequiresSession)
+        {
+            return new AzureServiceBusSessionListener(this, receiver, mapper,
+                runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
+        }
         
         if (Mode == EndpointMode.Inline)
         {

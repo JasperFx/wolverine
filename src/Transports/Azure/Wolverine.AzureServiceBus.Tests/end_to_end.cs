@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -22,8 +21,13 @@ public class end_to_end : IAsyncLifetime
                     .AutoProvision().AutoPurgeOnStartup();
 
                 opts.ListenToAzureServiceBusQueue("send_and_receive");
+                opts.PublishMessage<AsbMessage1>().ToAzureServiceBusQueue("send_and_receive");
 
-                opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
+                opts.ListenToAzureServiceBusQueue("fifo1").RequireSessions().Sequential();
+                opts.PublishMessage<AsbMessage2>().ToAzureServiceBusQueue("fifo1");
+
+                opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3");
+                opts.ListenToAzureServiceBusSubscription("asb3").FromTopic("asb3").RequireSessions(1).ProcessInline();
             }).StartAsync();
     }
 
@@ -79,23 +83,74 @@ public class end_to_end : IAsyncLifetime
     [Fact]
     public async Task send_and_receive_a_single_message()
     {
-        var message = new AsbMessage("Josh Allen");
+        var message = new AsbMessage1("Josh Allen");
 
         var session = await _host.TrackActivity()
             .IncludeExternalTransports()
             .Timeout(5.Minutes())
             .SendMessageAndWaitAsync(message);
 
-        session.Received.SingleMessage<AsbMessage>()
+        session.Received.SingleMessage<AsbMessage1>()
             .Name.ShouldBe(message.Name);
+    }
+    
+    [Fact]
+    public async Task send_and_receive_multiple_messages_to_queue_with_session_identifier()
+    {
+        Func<IMessageContext, Task> sendMany = async c =>
+        {
+            await c.SendAsync(new AsbMessage2("One"), new DeliveryOptions { GroupId = "1" });
+            await c.SendAsync(new AsbMessage2("Two"), new DeliveryOptions { GroupId = "1" });
+            await c.SendAsync(new AsbMessage2("Three"), new DeliveryOptions { GroupId = "1" });
+        };
+
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(30.Seconds())
+            .ExecuteAndWaitAsync(sendMany);
+
+        var names = session.Received.MessagesOf<AsbMessage2>().Select(x => x.Name).ToArray();
+        names
+            .ShouldBe(new string[]{"One", "Two", "Three"});
+    }
+
+    [Fact]
+    public async Task send_and_receive_multiple_messages_to_subscription_with_session_identifier()
+    {
+        Func<IMessageContext, Task> sendMany = async c =>
+        {
+            await c.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" });
+            await c.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });
+            await c.SendAsync(new AsbMessage3("Refactor"), new DeliveryOptions { GroupId = "2" });
+        };
+
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(30.Seconds())
+            .ExecuteAndWaitAsync(sendMany);
+
+        session.Received.MessagesOf<AsbMessage3>().Select(x => x.Name)
+            .ShouldBe(new string[]{"Red", "Green", "Refactor"});
     }
 }
 
-public record AsbMessage(string Name);
+public record AsbMessage1(string Name);
+public record AsbMessage2(string Name);
+public record AsbMessage3(string Name);
 
 public static class AsbMessageHandler
 {
-    public static void Handle(AsbMessage message)
+    public static void Handle(AsbMessage1 message)
+    {
+        // nothing
+    }
+    
+    public static void Handle(AsbMessage2 message)
+    {
+        // nothing
+    }
+    
+    public static void Handle(AsbMessage3 message)
     {
         // nothing
     }

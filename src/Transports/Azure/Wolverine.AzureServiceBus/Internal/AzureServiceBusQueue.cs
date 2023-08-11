@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -23,14 +24,20 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         }
 
         QueueName = EndpointName = queueName ?? throw new ArgumentNullException(nameof(queueName));
-        Options = new CreateQueueOptions(QueueName);
-
-        Options.DeadLetteringOnMessageExpiration = false;
+        Options = new CreateQueueOptions(QueueName)
+        {
+            DeadLetteringOnMessageExpiration = false
+        };
     }
-
+    
     public CreateQueueOptions Options { get; }
 
     public string QueueName { get; }
+
+    public override Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken)
+    {
+        return Parent.BusClient.AcceptNextSessionAsync(QueueName, cancellationToken: cancellationToken);
+    }
 
     public override async ValueTask<bool> CheckAsync()
     {
@@ -64,25 +71,63 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
         try
         {
-            var receiver = client.CreateReceiver(QueueName);
-
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
-            while (stopwatch.ElapsedMilliseconds < 2000)
+            if (Options.RequiresSession)
             {
-                var messages = await receiver.ReceiveMessagesAsync(25, 1.Seconds());
-                if (!messages.Any())
-                {
-                    return;
-                }
-
-                foreach (var message in messages) await receiver.CompleteMessageAsync(message);
+                await purgeWithSessions(client);
+            }
+            else
+            {
+                await purgeWithoutSessions(client);
             }
         }
         catch (Exception e)
         {
             logger.LogError(e, "Error trying to purge Azure Service Bus queue {Queue}", QueueName);
         }
+    }
+
+    private async Task purgeWithSessions(ServiceBusClient client)
+    {
+        var cancellation = new CancellationTokenSource();
+        cancellation.CancelAfter(2000);
+        
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
+        while (stopwatch.ElapsedMilliseconds < 2000)
+        {
+            var session = await client.AcceptNextSessionAsync(QueueName, cancellationToken: cancellation.Token);
+            
+            var messages = await session.ReceiveMessagesAsync(25, 1.Seconds(), cancellation.Token);
+            foreach (var message in messages) await session.CompleteMessageAsync(message, cancellation.Token);
+            while (messages.Any())
+            {
+                messages = await session.ReceiveMessagesAsync(25, 1.Seconds(), cancellation.Token);
+                foreach (var message in messages) await session.CompleteMessageAsync(message, cancellation.Token);
+            }
+
+            
+        }
+
+    }
+
+    private async Task<bool> purgeWithoutSessions(ServiceBusClient client)
+    {
+        var receiver = client.CreateReceiver(QueueName);
+
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
+        while (stopwatch.ElapsedMilliseconds < 2000)
+        {
+            var messages = await receiver.ReceiveMessagesAsync(25, 1.Seconds());
+            if (!messages.Any())
+            {
+                return true;
+            }
+
+            foreach (var message in messages) await receiver.CompleteMessageAsync(message);
+        }
+
+        return false;
     }
 
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
@@ -121,10 +166,17 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         var mapper = BuildMapper(runtime);
 
         var requeue = BuildInlineSender(runtime);
+
+        if (Options.RequiresSession)
+        {
+            return new AzureServiceBusSessionListener(this, receiver, mapper,
+                runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
+        }
         
         if (Mode == EndpointMode.Inline)
         {
             var messageProcessor = Parent.BusClient.CreateProcessor(QueueName);
+
             var inlineListener = new InlineAzureServiceBusListener(this,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver,
                 mapper,

@@ -6,3 +6,8 @@ namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 public class RoutedMessage
 {
 }
+
+[MessageIdentity("routed2")]
+public class Routed2Message
+{
+}

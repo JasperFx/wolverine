@@ -73,4 +73,23 @@ public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfigur
         add(e => e.MaximumWaitTime = time);
         return this;
     }
+    
+    /// <summary>
+    /// Force this subscription listener to require session identifiers. Use this for FIFO semantics
+    /// </summary>
+    /// <param name="listenerCount">The maximum number of parallel sessions that can be processed at any one time</param>
+    /// <returns></returns>
+    public AzureServiceBusSubscriptionListenerConfiguration RequireSessions(int? listenerCount = null)
+    {
+        add(e =>
+        {
+            e.Options.RequiresSession = true;
+            if (listenerCount.HasValue)
+            {
+                e.ListenerCount = listenerCount.Value;
+            }
+        });
+
+        return this;
+    }
 }

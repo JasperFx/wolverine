@@ -63,4 +63,6 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
 
         return mapper;
     }
+
+    public abstract Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken);
 }

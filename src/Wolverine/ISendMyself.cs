@@ -28,6 +28,44 @@ public abstract record TimeoutMessage(TimeSpan DelayTime) : ISendMyself
 public static class ConfiguredMessageExtensions
 {
     /// <summary>
+    /// Create a cascading message tagged to a specific group id
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="groupId"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static DeliveryMessage<T> WithGroupId<T>(this T message, string groupId)
+    {
+        return new DeliveryMessage<T>(message, new DeliveryOptions { GroupId = groupId });
+    }
+
+    /// <summary>
+    /// Create a cascading message tagged to a specific group id and scheduled for a set time
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="groupId"></param>
+    /// <param name="scheduledTime"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static DeliveryMessage<T> ScheduleToGroup<T>(this T message, string groupId, DateTimeOffset scheduledTime)
+    {
+        return new DeliveryMessage<T>(message, new DeliveryOptions { GroupId = groupId, ScheduledTime = scheduledTime});
+    }
+
+    /// <summary>
+    /// Create a cascading message tagged to a specific group id and scheduled with a delay
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="groupId"></param>
+    /// <param name="scheduleDelay"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static DeliveryMessage<T> ScheduleToGroup<T>(this T message, string groupId, TimeSpan scheduleDelay)
+    {
+        return new DeliveryMessage<T>(message, new DeliveryOptions { GroupId = groupId, ScheduleDelay = scheduleDelay});
+    }
+
+    /// <summary>
     ///     Send the current object as a cascading message with explicit
     ///     delivery options
     /// </summary>

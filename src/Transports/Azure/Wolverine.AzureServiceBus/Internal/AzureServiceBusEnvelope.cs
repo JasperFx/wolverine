@@ -20,4 +20,5 @@ public class AzureServiceBusEnvelope : Envelope
     public ServiceBusReceivedMessage AzureMessage { get; }
     public Exception Exception { get; set; }
     public bool IsCompleted { get; set; }
+    public ServiceBusReceiver? Receiver { get; set; }
 }

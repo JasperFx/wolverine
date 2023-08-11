@@ -121,7 +121,18 @@ public class DeliveryOptions
         {
             envelope.IsResponse = true;
         }
+
+        if (GroupId.IsNotEmpty())
+        {
+            envelope.GroupId = GroupId;
+        }
     }
+    
+    /// <summary>
+    /// Application defined message group identifier. Part of AMQP 1.0 spec as the "group-id" property. Session identifier
+    /// for Azure Service Bus
+    /// </summary>
+    public string? GroupId { get; set; }
 
     /// <summary>
     ///     Add a header key/value pair to the outgoing message

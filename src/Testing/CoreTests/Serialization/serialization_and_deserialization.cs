@@ -206,4 +206,11 @@ public class serialization_and_deserialization_of_single_message
         outgoing.TenantId = "tenant2";
         incoming.TenantId.ShouldBe("tenant2");
     }
+
+    [Fact]
+    public void group_id()
+    {
+        outgoing.GroupId = Guid.NewGuid().ToString();
+        incoming.GroupId.ShouldBe(outgoing.GroupId);
+    }
 }

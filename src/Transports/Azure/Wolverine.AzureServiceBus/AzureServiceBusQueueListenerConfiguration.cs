@@ -99,4 +99,23 @@ public class
 
         return this;
     }
+    
+    /// <summary>
+    /// Force this queue to require session identifiers. Use this for FIFO semantics
+    /// </summary>
+    /// <param name="listenerCount">The maximum number of parallel sessions that can be processed at any one time</param>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration RequireSessions(int? listenerCount = null)
+    {
+        add(e =>
+        {
+            e.Options.RequiresSession = true;
+            if (listenerCount.HasValue)
+            {
+                e.ListenerCount = listenerCount.Value;
+            }
+        });
+
+        return this;
+    }
 }

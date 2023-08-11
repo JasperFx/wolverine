@@ -59,6 +59,21 @@ public class DeliveryOptionsTests
     }
 
     [Fact]
+    public void override_group_id()
+    {
+        var options = new DeliveryOptions
+        {
+            GroupId = "group1"
+        };
+
+        var envelope = new Envelope();
+        
+        options.Override(envelope);
+        
+        envelope.GroupId.ShouldBe("group1");
+    }
+
+    [Fact]
     public void override_ack_requested()
     {
         var options = new DeliveryOptions

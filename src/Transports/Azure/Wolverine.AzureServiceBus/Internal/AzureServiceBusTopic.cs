@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -21,6 +22,11 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
 
         TopicName = EndpointName = topicName ?? throw new ArgumentNullException(nameof(topicName));
         Options = new CreateTopicOptions(TopicName);
+    }
+
+    public override Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
     }
 
     public string TopicName { get; }

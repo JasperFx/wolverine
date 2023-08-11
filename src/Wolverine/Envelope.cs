@@ -237,6 +237,12 @@ public partial class Envelope
     /// Used internally to understand where an envelope is in persisted state
     /// </summary>
     public bool WasPersistedInOutbox { get; set; }
+    
+    /// <summary>
+    /// Application defined message group identifier. Part of AMQP 1.0 spec as the "group-id" property. Session identifier
+    /// for Azure Service Bus
+    /// </summary>
+    public string? GroupId { get; set; }
 
     /// <summary>
     ///     Schedule this envelope to be sent or executed
