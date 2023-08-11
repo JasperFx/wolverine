@@ -20,6 +20,9 @@ internal class HttpChainSource
         _typeFilters.Includes += type =>
             type.Name.EndsWith("Endpoint", StringComparison.OrdinalIgnoreCase) ||
             type.Name.EndsWith("Endpoints", StringComparison.OrdinalIgnoreCase);
+
+        _typeFilters.Includes += type => type.GetMethods().Any(m => m.HasAttribute<WolverineHttpMethodAttribute>());
+        _typeFilters.Excludes += type => type.HasAttribute<WolverineIgnoreAttribute>();
     }
 
     internal MethodCall[] FindActions()
