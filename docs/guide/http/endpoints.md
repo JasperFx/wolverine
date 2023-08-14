@@ -177,7 +177,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
 ## JSON Handling
 
 ::: warning
-At this point WolverineFx.Http **only** supports `System.Text.Json` for the HTTP endpoints,
+At this point WolverineFx.Http **only** supports `System.Text.Json` as the default for the HTTP endpoints,
 with the JSON settings coming from the application's Minimal API configuration.
 :::
 
@@ -218,6 +218,19 @@ public async Task post_json_happy_path()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/posting_json.cs#L12-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_post_json_happy_path' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+### Using Newtonsoft.Json
+
+::: TIP
+Newtonsoft.Json is still much more battle hardened than System.Text.Json, and you may need
+to drop back to Newtonsoft.Json for various scenarios. This feature was added specifically
+at the request of F# developers.
+:::
+
+To opt into using Newtonsoft.Json for the JSON serialization of *HTTP endpoints*, you have this option within the call
+to the `MapWolverineEndpoints()` configuration:
+
+snippet: sample_use_newtonsoft_for_http_serialization
 
 ## Returning Strings
 

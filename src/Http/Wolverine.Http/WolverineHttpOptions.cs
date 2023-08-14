@@ -45,7 +45,7 @@ public class WolverineHttpOptions
     /// Http handlers
     /// </summary>
     /// <param name="configure"></param>
-    public void UseNewtonsoftJson(Action<JsonSerializerSettings>? configure = null)
+    public void UseNewtonsoftJsonForSerialization(Action<JsonSerializerSettings>? configure = null)
     {
         configure?.Invoke(NewtonsoftSerializerSettings);
         Endpoints.UseNewtonsoftJson();

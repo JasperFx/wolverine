@@ -16,6 +16,8 @@ public class using_newtonsoft_for_serialization
     [Fact]
     public async Task end_to_end()
     {
+        #region sample_use_newtonsoft_for_http_serialization
+
         var builder = WebApplication.CreateBuilder(Array.Empty<string>());
         builder.Services.AddScoped<IUserService, UserService>();
 
@@ -28,10 +30,13 @@ public class using_newtonsoft_for_serialization
         {
             app.MapWolverineEndpoints(opts =>
             {
-                // This is just to prove Newtonsoft is in effect
-                opts.UseNewtonsoftJson(settings => settings.TypeNameHandling = TypeNameHandling.All);
+                // Opt into using Newtonsoft.Json for JSON serialization just with Wolverine.HTTP routes
+                // Configuring the JSON serialization is optional
+                opts.UseNewtonsoftJsonForSerialization(settings => settings.TypeNameHandling = TypeNameHandling.All);
             });
         });
+
+        #endregion
 
         var result = await host.Scenario(x =>
         {
