@@ -23,7 +23,22 @@ public class end_to_end_with_conventional_routing : IDisposable
 
         _receiver = WolverineHost.For(opts =>
         {
-            opts.UseAzureServiceBusTesting().UseTopicAndSubscriptionConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            #region sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus
+
+            opts.UseAzureServiceBusTesting()
+                .UseTopicAndSubscriptionConventionalRouting(convention =>
+                {
+                    // Optionally control every aspect of the convention and
+                    // its applicability to types
+                    // as well as overriding any listener, sender, topic, or subscription
+                    // options
+                })
+
+                .AutoProvision()
+                .AutoPurgeOnStartup();
+
+            #endregion
+            
             opts.ServiceName = "Receiver";
         });
     }

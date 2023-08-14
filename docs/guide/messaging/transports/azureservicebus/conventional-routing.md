@@ -54,4 +54,31 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L281-L323' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Route to Topics and Subscriptions
+
+::: info
+This option was introduced in Wolverine 1.6.0.
+:::
+
+You can also opt into conventional routing using topics and subscriptions named after the 
+message type names like this:
+
+<!-- snippet: sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus -->
+<a id='snippet-sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus'></a>
+```cs
+opts.UseAzureServiceBusTesting()
+    .UseTopicAndSubscriptionConventionalRouting(convention =>
+    {
+        // Optionally control every aspect of the convention and
+        // its applicability to types
+        // as well as overriding any listener, sender, topic, or subscription
+        // options
+    })
+
+    .AutoProvision()
+    .AutoPurgeOnStartup();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/ConventionalRouting/Broadcasting/end_to_end_with_conventional_routing.cs#L26-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 
