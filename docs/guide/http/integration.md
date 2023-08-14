@@ -1,6 +1,6 @@
 # ASP.Net Core Integration
 
-::: tip
+::: TIP
 WolverineFx.HTTP is an alternative to Minimal API or MVC Core for crafting HTTP service endpoints, but absolutely tries to be a good citizen within the greater
 ASP.Net Core ecosystem and heavily utilizes much of the ASP.Net Core technical foundation. It is also perfectly possible to use
 any mix of WolverineFx.HTTP, Minimal API, and MVC Core controllers within the same code base as you see fit.
@@ -19,7 +19,7 @@ Then add the `WolverineFx.HTTP` dependency with:
 dotnet add package WolverineFx.HTTP
 ```
 
-::: tip
+::: TIP
 The [sample project for this page is on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Samples/TodoWebService/TodoWebService).
 :::
 
@@ -213,7 +213,7 @@ succeeds.
 ::: tip
 WolverineFx.Http allows you to place any number of endpoint methods on any public class that follows the naming conventions,
 but we strongly recommend isolating any kind of complicated endpoint method to its own endpoint class.
-:::git st
+:::
 
 Lastly for this page, consider the need to update a `Todo` from a `PUT` call. Your HTTP endpoint may vary its
 handling and response by whether or not the document actually exists. Just to show off Wolverine's "composite handler" functionality
@@ -283,13 +283,12 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 ::: info
-Wolverine was originally going to use the out of the box `[HttpVerb]` attributes in MVC Core, but switched to custom
-attributes to hopefully make the code more explicit about what is happening at runtime and also to avoid the package
-dependencies to the very large MVC Core libraries if that's not necessary for your application.
+Wolverine 1.6.0 added the looser discovery rules to just go look for any method on public, concrete types that is
+decorated with a Wolverine route attribute.
 :::
 
 In the aforementioned assemblies, Wolverine will look for **public, concrete, closed** types whose names are
-suffixed by `Endpoint` or `Endpoints`. Within these types, Wolverine is looking for **public** methods that
+suffixed by `Endpoint` or `Endpoints` **and also any public, concrete class with methods that are decorated by any `[WolverineVerb]` attribute**. Within these types, Wolverine is looking for **public** methods that
 are decorated with one of Wolverine's HTTP method attributes:
 
 * `[WolverineGet]`
