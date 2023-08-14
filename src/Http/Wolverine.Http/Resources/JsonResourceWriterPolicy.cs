@@ -1,3 +1,5 @@
+using System.Reflection;
+using JasperFx.CodeGeneration.Frames;
 using Wolverine.Http.CodeGen;
 
 namespace Wolverine.Http.Resources;
@@ -10,11 +12,25 @@ internal class JsonResourceWriterPolicy : IResourceWriterPolicy
         {
             var resourceVariable = chain.Method.Creates.First();
             resourceVariable.OverrideName(resourceVariable.Usage + "_response");
-            
-            chain.Postprocessors.Add(new WriteJsonFrame(resourceVariable));
+
+            if (Usage == JsonUsage.SystemTextJson)
+            {
+                chain.Postprocessors.Add(new WriteJsonFrame(resourceVariable));
+            }
+            else
+            {
+                var frame = new MethodCall(typeof(NewtonsoftHttpSerialization),
+                    nameof(NewtonsoftHttpSerialization.WriteJsonAsync));
+                frame.Arguments[1] = resourceVariable;
+                
+                chain.Postprocessors.Add(frame);
+            }
+
             return true;
         }
 
         return false;
     }
+
+    public JsonUsage Usage { get; set; } = JsonUsage.SystemTextJson;
 }

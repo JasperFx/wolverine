@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
+using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
@@ -10,6 +11,12 @@ using Wolverine.Http.Runtime;
 using Wolverine.Middleware;
 
 namespace Wolverine.Http;
+
+public enum JsonUsage
+{
+    SystemTextJson, 
+    NewtonsoftJson
+}
 
 [Singleton]
 public class WolverineHttpOptions
@@ -22,11 +29,28 @@ public class WolverineHttpOptions
     }
 
     internal JsonSerializerOptions JsonSerializerOptions { get; set; } = new();
+
+
+
+    internal JsonSerializerSettings NewtonsoftSerializerSettings { get; set; } = new();
+    
     internal HttpGraph? Endpoints { get; set; }
 
     internal MiddlewarePolicy Middleware { get; } = new();
 
     public List<IHttpPolicy> Policies { get; } = new();
+
+    /// <summary>
+    /// Opt into using Newtonsoft.Json for all JSON serialization in the Wolverine
+    /// Http handlers
+    /// </summary>
+    /// <param name="configure"></param>
+    public void UseNewtonsoftJson(Action<JsonSerializerSettings>? configure = null)
+    {
+        configure?.Invoke(NewtonsoftSerializerSettings);
+        Endpoints.UseNewtonsoftJson();
+
+    }
 
     /// <summary>
     ///     Customize Wolverine's handling of parameters to HTTP endpoint methods

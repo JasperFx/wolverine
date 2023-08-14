@@ -8,6 +8,7 @@ using Microsoft.Extensions.Primitives;
 using Oakton.Descriptions;
 using Spectre.Console;
 using Wolverine.Configuration;
+using Wolverine.Http.CodeGen;
 using Wolverine.Http.Resources;
 using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
@@ -122,5 +123,11 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         chain.MapToRoute(httpMethod.ToString(), url);
         _chains.Add(chain);
         return chain;
+    }
+
+    internal void UseNewtonsoftJson()
+    {
+        _writerPolicies.OfType<JsonResourceWriterPolicy>().Single().Usage = JsonUsage.NewtonsoftJson;
+        _strategies.OfType<JsonBodyParameterStrategy>().Single().Usage = JsonUsage.NewtonsoftJson;
     }
 }

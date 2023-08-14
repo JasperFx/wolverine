@@ -33,6 +33,26 @@ internal class ReadJsonBody : AsyncFrame
     }
 }
 
+internal class ReadJsonBodyWithNewtonsoft : MethodCall
+{
+    private static MethodInfo findMethodForType(Type parameterType)
+    {
+        return typeof(NewtonsoftHttpSerialization).GetMethod(nameof(NewtonsoftHttpSerialization.ReadFromJsonAsync))
+            .MakeGenericMethod(parameterType);
+    }
+    
+    public ReadJsonBodyWithNewtonsoft(ParameterInfo parameter) : base(typeof(NewtonsoftHttpSerialization), findMethodForType(parameter.ParameterType))
+    {
+        var parameterName = parameter.Name!;
+        if (parameterName == "_")
+        {
+            parameterName = Variable.DefaultArgName(parameter.ParameterType);
+        }
+        
+        ReturnVariable!.OverrideName(parameterName);
+    }
+}
+
 internal class JsonBodyParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
@@ -46,8 +66,10 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
 
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
-            variable = new ReadJsonBody(parameter).Variable;
-
+            variable = Usage == JsonUsage.SystemTextJson 
+                ? new ReadJsonBody(parameter).Variable 
+                : new ReadJsonBodyWithNewtonsoft(parameter).ReturnVariable!;
+            
             // Oh, this does NOT make me feel good
             chain.RequestType = parameter.ParameterType;
             return true;
@@ -55,4 +77,6 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
 
         return false;
     }
+
+    public JsonUsage Usage { get; set; } = JsonUsage.SystemTextJson;
 }
