@@ -4,7 +4,6 @@ using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using Shouldly;
 using Wolverine.Http.Tests.Bugs;
 using Wolverine.Marten;

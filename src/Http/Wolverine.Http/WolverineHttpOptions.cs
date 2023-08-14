@@ -71,6 +71,8 @@ public class WolverineHttpOptions
         Endpoints!.InsertParameterStrategy(strategy);
     }
 
+    #region sample_RequireAuthorizeOnAll
+
     /// <summary>
     /// Equivalent of calling RequireAuthorization() on all wolverine endpoints
     /// </summary>
@@ -78,6 +80,8 @@ public class WolverineHttpOptions
     {
         ConfigureEndpoints(e => e.RequireAuthorization());
     }
+
+    #endregion
 
     /// <summary>
     ///     Add a new IEndpointPolicy for the Wolverine endpoints

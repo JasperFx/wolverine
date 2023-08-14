@@ -164,6 +164,7 @@ export default {
                         {text: 'Integration with ASP.Net Core', link: '/guide/http/integration'},
                         {text: 'Endpoints', link: '/guide/http/endpoints'},
                         {text: 'Routing', link: '/guide/http/routing'},
+                        {text: 'Authentication and Authorization', link: '/guide/http/security'},
                         {text: 'Working with Querystring', link: '/guide/http/querystring'},
                         {text: 'Headers', link: '/guide/http/headers'},
                         {text: 'Middleware', link: '/guide/http/middleware.md'},

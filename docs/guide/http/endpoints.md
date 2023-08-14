@@ -230,7 +230,29 @@ at the request of F# developers.
 To opt into using Newtonsoft.Json for the JSON serialization of *HTTP endpoints*, you have this option within the call
 to the `MapWolverineEndpoints()` configuration:
 
-snippet: sample_use_newtonsoft_for_http_serialization
+<!-- snippet: sample_use_newtonsoft_for_http_serialization -->
+<a id='snippet-sample_use_newtonsoft_for_http_serialization'></a>
+```cs
+var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+builder.Services.AddScoped<IUserService, UserService>();
+
+builder.Services.AddMarten(Servers.PostgresConnectionString)
+    .IntegrateWithWolverine();
+
+builder.Host.UseWolverine();
+
+await using var host = await AlbaHost.For(builder, app =>
+{
+    app.MapWolverineEndpoints(opts =>
+    {
+        // Opt into using Newtonsoft.Json for JSON serialization just with Wolverine.HTTP routes
+        // Configuring the JSON serialization is optional
+        opts.UseNewtonsoftJsonForSerialization(settings => settings.TypeNameHandling = TypeNameHandling.All);
+    });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_newtonsoft_for_serialization.cs#L18-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_newtonsoft_for_http_serialization' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Returning Strings
 
