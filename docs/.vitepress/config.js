@@ -135,7 +135,9 @@ export default {
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/azureservicebus/conventional-routing'},
                                         {text: 'Queues', link:'/guide/messaging/transports/azureservicebus/object-management'},
                                         {text: 'Topics and Subscriptions', link:'/guide/messaging/transports/azureservicebus/topics'},
-                                        {text: 'Interoperability', link:'/guide/messaging/transports/azureservicebus/interoperability'}
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/azureservicebus/interoperability'},
+                                        {text: 'Session Identifiers and FIFO Queues', link: '/guide/messaging/transports/azureservicebus/session-identifiers'},
+                                        {text: 'Scheduled Delivery', link: '/guide/messaging/transports/azureservicebus/scheduled'}
                                     ]},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/sqs/publishing'},

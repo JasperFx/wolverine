@@ -60,6 +60,34 @@ public static class AppWithErrorHandling
 
         #endregion
     }
+
+    public static async Task with_scheduled_retry()
+    {
+        #region sample_using_scheduled_retry
+
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Policies.OnException<TimeoutException>()
+                    // Just retry the message again on the
+                    // first failure
+                    .RetryOnce()
+
+                    // On the 2nd failure, put the message back into the
+                    // incoming queue to be retried later
+                    .Then.Requeue()
+
+                    // On the 3rd failure, retry the message again after a configurable
+                    // cool-off period. This schedules the message
+                    .Then.ScheduleRetry(15.Seconds())
+
+                    // On the next failure, move the message to the dead letter queue
+                    .Then.MoveToErrorQueue();
+
+            }).StartAsync();
+
+        #endregion
+    }
 }
 
 public class SqlException : Exception

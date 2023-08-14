@@ -14,6 +14,8 @@ public class end_to_end : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        #region sample_using_azure_service_bus_session_identifiers
+
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -23,12 +25,29 @@ public class end_to_end : IAsyncLifetime
                 opts.ListenToAzureServiceBusQueue("send_and_receive");
                 opts.PublishMessage<AsbMessage1>().ToAzureServiceBusQueue("send_and_receive");
 
-                opts.ListenToAzureServiceBusQueue("fifo1").RequireSessions().Sequential();
-                opts.PublishMessage<AsbMessage2>().ToAzureServiceBusQueue("fifo1");
+                opts.ListenToAzureServiceBusQueue("fifo1")
+                    
+                    // Require session identifiers with this queue
+                    .RequireSessions()
+                    
+                    // This controls the Wolverine handling to force it to process
+                    // messages sequentially
+                    .Sequential();
+                
+                opts.PublishMessage<AsbMessage2>()
+                    .ToAzureServiceBusQueue("fifo1");
 
                 opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3");
-                opts.ListenToAzureServiceBusSubscription("asb3").FromTopic("asb3").RequireSessions(1).ProcessInline();
+                opts.ListenToAzureServiceBusSubscription("asb3")
+                    .FromTopic("asb3")
+                    
+                    // Require sessions on this subscription
+                    .RequireSessions(1)
+                    
+                    .ProcessInline();
             }).StartAsync();
+
+        #endregion
     }
 
     public Task DisposeAsync()
@@ -117,11 +136,16 @@ public class end_to_end : IAsyncLifetime
     [Fact]
     public async Task send_and_receive_multiple_messages_to_subscription_with_session_identifier()
     {
-        Func<IMessageContext, Task> sendMany = async c =>
+        Func<IMessageContext, Task> sendMany = async bus =>
         {
-            await c.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" });
-            await c.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });
-            await c.SendAsync(new AsbMessage3("Refactor"), new DeliveryOptions { GroupId = "2" });
+            #region sample_sending_with_session_identifier
+
+            // bus is an IMessageBus
+            await bus.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" });
+            await bus.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });
+            await bus.SendAsync(new AsbMessage3("Refactor"), new DeliveryOptions { GroupId = "2" });
+
+            #endregion
         };
 
         var session = await _host.TrackActivity()
