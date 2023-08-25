@@ -7,7 +7,7 @@ than most other frameworks that adopt the "Russian Doll" middleware approach tha
 that the exception stack traces from failures in Wolverine message handlers will be far less noisy than competitor tools and Wolverine's own predecessors.
 
 ::: tip
-Wolverine has [performance metrics](/guide/logging) around message execution out of the box, so this while "stopwatch" sample is unnecessary. But it *was* an easy way to illustrate
+Wolverine has [performance metrics](/guide/logging) around message execution out of the box, so this whole "stopwatch" sample is unnecessary. But it *was* an easy way to illustrate
 the middleware approach.
 :::
 
@@ -372,38 +372,36 @@ public class ClockedEndpoint
 
 Now, when the application is bootstrapped, this is the code that would be generated to handle the "GET /clocked" route:
 
-```
-    public class Wolverine_Testing_Samples_ClockedEndpoint_get_clocked : Wolverine.Http.Model.RouteHandler
-    {
-        private readonly Microsoft.Extensions.Logging.ILogger<Wolverine.Configuration.IChain> _logger;
+```csharp
+public class Wolverine_Testing_Samples_ClockedEndpoint_get_clocked : Wolverine.Http.Model.RouteHandler
+{
+    private readonly Microsoft.Extensions.Logging.ILogger<Wolverine.Configuration.IChain> _logger;
 
-        public Wolverine_Testing_Samples_ClockedEndpoint_get_clocked(Microsoft.Extensions.Logging.ILogger<Wolverine.Configuration.IChain> logger)
+    public Wolverine_Testing_Samples_ClockedEndpoint_get_clocked(Microsoft.Extensions.Logging.ILogger<Wolverine.Configuration.IChain> logger)
+    {
+        _logger = logger;
+    }
+
+    public override Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext, System.String[] segments)
+    {
+        var clockedEndpoint = new Wolverine.Testing.Samples.ClockedEndpoint();
+        var stopwatch = new System.Diagnostics.Stopwatch();
+        stopwatch.Start();
+        try
         {
-            _logger = logger;
+            var result_of_get_clocked = clockedEndpoint.get_clocked();
+            return WriteText(result_of_get_clocked, httpContext.Response);
         }
 
-
-
-        public override Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext, System.String[] segments)
+        finally
         {
-            var clockedEndpoint = new Wolverine.Testing.Samples.ClockedEndpoint();
-            var stopwatch = new System.Diagnostics.Stopwatch();
-            stopwatch.Start();
-            try
-            {
-                var result_of_get_clocked = clockedEndpoint.get_clocked();
-                return WriteText(result_of_get_clocked, httpContext.Response);
-            }
-
-            finally
-            {
-                stopwatch.Stop();
-                _logger.Log(Microsoft.Extensions.Logging.LogLevel.Information, "Route 'GET: clocked' ran in " + stopwatch.ElapsedMilliseconds);)
-            }
-
+            stopwatch.Stop();
+            _logger.Log(Microsoft.Extensions.Logging.LogLevel.Information, "Route 'GET: clocked' ran in " + stopwatch.ElapsedMilliseconds);)
         }
 
     }
+
+}
 ```
 
 `ModifyChainAttribute` is a generic way to add middleware or post processing frames, but if you need to configure things specific to routes or message handlers, you can also use `ModifyHandlerChainAttribute` for message handlers or `ModifyRouteAttribute` for http routes.
@@ -474,14 +472,14 @@ message handlers without writing custom policies or having to resort to all new 
 There's one last option for configuring chains by a naming convention. If you want to configure the chains from just one handler or endpoint class,
 you can implement a method with one of these signatures:
 
-```
+```csharp
 public static void Configure(IChain)
 {
     // gets called for each endpoint or message handling method
     // on just this class
 }
 
-public static void Configure(RouteChain chain)`
+public static void Configure(RouteChain chain)
 {
     // gets called for each endpoint method on this class
 }
