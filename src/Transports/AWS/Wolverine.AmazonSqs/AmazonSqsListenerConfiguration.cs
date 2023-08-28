@@ -1,3 +1,4 @@
+﻿using System.Text.Json;
 using Amazon.SQS.Model;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
@@ -72,6 +73,22 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     public AmazonSqsListenerConfiguration ConfigureQueueCreation(Action<CreateQueueRequest> configure)
     {
         add(e => configure(e.Configuration));
+        return this;
+    }
+
+    public AmazonSqsListenerConfiguration ReceiveNativeJsonMessage(
+        Type messageType,
+        Action<JsonSerializerOptions>? configure = null)
+    {
+        add(e =>
+        {
+            JsonSerializerOptions serializerOptions = new JsonSerializerOptions();
+
+            configure?.Invoke(serializerOptions);
+
+            e.Mapper = new RawJsonSqsEnvelopeMapper(messageType, serializerOptions);
+        });
+
         return this;
     }
 }

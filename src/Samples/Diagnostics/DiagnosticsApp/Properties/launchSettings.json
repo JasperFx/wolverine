@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "DiagnosticsApp": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:55166;http://localhost:55167"
+    }
+  }
+}
