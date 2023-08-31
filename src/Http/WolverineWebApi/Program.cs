@@ -66,6 +66,14 @@ builder.Host.UseWolverine(opts =>
 
 var app = builder.Build();
 
+//Force the default culture to not be en-US to ensure code is culture agnostic
+var supportedCultures = new[] { "fr-FR", "en-US" };
+var localizationOptions = new RequestLocalizationOptions().SetDefaultCulture(supportedCultures[0])
+    .AddSupportedCultures(supportedCultures)
+    .AddSupportedUICultures(supportedCultures);
+
+app.UseRequestLocalization(localizationOptions);
+
 // Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI();

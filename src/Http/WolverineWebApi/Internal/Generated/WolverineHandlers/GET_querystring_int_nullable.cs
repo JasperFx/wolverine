@@ -22,7 +22,7 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             int? age = null;
-            if (int.TryParse(httpContext.Request.Query["age"], out var ageParsed)) age = ageParsed;
+            if (int.TryParse(httpContext.Request.Query["age"], System.Globalization.CultureInfo.InvariantCulture, out var ageParsed)) age = ageParsed;
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
             var result_of_UsingQueryStringParsingNullable = WolverineWebApi.TestEndpoints.UsingQueryStringParsingNullable(age);
             await WriteString(httpContext, result_of_UsingQueryStringParsingNullable);

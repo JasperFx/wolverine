@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Linq.Expressions;
 using Marten;
 using Wolverine.Http;
 
@@ -68,6 +70,14 @@ public static class TestEndpoints
         }
 
         return $"Age is {age}";
+    }
+
+    [WolverineGet("/querystring/decimal")]
+    public static string UseQueryStringParsing(Recorder recorder, decimal amount)
+    {
+        recorder.Actions.Add("Got through query string usage for decimal");
+
+        return string.Format(CultureInfo.InvariantCulture, "Amount is {0}", amount);
     }
 
     #region sample_simple_wolverine_http_endpoint
