@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Net.Http.Headers;
 using Alba;
 using Shouldly;
 using WolverineWebApi;
@@ -206,6 +208,19 @@ public class end_to_end : IntegrationContext
         });
 
         body.ReadAsText().ShouldBe("Name is missing");
+    }
+
+    [Fact]
+    public async Task use_decimal_querystring_hit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.WithRequestHeader("Accept-Language", "fr-FR");
+            x.Get.Url("/querystring/decimal?amount=42.1");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("Amount is 42.1");
     }
 
     #endregion

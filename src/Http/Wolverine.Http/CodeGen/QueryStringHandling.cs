@@ -38,16 +38,19 @@ internal class ParsedQueryStringValue : SyncFrame
         var alias = Variable.VariableType.FullNameInCode();
         writer.Write($"{alias} {Variable.Usage} = default;");
 
+
         if (Variable.VariableType.IsEnum)
         {
             writer.Write($"{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
         }
-        else
+        else if (Variable.VariableType.IsBoolean())
         {
             writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
         }
-        
-        
+        else
+        {
+            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out {Variable.Usage});");
+        }
 
         Next?.GenerateCode(method, writer);
     }
@@ -75,10 +78,14 @@ internal class ParsedNullableQueryStringValue : SyncFrame
             writer.Write(
                 $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
         }
+        else if (_innerTypeFromNullable.IsBoolean())
+        {
+            writer.Write($"{_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
+        }
         else
         {
             writer.Write(
-                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
         }
 
         Next?.GenerateCode(method, writer);
