@@ -24,7 +24,7 @@ public static string UsingQueryString(string name) // name is from the query str
     return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L45-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_query_string' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L47-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_query_string' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the corresponding tests:
@@ -55,6 +55,19 @@ public async Task use_string_querystring_miss()
 
     body.ReadAsText().ShouldBe("Name is missing");
 }
+
+[Fact]
+public async Task use_decimal_querystring_hit()
+{
+    var body = await Scenario(x =>
+    {
+        x.WithRequestHeader("Accept-Language", "fr-FR");
+        x.Get.Url("/querystring/decimal?amount=42.1");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    body.ReadAsText().ShouldBe("Amount is 42.1");
+}
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/end_to_end.cs#L185-L211' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/end_to_end.cs#L187-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

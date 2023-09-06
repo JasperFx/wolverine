@@ -185,7 +185,140 @@ public ValueTask PublishMessage(IMessageContext bus)
 
 ## Scheduling Message Delivery or Execution
 
-TODO
+::: tip
+While Wolverine has an in memory scheduled delivery and execution model by default, that was only intended for delayed message
+execution retries. You will most likely want to either use a transport type that supports native scheduled delivery like
+the [Azure Service Bus transport](/guide/messaging/transports/azureservicebus/scheduled), or utilize the [database backed
+message persistence](/guide/durability/) to enable durable message scheduling. 
+:::
+
+Wolverine supports the concept of scheduled message delivery. Likewise, Wolverine also supports scheduled message execution 
+if you're publishing to a [local queue](/guide/messaging/transports/local) within your current application. The actual 
+mechanics for message scheduling will vary according to the endpoint destination that a message is being published to, 
+including whether or not the scheduled message is durable and will outlive any unexpected or planned process terminations.
+
+::: tip
+The built in outbox message scheduling was meant for relatively low numbers of messages, and was primarily meant for scheduled
+message retries. If you have an excessive number of scheduled messages, you may want to utilize the database backed queues
+in Wolverine which are optimized for much higher number of scheduled messages.
+:::
+
+First off, your guide for understanding the scheduled message delivery mechanics in effective order: 
+
+* If the destination endpoint has native message delivery capabilities, Wolverine uses that capability. Outbox mechanics 
+  still apply to when the outgoing message is released to the external endpoint's sender
+* If the destination endpoint is durable, meaning that it's enrolled in Wolverine's [transactional outbox](/guide/durability/), then Wolverine
+  will store the scheduled messages in the outgoing envelope storage for later execution. In this case, Wolverine is polling
+  for the ready to execute or deliver messages across all running Wolverine nodes. This option is durable in case of process 
+  exits.
+* In lieu of any other support, Wolverine has an in memory option that can do scheduled delivery or execution
+
+To schedule message delivery (scheduled execution really just means scheduling message publishing to a local queue), you
+actually have a couple different syntactical options. First, if you're directly using the `IMessageBus` interface, you
+can schedule a message with a delay using this extension method:
+
+<!-- snippet: sample_ScheduleSend_In_3_Days -->
+<a id='snippet-sample_schedulesend_in_3_days'></a>
+```cs
+public async Task schedule_send(IMessageContext context, Guid issueId)
+{
+    var timeout = new WarnIfIssueIsStale
+    {
+        IssueId = issueId
+    };
+
+    // Process the issue timeout logic 3 days from now
+    await context.ScheduleAsync(timeout, 3.Days());
+
+    // The code above is short hand for this:
+    await context.PublishAsync(timeout, new DeliveryOptions
+    {
+        ScheduleDelay = 3.Days()
+    });
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L8-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedulesend_in_3_days' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or using an absolute time, with this overload of the extension method:
+
+<!-- snippet: sample_ScheduleSend_At_5_PM_Tomorrow -->
+<a id='snippet-sample_schedulesend_at_5_pm_tomorrow'></a>
+```cs
+public async Task schedule_send_at_5_tomorrow_afternoon(IMessageContext context, Guid issueId)
+{
+    var timeout = new WarnIfIssueIsStale
+    {
+        IssueId = issueId
+    };
+
+    var time = DateTime.Today.AddDays(1).AddHours(17);
+
+    // Process the issue timeout at 5PM tomorrow
+    // Do note that Wolverine quietly converts this
+    // to universal time in storage
+    await context.ScheduleAsync(timeout, time);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedulesend_at_5_pm_tomorrow' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Now, Wolverine tries really hard to enable you to use [pure functions](https://en.wikipedia.org/wiki/Pure_function) for as many message handlers as possible, so
+there's of course an option to schedule message delivery while still using [cascading messages](/guide/handlers/cascading) with the `DelayedFor()` and 
+`ScheduledAt()` extension methods shown below:
+
+<!-- snippet: sample_customized_cascaded_messages -->
+<a id='snippet-sample_customized_cascaded_messages'></a>
+```cs
+public static IEnumerable<object> Consume(Incoming incoming)
+{
+    // Delay the message delivery by 10 minutes
+    yield return new Message1().DelayedFor(10.Minutes());
+    
+    // Schedule the message delivery for a certain time
+    yield return new Message2().ScheduledAt(new DateTimeOffset(DateTime.Today.AddDays(2)));
+    
+    // Customize the message delivery however you please...
+    yield return new Message3()
+        .WithDeliveryOptions(new DeliveryOptions().WithHeader("foo", "bar"));
+    
+    // Send back to the original sender
+    yield return Respond.ToSender(new Message4());
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/OutgoingMessagesSample.cs#L37-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_cascaded_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Lastly, there's a special base class called `TimeoutMessage` that your message types can extend to add scheduling logic
+directly to the message itself for easy usage as a cascaded message. Here's an example message type:
+
+<!-- snippet: sample_OrderTimeout -->
+<a id='snippet-sample_ordertimeout'></a>
+```cs
+// This message will always be scheduled to be delivered after
+// a one minute delay
+public record OrderTimeout(string Id) : TimeoutMessage(1.Minutes());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L12-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ordertimeout' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Which is used within this sample saga implementation:
+
+<!-- snippet: sample_starting_a_saga_inside_a_handler -->
+<a id='snippet-sample_starting_a_saga_inside_a_handler'></a>
+```cs
+// This method would be called when a StartOrder message arrives
+// to start a new Order
+public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
+{
+    logger.LogInformation("Got a new order with id {Id}", order.OrderId);
+
+    // creating a timeout message for the saga
+    return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L24-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ## Customizing Message Delivery

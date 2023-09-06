@@ -4,7 +4,7 @@ using Wolverine;
 
 namespace DocumentationSamples;
 
-public class OutgoingMessageHandler
+public static class OutgoingMessageHandler
 {
     #region sample_using_OutgoingMessage
 
@@ -36,12 +36,12 @@ public class OutgoingMessageHandler
 
     #region sample_customized_cascaded_messages
 
-    public IEnumerable<object> Consume(Incoming incoming)
+    public static IEnumerable<object> Consume(Incoming incoming)
     {
-        // Delay the message delivery
+        // Delay the message delivery by 10 minutes
         yield return new Message1().DelayedFor(10.Minutes());
         
-        // Schedule the message delivery
+        // Schedule the message delivery for a certain time
         yield return new Message2().ScheduledAt(new DateTimeOffset(DateTime.Today.AddDays(2)));
         
         // Customize the message delivery however you please...

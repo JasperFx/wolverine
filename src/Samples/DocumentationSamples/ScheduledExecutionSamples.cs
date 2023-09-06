@@ -16,6 +16,12 @@ public class ScheduledExecutionSamples
 
         // Process the issue timeout logic 3 days from now
         await context.ScheduleAsync(timeout, 3.Days());
+
+        // The code above is short hand for this:
+        await context.PublishAsync(timeout, new DeliveryOptions
+        {
+            ScheduleDelay = 3.Days()
+        });
     }
 
     #endregion

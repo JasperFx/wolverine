@@ -150,12 +150,12 @@ of cascading messages **and** have full access to the power of Wolverine. Here's
 <!-- snippet: sample_customized_cascaded_messages -->
 <a id='snippet-sample_customized_cascaded_messages'></a>
 ```cs
-public IEnumerable<object> Consume(Incoming incoming)
+public static IEnumerable<object> Consume(Incoming incoming)
 {
-    // Delay the message delivery
+    // Delay the message delivery by 10 minutes
     yield return new Message1().DelayedFor(10.Minutes());
     
-    // Schedule the message delivery
+    // Schedule the message delivery for a certain time
     yield return new Message2().ScheduledAt(new DateTimeOffset(DateTime.Today.AddDays(2)));
     
     // Customize the message delivery however you please...
