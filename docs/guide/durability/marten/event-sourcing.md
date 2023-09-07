@@ -6,7 +6,7 @@ if the Wolverine/Marten integration is applied to your application. Do note that
 exclusive write locking.
 :::
 
-See the [OrderEventSourcingSample project on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderEventSourcingSample) for more samples.
+See the [OrderEventSourcingSample project on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Persistence/OrderEventSourcingSample) for more samples.
 
 That Wolverine + Marten combination is optimized for efficient and productive development using a [CQRS architecture style](https://martinfowler.com/bliki/CQRS.html) with [Marten's event sourcing](https://martendb.io/events/) support.
 Specifically, let's dive into the responsibilities of a typical command handler in a CQRS with event sourcing architecture:
