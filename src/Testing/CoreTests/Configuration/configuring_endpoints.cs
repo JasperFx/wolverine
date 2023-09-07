@@ -24,18 +24,24 @@ public class configuring_endpoints : IDisposable
 
     public configuring_endpoints()
     {
-        _host = Host.CreateDefaultBuilder().UseWolverine(x =>
+        _host = Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
-            x.ListenForMessagesFrom("local://one").Sequential().Named("one");
-            x.ListenForMessagesFrom("local://two").MaximumParallelMessages(11);
-            x.ListenForMessagesFrom("local://three").UseDurableInbox();
-            x.ListenForMessagesFrom("local://four").UseDurableInbox().BufferedInMemory();
-            x.ListenForMessagesFrom("local://five").ProcessInline();
+            opts.ListenForMessagesFrom("local://one").Sequential().Named("one");
+            opts.ListenForMessagesFrom("local://two").MaximumParallelMessages(11);
+            opts.ListenForMessagesFrom("local://three").UseDurableInbox();
+            opts.ListenForMessagesFrom("local://four").UseDurableInbox().BufferedInMemory();
+            opts.ListenForMessagesFrom("local://five").ProcessInline();
             
-            x.ListenForMessagesFrom("local://durable1").UseDurableInbox(new BufferingLimits(500, 250));
-            x.ListenForMessagesFrom("local://buffered1").BufferedInMemory(new BufferingLimits(250, 100));
+            opts.ListenForMessagesFrom("local://durable1").UseDurableInbox(new BufferingLimits(500, 250));
+            opts.ListenForMessagesFrom("local://buffered1").BufferedInMemory(new BufferingLimits(250, 100));
 
-            x.PublishMessage<Message3>().ToPort(PortFinder.GetAvailablePort()).Named("sender").MessageBatchSize(111);
+            opts.PublishMessage<Message3>().ToPort(PortFinder.GetAvailablePort()).Named("sender").MessageBatchSize(111);
+
+            opts.DefaultLocalQueue
+                .MaximumParallelMessages(13);
+            
+            opts.DurableScheduledMessagesLocalQueue
+                .MaximumParallelMessages(22);
         }).Build();
 
         theOptions = _host.Get<WolverineOptions>();
@@ -135,9 +141,6 @@ public class configuring_endpoints : IDisposable
     [Fact]
     public void configure_default_queue()
     {
-        theOptions.DefaultLocalQueue
-            .MaximumParallelMessages(13);
-
         localQueue(TransportConstants.Default)
             .ExecutionOptions.MaxDegreeOfParallelism
             .ShouldBe(13);
@@ -146,8 +149,7 @@ public class configuring_endpoints : IDisposable
     [Fact]
     public void configure_durable_queue()
     {
-        theOptions.DurableScheduledMessagesLocalQueue
-            .MaximumParallelMessages(22);
+
 
         localQueue(TransportConstants.Durable)
             .ExecutionOptions.MaxDegreeOfParallelism
@@ -199,12 +201,8 @@ public class configuring_endpoints : IDisposable
     [Fact]
     public void configure_process_inline()
     {
-        theOptions
-            .ListenForMessagesFrom("local://three")
-            .ProcessInline();
 
-
-        localQueue("three")
+        localQueue("five")
             .Mode
             .ShouldBe(EndpointMode.Inline);
     }
