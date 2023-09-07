@@ -58,3 +58,10 @@ public static (
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L14-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_saga_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+Remember in Wolverine.HTTP that the *first* return value of an endpoint is assumed to be the response body by Wolverine, so if you are
+wanting to start a new saga from an HTTP endpoint, the `Saga` return value either has to be a secondary value in a tuple to
+opt into the Saga mechanics. Alternatively, if all you want to do is start a new saga, but nothing else, you can return
+the `Saga` type *and* force Wolverine to use the return value as a new `Saga` like so:
+
+snippet: sample_start_saga_from_http_endpoint_empty_body
+

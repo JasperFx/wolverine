@@ -1,11 +1,5 @@
 # HTTP Endpoints
 
-::: warning
-In all cases, the resource returned from a Wolverine HTTP endpoint method **is not automatically
-published as a Wolverine cascaded message**. At this moment you will have to directly use `IMessageBus`
-in your method signature to publish messages.
-:::
-
 First, a little terminology about Wolverine HTTP endpoints. Consider the following endpoint method:
 
 <!-- snippet: sample_simple_wolverine_http_endpoint -->

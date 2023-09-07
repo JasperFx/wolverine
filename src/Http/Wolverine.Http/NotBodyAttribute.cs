@@ -5,7 +5,7 @@ namespace Wolverine.Http;
 ///     Wolverine that this parameter is *not* sourced from the
 ///     HTTP request body
 /// </summary>
-[AttributeUsage(AttributeTargets.Parameter)]
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue)]
 public class NotBodyAttribute : Attribute
 {
 }

@@ -30,6 +30,22 @@ public static class ReservationEndpoint
     }
 
     #endregion
+
+    #region sample_start_saga_from_http_endpoint_empty_body
+
+    [WolverinePost("/reservation2")]
+    
+    // This directs Wolverine to disregard the Reservation return value
+    // as the response body, and allow Wolverine to use the Reservation
+    // return as a new saga
+    [EmptyResponse] 
+    public static Reservation Post2(StartReservation start)
+    {
+        return new Reservation { Id = start.ReservationId };
+    }
+
+    #endregion
+
 }
 
 public record BookReservation(string Id);
