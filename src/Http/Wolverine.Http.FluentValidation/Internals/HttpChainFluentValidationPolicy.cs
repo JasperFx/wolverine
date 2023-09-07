@@ -28,7 +28,11 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
                 typeof(FluentValidationHttpExecutor).GetMethod(nameof(FluentValidationHttpExecutor.ExecuteOne))!
                     .MakeGenericMethod(chain.RequestType);
 
-            var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method);
+            var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method)
+            {
+                CommentText = "Execute FluentValidation validators"
+            };
+
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
             chain.Middleware.InsertRange(0, new Frame[]{methodCall,maybeResult});
         }

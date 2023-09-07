@@ -23,6 +23,7 @@ internal class CreateMissingSagaFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment($"Create a new instance of the saga state");
         writer.Write($"{_saga.Usage} = new {_saga.VariableType.FullNameInCode()}();");
         Next?.GenerateCode(method, writer);
     }

@@ -24,6 +24,7 @@ internal class ReadJsonBody : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Reading the request body via JSON deserialization");
         writer.Write(
             $"var ({Variable.Usage}, jsonContinue) = await ReadJsonAsync<{Variable.VariableType.FullNameInCode()}>(httpContext);");
         writer.Write(
@@ -50,6 +51,8 @@ internal class ReadJsonBodyWithNewtonsoft : MethodCall
         }
         
         ReturnVariable!.OverrideName(parameterName);
+
+        CommentText = "Reading the request body with JSON deserialization";
     }
 }
 

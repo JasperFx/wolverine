@@ -27,6 +27,7 @@ internal class AuditToActivityFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Application-specific Open Telemetry auditing");
         foreach (var member in _members)
             writer.WriteLine(
                 $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input!.Usage}.{member.Member.Name});");

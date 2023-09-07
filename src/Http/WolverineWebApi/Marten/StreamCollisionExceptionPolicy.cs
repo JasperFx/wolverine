@@ -58,6 +58,7 @@ internal class CatchStreamCollisionFrame : AsyncFrame
 {
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Catches any existing stream id collision exceptions");
         writer.Write("BLOCK:try");
         
         // Write the inner code here

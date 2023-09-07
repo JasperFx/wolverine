@@ -22,6 +22,7 @@ internal class HandlerContinuationFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Evaluate whether or not the execution should stop based on the HandlerContinuation value");
         if (method.AsyncMode == AsyncMode.AsyncTask)
         {
             writer.Write(

@@ -62,6 +62,7 @@ internal class ApplyHttpAware : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("This response type customizes the HTTP response");
         writer.Write($"{nameof(HttpHandler.ApplyHttpAware)}({_target.Usage}, {_httpContext.Usage});");
         Next?.GenerateCode(method, writer);
     }

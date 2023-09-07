@@ -18,8 +18,10 @@ internal class MessageFrame : Frame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("The actual message body");
         writer.Write(
             $"var {_message.Usage} = ({_message.VariableType.FullNameInCode()}){_envelope.Usage}.{nameof(Envelope.Message)};");
+        writer.BlankLine();
         Next?.GenerateCode(method, writer);
     }
 }

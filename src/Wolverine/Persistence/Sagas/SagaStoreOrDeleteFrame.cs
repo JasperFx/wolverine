@@ -27,6 +27,7 @@ internal class SagaStoreOrDeleteFrame : Frame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Delete the saga if completed, otherwise update it");
         writer.Write($"BLOCK:if ({_saga.Usage}.{nameof(Saga.IsCompleted)}())");
         _delete.GenerateCode(method, writer);
         writer.FinishBlock();

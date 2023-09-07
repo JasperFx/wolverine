@@ -21,6 +21,8 @@ public class HandlerCall : MethodCall
             throw new ArgumentOutOfRangeException(nameof(method),
                 $"Method {handlerType.FullName}.{method.Name} has no message type");
         }
+
+        CommentText = "The actual message execution";
     }
 
     public Type MessageType { get; }

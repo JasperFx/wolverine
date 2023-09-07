@@ -38,6 +38,7 @@ internal class LogStartingActivity : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Application specific auditing");
         var template = $"Starting to process {_inputType.FullNameInCode()} ({{Id}})";
         if (_members.Any())
         {

@@ -47,10 +47,12 @@ public class MaybeEndWithResultFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Evaluate whether or not the execution should be stopped based on the IResult value");
         writer.Write($"BLOCK:if (!({_result.Usage} is {typeof(WolverineContinue).FullNameInCode()}))");
         writer.Write($"await {_result.Usage}.{nameof(IResult.ExecuteAsync)}({_context!.Usage}).ConfigureAwait(false);");
         writer.Write("return;");
         writer.FinishBlock();
+        writer.BlankLine();
 
         Next?.GenerateCode(method, writer);
     }

@@ -48,10 +48,12 @@ internal class MaybeEndWithProblemDetailsFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Evaluate whether the processing should stop if there are any problems");
         writer.Write($"BLOCK:if (!(ReferenceEquals({_details.Usage}, {typeof(WolverineContinue).FullNameInCode()}.{nameof(WolverineContinue.NoProblems)})))");
         writer.Write($"await Microsoft.AspNetCore.Http.Results.Problem({_details.Usage}).{nameof(IResult.ExecuteAsync)}({_context!.Usage}).ConfigureAwait(false);");
         writer.Write("return;");
         writer.FinishBlock();
+        writer.BlankLine();
 
         Next?.GenerateCode(method, writer);
     }

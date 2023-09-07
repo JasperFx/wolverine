@@ -59,6 +59,7 @@ internal class FromHeaderValue : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Retrieve header value from the request");
         writer.Write(
             $"var {Variable.Usage} = {nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext!.Usage}, \"{_header}\");");
         Next?.GenerateCode(method, writer);
