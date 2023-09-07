@@ -66,7 +66,7 @@ public class TcpEndpoint : Endpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new BatchedSender(Uri, new SocketSenderProtocol(), runtime.DurabilitySettings.Cancellation,
+        return new BatchedSender(this, new SocketSenderProtocol(), runtime.DurabilitySettings.Cancellation,
             runtime.LoggerFactory.CreateLogger<SocketSenderProtocol>());
     }
 }

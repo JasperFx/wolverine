@@ -69,7 +69,12 @@ public class DocumentationSamples
                 // Or as part of a subscription
                 opts.PublishAllMessages()
                     .ToAzureServiceBusQueue("outgoing")
-                    .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); });
+                    .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); })
+                    
+                    // You may need to change the maximum number of messages
+                    // in message batches depending on the size of your messages
+                    // if you hit maximum data constraints
+                    .MessageBatchSize(50);
             }).StartAsync();
 
         #endregion

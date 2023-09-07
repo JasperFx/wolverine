@@ -28,6 +28,12 @@ public interface IEndpointConfiguration<T>
     /// <param name="serializer"></param>
     /// <returns></returns>
     T DefaultSerializer(IMessageSerializer serializer);
+
+    /// <summary>
+    /// For endpoints that send or receive messages in batches, this governs the maximum
+    /// number of messages that will be received or sent in one batch
+    /// </summary>
+    T MessageBatchSize(int batchSize);
 }
 
 public interface IListenerConfiguration<T> : IEndpointConfiguration<T>

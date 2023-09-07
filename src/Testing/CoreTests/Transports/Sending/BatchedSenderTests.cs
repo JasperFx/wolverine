@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
+using Wolverine.Transports.Tcp;
 using Xunit;
 
 namespace CoreTests.Transports.Sending;
@@ -20,7 +21,7 @@ public class BatchedSenderTests
 
     public BatchedSenderTests()
     {
-        theSender = new BatchedSender(TransportConstants.RepliesUri, theProtocol, theCancellation.Token,
+        theSender = new BatchedSender(new TcpEndpoint(2255), theProtocol, theCancellation.Token,
             NullLogger.Instance);
 
         theSender.RegisterCallback(theSenderCallback);

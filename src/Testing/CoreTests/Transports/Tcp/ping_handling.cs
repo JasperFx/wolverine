@@ -19,7 +19,7 @@ public class ping_handling
     {
         using (var runtime = WolverineHost.For(opts => { opts.ListenAtPort(2222); }))
         {
-            var sender = new BatchedSender("tcp://localhost:2222".ToUri(), new SocketSenderProtocol(),
+            var sender = new BatchedSender(new TcpEndpoint(2222), new SocketSenderProtocol(),
                 CancellationToken.None, NullLogger.Instance);
 
             sender.RegisterCallback(new StubSenderCallback());
@@ -31,7 +31,7 @@ public class ping_handling
     [Fact]
     public async Task ping_sad_path_with_tcp()
     {
-        var sender = new BatchedSender("tcp://localhost:3322".ToUri(), new SocketSenderProtocol(),
+        var sender = new BatchedSender(new TcpEndpoint(3322), new SocketSenderProtocol(),
             CancellationToken.None, NullLogger.Instance);
 
         await Should.ThrowAsync<InvalidOperationException>(async () => { await sender.PingAsync(); });

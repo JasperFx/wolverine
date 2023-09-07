@@ -104,6 +104,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
     public IList<Subscription> Subscriptions { get; } = new List<Subscription>();
 
+
+    /// <summary>
+    /// For endpoints that send or receive messages in batches, this governs the maximum
+    /// number of messages that will be received or sent in one batch
+    /// </summary>
+    public int MessageBatchSize { get; set; } = 100;
+    
+
     /// <summary>
     ///     Mark whether or not the receiver for this listener should use
     ///     message persistence for durability

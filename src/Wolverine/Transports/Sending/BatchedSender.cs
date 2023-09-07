@@ -1,5 +1,7 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Util.Dataflow;
 
@@ -18,9 +20,9 @@ public class BatchedSender : ISender, ISenderRequiresCallback
     private ISenderCallback? _callback;
     private int _queued;
 
-    public BatchedSender(Uri destination, ISenderProtocol protocol, CancellationToken cancellation, ILogger logger)
+    public BatchedSender(Endpoint destination, ISenderProtocol protocol, CancellationToken cancellation, ILogger logger)
     {
-        Destination = destination;
+        Destination = destination.Uri;
         _protocol = protocol;
         _cancellation = cancellation;
         _logger = logger;
@@ -68,7 +70,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
             });
 
         _batchWriting.LinkTo(_sender);
-        _batching = new BatchingBlock<Envelope>(200, _batchWriting, _cancellation);
+        _batching = new BatchingBlock<Envelope>(200.Milliseconds(), _batchWriting, destination.MessageBatchSize, _cancellation);
 
         SupportsNativeScheduledSend = _protocol is ISenderProtocolWithNativeScheduling;
     }

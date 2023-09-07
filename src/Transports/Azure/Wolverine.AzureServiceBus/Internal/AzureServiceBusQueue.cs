@@ -218,7 +218,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
         var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
 
-        return new BatchedSender(Uri, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
+        return new BatchedSender(this, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
     }
     
     /// <summary>

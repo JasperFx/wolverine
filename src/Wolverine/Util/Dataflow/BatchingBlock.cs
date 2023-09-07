@@ -8,18 +8,19 @@ public class BatchingBlock<T> : IDisposable
     private readonly BatchBlock<T> _batchBlock;
     private readonly TimeSpan _timeSpan;
     private readonly Timer _trigger;
-
+    
     public BatchingBlock(int milliseconds, ITargetBlock<T[]> processor,
         CancellationToken cancellation = default)
-        : this(milliseconds.Milliseconds(), processor, cancellation)
+        : this(milliseconds.Milliseconds(), processor, 100, cancellation)
     {
     }
+    
 
-    public BatchingBlock(TimeSpan timeSpan, ITargetBlock<T[]> processor,
+    public BatchingBlock(TimeSpan timeSpan, ITargetBlock<T[]> processor, int batchSize = 100,
         CancellationToken cancellation = default)
     {
         _timeSpan = timeSpan;
-        _batchBlock = new BatchBlock<T>(100, new GroupingDataflowBlockOptions
+        _batchBlock = new BatchBlock<T>(batchSize, new GroupingDataflowBlockOptions
         {
             CancellationToken = cancellation,
             BoundedCapacity = DataflowBlockOptions.Unbounded

@@ -51,7 +51,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
 
         var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
 
-        return new BatchedSender(Uri, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
+        return new BatchedSender(this, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
     }
 
     internal ISender BuildInlineSender(IWolverineRuntime runtime)

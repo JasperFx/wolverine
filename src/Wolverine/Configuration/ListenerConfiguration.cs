@@ -122,6 +122,12 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
+    public TSelf MessageBatchSize(int batchSize)
+    {
+        add(e => e.MessageBatchSize = batchSize);
+        return this.As<TSelf>();
+    }
+
     /// <summary>
     ///     To optimize the message listener throughput,
     ///     start up multiple listening endpoints. This is

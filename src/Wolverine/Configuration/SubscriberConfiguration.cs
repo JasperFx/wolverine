@@ -53,6 +53,16 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         return this.As<T>();
     }
 
+    /// <summary>
+    /// For endpoints that send or receive messages in batches, this governs the maximum
+    /// number of messages that will be received or sent in one batch
+    /// </summary>
+    public T MessageBatchSize(int batchSize)
+    {
+        add(e => e.MessageBatchSize = batchSize);
+        return this.As<T>();
+    }
+
     public T DefaultSerializer(IMessageSerializer serializer)
     {
         add(e =>

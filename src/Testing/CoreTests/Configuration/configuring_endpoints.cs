@@ -2,12 +2,15 @@ using System;
 using System.Linq;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
+using TestingSupport;
+using TestMessages;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
+using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 using Xunit;
 
@@ -28,13 +31,20 @@ public class configuring_endpoints : IDisposable
             x.ListenForMessagesFrom("local://three").UseDurableInbox();
             x.ListenForMessagesFrom("local://four").UseDurableInbox().BufferedInMemory();
             x.ListenForMessagesFrom("local://five").ProcessInline();
-
+            
             x.ListenForMessagesFrom("local://durable1").UseDurableInbox(new BufferingLimits(500, 250));
             x.ListenForMessagesFrom("local://buffered1").BufferedInMemory(new BufferingLimits(250, 100));
+
+            x.PublishMessage<Message3>().ToPort(PortFinder.GetAvailablePort()).Named("sender").MessageBatchSize(111);
         }).Build();
 
         theOptions = _host.Get<WolverineOptions>();
         theRuntime = _host.Get<IWolverineRuntime>();
+
+        foreach (var endpoint in theOptions.Transports.AllEndpoints())
+        {
+            endpoint.Compile(theRuntime);
+        }
     }
 
     private StubTransport theStubTransport
@@ -71,6 +81,14 @@ public class configuring_endpoints : IDisposable
         endpoint.Compile(theRuntime);
 
         return endpoint;
+    }
+
+    [Fact]
+    public void can_override_message_batch_size()
+    {
+        var allEndpoints = theOptions.Transports.AllEndpoints();
+        var endpoint = allEndpoints.FirstOrDefault(x => x.EndpointName == "sender");
+        endpoint.MessageBatchSize.ShouldBe(111);
     }
 
     [Fact]

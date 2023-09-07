@@ -265,7 +265,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
         var protocol = new SqsSenderProtocol(runtime, this,
             _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
-        return new BatchedSender(Uri, protocol, runtime.Cancellation,
+        return new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>());
     }
 
