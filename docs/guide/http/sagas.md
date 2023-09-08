@@ -60,8 +60,8 @@ public static (
 
 Remember in Wolverine.HTTP that the *first* return value of an endpoint is assumed to be the response body by Wolverine, so if you are
 wanting to start a new saga from an HTTP endpoint, the `Saga` return value either has to be a secondary value in a tuple to
-opt into the Saga mechanics. Alternatively, if all you want to do is start a new saga, but nothing else, you can return
-the `Saga` type *and* force Wolverine to use the return value as a new `Saga` like so:
+opt into the Saga mechanics. Alternatively, if all you want to do is *create* a new saga, but nothing else, you can return
+the `Saga` type *and* force Wolverine to use the return value as a new `Saga` as shown in the snippet below.  Please note that when creating a `Saga` entity in this manner, if it has a static `Start()` method, it will not be invoked.  Other message handlers in the `Saga` will behave as usual.
 
 snippet: sample_start_saga_from_http_endpoint_empty_body
 
