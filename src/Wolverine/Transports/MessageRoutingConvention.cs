@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Core.Filters;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -15,7 +16,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     /// <summary>
     ///     Optionally include (allow list) or exclude (deny list) types. By default, this will apply to all message types
     /// </summary>
-    private readonly JasperFx.Core.CompositeFilter<Type> _typeFilters = new();
+    private readonly Util.CompositeFilter<Type> _typeFilters = new();
 
     private Action<TListener, MessageRoutingContext> _configureListener = (_, _) => { };
     private Action<TSubscriber, MessageRoutingContext> _configureSending = (_, _) => { };
@@ -200,4 +201,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         _configureSending = configure ?? throw new ArgumentNullException(nameof(configure));
         return this.As<TSelf>();
     }
+    
+    
+
 }
