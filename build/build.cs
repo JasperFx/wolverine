@@ -151,6 +151,7 @@ namespace build
                 "./src/Extensions/Wolverine.FluentValidation",
                 "./src/Extensions/Wolverine.MemoryPack",
                 "./src/Extensions/Wolverine.MessagePack",
+                "./src/Extensions/Wolverine.OpenTelemetry",
                 "./src/Http/Wolverine.Http",
                 "./src/Http/Wolverine.Http.FluentValidation",
             };

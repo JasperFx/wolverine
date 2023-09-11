@@ -31,10 +31,6 @@ internal static class WolverineTracing
     public const string EnvelopeRetry = "wolverine.envelope.retried";
     public const string ScheduledRetry = "wolverine.envelope.rescheduled";
 
-    internal static ActivitySource ActivitySource { get; } = new(
-        "Wolverine",
-        typeof(WolverineTracing).Assembly.GetName().Version!.ToString());
-
     public static Activity? StartSending(Envelope envelope, ILogger logger)
     {
         return StartEnvelopeActivity(WolverineActivitySource.SendEnvelopeActivityName, envelope, logger, ActivityKind.Producer);
@@ -68,8 +64,8 @@ internal static class WolverineTracing
             return null;
         }
         var activity = envelope.ParentId.IsNotEmpty()
-            ? ActivitySource.StartActivity(spanName, kind, envelope.ParentId)
-            : ActivitySource.StartActivity(spanName, kind);
+            ? WolverineActivitySource.ActivitySource.StartActivity(spanName, kind, envelope.ParentId)
+            : WolverineActivitySource.ActivitySource.StartActivity(spanName, kind);
 
         if (activity == null)
         {
