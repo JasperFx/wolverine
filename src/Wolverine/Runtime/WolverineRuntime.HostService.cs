@@ -1,3 +1,4 @@
+using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,8 @@ public partial class WolverineRuntime
         {
             Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}",
                 Options.ApplicationAssembly!.GetName());
+
+            logCodeGenerationConfiguration();
 
             // Build up the message handlers
             Handlers.Compile(Options, _container);
@@ -45,6 +48,31 @@ public partial class WolverineRuntime
         {
             MessageTracking.LogException(e, message: "Failed to start the Wolverine messaging");
             throw;
+        }
+    }
+
+    private void logCodeGenerationConfiguration()
+    {
+        switch (Options.CodeGeneration.TypeLoadMode)
+        {
+            case TypeLoadMode.Dynamic:
+                Logger.LogInformation(
+                    $"The Wolverine code generation mode is {nameof(TypeLoadMode.Dynamic)}. This is suitable for development, but you may want to opt into other options for production usage to reduce start up time and resource utilization.");
+                Logger.LogInformation("See https://wolverine.netlify.app/guide/codegen.html for more information");
+                break;
+
+            case TypeLoadMode.Auto:
+                Logger.LogInformation(
+                    $"The Wolverine code generation mode is {nameof(TypeLoadMode.Auto)} with pre-generated types being loaded from {Options.CodeGeneration.ApplicationAssembly.FullName}.");
+                Logger.LogInformation("See https://wolverine.netlify.app/guide/codegen.html for more information");
+                break;
+
+            case TypeLoadMode.Static:
+                Logger.LogInformation(
+                    $"The Wolverine code generation mode is {nameof(TypeLoadMode.Static)} with pre-generated types being loaded from {Options.CodeGeneration.ApplicationAssembly.FullName}.");
+                Logger.LogInformation(
+                    "See https://wolverine.netlify.app/guide/codegen.html for more information about debugging static type loading issues with Wolverine");
+                break;
         }
     }
 

@@ -31,7 +31,7 @@ public class Reservation : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L62-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L78-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To start the `Reservation` saga, you could use an HTTP endpoint method like this one:
@@ -63,5 +63,20 @@ wanting to start a new saga from an HTTP endpoint, the `Saga` return value eithe
 opt into the Saga mechanics. Alternatively, if all you want to do is *create* a new saga, but nothing else, you can return
 the `Saga` type *and* force Wolverine to use the return value as a new `Saga` as shown in the snippet below.  Please note that when creating a `Saga` entity in this manner, if it has a static `Start()` method, it will not be invoked.  Other message handlers in the `Saga` will behave as usual.
 
-snippet: sample_start_saga_from_http_endpoint_empty_body
+<!-- snippet: sample_start_saga_from_http_endpoint_empty_body -->
+<a id='snippet-sample_start_saga_from_http_endpoint_empty_body'></a>
+```cs
+[WolverinePost("/reservation2")]
+
+// This directs Wolverine to disregard the Reservation return value
+// as the response body, and allow Wolverine to use the Reservation
+// return as a new saga
+[EmptyResponse] 
+public static Reservation Post2(StartReservation start)
+{
+    return new Reservation { Id = start.ReservationId };
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L34-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_start_saga_from_http_endpoint_empty_body' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 

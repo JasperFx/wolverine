@@ -90,9 +90,14 @@ using var host = await Host.CreateDefaultBuilder()
         // Or as part of a subscription
         opts.PublishAllMessages()
             .ToAzureServiceBusQueue("outgoing")
-            .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); });
+            .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); })
+            
+            // You may need to change the maximum number of messages
+            // in message batches depending on the size of your messages
+            // if you hit maximum data constraints
+            .MessageBatchSize(50);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L48-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L48-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

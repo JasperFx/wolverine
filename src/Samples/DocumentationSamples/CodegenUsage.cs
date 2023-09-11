@@ -1,4 +1,5 @@
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Commands;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 
@@ -26,6 +27,25 @@ public class CodegenUsage
                 // generating the code and dynamic type. Also writes the 
                 // generated source code file to disk
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task use_environment_check_on_expected_prebuilt_types()
+    {
+        #region sample_asserting_all_pre_built_types_exist_upfront
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                if (context.HostingEnvironment.IsProduction())
+                {
+                    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+                    
+                    // You probably only ever want to do this in Production
+                    opts.Services.AssertAllExpectedPreBuiltTypesExistOnStartUp();
+                }
             }).StartAsync();
 
         #endregion

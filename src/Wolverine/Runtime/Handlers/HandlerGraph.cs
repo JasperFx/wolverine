@@ -186,7 +186,9 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         Rules = options.CodeGeneration;
 
         foreach (var assembly in Discovery.Assemblies)
+        {
             logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers", assembly.GetName());
+        }
 
         var methods = Discovery.FindCalls(options);
 
