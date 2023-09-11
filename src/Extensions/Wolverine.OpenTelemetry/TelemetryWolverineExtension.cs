@@ -4,14 +4,14 @@ namespace Wolverine.OpenTelemetry;
 
 internal class TelemetryWolverineExtension : IWolverineExtension
 {
-    private readonly Action<WolverineTracingOptions> _configureTelemetry;
+    private readonly Action<WolverineTracingOptions> _configureWolverineTracingOptions;
 
-    public TelemetryWolverineExtension(Action<WolverineTracingOptions> configureTelemetry)
+    public TelemetryWolverineExtension(Action<WolverineTracingOptions> configureWolverineTracingOptions)
     {
-        _configureTelemetry = configureTelemetry;
+        _configureWolverineTracingOptions = configureWolverineTracingOptions;
     }
     public void Configure(WolverineOptions options)
     {
-        _configureTelemetry?.Invoke(options.Tracing);
+        _configureWolverineTracingOptions?.Invoke(options.Tracing);
     }
 }

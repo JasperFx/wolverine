@@ -100,7 +100,10 @@ public sealed partial class WolverineOptions
     ///     full ServiceCollection *at the time of this call*
     /// </summary>
     public ServiceRegistry Services { get; } = new();
-
+    
+    /// <summary>
+    ///      Configure <see cref="Activity"/> tracing behavior
+    /// </summary>
     public WolverineTracingOptions Tracing => WolverineActivitySource.Options;
 
     internal HandlerGraph HandlerGraph { get; } = new();

@@ -5,10 +5,10 @@ namespace Wolverine.OpenTelemetry;
 
 internal static class OpenTelemetryInstrumentationServiceCollectionExtensions
 {
-    public static void AddTelemetryExtension(this IServiceCollection services, Action<WolverineTracingOptions> configure)
+    public static void AddTelemetryExtension(this IServiceCollection services, Action<WolverineTracingOptions> configureWolverineTracingOptions)
     {
         checkConfigMarker(services);
-        var telemetryExtension = new TelemetryWolverineExtension(configure);
+        var telemetryExtension = new TelemetryWolverineExtension(configureWolverineTracingOptions);
         services.Add(new ServiceDescriptor(typeof(IWolverineExtension), telemetryExtension));
     }
 
