@@ -50,7 +50,7 @@ public class WolverineTracingOptions
                 break;
         }
 
-        return env => GlobalFilter?.Invoke(env) == true || activityFilter?.Invoke(env) == true;
+        return env => GlobalFilter?.Invoke(env) != false && activityFilter?.Invoke(env) != false;
     }
 }
 

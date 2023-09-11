@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 using CoreTests.Messaging;
 using Microsoft.Extensions.Logging;
@@ -7,7 +6,6 @@ using NSubstitute;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Wolverine.Runtime;
 using Wolverine.Runtime.Tracing;
 using Xunit;
 
@@ -21,13 +19,7 @@ public class WolverineTracingTests
         var envelope = ObjectMother.Envelope();
         envelope.ParentId = "00-25d8f5709b569a1f61bcaf79b9450ed4-f293c0545fc237a1-01";
 
-        using var tracerProvider = Sdk.CreateTracerProviderBuilder()
-            .AddSource("Wolverine")
-            .SetResourceBuilder(
-                ResourceBuilder.CreateDefault()
-                    .AddService("Wolverine", serviceVersion: "1.0"))
-            .AddConsoleExporter()
-            .Build();
+        using var tracerProvider = BuildTracerProvider();
 
         using var activity = WolverineTracing.StartEnvelopeActivity("process", envelope, NullLogger.Instance);
         activity.ShouldNotBeNull();
@@ -39,10 +31,11 @@ public class WolverineTracingTests
     [Fact]
     public void can_filter_process_activities()
     {
+        using var tracerProvider = BuildTracerProvider();
         const string messageTypeToFilter = "Wolverine.Runtime.Agents.CheckAgentHealth";
         var envelope = ObjectMother.Envelope();
         envelope.MessageType = messageTypeToFilter;
-        WolverineActivitySource.Options.ExecuteEnvelopeFilter = env => env.MessageType == messageTypeToFilter;
+        WolverineActivitySource.Options.ExecuteEnvelopeFilter = env => env.MessageType != messageTypeToFilter;
         using var activity = WolverineTracing.StartExecuting(envelope, NullLogger.Instance);
         activity.ShouldBeNull();
     }
@@ -50,10 +43,11 @@ public class WolverineTracingTests
     [Fact]
     public void can_filter_send_activities()
     {
+        using var tracerProvider = BuildTracerProvider();
         const string messageTypeToFilter = "Wolverine.Runtime.Agents.TryAssumeLeadership";
         var envelope = ObjectMother.Envelope();
         envelope.MessageType = messageTypeToFilter;
-        WolverineActivitySource.Options.SendEnvelopeFilter = env => env.MessageType == messageTypeToFilter;
+        WolverineActivitySource.Options.SendEnvelopeFilter = env => env.MessageType != messageTypeToFilter;
         using var activity = WolverineTracing.StartSending(envelope, NullLogger.Instance);
         activity.ShouldBeNull();
     }
@@ -61,10 +55,11 @@ public class WolverineTracingTests
     [Fact]
     public void can_filter_receive_activities()
     {
+        using var tracerProvider = BuildTracerProvider();
         const string messageTypeToFilter = "Wolverine.Runtime.Agents.CheckAgentHealth";
         var envelope = ObjectMother.Envelope();
         envelope.MessageType = messageTypeToFilter;
-        WolverineActivitySource.Options.SendEnvelopeFilter = env => env.MessageType == messageTypeToFilter;
+        WolverineActivitySource.Options.SendEnvelopeFilter = env => env.MessageType != messageTypeToFilter;
         using var activity = WolverineTracing.StartReceiving(envelope, NullLogger.Instance);
         activity.ShouldBeNull();
     }
@@ -72,10 +67,11 @@ public class WolverineTracingTests
     [Fact]
     public void can_filter_with_global_rule()
     {
+        using var tracerProvider = BuildTracerProvider();
         const string messageTypeToFilter = "Wolverine.Runtime.Agents.CheckAgentHealth";
         var envelope = ObjectMother.Envelope();
         envelope.MessageType = messageTypeToFilter;
-        WolverineActivitySource.Options.GlobalFilter = env => env.MessageType == messageTypeToFilter;
+        WolverineActivitySource.Options.GlobalFilter = env => env.MessageType != messageTypeToFilter;
         using var receiveActivity = WolverineTracing.StartReceiving(envelope, NullLogger.Instance);
         using var sendActivity = WolverineTracing.StartSending(envelope, NullLogger.Instance);
         using var executeActivity = WolverineTracing.StartExecuting(envelope, NullLogger.Instance);
@@ -87,6 +83,8 @@ public class WolverineTracingTests
     [Fact]
     public void can_enrich_activities_by_configuration()
     {
+        
+        using var tracerProvider = BuildTracerProvider();
         const string expectedTagName = "EnrichedTagForSend";
         const string expectedTagValue = "Enriched Send Tag Value";
         const string notExpectedTagName = "EnrichedTagForExecute";
@@ -98,12 +96,12 @@ public class WolverineTracingTests
         {
             if (eventType == WolverineEnrichEventNames.StartSendEnvelope)
             {
-                activity.SetTag(env.Headers[expectedTagName]!, expectedTagValue);
+                activity.SetTag(expectedTagName, env.Headers[expectedTagName]!);
             }
 
             if (eventType == WolverineEnrichEventNames.StartExecutingEnvelope)
             {
-                activity.SetTag(env.Headers[notExpectedTagName]!, notExpectedTagValue);
+                activity.SetTag(notExpectedTagName, env.Headers[notExpectedTagName]!);
             }
         };
         using var activity = WolverineTracing.StartSending(envelope, NullLogger.Instance);
@@ -115,6 +113,7 @@ public class WolverineTracingTests
     [Fact]
     public void can_handle_filtering_exceptions()
     {
+        using var tracerProvider = BuildTracerProvider();
         var envelope = ObjectMother.Envelope();
         WolverineActivitySource.Options.GlobalFilter = _ => throw new Exception("The exception");
         var logger = Substitute.For<ILogger>();
@@ -126,6 +125,7 @@ public class WolverineTracingTests
     [Fact]
     public void can_handle_enrichment_exceptions()
     {
+        using var tracerProvider = BuildTracerProvider();
         var envelope = ObjectMother.Envelope();
         WolverineActivitySource.Options.Enrich = (_, __, ___) => throw new Exception("the exception");
         var logger = Substitute.For<ILogger>();
@@ -133,6 +133,15 @@ public class WolverineTracingTests
         activity.ShouldNotBeNull();
         logger.ReceivedWithAnyArgs().LogError(default(Exception), default);
     }
+    
+    private TracerProvider BuildTracerProvider()
+    =>Sdk.CreateTracerProviderBuilder()
+        .AddSource("Wolverine")
+        .SetResourceBuilder(
+            ResourceBuilder.CreateDefault()
+                .AddService("Wolverine", serviceVersion: "1.0"))
+        .AddConsoleExporter()
+        .Build();
 }
 
 public class when_creating_an_execution_activity

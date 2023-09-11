@@ -52,7 +52,7 @@ internal static class WolverineTracing
     {
         try
         {
-            if (WolverineActivitySource.Options.GetFilterForActivity(spanName).Invoke(envelope))
+            if (!WolverineActivitySource.Options.GetFilterForActivity(spanName).Invoke(envelope))
             {
                 logger.LogTrace("Execution of envelope {EnvelopeId} is filtered out from activity tracing", envelope.Id);
                 return null;
