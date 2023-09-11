@@ -17,25 +17,30 @@ public class WolverineTracingOptions
     /// </remarks>
     public Action<Activity, string, Envelope>? Enrich { get; set; }
 
-    /// <summary>
-    /// Gets or sets a Filter function to filter instrumentation for requests on a per envelope basis.
-    /// The Filter gets the <see cref="Envelope"/>, and should return a boolean.
-    /// If Filter returns <c>true</c>, the request is collected.
-    /// If Filter returns <c>false</c> or throw exception, the request is filtered out.
-    /// </summary>
+    
+    /// <inheritdoc cref="GlobalFilter"/>
+    /// <remarks>Only applies to spans generated as a result of send events</remarks>
     public Func<Envelope, bool>? SendEnvelopeFilter { get; set; }
 
-    /// <inheritdoc cref="SendEnvelopeFilter"/>
+    /// <inheritdoc cref="GlobalFilter"/>
+    /// <remarks>Only applies to spans generated as a result of receipt events</remarks>
     public Func<Envelope, bool>? ReceiveEnvelopeFilter { get; set; }
 
-    /// <inheritdoc cref="SendEnvelopeFilter"/>
+    /// <inheritdoc cref="GlobalFilter"/>
+    /// <remarks>Only applies to spans generated as a result of envelope execution events</remarks>
     public Func<Envelope, bool>? ExecuteEnvelopeFilter { get; set; }
 
     /// <summary>
-    /// Gets or sets a Filter function that will be applied to all supported Activity types
-    /// The Filter gets the <see cref="Envelope"/>, and should return a boolean.
+    /// <para>
+    /// Gets or sets a Filter function to filter instrumentation for requests on a per envelope basis.
+    /// The Filter gets the <see cref="Envelope" />, and should return a boolean.
+    /// </para>
+    /// <para>
     /// If Filter returns <c>true</c>, the request is collected.
-    /// If Filter returns <c>false</c> or throw exception, the request is filtered out.
+    /// </para>
+    /// <para>
+    /// If Filter returns <c>false</c> or throws an exception, the request is filtered out.
+    /// </para>
     /// </summary>
     public Func<Envelope, bool>? GlobalFilter { get; set; }
 
