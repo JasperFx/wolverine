@@ -57,19 +57,13 @@ public class WolverineTracingOptions
 
     internal WolverineTracingFilter GetFilterForActivity(string activityName)
     {
-        Func<Envelope, bool>? activityFilter = null;
-        switch (activityName)
+        var activityFilter = activityName switch
         {
-            case WolverineActivitySource.SendEnvelopeActivityName:
-                activityFilter = SendEnvelopeFilter;
-                break;
-            case WolverineActivitySource.ReceiveEnvelopeActivityName:
-                activityFilter = ReceiveEnvelopeFilter;
-                break;
-            case WolverineActivitySource.ExecuteEnvelopeActivityName:
-                activityFilter = ExecuteEnvelopeFilter;
-                break;
-        }
+            WolverineActivitySource.SendEnvelopeActivityName => SendEnvelopeFilter,
+            WolverineActivitySource.ReceiveEnvelopeActivityName => ReceiveEnvelopeFilter,
+            WolverineActivitySource.ExecuteEnvelopeActivityName => ExecuteEnvelopeFilter,
+            _ => null
+        };
 
         return env => filterInternalMessages(env) && 
                       GlobalFilter?.Invoke(env) != false &&
