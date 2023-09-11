@@ -42,7 +42,7 @@ public static IHostBuilder CreateHostBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomWolverineOptions.cs#L30-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_usewolverinewithinlineoptionsconfigurationandhosting' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Likewise, to publish via TCP, use the `ToPart()` extension method to publish to another port on the same
+Likewise, to publish via TCP, use the `ToPort()` extension method to publish to another port on the same
 machine:
 
 <!-- snippet: sample_sending_to_endpoint_by_name -->
