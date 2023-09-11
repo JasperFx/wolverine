@@ -6,6 +6,7 @@ using NSubstitute;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Tracing;
 using Xunit;
 
@@ -16,6 +17,7 @@ public class WolverineTracingTests
     [Fact]
     public void use_parent_id_from_envelope_when_exists()
     {
+        WolverineActivitySource.Options = new();
         var envelope = ObjectMother.Envelope();
         envelope.ParentId = "00-25d8f5709b569a1f61bcaf79b9450ed4-f293c0545fc237a1-01";
 
@@ -31,6 +33,7 @@ public class WolverineTracingTests
     [Fact]
     public void can_filter_process_activities()
     {
+        WolverineActivitySource.Options = new();
         using var tracerProvider = BuildTracerProvider();
         const string messageTypeToFilter = "Wolverine.Runtime.Agents.CheckAgentHealth";
         var envelope = ObjectMother.Envelope();
@@ -43,6 +46,7 @@ public class WolverineTracingTests
     [Fact]
     public void can_filter_send_activities()
     {
+        WolverineActivitySource.Options = new();
         using var tracerProvider = BuildTracerProvider();
         const string messageTypeToFilter = "Wolverine.Runtime.Agents.TryAssumeLeadership";
         var envelope = ObjectMother.Envelope();
@@ -51,15 +55,27 @@ public class WolverineTracingTests
         using var activity = WolverineTracing.StartSending(envelope, NullLogger.Instance);
         activity.ShouldBeNull();
     }
+    [Fact]
+    public void can_filter_out_internal_messages()
+    {
+        WolverineActivitySource.Options = new();
+        using var tracerProvider = BuildTracerProvider();
+        var envelope = ObjectMother.Envelope();
+        envelope.Message = new CheckAgentHealth();
+        WolverineActivitySource.Options.SuppressInternalMessageTypes = true;
+        using var activity = WolverineTracing.StartReceiving(envelope, NullLogger.Instance);
+        activity.ShouldBeNull();
+    }
 
     [Fact]
     public void can_filter_receive_activities()
     {
+        WolverineActivitySource.Options = new();
         using var tracerProvider = BuildTracerProvider();
         const string messageTypeToFilter = "Wolverine.Runtime.Agents.CheckAgentHealth";
         var envelope = ObjectMother.Envelope();
         envelope.MessageType = messageTypeToFilter;
-        WolverineActivitySource.Options.SendEnvelopeFilter = env => env.MessageType != messageTypeToFilter;
+        WolverineActivitySource.Options.ReceiveEnvelopeFilter = env => env.MessageType != messageTypeToFilter;
         using var activity = WolverineTracing.StartReceiving(envelope, NullLogger.Instance);
         activity.ShouldBeNull();
     }
@@ -67,6 +83,7 @@ public class WolverineTracingTests
     [Fact]
     public void can_filter_with_global_rule()
     {
+        WolverineActivitySource.Options = new();
         using var tracerProvider = BuildTracerProvider();
         const string messageTypeToFilter = "Wolverine.Runtime.Agents.CheckAgentHealth";
         var envelope = ObjectMother.Envelope();
@@ -83,7 +100,7 @@ public class WolverineTracingTests
     [Fact]
     public void can_enrich_activities_by_configuration()
     {
-        
+        WolverineActivitySource.Options = new();
         using var tracerProvider = BuildTracerProvider();
         const string expectedTagName = "EnrichedTagForSend";
         const string expectedTagValue = "Enriched Send Tag Value";
@@ -125,6 +142,7 @@ public class WolverineTracingTests
     [Fact]
     public void can_handle_enrichment_exceptions()
     {
+        WolverineActivitySource.Options = new();
         using var tracerProvider = BuildTracerProvider();
         var envelope = ObjectMother.Envelope();
         WolverineActivitySource.Options.Enrich = (_, __, ___) => throw new Exception("the exception");
