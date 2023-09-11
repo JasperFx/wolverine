@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
@@ -212,7 +214,7 @@ public partial class Envelope
         _enqueued = true;
 
         if (Sender.Latched) return;
-        using var activity = WolverineTracing.StartSending(this);
+        using var activity = WolverineTracing.StartSending(this, NullLogger.Instance);
         try
         {
             await Sender.EnqueueOutgoingAsync(this);

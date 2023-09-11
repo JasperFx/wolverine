@@ -2,6 +2,7 @@ using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Tracing;
 
 namespace Wolverine.ErrorHandling;
 

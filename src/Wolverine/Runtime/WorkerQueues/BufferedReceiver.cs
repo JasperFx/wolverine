@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
@@ -132,7 +133,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             return;
         }
 
-        var activity = WolverineTracing.StartReceiving(envelope);
+        var activity = WolverineTracing.StartReceiving(envelope, _logger);
         _receivingBlock.Post(envelope);
         activity?.Stop();
     }

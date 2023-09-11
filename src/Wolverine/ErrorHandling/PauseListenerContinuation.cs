@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Transports;
 
 namespace Wolverine.ErrorHandling;

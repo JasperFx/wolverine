@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 
-namespace Wolverine.Runtime;
+namespace Wolverine.Runtime.Tracing;
 
 internal static class WolverineTracing
 {
@@ -34,25 +35,38 @@ internal static class WolverineTracing
         "Wolverine",
         typeof(WolverineTracing).Assembly.GetName().Version!.ToString());
 
-    public static Activity? StartSending(Envelope envelope)
+    public static Activity? StartSending(Envelope envelope, ILogger logger)
     {
-        return StartEnvelopeActivity("send", envelope, ActivityKind.Producer);
+        return StartEnvelopeActivity(WolverineActivitySource.SendEnvelopeActivityName, envelope, logger, ActivityKind.Producer);
     }
 
-    public static Activity? StartReceiving(Envelope envelope)
+    public static Activity? StartReceiving(Envelope envelope, ILogger logger)
     {
-        return StartEnvelopeActivity("receive", envelope, ActivityKind.Consumer);
+        return StartEnvelopeActivity(WolverineActivitySource.ReceiveEnvelopeActivityName, envelope, logger, ActivityKind.Consumer);
     }
 
-    public static Activity? StartExecuting(Envelope envelope)
+    public static Activity? StartExecuting(Envelope envelope, ILogger logger)
     {
-        return StartEnvelopeActivity("process", envelope);
+        return StartEnvelopeActivity(WolverineActivitySource.ExecuteEnvelopeActivityName, envelope, logger);
     }
 
 
-    public static Activity? StartEnvelopeActivity(string spanName, Envelope envelope,
+    public static Activity? StartEnvelopeActivity(string spanName, Envelope envelope, ILogger logger,
         ActivityKind kind = ActivityKind.Internal)
     {
+        try
+        {
+            if (WolverineActivitySource.Options.GetFilterForActivity(spanName).Invoke(envelope))
+            {
+                logger.LogTrace("Execution of envelope {EnvelopeId} is filtered out from activity tracing", envelope.Id);
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "ActivityFilter threw exception. Trace data will not be collected");
+            return null;
+        }
         var activity = envelope.ParentId.IsNotEmpty()
             ? ActivitySource.StartActivity(spanName, kind, envelope.ParentId)
             : ActivitySource.StartActivity(spanName, kind);
@@ -63,6 +77,14 @@ internal static class WolverineTracing
         }
 
         envelope.WriteTags(activity);
+        try
+        {
+            WolverineActivitySource.Options.Enrich?.Invoke(activity, spanName, envelope);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Enrichment of the activity threw an exception");
+        }
 
         return activity;
     }

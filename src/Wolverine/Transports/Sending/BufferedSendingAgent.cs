@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Tracing;
 
 namespace Wolverine.Transports.Sending;
 
@@ -50,7 +51,7 @@ internal class BufferedSendingAgent : SendingAgent
 
     protected override async Task storeAndForwardAsync(Envelope envelope)
     {
-        using var activity = WolverineTracing.StartSending(envelope);
+        using var activity = WolverineTracing.StartSending(envelope, _logger);
         try
         {
             await _sending.PostAsync(envelope);

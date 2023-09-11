@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Tracing;
 
 namespace Wolverine.ErrorHandling;
 
