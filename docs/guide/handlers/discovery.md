@@ -104,7 +104,7 @@ using var host = Host.CreateDefaultBuilder()
 
 ## Handler Type Discovery
 
-:::
+::: warning
 Wolverine does not support any kind of open generic types for message handlers and has no intentions of ever doing so.
 :::
 
