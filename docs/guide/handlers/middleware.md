@@ -116,7 +116,7 @@ Alright, let's talk about what's happening in the code samples above:
 * Wolverine places the `Before()` method to be called in front of the actual message handler method
 * Because there is a `Finally()` method, Wolverine wraps a `try/finally` block around the code running after the `Before()` method and calls `Finally()` within that `finally` block
 
-::: 
+::: tip
 Note that the method name matching is case sensitive.
 :::
 
