@@ -117,12 +117,12 @@ internal class Executor : IExecutor
             }
 
             await context.FlushOutgoingMessagesAsync();
-            Activity.Current?.SetStatus(ActivityStatusCode.Ok);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
         }
         catch (Exception e)
         {
-            Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             _tracker.ExecutionFinished(envelope, e);
             _logger.LogError(e, "Inline invocation of {Message} failed", envelope.Message);
             throw;
