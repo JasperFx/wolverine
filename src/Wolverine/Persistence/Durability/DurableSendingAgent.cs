@@ -125,7 +125,7 @@ internal class DurableSendingAgent : SendingAgent
 
     protected override async Task storeAndForwardAsync(Envelope envelope)
     {
-        using var activity = WolverineTracing.StartSending(envelope);
+        using var activity = Endpoint.TelemetryEnabled ? WolverineTracing.StartSending(envelope) : null;
         await _storeAndForward.PostAsync(envelope);
         activity?.Stop();
     }

@@ -212,14 +212,22 @@ public partial class Envelope
         _enqueued = true;
 
         if (Sender.Latched) return;
-        using var activity = WolverineTracing.StartSending(this);
-        try
+
+        if (Sender.Endpoint.TelemetryEnabled)
+        {
+            using var activity = WolverineTracing.StartSending(this);
+            try
+            {
+                await Sender.EnqueueOutgoingAsync(this);
+            }
+            finally
+            {
+                activity?.Stop();
+            }
+        }
+        else
         {
             await Sender.EnqueueOutgoingAsync(this);
-        }
-        finally
-        {
-            activity?.Stop();
         }
     }
 

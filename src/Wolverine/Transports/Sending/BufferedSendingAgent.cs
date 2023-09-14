@@ -50,7 +50,7 @@ internal class BufferedSendingAgent : SendingAgent
 
     protected override async Task storeAndForwardAsync(Envelope envelope)
     {
-        using var activity = WolverineTracing.StartSending(envelope);
+        using var activity = Endpoint.TelemetryEnabled ? WolverineTracing.StartSending(envelope) : null;
         try
         {
             await _sending.PostAsync(envelope);

@@ -9,6 +9,7 @@ namespace Wolverine.Transports.Sending;
 internal class InlineSendingAgent : ISendingAgent, IDisposable
 {
     private readonly ISender _sender;
+    private readonly IMessageTracker _messageLogger;
     private readonly RetryBlock<Envelope> _sending;
     private readonly DurabilitySettings _settings;
 
@@ -16,22 +17,38 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
         DurabilitySettings settings)
     {
         _sender = sender;
+        _messageLogger = messageLogger;
         _settings = settings;
         Endpoint = endpoint;
 
-        _sending = new RetryBlock<Envelope>(async (e, _) =>
+        if (endpoint.TelemetryEnabled)
         {
-            using var activity = WolverineTracing.StartSending(e);
-            try
-            {
-                await _sender.SendAsync(e);
-                messageLogger.Sent(e);
-            }
-            finally
-            {
-                activity?.Stop();
-            }
-        }, logger, _settings.Cancellation);
+            _sending = new RetryBlock<Envelope>(sendWithTracing, logger, _settings.Cancellation);
+        }
+        else
+        {
+            _sending = new RetryBlock<Envelope>(sendWithOutTracing, logger, _settings.Cancellation);
+        }
+    }
+
+    private async Task sendWithTracing(Envelope e, CancellationToken cancellationToken)
+    {
+        using var activity = WolverineTracing.StartSending(e);
+        try
+        {
+            await _sender.SendAsync(e);
+            _messageLogger.Sent(e);
+        }
+        finally
+        {
+            activity?.Stop();
+        }
+    }
+
+    private async Task sendWithOutTracing(Envelope e, CancellationToken cancellationToken)
+    {
+        await _sender.SendAsync(e);
+        _messageLogger.Sent(e);
     }
 
     public void Dispose()

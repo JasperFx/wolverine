@@ -23,7 +23,7 @@ public class InlineRabbitMqTransportFixture : TransportComplianceFixture, IAsync
 
             opts
                 .ListenToRabbitQueue(listener)
-                .ProcessInline();
+                .ProcessInline().TelemetryEnabled(false);
 
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
         });
@@ -32,7 +32,7 @@ public class InlineRabbitMqTransportFixture : TransportComplianceFixture, IAsync
         {
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
-            opts.ListenToRabbitQueue(queueName).ProcessInline();
+            opts.ListenToRabbitQueue(queueName).ProcessInline().TelemetryEnabled(false);
         });
     }
 

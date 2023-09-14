@@ -93,7 +93,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
         options.AddSerializer(new GreenTextWriter());
         options.ServiceName = "SenderService";
-        options.PublishAllMessages().To(OutboundAddress);
+        options.PublishAllMessages().To(OutboundAddress).TelemetryEnabled(false);
 
         options.Services.AddSingleton<IMessageSerializer, GreenTextWriter>();
         //options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);

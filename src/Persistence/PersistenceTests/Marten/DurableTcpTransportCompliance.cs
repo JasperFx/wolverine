@@ -23,7 +23,7 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
         await SenderIs(opts =>
         {
             var receivingUri = $"tcp://localhost:{PortFinder.GetAvailablePort()}/incoming/durable".ToUri();
-            opts.ListenForMessagesFrom(receivingUri);
+            opts.ListenForMessagesFrom(receivingUri).TelemetryEnabled(false);
 
             opts.Services.AddMarten(o =>
             {

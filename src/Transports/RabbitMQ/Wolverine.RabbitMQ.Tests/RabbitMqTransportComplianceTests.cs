@@ -26,13 +26,13 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
                 .AutoPurgeOnStartup()
                 .DeclareQueue(queueName);
 
-            opts.ListenToRabbitQueue(listener);
+            opts.ListenToRabbitQueue(listener).TelemetryEnabled(false);
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseRabbitMq();
-            opts.ListenToRabbitQueue(queueName);
+            opts.ListenToRabbitQueue(queueName).TelemetryEnabled(false);
         });
     }
 
