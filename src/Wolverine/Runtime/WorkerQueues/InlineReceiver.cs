@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Transports;
 
@@ -8,11 +9,13 @@ namespace Wolverine.Runtime.WorkerQueues;
 internal class InlineReceiver : IReceiver
 {
     private readonly ILogger _logger;
+    private readonly Endpoint _endpoint;
     private readonly IHandlerPipeline _pipeline;
     private readonly DurabilitySettings _settings;
 
-    public InlineReceiver(IWolverineRuntime runtime, IHandlerPipeline pipeline)
+    public InlineReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
+        _endpoint = endpoint;
         _pipeline = pipeline;
         _logger = runtime.LoggerFactory.CreateLogger<InlineReceiver>();
         _settings = runtime.DurabilitySettings;
@@ -37,7 +40,7 @@ internal class InlineReceiver : IReceiver
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
-        using var activity = WolverineTracing.StartReceiving(envelope);
+        using var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
 
         try
         {

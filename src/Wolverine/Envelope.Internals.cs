@@ -213,7 +213,7 @@ public partial class Envelope
 
         if (Sender.Latched) return;
 
-        if (Sender.Endpoint.TelemetryEnabled)
+        if (Sender.Endpoint?.TelemetryEnabled ?? false)
         {
             using var activity = WolverineTracing.StartSending(this);
             try

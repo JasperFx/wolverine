@@ -13,6 +13,7 @@ namespace Wolverine.Runtime.WorkerQueues;
 internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
     IAsyncDisposable
 {
+    private readonly Endpoint _endpoint;
     private readonly RetryBlock<Envelope> _completeBlock;
     private readonly RetryBlock<Envelope> _deferBlock;
     private readonly IMessageInbox _inbox;
@@ -34,6 +35,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
 
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
+        _endpoint = endpoint;
         _settings = runtime.DurabilitySettings;
         _inbox = runtime.Storage.Inbox;
         _logger = runtime.LoggerFactory.CreateLogger<DurableReceiver>();
@@ -184,7 +186,7 @@ internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSc
             return;
         }
 
-        using var activity = WolverineTracing.StartReceiving(envelope);
+        using var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
         try
         {
             var now = DateTimeOffset.UtcNow;

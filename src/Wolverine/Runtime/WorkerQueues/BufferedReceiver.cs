@@ -12,6 +12,7 @@ namespace Wolverine.Runtime.WorkerQueues;
 
 internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue
 {
+    private readonly Endpoint _endpoint;
     private readonly RetryBlock<Envelope> _completeBlock;
 
     private readonly ISender? _deadLetterSender;
@@ -25,6 +26,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
+        _endpoint = endpoint;
         Uri = endpoint.Uri;
         _logger = runtime.LoggerFactory.CreateLogger<BufferedReceiver>();
         _settings = runtime.DurabilitySettings;
@@ -132,7 +134,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             return;
         }
 
-        var activity = WolverineTracing.StartReceiving(envelope);
+        var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
         _receivingBlock.Post(envelope);
         activity?.Stop();
     }

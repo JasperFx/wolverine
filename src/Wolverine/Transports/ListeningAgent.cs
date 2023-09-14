@@ -236,7 +236,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
                 return receiver;
 
             case EndpointMode.Inline:
-                return new InlineReceiver(_runtime, _pipeline);
+                return new InlineReceiver(Endpoint, _runtime, _pipeline);
 
             case EndpointMode.BufferedInMemory:
                 return new BufferedReceiver(Endpoint, _runtime, _pipeline);
