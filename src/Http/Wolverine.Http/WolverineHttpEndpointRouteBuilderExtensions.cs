@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Middleware;
@@ -159,7 +160,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         configure?.Invoke(options);
 
         options.JsonSerializerOptions =
-            container.TryGetInstance<JsonOptions>()?.SerializerOptions ?? new JsonSerializerOptions();
+            container.TryGetInstance<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions();
 
         options.Endpoints.DiscoverEndpoints(options);
         runtime.AdditionalDescribedParts.Add(options.Endpoints);
