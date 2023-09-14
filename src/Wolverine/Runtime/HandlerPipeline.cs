@@ -34,6 +34,7 @@ public class HandlerPipeline : IHandlerPipeline
     internal IExecutorFactory ExecutorFactory { get; }
 
     public IMessageTracker Logger { get; }
+    public bool TelemetryEnabled { get; set; } = true;
 
     public Task InvokeAsync(Envelope envelope, IChannelCallback channel)
     {
@@ -42,7 +43,7 @@ public class HandlerPipeline : IHandlerPipeline
             return Task.CompletedTask;
         }
 
-        using var activity = WolverineTracing.StartExecuting(envelope);
+        using var activity = TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
         return InvokeAsync(envelope, channel, activity);
     }

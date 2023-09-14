@@ -52,11 +52,11 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             _circuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this);
             _pipeline = new HandlerPipeline(runtime,
                 new CircuitBreakerTrackedExecutorFactory(_circuitBreaker,
-                    new CircuitBreakerTrackedExecutorFactory(_circuitBreaker, runtime)));
+                    new CircuitBreakerTrackedExecutorFactory(_circuitBreaker, runtime))){TelemetryEnabled = endpoint.TelemetryEnabled};
         }
         else
         {
-            _pipeline = new HandlerPipeline(runtime, runtime);
+            _pipeline = new HandlerPipeline(runtime, runtime){TelemetryEnabled = endpoint.TelemetryEnabled};
         }
 
         if (endpoint.ShouldEnforceBackPressure())

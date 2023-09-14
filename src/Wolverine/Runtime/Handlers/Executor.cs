@@ -100,6 +100,7 @@ internal class Executor : IExecutor
 
     public async Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation)
     {
+        // TODO -- THIS SHOULD BE ENABLED/DISABLED BY MESSAGE TYPE
         using var activity = WolverineTracing.StartExecuting(envelope);
 
         _tracker.ExecutionStarted(envelope);

@@ -44,7 +44,10 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         if (endpoint.CircuitBreakerOptions != null)
         {
             CircuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this);
-            Pipeline = new HandlerPipeline(runtime, new CircuitBreakerTrackedExecutorFactory(CircuitBreaker, runtime));
+            Pipeline = new HandlerPipeline(runtime, new CircuitBreakerTrackedExecutorFactory(CircuitBreaker, runtime))
+            {
+                TelemetryEnabled = endpoint.TelemetryEnabled
+            };
         }
         else
         {
