@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime.WorkerQueues;
@@ -37,7 +38,7 @@ internal class InlineReceiver : IReceiver
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
-        using var activity = WolverineTracing.StartReceiving(envelope);
+        using var activity = WolverineTracing.StartReceiving(envelope, _logger);
 
         try
         {

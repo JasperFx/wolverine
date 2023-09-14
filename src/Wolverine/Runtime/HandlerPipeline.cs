@@ -4,6 +4,7 @@ using Microsoft.Extensions.ObjectPool;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime;
@@ -42,7 +43,7 @@ public class HandlerPipeline : IHandlerPipeline
             return Task.CompletedTask;
         }
 
-        using var activity = WolverineTracing.StartExecuting(envelope);
+        using var activity = WolverineTracing.StartExecuting(envelope, _runtime.Logger);
 
         return InvokeAsync(envelope, channel, activity);
     }

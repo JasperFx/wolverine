@@ -5,6 +5,7 @@ using Microsoft.Extensions.ObjectPool;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime.Routing;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Transports;
 using Wolverine.Util;
 
@@ -100,7 +101,7 @@ internal class Executor : IExecutor
 
     public async Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation)
     {
-        using var activity = WolverineTracing.StartExecuting(envelope);
+        using var activity = WolverineTracing.StartExecuting(envelope, _logger);
 
         _tracker.ExecutionStarted(envelope);
 

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
@@ -125,7 +126,7 @@ internal class DurableSendingAgent : SendingAgent
 
     protected override async Task storeAndForwardAsync(Envelope envelope)
     {
-        using var activity = WolverineTracing.StartSending(envelope);
+        using var activity = WolverineTracing.StartSending(envelope, _logger);
         await _storeAndForward.PostAsync(envelope);
         activity?.Stop();
     }

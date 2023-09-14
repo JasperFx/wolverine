@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
@@ -21,7 +22,7 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
 
         _sending = new RetryBlock<Envelope>(async (e, _) =>
         {
-            using var activity = WolverineTracing.StartSending(e);
+            using var activity = WolverineTracing.StartSending(e, logger);
             try
             {
                 await _sender.SendAsync(e);

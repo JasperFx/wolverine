@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Runtime.Tracing;
 using Wolverine.Transports.Local;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
@@ -46,7 +47,6 @@ public sealed partial class WolverineOptions
         }
 
         Durability = new DurabilitySettings { AssignedNodeNumber = UniqueNodeId.ToString().GetDeterministicHashCode() };
-
         deriveServiceName();
 
         Policies.Add<SagaPersistenceChainPolicy>();
@@ -100,6 +100,11 @@ public sealed partial class WolverineOptions
     ///     full ServiceCollection *at the time of this call*
     /// </summary>
     public ServiceRegistry Services { get; } = new();
+    
+    /// <summary>
+    ///      Configure <see cref="Activity"/> tracing behavior
+    /// </summary>
+    public WolverineTracingOptions Tracing => WolverineActivitySource.Options;
 
     internal HandlerGraph HandlerGraph { get; } = new();
 

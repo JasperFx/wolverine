@@ -8,10 +8,10 @@ namespace Wolverine.Transports.Sending;
 
 internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
 {
-    private readonly ILogger _logger;
     private readonly IMessageTracker _messageLogger;
     protected readonly ISender _sender;
 
+    protected readonly ILogger _logger;
     protected readonly RetryBlock<Envelope> _sending;
     protected readonly DurabilitySettings _settings;
     private CircuitWatcher? _circuitWatcher;
