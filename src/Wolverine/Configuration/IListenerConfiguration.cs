@@ -34,6 +34,14 @@ public interface IEndpointConfiguration<T>
     /// number of messages that will be received or sent in one batch
     /// </summary>
     T MessageBatchSize(int batchSize);
+
+    /// <summary>
+    /// Toggle whether or not Open Telemetry auditing is enabled or disabled for sending, receiving, or executing messages received
+    /// at this endpoint
+    /// </summary>
+    /// <param name="isEnabled"></param>
+    /// <returns></returns>
+    T TelemetryEnabled(bool isEnabled);
 }
 
 public interface IListenerConfiguration<T> : IEndpointConfiguration<T>

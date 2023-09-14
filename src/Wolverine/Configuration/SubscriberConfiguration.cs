@@ -17,6 +17,12 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
     {
     }
 
+    public T TelemetryEnabled(bool isEnabled)
+    {
+        add(e => e.TelemetryEnabled = isEnabled);
+        return this.As<T>();
+    }
+
     public T UseDurableOutbox()
     {
         add(e => e.Mode = EndpointMode.Durable);

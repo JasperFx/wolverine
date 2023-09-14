@@ -30,7 +30,7 @@ public class configuring_endpoints : IDisposable
             opts.ListenForMessagesFrom("local://two").MaximumParallelMessages(11);
             opts.ListenForMessagesFrom("local://three").UseDurableInbox();
             opts.ListenForMessagesFrom("local://four").UseDurableInbox().BufferedInMemory();
-            opts.ListenForMessagesFrom("local://five").ProcessInline();
+            opts.ListenForMessagesFrom("local://five").ProcessInline().TelemetryEnabled(false);
             
             opts.ListenForMessagesFrom("local://durable1").UseDurableInbox(new BufferingLimits(500, 250));
             opts.ListenForMessagesFrom("local://buffered1").BufferedInMemory(new BufferingLimits(250, 100));
@@ -87,6 +87,16 @@ public class configuring_endpoints : IDisposable
         endpoint.Compile(theRuntime);
 
         return endpoint;
+    }
+
+    [Fact]
+    public void disable_telemetry()
+    {
+        var endpoint = findEndpoint("local://five");
+        endpoint.TelemetryEnabled.ShouldBeFalse();
+        
+        // Didn't impact:
+        findEndpoint("local://one").TelemetryEnabled.ShouldBeTrue();
     }
 
     [Fact]

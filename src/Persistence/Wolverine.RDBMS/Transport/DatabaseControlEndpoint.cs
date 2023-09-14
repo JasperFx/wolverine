@@ -18,6 +18,9 @@ internal class DatabaseControlEndpoint : Endpoint
         Mode = EndpointMode.BufferedInMemory;
         ExecutionOptions.MaxDegreeOfParallelism = 1;
         ExecutionOptions.EnsureOrdered = true;
+
+        // No otel for this one!
+        TelemetryEnabled = false;
     }
 
     public Guid NodeId { get; }

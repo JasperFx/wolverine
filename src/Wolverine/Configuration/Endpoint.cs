@@ -87,6 +87,11 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
+    /// Is OpenTelemetry enabled for this endpoint?
+    /// </summary>
+    public bool TelemetryEnabled { get; set; } = true;
+
+    /// <summary>
     ///     Is the endpoint controlled and configured by the application or Wolverine itself?
     /// </summary>
     public EndpointRole Role { get; internal set; }

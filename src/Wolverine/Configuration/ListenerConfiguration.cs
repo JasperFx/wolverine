@@ -27,6 +27,13 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         add(e => e.IsListener = true);
     }
 
+
+    public TSelf TelemetryEnabled(bool isEnabled)
+    {
+        add(e => e.TelemetryEnabled = isEnabled);
+        return this.As<TSelf>();
+    }
+
     public TSelf MaximumParallelMessages(int maximumParallelHandlers, ProcessingOrder? order = null)
     {
         add(e =>
