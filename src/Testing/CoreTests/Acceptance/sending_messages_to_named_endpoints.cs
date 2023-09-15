@@ -68,6 +68,15 @@ public class sending_messages_to_named_endpoints : IDisposable
     }
 
     [Fact]
+    public async Task blow_up_with_descriptive_exception_when_executing_message_with_cascading_message_to_unknown_endpoint()
+    {
+        await Should.ThrowAsync<UnknownEndpointException>(async () =>
+        {
+            await _sender.InvokeAsync(new TriggerRoutedMessage("nonexistent"));
+        });
+    }
+
+    [Fact]
     public async Task send_to_a_specific_endpoint()
     {
         var session = await _sender.TrackActivity()
@@ -79,15 +88,23 @@ public class sending_messages_to_named_endpoints : IDisposable
             .Single(x => x.MessageEventType == MessageEventType.Received)
             .ServiceName.ShouldBe("two");
     }
+
 }
 
 public class TrackedMessage
 {
 }
 
+public record TriggerRoutedMessage(string EndpointName);
+
 public class TrackedMessageHandler
 {
     public void Handle(TrackedMessage message)
     {
+    }
+
+    public object Handle(TriggerRoutedMessage message)
+    {
+        return new TrackedMessage().ToEndpoint("nonexistent");
     }
 }
