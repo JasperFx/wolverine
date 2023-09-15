@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using FluentValidation;
+using FluentValidation.Results;
 
 namespace Wolverine.FluentValidation.Internals;
 
@@ -19,16 +20,21 @@ public static class FluentValidationExecutor
     public static async Task ExecuteMany<T>(IReadOnlyList<IValidator<T>> validators, IFailureAction<T> failureAction,
         T message)
     {
-        var validationFailureTasks = validators
-            .Select(validator => validator.ValidateAsync(message));
-        var validationFailures = await Task.WhenAll(validationFailureTasks);
-        var failures = validationFailures.SelectMany(validationResult => validationResult.Errors)
-            .Where(validationFailure => validationFailure != null)
-            .ToList();
+        var failures = new List<ValidationFailure>();
 
+        foreach (var validator in validators)
+        {
+            var result = await validator.ValidateAsync(message);
+            if (result is not null && result.Errors.Any())
+            {
+                failures.AddRange(result.Errors);
+            }
+        }
+        
         if (failures.Any())
         {
             failureAction.Throw(message, failures);
         }
     }
+    
 }
