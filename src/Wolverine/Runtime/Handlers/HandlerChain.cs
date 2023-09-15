@@ -76,10 +76,27 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     }
 
     /// <summary>
-    ///     At what level should Wolverine log messages about execution completing or succeeding? The default
+    ///     At what level should Wolverine log messages about messages succeeding? The default
     ///     is Information
     /// </summary>
-    public LogLevel ExecutionLogLevel { get; set; } = LogLevel.Information;
+    [Obsolete("The naming is misleading, please use SuccessLogLevel")]
+    public LogLevel ExecutionLogLevel
+    {
+        get => SuccessLogLevel;
+        set => SuccessLogLevel = value;
+    }
+    
+    /// <summary>
+    ///     At what level should Wolverine log messages of this type about messages succeeding? The default
+    ///     is Information
+    /// </summary>
+    public LogLevel SuccessLogLevel { get; set; } = LogLevel.Information;
+
+    /// <summary>
+    /// At what level should processing starting and finishing be logged for this message type?
+    /// The default is Debug
+    /// </summary>
+    public LogLevel ProcessingLogLevel { get; set; } = LogLevel.Debug;
 
     /// <summary>
     ///     A textual description of this HandlerChain

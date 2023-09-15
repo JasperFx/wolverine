@@ -1,4 +1,5 @@
 using CoreTests.Compilation;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
@@ -37,6 +38,12 @@ public class CustomizedHandler
     public static void Configure(HandlerChain chain)
     {
         chain.Middleware.Add(new CustomFrame());
+
+        // Turning off all execution tracking logging
+        // from Wolverine for just this message type
+        // Error logging will still be enabled on failures
+        chain.SuccessLogLevel = LogLevel.None;
+        chain.ProcessingLogLevel = LogLevel.None;
     }
 }
 

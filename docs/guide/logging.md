@@ -9,6 +9,34 @@ Inside of message handling, Wolverine is using `ILogger<T>` where `T` is the **m
 to selectively filter logging levels in your application, rely on the message type rather than the handler type.
 :::
 
+## Configuring Message Logging Levels
+
+::: tip
+This functionality was added in Wolverine 1.7.
+:::
+
+Wolverine automatically logs the execution start and stop of all message handling with `LogLevel.Debug`. Likewise, Wolverine
+logs the successful completion of all messages (including the capture of cascading messages and all middleware) with `LogLevel.Information`.
+However, many folks have found this logging to be too intrusive. Not to worry, you can quickly override the log levels
+within Wolverine for your system like so:
+
+snippet: sample_turning_down_message_logging
+
+The sample up above turns down the logging on a global, application level. If you have some kind of command message where
+you don't want logging for that particular message type, but do for all other message types, you can override the log
+level for only that specific message type like so:
+
+snippet: sample_customized_handler_using_Configure
+
+Methods on message handler types with the signature:
+
+```csharp
+public static void Configure(HandlerChain chain)
+```
+
+will be called by Wolverine to apply message type specific overrides to Wolverine's message handling.
+
+
 ## Log Message Execution Start
 
 Wolverine is absolutely meant for "grown up development," so there's a few options for logging and instrumentation. While Open Telemetry logging 

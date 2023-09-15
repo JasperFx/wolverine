@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
@@ -303,6 +304,40 @@ public class endpoint_policy_configuration : IDisposable
         runtime.DetermineLocalSendingAgent(typeof(Message4))
             .Endpoint.ShouldBeOfType<LocalQueue>().EndpointName
             .ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant() + "_more");
+    }
+
+    [Fact]
+    public async Task overriding_message_success_log_level()
+    {
+        await UsingOptions(opts =>
+        {
+            opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
+        });
+        
+        var runtime = _host.Services.GetRequiredService<IWolverineRuntime>()
+            .ShouldBeOfType<WolverineRuntime>();
+
+        foreach (var chain in runtime.Handlers.Chains)
+        {
+            chain.SuccessLogLevel.ShouldBe(LogLevel.Debug);
+        }
+    }
+
+    [Fact]
+    public async Task overriding_message_execution_log_level()
+    {
+        await UsingOptions(opts =>
+        {
+            opts.Policies.MessageSuccessLogLevel(LogLevel.None);
+        });
+        
+        var runtime = _host.Services.GetRequiredService<IWolverineRuntime>()
+            .ShouldBeOfType<WolverineRuntime>();
+
+        foreach (var chain in runtime.Handlers.Chains)
+        {
+            chain.SuccessLogLevel.ShouldBe(LogLevel.None);
+        }
     }
 }
 

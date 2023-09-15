@@ -110,4 +110,18 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     MessageTypePolicies<T> ForMessagesOfType<T>();
+
+    /// <summary>
+    /// Override the log level for Wolverine's built in logging for messages
+    /// being completed successfully. This is Information by default
+    /// </summary>
+    /// <param name="logLevel"></param>
+    void MessageSuccessLogLevel(LogLevel logLevel);
+
+    /// <summary>
+    /// Override the log level for Wolverine to trace execution starting and
+    /// finishing of the actual message execution. The default is Debug.
+    /// </summary>
+    /// <param name="logLevel"></param>
+    void MessageExecutionLogLevel(LogLevel logLevel);
 }

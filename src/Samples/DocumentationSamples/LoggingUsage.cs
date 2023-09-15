@@ -20,4 +20,25 @@ public class LoggingUsage
 
         #endregion
     }
+
+    public static async Task customizing_log_levels()
+    {
+        #region sample_turning_down_message_logging
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Turn off all logging of the message execution starting and finishing
+                // The default is Debug
+                opts.Policies.MessageExecutionLogLevel(LogLevel.None);
+
+
+                // Turn down Wolverine's built in logging of all successful
+                // message processing
+                opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
+            }).StartAsync();
+
+        #endregion
+    }
 }
+

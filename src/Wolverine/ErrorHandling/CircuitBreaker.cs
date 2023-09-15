@@ -44,6 +44,8 @@ internal class CircuitBreakerWrappedMessageHandler : IMessageHandler
         _tracker = tracker;
     }
 
+    public LogLevel ProcessingLogLevel => _inner.ProcessingLogLevel;
+
     public async Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         try
@@ -61,6 +63,7 @@ internal class CircuitBreakerWrappedMessageHandler : IMessageHandler
     public Type MessageType => _inner.MessageType;
 
     public LogLevel ExecutionLogLevel => _inner.ExecutionLogLevel;
+    public LogLevel SuccessLogLevel => _inner.SuccessLogLevel;
 }
 
 internal interface IMessageSuccessTracker

@@ -24,4 +24,7 @@ internal class FailureAcknowledgementHandler : IMessageHandler
 
     public Type MessageType => typeof(FailureAcknowledgement);
     public LogLevel ExecutionLogLevel => LogLevel.None;
+
+    public LogLevel SuccessLogLevel => LogLevel.None;
+    public LogLevel ProcessingLogLevel => LogLevel.None;
 }

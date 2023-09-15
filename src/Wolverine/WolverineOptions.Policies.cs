@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Reflection;
+using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
+using Lamar;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -195,6 +197,18 @@ public sealed partial class WolverineOptions : IPolicies
         return new MessageTypePolicies<T>(this);
     }
 
+    public void MessageSuccessLogLevel(LogLevel logLevel)
+    {
+        var policy = new LambdaHandlerPolicy(c => c.SuccessLogLevel = logLevel);
+        Policies.Add(policy);
+    }
+
+    public void MessageExecutionLogLevel(LogLevel logLevel)
+    {
+        var policy = new LambdaHandlerPolicy(c => c.ProcessingLogLevel = logLevel);
+        Policies.Add(policy);
+    }
+
     public void LogMessageStarting(LogLevel logLevel)
     {
         RegisteredPolicies.Insert(0, new LogStartingActivityPolicy(logLevel));
@@ -210,5 +224,23 @@ public sealed partial class WolverineOptions : IPolicies
         }
 
         return policy;
+    }
+}
+
+internal class LambdaHandlerPolicy : IHandlerPolicy
+{
+    private readonly Action<HandlerChain> _configure;
+
+    public LambdaHandlerPolicy(Action<HandlerChain> configure)
+    {
+        _configure = configure;
+    }
+
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    {
+        foreach (var chain in chains)
+        {
+            _configure(chain);
+        }
     }
 }

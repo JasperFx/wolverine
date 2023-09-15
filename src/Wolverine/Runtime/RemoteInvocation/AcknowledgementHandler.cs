@@ -20,4 +20,7 @@ internal class AcknowledgementHandler : IMessageHandler
         _replies.Complete(context.Envelope!);
         return Task.CompletedTask;
     }
+
+    public LogLevel SuccessLogLevel => LogLevel.Debug;
+    public LogLevel ProcessingLogLevel => LogLevel.None;
 }

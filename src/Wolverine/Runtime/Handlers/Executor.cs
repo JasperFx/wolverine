@@ -62,10 +62,10 @@ internal class Executor : IExecutor
         _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
-        _executionStarted = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
+        _executionStarted = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionStartedEventId,
             "{CorrelationId}: Started processing {Name}#{Id}");
 
-        _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
+        _executionFinished = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionFinishedEventId,
             "{CorrelationId}: Finished processing {Name}#{Id}");
         
         _messageTypeName = handler.MessageType.ToMessageTypeName();

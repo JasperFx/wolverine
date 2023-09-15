@@ -21,7 +21,10 @@ internal class InternalMessageHandler<T> : IMessageHandler
     }
 
     public Type MessageType => typeof(T);
-    public LogLevel ExecutionLogLevel => LogLevel.Debug;
+    public LogLevel ExecutionLogLevel => LogLevel.None;
+
+    public LogLevel SuccessLogLevel => LogLevel.Debug;
+    public LogLevel ProcessingLogLevel => LogLevel.None;
 }
 
 internal interface IInternalHandler<T>
