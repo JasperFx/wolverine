@@ -130,6 +130,18 @@ builder.Services.AddOpenTelemetryTracing(x =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+Wolverine 1.7 added the ability to disable Open Telemetry tracing on an endpoint by endpoint basis, and **finally** turned
+off Otel tracing of internal Wolverine messages
+:::
+
+Open Telemetry tracing can be selectively disabled on an endpoint by endpoint basis with this API:
+
+snippet: sample_disabling_open_telemetry_by_endpoint
+
+Note that this `TelemetryEnabled()` method is available on all possible subscriber and listener types within Wolverine.
+This flag applies to all messages sent, received, or executed at a particular endpoint.
+
 ## Message Correlation
 
 ::: tip
