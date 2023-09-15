@@ -162,7 +162,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), new Container(x =>
         {
             x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
-            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
+            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Transient();
         })));
     }
 
@@ -173,7 +173,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), new Container(x =>
         {
             x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
-            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
+            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Transient();
         })));
     }
 

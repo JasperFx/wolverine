@@ -73,7 +73,7 @@ public static class HostBuilderExtensions
 
             services.AddSingleton<IStatefulResource, MessageStoreResource>();
 
-            services.AddSingleton(s => s.GetRequiredService<IContainer>().CreateServiceVariableSource());
+            services.AddTransient(s => s.GetRequiredService<IContainer>().CreateServiceVariableSource());
 
             services.AddSingleton(s =>
             {
