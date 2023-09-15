@@ -27,4 +27,6 @@ internal class FailureAcknowledgementHandler : IMessageHandler
 
     public LogLevel SuccessLogLevel => LogLevel.None;
     public LogLevel ProcessingLogLevel => LogLevel.None;
+
+    public bool TelemetryEnabled => false;
 }

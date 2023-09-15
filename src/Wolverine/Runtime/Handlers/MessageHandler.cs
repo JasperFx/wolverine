@@ -15,6 +15,11 @@ public interface IMessageHandler
     LogLevel SuccessLogLevel { get; }
 
     LogLevel ProcessingLogLevel { get; }
+    
+    /// <summary>
+    /// Is OpenTelemetry logging enabled for invoking this message type?
+    /// </summary>
+    bool TelemetryEnabled { get; }
 
     Task HandleAsync(MessageContext context, CancellationToken cancellation);
 }
@@ -31,6 +36,8 @@ public abstract class MessageHandler : IMessageHandler
 
     public LogLevel SuccessLogLevel => Chain!.SuccessLogLevel;
     public LogLevel ProcessingLogLevel => Chain!.ProcessingLogLevel;
+
+    public bool TelemetryEnabled => Chain!.TelemetryEnabled;
 }
 
 #endregion

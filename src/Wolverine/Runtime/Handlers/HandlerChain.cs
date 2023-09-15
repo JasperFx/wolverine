@@ -99,6 +99,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public LogLevel ProcessingLogLevel { get; set; } = LogLevel.Debug;
 
     /// <summary>
+    /// Is Open Telemetry logging enabled during message invocation (IMessageBus.InvokeAsync()) for
+    /// this message type. Default is true
+    /// </summary>
+    public bool TelemetryEnabled { get; set; } = true;
+
+    /// <summary>
     ///     A textual description of this HandlerChain
     /// </summary>
     public override string Description { get; }

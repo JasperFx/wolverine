@@ -36,6 +36,16 @@ public static void Configure(HandlerChain chain)
 
 will be called by Wolverine to apply message type specific overrides to Wolverine's message handling.
 
+## Controlling Message Specific Logging and Tracing
+
+While Open Telemetry tracing can be disabled on an endpoint by endpoint basis, you may want to disable Open Telemetry
+tracing for specific message types. You may also want to modify the log levels for message success and message execution
+on a message type by message type basis. While you *can* also do that with custom handler chain policies, the easiest
+way to do that is to use the `[WolverineLogging]` attribute on either the handler type or the handler method as shown 
+below:
+
+snippet: sample_using_Wolverine_Logging_attribute~~~~
+
 
 ## Log Message Execution Start
 

@@ -19,6 +19,13 @@ public class HandlerChainTests
         var chain = HandlerChain.For<Target>(x => x.Go(null), null);
         chain.ExecutionLogLevel.ShouldBe(LogLevel.Information);
     }
+
+    [Fact]
+    public void open_telemetry_enabled_is_true_by_default()
+    {
+        var chain = HandlerChain.For<Target>(x => x.Go(null), null);
+        chain.TelemetryEnabled.ShouldBeTrue();
+    }
     
     [Fact]
     public void create_by_method()
