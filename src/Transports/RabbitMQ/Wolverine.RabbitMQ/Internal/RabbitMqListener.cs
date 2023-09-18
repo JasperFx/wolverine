@@ -74,7 +74,6 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
             }
         }
 
-
         try
         {
             var result = Channel!.QueueDeclarePassive(queue.QueueName);

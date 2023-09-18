@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Text;
+using JasperFx.Core;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -16,7 +18,20 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
         MapProperty(x => x.ContentType!, (e, p) => e.ContentType = p.ContentType,
             (e, p) => p.ContentType = e.ContentType);
 
-        MapProperty(x => x.Id, (e, props) => e.Id = Guid.Parse(props.MessageId),
+        Action<Envelope, IBasicProperties> readId = (e, props) =>
+        {
+            if (Guid.TryParse(props.MessageId, out var id))
+            {
+                e.Id = id;
+            }
+            else
+            {
+                // Might not be a real Guid coming from the outside world
+                e.Id = CombGuidIdGeneration.NewGuid();
+            }
+        };
+        
+        MapProperty(x => x.Id, readId,
             (e, props) => props.MessageId = e.Id.ToString());
 
         MapProperty(x => x.DeliverBy!, (_, _) => { }, (e, props) =>
@@ -40,6 +55,12 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
     // TODO -- this needs to be open for customizations. See the NServiceBus interop
     protected override bool tryReadIncomingHeader(IBasicProperties incoming, string key, out string? value)
     {
+        if (incoming.Headers == null)
+        {
+            value = null;
+            return false;
+        }
+        
         if (incoming.Headers.TryGetValue(key, out var raw))
         {
             value = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
@@ -52,6 +73,7 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
 
     protected override void writeIncomingHeaders(IBasicProperties incoming, Envelope envelope)
     {
+        if (incoming.Headers == null) return;
         foreach (var pair in incoming.Headers)
         {
             envelope.Headers[pair.Key] =
