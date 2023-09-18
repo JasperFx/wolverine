@@ -5,7 +5,7 @@ using Wolverine.Transports;
 namespace Wolverine.AmazonSqs;
 
 /// <summary>
-///     Pluggable strategy for reading and writing data to Amazon SQS queues
+/// Pluggable strategy for reading and writing data to Amazon SQS queues
 /// </summary>
 public interface ISqsEnvelopeMapper
 {

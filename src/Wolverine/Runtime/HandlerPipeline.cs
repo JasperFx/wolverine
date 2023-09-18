@@ -152,6 +152,10 @@ public class HandlerPipeline : IHandlerPipeline
                 return Task.FromResult(serializationError);
             }
         }
+        else
+        {
+            Logger.Received(envelope);
+        }
 
         if (envelope.IsResponse)
         {

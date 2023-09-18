@@ -37,10 +37,13 @@ namespace Wolverine.AmazonSqs.Tests
         {
             Guid id = Guid.NewGuid();
 
-            var session = await _host.TrackActivity(2.Minutes())
-                .ExecuteAndWaitAsync(_ => SendRawJsonMessage(id, 1.Minutes()));
+            var session = await _host
+                .TrackActivity(10.Seconds())
+                .WaitForMessageToBeReceivedAt<MyNativeJsonMessage>(_host)
+                .ExecuteAndWaitAsync(_ => SendRawJsonMessage(id, 10.Seconds()));
 
             session.Received.SingleMessage<MyNativeJsonMessage>().Id.ShouldBe(id);
+            session.Executed.SingleMessage<MyNativeJsonMessage>().Id.ShouldBe(id);
         }
 
         private static async Task SendRawJsonMessage(Guid id, TimeSpan timeout)
@@ -64,8 +67,6 @@ namespace Wolverine.AmazonSqs.Tests
 
             ((int)sendMessageResponse.HttpStatusCode).ShouldBeGreaterThanOrEqualTo(200, customMessage: "Ensure Success StatusCode");
             ((int)sendMessageResponse.HttpStatusCode).ShouldBeLessThan(300, customMessage: "Ensure Success StatusCode");
-
-            await Task.Delay(timeout);
         }
 
         public Task DisposeAsync()
