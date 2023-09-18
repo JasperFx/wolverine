@@ -24,7 +24,8 @@ public class interoperability_specs : RabbitMQContext, IAsyncLifetime
             {
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
-                opts.ListenToRabbitQueue(theQueueName).DefaultIncomingMessage<NumberMessage>();
+                opts.ListenToRabbitQueue(theQueueName)
+                    .DefaultIncomingMessage<NumberMessage>();
             }).StartAsync();
     }
 

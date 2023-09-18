@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TestMessages;
@@ -323,4 +324,28 @@ public class Samples
 
         #endregion
     }
+
+    public static async Task configuring_to_receive_json_from_external_systems()
+    {
+        #region sample_setting_default_message_type_with_rabbit
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                var rabbitMqConnectionString = context.Configuration.GetConnectionString("rabbit");
+
+                opts.UseRabbitMq(rabbitMqConnectionString);
+
+                opts.ListenToRabbitQueue("emails")
+                    // Tell Wolverine to assume that all messages
+                    // received at this queue are the SendEmail
+                    // message type
+                    .DefaultIncomingMessage<SendEmail>();
+            }).StartAsync();
+
+        #endregion
+    }
 }
+
+
+public record SendEmail();

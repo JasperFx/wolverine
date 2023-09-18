@@ -4,11 +4,23 @@ Hey, it's a complicated world and Wolverine is a relative newcomer, so it's some
 a non-Wolverine application. Not to worry (too much), Wolverine has you covered with the ability to customize Wolverine to Rabbit MQ mapping and some built in recipes for 
 interoperability with commonly used .NET messaging frameworks.
 
-## Connecting to non-Wolverine Applications
+## Receiving Raw Data
 
-Wolverine has not yet exposed the necessary APIs to create interoperability with arbitrary message schemes with Rabbit MQ,
-but it wouldn't be hard to get there. If you need this functionality, please ask the [Wolverine community on Discord](https://discord.gg/xqym37VMZM) and we'll
-get you started. 
+A lot of Wolverine functionality (request/reply, message correlation) relies on message metadata sent through
+Rabbit MQ headers. Sometimes though, you'll simply need Wolverine to receive data from external systems that
+certainly aren't speaking Wolverine's header protocol. In the simplest common scenario, you need Wolverine to
+be able to process JSON data (JSON is Wolverine's default data format) being published from another system.
+
+If you can make the assumption that Wolverine will only be receiving one type of message at a particular queue, and that
+the data will be valid JSON that can be deserialized to that single message type, you can simply tell
+Wolverine what the default message type is for that queue like this:
+
+snippet: sample_setting_default_message_type_with_rabbit
+
+With this setting, there is **no other required headers** for Wolverine to process incoming messages. However, Wolverine will be
+unable to send responses back to the sender and may have a limited ability to create correlated tracking between
+the upstream non-Wolverine system and your Wolverine system.
+
 
 ## Interoperability with NServiceBus
 
