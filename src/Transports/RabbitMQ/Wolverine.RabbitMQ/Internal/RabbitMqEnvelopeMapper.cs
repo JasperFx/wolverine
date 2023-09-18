@@ -9,7 +9,17 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicProperties>
+/// <summary>
+/// Responsible for mapping incoming and outgoing Wolverine Envelope objects to the
+/// Rabbit MQ IBasicProperties object. Custom implementations of this can be used
+/// to create interoperability with non-Wolverine applications through Rabbit MQ
+/// </summary>
+public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<IBasicProperties, IBasicProperties>
+{
+    
+}
+
+internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicProperties>, IRabbitMqEnvelopeMapper
 {
     public RabbitMqEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {

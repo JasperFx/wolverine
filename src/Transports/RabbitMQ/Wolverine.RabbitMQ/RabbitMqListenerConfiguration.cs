@@ -47,6 +47,18 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
     }
 
     /// <summary>
+    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// system's protocol
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public RabbitMqListenerConfiguration UseInterop(IRabbitMqEnvelopeMapper mapper)
+    {
+        add(e => e.EnvelopeMapper = mapper);
+        return this;
+    }
+
+    /// <summary>
     ///     Add MassTransit interoperability to this Rabbit MQ listening endpoint
     /// </summary>
     /// <param name="configure">Optionally configure the JSON serialization on this endpoint</param>

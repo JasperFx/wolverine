@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -31,6 +30,12 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IDis
     public abstract ValueTask SetupAsync(ILogger logger);
 
     internal abstract string RoutingKey();
+    
+    /// <summary>
+    /// When set, overrides the built in envelope mapping with a custom
+    /// implementation
+    /// </summary>
+    public IRabbitMqEnvelopeMapper? EnvelopeMapper { get; set; }
 
     public override IDictionary<string, object> DescribeProperties()
     {
@@ -62,8 +67,10 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IDis
         _sender?.Dispose();
     }
 
-    internal IEnvelopeMapper<IBasicProperties, IBasicProperties> BuildMapper(IWolverineRuntime runtime)
+    internal IRabbitMqEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
     {
+        if (EnvelopeMapper != null) return EnvelopeMapper;
+        
         var mapper = new RabbitMqEnvelopeMapper(this, runtime);
         _customizeMapping?.Invoke(mapper);
         if (MessageType != null)

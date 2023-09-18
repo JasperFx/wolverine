@@ -32,6 +32,18 @@ public class
         add(e => e.UseNServiceBusInterop());
         return this;
     }
+    
+    /// <summary>
+    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// system's protocol
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public RabbitMqSubscriberConfiguration UseInterop(IRabbitMqEnvelopeMapper mapper)
+    {
+        add(e => e.EnvelopeMapper = mapper);
+        return this;
+    }
 }
 
 public class RabbitMqExchangeConfiguration : SubscriberConfiguration<RabbitMqExchangeConfiguration, RabbitMqExchange>

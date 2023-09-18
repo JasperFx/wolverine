@@ -1,23 +1,19 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
-using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
 internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
 {
+    private readonly RabbitMqEndpoint _endpoint;
     private readonly string _exchangeName;
     private readonly bool _isDurable;
     private readonly string _key;
-    private readonly IEnvelopeMapper<IBasicProperties, IBasicProperties> _mapper;
-    private readonly RabbitMqEndpoint _endpoint;
+    private readonly IRabbitMqEnvelopeMapper _mapper;
     private readonly Func<Envelope, string> _toRoutingKey;
 
     public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,

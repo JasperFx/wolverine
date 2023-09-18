@@ -6,6 +6,10 @@ interoperability with commonly used .NET messaging frameworks.
 
 ## Receiving Raw Data
 
+::: tip
+Wolverine will be able to publish JSON to non-Wolverine applications out of the box with no further configuration
+:::
+
 A lot of Wolverine functionality (request/reply, message correlation) relies on message metadata sent through
 Rabbit MQ headers. Sometimes though, you'll simply need Wolverine to receive data from external systems that
 certainly aren't speaking Wolverine's header protocol. In the simplest common scenario, you need Wolverine to
@@ -20,6 +24,19 @@ snippet: sample_setting_default_message_type_with_rabbit
 With this setting, there is **no other required headers** for Wolverine to process incoming messages. However, Wolverine will be
 unable to send responses back to the sender and may have a limited ability to create correlated tracking between
 the upstream non-Wolverine system and your Wolverine system.
+
+
+## Roll Your Own Interoperability
+
+For interoperability, Wolverine needs to map data elements from the Rabbit MQ client `IBasicProperties` model to 
+Wolverine's internal `Envelope` model. If you want a more advanced interoperability model that actually tries
+to map message metadata, you can implement Wolverine's `IRabbitMqEnvelopeMapper` as shown in this sample:
+
+snippet: sample_rabbit_special_mapper
+
+And register that special mapper like this:
+
+snippet: sample_registering_custom_rabbit_mq_envelope_mapper
 
 
 ## Interoperability with NServiceBus

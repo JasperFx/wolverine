@@ -345,6 +345,30 @@ public class Samples
 
         #endregion
     }
+
+    public static async Task configuring_custom_interop()
+    {
+        #region sample_registering_custom_rabbit_mq_envelope_mapper
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                var rabbitMqConnectionString = context.Configuration.GetConnectionString("rabbit");
+
+                opts.UseRabbitMq(rabbitMqConnectionString);
+
+                opts.ListenToRabbitQueue("emails")
+                    // Apply your custom interoperability strategy here
+                    .UseInterop(new SpecialMapper())
+                    
+                    // You may still want to define the default incoming
+                    // message as the message type name may not be sent
+                    // by the upstream system
+                    .DefaultIncomingMessage<SendEmail>();
+            }).StartAsync();
+
+        #endregion
+    }
 }
 
 
