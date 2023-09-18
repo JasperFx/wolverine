@@ -22,7 +22,7 @@ namespace Wolverine.AmazonSqs.Tests
                         .UseAmazonSqsTransportLocally()
                         .ConfigureListeners(listeners =>
                         {
-                            listeners.ReceiveNativeJsonMessage(typeof(MyNativeJsonMessage));
+                            listeners.ReceiveRawJsonMessage(typeof(MyNativeJsonMessage));
                         })
                         .AutoProvision()
                         .AutoPurgeOnStartup();

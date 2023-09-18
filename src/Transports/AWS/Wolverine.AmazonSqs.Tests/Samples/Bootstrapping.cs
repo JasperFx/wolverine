@@ -1,5 +1,8 @@
+using System.Text;
+using System.Text.Json;
 using Amazon.Runtime;
 using Amazon.SQS;
+using Amazon.SQS.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using TestMessages;
@@ -197,4 +200,102 @@ public class Bootstrapping
 
         #endregion
     }
+
+    public async Task receive_raw_json()
+    {
+        #region sample_receive_raw_json_in_sqs
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport();
+
+                opts.ListenToSqsQueue("incoming").ReceiveRawJsonMessage(
+                    // Specify the single message type for this queue
+                    typeof(Message1), 
+                    
+                    // Optionally customize System.Text.Json configuration
+                    o =>
+                    {
+                        o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                    });
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task publish_raw_json()
+    {
+        #region sample_publish_raw_json_in_sqs
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport();
+
+                opts.PublishAllMessages().ToSqsQueue("outgoing").SendRawJsonMessage(
+                    // Specify the single message type for this queue
+                    typeof(Message1), 
+                    
+                    // Optionally customize System.Text.Json configuration
+                    o =>
+                    {
+                        o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                    });
+            }).StartAsync();
+
+        #endregion
+    }
+
+    [Fact]
+    public async Task customize_mappers()
+    {
+        #region sample_apply_custom_sqs_mapping
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport()
+                    .UseConventionalRouting()
+
+                    .ConfigureListeners(l => l.InteropWith(new CustomSqsMapper()))
+
+                    .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
+
+            }).StartAsync();
+
+        #endregion
+    }
 }
+
+#region sample_custom_sqs_mapper
+
+public class CustomSqsMapper : ISqsEnvelopeMapper
+{
+    public string BuildMessageBody(Envelope envelope)
+    {
+        // Serialized data from the Wolverine message
+        return Encoding.Default.GetString(envelope.Data);
+    }
+
+    // Specify header values for the SQS message from the Wolverine envelope
+    public IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope)
+    {
+        if (envelope.TenantId.IsNotEmpty())
+        {
+            yield return new KeyValuePair<string, MessageAttributeValue>("tenant-id", new MessageAttributeValue{StringValue = envelope.TenantId});
+        }
+    }
+
+    public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
+    {
+        envelope.Data = Encoding.Default.GetBytes(messageBody);
+
+        if (attributes.TryGetValue("tenant-id", out var att))
+        {
+            envelope.TenantId = att.StringValue;
+        }
+    }
+}
+
+#endregion

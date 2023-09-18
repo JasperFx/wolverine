@@ -76,7 +76,14 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
         return this;
     }
 
-    public AmazonSqsListenerConfiguration ReceiveNativeJsonMessage(
+    /// <summary>
+    /// Configure this listener to receive raw JSON of an expected message type from
+    /// an external system
+    /// </summary>
+    /// <param name="messageType"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AmazonSqsListenerConfiguration ReceiveRawJsonMessage(
         Type messageType,
         Action<JsonSerializerOptions>? configure = null)
     {
@@ -89,6 +96,17 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
             e.Mapper = new RawJsonSqsEnvelopeMapper(messageType, serializerOptions);
         });
 
+        return this;
+    }
+    
+    /// <summary>
+    /// Utilize custom envelope mapping for SQS interoperability with external non-Wolverine systems
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public AmazonSqsListenerConfiguration InteropWith(ISqsEnvelopeMapper mapper)
+    {
+        add(e => e.Mapper = mapper);
         return this;
     }
 }
