@@ -506,10 +506,16 @@ public class CustomizedHandler
     public static void Configure(HandlerChain chain)
     {
         chain.Middleware.Add(new CustomFrame());
+
+        // Turning off all execution tracking logging
+        // from Wolverine for just this message type
+        // Error logging will still be enabled on failures
+        chain.SuccessLogLevel = LogLevel.None;
+        chain.ProcessingLogLevel = LogLevel.None;
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L28-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L29-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

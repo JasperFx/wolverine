@@ -20,13 +20,52 @@ logs the successful completion of all messages (including the capture of cascadi
 However, many folks have found this logging to be too intrusive. Not to worry, you can quickly override the log levels
 within Wolverine for your system like so:
 
-snippet: sample_turning_down_message_logging
+<!-- snippet: sample_turning_down_message_logging -->
+<a id='snippet-sample_turning_down_message_logging'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Turn off all logging of the message execution starting and finishing
+        // The default is Debug
+        opts.Policies.MessageExecutionLogLevel(LogLevel.None);
+
+        // Turn down Wolverine's built in logging of all successful
+        // message processing
+        opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L26-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turning_down_message_logging' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 The sample up above turns down the logging on a global, application level. If you have some kind of command message where
 you don't want logging for that particular message type, but do for all other message types, you can override the log
 level for only that specific message type like so:
 
-snippet: sample_customized_handler_using_Configure
+<!-- snippet: sample_customized_handler_using_Configure -->
+<a id='snippet-sample_customized_handler_using_configure'></a>
+```cs
+public class CustomizedHandler
+{
+    public void Handle(SpecialMessage message)
+    {
+        // actually handle the SpecialMessage
+    }
+
+    public static void Configure(HandlerChain chain)
+    {
+        chain.Middleware.Add(new CustomFrame());
+
+        // Turning off all execution tracking logging
+        // from Wolverine for just this message type
+        // Error logging will still be enabled on failures
+        chain.SuccessLogLevel = LogLevel.None;
+        chain.ProcessingLogLevel = LogLevel.None;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L29-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Methods on message handler types with the signature:
 
@@ -44,7 +83,25 @@ on a message type by message type basis. While you *can* also do that with custo
 way to do that is to use the `[WolverineLogging]` attribute on either the handler type or the handler method as shown 
 below:
 
-snippet: sample_using_Wolverine_Logging_attribute~~~~
+<!-- snippet: sample_using_Wolverine_Logging_attribute -->
+<a id='snippet-sample_using_wolverine_logging_attribute'></a>
+```cs
+public class QuietMessage{}
+
+public class QuietMessageHandler
+{
+    [WolverineLogging(
+        telemetryEnabled:false, 
+        successLogLevel: LogLevel.None, 
+        executionLogLevel:LogLevel.Trace)]
+    public void Handle(QuietMessage message)
+    {
+        Console.WriteLine("Hush!");
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L23-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ## Log Message Execution Start
@@ -175,7 +232,24 @@ off Otel tracing of internal Wolverine messages
 
 Open Telemetry tracing can be selectively disabled on an endpoint by endpoint basis with this API:
 
-snippet: sample_disabling_open_telemetry_by_endpoint
+<!-- snippet: sample_disabling_open_telemetry_by_endpoint -->
+<a id='snippet-sample_disabling_open_telemetry_by_endpoint'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts
+            .PublishAllMessages()
+            .ToPort(2222)
+            
+            // Disable Open Telemetry data collection on 
+            // all messages sent, received, or executed
+            // from this endpoint
+            .TelemetryEnabled(false);
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingOpenTelemetry.cs#L11-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_open_telemetry_by_endpoint' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Note that this `TelemetryEnabled()` method is available on all possible subscriber and listener types within Wolverine.
 This flag applies to all messages sent, received, or executed at a particular endpoint.

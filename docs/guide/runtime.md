@@ -220,5 +220,5 @@ Wolverine is only able to use [Lamar](https://jasperfx.github.io/lamar) as its I
 any call to `UseWolverine()`. Wolverine actually uses Lamar's configuration model to help build out its dynamically generated code and can mostly go far enough to
 recreate what would be Lamar's "instance plan" with plain old C# as a way of making the runtime operations a little bit leaner.
 
-
-
+Wolverine is a significantly different animal than other .NET frameworks, and will not play well with the kind of runtime IoC tricks
+other frameworks rely on for passing state. 

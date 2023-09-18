@@ -19,7 +19,25 @@ If you can make the assumption that Wolverine will only be receiving one type of
 the data will be valid JSON that can be deserialized to that single message type, you can simply tell
 Wolverine what the default message type is for that queue like this:
 
-snippet: sample_setting_default_message_type_with_rabbit
+<!-- snippet: sample_setting_default_message_type_with_rabbit -->
+<a id='snippet-sample_setting_default_message_type_with_rabbit'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine((context, opts) =>
+    {
+        var rabbitMqConnectionString = context.Configuration.GetConnectionString("rabbit");
+
+        opts.UseRabbitMq(rabbitMqConnectionString);
+
+        opts.ListenToRabbitQueue("emails")
+            // Tell Wolverine to assume that all messages
+            // received at this queue are the SendEmail
+            // message type
+            .DefaultIncomingMessage<SendEmail>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L330-L346' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_message_type_with_rabbit' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 With this setting, there is **no other required headers** for Wolverine to process incoming messages. However, Wolverine will be
 unable to send responses back to the sender and may have a limited ability to create correlated tracking between
@@ -32,11 +50,86 @@ For interoperability, Wolverine needs to map data elements from the Rabbit MQ cl
 Wolverine's internal `Envelope` model. If you want a more advanced interoperability model that actually tries
 to map message metadata, you can implement Wolverine's `IRabbitMqEnvelopeMapper` as shown in this sample:
 
-snippet: sample_rabbit_special_mapper
+<!-- snippet: sample_rabbit_special_mapper -->
+<a id='snippet-sample_rabbit_special_mapper'></a>
+```cs
+public class SpecialMapper : IRabbitMqEnvelopeMapper
+{
+    public void MapEnvelopeToOutgoing(Envelope envelope, IBasicProperties outgoing)
+    {
+        // All of this is default behavior, but this sample does show
+        // what's possible here
+        outgoing.CorrelationId = envelope.CorrelationId;
+        outgoing.MessageId = envelope.Id.ToString();
+        outgoing.ContentType = "application/json";
+        
+        if (envelope.DeliverBy.HasValue)
+        {
+            var ttl = Convert.ToInt32(envelope.DeliverBy.Value.Subtract(DateTimeOffset.Now).TotalMilliseconds);
+            outgoing.Expiration = ttl.ToString();
+        }
+
+        if (envelope.TenantId.IsNotEmpty())
+        {
+            outgoing.Headers ??= new Dictionary<string, object>();
+            outgoing.Headers["tenant-id"] = envelope.TenantId;
+        }
+    }
+
+    public void MapIncomingToEnvelope(Envelope envelope, IBasicProperties incoming)
+    {
+        envelope.CorrelationId = incoming.CorrelationId;
+        envelope.ContentType = "application/json";
+        if (Guid.TryParse(incoming.MessageId, out var id))
+        {
+            envelope.Id = id;
+        }
+        else
+        {
+            envelope.Id = Guid.NewGuid();
+        }
+
+        if (incoming.Headers != null && incoming.Headers.TryGetValue("tenant-id", out var tenantId))
+        {
+            // Watch this in real life, some systems will send header values as
+            // byte arrays
+            envelope.TenantId = (string)tenantId;
+        }
+    }
+
+    public IEnumerable<string> AllHeaders()
+    {
+        yield break;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/SpecialMapper.cs#L7-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_special_mapper' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 And register that special mapper like this:
 
-snippet: sample_registering_custom_rabbit_mq_envelope_mapper
+<!-- snippet: sample_registering_custom_rabbit_mq_envelope_mapper -->
+<a id='snippet-sample_registering_custom_rabbit_mq_envelope_mapper'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine((context, opts) =>
+    {
+        var rabbitMqConnectionString = context.Configuration.GetConnectionString("rabbit");
+
+        opts.UseRabbitMq(rabbitMqConnectionString);
+
+        opts.ListenToRabbitQueue("emails")
+            // Apply your custom interoperability strategy here
+            .UseInterop(new SpecialMapper())
+            
+            // You may still want to define the default incoming
+            // message as the message type name may not be sent
+            // by the upstream system
+            .DefaultIncomingMessage<SendEmail>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L351-L370' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_rabbit_mq_envelope_mapper' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ## Interoperability with NServiceBus
