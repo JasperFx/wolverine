@@ -1,4 +1,5 @@
 using System.Data.Common;
+using JasperFx.Core;
 using Weasel.Core;
 using Wolverine.Logging;
 
@@ -49,10 +50,23 @@ public abstract partial class MessageDatabase<T>
 
     public async Task MigrateAsync()
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
+        Func<Task> tryMigrate = async () =>
+        {
+            await using var conn = CreateConnection();
+            await conn.OpenAsync(_cancellation);
 
-        await migrateAsync(conn);
+            await migrateAsync(conn);
+        };
+
+        try
+        {
+            await tryMigrate();
+        }
+        catch (Exception)
+        {
+            await Task.Delay(new Random().Next(250, 1000).Milliseconds(), _cancellation);
+            await tryMigrate();
+        }
     }
 
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
