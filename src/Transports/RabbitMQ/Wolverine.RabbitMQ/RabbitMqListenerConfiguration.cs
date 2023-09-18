@@ -32,31 +32,7 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
 
         return this;
     }
-
-    /// <summary>
-    ///     Assume that any unidentified, incoming message types is the
-    ///     type "T". This is primarily for interoperability with non-Wolverine
-    ///     applications
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public RabbitMqListenerConfiguration DefaultIncomingMessage<T>()
-    {
-        return DefaultIncomingMessage(typeof(T));
-    }
-
-    /// <summary>
-    ///     Assume that any unidentified, incoming message types is the
-    ///     type "T". This is primarily for interoperability with non-Wolverine
-    ///     applications
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public RabbitMqListenerConfiguration DefaultIncomingMessage(Type messageType)
-    {
-        add(e => e.MessageType = messageType);
-        return this;
-    }
+    
 
     /// <summary>
     ///     Override the Rabbit MQ PreFetchCount value for just this endpoint for how many
