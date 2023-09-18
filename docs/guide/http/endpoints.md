@@ -46,7 +46,8 @@ for you in the generated code.
 ## Legal Endpoint Signatures
 
 ::: info
-It's actually possible to create custom conventions for 
+It's actually possible to create custom conventions for how Wolverine resolves method parameters to the endpoint methods
+using the `IParameterStrategy` plugin interface explained later in this page.
 :::
 
 First off, every endpoint method must be a `public` method on a `public` type to accomodate the runtime code generation.
