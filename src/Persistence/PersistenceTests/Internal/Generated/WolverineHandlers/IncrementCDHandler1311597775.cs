@@ -4,12 +4,12 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: IncrementCHandler427803021
-    public class IncrementCHandler427803021 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: IncrementCDHandler1311597775
+    public class IncrementCDHandler1311597775 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementCHandler427803021(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementCDHandler1311597775(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
@@ -19,20 +19,27 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             var letterAggregateHandler = new PersistenceTests.Marten.LetterAggregateHandler();
-            var incrementC = (PersistenceTests.Marten.IncrementC)context.Envelope.Message;
+            // The actual message body
+            var incrementCD = (PersistenceTests.Marten.IncrementCD)context.Envelope.Message;
+
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementC.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementCD.LetterAggregateId, incrementCD.Version, cancellation).ConfigureAwait(false);
 
-            letterAggregateHandler.Handle(incrementC, eventStream);
+            
+            // The actual message execution
+            (var outgoing1, var outgoing2) = letterAggregateHandler.Handle(incrementCD, eventStream.Aggregate);
+
+            eventStream.AppendOne(outgoing1);
+            eventStream.AppendOne(outgoing2);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 
     }
 
-    // END: IncrementCHandler427803021
+    // END: IncrementCDHandler1311597775
     
     
 }

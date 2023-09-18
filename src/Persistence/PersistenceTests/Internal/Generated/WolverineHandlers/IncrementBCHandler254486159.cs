@@ -4,12 +4,12 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: RaiseABCHandler830035639
-    public class RaiseABCHandler830035639 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: IncrementBCHandler254486159
+    public class IncrementBCHandler254486159 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public RaiseABCHandler830035639(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementBCHandler254486159(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
@@ -18,14 +18,20 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var raiseABC = (PersistenceTests.Marten.RaiseABC)context.Envelope.Message;
+            var letterAggregateHandler = new PersistenceTests.Marten.LetterAggregateHandler();
+            // The actual message body
+            var incrementBC = (PersistenceTests.Marten.IncrementBC)context.Envelope.Message;
+
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(raiseABC.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementBC.LetterAggregateId, incrementBC.Version, cancellation).ConfigureAwait(false);
 
-            (var outgoing1, var outgoing2) = PersistenceTests.Marten.RaiseLetterHandler.Handle(raiseABC, eventStream.Aggregate);
+            
+            // The actual message execution
+            var outgoing1 = letterAggregateHandler.Handle(incrementBC, eventStream.Aggregate);
+
             if (outgoing1 != null)
             {
                 
@@ -34,16 +40,12 @@ namespace Internal.Generated.WolverineHandlers
 
             }
 
-            
-            // Outgoing, cascaded message
-            await context.EnqueueCascadingAsync(outgoing2).ConfigureAwait(false);
-
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 
     }
 
-    // END: RaiseABCHandler830035639
+    // END: IncrementBCHandler254486159
     
     
 }

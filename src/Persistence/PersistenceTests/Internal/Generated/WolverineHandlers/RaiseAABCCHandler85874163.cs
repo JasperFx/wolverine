@@ -4,12 +4,12 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: RaiseBBCCCHandler1823402136
-    public class RaiseBBCCCHandler1823402136 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: RaiseAABCCHandler85874163
+    public class RaiseAABCCHandler85874163 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public RaiseBBCCCHandler1823402136(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public RaiseAABCCHandler85874163(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
@@ -18,14 +18,19 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var raiseBBCCC = (PersistenceTests.Marten.RaiseBBCCC)context.Envelope.Message;
+            // The actual message body
+            var raiseAABCC = (PersistenceTests.Marten.RaiseAABCC)context.Envelope.Message;
+
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(raiseBBCCC.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(raiseAABCC.LetterAggregateId, cancellation).ConfigureAwait(false);
 
-            (var outgoing1, var outgoing2, var outgoing3) = PersistenceTests.Marten.RaiseLetterHandler.Handle(raiseBBCCC, eventStream.Aggregate);
+            
+            // The actual message execution
+            (var outgoing1, var outgoing2) = PersistenceTests.Marten.RaiseLetterHandler.Handle(raiseAABCC, eventStream.Aggregate);
+
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
@@ -38,16 +43,12 @@ namespace Internal.Generated.WolverineHandlers
 
             }
 
-            
-            // Outgoing, cascaded message
-            await context.EnqueueCascadingAsync(outgoing3).ConfigureAwait(false);
-
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 
     }
 
-    // END: RaiseBBCCCHandler1823402136
+    // END: RaiseAABCCHandler85874163
     
     
 }

@@ -18,14 +18,19 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
+            // The actual message body
             var event3 = (PersistenceTests.Marten.Event3)context.Envelope.Message;
+
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.Aggregate>(event3.AggregateId, cancellation).ConfigureAwait(false);
 
+            
+            // The actual message execution
             var outgoing1 = PersistenceTests.Marten.FooHandler.Handle(event3, eventStream.Aggregate);
+
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);

@@ -10,8 +10,13 @@ namespace Internal.Generated.WolverineHandlers
 
         public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
+            // The actual message body
             var outgoing1 = (PersistenceTests.Marten.Outgoing1)context.Envelope.Message;
+
+            
+            // The actual message execution
             PersistenceTests.Marten.Outgoing1Handler.Handle(outgoing1);
+
             return System.Threading.Tasks.Task.CompletedTask;
         }
 

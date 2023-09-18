@@ -4,12 +4,12 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: IncrementDHandler831087548
-    public class IncrementDHandler831087548 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: RaiseOnlyDHandler792602939
+    public class RaiseOnlyDHandler792602939 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementDHandler831087548(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public RaiseOnlyDHandler792602939(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
@@ -18,21 +18,26 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var letterAggregateHandler = new PersistenceTests.Marten.LetterAggregateHandler();
-            var incrementD = (PersistenceTests.Marten.IncrementD)context.Envelope.Message;
+            // The actual message body
+            var raiseOnlyD = (PersistenceTests.Marten.RaiseOnlyD)context.Envelope.Message;
+
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementD.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(raiseOnlyD.LetterAggregateId, cancellation).ConfigureAwait(false);
 
-            await letterAggregateHandler.Handle(incrementD, eventStream).ConfigureAwait(false);
+            
+            // The actual message execution
+            var outgoing1 = PersistenceTests.Marten.RaiseLetterHandler.Handle(raiseOnlyD, eventStream.Aggregate);
+
+            eventStream.AppendOne(outgoing1);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 
     }
 
-    // END: IncrementDHandler831087548
+    // END: RaiseOnlyDHandler792602939
     
     
 }

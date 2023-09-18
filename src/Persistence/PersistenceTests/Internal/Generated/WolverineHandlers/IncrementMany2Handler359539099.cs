@@ -4,12 +4,12 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: IncrementManyHandler353257707
-    public class IncrementManyHandler353257707 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: IncrementMany2Handler359539099
+    public class IncrementMany2Handler359539099 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementManyHandler353257707(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementMany2Handler359539099(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
@@ -18,15 +18,20 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var letterAggregateHandler = new PersistenceTests.Marten.LetterAggregateHandler();
-            var incrementMany = (PersistenceTests.Marten.IncrementMany)context.Envelope.Message;
+            // The actual message body
+            var incrementMany2 = (PersistenceTests.Marten.IncrementMany2)context.Envelope.Message;
+
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(incrementMany.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.SelfLetteredAggregate>(incrementMany2.SelfLetteredAggregateId, cancellation).ConfigureAwait(false);
 
-            var outgoing1 = letterAggregateHandler.Handle(incrementMany, eventStream.Aggregate, documentSession);
+            if (eventStream.Aggregate == null) throw new Wolverine.Marten.UnknownAggregateException(typeof(PersistenceTests.Marten.SelfLetteredAggregate), incrementMany2.SelfLetteredAggregateId);
+            
+            // The actual message execution
+            var outgoing1 = eventStream.Aggregate.Handle(incrementMany2);
+
             if (outgoing1 != null)
             {
                 
@@ -40,7 +45,7 @@ namespace Internal.Generated.WolverineHandlers
 
     }
 
-    // END: IncrementManyHandler353257707
+    // END: IncrementMany2Handler359539099
     
     
 }

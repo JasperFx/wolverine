@@ -4,12 +4,12 @@ using Wolverine.Marten.Publishing;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: IncrementABHandler148798367
-    public class IncrementABHandler148798367 : Wolverine.Runtime.Handlers.MessageHandler
+    // START: RaiseABCHandler830035639
+    public class RaiseABCHandler830035639 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementABHandler148798367(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public RaiseABCHandler830035639(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
             _outboxedSessionFactory = outboxedSessionFactory;
         }
@@ -18,14 +18,19 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var incrementAB = (PersistenceTests.Marten.IncrementAB)context.Envelope.Message;
+            // The actual message body
+            var raiseABC = (PersistenceTests.Marten.RaiseABC)context.Envelope.Message;
+
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForExclusiveWriting<PersistenceTests.Marten.LetterAggregate>(incrementAB.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.LetterAggregate>(raiseABC.LetterAggregateId, cancellation).ConfigureAwait(false);
 
-            var outgoing1 = PersistenceTests.Marten.SpecialLetterHandler.Handle(incrementAB, eventStream.Aggregate);
+            
+            // The actual message execution
+            (var outgoing1, var outgoing2) = PersistenceTests.Marten.RaiseLetterHandler.Handle(raiseABC, eventStream.Aggregate);
+
             if (outgoing1 != null)
             {
                 
@@ -34,12 +39,16 @@ namespace Internal.Generated.WolverineHandlers
 
             }
 
+            
+            // Outgoing, cascaded message
+            await context.EnqueueCascadingAsync(outgoing2).ConfigureAwait(false);
+
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
 
     }
 
-    // END: IncrementABHandler148798367
+    // END: RaiseABCHandler830035639
     
     
 }

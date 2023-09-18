@@ -8,12 +8,12 @@ namespace Internal.Generated.WolverineHandlers
     // START: IncrementA2Handler148798447
     public class IncrementA2Handler148798447 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.SelfLetteredAggregate> _logger;
+        private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.SelfLetteredAggregate> _logger_of_SelfLetteredAggregate1492357145;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementA2Handler148798447(Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.SelfLetteredAggregate> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementA2Handler148798447([Lamar.Named("logger2")] Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.SelfLetteredAggregate> logger_of_SelfLetteredAggregate1492357145, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
-            _logger = logger;
+            _logger_of_SelfLetteredAggregate1492357145 = logger_of_SelfLetteredAggregate1492357145;
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
@@ -21,7 +21,9 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
+            // The actual message body
             var incrementA2 = (PersistenceTests.Marten.IncrementA2)context.Envelope.Message;
+
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
             
@@ -29,7 +31,10 @@ namespace Internal.Generated.WolverineHandlers
             var eventStream = await eventStore.FetchForWriting<PersistenceTests.Marten.SelfLetteredAggregate>(incrementA2.SelfLetteredAggregateId, cancellation).ConfigureAwait(false);
 
             if (eventStream.Aggregate == null) throw new Wolverine.Marten.UnknownAggregateException(typeof(PersistenceTests.Marten.SelfLetteredAggregate), incrementA2.SelfLetteredAggregateId);
-            var outgoing1 = eventStream.Aggregate.Handle(incrementA2, _logger);
+            
+            // The actual message execution
+            var outgoing1 = eventStream.Aggregate.Handle(incrementA2, _logger_of_SelfLetteredAggregate1492357145);
+
             eventStream.AppendOne(outgoing1);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }

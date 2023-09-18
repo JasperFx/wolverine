@@ -8,6 +8,7 @@ using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 
@@ -36,6 +37,11 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
                 var saveChanges = MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
                 saveChanges.CommentText = "Commit any outstanding Marten changes";
                 chain.Postprocessors.Add(saveChanges);
+
+                var methodCall = MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
+                methodCall.CommentText = "Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536";
+                
+                chain.Postprocessors.Add(methodCall);
             }
         }
     }
