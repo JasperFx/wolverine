@@ -1,7 +1,10 @@
+using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using TestMessages;
+using Wolverine.AzureServiceBus.Internal;
+using Wolverine.Util;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
@@ -95,4 +98,56 @@ public class Samples
 
         #endregion
     }
+
+    public static async Task configure_custom_mappers()
+    {
+        #region sample_configuring_custom_envelope_mapper_for_azure_service_bus
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAzureServiceBus("some connection string")
+                    .UseConventionalRouting()
+
+                    .ConfigureListeners(l => l.InteropWith(new CustomAzureServiceBusMapper()))
+
+                    .ConfigureSenders(s => s.InteropWith(new CustomAzureServiceBusMapper()));
+            }).StartAsync();
+
+        #endregion
+    }
 }
+
+
+
+#region sample_custom_azure_service_bus_mapper
+
+public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
+{
+    public void MapEnvelopeToOutgoing(Envelope envelope, ServiceBusMessage outgoing)
+    {
+        outgoing.Body = new BinaryData(envelope.Data);
+        if (envelope.DeliverWithin != null)
+        {
+            outgoing.TimeToLive = envelope.DeliverWithin.Value;
+        }
+    }
+
+    public void MapIncomingToEnvelope(Envelope envelope, ServiceBusReceivedMessage incoming)
+    {
+        envelope.Data = incoming.Body.ToArray();
+        
+        // You will have to help Wolverine out by either telling Wolverine
+        // what the message type is, or by reading the actual message object,
+        // or by telling Wolverine separately what the default message type
+        // is for a listening endpoint
+        envelope.MessageType = typeof(Message1).ToMessageTypeName();
+    }
+
+    public IEnumerable<string> AllHeaders()
+    {
+        yield break;
+    }
+}
+
+#endregion

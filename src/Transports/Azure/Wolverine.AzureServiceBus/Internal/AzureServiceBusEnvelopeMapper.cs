@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-internal class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage>
+internal class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage>, IAzureServiceBusEnvelopeMapper
 {
     public AzureServiceBusEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {

@@ -42,4 +42,15 @@ public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfigurati
 
         return this;
     }
+    
+    /// <summary>
+    /// Utilize custom envelope mapping for Amazon Service Bus interoperability with external non-Wolverine systems
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public AzureServiceBusQueueSubscriberConfiguration InteropWith(IAzureServiceBusEnvelopeMapper mapper)
+    {
+        add(e => e.Mapper = mapper);
+        return this;
+    }
 }
