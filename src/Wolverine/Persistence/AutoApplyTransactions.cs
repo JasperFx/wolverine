@@ -25,7 +25,5 @@ internal class AutoApplyTransactions : IChainPolicy
                 potentials.Single().ApplyTransactionSupport(chain, container);
             }
         }
-
-        Debug.WriteLine("done");
     }
 }

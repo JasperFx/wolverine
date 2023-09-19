@@ -220,7 +220,7 @@ public sealed partial class WolverineOptions : IPolicies
         if (policy == null)
         {
             policy = new MiddlewarePolicy();
-            RegisteredPolicies.Add(policy);
+            RegisteredPolicies.Insert(0, policy);
         }
 
         return policy;
