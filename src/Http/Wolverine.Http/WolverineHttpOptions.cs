@@ -18,8 +18,43 @@ public enum JsonUsage
     NewtonsoftJson
 }
 
+public interface ITenantDetectionPolicies
+{
+    /// <summary>
+    /// Try to detect the tenant id from the named route argument
+    /// </summary>
+    /// <param name="routeArgumentName"></param>
+    void IsRouteArgumentNamed(string routeArgumentName);
+
+    /// <summary>
+    /// Try to detect the tenant id from an expected query string value
+    /// </summary>
+    /// <param name="key"></param>
+    void IsQueryStringValue(string key);
+
+    /// <summary>
+    /// Try to detect the tenant id from a request header
+    /// if it exists
+    /// </summary>
+    /// <param name="headerKey"></param>
+    void IsRequestHeaderValue(string headerKey);
+
+    /// <summary>
+    /// Try to detect the tenant id from the ClaimsPrincipal for the
+    /// current request
+    /// </summary>
+    /// <param name="claimType"></param>
+    void IsClaimTypeNamed(string claimType);
+
+    /// <summary>
+    /// Assert that the tenant id was successfully detected, and if no tenant id
+    /// is found, return a ProblemDetails with a 400 status code
+    /// </summary>
+    void AssertExists();
+}
+
 [Singleton]
-public class WolverineHttpOptions
+public class WolverineHttpOptions : ITenantDetectionPolicies
 {
     public WolverineHttpOptions()
     {
@@ -39,6 +74,11 @@ public class WolverineHttpOptions
     internal MiddlewarePolicy Middleware { get; } = new();
 
     public List<IHttpPolicy> Policies { get; } = new();
+
+    /// <summary>
+    /// Configure built in tenant id detection strategies
+    /// </summary>
+    public ITenantDetectionPolicies TenantId => this;
 
     /// <summary>
     /// Opt into using Newtonsoft.Json for all JSON serialization in the Wolverine
@@ -161,5 +201,53 @@ public class WolverineHttpOptions
     public void PublishMessage<T>(string url, Action<HttpChain>? customize = null)
     {
         PublishMessage<T>(HttpMethod.Post, url, customize);
+    }
+
+    void ITenantDetectionPolicies.IsRouteArgumentNamed(string routeArgumentName)
+    {
+        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
+        {
+            chain.ContextModifiers.Add(new RouteArgumentTenantDetectionFrame(routeArgumentName));
+        }));
+    }
+
+    void ITenantDetectionPolicies.IsQueryStringValue(string key)
+    {
+        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
+        {
+            chain.ContextModifiers.Add(new QueryStringTenantDetectionFrame(key));
+        }));
+    }
+
+    void ITenantDetectionPolicies.IsRequestHeaderValue(string headerKey)
+    {
+        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
+        {
+            chain.ContextModifiers.Add(new RequestHeaderTenantDetectionFrame(headerKey));
+        }));
+    }
+
+    void ITenantDetectionPolicies.IsClaimTypeNamed(string claimType)
+    {
+        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
+        {
+            chain.ContextModifiers.Add(new ClaimTypeTenantDetectionFrame(claimType));
+        }));
+    }
+
+    void ITenantDetectionPolicies.AssertExists()
+    {
+        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
+        {
+            var methodCall = new MethodCall(typeof(TenantIdDetection), nameof(TenantIdDetection.AssertTenantIdExists))
+            {
+                CommentText = "Asserting that the tenant id has been successfully detected"
+            };
+            
+            methodCall.ReturnVariable.OverrideName("wasTenantIdDetected");
+            
+            chain.Middleware.Add(methodCall);
+            chain.Middleware.Add(new MaybeEndWithProblemDetailsFrame(methodCall.ReturnVariable));
+        }));
     }
 }
