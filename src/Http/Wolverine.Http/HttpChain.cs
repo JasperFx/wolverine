@@ -50,6 +50,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private GeneratedType? _generatedType;
     private Type? _handlerType;
     private string _description;
+    
+    public List<Frame> ContextModifiers { get; } = new();
 
     public HttpChain(MethodCall method, HttpGraph parent)
     {

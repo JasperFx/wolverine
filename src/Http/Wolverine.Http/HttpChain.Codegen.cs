@@ -78,6 +78,11 @@ public partial class HttpChain
             Postprocessors.Add(new WriteEmptyBodyStatusCode());
         }
 
+        foreach (var frame in ContextModifiers)
+        {
+            yield return frame;
+        }
+
         var index = 0;
         foreach (var frame in Middleware)
         {
