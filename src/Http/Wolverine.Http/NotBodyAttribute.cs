@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http.Metadata;
+
 namespace Wolverine.Http;
 
 /// <summary>
@@ -6,6 +8,7 @@ namespace Wolverine.Http;
 ///     HTTP request body
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue)]
-public class NotBodyAttribute : Attribute
+public class NotBodyAttribute : Attribute, IFromServiceMetadata
 {
 }
+
