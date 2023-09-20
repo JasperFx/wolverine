@@ -1,6 +1,7 @@
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Wolverine.Http.Runtime;
+using Wolverine.Persistence;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -11,6 +12,8 @@ internal class RouteArgumentTenantDetectionFrame : MethodCall
         CommentText =
             $"Try to set the tenant id of the message context based on the route argument '{routeArgumentName}'";
         Arguments[2] = Constant.ForString(routeArgumentName);
+        
+        ReturnVariable!.OverrideName(PersistenceConstants.TenantIdVariableName);
     }
 }
 
@@ -20,6 +23,8 @@ internal class QueryStringTenantDetectionFrame : MethodCall
     {
         CommentText = $"Try to set the tenant id of the message context based on the query string value '{key}'";
         Arguments[2] = Constant.ForString(key);
+        
+        ReturnVariable!.OverrideName(PersistenceConstants.TenantIdVariableName);
     }
 }
 
@@ -30,6 +35,8 @@ internal class RequestHeaderTenantDetectionFrame : MethodCall
         CommentText =
             $"Try to set the tenant id of the message context based on the value of request header '{headerKey}'";
         Arguments[2] = Constant.ForString(headerKey);
+        
+        ReturnVariable!.OverrideName(PersistenceConstants.TenantIdVariableName);
     }
 }
 
@@ -39,5 +46,7 @@ internal class ClaimTypeTenantDetectionFrame : MethodCall
     {
         CommentText = $"Try to set the tenant id of the message context based on the value of claim '{claimType}'";
         Arguments[2] = Constant.ForString(claimType);
+        
+        ReturnVariable!.OverrideName(PersistenceConstants.TenantIdVariableName);
     }
 }

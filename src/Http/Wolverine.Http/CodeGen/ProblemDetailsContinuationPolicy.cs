@@ -50,7 +50,7 @@ internal class MaybeEndWithProblemDetailsFrame : AsyncFrame
     {
         writer.WriteComment("Evaluate whether the processing should stop if there are any problems");
         writer.Write($"BLOCK:if (!(ReferenceEquals({_details.Usage}, {typeof(WolverineContinue).FullNameInCode()}.{nameof(WolverineContinue.NoProblems)})))");
-        writer.Write($"await Microsoft.AspNetCore.Http.Results.Problem({_details.Usage}).{nameof(IResult.ExecuteAsync)}({_context!.Usage}).ConfigureAwait(false);");
+        writer.Write($"await {nameof(HttpHandler.WriteProblems)}({_details.Usage}, {_context!.Usage}).ConfigureAwait(false);");
         writer.Write("return;");
         writer.FinishBlock();
         writer.BlankLine();

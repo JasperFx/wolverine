@@ -99,6 +99,13 @@ public record CreationResponse(string Url) : IHttpAware
         context.Response.Headers.Location = Url;
         context.Response.StatusCode = 201;
     }
+
+    public static CreationResponse<T> For<T>(T value, string url) => new CreationResponse<T>(url, value);
 }
 
 #endregion
+
+public record CreationResponse<T>(string Url, T Value) : CreationResponse(Url)
+{
+    
+}

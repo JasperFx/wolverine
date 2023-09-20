@@ -7,6 +7,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Wolverine.Http.Resources;
+using Wolverine.Persistence;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
@@ -77,6 +78,12 @@ public partial class HttpChain
         {
             Postprocessors.Add(new WriteEmptyBodyStatusCode());
         }
+
+        // Fugly I know, but only the very first detector should be assigning the initial variable
+        ContextModifiers.OfType<MethodCall>()
+            .Where(x => x.ReturnVariable?.Usage == PersistenceConstants.TenantIdVariableName)
+            .Skip(1)
+            .Each(x => x.ReturnAction = ReturnAction.Assign);
 
         foreach (var frame in ContextModifiers)
         {

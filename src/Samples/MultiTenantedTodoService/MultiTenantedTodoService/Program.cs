@@ -69,6 +69,15 @@ if (app.Environment.IsDevelopment())
 }
 
 // Let's add in Wolverine HTTP endpoints to the routing tree
-app.MapWolverineEndpoints();
+app.MapWolverineEndpoints(opts =>
+{
+    // Letting Wolverine HTTP automatically detect the tenant id!
+    opts.TenantId.IsRouteArgumentNamed("tenant");
+    
+    // Assert that the tenant id was successfully detected,
+    // or pull the rip cord on the request and return a 
+    // 400 w/ ProblemDetails
+    opts.TenantId.AssertExists();
+});
 
 return await app.RunOaktonCommands(args);

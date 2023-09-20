@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Headers;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using JsonSerializer = System.Text.Json.JsonSerializer;
@@ -120,5 +121,11 @@ public abstract class HttpHandler
         }
         
         return context.Response.WriteAsJsonAsync(body, _options.JsonSerializerOptions, context.RequestAborted);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Task WriteProblems(ProblemDetails details, HttpContext context)
+    {
+        return Results.Problem(details).ExecuteAsync(context);
     }
 }

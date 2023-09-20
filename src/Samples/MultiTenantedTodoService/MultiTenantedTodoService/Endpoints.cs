@@ -1,6 +1,8 @@
+using JasperFx.Core;
 using Marten;
 using Wolverine;
 using Wolverine.Http;
+using Wolverine.Marten;
 
 namespace MultiTenantedTodoWebService;
 
@@ -29,49 +31,53 @@ public record TodoCreated(int Id);
 public static class TodoEndpoints
 {
     [WolverineGet("/todoitems/{tenant}")]
-    public static Task<IReadOnlyList<Todo>> Get(string tenant, IDocumentStore store)
+    public static Task<IReadOnlyList<Todo>> Get(string tenant, IQuerySession session)
     {
-        using var session = store.QuerySession(tenant);
         return session.Query<Todo>().ToListAsync();
     }
 
     [WolverineGet("/todoitems/{tenant}/complete")]
-    public static Task<IReadOnlyList<Todo>> GetComplete(string tenant, IDocumentStore store)
-    {
-        using var session = store.QuerySession(tenant);
-        return session.Query<Todo>().Where(x => x.IsComplete).ToListAsync();
-    }
+    public static Task<IReadOnlyList<Todo>> GetComplete(IQuerySession session) 
+        => session
+            .Query<Todo>()
+            .Where(x => x.IsComplete)
+            .ToListAsync();
 
     // Wolverine can infer the 200/404 status codes for you here
     // so there's no code noise just to satisfy OpenAPI tooling
     [WolverineGet("/todoitems/{tenant}/{id}")]
-    public static async Task<Todo?> GetTodo(int id, string tenant, IDocumentStore store, CancellationToken cancellation)
+    public static Task<Todo?> GetTodo(int id, string tenant, IQuerySession session, CancellationToken cancellation)
     {
-        using var session = store.QuerySession(tenant);
-        var todo = await session.LoadAsync<Todo>(id, cancellation);
-
-        return todo;
+        return session.LoadAsync<Todo>(id, cancellation);
     }
 
     #region sample_calling_invoke_for_tenant_async_with_expected_result
 
     [WolverinePost("/todoitems/{tenant}")]
-    public static async Task<IResult> Create(string tenant, CreateTodo command, IMessageBus bus)
+    public static CreationResponse<TodoCreated> Create(
+        // Only need this to express the location of the newly created
+        // Todo object
+        string tenant, 
+        CreateTodo command, 
+        IDocumentSession session)
     {
-        // At the 1.0 release, you would have to use Wolverine as a mediator
-        // to get the full multi-tenancy feature set.
+        var todo = new Todo { Name = command.Name };
         
-        // That hopefully changes in 1.1
-        var created = await bus.InvokeForTenantAsync<TodoCreated>(tenant, command);
+        // Marten itself sets the Todo.Id identity
+        // in this call
+        session.Store(todo); 
 
-        return Results.Created($"/todoitems/{tenant}/{created.Id}", created);
+        // New syntax in Wolverine.HTTP 1.7
+        // Helps Wolverine 
+        return CreationResponse.For(new TodoCreated(todo.Id), $"/todoitems/{tenant}/{todo.Id}");
     }
 
     #endregion
 
     #region sample_invoke_for_tenant
 
-    [WolverineDelete("/todoitems/{tenant}")]
+    // While this is still valid....
+    [WolverineDelete("/todoitems/{tenant}/longhand")]
     public static async Task Delete(
         string tenant, 
         DeleteTodo command, 
@@ -79,6 +85,19 @@ public static class TodoEndpoints
     {
         // Invoke inline for the specified tenant
         await bus.InvokeForTenantAsync(tenant, command);
+    }
+    
+    // Wolverine.HTTP 1.7 added multi-tenancy support so
+    // this short hand works without the extra jump through
+    // "Wolverine as Mediator"
+    [WolverineDelete("/todoitems/{tenant}")]
+    public static void Delete(
+        DeleteTodo command, IDocumentSession session)
+    {
+        // Just mark this document as deleted,
+        // and Wolverine middleware takes care of the rest
+        // including the multi-tenancy detection now
+        session.Delete<Todo>(command.Id);
     }
 
     #endregion
@@ -91,21 +110,7 @@ public static class TodoCreatedHandler
     {
         session.Delete<Todo>(command.Id);
     }
-    
-    public static TodoCreated Handle(CreateTodo command, IDocumentSession session)
-    {
-        var todo = new Todo { Name = command.Name };
-        session.Store(todo);
-
-        return new TodoCreated(todo.Id);
-    }
-    
-    // Do something in the background, like assign it to someone,
-    // send out emails or texts, alerts, whatever
-    public static void Handle(TodoCreated created, ILogger logger)
-    {
-        logger.LogInformation("Got a new TodoCreated event for " + created.Id);
-    }    
+ 
 }
 
 

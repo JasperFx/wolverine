@@ -9,31 +9,37 @@ public static class TenantIdDetection
 {
     public const string NoMandatoryTenantIdCouldBeDetectedForThisHttpRequest = "No mandatory tenant id could be detected for this HTTP request";
 
-    public static void TryReadFromRoute(HttpContext httpContext, MessageContext messageContext, string argumentName)
+    public static string? TryReadFromRoute(HttpContext httpContext, MessageContext messageContext, string argumentName)
     {
         if (messageContext.TenantId.IsEmpty() && httpContext.Request.RouteValues.TryGetValue(argumentName, out var value))
         {
             messageContext.TenantId = value?.ToString();
         }
+
+        return messageContext.TenantId;
     }
 
-    public static void TryReadFromQueryString(HttpContext httpContext, MessageContext messageContext, string key)
+    public static string? TryReadFromQueryString(HttpContext httpContext, MessageContext messageContext, string key)
     {
         if (messageContext.TenantId.IsEmpty() && httpContext.Request.Query.TryGetValue(key, out var value))
         {
             messageContext.TenantId = value;
         }
+        
+        return messageContext.TenantId;
     }
     
-    public static void TryReadFromRequestHeader(HttpContext httpContext, MessageContext messageContext, string headerName)
+    public static string? TryReadFromRequestHeader(HttpContext httpContext, MessageContext messageContext, string headerName)
     {
         if (messageContext.TenantId.IsEmpty() && httpContext.Request.Headers.TryGetValue(headerName, out var value))
         {
             messageContext.TenantId = value;
         }
+        
+        return messageContext.TenantId;
     }
     
-    public static void TryReadFromClaimsPrincipal(HttpContext httpContext, MessageContext messageContext, string claimType)
+    public static string? TryReadFromClaimsPrincipal(HttpContext httpContext, MessageContext messageContext, string claimType)
     {
         if (messageContext.TenantId.IsEmpty())
         {
@@ -44,6 +50,8 @@ public static class TenantIdDetection
                 messageContext.TenantId = claim.Value;
             }
         }
+        
+        return messageContext.TenantId;
     }
 
     public static ProblemDetails AssertTenantIdExists(MessageContext messageContext)

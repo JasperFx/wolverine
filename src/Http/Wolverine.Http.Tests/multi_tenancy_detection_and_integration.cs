@@ -25,22 +25,32 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         theHost.Dispose();
     }
 
+    // The configuration of the Wolverine.HTTP endpoints is the only variable
+    // part of the test, so isolate all this test setup noise here so
+    // each test can more clearly communicate the relationship between
+    // Wolverine configuration and the desired behavior
     protected async Task configure(Action<WolverineHttpOptions> configure)
     {
         var builder = WebApplication.CreateBuilder(Array.Empty<string>());
         builder.Services.AddScoped<IUserService, UserService>();
 
+        // Haven't gotten around to it yet, but there'll be some end to
+        // end tests in a bit from the ASP.Net request all the way down
+        // to the underlying tenant databases
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
         
+        // Defaults are good enough here
         builder.Host.UseWolverine();
         
-        // Setting up Alba stubbed authentication
+        // Setting up Alba stubbed authentication so that we can fake
+        // out ClaimsPrincipal data on requests later
         var securityStub = new AuthenticationStub()
             .With("foo", "bar")
             .With(JwtRegisteredClaimNames.Email, "guy@company.com")
             .WithName("jeremy");
         
+        // Spinning up a test application using Alba 
         theHost = await AlbaHost.For(builder, app =>
         {
             app.MapWolverineEndpoints(configure);
@@ -49,17 +59,24 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
 
     public async ValueTask DisposeAsync()
     {
+        // Hey, this is important!
+        // Make sure you clean up after your tests
+        // to make the subsequent tests run cleanly
         await theHost.StopAsync();
     }
 
     [Fact]
     public async Task get_the_tenant_id_from_route_value()
     {
+        // Set up a new application with the desired configuration
         await configure(opts => opts.TenantId.IsRouteArgumentNamed("tenant"));
         
-        var result = await theHost.Scenario(x => x.Get.Url("/tenant/route/foo"));
+        // Run a web request end to end in memory
+        var result = await theHost.Scenario(x => x.Get.Url("/tenant/route/chartreuse"));
         
-        result.ReadAsText().ShouldBe("foo");
+        // Make sure it worked!
+        // ZZ Top FTW! https://www.youtube.com/watch?v=uTjgZEapJb8
+        result.ReadAsText().ShouldBe("chartreuse");
     }
 
     [Fact]
@@ -80,6 +97,9 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         var result = await theHost.Scenario(x =>
         {
             x.Get.Url("/tenant");
+            
+            // Alba is helping set up the request header
+            // for me here
             x.WithRequestHeader("tenant", "green");
         });
         
@@ -94,6 +114,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         var result = await theHost.Scenario(x =>
         {
             x.Get.Url("/tenant");
+            
+            // Add a Claim to *only* this request
             x.WithClaim(new Claim("tenant", "blue"));
         });
         
@@ -167,11 +189,22 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         var results = await theHost.Scenario(x =>
         {
             x.Get.Url("/tenant");
+            
+            // Tell Alba we expect a non-200 response
             x.StatusCodeShouldBe(400);
         });
 
+        // Alba's helpers to deserialize JSON responses
+        // to a strong typed object for easy
+        // assertions
         var details = results.ReadAsJson<ProblemDetails>();
-        details.Detail.ShouldBe(TenantIdDetection.NoMandatoryTenantIdCouldBeDetectedForThisHttpRequest);
+        
+        // I like to refer to constants in test assertions sometimes
+        // so that you can tweak error messages later w/o breaking
+        // automated tests. And inevitably regret it when I 
+        // don't do this
+        details.Detail.ShouldBe(TenantIdDetection
+            .NoMandatoryTenantIdCouldBeDetectedForThisHttpRequest);
     }
 }
 

@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
@@ -151,7 +152,6 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         
         // This let's Wolverine weave in middleware that might return IResult
         runtime.Options.CodeGeneration.AddContinuationStrategy<ResultContinuationPolicy>();
-        
 
         // Making sure this exists
         var options = container.GetInstance<WolverineHttpOptions>();

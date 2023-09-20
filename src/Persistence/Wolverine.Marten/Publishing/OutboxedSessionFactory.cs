@@ -55,6 +55,16 @@ public class OutboxedSessionFactory
             : _factory.QuerySession();
     }
     
+    /// <summary>Build new instances of IQuerySession on demand</summary>
+    /// <returns></returns>
+    public IQuerySession QuerySession(MessageContext context, string? tenantId)
+    {
+        tenantId ??= context.Envelope?.TenantId;
+        return tenantId.IsNotEmpty() 
+            ? _store.QuerySession(tenantId) 
+            : _factory.QuerySession();
+    }
+    
     public IQuerySession QuerySession(IMessageContext context)
     {
         var tenantId = context.Envelope?.TenantId ?? context.TenantId;
@@ -67,6 +77,18 @@ public class OutboxedSessionFactory
     /// <returns></returns>
     public IDocumentSession OpenSession(MessageContext context)
     {
+        var session = _builder(context);
+
+        configureSession(context, session);
+
+        return session;
+    }
+    
+    /// <summary>Build new instances of IDocumentSession on demand</summary>
+    /// <returns></returns>
+    public IDocumentSession OpenSession(MessageContext context, string? tenantId)
+    {
+        context.TenantId ??= tenantId;
         var session = _builder(context);
 
         configureSession(context, session);
