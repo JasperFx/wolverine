@@ -3,6 +3,7 @@ using Alba;
 using Alba.Security;
 using IntegrationTests;
 using Marten;
+using Marten.Metadata;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -41,7 +42,10 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             .IntegrateWithWolverine();
         
         // Defaults are good enough here
-        builder.Host.UseWolverine();
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Policies.AutoApplyTransactions();
+        });
         
         // Setting up Alba stubbed authentication so that we can fake
         // out ClaimsPrincipal data on requests later
@@ -55,6 +59,9 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         {
             app.MapWolverineEndpoints(configure);
         }, securityStub);
+
+        await theHost.Services.GetRequiredService<IDocumentStore>().Advanced.Clean
+            .DeleteDocumentsByTypeAsync(typeof(TenantTodo));
     }
 
     public async ValueTask DisposeAsync()
@@ -206,6 +213,48 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         details.Detail.ShouldBe(TenantIdDetection
             .NoMandatoryTenantIdCouldBeDetectedForThisHttpRequest);
     }
+
+    [Fact]
+    public async Task end_to_end_through_marten()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsRequestHeaderValue("tenant");
+            opts.TenantId.IsQueryStringValue("tenant");
+        });
+        
+        // Create todo to "red"
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new CreateTodo("one", "red one")).ToUrl("/todo/create");
+            x.WithRequestHeader("tenant", "red");
+            x.StatusCodeShouldBe(204);
+        });
+        
+        // Create same id todo to "blue"
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new CreateTodo("one", "blue one")).ToUrl("/todo/create");
+            x.WithRequestHeader("tenant", "blue");
+            x.StatusCodeShouldBe(204);
+        });
+        
+        // retrieve red one
+        var result1 = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/todo/one");
+            x.WithRequestHeader("tenant", "red");
+        });
+        result1.ReadAsJson<TenantTodo>().Description.ShouldBe("red one");
+        
+        // retrieve blue one
+        var result2 = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/todo/one");
+            x.WithRequestHeader("tenant", "blue");
+        });
+        result2.ReadAsJson<TenantTodo>().Description.ShouldBe("blue one");
+    }
 }
 
 
@@ -222,4 +271,31 @@ public static class TenantedEndpoints
     {
         return bus.TenantId;
     }
+    
+    [WolverineGet("/todo/{id}")]
+    public static Task<TenantTodo?> Get(string id, IQuerySession session)
+    {
+        return session.LoadAsync<TenantTodo>(id);
+    }
+
+    [WolverinePost("/todo/create")]
+    public static IMartenOp Create(CreateTodo command)
+    {
+        return MartenOps.Insert(new TenantTodo
+        {
+            Id = command.Id,
+            Description = command.Description
+        });
+    }
+
+
+}
+
+public record CreateTodo(string Id, string Description);
+
+public class TenantTodo : ITenanted
+{
+    public string Id { get; set; }
+    public string Description { get; set; }
+    public string TenantId { get; set; }
 }
