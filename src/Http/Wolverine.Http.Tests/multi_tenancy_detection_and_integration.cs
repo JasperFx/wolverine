@@ -217,9 +217,15 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
     {
         await configure(opts =>
         {
+            opts.TenantId.IsSubDomainName();
             opts.TenantId.IsRequestHeaderValue("tenant");
             opts.TenantId.IsQueryStringValue("tenant");
+            opts.TenantId.AssertExists();
         });
+
+        
+        await theHost.Services.GetRequiredService<IDocumentStore>().Advanced.Clean
+            .DeleteDocumentsByTypeAsync(typeof(TenantTodo));
         
         // Create todo to "red"
         await theHost.Scenario(x =>

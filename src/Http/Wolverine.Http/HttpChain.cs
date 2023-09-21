@@ -9,7 +9,6 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
@@ -51,8 +50,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private Type? _handlerType;
     private string _description;
     
-    public List<Frame> ContextModifiers { get; } = new();
-
     public HttpChain(MethodCall method, HttpGraph parent)
     {
         _description = method.ToString();
@@ -159,7 +156,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// Required TenancyMode for this http chain
     /// </summary>
     public TenancyMode? TenancyMode { get; set; }
-
+    
 
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {

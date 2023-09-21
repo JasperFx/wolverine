@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.Headers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Wolverine.Http.Runtime;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Wolverine.Http;
@@ -18,6 +19,26 @@ public abstract class HttpHandler
     public HttpHandler(WolverineHttpOptions wolverineHttpOptions)
     {
         _options = wolverineHttpOptions;
+    }
+
+    public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
+    {
+        foreach (var strategy in _options.TenantIdDetection.Strategies)
+        {
+            var tenantId = await strategy.DetectTenant(httpContext);
+            if (tenantId.IsNotEmpty()) return tenantId;
+        }
+
+        return null;
+    }
+
+    public Task WriteTenantIdNotFound(HttpContext context)
+    {
+        return Results.Problem(new ProblemDetails
+        {
+            Status = 400,
+            Detail = TenantIdDetection.NoMandatoryTenantIdCouldBeDetectedForThisHttpRequest
+        }).ExecuteAsync(context);
     }
 
     public abstract Task Handle(HttpContext httpContext);

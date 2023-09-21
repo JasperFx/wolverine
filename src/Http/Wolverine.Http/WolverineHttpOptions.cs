@@ -46,6 +46,13 @@ public interface ITenantDetectionPolicies
     /// <param name="claimType"></param>
     void IsClaimTypeNamed(string claimType);
 
+
+    /// <summary>
+    /// Simplistic tenant id detection that uses the sub domain name of the current
+    /// request location as the tenant id
+    /// </summary>
+    void IsSubDomainName();
+
     /// <summary>
     /// Assert that the tenant id was successfully detected, and if no tenant id
     /// is found, return a ProblemDetails with a 400 status code
@@ -54,19 +61,21 @@ public interface ITenantDetectionPolicies
 }
 
 [Singleton]
-public class WolverineHttpOptions : ITenantDetectionPolicies
+public class WolverineHttpOptions
 {
     public WolverineHttpOptions()
     {
         Policies.Add(new HttpAwarePolicy());
         Policies.Add(new RequestIdPolicy());
         Policies.Add(new RequiredEntityPolicy());
+        
+        Policies.Add(TenantIdDetection);
     }
 
+    internal TenantIdDetection TenantIdDetection { get; } = new();
+
     internal JsonSerializerOptions JsonSerializerOptions { get; set; } = new();
-
-
-
+    
     internal JsonSerializerSettings NewtonsoftSerializerSettings { get; set; } = new();
     
     internal HttpGraph? Endpoints { get; set; }
@@ -78,7 +87,7 @@ public class WolverineHttpOptions : ITenantDetectionPolicies
     /// <summary>
     /// Configure built in tenant id detection strategies
     /// </summary>
-    public ITenantDetectionPolicies TenantId => this;
+    public ITenantDetectionPolicies TenantId => TenantIdDetection;
 
     /// <summary>
     /// Opt into using Newtonsoft.Json for all JSON serialization in the Wolverine
@@ -202,60 +211,5 @@ public class WolverineHttpOptions : ITenantDetectionPolicies
     {
         PublishMessage<T>(HttpMethod.Post, url, customize);
     }
-
-    void ITenantDetectionPolicies.IsRouteArgumentNamed(string routeArgumentName)
-    {
-        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
-        {
-            if (chain.TenancyMode == TenancyMode.None) return;
-            
-            chain.ContextModifiers.Add(new RouteArgumentTenantDetectionFrame(routeArgumentName));
-        }));
-    }
-
-    void ITenantDetectionPolicies.IsQueryStringValue(string key)
-    {
-        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
-        {
-            if (chain.TenancyMode == TenancyMode.None) return;
-            chain.ContextModifiers.Add(new QueryStringTenantDetectionFrame(key));
-        }));
-    }
-
-    void ITenantDetectionPolicies.IsRequestHeaderValue(string headerKey)
-    {
-        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
-        {
-            if (chain.TenancyMode == TenancyMode.None) return;
-            chain.ContextModifiers.Add(new RequestHeaderTenantDetectionFrame(headerKey));
-        }));
-    }
-
-    void ITenantDetectionPolicies.IsClaimTypeNamed(string claimType)
-    {
-        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
-        {
-            if (chain.TenancyMode == TenancyMode.None) return;
-            chain.ContextModifiers.Add(new ClaimTypeTenantDetectionFrame(claimType));
-        }));
-    }
-
-    void ITenantDetectionPolicies.AssertExists()
-    {
-        Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
-        {
-            // Do not apply if there is an explicit override of the tenancy mode to none or maybe
-            if (chain.TenancyMode is TenancyMode.None or TenancyMode.Maybe) return;
-            
-            var methodCall = new MethodCall(typeof(TenantIdDetection), nameof(TenantIdDetection.AssertTenantIdExists))
-            {
-                CommentText = "Asserting that the tenant id has been successfully detected"
-            };
-            
-            methodCall.ReturnVariable.OverrideName("wasTenantIdDetected");
-            
-            chain.Middleware.Add(methodCall);
-            chain.Middleware.Add(new MaybeEndWithProblemDetailsFrame(methodCall.ReturnVariable));
-        }));
-    }
+    
 }
