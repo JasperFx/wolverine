@@ -8,6 +8,7 @@ using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
 using Wolverine.Http.Runtime;
+using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Middleware;
 
 namespace Wolverine.Http;
