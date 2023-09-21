@@ -154,6 +154,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public override string Description => _description;
 
     internal RouteEndpoint? Endpoint { get; private set; }
+    
+    /// <summary>
+    /// Required TenancyMode for this http chain
+    /// </summary>
+    public TenancyMode? TenancyMode { get; set; }
 
 
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)

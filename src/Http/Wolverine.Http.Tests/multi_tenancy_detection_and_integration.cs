@@ -5,10 +5,8 @@ using IntegrationTests;
 using Marten;
 using Marten.Metadata;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Shouldly;
 using Wolverine.Http.Runtime;
@@ -255,6 +253,32 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         });
         result2.ReadAsJson<TenantTodo>().Description.ShouldBe("blue one");
     }
+
+    [Fact]
+    public async Task non_tenanted_chains_do_not_enforce_tenant_requirements()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsQueryStringValue("tenant");
+            opts.TenantId.AssertExists();
+        });
+
+        (await theHost.GetAsText("/nottenanted"))
+            .ShouldBe("hey");
+    }
+
+    [Fact]
+    public async Task working_with_maybe_tenanted()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsQueryStringValue("tenant");
+            opts.TenantId.AssertExists();
+        });
+        
+        (await theHost.GetAsText("/maybe?tenant=blue")).ShouldBe("blue");
+        (await theHost.GetAsText("/maybe")).ShouldBe("none");
+    }
 }
 
 
@@ -288,7 +312,19 @@ public static class TenantedEndpoints
         });
     }
 
+    
+    [WolverineGet("/nottenanted"), NotTenanted]
+    public static string NoTenantNoProblem()
+    {
+        return "hey";
+    }
 
+    [WolverineGet("/maybe"), MaybeTenanted]
+    public static string MaybeTenanted(IMessageBus bus)
+    {
+        return bus.TenantId ?? "none";
+    }
+    
 }
 
 public record CreateTodo(string Id, string Description);

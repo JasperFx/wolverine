@@ -45,6 +45,40 @@ public abstract class WolverineHttpMethodAttribute : Attribute
 }
 
 /// <summary>
+/// Explicitly makes this HTTP endpoint opt out of any tenancy requirements
+/// </summary>
+public class NotTenantedAttribute : ModifyHttpChainAttribute
+{
+    public override void Modify(HttpChain chain, GenerationRules rules)
+    {
+        chain.TenancyMode = TenancyMode.None;
+    }
+}
+
+/// <summary>
+/// Tell Wolverine that this endpoint can work with or without
+/// a detected tenant
+/// </summary>
+public class MaybeTenantedAttribute : ModifyHttpChainAttribute
+{
+    public override void Modify(HttpChain chain, GenerationRules rules)
+    {
+        chain.TenancyMode = TenancyMode.Maybe;
+    }
+}
+
+/// <summary>
+/// Enforce that this endpoint must have a tenant id
+/// </summary>
+public class RequiresTenantAttribute : ModifyHttpChainAttribute
+{
+    public override void Modify(HttpChain chain, GenerationRules rules)
+    {
+        chain.TenancyMode = TenancyMode.Required;
+    }
+}
+
+/// <summary>
 ///     Marks a method on a Wolverine endpoint as being a GET route
 /// </summary>
 public class WolverineGetAttribute : WolverineHttpMethodAttribute
@@ -52,6 +86,8 @@ public class WolverineGetAttribute : WolverineHttpMethodAttribute
     public WolverineGetAttribute(string template) : base("GET", template)
     {
     }
+
+
 }
 
 /// <summary>

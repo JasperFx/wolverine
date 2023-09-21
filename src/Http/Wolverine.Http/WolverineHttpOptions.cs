@@ -207,6 +207,8 @@ public class WolverineHttpOptions : ITenantDetectionPolicies
     {
         Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
         {
+            if (chain.TenancyMode == TenancyMode.None) return;
+            
             chain.ContextModifiers.Add(new RouteArgumentTenantDetectionFrame(routeArgumentName));
         }));
     }
@@ -215,6 +217,7 @@ public class WolverineHttpOptions : ITenantDetectionPolicies
     {
         Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
         {
+            if (chain.TenancyMode == TenancyMode.None) return;
             chain.ContextModifiers.Add(new QueryStringTenantDetectionFrame(key));
         }));
     }
@@ -223,6 +226,7 @@ public class WolverineHttpOptions : ITenantDetectionPolicies
     {
         Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
         {
+            if (chain.TenancyMode == TenancyMode.None) return;
             chain.ContextModifiers.Add(new RequestHeaderTenantDetectionFrame(headerKey));
         }));
     }
@@ -231,6 +235,7 @@ public class WolverineHttpOptions : ITenantDetectionPolicies
     {
         Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
         {
+            if (chain.TenancyMode == TenancyMode.None) return;
             chain.ContextModifiers.Add(new ClaimTypeTenantDetectionFrame(claimType));
         }));
     }
@@ -239,6 +244,9 @@ public class WolverineHttpOptions : ITenantDetectionPolicies
     {
         Policies.Add(new LambdaHttpPolicy((chain, _, _) =>
         {
+            // Do not apply if there is an explicit override of the tenancy mode to none or maybe
+            if (chain.TenancyMode is TenancyMode.None or TenancyMode.Maybe) return;
+            
             var methodCall = new MethodCall(typeof(TenantIdDetection), nameof(TenantIdDetection.AssertTenantIdExists))
             {
                 CommentText = "Asserting that the tenant id has been successfully detected"

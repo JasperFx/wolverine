@@ -149,6 +149,13 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
         var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null));
         chain.RequiresOutbox().ShouldBeFalse();
     }
+
+    [Fact]
+    public void default_tenancy_is_null()
+    {
+        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null));
+        chain.TenancyMode.ShouldBeNull();
+    }
 }
 
 public class MaybeMessagingEndpoints
