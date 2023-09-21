@@ -87,10 +87,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         
         var dbType = DetermineDbContextType(chain, container);
 
-        if (chain.RequiresOutbox())
-        {
-            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
-        }
+        chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
 
         var saveChangesAsync =
             dbType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
@@ -242,7 +239,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             if (_envelopeTransaction != null)
             {
                 writer.WriteComment(
-                    "If we have separate context for outbox and application, the we need to manually commit the transaction");
+                    "If we have separate context for outbox and application, then we need to manually commit the transaction");
                 writer.Write(
                     $"if ({_envelopeTransaction.Usage} is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) {{ await rawTx.CommitAsync(); }}");
             }
