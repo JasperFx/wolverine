@@ -5,6 +5,7 @@ using IntegrationTests;
 using Marten;
 using Marten.Metadata;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -69,6 +70,14 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         // Make sure you clean up after your tests
         // to make the subsequent tests run cleanly
         await theHost.StopAsync();
+    }
+
+    [Fact]
+    public async Task custom_tenant_strategy()
+    {
+        await configure(opts => opts.TenantId.DetectWith<MauveTenantDetection>());
+        
+        (await theHost.GetAsText("/tenant")).ShouldBe("mauve");
     }
 
     [Fact]
@@ -332,6 +341,15 @@ public static class TenantedEndpoints
         return bus.TenantId ?? "none";
     }
     
+}
+
+// mauve has more memory
+public class MauveTenantDetection : ITenantDetection
+{
+    public ValueTask<string?> DetectTenant(HttpContext context)
+    {
+        return new ValueTask<string?>("mauve");
+    }
 }
 
 public record CreateTodo(string Id, string Description);

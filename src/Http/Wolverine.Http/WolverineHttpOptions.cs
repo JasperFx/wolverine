@@ -59,6 +59,21 @@ public interface ITenantDetectionPolicies
     /// is found, return a ProblemDetails with a 400 status code
     /// </summary>
     void AssertExists();
+
+    /// <summary>
+    /// Register a custom tenant detection strategy. Be away though, this object
+    /// will be resolved from your application container, but will be done as a Singleton
+    /// scoping
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    void DetectWith<T>() where T : ITenantDetection;
+
+
+    /// <summary>
+    /// Register a custom tenant detection strategy
+    /// </summary>
+    /// <param name="detection"></param>
+    void DetectWith(ITenantDetection detection);
 }
 
 [Singleton]
