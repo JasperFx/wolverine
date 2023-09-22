@@ -35,6 +35,7 @@ internal class DetectTenantIdFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.BlankLine();
         writer.WriteComment("Tenant Id detection");
         for (int i = 0; i < _options.Strategies.Count ; i++)
         {

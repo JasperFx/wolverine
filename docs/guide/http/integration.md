@@ -133,7 +133,7 @@ public class Todo
     public bool IsComplete { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L9-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L11-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_todo-1'></a>
 ```cs
 public class Todo

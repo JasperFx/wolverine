@@ -68,6 +68,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+#region sample_configuring_tenant_id_detection_for_todo_service
+
 // Let's add in Wolverine HTTP endpoints to the routing tree
 app.MapWolverineEndpoints(opts =>
 {
@@ -79,5 +81,7 @@ app.MapWolverineEndpoints(opts =>
     // 400 w/ ProblemDetails
     opts.TenantId.AssertExists();
 });
+
+#endregion
 
 return await app.RunOaktonCommands(args);

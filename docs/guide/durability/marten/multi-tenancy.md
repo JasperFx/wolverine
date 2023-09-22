@@ -81,7 +81,8 @@ From there, you should be completely ready to use Marten + Wolverine with usages
 <!-- snippet: sample_invoke_for_tenant -->
 <a id='snippet-sample_invoke_for_tenant'></a>
 ```cs
-[WolverineDelete("/todoitems/{tenant}")]
+// While this is still valid....
+[WolverineDelete("/todoitems/{tenant}/longhand")]
 public static async Task Delete(
     string tenant, 
     DeleteTodo command, 
@@ -90,8 +91,21 @@ public static async Task Delete(
     // Invoke inline for the specified tenant
     await bus.InvokeForTenantAsync(tenant, command);
 }
+
+// Wolverine.HTTP 1.7 added multi-tenancy support so
+// this short hand works without the extra jump through
+// "Wolverine as Mediator"
+[WolverineDelete("/todoitems/{tenant}")]
+public static void Delete(
+    DeleteTodo command, IDocumentSession session)
+{
+    // Just mark this document as deleted,
+    // and Wolverine middleware takes care of the rest
+    // including the multi-tenancy detection now
+    session.Delete<Todo>(command.Id);
+}
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L72-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L82-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

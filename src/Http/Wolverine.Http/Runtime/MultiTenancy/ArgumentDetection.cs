@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.Runtime.MultiTenancy;
 
+#region sample_ArgumentDetection
+
 internal class ArgumentDetection : ITenantDetection
 {
     private readonly string _argumentName;
@@ -23,3 +25,5 @@ internal class ArgumentDetection : ITenantDetection
         return $"Tenant Id is route argument named '{_argumentName}'";
     }
 }
+
+#endregion

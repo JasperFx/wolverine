@@ -30,11 +30,16 @@ public record TodoCreated(int Id);
 
 public static class TodoEndpoints
 {
+    #region sample_get_all_todos
+
+    // The "tenant" route argument would be the route
     [WolverineGet("/todoitems/{tenant}")]
     public static Task<IReadOnlyList<Todo>> Get(string tenant, IQuerySession session)
     {
         return session.Query<Todo>().ToListAsync();
     }
+
+    #endregion
 
     [WolverineGet("/todoitems/{tenant}/complete")]
     public static Task<IReadOnlyList<Todo>> GetComplete(IQuerySession session) 

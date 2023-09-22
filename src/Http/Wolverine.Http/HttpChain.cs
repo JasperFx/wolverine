@@ -55,6 +55,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         _description = method.ToString();
         _parent = parent ?? throw new ArgumentNullException(nameof(parent));
         Method = method ?? throw new ArgumentNullException(nameof(method));
+        Method.CommentText = "The actual HTTP request handler execution";
 
         DisplayName = Method.ToString();
 

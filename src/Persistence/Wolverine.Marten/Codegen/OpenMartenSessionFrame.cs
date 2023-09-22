@@ -35,10 +35,12 @@ internal class OpenMartenSessionFrame : AsyncFrame
         }
         else if (_tenantId == null)
         {
+            writer.WriteComment("Building the Marten session");
             writer.Write($"await using var {ReturnVariable.Usage} = {_factory!.Usage}.{methodName}({_context!.Usage});");
         }
         else
         {
+            writer.WriteComment("Building the Marten session using the detected tenant id");
             writer.Write($"await using var {ReturnVariable.Usage} = {_factory!.Usage}.{methodName}({_context!.Usage}, {_tenantId.Usage});");
         }
 

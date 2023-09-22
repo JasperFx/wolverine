@@ -16,7 +16,7 @@ public class WriteJsonFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteComment("Writing the response body");
+        writer.WriteComment("Writing the response body to JSON because this was the first 'return variable' in the method signature");
         writer.Write($"await {nameof(HttpHandler.WriteJsonAsync)}(httpContext, {_resourceVariable.Usage});");
         Next?.GenerateCode(method, writer);
     }

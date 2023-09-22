@@ -328,18 +328,28 @@ public static class TenantedEndpoints
         });
     }
 
-    
+
+    #region sample_using_NotTenanted
+
+    // Mark this endpoint as not using any kind of multi-tenancy
     [WolverineGet("/nottenanted"), NotTenanted]
     public static string NoTenantNoProblem()
     {
         return "hey";
     }
 
+    #endregion
+
+    #region sample_maybe_tenanted_attribute_usage
+
+    // Mark this endpoint as "maybe" having a tenant id
     [WolverineGet("/maybe"), MaybeTenanted]
     public static string MaybeTenanted(IMessageBus bus)
     {
         return bus.TenantId ?? "none";
     }
+
+    #endregion
     
 }
 
