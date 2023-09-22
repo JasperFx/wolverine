@@ -26,7 +26,7 @@ public static async ValueTask SendViaMessageBus(IMessageBus bus)
 But of course there's some other alternatives to directly using `IMessageBus` by utilizing Wolverine's [cascading messages](/guide/handlers/cascading)
 capability and the ability to customize how Wolverine handles return values. 
 
-## Sending or publishing Directly from Url
+## Sending or publishing directly from URL
 
 ::: tip
 It's an imperfect world, and the following code sample has to deserialize the incoming HTTP
