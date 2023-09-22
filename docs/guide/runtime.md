@@ -202,7 +202,7 @@ Wolverine is a little different animal from the tools with similar features in t
 requiring you to implement an adapter interface of some sort in *your* code, Wolverine uses [dynamically generated code](./codegen) to "weave" its internal adapter code and 
 even middleware around your message handler code. 
 
-In ideal circumstances, Wolverine is able to comp~~~~letely remove the runtime usage of an IoC container for even better performance. The
+In ideal circumstances, Wolverine is able to completely remove the runtime usage of an IoC container for even better performance. The
 end result is a runtime pipeline that is able to accomplish its tasks with potentially much less performance overhead than comparable .NET frameworks 
 that depend on adapter interfaces and copious runtime usage of IoC containers.
 
