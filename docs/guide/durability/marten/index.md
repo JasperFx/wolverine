@@ -4,7 +4,7 @@
 used together. At this point, adding the `WolverineFx.Marten` Nuget dependency to your application adds the capability to combine Marten and Wolverine to:
 
 * Simplify persistent handler coding with transactional middleware
-* Use Marten and Postgresql as a persistent inbox or outbox with Wolverine messaging~~~~
+* Use Marten and Postgresql as a persistent inbox or outbox with Wolverine messaging
 * Support persistent sagas within Wolverine applications
 * Effectively use Wolverine and Marten together for a [Decider](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider) function workflow with event sourcing
 * Selectively publish events captured by Marten through Wolverine messaging

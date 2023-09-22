@@ -371,7 +371,7 @@ Just note that if you are having the IoC container for your Wolverine applicatio
 custom `ITenantDetection` strategy that it's going to be effectively `Singleton`-scoped. Wolverine
 depends on using [Lamar](https://jasperfx.github.io/lamar) as the underlying IoC container, and Lamar does
 not require prior registrations to directly resolve a concrete type as long as it can select a public
-constructor with dependencies that it "knows" how to resolve in turn.~~~~
+constructor with dependencies that it "knows" how to resolve in turn.
 
 
 
