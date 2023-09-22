@@ -1,4 +1,4 @@
-# Publishing Messages from HTTP Endpoints
+# Sending Messages from HTTP Endpoints
 
 ::: tip
 You can also use `IMessageBus` directly from an MVC Controller or a Minimal API method, but
@@ -26,7 +26,7 @@ public static async ValueTask SendViaMessageBus(IMessageBus bus)
 But of course there's some other alternatives to directly using `IMessageBus` by utilizing Wolverine's [cascading messages](/guide/handlers/cascading)
 capability and the ability to customize how Wolverine handles return values. 
 
-## Publish Directly from Url
+## Sending or publishing Directly from Url
 
 ::: tip
 It's an imperfect world, and the following code sample has to deserialize the incoming HTTP
@@ -37,6 +37,34 @@ and serialize it back to a binary.
 The following syntax shows a shorthand mechanism to map an incoming HTTP request message type
 to be immediately published to Wolverine without any need for additional Wolverine endpoints or MVC controllers.
 Note that this mechanism will return an empty body with a status code of 202 to denote future processing.
+
+<!-- snippet: sample_send_http_methods_directly_to_Wolverine -->
+<a id='snippet-sample_send_http_methods_directly_to_wolverine'></a>
+```cs
+var builder = WebApplication.CreateBuilder();
+
+builder.Host.UseWolverine();
+
+var app = builder.Build();
+
+app.MapWolverineEndpoints(opts =>
+{
+    opts.SendMessage<CreateOrder>("/orders/create", chain =>
+    {
+        // You can make any necessary metadata configurations exactly
+        // as you would for Minimal API endpoints with this syntax
+        // to fine tune OpenAPI generation or security
+        chain.Metadata.RequireAuthorization();
+    });
+    opts.SendMessage<ShipOrder>(HttpMethod.Put, "/orders/ship");
+});
+
+// and the rest of your application configuration and bootstrapping
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/SendingMessages.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_http_methods_directly_to_wolverine' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+On the other hand, the `PublishAsync()` method will send a message if there is a known subscriber and ignore the message if there is no subscriber (as explained in [sending or publishing Messages](/guide/messaging/message-bus#sending-or-publishing-messages)):
 
 <!-- snippet: sample_publish_http_methods_directly_to_Wolverine -->
 <a id='snippet-sample_publish_http_methods_directly_to_wolverine'></a>
