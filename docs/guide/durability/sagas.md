@@ -141,7 +141,7 @@ is necessary. See the [Marten integration](/guide/durability/marten.html#saga-st
 
 ## How it works
 
-::: Warning
+::: warning
 Do not call `IMessageBus.InvokeAsync()` within a `Saga` related handler to execute a command on that same `Saga`. You will be acting
 on old or missing data. Utilize cascading messages for subsequent work. 
 :::
@@ -279,7 +279,7 @@ public record CompleteOrder(string Id);
 
 ## Starting a Saga
 
-::: Tip
+::: tip
 In all the cases where you return a `Saga` object from a handler method to denote the start of a new `Saga`, your code should
 set the identity for the new `Saga`.
 :::
