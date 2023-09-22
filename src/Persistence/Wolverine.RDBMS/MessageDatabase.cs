@@ -168,7 +168,9 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             .With("owner", ownerId)
             .With("uri", receivedAt.ToString())
             .ExecuteNonQueryAsync(_cancellation);
-        
+
+        if (impacted == 0) return;
+         
         _logger.LogInformation("Reassigned {Impacted} incoming messages from {Owner} and endpoint at {Uri} to any node in the durable inbox", impacted, ownerId, receivedAt);
     }
 

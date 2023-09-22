@@ -2,6 +2,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
+using Npgsql;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;

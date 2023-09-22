@@ -168,6 +168,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var options = container.GetInstance<WolverineHttpOptions>();
         options.TenantIdDetection.Container = container; // Hokey, but let this go
         options.Endpoints = new HttpGraph(runtime.Options, container);
+        
 
         configure?.Invoke(options);
 

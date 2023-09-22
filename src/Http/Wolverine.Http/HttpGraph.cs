@@ -4,6 +4,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Oakton.Descriptions;
 using Spectre.Console;
@@ -92,11 +93,17 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
     {
         var source = new HttpChainSource(_options.Assemblies);
+        var logger = Container.GetInstance<ILogger<HttpGraph>>();
+
         var calls = source.FindActions();
+        logger.LogInformation("Found {Count} Wolverine HTTP endpoints in assemblys {Assemblies}", calls.Length, _options.Assemblies.Select(x => x.GetName().Name).Join(", "));
+        if (calls.Length == 0)
+        {
+            logger.LogWarning("Found no Wolverine HTTP endpoints. If this is not expected, check the assemblies being scanned. See https://wolverine.netlify.app/guide/http/integration.html#discovery for more information");
+        }
 
         _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
-
-
+        
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
 
         var policies = _options.Policies.OfType<IChainPolicy>();
