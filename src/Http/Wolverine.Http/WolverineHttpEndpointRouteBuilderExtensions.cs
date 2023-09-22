@@ -28,6 +28,17 @@ public class WolverineRequiredException : Exception
 public static class WolverineHttpEndpointRouteBuilderExtensions
 {
     /// <summary>
+    /// Just a helper to configure the correct JsonOptions used by both Wolverine and Minimal API
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configure"></param>
+    public static void ConfigureSystemTextJsonForWolverineOrMinimalApi(this IServiceCollection services,
+        Action<JsonOptions> configure)
+    {
+        services.Configure<JsonOptions>(configure);
+    }
+    
+    /// <summary>
     /// Use the request body of type T to immediately invoke the incoming command with Wolverine
     /// </summary>
     /// <param name="endpoints"></param>

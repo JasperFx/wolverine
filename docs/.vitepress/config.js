@@ -165,6 +165,7 @@ export default {
                         {text: 'Http Services with Wolverine', link: '/guide/http/'},
                         {text: 'Integration with ASP.Net Core', link: '/guide/http/integration'},
                         {text: 'Endpoints', link: '/guide/http/endpoints'},
+                        {text: 'Json', link: '/guide/http/json'},
                         {text: 'Routing', link: '/guide/http/routing'},
                         {text: 'Authentication and Authorization', link: '/guide/http/security'},
                         {text: 'Working with Querystring', link: '/guide/http/querystring'},

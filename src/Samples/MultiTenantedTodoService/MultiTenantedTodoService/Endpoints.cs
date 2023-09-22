@@ -51,7 +51,7 @@ public static class TodoEndpoints
     // Wolverine can infer the 200/404 status codes for you here
     // so there's no code noise just to satisfy OpenAPI tooling
     [WolverineGet("/todoitems/{tenant}/{id}")]
-    public static Task<Todo?> GetTodo(int id, string tenant, IQuerySession session, CancellationToken cancellation)
+    public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation)
     {
         return session.LoadAsync<Todo>(id, cancellation);
     }
