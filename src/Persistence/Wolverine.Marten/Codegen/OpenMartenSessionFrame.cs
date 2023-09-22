@@ -31,7 +31,7 @@ internal class OpenMartenSessionFrame : AsyncFrame
         if (_context == null)
         {
             // Just use native Marten here. 
-            writer.Write("await using var {ReturnVariable.Usage} = {_martenFactory!.Usage}.{methodName}();");
+            writer.Write($"await using var {ReturnVariable.Usage} = {_martenFactory!.Usage}.{methodName}();");
         }
         else if (_tenantId == null)
         {
