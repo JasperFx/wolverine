@@ -228,4 +228,28 @@ public class WolverineHttpOptions
         PublishMessage<T>(HttpMethod.Post, url, customize);
     }
     
+    /// <summary>
+    ///     From this url, forward a JSON serialized message by sending through Wolverine
+    /// </summary>
+    /// <param name="httpMethod"></param>
+    /// <param name="url"></param>
+    /// <param name="customize">Optionally customize the HttpChain handling for elements like validation</param>
+    /// <typeparam name="T"></typeparam>
+    public void SendMessage<T>(HttpMethod httpMethod, string url, Action<HttpChain>? customize = null)
+    {
+#pragma warning disable CS4014
+        var method = MethodCall.For<SendingEndpoint<T>>(x => x.SendAsync(default!, null!, null!));
+#pragma warning restore CS4014
+        var chain = Endpoints!.Add(method, httpMethod, url);
+
+        chain.MapToRoute(httpMethod.ToString(), url);
+        chain.DisplayName = $"Forward {typeof(T).FullNameInCode()} to Wolverine";
+        customize?.Invoke(chain);
+    }
+
+    public void SendMessage<T>(string url, Action<HttpChain>? customize = null)
+    {
+        SendMessage<T>(HttpMethod.Post, url, customize);
+    }
+    
 }

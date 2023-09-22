@@ -122,6 +122,8 @@ app.MapWolverineEndpoints(opts =>
     // Publish messages coming from 
     opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1");
     opts.PublishMessage<HttpMessage2>("/publish/message2");
+    opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5");
+    opts.SendMessage<HttpMessage6>("/send/message6");
     
     opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
