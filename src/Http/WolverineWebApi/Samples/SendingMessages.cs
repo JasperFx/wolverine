@@ -6,7 +6,7 @@ namespace WolverineWebApi.Samples;
 
 public class SendingMessages
 {
-    public void setup_for_publishing()
+    public void setup_for_sending()
     {
         #region sample_send_http_methods_directly_to_Wolverine
 

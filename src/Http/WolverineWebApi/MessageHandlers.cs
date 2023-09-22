@@ -8,6 +8,8 @@ public record HttpMessage1(string Name);
 public record HttpMessage2(string Name);
 public record HttpMessage3(string Name);
 public record HttpMessage4(string Name);
+public record HttpMessage5(string Name);
+public record HttpMessage6(string Name);
 
 public record CustomRequest(string Name);
 public record CustomResponse(string Name);
@@ -20,8 +22,8 @@ public static class MessageHandler
     public static void Handle(HttpMessage2 message) => Debug.WriteLine("Got message 2");
     public static void Handle(HttpMessage3 message) => Debug.WriteLine("Got message 3");
     public static void Handle(HttpMessage4 message) => Debug.WriteLine("Got message 4");
-    
-    
+    public static void Handle(HttpMessage5 message) => Debug.WriteLine("Got message 5");
+    public static void Handle(HttpMessage6 message) => Debug.WriteLine("Got message 6");
 }
 
 public record SpawnInput(string Name);
