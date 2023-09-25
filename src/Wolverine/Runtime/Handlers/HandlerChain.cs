@@ -15,6 +15,18 @@ using Wolverine.Logging;
 
 namespace Wolverine.Runtime.Handlers;
 
+internal class ContextVariable : Variable
+{
+    public ContextVariable(Type variableType) : base(variableType, "context")
+    {
+    }
+
+    public override void OverrideName(string variableName)
+    {
+        // Do nothing here!
+    }
+}
+
 public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IWithFailurePolicies, ICodeFile
 {
     public const string HandlerSuffix = "Handler";
@@ -161,8 +173,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         handleMethod.AsyncMode = AsyncMode.AsyncTask;
 
-        handleMethod.DerivedVariables.Add(new Variable(typeof(IMessageContext), "context"));
-        handleMethod.DerivedVariables.Add(new Variable(typeof(IMessageBus), "context"));
+        handleMethod.DerivedVariables.Add(new ContextVariable(typeof(IMessageContext)));
+        handleMethod.DerivedVariables.Add(new ContextVariable(typeof(IMessageBus)));
 
         handleMethod.DerivedVariables.Add(new Variable(typeof(Envelope),
             $"context.{nameof(IMessageContext.Envelope)}"));
