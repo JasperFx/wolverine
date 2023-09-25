@@ -171,8 +171,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         handleMethod.Frames.AddRange(frames);
 
-        handleMethod.AsyncMode = AsyncMode.AsyncTask;
-
+        if (frames.Any(x => x.IsAsync))
+        {
+            handleMethod.AsyncMode = AsyncMode.AsyncTask;
+        }
+        
         handleMethod.DerivedVariables.Add(new ContextVariable(typeof(IMessageContext)));
         handleMethod.DerivedVariables.Add(new ContextVariable(typeof(IMessageBus)));
 
