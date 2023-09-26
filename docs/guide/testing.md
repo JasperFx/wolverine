@@ -37,7 +37,8 @@ public static IEnumerable<object> Handle(
     // Conditionally trigger other, cascading messages
     if (account.Balance > 0 && account.Balance < account.MinimumThreshold)
     {
-        yield return new LowBalanceDetected(account.Id);
+        yield return new LowBalanceDetected(account.Id)
+            .WithDeliveryOptions(new DeliveryOptions { ScheduleDelay = 1.Hours() });
     }
     else if (account.Balance < 0)
     {
@@ -72,13 +73,21 @@ public void handle_a_debit_that_makes_the_account_have_a_low_balance()
     var session = Substitute.For<IDocumentSession>();
 
     var message = new DebitAccount(account.Id, 801);
-    var messages = AccountHandler.Handle(message, account, session);
-    
+    var messages = AccountHandler.Handle(message, account, session).ToList();
+
     // Now, verify that the only the expected messages are published:
-    
-    // Exactly one message of type LowBalanceDetected
+
+    // One message of type AccountUpdated
     messages
-        .ShouldHaveMessageOfType<LowBalanceDetected>()
+        .ShouldHaveMessageOfType<AccountUpdated>()
+        .AccountId.ShouldBe(account.Id);
+
+    // You can optionally assert against DeliveryOptions
+    messages
+        .ShouldHaveMessageOfType<LowBalanceDetected>(delivery =>
+        {
+            delivery.ScheduleDelay.Value.ShouldNotBe(TimeSpan.Zero);
+        })
         .AccountId.ShouldBe(account.Id);
     
     // Assert that there are no messages of type AccountOverdrawn

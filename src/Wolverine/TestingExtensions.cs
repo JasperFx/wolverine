@@ -90,7 +90,7 @@ public static class TestingExtensions
     public static void ShouldHaveNoMessageOfType<T>(this IEnumerable<object> messages)
     {
         var actual = messages.resolveMessages();
-        if (actual.OfType<T>().Any())
+        if (actual.Any(message => message is T or DeliveryMessage<T>))
         {
             throw new WolverineMessageExpectationException(
                 $"Should be no messages of type {typeof(T).FullNameInCode()}, but the actual messages were {actual.toListOfMessages()}",
@@ -100,13 +100,31 @@ public static class TestingExtensions
 
     /// <summary>
     ///     Assert and return the first message of type T within this collection
-    ///     of published messages
+    ///     of published messages (unwraps DeliveryMessage<T>.Message if necessary)
     /// </summary>
     /// <param name="messages"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     /// <exception cref="WolverineMessageExpectationException"></exception>
     public static T ShouldHaveMessageOfType<T>(this IEnumerable<object> messages)
+    {
+        return ShouldHaveMessageOfType<T>(messages, null);
+    }
+
+    /// <summary>
+    ///     Assert and return the first message of type T within this collection
+    ///     of published messages (unwraps DeliveryMessage<T>.Message if necessary)
+    /// </summary>
+    /// <param name="messages"></param>
+    /// <param name="deliveryAssertions">
+    ///     Optional assertions against the DeliveryOptions the message was published
+    ///     with. If the message was not published with DeliveryOptions, null is supplied
+    ///     to this action.
+    /// </param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="WolverineMessageExpectationException"></exception>
+    public static T ShouldHaveMessageOfType<T>(this IEnumerable<object> messages, Action<DeliveryOptions?>? deliveryAssertions)
     {
         var actual = messages.resolveMessages();
         if (!actual.Any())
@@ -115,7 +133,21 @@ public static class TestingExtensions
                 $"Should be a message of type {typeof(T).FullNameInCode()}, but there were no messages", actual);
         }
 
-        return actual.OfType<T>().FirstOrDefault() ?? throw new WolverineMessageExpectationException(
+        foreach (var message in actual)
+        {
+            if (message is T directMatch)
+            {
+                deliveryAssertions?.Invoke(null);
+                return directMatch;
+            }
+            if (message is DeliveryMessage<T> deliveryMessage)
+            {
+                deliveryAssertions?.Invoke(deliveryMessage.Options);
+                return deliveryMessage.Message;
+            }
+        }
+
+        throw new WolverineMessageExpectationException(
             $"Should be a message of type {typeof(T).FullNameInCode()}, but actual messages were {actual.toListOfMessages()}",
             actual);
     }
