@@ -44,6 +44,19 @@ public class TestingExtensionsTests
     }
 
     [Fact]
+    public void should_be_no_message_of_type_T_sad_path_through_delivery_message()
+    {
+        var ex = Should.Throw<WolverineMessageExpectationException>(() =>
+        {
+            new object[] { new DeliveryMessage<Message1>(new Message1(), new DeliveryOptions()) }
+                .ShouldHaveNoMessageOfType<Message1>();
+        });
+
+        ex.Message.ShouldBe(
+            "Should be no messages of type TestMessages.Message1, but the actual messages were Wolverine.DeliveryMessage`1[TestMessages.Message1]");
+    }
+
+    [Fact]
     public void should_be_no_message_of_type_T_sad_path_through_envelope()
     {
         var ex = Should.Throw<WolverineMessageExpectationException>(() =>
@@ -62,6 +75,35 @@ public class TestingExtensionsTests
         var message1 = new Message1();
         new object[] { message1, new Message2(), new Message3() }
             .ShouldHaveMessageOfType<Message1>()
+            .ShouldBeSameAs(message1);
+    }
+
+    [Fact]
+    public void should_be_message_of_type_happy_path_with_null_delivery_options()
+    {
+        var message1 = new Message1();
+        new object[] { message1, new Message2(), new Message3() }
+            .ShouldHaveMessageOfType<Message1>(options => options.ShouldBeNull())
+            .ShouldBeSameAs(message1);
+    }
+
+    [Fact]
+    public void should_be_message_of_type_happy_path_through_delivery_message()
+    {
+        var message1 = new Message1();
+        var delivery1 = new DeliveryMessage<Message1>(message1, new DeliveryOptions());
+        new object[] { delivery1, new Message2(), new Message3() }
+            .ShouldHaveMessageOfType<Message1>()
+            .ShouldBeSameAs(message1);
+    }
+
+    [Fact]
+    public void should_be_message_of_type_happy_path_with_delivery_options()
+    {
+        var message1 = new Message1();
+        var delivery1 = new DeliveryMessage<Message1>(message1, new DeliveryOptions { TenantId = "xyz" });
+        new object[] { delivery1, new Message2(), new Message3() }
+            .ShouldHaveMessageOfType<Message1>(options => options.ShouldNotBeNull().TenantId.ShouldBe("xyz"))
             .ShouldBeSameAs(message1);
     }
 

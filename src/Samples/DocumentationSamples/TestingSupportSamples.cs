@@ -37,28 +37,29 @@ public static class AccountHandler
 {
     #region sample_AccountHandler_for_testing_examples
 
-    [Transactional] 
+    [Transactional]
     public static IEnumerable<object> Handle(
-        DebitAccount command, 
-        Account account, 
+        DebitAccount command,
+        Account account,
         IDocumentSession session)
     {
         account.Balance -= command.Amount;
-     
+
         // This just marks the account as changed, but
         // doesn't actually commit changes to the database
         // yet. That actually matters as I hopefully explain
         session.Store(account);
- 
+
         // Conditionally trigger other, cascading messages
         if (account.Balance > 0 && account.Balance < account.MinimumThreshold)
         {
-            yield return new LowBalanceDetected(account.Id);
+            yield return new LowBalanceDetected(account.Id)
+                .WithDeliveryOptions(new DeliveryOptions { ScheduleDelay = 1.Hours() });
         }
         else if (account.Balance < 0)
         {
             yield return new AccountOverdrawn(account.Id);
-         
+
             // Give the customer 10 days to deal with the overdrawn account
             yield return new EnforceAccountOverdrawnDeadline(account.Id);
         }
@@ -87,13 +88,21 @@ public class AccountHandlerTests
         var session = Substitute.For<IDocumentSession>();
 
         var message = new DebitAccount(account.Id, 801);
-        var messages = AccountHandler.Handle(message, account, session);
-        
+        var messages = AccountHandler.Handle(message, account, session).ToList();
+
         // Now, verify that the only the expected messages are published:
-        
-        // Exactly one message of type LowBalanceDetected
+
+        // One message of type AccountUpdated
         messages
-            .ShouldHaveMessageOfType<LowBalanceDetected>()
+            .ShouldHaveMessageOfType<AccountUpdated>()
+            .AccountId.ShouldBe(account.Id);
+
+        // You can optionally assert against DeliveryOptions
+        messages
+            .ShouldHaveMessageOfType<LowBalanceDetected>(delivery =>
+            {
+                delivery.ScheduleDelay.Value.ShouldNotBe(TimeSpan.Zero);
+            })
             .AccountId.ShouldBe(account.Id);
         
         // Assert that there are no messages of type AccountOverdrawn
