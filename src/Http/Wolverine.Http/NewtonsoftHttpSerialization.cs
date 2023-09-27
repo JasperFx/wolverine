@@ -44,7 +44,9 @@ public class NewtonsoftHttpSerialization
 
         var responseStream = response.Body;
 
-        using var jsonWriter = new JsonTextWriter(new StreamWriter(responseStream))
+        await using var textWriter = new HttpResponseStreamWriter(responseStream, Encoding.Default, _bufferSize, _bytePool,
+            ArrayPool<char>.Shared);
+        using var jsonWriter = new JsonTextWriter(textWriter)
         {
             ArrayPool = _jsonCharPool,
             CloseOutput = false,

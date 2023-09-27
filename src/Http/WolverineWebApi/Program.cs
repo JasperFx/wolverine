@@ -93,8 +93,7 @@ app.MapHub<BroadcastHub>("/updates");
 app.MapWolverineEndpoints(opts =>
 {
     // This is strictly to test the endpoint policy
-    
-    
+
     opts.ConfigureEndpoints(httpChain =>
     {
         // The HttpChain model is a configuration time
