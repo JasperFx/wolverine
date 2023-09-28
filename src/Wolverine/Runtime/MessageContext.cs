@@ -19,6 +19,12 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
     {
     }
 
+    // Used implicitly in codegen
+    public MessageContext(IWolverineRuntime runtime, string tenantId) : base(runtime)
+    {
+        TenantId = tenantId;
+    }
+
     internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
 
     public async Task FlushOutgoingMessagesAsync()

@@ -12,7 +12,6 @@ internal class DetectTenantIdFrame : AsyncFrame
     private readonly TenantIdDetection _options;
     private readonly HttpChain _chain;
     private Variable _httpContext;
-    private Variable _messageContext;
 
     public DetectTenantIdFrame(TenantIdDetection options, HttpChain chain)
     {
@@ -28,9 +27,6 @@ internal class DetectTenantIdFrame : AsyncFrame
     {
         _httpContext = chain.FindVariable(typeof(HttpContext));
         yield return _httpContext;
-
-        _messageContext = chain.FindVariable(typeof(MessageContext));
-        yield return _messageContext;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -43,7 +39,6 @@ internal class DetectTenantIdFrame : AsyncFrame
         }
         
         writer.Write($"var {TenantId.Usage} = await {nameof(HttpHandler.TryDetectTenantId)}({_httpContext.Usage});");
-        writer.Write($"{_messageContext.Usage}.{nameof(MessageContext.TenantId)} = {TenantId.Usage};");
 
         if (_options.ShouldAssertTenantIdExists(_chain))
         {

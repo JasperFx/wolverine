@@ -1,8 +1,9 @@
 using System.Reflection;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
 using Lamar;
-using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -12,14 +13,32 @@ internal class MessageBusStrategy : IParameterStrategy
     {
         if (parameter.ParameterType == typeof(IMessageBus))
         {
-            var context = new MessageContextFrame().Variable;
-            variable = new Variable(typeof(IMessageBus), $"(({typeof(IMessageBus).FullNameInCode()}){context.Usage})",
-                context.Creator);
+            variable = new UseMessageBusFrame().Bus;
 
             return true;
         }
 
         variable = default!;
         return false;
+    }
+}
+
+internal class UseMessageBusFrame : SyncFrame
+{
+    public UseMessageBusFrame()
+    {
+        Bus = new Variable(typeof(IMessageBus), "messageContext", this);
+    }
+
+    public Variable Bus { get; }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        yield return chain.FindVariable(typeof(MessageContext));
     }
 }
