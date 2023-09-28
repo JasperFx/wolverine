@@ -295,6 +295,20 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         (await theHost.GetAsText("/maybe?tenant=blue")).ShouldBe("blue");
         (await theHost.GetAsText("/maybe")).ShouldBe("none");
     }
+
+    [Fact]
+    public async Task can_correctly_use_bus_and_context_args_while_still_getting_the_tenant_id()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsRouteArgumentNamed("tenant");
+            opts.TenantId.AssertExists();
+        });
+        
+        (await theHost.GetAsText("/tenant/bus/blue")).ShouldBe("blue");
+        (await theHost.GetAsText("/tenant/context/orange")).ShouldBe("orange");
+        (await theHost.GetAsText("/tenant/both/cornflower")).ShouldBe("cornflower");
+    }
 }
 
 
@@ -326,6 +340,25 @@ public static class TenantedEndpoints
             Id = command.Id,
             Description = command.Description
         });
+    }
+
+    [WolverineGet("/tenant/bus/{tenant}")]
+    public static string GetTenantWithArgs1(IMessageBus bus)
+    {
+        return bus.TenantId;
+    }
+    
+    [WolverineGet("/tenant/context/{tenant}")]
+    public static string GetTenantWithArgs1(IMessageContext context)
+    {
+        return context.TenantId;
+    }
+    
+    [WolverineGet("/tenant/both/{tenant}")]
+    public static string GetTenantWithArgs1(IMessageContext context, IMessageBus bus)
+    {
+        bus.TenantId.ShouldBe(context.TenantId);
+        return context.TenantId;
     }
 
 
