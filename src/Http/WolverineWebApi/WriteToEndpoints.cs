@@ -6,7 +6,9 @@ namespace WolverineWebApi;
 
 public static class WriteToEndpoints
 {
-  [WolverineGet("/write-to/{id}")]
-  public static Task GetAssetCodeView(Guid id, IQuerySession session, HttpContext context)
-    => session.Json.WriteById<Issue>(id, context);
+    [WolverineGet("/write-to/{id}")]
+    public static Task GetAssetCodeView(Guid id, IQuerySession session, HttpContext context)
+    {
+        return session.Json.WriteById<Issue>(id, context);
+    }
 }
