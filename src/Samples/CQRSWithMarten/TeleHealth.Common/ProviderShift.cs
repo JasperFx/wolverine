@@ -46,9 +46,9 @@ public class ProviderShift
         AppointmentId = null;
     }
 
-// This is kind of a catch all for any paperwork the
-// provider has to do after an appointment has ended
-// for the just concluded appointment
+    // This is kind of a catch all for any paperwork the
+    // provider has to do after an appointment has ended
+    // for the just concluded appointment
     public void Apply(ChartingStarted charting)
     {
         Status = ProviderStatus.Charting;
