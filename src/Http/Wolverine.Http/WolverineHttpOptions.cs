@@ -90,7 +90,7 @@ public class WolverineHttpOptions
 
     internal TenantIdDetection TenantIdDetection { get; } = new();
 
-    internal JsonSerializerOptions JsonSerializerOptions { get; set; } = new();
+    internal Lazy<JsonSerializerOptions> JsonSerializerOptions { get; set; } = new(() => new JsonSerializerOptions());
     
     internal JsonSerializerSettings NewtonsoftSerializerSettings { get; set; } = new();
     

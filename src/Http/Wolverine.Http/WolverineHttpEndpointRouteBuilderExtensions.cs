@@ -169,11 +169,9 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.TenantIdDetection.Container = container; // Hokey, but let this go
         options.Endpoints = new HttpGraph(runtime.Options, container);
         
-
         configure?.Invoke(options);
 
-        options.JsonSerializerOptions =
-            container.TryGetInstance<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions();
+        options.JsonSerializerOptions = new Lazy<JsonSerializerOptions>(() => container.TryGetInstance<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());
 
         options.Endpoints.DiscoverEndpoints(options);
         runtime.AdditionalDescribedParts.Add(options.Endpoints);

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using IntegrationTests;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
@@ -66,6 +67,13 @@ builder.Host.UseWolverine(opts =>
     
 });
 
+builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
+{
+    // Do whatever you want here to customize the JSON
+    // serialization
+    o.SerializerOptions.WriteIndented = true;
+});
+
 var app = builder.Build();
 
 //Force the default culture to not be en-US to ensure code is culture agnostic
@@ -127,6 +135,7 @@ app.MapWolverineEndpoints(opts =>
     opts.SendMessage<HttpMessage6>("/send/message6");
     
     opts.AddPolicy<StreamCollisionExceptionPolicy>();
+
 
     #region sample_adding_custom_parameter_handling
 

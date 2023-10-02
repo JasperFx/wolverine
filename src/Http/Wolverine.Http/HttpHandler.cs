@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
@@ -15,11 +16,13 @@ namespace Wolverine.Http;
 public abstract class HttpHandler
 {
     private readonly WolverineHttpOptions _options;
+    private readonly JsonSerializerOptions _jsonOptions;
 
     // ReSharper disable once PublicConstructorInAbstractClass
     public HttpHandler(WolverineHttpOptions wolverineHttpOptions)
     {
         _options = wolverineHttpOptions;
+        _jsonOptions = wolverineHttpOptions.JsonSerializerOptions.Value;
     }
 
     public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
@@ -100,7 +103,7 @@ public abstract class HttpHandler
 
         try
         {
-            var body = await JsonSerializer.DeserializeAsync<T>(context.Request.Body, _options.JsonSerializerOptions,
+            var body = await JsonSerializer.DeserializeAsync<T>(context.Request.Body, _jsonOptions,
                 context.RequestAborted);
 
             return (body, HandlerContinuation.Continue);
@@ -142,7 +145,7 @@ public abstract class HttpHandler
             return Task.CompletedTask;
         }
         
-        return context.Response.WriteAsJsonAsync(body, _options.JsonSerializerOptions, context.RequestAborted);
+        return context.Response.WriteAsJsonAsync(body, _jsonOptions, context.RequestAborted);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
