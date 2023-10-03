@@ -21,14 +21,14 @@ will use [cascading messages](/guide/handlers/cascading) to raise a variable num
 <!-- snippet: sample_AccountHandler_for_testing_examples -->
 <a id='snippet-sample_accounthandler_for_testing_examples'></a>
 ```cs
-[Transactional] 
+[Transactional]
 public static IEnumerable<object> Handle(
-    DebitAccount command, 
-    Account account, 
+    DebitAccount command,
+    Account account,
     IDocumentSession session)
 {
     account.Balance -= command.Amount;
- 
+
     // This just marks the account as changed, but
     // doesn't actually commit changes to the database
     // yet. That actually matters as I hopefully explain
@@ -43,7 +43,7 @@ public static IEnumerable<object> Handle(
     else if (account.Balance < 0)
     {
         yield return new AccountOverdrawn(account.Id);
-     
+
         // Give the customer 10 days to deal with the overdrawn account
         yield return new EnforceAccountOverdrawnDeadline(account.Id);
     }
@@ -51,7 +51,7 @@ public static IEnumerable<object> Handle(
     yield return new AccountUpdated(account.Id, account.Balance);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L38-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L38-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The testing extensions can be seen in action by the following test:
@@ -94,7 +94,7 @@ public void handle_a_debit_that_makes_the_account_have_a_low_balance()
     messages.ShouldHaveNoMessageOfType<AccountOverdrawn>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L74-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L75-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The supported extension methods so far are in the [TestingExtensions](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/TestingExtensions.cs) class.
@@ -104,6 +104,8 @@ As we'll see in the next section, you can also find a matching `Envelope` for a 
 ::: tip
 I'd personally organize the testing against that handler with a context/specification pattern, but I just wanted to show the extension methods here.
 :::
+
+
 
 ## TestMessageContext
 
@@ -219,6 +221,45 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
 The `TestMessageContext` mostly just collects an array of objects that are sent, published, or scheduled. The
 same extension methods explained in the previous section can be used to verify the outgoing messages
 and even *how* they were published.
+
+As of Wolverine 1.8, `TestMessageContext` also supports limited expectations for request and reply using `IMessageBus.InvokeAsync<T>()`
+as shown below:
+
+<!-- snippet: sample_using_invoke_with_expected_response_with_test_message_context -->
+<a id='snippet-sample_using_invoke_with_expected_response_with_test_message_context'></a>
+```cs
+var spy = new TestMessageContext();
+var context = (IMessageContext)spy;
+
+// Set up an expected response for a message
+spy.WhenInvokedMessageOf<NumberRequest>()
+    .RespondWith(new NumberResponse(12));
+
+// Used for:
+var response1 = await context.InvokeAsync<NumberResponse>(new NumberRequest(4, 5));
+
+// Set up an expected response with a matching filter
+spy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 4)
+    .RespondWith(new NumberResponse(12));
+
+// Set up an expected response for a message to an explicit destination Uri
+spy.WhenInvokedMessageOf<NumberRequest>(destination:new Uri("rabbitmq://queue/incoming"))
+    .RespondWith(new NumberResponse(12));
+
+// Used to set up:
+var response2 = await context.EndpointFor(new Uri("rabbitmq://queue/incoming"))
+    .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));
+
+// Set up an expected response for a message to a named endpoint
+spy.WhenInvokedMessageOf<NumberRequest>(endpointName:"incoming")
+    .RespondWith(new NumberResponse(12));
+
+// Used to set up:
+var response3 = await context.EndpointFor("incoming")
+    .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L329-L361' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Stubbing All External Transports
 
@@ -365,7 +406,7 @@ public async Task using_tracked_sessions()
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L108-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L117-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The tracked session mechanism utilizes Wolverine's internal instrumentation to "know" when all the outstanding
@@ -423,6 +464,6 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L126-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L135-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

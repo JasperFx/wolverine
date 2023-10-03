@@ -49,8 +49,7 @@ Or lastly through lambdas (which creates an `IHttpPolicy` object behind the scen
 app.MapWolverineEndpoints(opts =>
 {
     // This is strictly to test the endpoint policy
-    
-    
+
     opts.ConfigureEndpoints(httpChain =>
     {
         // The HttpChain model is a configuration time
@@ -67,7 +66,7 @@ app.MapWolverineEndpoints(opts =>
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L91-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L101-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `HttpChain` model is a configuration time structure that Wolverine.Http will use at runtime to create the full
@@ -83,8 +82,7 @@ Here's an example from the Wolverine.Http tests of using a policy to add custom 
 app.MapWolverineEndpoints(opts =>
 {
     // This is strictly to test the endpoint policy
-    
-    
+
     opts.ConfigureEndpoints(httpChain =>
     {
         // The HttpChain model is a configuration time
@@ -101,5 +99,5 @@ app.MapWolverineEndpoints(opts =>
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L91-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L101-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
