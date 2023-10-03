@@ -138,3 +138,28 @@ return await app.RunOaktonCommands(args);
 Note that this stateful resource model is also available at the command line as well for deploy time
 management.
 
+## Runtime Declaration
+
+From a user request, there are some extension methods in the WolverineFx.RabbitMQ Nuget off of `IWolverineRuntime` that will enable you to 
+first declare new exchanges, queues, and bindings at runtime, and also enable you to "unbind" a queue from an exchange. That
+syntax is shown below:
+
+<!-- snippet: sample_dynamic_creation_of_rabbit_mq_objects -->
+<a id='snippet-sample_dynamic_creation_of_rabbit_mq_objects'></a>
+```cs
+// _host is an IHost
+var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
+
+// Declare new Exchanges, Queues, and Bindings at runtime
+runtime.ModifyRabbitMqObjects(o =>
+{
+    var exchange = o.DeclareExchange(exchangeName);
+    exchange.BindQueue(queueName, bindingKey);
+});
+
+// Unbind a queue from an exchange
+runtime.UnBindRabbitMqQueue(queueName, exchangeName, bindingKey);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/dynamic_object_creation_smoke_tests.cs#L34-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_dynamic_creation_of_rabbit_mq_objects' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
