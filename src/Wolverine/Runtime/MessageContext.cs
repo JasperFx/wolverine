@@ -27,6 +27,16 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
 
+    private bool hasRequestedReply()
+    {
+        return Envelope != null && Envelope.ReplyRequested.IsNotEmpty();
+    }
+
+    private bool isMissingRequestedReply()
+    {
+        return Outstanding.All(x => x.MessageType != Envelope!.ReplyRequested);
+    }
+
     public async Task FlushOutgoingMessagesAsync()
     {
         if (_hasFlushed)
@@ -34,8 +44,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             return;
         }
 
-        if (Envelope != null && Envelope.ReplyRequested.IsNotEmpty() &&
-            Outstanding.All(x => x.MessageType != Envelope.ReplyRequested))
+        if (hasRequestedReply() && _channel is not InvocationCallback && isMissingRequestedReply())
         {
             await SendFailureAcknowledgementAsync(
                 $"No response was created for expected response '{Envelope.ReplyRequested}'");
