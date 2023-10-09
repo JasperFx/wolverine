@@ -156,6 +156,21 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
         var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null));
         chain.TenancyMode.ShouldBeNull();
     }
+
+    [Fact]
+    public void add_from_route_metadata()
+    {
+        var chain = HttpChain.ChainFor<RoutedEndpoint>(x => x.Get(null));
+    }
+}
+
+public class RoutedEndpoint
+{
+    [WolverineGet("/routed/{name}")]
+    public string Get(string name)
+    {
+        return name;
+    }
 }
 
 public class MaybeMessagingEndpoints

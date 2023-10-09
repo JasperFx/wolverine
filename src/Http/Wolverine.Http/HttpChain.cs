@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
+using Wolverine.Http.Metadata;
 
 namespace Wolverine.Http;
 
@@ -219,6 +220,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     private void applyMetadata()
     {
+        if (RoutePattern != null)
+        {
+            foreach (var parameter in RoutePattern.Parameters)
+            {
+                Metadata.WithMetadata(new FromRouteMetadata(parameter.Name));
+            }
+        }
+        
         Metadata
             .WithMetadata(this)
             .WithMetadata(new WolverineMarker())
