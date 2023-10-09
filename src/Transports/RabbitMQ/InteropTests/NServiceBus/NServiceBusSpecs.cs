@@ -23,19 +23,21 @@ public class NServiceBusSpecs : IClassFixture<NServiceBusFixture>
         ResponseHandler.Received.Clear();
 
         var id = Guid.NewGuid();
-
+        var messageId = Guid.NewGuid().ToString();
 
         var session = await theFixture.Wolverine.ExecuteAndWaitAsync(async () =>
         {
+            var options = new PublishOptions();
+            options.SetMessageId(messageId);
             var sender = theFixture.NServiceBus.Services.GetRequiredService<IMessageSession>();
-            await sender.Publish(new ResponseMessage { Id = id });
+            await sender.Publish(new ResponseMessage { Id = id }, options);
         }, 60000);
 
         var envelope = ResponseHandler.Received.FirstOrDefault();
         envelope.Message.ShouldBeOfType<ResponseMessage>().Id.ShouldBe(id);
         envelope.ShouldNotBeNull();
 
-        envelope.CorrelationId.ShouldNotBeNull();
+        envelope.CorrelationId.ShouldBe(messageId);
         envelope.Id.ShouldNotBe(Guid.Empty);
         envelope.ConversationId.ShouldNotBe(Guid.Empty);
     }
@@ -46,12 +48,15 @@ public class NServiceBusSpecs : IClassFixture<NServiceBusFixture>
         ResponseHandler.Received.Clear();
 
         var id = Guid.NewGuid();
-
+        var messageId = Guid.NewGuid().ToString();
 
         var session = await theFixture.Wolverine.ExecuteAndWaitAsync(async () =>
         {
+            var options = new SendOptions();
+            options.SetMessageId(messageId);
+            options.SetDestination("wolverine");
             var sender = theFixture.NServiceBus.Services.GetRequiredService<IMessageSession>();
-            await sender.Send<IInterfaceMessage>("wolverine", x => x.Id = id );
+            await sender.Send<IInterfaceMessage>(x => x.Id = id, options);
         }, 60000);
 
         var envelope = ResponseHandler.Received.FirstOrDefault();
@@ -59,6 +64,7 @@ public class NServiceBusSpecs : IClassFixture<NServiceBusFixture>
         envelope.ShouldNotBeNull();
 
         envelope.CorrelationId.ShouldNotBeNull();
+        envelope.CorrelationId.ShouldBe(messageId);
         envelope.Id.ShouldNotBe(Guid.Empty);
         envelope.ConversationId.ShouldNotBe(Guid.Empty);
     }
