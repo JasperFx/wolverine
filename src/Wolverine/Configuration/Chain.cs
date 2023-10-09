@@ -114,11 +114,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     private IEnumerable<Type> serviceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes)
     {
-        foreach (var handlerCall in HandlerCalls())
+        var calls = Middleware.OfType<MethodCall>().Concat(HandlerCalls());
+        
+        foreach (var call in calls)
         {
-            yield return handlerCall.HandlerType;
+            yield return call.HandlerType;
 
-            foreach (var parameter in handlerCall.Method.GetParameters())
+            foreach (var parameter in call.Method.GetParameters())
             {
                 // Absolutely do NOT let Lamar go into the command/input/request types
                 if (parameter.ParameterType != InputType() && !parameter.ParameterType.IsPrimitive)
@@ -139,12 +141,12 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             }
 
             // Don't have to consider dependencies of a static handler
-            if (handlerCall.HandlerType.IsStatic())
+            if (call.HandlerType.IsStatic())
             {
                 continue;
             }
 
-            var @default = container.Model.For(handlerCall.HandlerType).Default;
+            var @default = container.Model.For(call.HandlerType).Default;
             if (@default != null)
             {
                 foreach (var dependency in @default.Instance.Dependencies) yield return dependency.ServiceType;

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core.Reflection;
 using Lamar;
@@ -41,18 +42,37 @@ public class Bug_581_complex_dependency_graph_transactional_middleware_applicati
                 opts.Services.AddScoped<IUserRepository, UserRepository>();
                 
                 opts.Policies.AutoApplyTransactions();
+
+                opts.Policies.ForMessagesOfType<CreateUser2>()
+                    .AddMiddleware<DoSomethingWithMartenMiddleware>();
             }).StartAsync();
 
         var runtime = host.GetRuntime();
         var handlers = runtime.Handlers;
 
-        var handler = handlers.HandlerFor<CreateUser>().As<MessageHandler>();
-        
-        new MartenPersistenceFrameProvider()
-            .CanApply(handler.Chain, (IContainer)host.Services).ShouldBeTrue();
+        var martenPersistenceFrameProvider = new MartenPersistenceFrameProvider();
+        martenPersistenceFrameProvider
+            .CanApply(handlers.HandlerFor<CreateUser>().As<MessageHandler>().Chain, (IContainer)host.Services).ShouldBeTrue();
 
-        var code = handler.Chain.SourceCode;
-        _output.WriteLine(code);
+        // For middleware too
+        martenPersistenceFrameProvider
+            .CanApply(handlers.HandlerFor<CreateUser2>().As<MessageHandler>().Chain, (IContainer)host.Services).ShouldBeTrue();
+
+    }
+}
+
+public class DoSomethingWithMartenMiddleware
+{
+    private readonly IUserService _service;
+
+    public DoSomethingWithMartenMiddleware(IUserService service)
+    {
+        _service = service;
+    }
+
+    public Task Before(CreateUser2 command)
+    {
+        return _service.CreateUser(command.Name);
     }
 }
 
@@ -71,7 +91,16 @@ public class CreateUserHandler
     }
 }
 
+public static class CreateUser2Handler
+{
+    public static void Handle(CreateUser2 user2)
+    {
+        Debug.WriteLine("Got user 2");
+    }
+}
+
 public record CreateUser(string Name);
+public record CreateUser2(string Name);
 
 public interface IUserService
 {
@@ -114,9 +143,9 @@ public class UserRepository : IUserRepository
         _session = session;
     }
 
-    public async Task Store(User user)
+    public Task Store(User user)
     {
         _session.Store(user);
-        await _session.SaveChangesAsync();
+        return Task.CompletedTask;
     }
 }
