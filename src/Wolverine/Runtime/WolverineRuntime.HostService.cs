@@ -35,12 +35,13 @@ public partial class WolverineRuntime
             // Has to be done before initializing the storage
             Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
             await Storage.InitializeAsync(this);
+            
+            // This MUST be done before the messaging transports are started up
+            await startAgentsAsync();
 
             await startMessagingTransportsAsync();
 
             startInMemoryScheduledJobs();
-
-            await startAgentsAsync();
 
             _hasStarted = true;
         }
