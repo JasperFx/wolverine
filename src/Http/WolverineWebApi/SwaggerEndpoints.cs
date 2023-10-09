@@ -1,5 +1,6 @@
 using Marten;
 using Wolverine.Http;
+using Wolverine.Marten;
 
 namespace WolverineWebApi;
 
@@ -12,7 +13,15 @@ public class SwaggerEndpoints
     {
         return Task.FromResult(new UserProfile { Id = userId });
     }
+
+    [WolverinePost("/swagger/empty"), EmptyResponse]
+    public static IMartenOp PostEmpty(CreateUserProfile command)
+    {
+        return MartenOps.Store(new UserProfile{Id = command.Name + Guid.NewGuid().ToString()});
+    }
 }
+
+public record CreateUserProfile(string Name);
 
 public class UserProfile
 {
