@@ -14,7 +14,8 @@ public abstract partial class RabbitMqEndpoint
         {
             m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
             m.MapPropertyToHeader(x => x.SentAt, "NServiceBus.TimeSent");
-
+            m.MapPropertyToHeader(x => x.CorrelationId!, "NServiceBus.CorrelationId");
+            
             var replyAddress = new Lazy<string>(() =>
             {
                 var replyEndpoint = (RabbitMqEndpoint)_parent.ReplyEndpoint()!;
