@@ -40,10 +40,10 @@ public class configuring_middleware
     {
         await applyMiddleware<SimpleBeforeAndAfter>(chain =>
         {
-            chain.Middleware.FirstOrDefault()
+            chain.Middleware[1]
                 .ShouldBeOfType<ConstructorFrame>().Variable.VariableType.ShouldBe(typeof(SimpleBeforeAndAfter));
 
-            chain.Middleware[1].ShouldBeCallTo<SimpleBeforeAndAfter>("Before");
+            chain.Middleware[2].ShouldBeCallTo<SimpleBeforeAndAfter>("Before");
 
             chain.Postprocessors.Last()
                 .ShouldBeCallTo<SimpleBeforeAndAfter>("After");
@@ -55,10 +55,10 @@ public class configuring_middleware
     {
         await applyMiddleware<SimpleBeforeAndAfterAsync>(chain =>
         {
-            chain.Middleware.FirstOrDefault()
+            chain.Middleware[1]
                 .ShouldBeOfType<ConstructorFrame>().Variable.VariableType.ShouldBe(typeof(SimpleBeforeAndAfterAsync));
 
-            chain.Middleware[1].ShouldBeCallTo<SimpleBeforeAndAfterAsync>("BeforeAsync");
+            chain.Middleware[2].ShouldBeCallTo<SimpleBeforeAndAfterAsync>("BeforeAsync");
 
             chain.Postprocessors.Last()
                 .ShouldBeCallTo<SimpleBeforeAndAfterAsync>("AfterAsync");
@@ -76,9 +76,9 @@ public class configuring_middleware
             .StartAsync();
 
         var chain = host.GetRuntime().Handlers.ChainFor<MiddlewareMessage>();
-        chain.Middleware[0].ShouldBeOfType<ConstructorFrame>().Variable.VariableType
+        chain.Middleware[1].ShouldBeOfType<ConstructorFrame>().Variable.VariableType
             .ShouldBe(typeof(MiddlewareWithMessage));
-        chain.Middleware[1].ShouldBeCallWithMessageTo(typeof(MiddlewareWithMessage), "Before");
+        chain.Middleware[2].ShouldBeCallWithMessageTo(typeof(MiddlewareWithMessage), "Before");
 
         chain.Postprocessors.Last()
             .ShouldBeCallWithMessageTo(typeof(MiddlewareWithMessage), "After");

@@ -156,9 +156,14 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var handler in Handlers) assembly.ReferenceAssembly(handler.HandlerType.Assembly);
 
         var handleMethod = _generatedType.MethodFor(nameof(MessageHandler.HandleAsync));
-        handleMethod.Sources.Add(new MessageHandlerVariableSource(MessageType));
+
         handleMethod.Sources.Add(new LoggerVariableSource(MessageType));
-        var frames = DetermineFrames(assembly.Rules, _parent.Container!);
+        var envelopeVariable = new Variable(typeof(Envelope),
+            $"context.{nameof(IMessageContext.Envelope)}");
+
+        var messageVariable = new MessageVariable(envelopeVariable, InputType());
+
+        var frames = DetermineFrames(assembly.Rules, _parent.Container!, messageVariable);
         var index = 0;
         foreach (var variable in frames.SelectMany(x => x.Creates))
         {
@@ -169,6 +174,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             }
         }
 
+        handleMethod.Frames.Insert(0, messageVariable.Creator!);
         handleMethod.Frames.AddRange(frames);
 
         if (frames.Any(x => x.IsAsync))
@@ -179,8 +185,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         handleMethod.DerivedVariables.Add(new ContextVariable(typeof(IMessageContext)));
         handleMethod.DerivedVariables.Add(new ContextVariable(typeof(IMessageBus)));
 
-        handleMethod.DerivedVariables.Add(new Variable(typeof(Envelope),
-            $"context.{nameof(IMessageContext.Envelope)}"));
+
+        handleMethod.DerivedVariables.Add(envelopeVariable);
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
@@ -193,6 +199,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
+        // TEMP!
+        Debug.WriteLine(_generatedType?.SourceCode);
         _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
 
         if (_handlerType == null)
@@ -294,9 +302,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     /// <param name="rules"></param>
     /// <param name="container"></param>
+    /// <param name="messageVariable"></param>
+    /// <param name="messageVariable"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    internal virtual List<Frame> DetermineFrames(GenerationRules rules, IContainer container)
+    internal virtual List<Frame> DetermineFrames(GenerationRules rules, IContainer container, MessageVariable messageVariable)
     {
         if (!Handlers.Any())
         {
@@ -308,10 +318,18 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             Middleware.Insert(0, new AuditToActivityFrame(this));
         }
+        
+        Middleware.Insert(0, messageVariable.Creator!);
 
         applyCustomizations(rules, container);
 
         var handlerReturnValueFrames = determineHandlerReturnValueFrames().ToArray();
+
+        // Allow for immutable message types that get overwritten by middleware
+        foreach (var methodCall in Middleware.OfType<MethodCall>())
+        {
+            methodCall.TryReplaceVariableCreationWithAssignment(messageVariable);
+        }
 
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support

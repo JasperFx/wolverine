@@ -66,7 +66,8 @@ public class SagaChain : HandlerChain
         return Handlers.Where(x => methodNames.Contains(x.Method.Name) && x.HandlerType.CanBeCastTo<Saga>()).ToArray();
     }
 
-    internal override List<Frame> DetermineFrames(GenerationRules rules, IContainer container)
+    internal override List<Frame> DetermineFrames(GenerationRules rules, IContainer container,
+        MessageVariable messageVariable)
     {
         applyCustomizations(rules, container);
 
