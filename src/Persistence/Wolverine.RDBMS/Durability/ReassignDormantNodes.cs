@@ -21,7 +21,7 @@ public class ReassignDormantNodes : IAgentCommand
     public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var sql =
-            $"select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.IncomingTable} union select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.OutgoingTable};";
+            $"select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id > 0 union select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id > 0;";
 
         await using var conn = _database.CreateConnection();
         await conn.OpenAsync(cancellationToken);
