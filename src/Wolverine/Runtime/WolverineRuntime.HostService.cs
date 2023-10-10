@@ -39,6 +39,16 @@ public partial class WolverineRuntime
             // This MUST be done before the messaging transports are started up
             await startAgentsAsync();
 
+            if (Options.Durability.AssignedNodeNumber == 0)
+            {
+                throw new InvalidOperationException(
+                    "This Wolverine node was not able to create a non-zero assigned node number");
+            }
+            else
+            {
+                Logger.LogInformation("Wolverine assigned node id for envelope persistence is {NodeId}", Options.Durability.AssignedNodeNumber);
+            }
+            
             await startMessagingTransportsAsync();
 
             startInMemoryScheduledJobs();
