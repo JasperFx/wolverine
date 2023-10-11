@@ -82,6 +82,10 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
                 return envelope.ForScheduledSend(localDurableQueue);
             }
         }
+        else
+        {
+            envelope.OwnerId = runtime.Options.Durability.AssignedNodeNumber;
+        }
 
         return envelope;
     }
