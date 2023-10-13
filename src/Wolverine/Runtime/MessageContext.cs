@@ -106,6 +106,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
+        Runtime.MessageTracking.Requeued(Envelope);
         return _channel.DeferAsync(Envelope);
     }
 

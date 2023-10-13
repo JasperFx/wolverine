@@ -81,6 +81,14 @@ public interface ITrackedSession
     /// </summary>
     /// <returns></returns>
     IReadOnlyList<Exception> AllExceptions();
+
+    /// <summary>
+    /// Will throw an assertion exception with the tracked message history if the supplied condition
+    /// returns false
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="condition"></param>
+    void AssertCondition(string message, Func<bool> condition);
 }
 
 #endregion

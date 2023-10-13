@@ -139,6 +139,12 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _undeliverable(Logger, envelope, null);
     }
 
+    public void Requeued(Envelope envelope)
+    {
+        Logger.LogInformation("Requeue for message {Id} of message type {MessageType}", envelope.Id, envelope.MessageType);
+        ActiveSession?.Record(MessageEventType.Requeued, envelope, _serviceName, _uniqueNodeId);
+    }
+
     [Obsolete("Try to eliminate this")]
     public void LogException(Exception ex, object? correlationId = null,
         string message = "Exception detected:")

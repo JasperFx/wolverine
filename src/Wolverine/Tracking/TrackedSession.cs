@@ -34,8 +34,6 @@ internal class TrackedSession : ITrackedSession
         _source = new TaskCompletionSource<TrackingStatus>();
         _primaryLogger = host.GetRuntime();
     }
-    
-    
 
     public TimeSpan Timeout { get; set; } = 5.Seconds();
 
@@ -143,6 +141,14 @@ internal class TrackedSession : ITrackedSession
             .Distinct().ToList()!;
     }
 
+    public void AssertCondition(string message, Func<bool> condition)
+    {
+        if (condition()) return;
+
+        var description = BuildActivityMessage(message);
+        throw new Exception(description);
+    }
+
     public RecordCollection Received => new(MessageEventType.Received, this);
     public RecordCollection Sent => new(MessageEventType.Sent, this);
 
@@ -188,7 +194,24 @@ internal class TrackedSession : ITrackedSession
         var writer = new StringWriter();
         writer.WriteLine(description);
         writer.WriteLine("Activity detected:");
-        foreach (var record in AllRecordsInOrder()) writer.WriteLine(record);
+
+        var grid = new Grid<EnvelopeRecord>();
+        
+        var records = AllRecordsInOrder();
+
+        if (_otherHosts.Any())
+        {
+            grid.AddColumn("Service (Node Id)", x => $"{x.ServiceName} ({x.UniqueNodeId})");
+        }
+        
+        grid.AddColumn("Message Id", x => x.Envelope.Id.ToString());
+        grid.AddColumn("Message Type", x => x.Envelope.MessageType ?? string.Empty);
+        grid.AddColumn("Time (ms)", x => x.SessionTime.ToString(), true);
+        
+        grid.AddColumn("Event", x => x.MessageEventType.ToString());
+        
+        var text = grid.Write(records);
+        writer.WriteLine(text);
 
         if (_conditions.Any())
         {

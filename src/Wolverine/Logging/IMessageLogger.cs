@@ -84,6 +84,12 @@ public interface IMessageTracker
     /// </summary>
     /// <param name="envelope"></param>
     void DiscardedEnvelope(Envelope envelope);
+
+    /// <summary>
+    /// Called when Wolverine marks an envelope as needing to be requeued
+    /// </summary>
+    /// <param name="envelope"></param>
+    void Requeued(Envelope envelope);
 }
 
 #endregion

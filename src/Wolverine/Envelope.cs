@@ -147,7 +147,7 @@ public partial class Envelope
     ///     Number of times that Wolverine has tried to process this message. Will
     ///     reflect the current attempt number
     /// </summary>
-    public int Attempts { get; internal set; }
+    public int Attempts { get; set; }
 
 
     public DateTimeOffset SentAt { get; internal set; } = DateTimeOffset.UtcNow;
@@ -176,7 +176,7 @@ public partial class Envelope
     /// <summary>
     ///     Correlating identifier for the logical workflow or system action
     /// </summary>
-    public string? CorrelationId { get; internal set; }
+    public string? CorrelationId { get; set; }
 
     /// <summary>
     ///     If this message is part of a stateful saga, this property identifies

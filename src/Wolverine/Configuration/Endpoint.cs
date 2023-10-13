@@ -266,7 +266,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         DelayedConfiguration.Add(configuration);
     }
 
-    internal void Compile(IWolverineRuntime runtime)
+    public void Compile(IWolverineRuntime runtime)
     {
         if (_hasCompiled)
         {

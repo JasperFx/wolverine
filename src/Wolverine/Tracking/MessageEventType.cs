@@ -10,5 +10,6 @@ public enum MessageEventType
     MessageFailed,
     NoHandlers,
     NoRoutes,
-    MovedToErrorQueue
+    MovedToErrorQueue,
+    Requeued
 }

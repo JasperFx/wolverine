@@ -5,7 +5,7 @@ namespace Wolverine.Runtime.Serialization;
 
 public static class EnvelopeSerializer
 {
-    private static void readData(Envelope env, string key, string value)
+    public static void ReadDataElement(Envelope env, string key, string value)
     {
         try
         {
@@ -136,7 +136,7 @@ public static class EnvelopeSerializer
 
         for (var j = 0; j < headerCount; j++)
         {
-            readData(envelope, br.ReadString(), br.ReadString());
+            ReadDataElement(envelope, br.ReadString(), br.ReadString());
         }
 
         var byteCount = br.ReadInt32();
@@ -154,7 +154,7 @@ public static class EnvelopeSerializer
 
         for (var j = 0; j < headerCount; j++)
         {
-            readData(msg, br.ReadString(), br.ReadString());
+            ReadDataElement(msg, br.ReadString(), br.ReadString());
         }
 
         var byteCount = br.ReadInt32();

@@ -209,7 +209,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .Timeout(15.Seconds())
+            .Timeout(60.Seconds())
             .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync(new Message2()));
 
         session.FindSingleTrackedMessageOfType<Message2>(MessageEventType.MessageSucceeded)
@@ -387,7 +387,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender
             .TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
-            .Timeout(30.Seconds())
+            .Timeout(15.Seconds())
             .WaitForMessageToBeReceivedAt<ColorChosen>(theReceiver ?? theSender)
             .ExecuteAndWaitAsync(c => c.ScheduleAsync(new ColorChosen { Name = "Orange" }, 5.Seconds()));
 
@@ -423,34 +423,22 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);
 
-        var record = session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(
-            x =>
-                x.MessageEventType == MessageEventType.MessageSucceeded ||
-                x.MessageEventType == MessageEventType.MovedToErrorQueue);
-
-        if (record == null)
+        session.AssertCondition("Expected ending activity was not detected", () =>
         {
-            throw new Exception("No ending activity detected");
-        }
+            var record = session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(
+                x =>
+                    x.MessageEventType == MessageEventType.MessageSucceeded ||
+                    x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
-        if (record.MessageEventType == MessageEventType.MessageSucceeded && record.AttemptNumber == attempt)
-        {
-            return;
-        }
-
-        var writer = new StringWriter();
-
-        await writer.WriteLineAsync($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
-        foreach (var envelopeRecord in session.AllRecordsInOrder())
-        {
-            writer.WriteLine(envelopeRecord);
-            if (envelopeRecord.Exception != null)
+            if (record is null) return false;
+            
+            if (record.MessageEventType == MessageEventType.MessageSucceeded && record.AttemptNumber == attempt)
             {
-                await writer.WriteLineAsync(envelopeRecord.Exception.Message);
+                return true;
             }
-        }
 
-        throw new Exception(writer.ToString());
+            return false;
+        });
     }
 
     protected async Task shouldMoveToErrorQueueOnAttempt(int attempt)

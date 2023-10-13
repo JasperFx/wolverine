@@ -85,6 +85,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
     public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing)
     {
+        
         _mapOutgoing.Value(envelope, outgoing);
         writeOutgoingHeader(outgoing, TransportConstants.ProtocolVersion, "1.0"); // fancier later
     }

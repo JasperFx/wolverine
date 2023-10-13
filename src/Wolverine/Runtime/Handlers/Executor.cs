@@ -187,6 +187,8 @@ internal class Executor : IExecutor
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
                 envelope.Destination!.ToString(), null);
+            
+            _tracker.ExecutionFinished(envelope);
 
             return MessageSucceededContinuation.Instance;
         }
@@ -206,7 +208,7 @@ internal class Executor : IExecutor
         }
         finally
         {
-            _tracker.ExecutionFinished(envelope);
+            
             _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }
