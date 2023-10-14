@@ -16,7 +16,7 @@ Error handling rules in Wolverine are defined by three things:
 2. Exception matching
 3. One or more actions (retry the message? discard it? move it to an error queue?)
 
-### What do do on an error?
+### What to do on an error?
 
 | Action               | Description                                                                                                                              |
 |----------------------|------------------------------------------------------------------------------------------------------------------------------------------|
