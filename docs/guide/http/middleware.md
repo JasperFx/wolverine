@@ -182,7 +182,7 @@ app.MapWolverineEndpoints(opts =>
 {
     // Fake policy to add authentication middleware to any endpoint classes under
     // an application namespace
-    opts.Middleware.AddType(typeof(MyAuthenticationMiddleware),
+    opts.AddMiddleware(typeof(MyAuthenticationMiddleware),
         c => c.HandlerCalls().Any(x => x.HandlerType.IsInNamespace("MyApp.Authenticated")));
 });
 ```
