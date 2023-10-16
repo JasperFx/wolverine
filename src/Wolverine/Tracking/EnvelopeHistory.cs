@@ -99,6 +99,10 @@ internal class EnvelopeHistory
                 record.IsComplete = true;
 
                 break;
+            
+            case MessageEventType.Requeued:
+                // Do nothing, just informative
+                break;
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(record.MessageEventType), record.MessageEventType, null);

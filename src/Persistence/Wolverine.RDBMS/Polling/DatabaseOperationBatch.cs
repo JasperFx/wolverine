@@ -41,7 +41,7 @@ internal class DatabaseOperationBatch : IAgentCommand
         foreach (var operation in _operations) operation.ConfigureCommand(builder);
 
         var cmd = builder.Compile();
-        var conn = cmd.Connection;
+        await using var conn = cmd.Connection;
         await conn!.OpenAsync(cancellationToken);
 
         var tx = await conn.BeginTransactionAsync(cancellationToken);
@@ -58,12 +58,18 @@ internal class DatabaseOperationBatch : IAgentCommand
         }
         catch (Exception e)
         {
+            await conn.CloseAsync();
             throw new DatabaseBatchCommandException(cmd, e);
         }
 
-        foreach (var command in _operations.SelectMany(x => x.PostProcessingCommands())) yield return command;
-
-        await conn.CloseAsync();
+        try
+        {
+            foreach (var command in _operations.SelectMany(x => x.PostProcessingCommands())) yield return command;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     public static async Task ApplyCallbacksAsync(IReadOnlyList<IDatabaseOperation> operations, DbDataReader reader,
