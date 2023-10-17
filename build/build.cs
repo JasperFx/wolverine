@@ -143,6 +143,7 @@ namespace build
                 "./src/Transports/RabbitMQ/Wolverine.RabbitMQ", 
                 "./src/Transports/Azure/Wolverine.AzureServiceBus", 
                 "./src/Transports/AWS/Wolverine.AmazonSqs", 
+                "./src/Transports/MQTT/Wolverine.MQTT", 
                 "./src/Persistence/Wolverine.RDBMS", 
                 "./src/Persistence/Wolverine.Postgresql", 
                 "./src/Persistence/Wolverine.EntityFrameworkCore", 
