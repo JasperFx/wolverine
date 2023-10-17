@@ -108,4 +108,24 @@ public static class MqttTransportExtensions
 
         return new MqttSubscriberConfiguration(topic);
     }
+    
+    /// <summary>
+    /// Publish messages to MQTT topics based on Wolverine's rules for deriving topic
+    /// names from a message type
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="topicName"></param>
+    /// <returns></returns>
+    public static MqttSubscriberConfiguration ToMqttTopics(this IPublishToExpression publishing)
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<MqttTransport>();
+
+        var topic = transport.Topics[MqttTopic.WolverineTopicsName];
+        
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(topic.Uri);
+
+        return new MqttSubscriberConfiguration(topic);
+    }
 }

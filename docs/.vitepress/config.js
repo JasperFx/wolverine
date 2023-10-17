@@ -148,7 +148,8 @@ export default {
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
                                     ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
-                                {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'}
+                                {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
+                                {text: 'MQTT', link: '/guide/messaging/transports/mqtt'}
                             ]
                         },
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},

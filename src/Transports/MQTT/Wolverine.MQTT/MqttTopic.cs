@@ -14,6 +14,8 @@ namespace Wolverine.MQTT;
 
 public class MqttTopic : Endpoint, ISender
 {
+    public const string WolverineTopicsName = "wolverine/topics";
+    
     public string TopicName { get; }
     private CancellationToken _cancellation;
 

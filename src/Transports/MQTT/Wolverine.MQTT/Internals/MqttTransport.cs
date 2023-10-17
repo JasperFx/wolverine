@@ -6,6 +6,7 @@ using MQTTnet.Extensions.ManagedClient;
 using MQTTnet.Formatter;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 
 namespace Wolverine.MQTT.Internals;
@@ -48,9 +49,10 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         mqttTopic.IsUsedForReplies = true;
         mqttTopic.IsListener = true;
 
-        var topics = Topics["wolverine/topics"];
+        var topics = Topics[MqttTopic.WolverineTopicsName];
         topics.RoutingType = RoutingMode.ByTopic;
         topics.Retain = true;
+        topics.OutgoingRules.Add(new TopicRoutingRule()); // this will make any messages use the auto resolved topic name
         
         _logger = runtime.LoggerFactory.CreateLogger<MqttTransport>();
 

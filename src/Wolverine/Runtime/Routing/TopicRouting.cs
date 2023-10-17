@@ -30,3 +30,11 @@ internal static class TopicRouting
         return envelope.TopicName ?? DetermineTopicName(envelope.Message!.GetType());
     }
 }
+
+public class TopicRoutingRule : IEnvelopeRule
+{
+    public void Modify(Envelope envelope)
+    {
+        envelope.TopicName ??= TopicRouting.DetermineTopicName(envelope);
+    }
+}
