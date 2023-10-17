@@ -199,19 +199,16 @@ internal class TrackedSession : ITrackedSession
         
         var records = AllRecordsInOrder();
 
-        if (_otherHosts.Any())
+        if (records.Any())
         {
-            grid.AddColumn("Service (Node Id)", x => $"{x.ServiceName} ({x.UniqueNodeId})");
+            writeGrid(grid, records, writer);
         }
+        else
+        {
+            writer.WriteLine("No activity detected!");
+        }
+
         
-        grid.AddColumn("Message Id", x => x.Envelope.Id.ToString());
-        grid.AddColumn("Message Type", x => x.Envelope.MessageType ?? string.Empty);
-        grid.AddColumn("Time (ms)", x => x.SessionTime.ToString(), true);
-        
-        grid.AddColumn("Event", x => x.MessageEventType.ToString());
-        
-        var text = grid.Write(records);
-        writer.WriteLine(text);
 
         if (_conditions.Any())
         {
@@ -232,6 +229,23 @@ internal class TrackedSession : ITrackedSession
         }
 
         return writer.ToString();
+    }
+
+    private void writeGrid(Grid<EnvelopeRecord> grid, EnvelopeRecord[] records, StringWriter writer)
+    {
+        if (_otherHosts.Any())
+        {
+            grid.AddColumn("Service (Node Id)", x => $"{x.ServiceName} ({x.UniqueNodeId})");
+        }
+
+        grid.AddColumn("Message Id", x => x.Envelope.Id.ToString());
+        grid.AddColumn("Message Type", x => x.Envelope.MessageType ?? string.Empty);
+        grid.AddColumn("Time (ms)", x => x.SessionTime.ToString(), true);
+
+        grid.AddColumn("Event", x => x.MessageEventType.ToString());
+
+        var text = grid.Write(records);
+        writer.WriteLine(text);
     }
 
     private void setActiveSession(TrackedSession? session)

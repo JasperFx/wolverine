@@ -1,5 +1,4 @@
-﻿using System.Net;
-using Amazon.Runtime;
+﻿using Amazon.Runtime;
 using Amazon.SQS;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
@@ -7,14 +6,17 @@ using Newtonsoft.Json;
 using Shouldly;
 using Wolverine.Tracking;
 
-namespace Wolverine.AmazonSqs.Tests
+namespace Wolverine.AmazonSqs.Tests.RawJson
 {
-    public class receive_raw_json : IAsyncLifetime
+    public class receive_raw_json_as_buffered : IAsyncLifetime
     {
         private IHost _host;
+        private IHost _sender;
+        private string theQueueName;
 
         public async Task InitializeAsync()
         {
+            theQueueName = "receive_native_json_buffered";
             _host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
@@ -27,9 +29,19 @@ namespace Wolverine.AmazonSqs.Tests
                         .AutoProvision()
                         .AutoPurgeOnStartup();
 
-                    opts.ListenToSqsQueue("receive_native_json");
+                    opts.ListenToSqsQueue(theQueueName).BufferedInMemory();
                 })
                 .StartAsync();
+
+            _sender = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts
+                        .UseAmazonSqsTransportLocally();
+                    
+                    opts.Policies.DisableConventionalLocalRouting();
+                    opts.PublishAllMessages().ToSqsQueue(theQueueName).SendRawJsonMessage().BufferedInMemory();
+                }).StartAsync();
         }
 
         [Fact]
@@ -46,7 +58,35 @@ namespace Wolverine.AmazonSqs.Tests
             session.Executed.SingleMessage<MyNativeJsonMessage>().Id.ShouldBe(id);
         }
 
-        private static async Task SendRawJsonMessage(Guid id, TimeSpan timeout)
+        [Fact]
+        public async Task send_and_receive_raw_json()
+        {
+            Guid id = Guid.NewGuid();
+
+            var session = await _sender
+                .TrackActivity(10.Seconds())
+                .AlsoTrack(_host)
+                .WaitForMessageToBeReceivedAt<MyNativeJsonMessage>(_host)
+                .PublishMessageAndWaitAsync(new MyNativeJsonMessage { Id = id });
+            
+            session.Received.SingleMessage<MyNativeJsonMessage>().Id.ShouldBe(id);
+        }
+        
+        [Fact]
+        public async Task send_native_json_message()
+        {
+            Guid id = Guid.NewGuid();
+
+            var session = await _host
+                .TrackActivity(10.Seconds())
+                .WaitForMessageToBeReceivedAt<MyNativeJsonMessage>(_host)
+                .ExecuteAndWaitAsync(_ => SendRawJsonMessage(id, 10.Seconds()));
+
+            session.Received.SingleMessage<MyNativeJsonMessage>().Id.ShouldBe(id);
+            session.Executed.SingleMessage<MyNativeJsonMessage>().Id.ShouldBe(id);
+        }
+
+        private async Task SendRawJsonMessage(Guid id, TimeSpan timeout)
         {
             var credentials = new BasicAWSCredentials("ignore", "ignore");
             var cfg = new AmazonSQSConfig
@@ -57,7 +97,7 @@ namespace Wolverine.AmazonSqs.Tests
             // create local sqs client
             IAmazonSQS sqs = new AmazonSQSClient(credentials, cfg);
 
-            string queueUrl = (await sqs.GetQueueUrlAsync("receive_native_json")).QueueUrl;
+            string queueUrl = (await sqs.GetQueueUrlAsync(theQueueName)).QueueUrl;
 
             var message = new MyNativeJsonMessage { Id = id };
             string messageBody = JsonConvert.SerializeObject(message);
@@ -69,22 +109,10 @@ namespace Wolverine.AmazonSqs.Tests
             ((int)sendMessageResponse.HttpStatusCode).ShouldBeLessThan(300, customMessage: "Ensure Success StatusCode");
         }
 
-        public Task DisposeAsync()
+        public async Task DisposeAsync()
         {
-            return _host.StopAsync();
-        }
-    }
-
-    public class MyNativeJsonMessage
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-    }
-
-    public static class MyNativeJsonMessageHandler
-    {
-        public static void Handle(MyNativeJsonMessage message)
-        {
-            // nothing
+            await _host.StopAsync();
+            await _sender.StopAsync();
         }
     }
 }

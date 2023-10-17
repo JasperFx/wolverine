@@ -3,7 +3,7 @@ using Amazon.SQS.Model;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Util;
 
-namespace Wolverine.AmazonSqs.Tests
+namespace Wolverine.AmazonSqs.Tests.RawJson
 {
     public class RawJsonSqsEnvelopeMapperTests
     {

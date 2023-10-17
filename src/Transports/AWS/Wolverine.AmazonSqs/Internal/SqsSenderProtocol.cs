@@ -52,8 +52,7 @@ internal class OutgoingSqsBatch
         {
             try
             {
-                var data = EnvelopeSerializer.Serialize(envelope);
-                var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(), Convert.ToBase64String(data));
+                var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(), queue.Mapper.BuildMessageBody(envelope));
 
                 entries.Add(entry);
                 _envelopes.Add(entry.Id, envelope);

@@ -10,6 +10,7 @@ namespace Wolverine.AmazonSqs;
 public interface ISqsEnvelopeMapper
 {
     string BuildMessageBody(Envelope envelope);
+
     IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope);
 
     void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes);
