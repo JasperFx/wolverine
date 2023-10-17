@@ -37,6 +37,9 @@ public static class static_publishing_rules
                     rule.Message<PingMessage>();
                     rule.Message<Message1>();
 
+                    // Implementing a specific marker interface or common base class
+                    rule.MessagesImplementing<IEventMarker>();
+
                     // All types in a certain assembly
                     rule.MessagesFromAssemblyContaining<PingMessage>();
 
@@ -58,4 +61,8 @@ public static class static_publishing_rules
 
         #endregion
     }
+}
+
+public interface IEventMarker
+{    
 }

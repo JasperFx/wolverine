@@ -58,6 +58,9 @@ using var host = Host.CreateDefaultBuilder()
             rule.Message<PingMessage>();
             rule.Message<Message1>();
 
+            // Implementing a specific marker interface or common base class
+            rule.MessagesImplementing<IEventMarker>();
+
             // All types in a certain assembly
             rule.MessagesFromAssemblyContaining<PingMessage>();
 
@@ -77,7 +80,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToPort(3333);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StaticPublishingRule.cs#L13-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_staticpublishingrules' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StaticPublishingRule.cs#L13-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_staticpublishingrules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that doing the message type filtering by namespace will also include child namespaces. In
