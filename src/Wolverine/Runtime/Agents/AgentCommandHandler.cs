@@ -18,6 +18,7 @@ internal class AgentCommandHandler : MessageHandler
             .Then.Discard();
 
         Chain.ExecutionLogLevel = LogLevel.Debug;
+        Chain.TelemetryEnabled = false;
     }
 
     public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
