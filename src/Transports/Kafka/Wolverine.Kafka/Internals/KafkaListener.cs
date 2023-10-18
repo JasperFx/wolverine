@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.Transports;
 
 namespace Wolverine.Kafka.Internals;
@@ -12,7 +13,8 @@ internal class KafkaListener : IListener, IDisposable
     private readonly ConsumerConfig _config;
     private readonly IReceiver _receiver;
 
-    public KafkaListener(KafkaTopic topic, ConsumerConfig config, IReceiver receiver)
+    public KafkaListener(KafkaTopic topic, ConsumerConfig config, IReceiver receiver,
+        ILogger<KafkaListener> logger)
     {
         Address = topic.Uri;
         _consumer = new ConsumerBuilder<string, string>(config).Build();
@@ -29,13 +31,22 @@ internal class KafkaListener : IListener, IDisposable
                 while (!_cancellation.IsCancellationRequested)
                 {
                     // TODO -- watch that this isn't EnableAutoCommit = false
-                    // TODO -- wrap try catch around this
-                    var result = _consumer.Consume(_cancellation.Token);
-                    var message = result.Message;
 
-                    var envelope = mapper.CreateEnvelope(result.Topic, message);
+                    try
+                    {
+                        var result = _consumer.Consume(_cancellation.Token);
+                        var message = result.Message;
+
+                        var envelope = mapper.CreateEnvelope(result.Topic, message);
   
-                    await receiver.ReceivedAsync(this, envelope);
+                        await receiver.ReceivedAsync(this, envelope);
+                        
+                        
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+                    }
                 }
             }
             catch (OperationCanceledException)
