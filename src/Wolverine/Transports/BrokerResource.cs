@@ -95,6 +95,8 @@ public class BrokerResource : IStatefulResource
         };
 
         var columns = _transport.DiagnosticColumns().ToArray();
+        if (!columns.Any()) return table;
+        
         foreach (var column in columns)
             table.AddColumn(new TableColumn(column.Header) { Alignment = column.Alignment });
 

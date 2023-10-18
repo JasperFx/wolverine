@@ -24,4 +24,12 @@ public class MqttTransportTests
         new MqttTopic("one/two", transport, EndpointRole.Application)
             .Uri.ShouldBe(new Uri("mqtt://topic/one/two"));
     }
+
+    [Fact]
+    public void endpoint_name_is_topic_name()
+    {
+        var transport = new MqttTransport();
+        new MqttTopic("one/two", transport, EndpointRole.Application)
+            .EndpointName.ShouldBe("one/two");
+    }
 }

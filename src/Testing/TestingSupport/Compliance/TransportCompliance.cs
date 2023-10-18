@@ -209,7 +209,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
-            .Timeout(60.Seconds())
+            .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync(new Message2()));
 
         session.FindSingleTrackedMessageOfType<Message2>(MessageEventType.MessageSucceeded)

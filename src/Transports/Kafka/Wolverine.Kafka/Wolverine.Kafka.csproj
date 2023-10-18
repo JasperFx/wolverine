@@ -1,7 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-
+        <Description>Kafka Transport for Wolverine Messaging Systems</Description>
+        <DebugType>portable</DebugType>
+        <PackageId>WolverineFx.Kafka</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Wolverine.Kafka</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

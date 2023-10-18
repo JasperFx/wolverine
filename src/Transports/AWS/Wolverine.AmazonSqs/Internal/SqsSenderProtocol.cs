@@ -8,7 +8,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class SqsSenderProtocol : ISenderProtocol
+internal class SqsSenderProtocol :ISenderProtocol 
 {
     private readonly ILogger _logger;
     private readonly AmazonSqsQueue _queue;

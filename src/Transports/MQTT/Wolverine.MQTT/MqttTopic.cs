@@ -24,6 +24,8 @@ public class MqttTopic : Endpoint, ISender
         TopicName = topicName.Trim('/');
         Parent = parent;
 
+        EndpointName = topicName;
+
         EnvelopeMapper = new MqttEnvelopeMapper(this);
         Mode = EndpointMode.BufferedInMemory;
     }
