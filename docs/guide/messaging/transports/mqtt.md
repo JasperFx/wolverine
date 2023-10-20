@@ -57,6 +57,11 @@ using var host = await Host.CreateDefaultBuilder()
 The MQTT transport *at this time* only supports endpoints that are either `Buffered` or `Durable`. 
 :::
 
+::: warning
+The MQTT transport does not really support the "Requeue" error handling policy in Wolverine. "Requeue" in this case becomes
+effectively an inline "Retry"
+:::
+
 ## Broadcast to User Defined Topics
 
 As long as the MQTT transport is enabled in your application, you can explicitly publish messages to any named topic

@@ -1,22 +1,18 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Logging.Debug;
 using Shouldly;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.MQTT.Internals;
 using Wolverine.Runtime;
-using Wolverine.Tracking;
-using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;
 
-public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
+public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
 
     public static int Number = 0;
 
-    public BufferedComplianceFixture() : base(new Uri("mqtt://topic/receiver"), 120)
+    public InlineComplianceFixture() : base(new Uri("mqtt://topic/receiver"), 120)
     {
 
     }
@@ -44,14 +40,14 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
             opts.ListenToMqttTopic(senderTopic).RetainMessages();
 
-            opts.PublishAllMessages().ToMqttTopic(receiverTopic).RetainMessages().BufferedInMemory();
+            opts.PublishAllMessages().ToMqttTopic(receiverTopic).RetainMessages().SendInline();
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseMqttWithLocalBroker(port);
 
-            opts.ListenToMqttTopic(receiverTopic).Named("receiver").RetainMessages().BufferedInMemory();
+            opts.ListenToMqttTopic(receiverTopic).Named("receiver").RetainMessages().ProcessInline();
         });
     }
 
@@ -66,10 +62,10 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 }
 
 [Collection("acceptance")]
-public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
+public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
 {
     [Fact]
-    public async Task has_response_topic_automatically()
+    public void has_response_topic_automatically()
     {
         var options = theSender.Services.GetRequiredService<IWolverineRuntime>().Options;
         var transport = options.Transports
@@ -81,5 +77,3 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
     }
 
 }
-
-

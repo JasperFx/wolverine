@@ -93,11 +93,6 @@ public class MqttTopic : Endpoint, ISender
         return message;
     }
 
-    protected override bool supportsMode(EndpointMode mode)
-    {
-        return mode != EndpointMode.Inline;
-    }
-
     public ValueTask SendAsync(Envelope envelope)
     {
         var message = BuildMessage(envelope);

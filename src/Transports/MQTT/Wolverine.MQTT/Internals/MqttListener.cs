@@ -43,8 +43,8 @@ internal class MqttListener : IListener
                 envelope.IsAcked = true;
             }
 
-            // Resend
-            await _topic.SendAsync(envelope);
+            // Really just an inline retry
+            await _receiver.ReceivedAsync(this, envelope);
         }, logger, _cancellation.Token);
     }
 
