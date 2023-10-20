@@ -35,7 +35,7 @@ public static class MqttTransportExtensions
 
         transport.Options = builder.Build();
         
-        return new MqttTransportExpression(transport);
+        return new MqttTransportExpression(transport, options);
     }
 
     /// <summary>
@@ -50,7 +50,7 @@ public static class MqttTransportExtensions
 
         transport.Options = mqttOptions;
         
-        return new MqttTransportExpression(transport);
+        return new MqttTransportExpression(transport, options);
     }
 
     /// <summary>
