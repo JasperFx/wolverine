@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Wolverine.Configuration;
 
 namespace Wolverine.Kafka;
@@ -17,6 +18,18 @@ public class KafkaSubscriberConfiguration : SubscriberConfiguration<KafkaSubscri
     public KafkaSubscriberConfiguration UseInterop(IKafkaEnvelopeMapper mapper)
     {
         add(e => e.Mapper = mapper);
+        return this;
+    }
+
+    /// <summary>
+    /// Publish only the raw, serialized JSON representation of messages to the downstream
+    /// Kafka subscribers
+    /// </summary>
+    /// <param name="options"></param>
+    /// <returns></returns>
+    public KafkaSubscriberConfiguration PublishRawJson(JsonSerializerOptions? options = null)
+    {
+        add(e => e.Mapper = new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
         return this;
     }
 }

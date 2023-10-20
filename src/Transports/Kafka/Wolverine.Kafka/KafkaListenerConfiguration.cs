@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Wolverine.Configuration;
 
 namespace Wolverine.Kafka;
@@ -21,6 +22,38 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
     public KafkaListenerConfiguration UseInterop(IKafkaEnvelopeMapper mapper)
     {
         add(e => e.Mapper = mapper);
+        return this;
+    }
+
+    /// <summary>
+    /// Configure this endpoint to receive messages of type T from
+    /// JSON message bodies. This option maybe be necessary to receive
+    /// messages from non-Wolverine applications
+    /// </summary>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public KafkaListenerConfiguration ReceiveRawJson<T>(JsonSerializerOptions? options = null)
+    {
+        return ReceiveRawJson(typeof(T));
+    }
+    
+    /// <summary>
+    /// Configure this endpoint to receive messages of the message typ from
+    /// JSON message bodies. This option maybe be necessary to receive
+    /// messages from non-Wolverine applications
+    /// </summary>
+    /// <param name="messageType"></param>
+    /// <param name="options"></param>
+    /// <returns></returns>
+    public KafkaListenerConfiguration ReceiveRawJson(Type messageType, JsonSerializerOptions? options = null)
+    {
+        add(e =>
+        {
+            e.Mapper = new JsonOnlyMapper(e, options);
+            e.MessageType = messageType;
+        });
+
         return this;
     }
 }

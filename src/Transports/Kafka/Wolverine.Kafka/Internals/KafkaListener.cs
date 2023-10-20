@@ -2,6 +2,7 @@ using Confluent.Kafka;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Transports;
+using Wolverine.Util;
 
 namespace Wolverine.Kafka.Internals;
 
@@ -12,6 +13,7 @@ internal class KafkaListener : IListener, IDisposable
     private readonly Task _runner;
     private readonly ConsumerConfig _config;
     private readonly IReceiver _receiver;
+    private readonly string? _messageTypeName;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config, IReceiver receiver,
         ILogger<KafkaListener> logger)
@@ -19,6 +21,8 @@ internal class KafkaListener : IListener, IDisposable
         Address = topic.Uri;
         _consumer = new ConsumerBuilder<string, string>(config).Build();
         var mapper = topic.Mapper;
+
+        _messageTypeName = topic.MessageType?.ToMessageTypeName();
 
         _config = config;
         _receiver = receiver;
@@ -38,6 +42,7 @@ internal class KafkaListener : IListener, IDisposable
                         var message = result.Message;
 
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
+                        envelope.MessageType ??= _messageTypeName;
   
                         await receiver.ReceivedAsync(this, envelope);
                         

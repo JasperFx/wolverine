@@ -17,7 +17,15 @@ public class InlineKafkaSender : ISender
     public Uri Destination { get; }
     public async Task<bool> PingAsync()
     {
-        throw new NotImplementedException();
+        try
+        {
+            await SendAsync(Envelope.ForPing(Destination));
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     public async ValueTask SendAsync(Envelope envelope)
