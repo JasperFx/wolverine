@@ -58,8 +58,8 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
         var mqttFactory = new MqttFactory();
             
-        // TODO -- add logging here!
-        Client = mqttFactory.CreateManagedMqttClient();
+        var logger = new MqttNetLogger(runtime.LoggerFactory.CreateLogger<MqttClient>());
+        Client = mqttFactory.CreateManagedMqttClient(logger);
 
         Options.ClientOptions.ProtocolVersion = MqttProtocolVersion.V500;
 
