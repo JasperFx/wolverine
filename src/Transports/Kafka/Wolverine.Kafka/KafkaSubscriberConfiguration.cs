@@ -8,4 +8,15 @@ public class KafkaSubscriberConfiguration : SubscriberConfiguration<KafkaSubscri
     {
     }
     
+    /// <summary>
+    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// system's protocol
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public KafkaSubscriberConfiguration UseInterop(IKafkaEnvelopeMapper mapper)
+    {
+        add(e => e.Mapper = mapper);
+        return this;
+    }
 }

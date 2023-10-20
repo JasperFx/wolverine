@@ -30,4 +30,16 @@ public class MqttSubscriberConfiguration : SubscriberConfiguration<MqttSubscribe
         add(e => e.QualityOfServiceLevel = serviceLevel);
         return this;
     }
+    
+    /// <summary>
+    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// system's protocol
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public MqttSubscriberConfiguration UseInterop(IMqttEnvelopeMapper mapper)
+    {
+        add(e => e.EnvelopeMapper = mapper);
+        return this;
+    }
 }

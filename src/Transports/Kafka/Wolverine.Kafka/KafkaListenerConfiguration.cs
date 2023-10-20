@@ -12,5 +12,15 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
     {
     }
 
-
+    /// <summary>
+    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// system's protocol
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public KafkaListenerConfiguration UseInterop(IKafkaEnvelopeMapper mapper)
+    {
+        add(e => e.Mapper = mapper);
+        return this;
+    }
 }
