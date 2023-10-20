@@ -65,7 +65,7 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
 
 
     /// <summary>
-    ///     Apply a policy to all Rabbit MQ listening endpoints
+    ///     Apply a policy to all listening endpoints
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>

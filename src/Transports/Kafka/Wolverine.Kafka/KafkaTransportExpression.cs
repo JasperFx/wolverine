@@ -1,13 +1,14 @@
 using Confluent.Kafka;
 using Wolverine.Kafka.Internals;
+using Wolverine.Transports;
 
 namespace Wolverine.Kafka;
 
-public class KafkaTransportExpression
+public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTopic, KafkaTopic, KafkaListenerConfiguration, KafkaSubscriberConfiguration, KafkaTransportExpression>
 {
     private readonly KafkaTransport _transport;
 
-    internal KafkaTransportExpression(KafkaTransport transport)
+    internal KafkaTransportExpression(KafkaTransport transport, WolverineOptions options) : base(transport, options)
     {
         _transport = transport;
     }
@@ -68,5 +69,15 @@ public class KafkaTransportExpression
     {
         _transport.AutoPurgeAllQueues = true;
         return this;
+    }
+
+    protected override KafkaListenerConfiguration createListenerExpression(KafkaTopic listenerEndpoint)
+    {
+        return new KafkaListenerConfiguration(listenerEndpoint);
+    }
+
+    protected override KafkaSubscriberConfiguration createSubscriberExpression(KafkaTopic subscriberEndpoint)
+    {
+        return new KafkaSubscriberConfiguration(subscriberEndpoint);
     }
 }

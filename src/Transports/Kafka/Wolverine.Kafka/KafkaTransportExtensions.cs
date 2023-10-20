@@ -34,7 +34,7 @@ public static class KafkaTransportExtensions
         transport.ProducerConfig.BootstrapServers = bootstrapServers;
         transport.AdminClientConfig.BootstrapServers = bootstrapServers;
 
-        return new KafkaTransportExpression(transport);
+        return new KafkaTransportExpression(transport, options);
     }
 
 
