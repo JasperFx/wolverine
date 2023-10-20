@@ -27,7 +27,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await SenderIs(opts =>
         {
-            opts.UseKafka("localhost:29092");
+            opts.UseKafka("localhost:29092").ConfigureConsumers(x => x.EnableAutoCommit = false);
 
             opts.ListenToKafkaTopic(senderTopic);
 

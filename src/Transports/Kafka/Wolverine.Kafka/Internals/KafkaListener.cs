@@ -14,6 +14,7 @@ internal class KafkaListener : IListener, IDisposable
     private readonly ConsumerConfig _config;
     private readonly IReceiver _receiver;
     private readonly string? _messageTypeName;
+    private readonly QualityOfService _qualityOfService;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config, IReceiver receiver,
         ILogger<KafkaListener> logger)
@@ -27,6 +28,10 @@ internal class KafkaListener : IListener, IDisposable
         _config = config;
         _receiver = receiver;
 
+        _qualityOfService = _config.EnableAutoCommit.HasValue && !_config.EnableAutoCommit.Value
+            ? QualityOfService.AtMostOnce
+            : QualityOfService.AtLeastOnce;
+
         _runner = Task.Run(async () =>
         {
             _consumer.Subscribe(topic.TopicName);
@@ -34,7 +39,10 @@ internal class KafkaListener : IListener, IDisposable
             {
                 while (!_cancellation.IsCancellationRequested)
                 {
-                    // TODO -- watch that this isn't EnableAutoCommit = false
+                    if (_qualityOfService == QualityOfService.AtMostOnce)
+                    {
+                        _consumer.Commit();
+                    }
 
                     try
                     {
@@ -43,10 +51,13 @@ internal class KafkaListener : IListener, IDisposable
 
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
                         envelope.MessageType ??= _messageTypeName;
-  
+                        
+
                         await receiver.ReceivedAsync(this, envelope);
-                        
-                        
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // we're done here!
                     }
                     catch (Exception e)
                     {
@@ -67,11 +78,8 @@ internal class KafkaListener : IListener, IDisposable
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
-        if (_config.EnableAutoCommit != null)
-        {
-            _consumer.Commit();
-        }
-        
+        // do nothing here, it's already ack'd before we get here
+
         return ValueTask.CompletedTask;
     }
 

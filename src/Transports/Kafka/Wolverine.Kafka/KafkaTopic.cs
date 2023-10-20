@@ -106,3 +106,16 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
         }
     }
 }
+
+public enum QualityOfService
+{
+    /// <summary>
+    /// "At least once" delivery guarantee by auto-ack'ing incoming messages
+    /// </summary>
+    AtLeastOnce,
+    
+    /// <summary>
+    /// "At most once" delivery guarantee by trying to ack received messages before processing
+    /// </summary>
+    AtMostOnce
+}
