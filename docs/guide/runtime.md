@@ -155,7 +155,7 @@ the in memory queues on normal application shutdown.
 
 ### Durable Endpoints
 
-**Durable** endpoints behave like **buffered** endpoints, but also use the [durable inbox/outbox message storage](http://localhost:5050/guide/durability/) to create much
+**Durable** endpoints behave like **buffered** endpoints, but also use the [durable inbox/outbox message storage](/guide/durability/) to create much
 stronger guarantees about message delivery and processing. You will need to use `Durable` endpoints in order to truly
 take advantage of the persistent outbox mechanism in Wolverine. To opt into making an endpoint durable, use this syntax:
 
