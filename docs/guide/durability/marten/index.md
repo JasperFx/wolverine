@@ -287,7 +287,7 @@ public static ValueTask Handle(
 <!-- endSnippet -->
 
 In both cases Wolverine's transactional middleware for Marten is taking care of registering the Marten session with Wolverine's outbox before you call into the message handler, and
-also calling Marten's `IDocumentSession.SaveChangesAsync()` afterward. Used judiciously, this might allow you to avoid more messy or noising asynchronous code in your
+also calling Marten's `IDocumentSession.SaveChangesAsync()` afterward. Used judiciously, this might allow you to avoid more messy or noisy asynchronous code in your
 application handler code.
 
 ::: tip
