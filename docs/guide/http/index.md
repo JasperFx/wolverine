@@ -7,7 +7,7 @@ match Wolverine HTTP endpoints with ASP.Net Core MVC handling Razor views.
 
 Server side applications are frequently built with some mixture of HTTP web services, asynchronous processing, and
 asynchronous messaging. Wolverine by itself can help you with the asynchronous processing through its [local queue functionality](/guide/messaging/transports/local),
-and it certainly covers all common [asynchronous messaging](http://localhost:5050/guide/messaging/introduction.html) requirements. 
+and it certainly covers all common [asynchronous messaging](/guide/messaging/introduction.html) requirements. 
 
 For a simplistic example, let's say that we're inevitably building a "Todo" application where we want a web service
 endpoint that allows our application to create a new `Todo` entity, save it to a database, and raise an `TodoCreated` event
