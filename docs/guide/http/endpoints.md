@@ -63,7 +63,7 @@ to determine how to source that parameter at runtime:
 | `HttpContext` or its members               | See the section below on accessing the HttpContext                                                                       |
 | Parameter name matches a route parameter   | See the [routing page](/guide/http/routing) for more information                                                         |
 | Decorated with `[FromHeader]`              | See [working with headers](/guide/http/headers) for more information                                                     |
-| `string`, `int`, `Guid`, etc.              | All other "simple" .NET types are assumed to be [query string values](http://localhost:5050/guide/http/querystring.html) |
+| `string`, `int`, `Guid`, etc.              | All other "simple" .NET types are assumed to be [query string values](/guide/http/querystring) |
 | The first concrete, "not simple" parameter | Deserializes the HTTP request body as JSON to this type                                                                  |
 | Every thing else                           | Wolverine will try to source the type as an IoC service |
 
@@ -141,7 +141,7 @@ public static class TodoCreationEndpoint
 <!-- endSnippet -->
 
 In the case above, `TodoCreationResponse` is the first item in the tuple, so Wolverine treats that as 
-the response for the HTTP endpoint. The second `TodoCreated` value in the tuple is treated as a [cascading message](http://localhost:5050/guide/messaging/transports/local.html)
+the response for the HTTP endpoint. The second `TodoCreated` value in the tuple is treated as a [cascading message](/guide/messaging/transports/local)
 that will be published through Wolverine's messaging (or a local queue depending on the routing).
 
 How Wolverine handles those extra "return values" is the same [return value rules](/guide/handlers/return-values)
