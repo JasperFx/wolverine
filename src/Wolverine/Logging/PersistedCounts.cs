@@ -36,6 +36,8 @@ public class PersistedCounts
         DeadLetter += other.DeadLetter;
     }
 
+    public Dictionary<string, PersistedCounts> Tenants { get; } = new();
+
     public override string ToString()
     {
         return

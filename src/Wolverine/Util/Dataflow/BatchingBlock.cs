@@ -53,6 +53,20 @@ public class BatchingBlock<T> : IDisposable
         _batchBlock.Complete();
     }
 
+    public void Send(T item)
+    {
+        try
+        {
+            _trigger.Change(_timeSpan, Timeout.InfiniteTimeSpan);
+        }
+        catch (Exception)
+        {
+            // ignored
+        }
+
+        _batchBlock.Post(item);
+    }
+
     public Task SendAsync(T item)
     {
         try

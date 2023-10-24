@@ -1,7 +1,9 @@
 using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
@@ -12,7 +14,6 @@ namespace Wolverine.Runtime;
 
 public partial class WolverineRuntime
 {
-    private NodeAgentController? _agents;
     private bool _hasStarted;
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -48,10 +49,26 @@ public partial class WolverineRuntime
             {
                 Logger.LogInformation("Wolverine assigned node id for envelope persistence is {NodeId}", Options.Durability.AssignedNodeNumber);
             }
-            
-            await startMessagingTransportsAsync();
 
-            startInMemoryScheduledJobs();
+            switch (Options.Durability.Mode)
+            {
+                case DurabilityMode.Balanced:
+                case DurabilityMode.Solo:
+                    await startMessagingTransportsAsync();
+                    startInMemoryScheduledJobs();
+                    break;
+                
+                case DurabilityMode.Serverless:
+                    Options.Transports.RemoveLocal();
+                    Options.Policies.DisableConventionalLocalRouting();
+                    Options.Policies.Add(new ServerlessEndpointsMustBeInlinePolicy());
+                    
+                    await startMessagingTransportsAsync();
+                    break;
+                
+                case DurabilityMode.MediatorOnly:
+                    break;
+            }
 
             _hasStarted = true;
         }
@@ -125,6 +142,12 @@ public partial class WolverineRuntime
     private async Task startMessagingTransportsAsync()
     {
         discoverListenersFromConventions();
+
+        // No local queues if running in Serverless
+        if (Options.Durability.Mode == DurabilityMode.Serverless)
+        {
+            Options.Transports.RemoveLocal();
+        }
 
         foreach (var transport in Options.Transports)
         {

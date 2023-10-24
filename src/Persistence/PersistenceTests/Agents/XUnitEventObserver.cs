@@ -17,7 +17,7 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>
         _output = output;
         var runtime = host.GetRuntime();
 
-        _assignedId = runtime.Tracker.Self.AssignedNodeId;
+        _assignedId = runtime.Options.Durability.AssignedNodeNumber;
 
         runtime.Tracker.Subscribe(this);
     }

@@ -63,6 +63,13 @@ public interface IAgentRuntime
 
     Task<T> InvokeAsync<T>(Guid nodeId, IAgentCommand command) where T : class;
     Uri[] AllRunningAgentUris();
+
+    /// <summary>
+    /// Use with caution! This will force Wolverine into restarting its leadership
+    /// election and agent assignment
+    /// </summary>
+    /// <returns></returns>
+    Task KickstartHealthDetectionAsync();
 }
 
 internal interface IExecutorFactory

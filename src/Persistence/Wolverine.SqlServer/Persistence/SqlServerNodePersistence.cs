@@ -5,22 +5,25 @@ using Microsoft.Data.SqlClient;
 using Weasel.Core;
 using Weasel.SqlServer;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Durability;
 using Wolverine.Runtime.Agents;
 using CommandExtensions = Weasel.Core.CommandExtensions;
 
 namespace Wolverine.SqlServer.Persistence;
 
-internal class SqlServerNodePersistence : INodeAgentPersistence
+internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersistence
 {
     public static string LeaderLockId = "9999999";
     
     private readonly DatabaseSettings _settings;
+    private readonly IMessageDatabase _database;
     private readonly DbObjectName _nodeTable;
     private readonly DbObjectName _assignmentTable;
 
-    public SqlServerNodePersistence(DatabaseSettings settings)
+    public SqlServerNodePersistence(DatabaseSettings settings, IMessageDatabase database)
     {
-        _settings = settings;        
+        _settings = settings;
+        _database = database;
         _nodeTable = new DbObjectName(settings.SchemaName ?? "dbo", DatabaseConstants.NodeTableName);
         _assignmentTable = new DbObjectName(settings.SchemaName ?? "dbo", DatabaseConstants.NodeAssignmentsTableName);
     }
@@ -73,7 +76,7 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        var cmd = conn.CreateCommand($"select id, node_number, description, uri, started, capabilities from {_nodeTable};select id, node_id, started from {_assignmentTable}");
+        var cmd = conn.CreateCommand($"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable}");
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -142,7 +145,7 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
         await conn.OpenAsync(cancellationToken);
 
         var cmd = CommandExtensions.CreateCommand(conn,
-                $"select id, node_number, description, uri, started, capabilities from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
+                $"select id, node_number, description, uri, started, health_check, capabilities from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
             .With("id", nodeId);
 
         WolverineNode returnValue = default!;
@@ -182,10 +185,11 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
             AssignedNodeId = await reader.GetFieldValueAsync<int>(1),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),
-            Started = await reader.GetFieldValueAsync<DateTimeOffset>(4)
+            Started = await reader.GetFieldValueAsync<DateTimeOffset>(4),
+            LastHealthCheck = await reader.GetFieldValueAsync<DateTimeOffset>(5)
         };
 
-        var capabilities = await reader.GetFieldValueAsync<string>(5);
+        var capabilities = await reader.GetFieldValueAsync<string>(6);
         if (capabilities.IsNotEmpty())
         {
             node.Capabilities.AddRange(capabilities.Split(',').Select(x => new Uri(x)));
@@ -322,6 +326,39 @@ internal class SqlServerNodePersistence : INodeAgentPersistence
 
         var result = await conn.CreateCommand($"select node_number from {_nodeTable}")
             .FetchListAsync<int>();
+
+        await conn.CloseAsync();
+
+        return result;
+    }
+    
+    public Task LogRecordsAsync(params NodeRecord[] records)
+    {
+        var op = new PersistNodeRecord(_settings, records);
+        return _database.EnqueueAsync(op);
+    }
+
+    public async Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
+    {
+        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "Must be a positive number");
+
+        Func<DbDataReader, Task<NodeRecord>> readRecord = async reader =>
+        {
+            return new NodeRecord
+            {
+                NodeNumber = await reader.GetFieldValueAsync<int>(0),
+                RecordType = Enum.Parse<NodeRecordType>(await reader.GetFieldValueAsync<string>(1)),
+                Timestamp = await reader.GetFieldValueAsync<DateTimeOffset>(2),
+                Description = await reader.GetFieldValueAsync<string>(3)
+
+            };
+        };
+        
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        var result = await conn.CreateCommand($"select top {count} node_number, event_name, timestamp, description from {_settings.SchemaName}.{DatabaseConstants.NodeRecordTableName} order by id desc")
+            .FetchListAsync(readRecord);
 
         await conn.CloseAsync();
 

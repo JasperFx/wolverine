@@ -2,14 +2,17 @@ using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using PersistenceTests.Marten;
 using Shouldly;
 using TestingSupport;
 using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.RDBMS;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.SqlServer.Persistence;
+using Wolverine.Transports.Stub;
 using Xunit;
 
 namespace PersistenceTests.Agents.SqlServer;
@@ -322,5 +325,7 @@ public class node_persistence : PostgresqlContext, IAsyncLifetime
         stale = await _database.Nodes.LoadAllStaleNodesAsync(future, CancellationToken.None);
         stale.Any().ShouldBeTrue();
     }
+
+
 
 }

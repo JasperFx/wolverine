@@ -1,6 +1,6 @@
 ﻿namespace Wolverine.RDBMS;
 
-public static class DatabaseConstants
+public class DatabaseConstants
 {
     public const string Id = "id";
     public const string OwnerId = "owner_id";
@@ -31,6 +31,7 @@ public static class DatabaseConstants
     public const string SentAt = "sent_at"; // add to all
 
     public const string KeepUntil = "keep_until";
+    public const string NodeRecordTableName = "wolverine_node_records";
 
     public static readonly string IncomingFields =
         $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}";
@@ -40,4 +41,13 @@ public static class DatabaseConstants
 
     public static readonly string DeadLetterFields =
         $"{Id}, {ExecutionTime}, {Body}, {MessageType}, {ReceivedAt}, {Source}, {ExceptionType}, {ExceptionMessage}, {SentAt}, {Replayable}";
+
+    public static readonly string NodeNumber = "node_number";
+    public static readonly string NodeId = "node_id";
+    public static readonly string Description = "description";
+    public static readonly string Uri = "uri";
+    public static readonly string Started = "started";
+    public static readonly string HealthCheck = "health_check";
+    public static readonly string Capabilities = "capabilities";
+    public static readonly string NodeColumns = $"{Id}, {NodeNumber}, {Description}, {Uri}, {Started}, {HealthCheck}, {Capabilities}";
 }

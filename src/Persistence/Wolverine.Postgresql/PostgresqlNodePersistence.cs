@@ -6,22 +6,26 @@ using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Durability;
 using Wolverine.Runtime.Agents;
+using Wolverine.Transports;
 using CommandExtensions = Weasel.Core.CommandExtensions;
 
 namespace Wolverine.Postgresql;
 
-internal class PostgresqlNodePersistence : INodeAgentPersistence
+internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersistence
 {
     public static int LeaderLockId = 9999999;
     private readonly DbObjectName _assignmentTable;
     private readonly DbObjectName _nodeTable;
 
     private readonly DatabaseSettings _settings;
+    private readonly IMessageDatabase _database;
 
-    public PostgresqlNodePersistence(DatabaseSettings settings)
+    public PostgresqlNodePersistence(DatabaseSettings settings, IMessageDatabase database)
     {
         _settings = settings;
+        _database = database;
         _nodeTable = new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeTableName);
         _assignmentTable =
             new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeAssignmentsTableName);
@@ -45,7 +49,7 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         var cmd = (NpgsqlCommand)CommandExtensions.CreateCommand(conn,
                 $"insert into {_nodeTable} (id, uri, capabilities, description) values (:id, :uri, :capabilities, :description) returning node_number")
             .With("id", node.Id)
-            .With("uri", node.ControlUri.ToString())
+            .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
             .With("description", node.Description);
 
         var strings = node.Capabilities.Select(x => x.ToString()).ToArray();
@@ -77,8 +81,8 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await using var conn = new NpgsqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        var cmd = CommandExtensions.CreateCommand(conn,
-            $"select id, node_number, description, uri, started, capabilities from {_nodeTable};select id, node_id, started from {_assignmentTable};");
+        var cmd = conn.CreateCommand(
+            $"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};");
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -108,8 +112,8 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         await using var conn = new NpgsqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        var cmd = CommandExtensions.CreateCommand(conn,
-                $"select id, node_number, description, uri, started, capabilities from {_nodeTable} where id = :id;select id, node_id, started from {_assignmentTable} where node_id = :id;")
+        var cmd = conn.CreateCommand(
+                $"select {NodeColumns} from {_nodeTable} where id = :id;select {Id}, {NodeId}, {Started} from {_assignmentTable} where node_id = :id;")
             .With("id", nodeId);
 
         WolverineNode returnValue = default!;
@@ -324,10 +328,11 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
             AssignedNodeId = await reader.GetFieldValueAsync<int>(1),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),
-            Started = await reader.GetFieldValueAsync<DateTimeOffset>(4)
+            Started = await reader.GetFieldValueAsync<DateTimeOffset>(4),
+            LastHealthCheck = await reader.GetFieldValueAsync<DateTimeOffset>(5),
         };
 
-        var capabilities = await reader.GetFieldValueAsync<string[]>(5);
+        var capabilities = await reader.GetFieldValueAsync<string[]>(6);
         node.Capabilities.AddRange(capabilities.Select(x => new Uri(x)));
 
         return node;
@@ -346,5 +351,39 @@ internal class PostgresqlNodePersistence : INodeAgentPersistence
         }
 
         return null;
+    }
+
+    public Task LogRecordsAsync(params NodeRecord[] records)
+    {
+        var op = new PersistNodeRecord(_settings, records);
+        return _database.EnqueueAsync(op);
+    }
+
+    public async Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
+    {
+        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "Must be a positive number");
+
+        Func<DbDataReader, Task<NodeRecord>> readRecord = async reader =>
+        {
+            return new NodeRecord
+            {
+                NodeNumber = await reader.GetFieldValueAsync<int>(0),
+                RecordType = Enum.Parse<NodeRecordType>(await reader.GetFieldValueAsync<string>(1)),
+                Timestamp = await reader.GetFieldValueAsync<DateTimeOffset>(2),
+                Description = await reader.GetFieldValueAsync<string>(3)
+
+            };
+        };
+        
+        await using var conn = new NpgsqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        var result = await conn.CreateCommand($"select node_number, event_name, timestamp, description from {_settings.SchemaName}.{DatabaseConstants.NodeRecordTableName} order by id desc LIMIT :limit")
+            .With("limit", count)
+            .FetchListAsync(readRecord);
+
+        await conn.CloseAsync();
+
+        return result;
     }
 }

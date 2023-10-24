@@ -13,7 +13,7 @@ public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMes
 
 public record EvaluateAssignments : IInternalMessage;
 
-public partial class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
+public partial class NodeAgentController
 {
     public static readonly Uri LeaderUri = new("wolverine://leader");
 
@@ -60,52 +60,8 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
                 _assignmentBlock);
     }
 
-    public async IAsyncEnumerable<object> HandleAsync(StartLocalAgentProcessing command)
-    {
-        var others = await _persistence.LoadAllNodesAsync(_cancellation);
+    public bool HasStartedInSoloMode { get; private set; }
 
-        var current = WolverineNode.For(command.Options);
-
-        current.AssignedNodeId = await _persistence.PersistAsync(current, _cancellation);
-        _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId;
-
-        _logger.LogInformation("Starting agents for Node {NodeId} with assigned node id {Id}",
-            command.Options.UniqueNodeId, current.AssignedNodeId);
-
-        foreach (var controller in _agentFamilies.Values)
-            current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
-
-        _tracker.MarkCurrent(current);
-
-        if (others.Any())
-        {
-            foreach (var other in others)
-            {
-                var active = _tracker.Add(other);
-                yield return new NodeEvent(current, NodeEventType.Started).ToNode(active);
-            }
-
-            if (_tracker.Leader == null)
-            {
-                // Find the oldest, ask it to assume leadership
-                var leaderCandidate = others.MinBy(x => x.AssignedNodeId) ?? current;
-
-                _logger.LogInformation(
-                    "Found no elected leader on node startup, requesting node {NodeId} to be the new leader",
-                    leaderCandidate.Id);
-
-                yield return new TryAssumeLeadership { CurrentLeaderId = null }.ToNode(leaderCandidate);
-            }
-        }
-        else
-        {
-            _logger.LogInformation("Found no other existing nodes, deciding to assume leadership in node {NodeId}",
-                command.Options.UniqueNodeId);
-
-            // send local command
-            yield return new TryAssumeLeadership { CurrentLeaderId = null };
-        }
-    }
 
     internal void AddHandlers(WolverineRuntime runtime)
     {
@@ -130,18 +86,29 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
 
     public async Task StopAsync(IMessageBus messageBus)
     {
-        foreach (var entry in _agents.Enumerate())
+        await stopAllAgentsAsync();
+
+        if (_runtime.Options.Durability.Mode == DurabilityMode.Balanced)
         {
-            try
-            {
-                await entry.Value.StartAsync(CancellationToken.None);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error trying to stop agent {AgentUri}", entry.Value.Uri);
-            }
+            await informOtherNodesAboutExitingAsync(messageBus);
         }
 
+        try
+        {
+            await _persistence.DeleteAsync(_runtime.Options.UniqueNodeId);
+            if (_runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+            {
+                await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStopped));
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to delete the exiting node from node persistence");
+        }
+    }
+
+    private async Task informOtherNodesAboutExitingAsync(IMessageBus messageBus)
+    {
         try
         {
             if (_tracker.Self!.IsLeader())
@@ -169,14 +136,20 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         {
             _logger.LogError(e, "Error trying to notify other nodes about this node exiting");
         }
+    }
 
-        try
+    private async Task stopAllAgentsAsync()
+    {
+        foreach (var entry in _agents.Enumerate())
         {
-            await _persistence.DeleteAsync(_tracker.Self!.Id);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Error trying to delete the exiting node from node persistence");
+            try
+            {
+                await entry.Value.StopAsync(CancellationToken.None);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to stop agent {AgentUri}", entry.Value.Uri);
+            }
         }
     }
 
@@ -201,6 +174,8 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         try
         {
             await agent.StartAsync(_cancellation);
+            await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStarted,
+                agentUri));
 
             // Need to update the current node
             _tracker.Publish(new AgentStarted(_runtime.Options.UniqueNodeId, agentUri));
@@ -236,6 +211,8 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
             {
                 await agent.StopAsync(_cancellation);
                 _logger.LogInformation("Successfully stopped agent {AgentUri}", agentUri);
+                await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStopped,
+                    agentUri));
             }
             catch (Exception e)
             {
@@ -273,6 +250,8 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
 
         _agents = ImHashMap<Uri, IAgent>.Empty;
     }
+
+
 }
 
 public class AgentStartingException : Exception

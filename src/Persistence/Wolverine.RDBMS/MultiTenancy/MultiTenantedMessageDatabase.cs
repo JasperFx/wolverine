@@ -286,6 +286,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         foreach (var database in databases())
         {
             var db = await database.FetchCountsAsync();
+            counts.Tenants[database.Name] = db;
             counts.Add(db);
         }
 

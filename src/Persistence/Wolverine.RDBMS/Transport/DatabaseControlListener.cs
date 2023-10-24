@@ -58,10 +58,8 @@ internal class DatabaseControlListener : IListener
 
     private void fireTimer(object status)
     {
-        _transport.Database.EnqueueAsync(new PollDatabaseControlQueue(_transport, _receiver, this)).GetAwaiter()
-#pragma warning disable VSTHRD002
-            .GetResult();
-#pragma warning restore VSTHRD002
+        _transport.Database.Enqueue(new DeleteExpiredMessages(_transport, DateTimeOffset.UtcNow));
+        _transport.Database.Enqueue(new PollDatabaseControlQueue(_transport, _receiver, this));
     }
 
     private async Task deleteEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken)

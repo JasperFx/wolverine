@@ -19,9 +19,9 @@ public partial class WolverineRuntime : IAsyncDisposable
 
         DurabilitySettings.Cancel();
 
-        if (_durableScheduledJobs != null)
+        if (DurableScheduledJobs != null)
         {
-            await _durableScheduledJobs.StopAsync(CancellationToken.None);
+            await DurableScheduledJobs.StopAsync(CancellationToken.None);
         }
         ScheduledJobs.Dispose();
     }

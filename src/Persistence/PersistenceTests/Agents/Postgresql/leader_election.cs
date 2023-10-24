@@ -334,4 +334,50 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
             w.ExpectRunningAgents(host4, 4);
         }, 30.Seconds());
     }
+    
+    [Fact]
+    public async Task persist_and_load_node_records()
+    {
+        var records = new NodeRecord[]
+        {
+            new NodeRecord
+            {
+                Description = "one",
+                NodeNumber = 1,
+                RecordType = NodeRecordType.NodeStarted
+            },
+            new NodeRecord
+            {
+                Description = "one",
+                NodeNumber = 1,
+                RecordType = NodeRecordType.NodeStopped
+            },
+            new NodeRecord
+            {
+                Description = "one",
+                NodeNumber = 2,
+                RecordType = NodeRecordType.NodeStarted
+            },
+            new NodeRecord
+            {
+                Description = "one",
+                NodeNumber = 2,
+                RecordType = NodeRecordType.NodeStopped
+            },
+        };
+
+        var runtime = _originalHost.GetRuntime();
+
+        var nodes = runtime.Storage.Nodes;
+        await nodes.LogRecordsAsync(records);
+
+        var count = 0;
+        while (count < 10)
+        {
+            var persisted = await nodes.FetchRecentRecordsAsync(10);
+            if (persisted.Count >= 4) return;
+        }
+
+        throw new Exception("No persisted node records!");
+    }
 }

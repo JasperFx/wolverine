@@ -107,4 +107,9 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
     {
         return _transports.Values.SelectMany(x => x.Endpoints()).ToArray();
     }
+
+    internal void RemoveLocal()
+    {
+        _transports.Remove(TransportConstants.Local);
+    }
 }

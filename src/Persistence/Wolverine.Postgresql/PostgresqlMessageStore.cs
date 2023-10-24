@@ -45,7 +45,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     protected override INodeAgentPersistence buildNodeStorage(DatabaseSettings databaseSettings)
     {
-        return new PostgresqlNodePersistence(databaseSettings);
+        return new PostgresqlNodePersistence(databaseSettings, this);
     }
 
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
@@ -254,6 +254,9 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         yield return new OutgoingEnvelopeTable(SchemaName);
         yield return new IncomingEnvelopeTable(SchemaName);
         yield return new DeadLettersTable(SchemaName);
+        
+        
+
 
         if (_settings.IsMaster)
         {
@@ -288,6 +291,14 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
                 yield return queueTable;
             }
+            
+            var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
+            eventTable.AddColumn("id", "SERIAL").AsPrimaryKey();
+            eventTable.AddColumn<int>("node_number").NotNull();
+            eventTable.AddColumn<string>("event_name").NotNull();
+            eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("now()").NotNull();
+            eventTable.AddColumn<string>("description").AllowNulls();
+            yield return eventTable;
         }
     }
 }
