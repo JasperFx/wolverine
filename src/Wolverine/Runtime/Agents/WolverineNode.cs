@@ -11,6 +11,7 @@ public class WolverineNode
 
     public List<Uri> ActiveAgents { get; } = new();
     public DateTimeOffset Started { get; set; }
+    public DateTimeOffset LastHealthCheck { get; set; }
 
     public bool IsLeader()
     {
@@ -19,7 +20,7 @@ public class WolverineNode
 
     public static WolverineNode For(WolverineOptions options)
     {
-        if (options.Transports.NodeControlEndpoint == null)
+        if (options.Durability.Mode == DurabilityMode.Balanced && options.Transports.NodeControlEndpoint == null)
         {
             throw new ArgumentOutOfRangeException(nameof(options), "ControlEndpoint cannot be null for this usage");
         }
@@ -27,7 +28,7 @@ public class WolverineNode
         return new WolverineNode
         {
             Id = options.UniqueNodeId,
-            ControlUri = options.Transports.NodeControlEndpoint.Uri
+            ControlUri = options.Transports.NodeControlEndpoint?.Uri
         };
     }
 }

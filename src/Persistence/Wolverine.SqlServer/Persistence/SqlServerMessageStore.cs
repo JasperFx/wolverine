@@ -39,7 +39,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     protected override INodeAgentPersistence buildNodeStorage(DatabaseSettings databaseSettings)
     {
-        return new SqlServerNodePersistence(databaseSettings);
+        return new SqlServerNodePersistence(databaseSettings, this);
     }
 
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
@@ -257,6 +257,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         yield return new WolverineStoredProcedure("uspDiscardAndReassignOutgoing.sql", this);
         yield return new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", this);
         yield return new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", this);
+
         
         if (_settings.IsMaster)
         {
@@ -290,6 +291,15 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
                 yield return queueTable;
             }
+            
+                    
+            var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
+            eventTable.AddColumn<int>("id").AutoNumber().AsPrimaryKey();
+            eventTable.AddColumn<int>("node_number").NotNull();
+            eventTable.AddColumn<string>("event_name").NotNull();
+            eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("GETUTCDATE()").NotNull();
+            eventTable.AddColumn<string>("description").AllowNulls();
+            yield return eventTable;
         }
     }
 }

@@ -37,6 +37,15 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
 
             if (staleNodes.Any())
             {
+                var records = staleNodes.Select(x => new NodeRecord
+                {
+                    NodeNumber = x.AssignedNodeId,
+                    RecordType = NodeRecordType.DormantNodeEjected,
+                    Description = "Health check on Node " + _runtime.Options.Durability.AssignedNodeNumber
+                }).ToArray();
+
+                await _persistence.LogRecordsAsync(records);
+                    
                 yield return new EvaluateAssignments();
             }
 

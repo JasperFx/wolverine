@@ -17,29 +17,28 @@ public class UnknownWolverineNodeException : Exception
 
 public partial class WolverineRuntime : IAgentRuntime
 {
-    private BufferedLocalQueue? _systemQueue;
-    private IAgent? _durableScheduledJobs;
-
     internal Timer? AgentTimer { get; private set; }
+
+    public NodeAgentController? NodeController { get; private set; }
 
     public Task StartLocallyAsync(Uri agentUri)
     {
-        if (_agents == null)
+        if (NodeController == null)
         {
             throw new InvalidOperationException("This WolverineRuntime does not support stateful agents");
         }
 
-        return _agents.StartAgentAsync(agentUri);
+        return NodeController.StartAgentAsync(agentUri);
     }
 
     public Task StopLocallyAsync(Uri agentUri)
     {
-        if (_agents == null)
+        if (NodeController == null)
         {
             throw new InvalidOperationException("This WolverineRuntime does not support stateful agents");
         }
 
-        return _agents.StopAgentAsync(agentUri);
+        return NodeController.StopAgentAsync(agentUri);
     }
 
     public async Task InvokeAsync(Guid nodeId, IAgentCommand command)
@@ -77,7 +76,12 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public Uri[] AllRunningAgentUris()
     {
-        return _agents!.AllRunningAgentUris();
+        return NodeController!.AllRunningAgentUris();
+    }
+
+    public async Task KickstartHealthDetectionAsync()
+    {
+        await new MessageBus(this).InvokeAsync(new CheckAgentHealth(), Options.Durability.Cancellation);
     }
 
     public IAgentRuntime Agents => this;
@@ -89,29 +93,65 @@ public partial class WolverineRuntime : IAgentRuntime
             return;
         }
 
-        _durableScheduledJobs = Storage.StartScheduledJobs(this);
+        switch (Options.Durability.Mode)
+        {
+            case DurabilityMode.Balanced:
+                startDurableScheduledJobs();
+                startNodeAgentController();
+                await startNodeAgentWorkflowAsync();
+                break;
+            
+            
+            case DurabilityMode.Solo:
+                startDurableScheduledJobs();
+                startNodeAgentController();
+                await NodeController!.StartSoloModeAsync();
+                break;
+            
+            
+            case DurabilityMode.Serverless:
+            case DurabilityMode.MediatorOnly:
+                break;
+        }
 
-        _systemQueue = (BufferedLocalQueue)Endpoints.GetOrBuildSendingAgent(TransportConstants.SystemQueueUri);
 
-        _agents = new NodeAgentController(this, Tracker, Storage.Nodes, _container.GetAllInstances<IAgentFamily>(),
+    }
+
+    private void startDurableScheduledJobs()
+    {
+        DurableScheduledJobs = Storage.StartScheduledJobs(this);
+    }
+
+    internal BufferedLocalQueue? SystemQueue { get; private set; }
+
+    internal IAgent? DurableScheduledJobs { get; private set; }
+
+    private void startNodeAgentController()
+    {
+        NodeController = new NodeAgentController(this, Tracker, Storage.Nodes, _container.GetAllInstances<IAgentFamily>(),
             LoggerFactory.CreateLogger<NodeAgentController>(), Options.Durability.Cancellation);
 
-        _agents.AddHandlers(this);
+        NodeController.AddHandlers(this);
+    }
 
-        var startingTime = new Random().Next(1000, 10000);
-        
+    private async Task startNodeAgentWorkflowAsync()
+    {
+        SystemQueue = (BufferedLocalQueue)Endpoints.GetOrBuildSendingAgent(TransportConstants.SystemQueueUri);
+
+        var startingTime = new Random().Next(0, 2000);
+
         AgentTimer = new Timer(fireHealthCheck, null, startingTime.Milliseconds(),
             Options.Durability.HealthCheckPollingTime);
 
         var bus = new MessageBus(this);
         await bus.InvokeAsync(new StartLocalAgentProcessing(Options), Cancellation);
     }
-
+    
     private void fireHealthCheck(object? state)
     {
         try
         {
-            _systemQueue!.EnqueueDirectly(new Envelope(new CheckAgentHealth())
+            SystemQueue!.EnqueueDirectly(new Envelope(new CheckAgentHealth())
             {
                 Serializer = Options.DefaultSerializer,
                 Destination = TransportConstants.SystemQueueUri
@@ -138,10 +178,10 @@ public partial class WolverineRuntime : IAgentRuntime
             }
         }
 
-        if (_agents != null)
+        if (NodeController != null)
         {
             var bus = new MessageBus(this);
-            await _agents.StopAsync(bus);
+            await NodeController.StopAsync(bus);
         }
     }
 
@@ -163,12 +203,12 @@ public partial class WolverineRuntime : IAgentRuntime
             }
         }
 
-        if (_agents != null)
+        if (NodeController != null)
         {
-            await _agents.DisableAgentsAsync();
+            await NodeController.DisableAgentsAsync();
             await _persistence.Value.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
         }
 
-        _agents = null;
+        NodeController = null;
     }
 }

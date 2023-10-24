@@ -38,6 +38,16 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
             }
         }
 
+        var records = commands.Select(x => new NodeRecord
+        {
+            NodeNumber = _runtime.Options.Durability.AssignedNodeNumber,
+            RecordType = NodeRecordType.AssignmentChanged,
+            Description = x.ToString()
+        }).ToArray();
+
+        await _persistence.LogRecordsAsync(records);
+            
+
         _tracker.Publish(new AgentAssignmentsChanged(commands, grid));
 
         LastAssignments = grid;

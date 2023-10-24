@@ -99,6 +99,16 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return _batcher.EnqueueAsync(operation);
     }
 
+    public void Enqueue(IDatabaseOperation operation)
+    {
+        if (_batcher == null)
+        {
+            throw new InvalidOperationException("This message database has not yet been initialized");
+        }
+
+        _batcher.Enqueue(operation);
+    }
+
     public abstract Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger runtimeLogger,
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
@@ -107,7 +117,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     {
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
 
-        if (Settings.IsMaster && runtime.Options.Transports.NodeControlEndpoint == null)
+        if (Settings.IsMaster && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
         {
             var transport = new DatabaseControlTransport(this, runtime.Options);
             runtime.Options.Transports.Add(transport);

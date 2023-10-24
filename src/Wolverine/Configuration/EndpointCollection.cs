@@ -21,6 +21,7 @@ public interface IEndpointCollection : IAsyncDisposable
     IListeningAgent? FindListeningAgent(string endpointName);
     Task StartListenersAsync();
     LocalQueue? LocalQueueForMessageType(Type messageType);
+    IEnumerable<ISendingAgent> ActiveSendingAgents();
 }
 
 public class EndpointCollection : IEndpointCollection
@@ -57,6 +58,11 @@ public class EndpointCollection : IEndpointCollection
         }
 
         foreach (var value in _listeners.Values) await value.DisposeAsync();
+    }
+
+    public IEnumerable<ISendingAgent> ActiveSendingAgents()
+    {
+        return _senders.Enumerate().Select(x => x.Value);
     }
 
     public ISendingAgent CreateSendingAgent(Uri? replyUri, ISender sender, Endpoint endpoint)

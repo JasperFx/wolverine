@@ -51,6 +51,11 @@ public class DatabaseBatcher : IAsyncDisposable
         return _batchingBlock.SendAsync(operation);
     }
 
+    public void Enqueue(IDatabaseOperation operation)
+    {
+        _batchingBlock.Send(operation);
+    }
+
     private async Task processOperationsAsync(IDatabaseOperation[] operations)
     {
         try

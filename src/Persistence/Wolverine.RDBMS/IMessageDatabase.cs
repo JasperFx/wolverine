@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Polling;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime.WorkerQueues;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -39,4 +40,6 @@ public interface IMessageDatabase : IMessageStore
     Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger runtimeLogger,
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
+
+    void Enqueue(IDatabaseOperation operation);
 }

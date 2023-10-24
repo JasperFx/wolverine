@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
+using Wolverine.AdminApi;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
@@ -97,6 +98,8 @@ app.MapPost("/orders", Results<BadRequest, Ok<Order>>(CreateOrder command)
     => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(command.OrderId)));
 
 app.MapHub<BroadcastHub>("/updates");
+
+app.MapWolverineAdminApiEndpoints();
 
 #region sample_using_configure_endpoints
 

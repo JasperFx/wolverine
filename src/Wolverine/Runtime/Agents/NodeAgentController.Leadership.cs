@@ -13,6 +13,8 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
             yield break;
         }
 
+        await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.ElectionRequested));
+
         var assigned = await _persistence.MarkNodeAsLeaderAsync(command.CurrentLeaderId, _tracker.Self!.Id);
 
         if (assigned.HasValue)
@@ -20,6 +22,8 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
             if (assigned == _tracker.Self.Id)
             {
                 _logger.LogInformation("Node {NodeId} successfully assumed leadership", _tracker.Self.Id);
+                await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options,
+                    NodeRecordType.LeadershipAssumed, LeaderUri));
 
                 var all = await _persistence.LoadAllNodesAsync(_cancellation);
                 var others = all.Where(x => x.Id != _tracker.Self.Id).ToArray();

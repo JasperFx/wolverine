@@ -2,9 +2,44 @@ using JasperFx.Core;
 
 namespace Wolverine;
 
+public enum DurabilityMode
+{
+    /// <summary>
+    /// The durability agent will be optimized to run in a single node. This is very useful
+    /// for local development where you may be frequently stopping and restarting the service
+    ///
+    /// All known agents will automatically start on the local node. The recovered inbox/outbox
+    /// messages will start functioning immediately
+    /// </summary>
+    Solo,
+    
+    /// <summary>
+    /// Normal mode that assumes that Wolverine is running on multiple load balanced nodes
+    /// with messaging active
+    /// </summary>
+    Balanced,
+    
+    /// <summary>
+    /// Disables all message persistence to optimize Wolverine for usage within serverless functions
+    /// like AWS Lambda or Azure Functions. Requires that all endpoints be inline
+    /// </summary>
+    Serverless,
+    
+    /// <summary>
+    /// Optimizes Wolverine for usage as strictly a mediator tool. This completely disables all node
+    /// persistence including the inbox and outbox 
+    /// </summary>
+    MediatorOnly
+}
+
 public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
+
+    /// <summary>
+    /// Control and optimize the durability agent behavior within Wolverine applications
+    /// </summary>
+    public DurabilityMode Mode { get; set; } = DurabilityMode.Balanced;
 
     /// <summary>
     ///     Should the message durability agent be enabled during execution.

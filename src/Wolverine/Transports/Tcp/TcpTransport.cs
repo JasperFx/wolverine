@@ -1,4 +1,5 @@
 ﻿using JasperFx.Core;
+using Wolverine.Runtime;
 
 namespace Wolverine.Transports.Tcp;
 
@@ -20,5 +21,15 @@ public class TcpTransport : TransportBase<TcpEndpoint>
     protected override TcpEndpoint findEndpointByUri(Uri uri)
     {
         return _listeners[uri];
+    }
+
+    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
+    {
+        foreach (var endpoint in _listeners)
+        {
+            endpoint.Compile(runtime);
+        }
+        
+        return ValueTask.CompletedTask;
     }
 }
