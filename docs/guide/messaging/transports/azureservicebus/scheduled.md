@@ -7,7 +7,7 @@ This functionality as introduced in Wolverine 1.6.0
 WolverineFx.AzureServiceBus now supports [native Azure Service Bus scheduled delivery](https://learn.microsoft.com/en-us/azure/service-bus-messaging/message-sequencing).
 There's absolutely nothing you need to do explicitly to enable this functionality. 
 
-So for message types that are routed to Azure Service Bus queues or topics, you can use this functionlity:
+So for message types that are routed to Azure Service Bus queues or topics, you can use this functionality:
 
 <!-- snippet: sample_send_delayed_message -->
 <a id='snippet-sample_send_delayed_message'></a>

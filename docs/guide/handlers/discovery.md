@@ -12,7 +12,7 @@ you could also explicitly add handler types programmatically.
 ## Troubleshooting Handler Discovery
 
 It's an imperfect world and sometimes Wolverine isn't finding handler methods for some reason or another -- or
-seems to be using types and methods you'd rather it didn't. Not to fear, there's some diagnostic tools
+seems to be using types and methods you'd rather it didn't. Not to fear, there are some diagnostic tools
 to help Wolverine explain what's going on.
 
 Directly on `WolverineOptions` itself is a diagnostic method named `DescribeHandlerMatch` that will give

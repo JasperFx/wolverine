@@ -1,6 +1,6 @@
 ## HTTP Policies
 
-Custom policies can be created for HTTP endpoints through either creating your own implementation of `IHttpPolciy`
+Custom policies can be created for HTTP endpoints through either creating your own implementation of `IHttpPolicy`
 shown below:
 
 <!-- snippet: sample_IHttpPolicy -->

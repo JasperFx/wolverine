@@ -50,7 +50,7 @@ It's actually possible to create custom conventions for how Wolverine resolves m
 using the `IParameterStrategy` plugin interface explained later in this page.
 :::
 
-First off, every endpoint method must be a `public` method on a `public` type to accomodate the runtime code generation.
+First off, every endpoint method must be a `public` method on a `public` type to accommodate the runtime code generation.
 After that, you have quite a bit of flexibility. 
 
 In terms of what the legal parameters to your endpoint method, Wolverine uses these rules *in order of precedence*
