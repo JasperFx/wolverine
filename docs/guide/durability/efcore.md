@@ -133,7 +133,7 @@ That registration will:
    allowing Wolverine to utilize the command batching from EF Core for the message storage
 2. Sets the `optionsLifetime` to `Singleton` scoped. This allows Wolverine to optimize the construction of your `DbContext`
    objects at runtime when the configuration options do not vary by scope
-3. Automatically registers the EF Core support for Wolverine transactional middlware and stateful saga support
+3. Automatically registers the EF Core support for Wolverine transactional middleware and stateful saga support
 
 The AddDbContextWithWolverineIntegration has an additional last default parameter wolverineDatabaseSchema. It lets you control the name of a database schema where
 Wolverine database table will be placed. The default value is null and creates Wolverine tables in the default schema.
