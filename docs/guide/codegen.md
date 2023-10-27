@@ -73,7 +73,7 @@ project.
 
 At production time, if there is any issue whatsoever with resource utilization, the Wolverine team
 recommends using the `Static` mode where all types are assumed to be pre-generated into what Wolverine
-thinks is the application assembly (more on this in the trouble shooting guide below).
+thinks is the application assembly (more on this in the troubleshooting guide below).
 
 ::: tip
 Most of the facilities shown here will require the [Oakton command line integration](./command-line).

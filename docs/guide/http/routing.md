@@ -1,7 +1,7 @@
 # Routing
 
 ::: warning
-The route argument to method name matching is case sensitive.
+The route argument to method name matching is case-sensitive.
 :::
 
 Wolverine HTTP endpoints need to be decorated with one of the `[WolverineVerb("route")]` attributes
