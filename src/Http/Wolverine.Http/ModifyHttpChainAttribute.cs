@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx.CodeGeneration;
 using Wolverine.Configuration;
 
@@ -17,6 +18,23 @@ public abstract class ModifyHttpChainAttribute : Attribute, IModifyChain<HttpCha
     /// <param name="rules"></param>
     public abstract void Modify(HttpChain chain, GenerationRules rules);
 }
+
+/// <summary>
+///     Base class for attributes that configure how an HTTP endpoint on a parameter is handled by applying
+///     middleware or error handling rules
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter)]
+public abstract class HttpChainParameterAttribute : Attribute
+{
+    /// <summary>
+    ///     Called by Wolverine during bootstrapping to modify the code generation
+    /// for an HTTP endpoint with the decorated parameter
+    /// </summary>
+    /// <param name="chain"></param>
+    /// <param name="rules"></param>
+    public abstract void Modify(HttpChain chain, ParameterInfo parameter, GenerationRules rules);
+}
+
 
 /// <summary>
 ///     Base class that marks a method as a Wolverine.Http route handler

@@ -70,7 +70,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         CommandType = chain.InputType();
         if (CommandType == null)
             throw new InvalidOperationException(
-                $"Cannot apply Marten command workflow to chain {chain} because it has no input type");
+                $"Cannot apply Marten aggregate handler workflow to chain {chain} because it has no input type");
         
         AggregateType ??= DetermineAggregateType(chain);
         AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
