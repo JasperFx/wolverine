@@ -16,6 +16,7 @@ public record OrderShipped;
 public record OrderCreated(Item[] Items);
 public record OrderReady;
 public record ShipOrder(Guid OrderId);
+public record ShipOrder2(string Description);
 public record ItemReady(string Name);
 
 public class Item
@@ -88,6 +89,39 @@ public static class MarkItemEndpoint
     }
 
     #endregion
+    
+    [AggregateHandler]
+    [WolverinePost("/orders/{orderId}/ship2"), EmptyResponse]
+    // The OrderShipped return value is treated as an event being posted
+    // to a Marten even stream
+    // instead of as the HTTP response body because of the presence of 
+    // the [EmptyResponse] attribute
+    public static OrderShipped Ship(string orderId, ShipOrder2 command, Order order)
+    {
+        return new OrderShipped();
+    }
+    
+    [AggregateHandler]
+    [WolverinePost("/orders/{orderId}/ship3"), EmptyResponse]
+    // The OrderShipped return value is treated as an event being posted
+    // to a Marten even stream
+    // instead of as the HTTP response body because of the presence of 
+    // the [EmptyResponse] attribute
+    public static OrderShipped Ship3(string orderId, [Aggregate] Order order)
+    {
+        return new OrderShipped();
+    }
+    
+    [AggregateHandler]
+    [WolverinePost("/orders/{orderId}/ship4"), EmptyResponse]
+    // The OrderShipped return value is treated as an event being posted
+    // to a Marten even stream
+    // instead of as the HTTP response body because of the presence of 
+    // the [EmptyResponse] attribute
+    public static OrderShipped Ship4([Aggregate] Order order)
+    {
+        return new OrderShipped();
+    }
 
     [Transactional]
     [WolverinePost("/orders/create")]

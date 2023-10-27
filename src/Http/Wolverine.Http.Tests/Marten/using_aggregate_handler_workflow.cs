@@ -81,6 +81,72 @@ public class using_aggregate_handler_workflow : IntegrationContext
     }
     
     [Fact]
+    public async Task use_a_return_value_as_event_using_route_id_and_command_aggregate()
+    {
+        var result1 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create");
+        });
+
+        var status1 = result1.ReadAsJson<OrderStatus>();
+
+        await Scenario(x =>
+        {
+            x.Post.Json(new ShipOrder2("Something")).ToUrl($"/orders/{status1.OrderId}/ship2");
+            
+            x.StatusCodeShouldBe(204);
+        });
+
+        using var session = Store.LightweightSession();
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        order.Shipped.HasValue.ShouldBeTrue();
+    }
+    
+    [Fact]
+    public async Task use_a_return_value_as_event_using_route_id_and_aggregate_but_no_command()
+    {
+        var result1 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create");
+        });
+
+        var status1 = result1.ReadAsJson<OrderStatus>();
+
+        await Scenario(x =>
+        {
+            x.Post.Url($"/orders/{status1.OrderId}/ship3");
+            
+            x.StatusCodeShouldBe(204);
+        });
+
+        using var session = Store.LightweightSession();
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        order.Shipped.HasValue.ShouldBeTrue();
+    }
+    
+    [Fact]
+    public async Task use_a_return_value_as_event_using_route_id_but_no_parameter_and_aggregate_but_no_command()
+    {
+        var result1 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create");
+        });
+
+        var status1 = result1.ReadAsJson<OrderStatus>();
+
+        await Scenario(x =>
+        {
+            x.Post.Url($"/orders/{status1.OrderId}/ship4");
+            
+            x.StatusCodeShouldBe(204);
+        });
+
+        using var session = Store.LightweightSession();
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        order.Shipped.HasValue.ShouldBeTrue();
+    }
+    
+    [Fact]
     public async Task use_stream_collision_policy()
     {
         var id = Guid.NewGuid();
