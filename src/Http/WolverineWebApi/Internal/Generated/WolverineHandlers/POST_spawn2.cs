@@ -25,7 +25,10 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            
+            // The actual HTTP request handler execution
             (var httpMessage1, var httpMessage2) = WolverineWebApi.MessageSpawnerEndpoint.Post();
+
             
             // Outgoing, cascaded message
             await messageContext.EnqueueCascadingAsync(httpMessage1).ConfigureAwait(false);
@@ -35,7 +38,7 @@ namespace Internal.Generated.WolverineHandlers
             await messageContext.EnqueueCascadingAsync(httpMessage2).ConfigureAwait(false);
 
             // Wolverine automatically sets the status code to 204 for empty responses
-            httpContext.Response.StatusCode = 204;
+            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
 
     }

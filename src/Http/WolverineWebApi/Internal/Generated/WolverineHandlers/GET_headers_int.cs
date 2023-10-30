@@ -24,7 +24,10 @@ namespace Internal.Generated.WolverineHandlers
             var headerUsingEndpoint = new WolverineWebApi.HeaderUsingEndpoint();
             int number = default;
             int.TryParse(ReadSingleHeaderValue(httpContext, "x-wolverine"), out number);
+            
+            // The actual HTTP request handler execution
             var result_of_Get = headerUsingEndpoint.Get(number);
+
             await WriteString(httpContext, result_of_Get);
         }
 

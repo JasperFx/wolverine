@@ -21,9 +21,13 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
+            // Reading the request body via JSON deserialization
             var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.SignUpRequest>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
+            
+            // The actual HTTP request handler execution
             var result = WolverineWebApi.SignupEndpoint.SignUp(request);
+
             await result.ExecuteAsync(httpContext).ConfigureAwait(false);
         }
 

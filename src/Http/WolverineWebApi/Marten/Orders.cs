@@ -3,6 +3,7 @@ using Marten.Events;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Attributes;
 using Wolverine.Http;
+using Wolverine.Http.Marten;
 using Wolverine.Marten;
 
 namespace WolverineWebApi.Marten;
@@ -90,29 +91,26 @@ public static class MarkItemEndpoint
 
     #endregion
     
-    [AggregateHandler]
     [WolverinePost("/orders/{orderId}/ship2"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
     // instead of as the HTTP response body because of the presence of 
     // the [EmptyResponse] attribute
-    public static OrderShipped Ship(string orderId, ShipOrder2 command, Order order)
+    public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
     {
         return new OrderShipped();
     }
     
-    [AggregateHandler]
     [WolverinePost("/orders/{orderId}/ship3"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
     // instead of as the HTTP response body because of the presence of 
     // the [EmptyResponse] attribute
-    public static OrderShipped Ship3(string orderId, [Aggregate] Order order)
+    public static OrderShipped Ship3([Aggregate] Order order)
     {
         return new OrderShipped();
     }
     
-    [AggregateHandler]
     [WolverinePost("/orders/{orderId}/ship4"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
+using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
 
 namespace Wolverine.Http;
@@ -43,6 +44,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     private string? _fileName;
     private readonly List<string> _httpMethods = new();
+
+    private readonly List<Variable> _routeVariables = new();
 
     private readonly HttpGraph _parent;
 
@@ -252,5 +255,71 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
+    }
+
+    public bool FindRouteVariable(ParameterInfo parameter, out Variable variable)
+    {
+        var existing = _routeVariables.FirstOrDefault(x =>
+            x.VariableType == parameter.ParameterType && x.Usage.EqualsIgnoreCase(parameter.Name));
+
+        if (existing is not null)
+        {
+            variable = existing;
+            return true;
+        }
+        
+        var matches = RoutePattern!.Parameters.Any(x => x.Name == parameter.Name);
+        if (matches)
+        {
+            if (parameter.ParameterType == typeof(string))
+            {
+                variable = new ReadStringRouteValue(parameter.Name!).Variable;
+                _routeVariables.Add(variable);
+                return true;
+            }
+
+            if (RouteParameterStrategy.CanParse(parameter.ParameterType))
+            {
+                variable = new ParsedRouteArgumentFrame(parameter).Variable;
+                _routeVariables.Add(variable);
+                return true;
+            }
+        }
+
+        variable = default!;
+        return false;
+    }
+
+    public bool FindRouteVariable(Type variableType, string routeOrParameterName, out Variable variable)
+    {
+        var matched =
+            _routeVariables.FirstOrDefault(x => x.VariableType == variableType && x.Usage == routeOrParameterName);
+        if (matched is not null)
+        {
+            variable = matched;
+            return true;
+        }
+        
+        var matches = RoutePattern!.Parameters.Any(x => x.Name == routeOrParameterName);
+        if (matches)
+        {
+            if (variableType == typeof(string))
+            {
+                variable = new ReadStringRouteValue(routeOrParameterName!).Variable;
+                _routeVariables.Add(variable);
+                return true;
+            }
+
+            if (RouteParameterStrategy.CanParse(variableType))
+            {
+                variable = new ParsedRouteArgumentFrame(variableType, routeOrParameterName).Variable;
+                _routeVariables.Add(variable);
+                return true;
+            }
+        }
+
+        variable = default!;
+        return false;
+
     }
 }

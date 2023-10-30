@@ -29,7 +29,10 @@ namespace Internal.Generated.WolverineHandlers
 
 
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
+            
+            // The actual HTTP request handler execution
             var result_of_IntRouteArgument = WolverineWebApi.TestEndpoints.IntRouteArgument(age);
+
             await WriteString(httpContext, result_of_IntRouteArgument);
         }
 

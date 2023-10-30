@@ -21,8 +21,11 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var reservationTimeout = (WolverineWebApi.ReservationTimeout)context.Envelope.Message;
+            // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
+            // The actual message body
+            var reservationTimeout = (WolverineWebApi.ReservationTimeout)context.Envelope.Message;
+
             string sagaId = context.Envelope.SagaId ?? reservationTimeout.Id;
             if (string.IsNullOrEmpty(sagaId)) throw new Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope);
             
@@ -35,7 +38,11 @@ namespace Internal.Generated.WolverineHandlers
 
             else
             {
+                
+                // The actual message execution
                 reservation.Handle(reservationTimeout, _logger);
+
+                // Delete the saga if completed, otherwise update it
                 if (reservation.IsCompleted())
                 {
                     

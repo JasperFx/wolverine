@@ -25,7 +25,10 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var attributeEndpoints = new WolverineWebApi.AttributeEndpoints();
+            
+            // The actual HTTP request handler execution
             var result_of_PostNotBody = attributeEndpoints.PostNotBody(_recorder);
+
             await WriteString(httpContext, result_of_PostNotBody);
         }
 

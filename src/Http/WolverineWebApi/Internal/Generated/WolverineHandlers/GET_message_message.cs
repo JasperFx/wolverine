@@ -26,7 +26,10 @@ namespace Internal.Generated.WolverineHandlers
         {
             var serviceEndpoints = new WolverineWebApi.ServiceEndpoints();
             var message = (string)httpContext.GetRouteValue("message");
+            
+            // The actual HTTP request handler execution
             var result_of_GetMessage = serviceEndpoints.GetMessage(message, _recorder);
+
             await WriteString(httpContext, result_of_GetMessage);
         }
 

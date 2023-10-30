@@ -27,7 +27,10 @@ namespace Internal.Generated.WolverineHandlers
             System.Decimal amount = default;
             System.Decimal.TryParse(httpContext.Request.Query["amount"], System.Globalization.CultureInfo.InvariantCulture, out amount);
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
+            
+            // The actual HTTP request handler execution
             var result_of_UseQueryStringParsing = WolverineWebApi.TestEndpoints.UseQueryStringParsing(_recorder, amount);
+
             await WriteString(httpContext, result_of_UseQueryStringParsing);
         }
 

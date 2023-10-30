@@ -22,8 +22,12 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var headerUsingEndpoint = new WolverineWebApi.HeaderUsingEndpoint();
+            // Retrieve header value from the request
             var accepts = ReadSingleHeaderValue(httpContext, "accepts");
+            
+            // The actual HTTP request handler execution
             var result_of_GetETag = headerUsingEndpoint.GetETag(accepts);
+
             await WriteString(httpContext, result_of_GetETag);
         }
 

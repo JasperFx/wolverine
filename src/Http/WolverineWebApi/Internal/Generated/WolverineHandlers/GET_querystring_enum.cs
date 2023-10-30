@@ -24,7 +24,10 @@ namespace Internal.Generated.WolverineHandlers
             WolverineWebApi.Direction direction = default;
             WolverineWebApi.Direction.TryParse<WolverineWebApi.Direction>(httpContext.Request.Query["direction"], out direction);
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
+            
+            // The actual HTTP request handler execution
             var result_of_UsingEnumQuerystring = WolverineWebApi.TestEndpoints.UsingEnumQuerystring(direction);
+
             await WriteString(httpContext, result_of_UsingEnumQuerystring);
         }
 

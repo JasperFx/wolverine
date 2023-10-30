@@ -26,7 +26,10 @@ namespace Internal.Generated.WolverineHandlers
         {
             var beforeAndAfterEndpoint = new WolverineWebApi.BeforeAndAfterEndpoint();
             WolverineWebApi.BeforeAndAfterEndpoint.Before(_recorder);
+            
+            // The actual HTTP request handler execution
             var result_of_GetRequest = beforeAndAfterEndpoint.GetRequest(_recorder);
+
             WolverineWebApi.BeforeAndAfterEndpoint.After(_recorder);
             await WriteString(httpContext, result_of_GetRequest);
         }

@@ -22,7 +22,10 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
+            
+            // The actual HTTP request handler execution
             var result_of_Speak = WolverineWebApi.TestEndpoints.Speak();
+
             await WriteString(httpContext, result_of_Speak);
         }
 

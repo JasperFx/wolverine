@@ -25,9 +25,13 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            // Reading the request body via JSON deserialization
             var (input, jsonContinue) = await ReadJsonAsync<WolverineWebApi.SpawnInput>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
+            
+            // The actual HTTP request handler execution
             (var stringValue, var outgoingMessages) = WolverineWebApi.MessageSpawnerEndpoint.Post(input);
+
             
             // Outgoing, cascaded message
             await messageContext.EnqueueCascadingAsync(outgoingMessages).ConfigureAwait(false);

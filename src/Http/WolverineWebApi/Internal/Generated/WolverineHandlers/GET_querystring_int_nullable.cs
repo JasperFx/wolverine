@@ -24,7 +24,10 @@ namespace Internal.Generated.WolverineHandlers
             int? age = null;
             if (int.TryParse(httpContext.Request.Query["age"], System.Globalization.CultureInfo.InvariantCulture, out var ageParsed)) age = ageParsed;
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
+            
+            // The actual HTTP request handler execution
             var result_of_UsingQueryStringParsingNullable = WolverineWebApi.TestEndpoints.UsingQueryStringParsingNullable(age);
+
             await WriteString(httpContext, result_of_UsingQueryStringParsingNullable);
         }
 

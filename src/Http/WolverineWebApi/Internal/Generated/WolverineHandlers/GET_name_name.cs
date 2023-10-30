@@ -23,7 +23,10 @@ namespace Internal.Generated.WolverineHandlers
         {
             var name = (string)httpContext.GetRouteValue("name");
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
+            
+            // The actual HTTP request handler execution
             var result_of_SimpleStringRouteArgument = WolverineWebApi.TestEndpoints.SimpleStringRouteArgument(name);
+
             await WriteString(httpContext, result_of_SimpleStringRouteArgument);
         }
 

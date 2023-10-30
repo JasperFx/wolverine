@@ -26,7 +26,10 @@ namespace Internal.Generated.WolverineHandlers
         {
             var middlewareEndpoints = new WolverineWebApi.MiddlewareEndpoints();
             WolverineWebApi.BeforeAndAfterMiddleware.Before(_recorder);
+            
+            // The actual HTTP request handler execution
             var result_of_GetRequest = middlewareEndpoints.GetRequest(_recorder);
+
             WolverineWebApi.BeforeAndAfterMiddleware.After(_recorder);
             await WriteString(httpContext, result_of_GetRequest);
         }

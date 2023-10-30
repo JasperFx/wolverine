@@ -10,8 +10,13 @@ namespace Internal.Generated.WolverineHandlers
 
         public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
+            // The actual message body
             var telegramUpdated = (WolverineWebApi.Bugs.TelegramUpdated)context.Envelope.Message;
+
+            
+            // The actual message execution
             WolverineWebApi.Bugs.TelegramUpdatedHandler.Handle(telegramUpdated);
+
             return System.Threading.Tasks.Task.CompletedTask;
         }
 

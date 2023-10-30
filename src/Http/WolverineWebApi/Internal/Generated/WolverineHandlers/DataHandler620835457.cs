@@ -11,8 +11,13 @@ namespace Internal.Generated.WolverineHandlers
         public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             var dataHandler = new WolverineWebApi.DataHandler();
+            // The actual message body
             var data = (WolverineWebApi.Data)context.Envelope.Message;
+
+            
+            // The actual message execution
             dataHandler.Handle(data);
+
             return System.Threading.Tasks.Task.CompletedTask;
         }
 

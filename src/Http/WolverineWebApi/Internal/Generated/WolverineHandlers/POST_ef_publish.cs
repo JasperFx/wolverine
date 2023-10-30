@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_ef_publish : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> _dbContextOptions;
+        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_ef_publish(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions) : base(wolverineHttpOptions)
+        public POST_ef_publish(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _wolverineRuntime = wolverineRuntime;
             _dbContextOptions = dbContextOptions;
+            _wolverineRuntime = wolverineRuntime;
         }
 
 
@@ -28,25 +28,29 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var efCoreEndpoints = new WolverineWebApi.EfCoreEndpoints();
-            await using var itemsDbContext = new WolverineWebApi.ItemsDbContext(_dbContextOptions);
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, ((Wolverine.IMessageContext)messageContext));
+            await using var itemsDbContext = new WolverineWebApi.ItemsDbContext(_dbContextOptions);
+            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             
             // Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction
             var envelopeTransaction = Wolverine.EntityFrameworkCore.WolverineEntityCoreExtensions.BuildTransaction(itemsDbContext, messageContext);
             await messageContext.EnlistInOutboxAsync(envelopeTransaction);
+            // Reading the request body via JSON deserialization
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.CreateItemCommand>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            await efCoreEndpoints.PublishItem(command, itemsDbContext, ((Wolverine.IMessageBus)messageContext)).ConfigureAwait(false);
+            
+            // The actual HTTP request handler execution
+            await efCoreEndpoints.PublishItem(command, itemsDbContext, messageContext).ConfigureAwait(false);
+
             
             // Added by EF Core Transaction Middleware
             var result_of_SaveChangesAsync = await itemsDbContext.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
-            // If we have separate context for outbox and application, the we need to manually commit the transaction
+            // If we have separate context for outbox and application, then we need to manually commit the transaction
             if (envelopeTransaction is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) { await rawTx.CommitAsync(); }
             await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
             // Wolverine automatically sets the status code to 204 for empty responses
-            httpContext.Response.StatusCode = 204;
+            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
 
     }

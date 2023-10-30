@@ -15,8 +15,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_version_member_for_aggregate()
     {
-        var att = new AggregateHandlerAttribute();
-        att.DetermineVersionMember(typeof(Invoice))
+        AggregateHandlerAttribute.DetermineVersionMember(typeof(Invoice))
             .Name.ShouldBe(nameof(Invoice.Version));
     }
 

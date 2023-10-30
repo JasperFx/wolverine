@@ -8,13 +8,18 @@ namespace Internal.Generated.WolverineHandlers
     {
 
 
-        public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
+        public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
+            // The actual message body
             var customRequest = (WolverineWebApi.CustomRequest)context.Envelope.Message;
+
+            
+            // The actual message execution
             var outgoing1 = WolverineWebApi.MessageHandler.Handle(customRequest);
+
             
             // Outgoing, cascaded message
-            return context.EnqueueCascadingAsync(outgoing1);
+            await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
 
         }
 
