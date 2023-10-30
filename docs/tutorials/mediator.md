@@ -9,6 +9,41 @@ the actual functionality of web services and applications from the mechanics of 
 a mediator tool allows you to keep MVC Core code ceremony out of your application business logic and service layer. It wasn't the original motivation of the project,
 but Wolverine can be used as a full-featured mediator tool.
 
+## Mediator Only Wolverine
+
+Wolverine was not originally conceived of as a "mediator" tool per se. Out of the box, Wolverine is optimized for asynchronous
+messaging that requires stateful background processing. If you are using Wolverine as "just" a mediator tool, all that background
+stuff for messaging is just unnecessary overhead, so let's tell Wolverine to turn all that stuff off so we can run more lightly:
+
+<!-- snippet: sample_configuring_the_mediator_mode -->
+<a id='snippet-sample_configuring_the_mediator_mode'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Services.AddMarten("some connection string")
+
+            // This adds quite a bit of middleware for 
+            // Marten
+            .IntegrateWithWolverine();
+        
+        // You want this maybe!
+        opts.Policies.AutoApplyTransactions();
+        
+        
+        // But wait! Optimize Wolverine for usage as *only*
+        // a mediator
+        opts.Durability.Mode = DurabilityMode.MediatorOnly;
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L40-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_mediator_mode' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The `MediatorOnly` mode sharply reduces the overhead of using Wolverine you don't care about or need if Wolverine is only
+being used as a mediator tool. 
+
+## Staring with Wolverine as Mediator
+
 
 Let's jump into a sample project. Let's say that your system creates and tracks *Items* of some sort. One of the API requirements is to expose an HTTP
 endpoint that can accept an input that will create and persist a new `Item`, while also publishing an `ItemCreated` event message to any other system

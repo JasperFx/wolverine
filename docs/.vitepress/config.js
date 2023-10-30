@@ -190,6 +190,7 @@ export default {
                     collapsed: true,
                     items: [
                         {text: 'Durable Inbox and Outbox Messaging', link: '/guide/durability/'},
+                        {text: 'Troubleshooting and Leadership Election', link: '/guide/durability/leadership-and-troubleshooting'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
                         {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
                                 {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'},
