@@ -27,9 +27,7 @@ From there, let's jump into the application bootstrapping. Stealing the [sample 
 shifting to [Marten](https://martendb.io) for persistence just out of personal preference), this is the application bootstrapping:
 
 <!-- snippet: sample_bootstrapping_wolverine_http -->
-
 <a id='snippet-sample_bootstrapping_wolverine_http'></a>
-
 ```cs
 using Marten;
 using Oakton;
@@ -56,7 +54,7 @@ builder.Host.UseWolverine(opts =>
     // This middleware will apply to the HTTP
     // endpoints as well
     opts.Policies.AutoApplyTransactions();
-
+    
     // Setting up the outbox on all locally handled
     // background tasks
     opts.Policies.UseDurableLocalQueues();
@@ -80,9 +78,7 @@ app.MapWolverineEndpoints();
 
 return await app.RunOaktonCommands(args);
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Program.cs#L1-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_wolverine_http' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 Do note that the only thing in that sample that pertains to `WolverineFx.Http` itself is the call to `IEndpointRouteBuilder.MapWolverineEndpoints()`.
@@ -90,9 +86,7 @@ Do note that the only thing in that sample that pertains to `WolverineFx.Http` i
 Let's move on to "Hello, World" with a new Wolverine http endpoint from this class we'll add to the sample project:
 
 <!-- snippet: sample_hello_world_with_wolverine_http -->
-
 <a id='snippet-sample_hello_world_with_wolverine_http'></a>
-
 ```cs
 public class HelloEndpoint
 {
@@ -100,9 +94,7 @@ public class HelloEndpoint
     public string Get() => "Hello.";
 }
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/HelloEndpoint.cs#L5-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hello_world_with_wolverine_http' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 At application startup, WolverineFx.Http will find the `HelloEndpoint.Get()` method and treat it as a Wolverine http endpoint with
@@ -112,9 +104,7 @@ As you'd expect, that route will write the return value back to the HTTP respons
 by this [Alba](https://jasperfx.github.io/alba) specification:
 
 <!-- snippet: sample_testing_hello_world_for_http -->
-
 <a id='snippet-sample_testing_hello_world_for_http'></a>
-
 ```cs
 [Fact]
 public async Task hello_world()
@@ -124,21 +114,17 @@ public async Task hello_world()
         x.Get.Url("/");
         x.Header("content-type").SingleValueShouldEqual("text/plain");
     });
-
+    
     result.ReadAsText().ShouldBe("Hello.");
 }
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L34-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 Moving on to the actual `Todo` problem domain, let's assume we've got a class like this:
 
 <!-- snippet: sample_Todo -->
-
 <a id='snippet-sample_todo'></a>
-
 ```cs
 public class Todo
 {
@@ -147,10 +133,8 @@ public class Todo
     public bool IsComplete { get; set; }
 }
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L11-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_todo-1'></a>
-
 ```cs
 public class Todo
 {
@@ -159,26 +143,20 @@ public class Todo
     public bool IsComplete { get; set; }
 }
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L9-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo-1' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 In a sample class called [TodoEndpoints](https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs)
 let's add an HTTP service endpoint for listing all the known `Todo` documents:
 
 <!-- snippet: sample_get_to_json -->
-
 <a id='snippet-sample_get_to_json'></a>
-
 ```cs
 [WolverineGet("/todoitems")]
-public static Task<IReadOnlyList<Todo>> Get(IQuerySession session)
+public static Task<IReadOnlyList<Todo>> Get(IQuerySession session) 
     => session.Query<Todo>().ToListAsync();
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L30-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_to_json' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 As you'd guess, this method will serialize all the known `Todo` documents from the database into the HTTP response
@@ -189,19 +167,15 @@ will shine in more complicated endpoints.
 Consider this endpoint just to return the data for a single `Todo` document:
 
 <!-- snippet: sample_GetTodo -->
-
 <a id='snippet-sample_gettodo'></a>
-
 ```cs
 // Wolverine can infer the 200/404 status codes for you here
 // so there's no code noise just to satisfy OpenAPI tooling
 [WolverineGet("/todoitems/{id}")]
-public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation)
+public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation) 
     => session.LoadAsync<Todo>(id, cancellation);
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L42-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_gettodo' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 At this point it's effectively de rigueur for any web service to support [OpenAPI](https://www.openapis.org/) documentation directly
@@ -214,9 +188,7 @@ Now, the bread and butter for WolverineFx.Http is using it in conjunction with W
 call succeeds. And, oh, yeah, let's make sure this endpoint is actively using Wolverine's [transactional outbox](/guide/durability/) support for consistency:
 
 <!-- snippet: sample_posting_new_todo_with_middleware -->
-
 <a id='snippet-sample_posting_new_todo_with_middleware'></a>
-
 ```cs
 [WolverinePost("/todoitems")]
 public static async Task<IResult> Create(CreateTodo command, IDocumentSession session, IMessageBus bus)
@@ -226,13 +198,11 @@ public static async Task<IResult> Create(CreateTodo command, IDocumentSession se
 
     // Going to raise an event within out system to be processed later
     await bus.PublishAsync(new TodoCreated(todo.Id));
-
+    
     return Results.Created($"/todoitems/{todo.Id}", todo);
 }
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L52-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_posting_new_todo_with_middleware' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 The endpoint code above is automatically enrolled in the Marten transactional middleware by simple virtue of having a
@@ -250,17 +220,15 @@ handling and response by whether or not the document actually exists. Just to sh
 and also how WolverineFx.Http supports middleware, consider this more complex endpoint:
 
 <!-- snippet: sample_UpdateTodoEndpoint -->
-
 <a id='snippet-sample_updatetodoendpoint'></a>
-
 ```cs
 public static class UpdateTodoEndpoint
 {
     public static async Task<(Todo? todo, IResult result)> LoadAsync(UpdateTodo command, IDocumentSession session)
     {
         var todo = await session.LoadAsync<Todo>(command.Id);
-        return todo != null
-            ? (todo, new WolverineContinue())
+        return todo != null 
+            ? (todo, new WolverineContinue()) 
             : (todo, Results.NotFound());
     }
 
@@ -273,9 +241,7 @@ public static class UpdateTodoEndpoint
     }
 }
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L84-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_updatetodoendpoint' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 ## How it Works
@@ -301,9 +267,7 @@ The assemblies scanned are:
 3. Any assembly that is explicitly added in the `UseWolverine()` configuration as a handler assembly as shown in the following sample code:
 
 <!-- snippet: sample_programmatically_scan_assemblies -->
-
 <a id='snippet-sample_programmatically_scan_assemblies'></a>
-
 ```cs
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
@@ -315,9 +279,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Discovery.IncludeAssembly(assembly);
     }).StartAsync();
 ```
-
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/DocumentationSamples.cs#L11-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatically_scan_assemblies' title='Start of snippet'>anchor</a></sup>
-
 <!-- endSnippet -->
 
 ::: info

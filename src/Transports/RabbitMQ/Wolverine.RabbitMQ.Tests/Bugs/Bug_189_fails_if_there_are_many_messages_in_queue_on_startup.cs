@@ -12,12 +12,28 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
     public async Task be_able_to_start_up_with_large_number_of_messages_waiting_on_you()
     {
         var queueName = RabbitTesting.NextQueueName();
-        var sender = await Host.CreateDefaultBuilder()
+        var sender = 
+            
+            
+        await Host.CreateDefaultBuilder()
+
+            #region sample_usage_of_send_inline
+
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
-                opts.PublishAllMessages().ToRabbitQueue(queueName).SendInline();
-            }).StartAsync();
+                opts
+                    .PublishAllMessages()
+                    .ToRabbitQueue(queueName)
+                    
+                    // This option is important inside of Serverless functions
+                    .SendInline();
+            })
+
+            #endregion
+            
+            
+            .StartAsync();
 
         var bus = sender.Services.GetRequiredService<IMessageBus>();
         

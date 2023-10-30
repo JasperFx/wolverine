@@ -63,7 +63,8 @@ export default {
                         {text: 'Wolverine as Mediator', link: '/tutorials/mediator'},
                         {text: 'Best Practices', link: '/tutorials/best-practices'},
                         {text: 'Ping/Pong Messaging', link: '/tutorials/ping-pong'},
-                        {text: 'Custom Middleware', link: '/tutorials/middleware'}
+                        {text: 'Custom Middleware', link: '/tutorials/middleware'},
+                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'}
                     ]
                 },
                 {

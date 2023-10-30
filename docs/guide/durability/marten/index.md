@@ -22,6 +22,38 @@ builder.Host.ApplyOaktonExtensions();
 
 builder.Services.AddMarten(opts =>
     {
+        opts.Connection(Servers.PostgresConnectionString);
+        opts.DatabaseSchemaName = "chaos2";
+    })
+    .IntegrateWithWolverine();
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.Policies.OnAnyException().RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+    
+    opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
+    
+    opts.Policies.DisableConventionalLocalRouting();
+    opts.UseRabbitMq().AutoProvision();
+    
+    opts.Policies.UseDurableInboxOnAllListeners();
+    opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+
+    opts.ListenToRabbitQueue("chaos2");
+    opts.PublishAllMessages().ToRabbitQueue("chaos2");
+    
+    
+    opts.Policies.AutoApplyTransactions();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ChaosSender/Program.cs#L13-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_integrating_wolverine_with_marten-1'></a>
+```cs
+var builder = WebApplication.CreateBuilder(args);
+builder.Host.ApplyOaktonExtensions();
+
+builder.Services.AddMarten(opts =>
+    {
         var connectionString = builder
             .Configuration
             .GetConnectionString("postgres");
@@ -47,7 +79,7 @@ builder.Host.UseWolverine(opts =>
         .UseDurableInbox();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For more information, see [durable messaging](/guide/durability/) and the [sample Marten + Wolverine project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/WebApiWithMarten).
@@ -349,6 +381,38 @@ builder.Host.ApplyOaktonExtensions();
 
 builder.Services.AddMarten(opts =>
     {
+        opts.Connection(Servers.PostgresConnectionString);
+        opts.DatabaseSchemaName = "chaos2";
+    })
+    .IntegrateWithWolverine();
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.Policies.OnAnyException().RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+    
+    opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
+    
+    opts.Policies.DisableConventionalLocalRouting();
+    opts.UseRabbitMq().AutoProvision();
+    
+    opts.Policies.UseDurableInboxOnAllListeners();
+    opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+
+    opts.ListenToRabbitQueue("chaos2");
+    opts.PublishAllMessages().ToRabbitQueue("chaos2");
+    
+    
+    opts.Policies.AutoApplyTransactions();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ChaosSender/Program.cs#L13-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_integrating_wolverine_with_marten-1'></a>
+```cs
+var builder = WebApplication.CreateBuilder(args);
+builder.Host.ApplyOaktonExtensions();
+
+builder.Services.AddMarten(opts =>
+    {
         var connectionString = builder
             .Configuration
             .GetConnectionString("postgres");
@@ -374,7 +438,7 @@ builder.Host.UseWolverine(opts =>
         .UseDurableInbox();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 But this time, focus on the Wolverine configuration of the local queue named "important." By marking this local queue as persistent, any messages sent to this queue
