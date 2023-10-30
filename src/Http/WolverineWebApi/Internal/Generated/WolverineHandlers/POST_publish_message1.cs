@@ -27,9 +27,13 @@ namespace Internal.Generated.WolverineHandlers
             var publishingEndpoint = new Wolverine.Http.Runtime.PublishingEndpoint<WolverineWebApi.HttpMessage1>();
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
+            // Reading the request body via JSON deserialization
             var (message, jsonContinue) = await ReadJsonAsync<WolverineWebApi.HttpMessage1>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
+            
+            // The actual HTTP request handler execution
             var result_of_PublishAsync = await publishingEndpoint.PublishAsync(message, messageContext, httpContext.Response);
+
             await WriteString(httpContext, result_of_PublishAsync);
         }
 

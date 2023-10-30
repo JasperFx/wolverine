@@ -29,17 +29,26 @@ namespace Internal.Generated.WolverineHandlers
         {
             var serviceEndpoints = new WolverineWebApi.ServiceEndpoints();
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            await using var documentSession = _outboxedSessionFactory.OpenSession(((Wolverine.IMessageContext)messageContext));
-            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, ((Wolverine.IMessageContext)messageContext));
+            // Building the Marten session
+            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
+            // Reading the request body via JSON deserialization
             var (data, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Data>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            await serviceEndpoints.PublishData(data, ((Wolverine.IMessageBus)messageContext), documentSession).ConfigureAwait(false);
+            
+            // The actual HTTP request handler execution
+            await serviceEndpoints.PublishData(data, messageContext, documentSession).ConfigureAwait(false);
+
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
+
             // Wolverine automatically sets the status code to 204 for empty responses
-            httpContext.Response.StatusCode = 204;
+            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
 
     }

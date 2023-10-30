@@ -22,9 +22,12 @@ namespace Internal.Generated.WolverineHandlers
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var httpContextEndpoints = new WolverineWebApi.HttpContextEndpoints();
+            
+            // The actual HTTP request handler execution
             httpContextEndpoints.UseClaimsPrincipal(httpContext.User);
+
             // Wolverine automatically sets the status code to 204 for empty responses
-            httpContext.Response.StatusCode = 204;
+            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
             return System.Threading.Tasks.Task.CompletedTask;
         }
 

@@ -22,16 +22,22 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var problemDetailsUsageEndpoint = new WolverineWebApi.ProblemDetailsUsageEndpoint();
+            // Reading the request body via JSON deserialization
             var (message, jsonContinue) = await ReadJsonAsync<WolverineWebApi.NumberMessage>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             var problemDetails = problemDetailsUsageEndpoint.Before(message);
+            // Evaluate whether the processing should stop if there are any problems
             if (!(ReferenceEquals(problemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
             {
-                await Microsoft.AspNetCore.Http.Results.Problem(problemDetails).ExecuteAsync(httpContext).ConfigureAwait(false);
+                await WriteProblems(problemDetails, httpContext).ConfigureAwait(false);
                 return;
             }
 
+
+            
+            // The actual HTTP request handler execution
             var result_of_Post = WolverineWebApi.ProblemDetailsUsageEndpoint.Post(message);
+
             await WriteString(httpContext, result_of_Post);
         }
 

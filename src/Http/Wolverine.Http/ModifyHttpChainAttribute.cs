@@ -1,5 +1,7 @@
 using System.Reflection;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
+using Lamar;
 using Wolverine.Configuration;
 
 namespace Wolverine.Http;
@@ -31,8 +33,10 @@ public abstract class HttpChainParameterAttribute : Attribute
     /// for an HTTP endpoint with the decorated parameter
     /// </summary>
     /// <param name="chain"></param>
-    /// <param name="rules"></param>
-    public abstract void Modify(HttpChain chain, ParameterInfo parameter, GenerationRules rules);
+    /// <param name="parameter"></param>
+    /// <param name="container"></param>
+    public abstract Variable Modify(HttpChain chain, ParameterInfo parameter,
+        IContainer container);
 }
 
 

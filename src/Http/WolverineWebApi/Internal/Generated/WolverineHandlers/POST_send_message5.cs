@@ -30,7 +30,10 @@ namespace Internal.Generated.WolverineHandlers
             // Reading the request body via JSON deserialization
             var (message, jsonContinue) = await ReadJsonAsync<WolverineWebApi.HttpMessage5>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
+            
+            // The actual HTTP request handler execution
             var result_of_SendAsync = await sendingEndpoint.SendAsync(message, messageContext, httpContext.Response);
+
             await WriteString(httpContext, result_of_SendAsync);
         }
 

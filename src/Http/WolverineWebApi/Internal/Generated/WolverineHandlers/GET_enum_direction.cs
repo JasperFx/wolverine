@@ -29,7 +29,10 @@ namespace Internal.Generated.WolverineHandlers
             }
 
 
+            
+            // The actual HTTP request handler execution
             var result_of_ReadEnumArgument = fakeEndpoint.ReadEnumArgument(direction);
+
             await WriteString(httpContext, result_of_ReadEnumArgument);
         }
 

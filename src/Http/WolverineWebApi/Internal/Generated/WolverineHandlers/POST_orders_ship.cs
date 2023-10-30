@@ -28,6 +28,7 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            // Reading the request body via JSON deserialization
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Marten.ShipOrder>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
@@ -36,11 +37,14 @@ namespace Internal.Generated.WolverineHandlers
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<WolverineWebApi.Marten.Order>(command.OrderId, httpContext.RequestAborted).ConfigureAwait(false);
 
+            
+            // The actual HTTP request handler execution
             var orderShipped = WolverineWebApi.Marten.MarkItemEndpoint.Ship(command, eventStream.Aggregate);
+
             eventStream.AppendOne(orderShipped);
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
             // Wolverine automatically sets the status code to 204 for empty responses
-            httpContext.Response.StatusCode = 204;
+            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
 
     }

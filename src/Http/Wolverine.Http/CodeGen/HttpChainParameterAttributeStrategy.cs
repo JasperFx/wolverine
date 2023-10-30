@@ -11,7 +11,8 @@ internal class HttpChainParameterAttributeStrategy : IParameterStrategy
     {
         if (parameter.TryGetAttribute<HttpChainParameterAttribute>(out var att))
         {
-            
+            variable = att.Modify(chain, parameter, container);
+            return true;
         }
 
         variable = default;

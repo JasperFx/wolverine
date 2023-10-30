@@ -22,8 +22,12 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             int numberOfMembers = default;
-            int.TryParse(httpContext.Request.Query["numberOfMembers"], out numberOfMembers);
+            int.TryParse(httpContext.Request.Query["numberOfMembers"], System.Globalization.CultureInfo.InvariantCulture, out numberOfMembers);
+            
+            // The actual HTTP request handler execution
             var decimalValue_response = WolverineWebApi.Bugs.MyAppLandingEndpoint.GetRegistrationPrice(numberOfMembers);
+
+            // Writing the response body to JSON because this was the first 'return variable' in the method signature
             await WriteJsonAsync(httpContext, decimalValue_response);
         }
 

@@ -24,6 +24,7 @@
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.AdminApi\Wolverine.AdminApi.csproj" />
         <ProjectReference Include="..\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj" />
+        <ProjectReference Include="..\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj" />
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
     </ItemGroup>

@@ -31,6 +31,12 @@ internal class ParsedRouteArgumentFrame : SyncFrame
         Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
     }
 
+    public ParsedRouteArgumentFrame(Type variableType, string parameterName)
+    {
+        Variable = new Variable(variableType, parameterName, this);
+    }
+
+
     public Variable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -102,24 +108,7 @@ internal class RouteParameterStrategy : IParameterStrategy
 
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
-        var matches = chain.RoutePattern!.Parameters.Any(x => x.Name == parameter.Name);
-        if (matches)
-        {
-            if (parameter.ParameterType == typeof(string))
-            {
-                variable = new ReadStringRouteValue(parameter.Name!).Variable;
-                return true;
-            }
-
-            if (CanParse(parameter.ParameterType))
-            {
-                variable = new ParsedRouteArgumentFrame(parameter).Variable;
-                return true;
-            }
-        }
-
-        variable = default!;
-        return matches;
+        return chain.FindRouteVariable(parameter, out variable);
     }
 
     public static bool CanParse(Type argType)

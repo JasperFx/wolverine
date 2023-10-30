@@ -24,9 +24,13 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
+            // Reading the request body via JSON deserialization
             var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.StatusCodeRequest>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
+            
+            // The actual HTTP request handler execution
             var result_of_PostStatusCode = WolverineWebApi.StatusCodeEndpoint.PostStatusCode(request, ((Microsoft.Extensions.Logging.ILogger)_loggerForMessage));
+
             httpContext.Response.StatusCode = result_of_PostStatusCode;
         }
 

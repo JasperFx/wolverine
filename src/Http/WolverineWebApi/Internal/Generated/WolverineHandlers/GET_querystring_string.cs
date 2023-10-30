@@ -23,7 +23,10 @@ namespace Internal.Generated.WolverineHandlers
         {
             string name = httpContext.Request.Query["name"].FirstOrDefault();
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
+            
+            // The actual HTTP request handler execution
             var result_of_UsingQueryString = WolverineWebApi.TestEndpoints.UsingQueryString(name);
+
             await WriteString(httpContext, result_of_UsingQueryString);
         }
 

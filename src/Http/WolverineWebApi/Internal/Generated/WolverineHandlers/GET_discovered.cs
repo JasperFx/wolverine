@@ -21,7 +21,10 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
+            
+            // The actual HTTP request handler execution
             var result_of_Get = WolverineWebApi.DiscoverMe.Get();
+
             await WriteString(httpContext, result_of_Get);
         }
 

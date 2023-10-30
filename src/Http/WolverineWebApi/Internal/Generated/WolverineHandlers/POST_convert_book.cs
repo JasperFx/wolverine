@@ -25,12 +25,16 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, ((Wolverine.IMessageContext)messageContext));
+            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
+            // Reading the request body via JSON deserialization
             var (@event, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Bugs.TelegramUpdated>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            await WolverineWebApi.Bugs.ConvertBookEndpoint.Post(@event, ((Wolverine.IMessageBus)messageContext), httpContext.RequestAborted).ConfigureAwait(false);
+            
+            // The actual HTTP request handler execution
+            await WolverineWebApi.Bugs.ConvertBookEndpoint.Post(@event, messageContext, httpContext.RequestAborted).ConfigureAwait(false);
+
             // Wolverine automatically sets the status code to 204 for empty responses
-            httpContext.Response.StatusCode = 204;
+            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
 
     }

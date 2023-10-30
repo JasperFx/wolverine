@@ -22,7 +22,10 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var traceEndpoint = new WolverineWebApi.TraceEndpoint();
+            
+            // The actual HTTP request handler execution
             var result_of_Hey = traceEndpoint.Hey();
+
             await WriteString(httpContext, result_of_Hey);
         }
 

@@ -23,16 +23,22 @@ namespace Internal.Generated.WolverineHandlers
         {
             var authenticatedEndpoint = new WolverineWebApi.AuthenticatedEndpoint();
             var fakeAuthenticationMiddleware = new WolverineWebApi.FakeAuthenticationMiddleware();
+            // Reading the request body via JSON deserialization
             var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.AuthenticatedRequest>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             var result1 = WolverineWebApi.FakeAuthenticationMiddleware.Before(request);
+            // Evaluate whether or not the execution should be stopped based on the IResult value
             if (!(result1 is Wolverine.Http.WolverineContinue))
             {
                 await result1.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
 
+
+            
+            // The actual HTTP request handler execution
             var result_of_Get = authenticatedEndpoint.Get(request);
+
             await WriteString(httpContext, result_of_Get);
         }
 

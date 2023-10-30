@@ -125,6 +125,17 @@ public class using_aggregate_handler_workflow : IntegrationContext
     }
     
     [Fact]
+    public async Task use_a_return_value_as_event_using_route_id_and_aggregate_but_no_command_expect_404()
+    {
+        await Scenario(x =>
+        {
+            x.Post.Url($"/orders/{Guid.NewGuid()}/ship3");
+            
+            x.StatusCodeShouldBe(404);
+        });
+    }
+    
+    [Fact]
     public async Task use_a_return_value_as_event_using_route_id_but_no_parameter_and_aggregate_but_no_command()
     {
         var result1 = await Scenario(x =>

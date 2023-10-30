@@ -26,7 +26,10 @@ namespace Internal.Generated.WolverineHandlers
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
+            
+            // The actual HTTP request handler execution
             var result_of_GetCorrelation = WolverineWebApi.TracingEndpoint.GetCorrelation(messageContext);
+
             await WriteString(httpContext, result_of_GetCorrelation);
         }
 

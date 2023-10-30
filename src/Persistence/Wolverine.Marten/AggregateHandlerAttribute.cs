@@ -93,15 +93,15 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         // Use the active document session as an IQuerySession instead of creating a new one
         firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
 
-        determineEventCaptureHandling(chain, firstCall);
+        DetermineEventCaptureHandling(chain, firstCall, AggregateType);
 
-        validateMethodSignatureForEmittedEvents(chain, firstCall, chain);
-        relayAggregateToHandlerMethod(loader, firstCall);
+        ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
+        RelayAggregateToHandlerMethod(loader, firstCall, AggregateType);
 
         chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
     }
 
-    private void determineEventCaptureHandling(IChain chain, MethodCall firstCall)
+    internal static void DetermineEventCaptureHandling(IChain chain, MethodCall firstCall, Type aggregateType)
     {
         var asyncEnumerable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(IAsyncEnumerable<object>));
         if (asyncEnumerable != null)
@@ -109,7 +109,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
             asyncEnumerable.UseReturnAction(_ =>
             {
                 return typeof(ApplyEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(asyncEnumerable,
-                    AggregateType!);
+                    aggregateType!);
             });
 
             return;
@@ -124,7 +124,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         if (eventsVariable != null)
         {
             eventsVariable.UseReturnAction(
-                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, AggregateType!)
+                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, aggregateType!)
                     .WrapIfNotNull(v), "Append events to the Marten event stream");
 
             return;
@@ -136,16 +136,16 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         // then assume that the default behavior of each return value is to be an event
         if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
         {
-            chain.ReturnVariableActionSource = new EventCaptureActionSource(AggregateType!);
+            chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType!);
         }
     }
 
-    private void relayAggregateToHandlerMethod(MethodCall loader, MethodCall firstCall)
+    internal static Variable RelayAggregateToHandlerMethod(MethodCall loader, MethodCall firstCall, Type aggregateType)
     {
-        var aggregateVariable = new Variable(AggregateType!,
+        var aggregateVariable = new Variable(aggregateType!,
             $"{loader.ReturnVariable!.Usage}.{nameof(IEventStream<string>.Aggregate)}");
 
-        if (firstCall.HandlerType == AggregateType)
+        if (firstCall.HandlerType == aggregateType)
         {
             // If the handle method is on the aggregate itself
             firstCall.Target = aggregateVariable;
@@ -154,9 +154,11 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         {
             firstCall.TrySetArgument(aggregateVariable);
         }
+
+        return aggregateVariable;
     }
 
-    private static void validateMethodSignatureForEmittedEvents(IChain chain, MethodCall firstCall,
+    internal static void ValidateMethodSignatureForEmittedEvents(IChain chain, MethodCall firstCall,
         IChain handlerChain)
     {
         if (firstCall.Method.ReturnType == typeof(Task) || firstCall.Method.ReturnType == typeof(void))
@@ -175,11 +177,13 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
     {
         chain.Middleware.Add(new EventStoreFrame());
         var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<MethodCall>(this, AggregateType!);
+        
+        
         chain.Middleware.Add(loader);
         return loader;
     }
 
-    internal MemberInfo DetermineVersionMember(Type aggregateType)
+    internal static MemberInfo DetermineVersionMember(Type aggregateType)
     {
         // The first arg doesn't matter
         var versioning =
