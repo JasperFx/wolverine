@@ -150,7 +150,8 @@ export default {
                                     ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
-                                {text: 'MQTT', link: '/guide/messaging/transports/mqtt'}
+                                {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
+                                {text: 'Kafka', link: '/guide/messaging/transports/kafka'}
                             ]
                         },
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
