@@ -109,7 +109,7 @@ public partial class HttpChain
 
     private string determineFileName()
     {
-        var parts = RoutePattern.RawText.Replace("{", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
+        var parts = RoutePattern.RawText.Replace("{", "").Replace("*", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
         
         return _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace("-", "_").Replace("__", "_");
     }
