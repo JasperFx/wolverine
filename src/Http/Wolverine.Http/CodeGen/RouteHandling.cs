@@ -53,10 +53,7 @@ internal class ParsedRouteArgumentFrame : SyncFrame
             writer.Write(
                 $"BLOCK:if (!{alias}.TryParse((string)httpContext.GetRouteValue(\"{Variable.Usage}\"), out var {Variable.Usage}))");
         }
-        
 
-        
-        
         writer.WriteLine(
             $"httpContext.Response.{nameof(HttpResponse.StatusCode)} = 404;");
         writer.WriteLine(method.ToExitStatement());
@@ -114,5 +111,24 @@ internal class RouteParameterStrategy : IParameterStrategy
     public static bool CanParse(Type argType)
     {
         return TypeOutputs.ContainsKey(argType) || argType.IsEnum;
+    }
+
+    public static void TryApplyRouteVariables(HttpChain chain, MethodCall call)
+    {
+        for (int i = 0; i < call.Arguments.Length; i++)
+        {
+            // Don't override them at all of course
+            if (call.Arguments[i] == null)
+            {
+                var parameter = call.Method.GetParameters()[i];
+                if (parameter.ParameterType == typeof(string) || CanParse(parameter.ParameterType))
+                {
+                    if (chain.FindRouteVariable(parameter.ParameterType, parameter.Name, out var variable))
+                    {
+                        call.Arguments[i] = variable;
+                    }
+                }
+            }
+        }
     }
 }

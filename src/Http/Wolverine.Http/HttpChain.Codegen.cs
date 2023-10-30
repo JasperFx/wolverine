@@ -84,6 +84,12 @@ public partial class HttpChain
         var index = 0;
         foreach (var frame in Middleware)
         {
+            // Try to add route value parameters
+            if (frame is MethodCall call)
+            {
+                RouteParameterStrategy.TryApplyRouteVariables(this, call);
+            }
+            
             foreach (var result in frame.Creates.Where(x => x.VariableType.CanBeCastTo<IResult>()))
             {
                 result.OverrideName("result" + ++index);
