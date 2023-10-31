@@ -1,7 +1,136 @@
 # Integration with Marten
 
+New in Wolverine 1.10.0 is the `Wolverine.Http.Marten` library that adds the ability to more deeply integrate Marten
+into Wolverine.HTTP by utilizing information from route arguments.
+
+To install that library, use:
+
+```bash
+dotnet add package WolverineFx.Http.Marten
+```
+
+## Passing Marten Documents to Endpoint Parameters
+
+Consider this very common use case, you have an HTTP endpoint that needs to work on a Marten document that will
+be loaded using the value of one of the route arguments as that document's identity. In a long hand way, that could
+look like this:
+
+<!-- snippet: sample_get_invoice_longhand -->
+<a id='snippet-sample_get_invoice_longhand'></a>
+```cs
+{
+    [WolverineGet("/invoices/longhand/id")]
+    [ProducesResponseType(404)] 
+    [ProducesResponseType(200, Type = typeof(Invoice))]
+    public static async Task<IResult> GetInvoice(
+        Guid id, 
+        IQuerySession session, 
+        CancellationToken cancellationToken)
+    {
+        var invoice = await session.LoadAsync<Invoice>(id, cancellationToken);
+        if (invoice == null) return Results.NotFound();
+
+        return Results.Ok(invoice);
+    }
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L11-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_invoice_longhand' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Pretty straightforward, but it's a little annoying to have to scatter in all the attributes for OpenAPI and there's definitely
+some repetitive code. So let's introduce the new `[Document]` parameter and look at an exact equivalent for both the
+actual functionality and for the OpenAPI metadata:
+
+<!-- snippet: sample_using_document_attribute -->
+<a id='snippet-sample_using_document_attribute'></a>
+```cs
+[WolverineGet("/invoices/{id}")]
+public static Invoice Get([Document] Invoice invoice)
+{
+    return invoice;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L30-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Notice that the `[Document]` attribute was able to use the "id" route parameter. By default, Wolverine is looking first
+for a route variable named "invoiceId" (the document type name + "Id"), then falling back to looking for "id". You can
+of course explicitly override the matching of route argument like so:
+
+<!-- snippet: sample_overriding_route_argument_with_document_attribute -->
+<a id='snippet-sample_overriding_route_argument_with_document_attribute'></a>
+```cs
+[WolverinePost("/invoices/{number}/approve")]
+public static IMartenOp Approve([Document("number")] Invoice invoice)
+{
+    invoice.Approved = true;
+    return MartenOps.Store(invoice);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L47-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_route_argument_with_document_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+## Marten Aggregate Workflow 
+
 The http endpoints can play inside the full "critter stack" combination with [Marten](https://martendb.io) with Wolverine's [specific
-support for Event Sourcing and CQRS](/guide/durability/marten/event-sourcing).
+support for Event Sourcing and CQRS](/guide/durability/marten/event-sourcing). Originally this has been done
+by just mimicking the command handler mechanism and having all the inputs come in through the request body (aggregate id, version).
+Wolverine 1.10 added a more HTTP-centric approach using route arguments. 
+
+### Using Route Arguments
+
+To opt into the Wolverine + Marten "aggregate workflow", but use data from route arguments for the aggregate id,
+use the new `[Aggregate]` attribute from Wolverine.Http.Marten on endpoint method parameters like shown below:
+
+<!-- snippet: sample_using_aggregate_attribute_1 -->
+<a id='snippet-sample_using_aggregate_attribute_1'></a>
+```cs
+[WolverinePost("/orders/{orderId}/ship2"), EmptyResponse]
+// The OrderShipped return value is treated as an event being posted
+// to a Marten even stream
+// instead of as the HTTP response body because of the presence of 
+// the [EmptyResponse] attribute
+public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
+{
+    return new OrderShipped();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L94-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Using this version of the "aggregate workflow", you no longer have to supply a command in the request body, so you could
+have an endpoint signature like this:
+
+<!-- snippet: sample_using_aggregate_attribute_2 -->
+<a id='snippet-sample_using_aggregate_attribute_2'></a>
+```cs
+[WolverinePost("/orders/{orderId}/ship3"), EmptyResponse]
+// The OrderShipped return value is treated as an event being posted
+// to a Marten even stream
+// instead of as the HTTP response body because of the presence of 
+// the [EmptyResponse] attribute
+public static OrderShipped Ship3([Aggregate] Order order)
+{
+    return new OrderShipped();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L108-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A couple other notes: 
+
+* The return value handling for events follows the same rules as shown in the next section
+* The endpoints will return a 404 response code if the aggregate in question does not exist
+* The aggregate id can be set explicitly like `[Aggregate("number")]` to match against a route argument named "number", or by default
+  the behavior will try to match first on "{camel case name of aggregate type}Id", then a route argument named "id"
+* This usage will automatically apply the transactional middleware for Marten
+
+### Using Request Body
+
+::: tip
+This usage only requires Wolverine.Marten and does not require the Wolverine.Http.Marten library because
+there's nothing happening here in regards to Marten that is using AspNetCore 
+:::
 
 For some context, let's say that we have the following events and [Marten aggregate](https://martendb.io/events/projections/aggregate-projections.html#aggregate-by-stream) to model the workflow of an `Order`:
 
@@ -116,5 +245,6 @@ public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
     return (new OrderStatus(order.Id, order.IsReadyToShip()), events);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L162-L192' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L170-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+

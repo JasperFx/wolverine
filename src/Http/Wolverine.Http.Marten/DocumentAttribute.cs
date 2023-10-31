@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Lamar;
 using Marten;
+using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.Marten;
 
@@ -28,6 +29,8 @@ public class DocumentAttribute : HttpChainParameterAttribute
 
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
     {
+        chain.Metadata.Produces(404);
+        
         var store = container.GetInstance<IDocumentStore>();
         var documentType = parameter.ParameterType;
         var mapping = store.Options.FindOrResolveDocumentType(documentType);

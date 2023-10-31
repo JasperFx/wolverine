@@ -90,7 +90,9 @@ public static class MarkItemEndpoint
     }
 
     #endregion
-    
+
+    #region sample_using_aggregate_attribute_1
+
     [WolverinePost("/orders/{orderId}/ship2"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
@@ -100,7 +102,11 @@ public static class MarkItemEndpoint
     {
         return new OrderShipped();
     }
-    
+
+    #endregion
+
+    #region sample_using_aggregate_attribute_2
+
     [WolverinePost("/orders/{orderId}/ship3"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
@@ -110,6 +116,8 @@ public static class MarkItemEndpoint
     {
         return new OrderShipped();
     }
+
+    #endregion
     
     [WolverinePost("/orders/{orderId}/ship4"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
