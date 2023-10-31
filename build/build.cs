@@ -155,6 +155,7 @@ namespace build
                 "./src/Extensions/Wolverine.MessagePack",
                 "./src/Http/Wolverine.Http",
                 "./src/Http/Wolverine.Http.FluentValidation",
+                "./src/Http/Wolverine.Http.Marten",
             };
 
             Target("pack", ForEach(nugetProjects), project =>
