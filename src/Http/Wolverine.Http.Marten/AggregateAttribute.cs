@@ -56,6 +56,8 @@ public class AggregateAttribute : HttpChainParameterAttribute
 
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
     {
+        chain.Metadata.Produces(404);
+        
         AggregateType = parameter.ParameterType;
         var store = container.GetInstance<IDocumentStore>();
         var idType = store.Options.Events.StreamIdentity == StreamIdentity.AsGuid ? typeof(Guid) : typeof(string);
