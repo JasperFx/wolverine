@@ -63,15 +63,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         DisplayName = Method.ToString();
 
-        if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
-        {
-            MapToRoute(att.HttpMethod, att.Template, att.Order);
-            if (att.Name.IsNotEmpty())
-            {
-                DisplayName = att.Name;
-            }
-        }
-
         if (tryFindResourceType(method, out var responseType))
         {
             NoContent = false;
@@ -82,8 +73,17 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             NoContent = true;
             ResourceType = typeof(void);
         }
-
+        
         Metadata = new RouteHandlerBuilder(new[] { this });
+        
+        if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
+        {
+            MapToRoute(att.HttpMethod, att.Template, att.Order);
+            if (att.Name.IsNotEmpty())
+            {
+                DisplayName = att.Name;
+            }
+        }
 
         // Apply attributes and the Configure() method if that exists too
         applyAttributesAndConfigureMethods(_parent.Rules, _parent.Container);
