@@ -73,7 +73,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             NoContent = true;
             ResourceType = typeof(void);
         }
-
+        
         Metadata = new RouteHandlerBuilder(new[] { this });
         
         if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
