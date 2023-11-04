@@ -53,21 +53,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         Description = "Message Handler for " + MessageType.FullNameInCode();
 
-        foreach (var property in messageType.GetProperties())
-        {
-            if (property.TryGetAttribute<AuditAttribute>(out var att))
-            {
-                Audit(property, att.Heading);
-            }
-        }
-
-        foreach (var field in messageType.GetFields())
-        {
-            if (field.TryGetAttribute<AuditAttribute>(out var att))
-            {
-                Audit(field, att.Heading);
-            }
-        }
+        applyAuditAttributes(messageType);
     }
 
 

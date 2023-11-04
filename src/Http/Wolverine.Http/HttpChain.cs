@@ -53,7 +53,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private GeneratedType? _generatedType;
     private Type? _handlerType;
     private string _description;
-    
+
     public HttpChain(MethodCall method, HttpGraph parent)
     {
         _description = method.ToString();
@@ -73,7 +73,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             NoContent = true;
             ResourceType = typeof(void);
         }
-        
+
         Metadata = new RouteHandlerBuilder(new[] { this });
         
         if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
@@ -93,7 +93,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         applyMetadata();
     }
-
+    
     private bool tryFindResourceType(MethodCall method, out Type resourceType)
     {
         resourceType = typeof(void);
@@ -156,12 +156,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public override string Description => _description;
 
     internal RouteEndpoint? Endpoint { get; private set; }
-    
+
     /// <summary>
     /// Required TenancyMode for this http chain
     /// </summary>
     public TenancyMode? TenancyMode { get; set; }
-    
+
 
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {
@@ -230,7 +230,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 Metadata.WithMetadata(new FromRouteMetadata(parameter.Name));
             }
         }
-        
+
         Metadata
             .WithMetadata(this)
             .WithMetadata(new WolverineMarker())
@@ -252,7 +252,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             Metadata.Produces(200);
         }
-        
+
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
     }
@@ -267,7 +267,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             variable = existing;
             return true;
         }
-        
+
         var matches = RoutePattern!.Parameters.Any(x => x.Name == parameter.Name);
         if (matches)
         {
@@ -299,7 +299,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             variable = matched;
             return true;
         }
-        
+
         var matches = RoutePattern!.Parameters.Any(x => x.Name == routeOrParameterName);
         if (matches)
         {
