@@ -7,7 +7,7 @@ using Wolverine.Configuration;
 
 namespace Wolverine.Logging;
 
-internal class AuditToActivityFrame : SyncFrame
+public class AuditToActivityFrame : SyncFrame
 {
     private readonly Type _inputType;
     private readonly List<AuditedMember> _members;
