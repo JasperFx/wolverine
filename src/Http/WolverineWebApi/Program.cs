@@ -129,7 +129,9 @@ app.MapWolverineEndpoints(opts =>
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
 
+#region sample_register_http_middleware_by_type
     opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
+#endregion
 
     // Publish messages coming from 
     opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1");
