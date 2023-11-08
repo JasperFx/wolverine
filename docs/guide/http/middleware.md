@@ -41,6 +41,16 @@ public class FakeAuthenticationMiddleware
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L103-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fake_authentication_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+Which is registered like this (or as described in [`Registering Middleware by Message Type`](/guide/handlers/middleware.html##registering-middleware-by-message-type)):
+
+<!-- snippet: sample_register_http_middleware_by_type -->
+<a id='snippet-sample_register_http_middleware_by_type'></a>
+```cs
+opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L132-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 The key point to notice there is that `IResult` is a "return value" of the middleware. In the case of an HTTP endpoint,
 Wolverine will check if that `IResult` is a `WolverineContinue` object, and if so, will continue processing. If the `IResult`
 object is anything else, Wolverine will execute that `IResult` and stop processing the HTTP request otherwise. 
