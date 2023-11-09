@@ -7,6 +7,10 @@ public partial class HttpGraph
 {
     private readonly List<IParameterStrategy> _strategies = new()
     {
+<<<<<<< HEAD
+=======
+        new FromFileStrategy(),
+>>>>>>> alistair-file_upload_support
         new HttpChainParameterAttributeStrategy(),
         new FromServicesParameterStrategy(),
         new MessageBusStrategy(),

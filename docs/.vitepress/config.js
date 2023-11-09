@@ -179,6 +179,7 @@ export default {
                         {text: 'Using as Mediator', link: '/guide/http/mediator'},
                         {text: 'Multi-Tenancy and ASP.Net Core', link: '/guide/http/multi-tenancy'},
                         {text: 'Publishing Messages', link: '/guide/http/messaging'},
+                        {text: 'Uploading Files', link: '/guide/http/files'},
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},

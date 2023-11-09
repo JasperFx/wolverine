@@ -57,6 +57,16 @@ public abstract class HttpHandler
         return context.Request.Headers[headerKey].ToArray()!;
     }
 
+    public static IFormFile? ReadSingleFormFileValue(HttpContext context)
+    {
+        return context.Request.Form.Files.SingleOrDefault();
+    }
+
+    public static IFormFileCollection? ReadManyFormFileValues(HttpContext context)
+    {
+        return context.Request.Form.Files;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Task WriteString(HttpContext context, string text)
     {
