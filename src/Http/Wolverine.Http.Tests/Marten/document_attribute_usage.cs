@@ -13,6 +13,8 @@ public class document_attribute_usage : IntegrationContext
     [Fact]
     public async Task returns_404_on_id_miss()
     {
+        // Using Alba to run a request for a non-existent
+        // Invoice document
         await Scenario(x =>
         {
             x.Get.Url("/invoices/" + Guid.NewGuid());
