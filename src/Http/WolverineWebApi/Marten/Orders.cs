@@ -48,6 +48,7 @@ public class Order
     public DateTimeOffset? Shipped { get; private set; }
 
     public Dictionary<string, Item> Items { get; set; } = new();
+    public bool HasShipped { get; set; }
 
     // These methods are used by Marten to update the aggregate
     // from the raw events
@@ -126,6 +127,9 @@ public static class MarkItemEndpoint
     // the [EmptyResponse] attribute
     public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
     {
+        if (order.HasShipped) 
+            throw new InvalidOperationException("This has already shipped!");
+        
         return new OrderShipped();
     }
 
