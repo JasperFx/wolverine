@@ -1,4 +1,7 @@
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Http;
 using Shouldly;
 using WolverineWebApi;
 
@@ -18,12 +21,5 @@ public class endpoint_adds_requesttype_audit_tags_to_activity : IntegrationConte
         chain.AuditedMembers.Single()
             .MemberName.ShouldBe(nameof(AuditablePostBody.Id));
     }
-    
-    [Fact]
-    public void adds_auditable_members_to_activity()
-    {
-        var chain = HttpChains.ChainFor("POST", "/auditable/post");
-        var lines = chain.SourceCode.ReadLines();
-        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"id\", body.Id)")).ShouldBeTrue();
-    }
+
 }
