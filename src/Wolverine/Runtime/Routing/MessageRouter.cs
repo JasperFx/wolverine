@@ -6,16 +6,16 @@ namespace Wolverine.Runtime.Routing;
 
 public class MessageRouter<T> : MessageRouterBase<T>
 {
-    public MessageRouter(WolverineRuntime runtime, IEnumerable<MessageRoute> routes) : base(runtime)
+    public MessageRouter(WolverineRuntime runtime, IEnumerable<IMessageRoute> routes) : base(runtime)
     {
         Routes = routes.ToArray();
 
         // ReSharper disable once VirtualMemberCallInConstructor
-        foreach (var route in Routes.Where(x => x.Sender.Endpoint is LocalQueue))
+        foreach (var route in Routes.OfType<MessageRoute>().Where(x => x.Sender.Endpoint is LocalQueue))
             route.Rules.Fill(HandlerRules);
     }
 
-    public override MessageRoute[] Routes { get; }
+    public override IMessageRoute[] Routes { get; }
 
     public override Envelope[] RouteForSend(T message, DeliveryOptions? options)
     {
@@ -56,8 +56,8 @@ public class MessageRouter<T> : MessageRouterBase<T>
 
 public class MultipleSubscribersException : Exception
 {
-    public MultipleSubscribersException(Type messageType, MessageRoute[] routes) : base(
-        $"There are multiple subscribing endpoints {routes.Select(x => x.Sender.Destination.ToString()).Join(", ")} for message {messageType.FullNameInCode()}")
+    public MultipleSubscribersException(Type messageType, IMessageRoute[] routes) : base(
+        $"There are multiple subscribing endpoints {routes.OfType<MessageRoute>().Select(x => x.Sender.Destination.ToString()).Join(", ")} for message {messageType.FullNameInCode()}")
     {
     }
 }

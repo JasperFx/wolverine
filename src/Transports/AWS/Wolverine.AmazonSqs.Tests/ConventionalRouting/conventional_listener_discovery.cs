@@ -1,8 +1,10 @@
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Shouldly;
 using TestMessages;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Routing;
 using Wolverine.Util;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
@@ -62,7 +64,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     {
         ConfigureConventions(c => c.ConfigureSending((c, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
 
-        var route = PublishingRoutesFor<PublishedMessage>().Single().Sender.Endpoint
+        var route = PublishingRoutesFor<PublishedMessage>().Single().As<MessageRoute>().Sender.Endpoint
             .ShouldBeOfType<AmazonSqsQueue>();
 
         route.OutgoingRules.Single().ShouldBeOfType<FakeEnvelopeRule>();

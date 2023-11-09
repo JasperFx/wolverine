@@ -37,7 +37,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
     public ISendingAgent LocalDurableQueue { get; }
 
     public List<IEnvelopeRule> HandlerRules { get; } = new();
-    public abstract MessageRoute[] Routes { get; }
+    public abstract IMessageRoute[] Routes { get; }
 
     public Envelope[] RouteForSend(object message, DeliveryOptions? options)
     {

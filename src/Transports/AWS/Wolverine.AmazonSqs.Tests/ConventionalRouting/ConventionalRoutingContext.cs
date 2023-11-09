@@ -47,7 +47,7 @@ public abstract class ConventionalRoutingContext : IDisposable
         RoutingFor<T>().ShouldBeOfType<EmptyMessageRouter<T>>();
     }
 
-    internal MessageRoute[] PublishingRoutesFor<T>()
+    internal IMessageRoute[] PublishingRoutesFor<T>()
     {
         return RoutingFor<T>().ShouldBeOfType<MessageRouter<T>>().Routes;
     }

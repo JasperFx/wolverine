@@ -17,7 +17,7 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
 
     public when_discovering_a_sender_with_all_defaults()
     {
-        theRoute = PublishingRoutesFor<PublishedMessage>().Single();
+        theRoute = PublishingRoutesFor<PublishedMessage>().Single() as MessageRoute;
     }
 
     [Fact]

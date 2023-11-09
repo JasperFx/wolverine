@@ -6,7 +6,7 @@ public class EmptyMessageRouter<T> : MessageRouterBase<T>
     {
     }
 
-    public override MessageRoute[] Routes => Array.Empty<MessageRoute>();
+    public override IMessageRoute[] Routes => Array.Empty<MessageRoute>();
 
     public override Envelope[] RouteForSend(T message, DeliveryOptions? options)
     {

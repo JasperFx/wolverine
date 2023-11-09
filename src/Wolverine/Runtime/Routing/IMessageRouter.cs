@@ -2,7 +2,7 @@ namespace Wolverine.Runtime.Routing;
 
 public interface IMessageRouter
 {
-    MessageRoute[] Routes { get; }
+    IMessageRoute[] Routes { get; }
     Envelope[] RouteForSend(object message, DeliveryOptions? options);
     Envelope[] RouteForPublish(object message, DeliveryOptions? options);
     Envelope RouteToDestination(object message, Uri uri, DeliveryOptions? options);

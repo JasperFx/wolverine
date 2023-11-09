@@ -6,9 +6,68 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
 
+public interface IMessageRouteSource
+{
+    IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime);
+    bool IsAdditive { get; }
+}
+
+internal class ExplicitRouting : IMessageRouteSource
+{
+    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
+    {
+        return runtime
+            .Options
+            .Transports
+            .AllEndpoints()
+            .Where(x => x.ShouldSendMessage(messageType))
+            .Select(x => new MessageRoute(messageType, x, runtime.Replies));
+    }
+
+    public bool IsAdditive => false;
+}
+
+internal class LocalRouting : IMessageRouteSource
+{
+    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
+    {
+        var options = runtime.Options;
+        if (!options.LocalRoutingConventionDisabled && options.HandlerGraph.CanHandle(messageType))
+        {
+            var endpoints = options.LocalRouting.DiscoverSenders(messageType, runtime).ToArray();
+            return endpoints.Select(e => new MessageRoute(messageType, e, runtime.Replies));
+        }
+
+        return Array.Empty<IMessageRoute>();
+    }
+
+    public bool IsAdditive => false;
+}
+
+internal class MessageRoutingConventions : IMessageRouteSource
+{
+    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
+    {
+        return runtime.Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, runtime))
+            .Select(e => new MessageRoute(messageType, e, runtime.Replies));
+    }
+
+    public bool IsAdditive => true;
+}
+
+
+
 public partial class WolverineRuntime
 {
     private ImHashMap<Type, IMessageRouter> _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
+
+    // TODO -- expand this later so you can track routing source
+    private readonly List<IMessageRouteSource> _routeSources = new()
+    {
+        new ExplicitRouting(),
+        new LocalRouting(),
+        new MessageRoutingConventions()
+    };
 
 
     public IMessageRouter RoutingFor(Type messageType)
@@ -24,8 +83,7 @@ public partial class WolverineRuntime
             return raw;
         }
 
-        var routes = findEndpoints(messageType).Select(x => new MessageRoute(messageType, x, Replies))
-            .ToArray();
+        var routes = findRoutes(messageType);
 
         var router = routes.Any()
             ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
@@ -36,25 +94,17 @@ public partial class WolverineRuntime
         return router;
     }
 
-    internal IEnumerable<Endpoint> findEndpoints(Type messageType)
+    private List<IMessageRoute> findRoutes(Type messageType)
     {
-        // If there are explicit rules, that's where you go
-        var explicits = Options.Transports.AllEndpoints().Where(x => x.ShouldSendMessage(messageType)).ToArray();
-        if (explicits.Any())
+        var routes = new List<IMessageRoute>();
+        foreach (var source in _routeSources)
         {
-            return explicits;
+            routes.AddRange(source.FindRoutes(messageType, this));
+
+            if (routes.Any() && !source.IsAdditive) break;
         }
 
-        if (!Options.LocalRoutingConventionDisabled && Options.HandlerGraph.CanHandle(messageType))
-        {
-            var endpoints = Options.LocalRouting.DiscoverSenders(messageType, this).ToArray();
-            if (endpoints.Any())
-            {
-                return endpoints;
-            }
-        }
-
-        return Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, this));
+        return routes;
     }
 
     internal ISendingAgent? DetermineLocalSendingAgent(Type messageType)

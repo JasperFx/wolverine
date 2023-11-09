@@ -3,6 +3,7 @@ using Oakton.Descriptions;
 using Spectre.Console;
 using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
+using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime;
@@ -71,7 +72,7 @@ internal class MessageSubscriptions : IDescribedSystemPart, IWriteToConsole
         foreach (var messageType in messageTypes.OrderBy(x => x.FullName))
         {
             var routes = _runtime.RoutingFor(messageType).Routes;
-            foreach (var route in routes)
+            foreach (var route in routes.OfType<MessageRoute>())
             {
                 table.AddRow(messageType.FullNameInCode(), route.Sender.Destination.ToString(),
                     route.Serializer.ContentType);

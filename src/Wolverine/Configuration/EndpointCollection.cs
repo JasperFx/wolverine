@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -179,7 +180,7 @@ public class EndpointCollection : IEndpointCollection
 
     public LocalQueue? LocalQueueForMessageType(Type messageType)
     {
-        return _runtime.RoutingFor(messageType).Routes.FirstOrDefault(x => x.IsLocal)
+        return _runtime.RoutingFor(messageType).Routes.OfType<MessageRoute>().FirstOrDefault(x => x.IsLocal)
             ?.Sender.Endpoint as LocalQueue;
     }
 
