@@ -13,21 +13,20 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_orders_orderId_ship2 : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_orders_orderId_ship2(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
+        public POST_orders_orderId_ship2(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _wolverineRuntime = wolverineRuntime;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _wolverineRuntime = wolverineRuntime;
         }
 
 
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             if (!System.Guid.TryParse((string)httpContext.GetRouteValue("orderId"), out var orderId))
             {
                 httpContext.Response.StatusCode = 404;
@@ -35,6 +34,7 @@ namespace Internal.Generated.WolverineHandlers
             }
 
 
+            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Reading the request body via JSON deserialization
             var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Marten.ShipOrder2>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;

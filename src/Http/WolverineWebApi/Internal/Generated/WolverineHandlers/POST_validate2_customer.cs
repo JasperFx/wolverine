@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_validate2_customer : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateCustomer2> _validator;
         private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateCustomer2> _problemDetailSource;
+        private readonly FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateCustomer2> _validator;
 
-        public POST_validate2_customer(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateCustomer2> validator, Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateCustomer2> problemDetailSource) : base(wolverineHttpOptions)
+        public POST_validate2_customer(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateCustomer2> problemDetailSource, FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateCustomer2> validator) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _validator = validator;
             _problemDetailSource = problemDetailSource;
+            _validator = validator;
         }
 
 

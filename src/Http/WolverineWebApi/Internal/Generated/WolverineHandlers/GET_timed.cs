@@ -24,8 +24,8 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var stopwatchMiddleware = new WolverineWebApi.StopwatchMiddleware();
             var measuredEndpoint = new WolverineWebApi.MeasuredEndpoint();
+            var stopwatchMiddleware = new WolverineWebApi.StopwatchMiddleware();
             stopwatchMiddleware.Before();
             
             // The actual HTTP request handler execution
