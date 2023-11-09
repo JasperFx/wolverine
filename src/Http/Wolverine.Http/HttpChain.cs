@@ -53,6 +53,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private GeneratedType? _generatedType;
     private Type? _handlerType;
     private string _description;
+    private Type? _requestType;
 
     public HttpChain(MethodCall method, HttpGraph parent)
     {
@@ -73,7 +74,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             NoContent = true;
             ResourceType = typeof(void);
         }
-        
+
         Metadata = new RouteHandlerBuilder(new[] { this });
         
         if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
@@ -151,7 +152,18 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public RoutePattern? RoutePattern { get; private set; }
 
-    public Type? RequestType { get; internal set; }
+    public Type? RequestType
+    {
+        get => _requestType;
+        internal set
+        {
+            _requestType = value;
+            if (_requestType != null)
+            {
+                applyAuditAttributes(_requestType);
+            }
+        } 
+    }
 
     public override string Description => _description;
 
