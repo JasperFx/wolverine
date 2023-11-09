@@ -27,7 +27,6 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             if (!System.Guid.TryParse((string)httpContext.GetRouteValue("orderId"), out var orderId))
             {
                 httpContext.Response.StatusCode = 404;
@@ -35,6 +34,7 @@ namespace Internal.Generated.WolverineHandlers
             }
 
 
+            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
             var eventStore = documentSession.Events;
             

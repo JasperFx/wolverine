@@ -87,6 +87,25 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     }
 
 
+    protected void applyAuditAttributes(Type type)
+    {
+        foreach (var property in type.GetProperties())
+        {
+            if (property.TryGetAttribute<AuditAttribute>(out var ratt))
+            {
+                Audit(property, ratt.Heading);
+            }
+        }
+
+        foreach (var field in type.GetFields())
+        {
+            if (field.TryGetAttribute<AuditAttribute>(out var ratt))
+            {
+                Audit(field, ratt.Heading);
+            }
+        }
+    }
+    
     protected void applyAttributesAndConfigureMethods(GenerationRules rules, IContainer container)
     {
         var handlers = HandlerCalls();

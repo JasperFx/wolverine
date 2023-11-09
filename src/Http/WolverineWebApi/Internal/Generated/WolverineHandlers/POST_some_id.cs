@@ -27,10 +27,10 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
+            var id = (string)httpContext.GetRouteValue("id");
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            var id = (string)httpContext.GetRouteValue("id");
             // Reading the request body via JSON deserialization
             var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Bugs.SomeRequest>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;

@@ -8,13 +8,15 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Resources;
-using Wolverine.Persistence;
+using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
 
 public partial class HttpChain
 {
+    internal string? SourceCode => _generatedType?.SourceCode;
+
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
         assembly.UsingNamespaces!.Fill(typeof(RoutingHttpContextExtensions).Namespace);
@@ -55,7 +57,7 @@ public partial class HttpChain
         {
             return false;
         }
-        
+
         Debug.WriteLine(_generatedType?.SourceCode);
 
         return true;
@@ -80,7 +82,12 @@ public partial class HttpChain
         {
             Postprocessors.Add(new WriteEmptyBodyStatusCode());
         }
-        
+
+        if (AuditedMembers.Any())
+        {
+            Middleware.Insert(0, new AuditToActivityFrame(this));
+        }
+
         var index = 0;
         foreach (var frame in Middleware)
         {
@@ -89,12 +96,12 @@ public partial class HttpChain
             {
                 RouteParameterStrategy.TryApplyRouteVariables(this, call);
             }
-            
+
             foreach (var result in frame.Creates.Where(x => x.VariableType.CanBeCastTo<IResult>()))
             {
                 result.OverrideName("result" + ++index);
             }
-            
+
             yield return frame;
         }
 
@@ -110,7 +117,7 @@ public partial class HttpChain
     private string determineFileName()
     {
         var parts = RoutePattern.RawText.Replace("{", "").Replace("*", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
-        
+
         return _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace("-", "_").Replace("__", "_");
     }
 }
