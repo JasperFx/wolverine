@@ -95,7 +95,7 @@ public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L94-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L117-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this version of the "aggregate workflow", you no longer have to supply a command in the request body, so you could
@@ -114,7 +114,7 @@ public static OrderShipped Ship3([Aggregate] Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L108-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L131-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A couple other notes: 
@@ -143,7 +143,11 @@ public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 public record OrderShipped;
 public record OrderCreated(Item[] Items);
 public record OrderReady;
-public record ShipOrder(Guid OrderId);
+public interface IShipOrder
+{
+    Guid OrderId { init; }
+}
+public record ShipOrder(Guid OrderId) : IShipOrder;
 public record ShipOrder2(string Description);
 public record ItemReady(string Name);
 
@@ -188,9 +192,10 @@ public class Order
         return Shipped == null && Items.Values.All(x => x.Ready);
     }
 
+    public bool IsShipped() => Shipped.HasValue;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L11-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_aggregate_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L11-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_aggregate_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To append a single event to an event stream from an HTTP endpoint, you can use a return value like so:
@@ -209,7 +214,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L79-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L102-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or potentially append multiple events using the `Events` type as a return value like this sample:
@@ -245,6 +250,6 @@ public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
     return (new OrderStatus(order.Id, order.IsReadyToShip()), events);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L170-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L193-L223' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

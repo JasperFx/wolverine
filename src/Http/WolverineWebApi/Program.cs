@@ -131,6 +131,7 @@ app.MapWolverineEndpoints(opts =>
 
 #region sample_register_http_middleware_by_type
     opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
+    opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 #endregion
 
     // Publish messages coming from 

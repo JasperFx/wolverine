@@ -47,8 +47,9 @@ Which is registered like this (or as described in [`Registering Middleware by Me
 <a id='snippet-sample_register_http_middleware_by_type'></a>
 ```cs
 opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
+opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L132-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L132-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point to notice there is that `IResult` is a "return value" of the middleware. In the case of an HTTP endpoint,
