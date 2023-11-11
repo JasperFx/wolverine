@@ -16,7 +16,11 @@ public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 public record OrderShipped;
 public record OrderCreated(Item[] Items);
 public record OrderReady;
-public record ShipOrder(Guid OrderId);
+public interface IShipOrder
+{
+    Guid OrderId { init; }
+}
+public record ShipOrder(Guid OrderId) : IShipOrder;
 public record ShipOrder2(string Description);
 public record ItemReady(string Name);
 
@@ -61,6 +65,7 @@ public class Order
         return Shipped == null && Items.Values.All(x => x.Ready);
     }
 
+    public bool IsShipped() => Shipped.HasValue;
 }
 
 #endregion
@@ -73,6 +78,24 @@ public record StartOrder(string[] Items);
 
 public record StartOrderWithId(Guid Id, string[] Items);
 
+public static class CanShipOrderMiddleWare
+{
+    #region sample_using_before_on_http_aggregate
+    [AggregateHandler]
+    public static ProblemDetails Before(IShipOrder command, Order order)
+    {
+        if (order.IsShipped())
+        {
+            return new ProblemDetails
+            {
+                Detail = "Order already shipped",
+                Status = 428
+            };
+        }
+        return WolverineContinue.NoProblems;
+    }
+    #endregion
+}
 
 public static class MarkItemEndpoint
 {

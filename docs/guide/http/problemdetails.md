@@ -116,3 +116,26 @@ with your own metadata if you need to use a different status code like this:
     [ProducesResponseType(typeof(ProblemDetails), 418)]
 ```
 
+### Using ProblemDetails with Marten aggregates
+
+Of course, if you are using [Marten's aggregates within your Wolverine http handlers](./marten), you also want to be able to validation using the aggregate's details in your middleware and this is perfectly possible like this:
+
+<!-- snippet: sample_using_before_on_http_aggregate -->
+<a id='snippet-sample_using_before_on_http_aggregate'></a>
+```cs
+[AggregateHandler]
+public static ProblemDetails Before(IShipOrder command, Order order)
+{
+    if (order.IsShipped())
+    {
+        return new ProblemDetails
+        {
+            Detail = "Order already shipped",
+            Status = 428
+        };
+    }
+    return WolverineContinue.NoProblems;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L83-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_before_on_http_aggregate' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
