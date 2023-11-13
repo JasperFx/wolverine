@@ -15,7 +15,7 @@ internal class PublishIncomingEventsBeforeCommit : DocumentSessionListenerBase
 
     public override async Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
     {
-        var events = session.PendingChanges.As<IChangeSet>().GetEvents().Select(x => x.Data).ToArray();
+        var events = session.PendingChanges.As<IChangeSet>().GetEvents().ToArray();
 
         if (events.Any())
         {

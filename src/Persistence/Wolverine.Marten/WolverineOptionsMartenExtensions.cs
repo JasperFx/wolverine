@@ -155,4 +155,28 @@ public static class WolverineOptionsMartenExtensions
 
         return expression;
     }
+    
+    /// <summary>
+    ///     Enable publishing of events to Wolverine message routing when captured in Marten sessions that are enrolled in a
+    ///     Wolverine outbox
+    /// </summary>
+    /// <param name="expression"></param>
+    /// <returns></returns>
+    public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, Action<IEventForwarding> configure)
+    {
+        var integration = expression.Services.FindMartenIntegration();
+        if (integration == null)
+        {
+            expression.IntegrateWithWolverine();
+            integration = expression.Services.FindMartenIntegration();
+        }
+
+        integration!.ShouldPublishEvents = true;
+
+        configure(integration);
+
+        return expression;
+    }
 }
+

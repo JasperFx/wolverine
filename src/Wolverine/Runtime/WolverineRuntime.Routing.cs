@@ -61,14 +61,6 @@ public partial class WolverineRuntime
 {
     private ImHashMap<Type, IMessageRouter> _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
 
-    // TODO -- expand this later so you can track routing source
-    private readonly List<IMessageRouteSource> _routeSources = new()
-    {
-        new ExplicitRouting(),
-        new LocalRouting(),
-        new MessageRoutingConventions()
-    };
-
 
     public IMessageRouter RoutingFor(Type messageType)
     {
@@ -97,7 +89,7 @@ public partial class WolverineRuntime
     private List<IMessageRoute> findRoutes(Type messageType)
     {
         var routes = new List<IMessageRoute>();
-        foreach (var source in _routeSources)
+        foreach (var source in Options.RouteSources())
         {
             routes.AddRange(source.FindRoutes(messageType, this));
 

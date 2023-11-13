@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
+using Marten.Events;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
@@ -8,6 +9,7 @@ using TestingSupport;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Marten;
+using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 using Xunit;
@@ -24,7 +26,11 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         var receiverPort = PortFinder.GetAvailablePort();
 
         theReceiver = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => opts.ListenAtPort(receiverPort))
+            .UseWolverine(opts =>
+            {
+                opts.ListenAtPort(receiverPort);
+                opts.Durability.Mode = DurabilityMode.Solo;
+            })
             .ConfigureServices(services =>
             {
                 services.AddMarten(Servers.PostgresConnectionString)
@@ -40,11 +46,16 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             {
                 opts.PublishAllMessages().ToPort(receiverPort).UseDurableOutbox();
                 opts.DisableConventionalDiscovery().IncludeType<TriggerHandler>();
+                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.ServiceName = "sender";
             })
             .ConfigureServices(services =>
             {
                 services.AddMarten(Servers.PostgresConnectionString)
-                    .IntegrateWithWolverine("sender").EventForwardingToWolverine();
+                    .IntegrateWithWolverine("sender").EventForwardingToWolverine(opts =>
+                    {
+                        opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => new SecondMessage(e.Sequence));
+                    });
                 
                 services.AddResourceSetupOnStartup();
             }).StartAsync();
@@ -69,15 +80,17 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
     {
         var command = new TriggerCommand();
 
-        var waiter = TriggerEventHandler.Waiter;
+        var results = await theSender.TrackActivity().AlsoTrack(theReceiver).InvokeMessageAndWaitAsync(command);
 
-        await theSender.InvokeAsync(command);
-
-        var @event = await waiter.TimeoutAfterAsync(5000);
-
-        @event.Id.ShouldBe(command.Id);
+        var triggered = results.Received.SingleMessage<TriggeredEvent>();
+        triggered.ShouldNotBeNull();
+        triggered.Id.ShouldBe(command.Id);
+        
+        results.Received.SingleMessage<SecondMessage>()
+            .Sequence.ShouldBeGreaterThan(0);
     }
 }
+
 
 public class TriggerCommand
 {
@@ -89,9 +102,23 @@ public class TriggerHandler
     [Transactional]
     public void Handle(TriggerCommand command, IDocumentSession session)
     {
-        session.Events.StartStream(command.Id, new TriggeredEvent { Id = command.Id });
+        session.Events.StartStream(command.Id, new TriggeredEvent { Id = command.Id }, new SecondEvent(), new ThirdEvent());
+    }
+    
+    public void Handle(IEvent<ThirdEvent> e)
+    {
+        
     }
 }
+
+public record SecondMessage(long Sequence);
+
+public class SecondEvent
+{
+    
+}
+
+public class ThirdEvent{}
 
 public class TriggeredEvent
 {
@@ -107,4 +134,6 @@ public class TriggerEventHandler
     {
         _source.SetResult(message);
     }
+    
+    public void Handle(SecondMessage message){}
 }
