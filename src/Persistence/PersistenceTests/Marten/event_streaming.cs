@@ -88,6 +88,9 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         
         results.Received.SingleMessage<SecondMessage>()
             .Sequence.ShouldBeGreaterThan(0);
+        
+        TriggerHandler.ThirdEventHandled.ShouldBeTrue();
+        TriggerHandler.ThirdIEventHandled.ShouldBeTrue();
     }
 }
 
@@ -99,6 +102,8 @@ public class TriggerCommand
 
 public class TriggerHandler
 {
+    public static bool ThirdIEventHandled;
+    public static bool ThirdEventHandled;
     [Transactional]
     public void Handle(TriggerCommand command, IDocumentSession session)
     {
@@ -107,7 +112,12 @@ public class TriggerHandler
     
     public void Handle(IEvent<ThirdEvent> e)
     {
-        
+        ThirdIEventHandled = true;
+    }
+    
+    public void Handle(ThirdEvent e)
+    {
+        ThirdEventHandled = true;
     }
 }
 
