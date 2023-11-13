@@ -142,8 +142,8 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
 
     internal static Variable RelayAggregateToHandlerMethod(MethodCall loader, MethodCall firstCall, Type aggregateType)
     {
-        var aggregateVariable = new Variable(aggregateType!,
-            $"{loader.ReturnVariable!.Usage}.{nameof(IEventStream<string>.Aggregate)}");
+        var aggregateVariable = new MemberAccessVariable(loader.ReturnVariable,
+            typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty("Aggregate"));
 
         if (firstCall.HandlerType == aggregateType)
         {
