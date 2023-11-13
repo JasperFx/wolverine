@@ -7,6 +7,7 @@ public partial class WolverineRuntime : IStatefulResourceSource
     IReadOnlyList<IStatefulResource> IStatefulResourceSource.FindResources()
     {
         var list = new List<IStatefulResource>();
+        if (Options.ExternalTransportsAreStubbed) return list;
 
         foreach (var transport in Options.Transports)
         {

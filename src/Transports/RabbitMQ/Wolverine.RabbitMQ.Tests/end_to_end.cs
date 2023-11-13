@@ -62,6 +62,35 @@ public class end_to_end
         publisher.Services.GetServices<IStatefulResourceSource>().SelectMany(x => x.FindResources())
             .OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeTrue();
     }
+    
+    [Fact]
+    public void rabbitmq_transport_is_NOT_exposed_as_a_resource_if_external_transports_are_stubbed()
+    {
+        var queueName = RabbitTesting.NextQueueName();
+        using var publisher = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+
+            opts.PublishAllMessages()
+                .ToRabbitQueue(queueName)
+                .UseDurableOutbox();
+            
+            opts.StubAllExternalTransports();
+
+            opts.Services.AddMarten(x =>
+            {
+                x.Connection(Servers.PostgresConnectionString);
+                x.AutoCreateSchemaObjects = AutoCreate.All;
+                x.DatabaseSchemaName = "sender";
+            }).IntegrateWithWolverine();
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        });
+
+        publisher.Services.GetServices<IStatefulResourceSource>().SelectMany(x => x.FindResources())
+            .OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeFalse();
+    }
+
 
 
     [Fact]
