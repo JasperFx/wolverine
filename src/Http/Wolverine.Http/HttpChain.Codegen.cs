@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Resources;
@@ -100,6 +101,11 @@ public partial class HttpChain
             foreach (var result in frame.Creates.Where(x => x.VariableType.CanBeCastTo<IResult>()))
             {
                 result.OverrideName("result" + ++index);
+            }
+            
+            foreach (var details in frame.Creates.Where(x => x.VariableType.CanBeCastTo<ProblemDetails>()))
+            {
+                details.OverrideName(details.Usage + ++index);
             }
 
             yield return frame;
