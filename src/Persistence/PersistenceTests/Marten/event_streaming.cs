@@ -44,7 +44,14 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         theSender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PublishAllMessages().ToPort(receiverPort).UseDurableOutbox();
+                opts.Publish(x =>
+                {
+                    x.Message<TriggeredEvent>();
+                    x.Message<SecondMessage>();
+
+                    x.ToPort(receiverPort).UseDurableOutbox();
+                });
+                
                 opts.DisableConventionalDiscovery().IncludeType<TriggerHandler>();
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.ServiceName = "sender";
@@ -76,6 +83,14 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
     }
 
     [Fact]
+    public void  preview_routes()
+    {
+        var routes = theSender.GetRuntime().RoutingFor(typeof(IEvent<ThirdEvent>)).Routes;
+
+        routes.Single().ShouldBeOfType<EventUnwrappingMessageRoute<ThirdEvent>>();
+    }
+
+    [Fact]
     public async Task event_should_be_published_from_sender_to_receiver()
     {
         var command = new TriggerCommand();
@@ -88,9 +103,8 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         
         results.Received.SingleMessage<SecondMessage>()
             .Sequence.ShouldBeGreaterThan(0);
-        
-        TriggerHandler.ThirdEventHandled.ShouldBeTrue();
-        TriggerHandler.ThirdIEventHandled.ShouldBeTrue();
+
+        results.Executed.SingleMessage<ThirdEvent>().ShouldNotBeNull();
     }
 }
 
@@ -102,22 +116,14 @@ public class TriggerCommand
 
 public class TriggerHandler
 {
-    public static bool ThirdIEventHandled;
-    public static bool ThirdEventHandled;
     [Transactional]
     public void Handle(TriggerCommand command, IDocumentSession session)
     {
         session.Events.StartStream(command.Id, new TriggeredEvent { Id = command.Id }, new SecondEvent(), new ThirdEvent());
     }
-    
-    public void Handle(IEvent<ThirdEvent> e)
-    {
-        ThirdIEventHandled = true;
-    }
-    
+
     public void Handle(ThirdEvent e)
     {
-        ThirdEventHandled = true;
     }
 }
 
