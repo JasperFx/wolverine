@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Resources;
 using Wolverine.Logging;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
@@ -114,8 +115,18 @@ public partial class HttpChain
         yield return Method;
 
         var actionsOnOtherReturnValues = (NoContent ? Method.Creates : Method.Creates.Skip(1))
-            .Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames());
+            .Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames()).ToArray();
         foreach (var frame in actionsOnOtherReturnValues) yield return frame;
+
+        if (!Postprocessors.OfType<MethodCall>().Any(x =>
+                x.HandlerType == typeof(MessageContext) &&
+                x.Method.Name == nameof(MessageContext.EnqueueCascadingAsync)))
+        {
+            if (actionsOnOtherReturnValues.OfType<CaptureCascadingMessages>().Any())
+            {
+                yield return MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
+            }
+        }
 
         foreach (var frame in Postprocessors) yield return frame;
     }

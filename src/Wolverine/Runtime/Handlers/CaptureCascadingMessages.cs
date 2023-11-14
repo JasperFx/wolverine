@@ -5,7 +5,7 @@ using JasperFx.Core.Reflection;
 
 namespace Wolverine.Runtime.Handlers;
 
-internal class CaptureCascadingMessages : MethodCall
+public class CaptureCascadingMessages : MethodCall
 {
     private static readonly MethodInfo _method
         = ReflectionHelper.GetMethod<MessageContext>(x => x.EnqueueCascadingAsync(null))!;

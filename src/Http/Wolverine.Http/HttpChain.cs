@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http;
 
@@ -230,7 +231,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override bool RequiresOutbox()
     {
-        return ServiceDependencies(_parent.Container, Type.EmptyTypes).Contains(typeof(IMessageBus));
+        return ServiceDependencies(_parent.Container, Type.EmptyTypes).Contains(typeof(IMessageBus)) || ServiceDependencies(_parent.Container, Type.EmptyTypes).Contains(typeof(MessageContext));
     }
 
     private void applyMetadata()

@@ -4,6 +4,7 @@ using Oakton;
 using Oakton.Resources;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Http;
 using Wolverine.SqlServer;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -72,6 +73,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+
+app.MapWolverineEndpoints();
 
 app.MapPost("/items/create", (CreateItemCommand command, IMessageBus bus) => bus.InvokeAsync(command));
 

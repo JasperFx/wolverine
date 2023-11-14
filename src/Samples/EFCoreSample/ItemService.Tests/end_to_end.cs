@@ -54,7 +54,32 @@ public class end_to_end
         using var nested = host.Services.As<IContainer>().GetNestedContainer();
         var context = nested.GetInstance<ItemsDbContext>();
 
-        var item = context.Items.FirstOrDefaultAsync(x => x.Name == name);
+        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
+        item.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task execute_through_wolverine_http()
+    {
+        var name = Guid.NewGuid().ToString();
+        using var host = await AlbaHost.For<Program>();
+        var tracked = await host.ExecuteAndWaitAsync(async () =>
+        {
+            await host.Scenario(x =>
+            {
+                var command = new CreateItemCommand { Name = name };
+                x.Post.Json(command).ToUrl("/items/create4");
+                x.StatusCodeShouldBe(204);
+            });
+        });
+
+        tracked.FindSingleTrackedMessageOfType<ItemCreated>()
+            .ShouldNotBeNull();
+        
+        using var nested = host.Services.As<IContainer>().GetNestedContainer();
+        var context = nested.GetInstance<ItemsDbContext>();
+
+        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
         item.ShouldNotBeNull();
     }
 }

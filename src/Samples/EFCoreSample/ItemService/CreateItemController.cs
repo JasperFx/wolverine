@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Attributes;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Http;
 
 namespace ItemService;
 
@@ -74,4 +76,27 @@ public class CreateItemController : ControllerBase
     }   
 
     #endregion
+}
+
+public static class CreateItemEndpoint
+{
+    [Transactional]
+    [WolverinePost("/items/create4"), EmptyResponse]
+    public static ItemCreated Post(CreateItemCommand command, ItemsDbContext dbContext)
+    {
+        // Create a new Item entity
+        var item = new Item
+        {
+            Name = command.Name
+        };
+
+        // Add the item to the current
+        // DbContext unit of work
+        dbContext.Items.Add(item);
+
+        return new ItemCreated
+        {
+            Id = item.Id
+        };
+    }
 }

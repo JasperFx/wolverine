@@ -12,6 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
         <ProjectReference Include="..\..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
         <ProjectReference Include="..\..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
     </ItemGroup>
