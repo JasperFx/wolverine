@@ -27,7 +27,8 @@ export default {
             {
                 text: 'Discord | Join Chat',
                 link: 'https://discord.gg/WMxrvegf8H'
-            }
+            },
+            {text: 'Support Plans', link: 'https://www.jasperfx.net/support-plans/'}
         ],
 
         algolia: {
