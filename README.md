@@ -6,6 +6,14 @@ Wolverine
 Wolverine is a *Next Generation .NET Mediator and Message Bus*. Check out
 the [documentation website at https://wolverine.netlify.app](https://wolverine.netlify.app).
 
+## Support Plans
+
+<div align="center">
+    <img src="https://www.jasperfx.net/wp-content/uploads/2023/07/logo-alt-min.png" alt="JasperFx logo" width="70%">
+</div>
+
+While Marten is open source, [JasperFx Software offers paid support and consulting contracts](https://bit.ly/3szhwT2) for Marten. 
+
 ## Help us keep working on this project 💚
 
 [Become a Sponsor on GitHub](https://github.com/sponsors/JasperFX)
