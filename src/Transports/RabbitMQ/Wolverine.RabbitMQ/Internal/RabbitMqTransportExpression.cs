@@ -116,6 +116,17 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         return this;
     }
 
+    /// <summary>
+    /// Disable Wolverine's automatic Request/Reply queue declaration for a specific node
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqTransportExpression DisableSystemRequestReplyQueueDeclaration()
+    {
+        Transport.DeclareRequestReplySystemQueue = false;
+
+        return this;
+    }
+
     public class BindingExpression
     {
         private readonly string _exchangeName;
