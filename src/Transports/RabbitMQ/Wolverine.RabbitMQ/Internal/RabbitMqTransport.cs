@@ -54,6 +54,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     public LightweightCache<string, RabbitMqQueue> Queues { get; }
 
+    internal bool DeclareRequestReplySystemQueue { get; set; } = true;
+
     public void Dispose()
     {
         try
@@ -183,19 +185,22 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
-        var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
-
-        var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
+        if (DeclareRequestReplySystemQueue)
         {
-            AutoDelete = true,
-            IsDurable = false,
-            IsListener = true,
-            IsUsedForReplies = true,
-            ListenerCount = 5,
-            EndpointName = ResponseEndpointName
-        };
+            var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
 
-        Queues[queueName] = queue;
+            var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
+            {
+                AutoDelete = true,
+                IsDurable = false,
+                IsListener = true,
+                IsUsedForReplies = true,
+                ListenerCount = 5,
+                EndpointName = ResponseEndpointName
+            };
+
+            Queues[queueName] = queue;
+        }
 
         // Have to do this early to get everything together for the dead letter queues
         foreach (var rabbitMqQueue in Queues)
