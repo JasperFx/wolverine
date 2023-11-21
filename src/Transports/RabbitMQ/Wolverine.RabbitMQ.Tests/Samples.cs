@@ -48,6 +48,36 @@ public class Samples
         #endregion
     }
 
+    public static async Task disable_system_queue()
+    {
+        #region sample_disable_rabbit_mq_system_queue
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // *A* way to configure Rabbit MQ using their Uri schema
+                // documented here: https://www.rabbitmq.com/uri-spec.html
+                opts.UseRabbitMq(new Uri("amqp://localhost"))
+                    
+                    // Stop Wolverine from trying to create a reply queue
+                    // for this node if your process does not have permission to
+                    // do so against your Rabbit MQ broker
+                    .DisableSystemRequestReplyQueueDeclaration();
+
+                
+
+                // Set up a listener for a queue, but also
+                // fine-tune the queue characteristics if Wolverine
+                // will be governing the queue setup
+                opts.ListenToRabbitQueue("incoming2", q =>
+                {
+                    q.PurgeOnStartup = true;
+                    q.TimeToLive(5.Minutes());
+                });
+            }).StartAsync();
+
+        #endregion
+    }
 
     public static async Task listen_to_queue()
     {

@@ -54,6 +54,15 @@ return await Host.CreateDefaultBuilder(args)
 See the [Rabbit MQ .NET Client documentation](https://www.rabbitmq.com/dotnet-api-guide.html#connecting) for more information about configuring the `ConnectionFactory` to connect to Rabbit MQ.
 
 
+## Disable Rabbit MQ Reply Queues
 
+By default, Wolverine creates an in memory queue in the Rabbit MQ broker for each individual node that is used by Wolverine
+for request/reply invocations (`IMessageBus.InvokeAsync<T>()` when used remotely). Great, but if your process does not
+have permissions with your Rabbit MQ broker to create queues, you may encounter errors. Not to worry, you can disable
+that Wolverine system queue creation with:
+
+snippet: sample_disable_rabbit_mq_system_queue
+
+Of course, doing so means that you will not be able to do request/reply through Rabbit MQ with your Wolverine application.
 
 
