@@ -57,14 +57,14 @@ public partial class HttpChain : IEndpointConventionBuilder
         if (ResourceType == null)
         {
             builder.RemoveStatusCodeResponse(200);
-            builder.Metadata.Add(new ProducesResponseTypeMetadata { StatusCode = 204, Type = null });
+            builder.Metadata.Add(new WolverineProducesResponseTypeMetadata { StatusCode = 204, Type = null });
         }
         
                 
         // Set up OpenAPI data for ProblemDetails with status code 400 if not already exists
         if (Middleware.SelectMany(x => x.Creates).Any(x => x.VariableType == typeof(ProblemDetails)))
         {
-            if (!builder.Metadata.OfType<ProducesResponseTypeMetadata>()
+            if (!builder.Metadata.OfType<WolverineProducesResponseTypeMetadata>()
                     .Any(x => x.Type != null && x.Type.CanBeCastTo<ProblemDetails>()))
             {
                 builder.Metadata.Add(new ProducesProblemDetailsResponseTypeMetadata());

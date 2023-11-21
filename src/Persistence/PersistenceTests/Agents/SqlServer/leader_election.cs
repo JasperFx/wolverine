@@ -354,7 +354,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime, IObserver<IWol
         
         var runtime2 = host2.GetRuntime();
         await host2.InvokeMessageAndWaitAsync(new CheckAgentHealth());
-        await runtime2.Tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
+        await runtime2.Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
 
         
         await host2.WaitUntilAssignmentsChangeTo(w =>

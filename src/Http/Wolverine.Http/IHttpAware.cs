@@ -90,7 +90,7 @@ public record CreationResponse(string Url) : IHttpAware
         builder.RemoveStatusCodeResponse(200);
 
         var create = new MethodCall(method.DeclaringType!, method).Creates.FirstOrDefault()?.VariableType;
-        var metadata = new ProducesResponseTypeMetadata { Type = create, StatusCode = 201 };
+        var metadata = new WolverineProducesResponseTypeMetadata { Type = create, StatusCode = 201 };
         builder.Metadata.Add(metadata);
     }
 

@@ -21,7 +21,7 @@ public class PublishingEndpoint<T>
         chain.Metadata.Add(builder =>
         {
             // Adding and modifying data
-            builder.Metadata.Add(new ProducesResponseTypeMetadata { StatusCode = 202, Type = null });
+            builder.Metadata.Add(new WolverineProducesResponseTypeMetadata { StatusCode = 202, Type = null });
             builder.RemoveStatusCodeResponse(200);
         });
     }

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Wolverine.Http.Resources;
 
-internal class ProducesResponseTypeMetadata : IProducesResponseTypeMetadata
+internal class WolverineProducesResponseTypeMetadata : IProducesResponseTypeMetadata
 {
     public Type? Type { get; init; }
     public int StatusCode { get; init; }
