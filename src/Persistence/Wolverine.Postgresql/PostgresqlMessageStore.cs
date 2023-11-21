@@ -260,7 +260,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
         if (_settings.IsMaster)
         {
-            var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
+            var nodeTable = new Table(new PostgresqlObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
             nodeTable.AddColumn("node_number", "SERIAL").NotNull();
             nodeTable.AddColumn<string>("description").NotNull();
@@ -271,7 +271,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
             yield return nodeTable;
 
-            var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
+            var assignmentTable = new Table(new PostgresqlObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
             assignmentTable.AddColumn<string>("id").AsPrimaryKey();
             assignmentTable.AddColumn<Guid>("node_id")
                 .ForeignKeyTo(nodeTable.Identifier, "id", onDelete: CascadeAction.Cascade);
@@ -281,7 +281,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
             if (_settings.CommandQueuesEnabled)
             {
-                var queueTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
+                var queueTable = new Table(new PostgresqlObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
                 queueTable.AddColumn<Guid>("id").AsPrimaryKey();
                 queueTable.AddColumn<string>("message_type").NotNull();
                 queueTable.AddColumn<Guid>("node_id").NotNull();
@@ -292,7 +292,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
                 yield return queueTable;
             }
             
-            var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
+            var eventTable = new Table(new PostgresqlObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn("id", "SERIAL").AsPrimaryKey();
             eventTable.AddColumn<int>("node_number").NotNull();
             eventTable.AddColumn<string>("event_name").NotNull();

@@ -261,7 +261,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         
         if (_settings.IsMaster)
         {
-            var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
+            var nodeTable = new Table(new SqlServerObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
             nodeTable.AddColumn<int>("node_number").AutoNumber().NotNull();
             nodeTable.AddColumn<string>("description").NotNull();
@@ -272,7 +272,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
             yield return nodeTable;
 
-            var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
+            var assignmentTable = new Table(new SqlServerObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
             assignmentTable.AddColumn<string>("id").AsPrimaryKey();
             assignmentTable.AddColumn<Guid>("node_id").ForeignKeyTo(nodeTable.Identifier, "id", onDelete:CascadeAction.Cascade);
             assignmentTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
@@ -281,7 +281,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             
             if (_settings.CommandQueuesEnabled)
             {
-                var queueTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
+                var queueTable = new Table(new SqlServerObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
                 queueTable.AddColumn<Guid>("id").AsPrimaryKey();
                 queueTable.AddColumn<string>("message_type").NotNull();
                 queueTable.AddColumn<Guid>("node_id").NotNull();
@@ -293,7 +293,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             }
             
                     
-            var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
+            var eventTable = new Table(new SqlServerObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn<int>("id").AutoNumber().AsPrimaryKey();
             eventTable.AddColumn<int>("node_number").NotNull();
             eventTable.AddColumn<string>("event_name").NotNull();
