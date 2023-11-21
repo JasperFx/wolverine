@@ -161,7 +161,7 @@ method takes the message passed in, finds the correct execution path for the mes
 executes the correct Wolverine handler(s) as well as any of the registered [Wolverine middleware](/guide/handlers/middleware).
 
 ::: tip
-This execution happens inline, but will use the *RetryNow* error handling capabilities. See [Wolverine's error handling](/guide/handlers/error-handling) for more information.
+This execution happens inline, but will use the "Retry" or "Retry with Cooldown" error handling capabilities. See [Wolverine's error handling](/guide/handlers/error-handling) for more information.
 :::
 
 See also:

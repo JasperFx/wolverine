@@ -10,6 +10,12 @@ pause message processing on a single listening endpoint in the case of a high ra
 
 ## Error Handling Rules
 
+::: warning
+When using `IMessageBus.InvokeAsync()` to execute a message inline, only the "Retry" and "Retry With Cooldown" error policies
+are applied to the execution. In other words, Wolverine will attempt to use retries inside the call to `InvokeAsync()` as
+configured.
+:::
+
 Error handling rules in Wolverine are defined by three things:
 
 1. The scope of the rule. Really just per message type or global at this point.
