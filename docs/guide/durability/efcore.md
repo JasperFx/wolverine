@@ -31,7 +31,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L35-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L36-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -124,7 +124,7 @@ this syntax for the service registration:
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
     x => x.UseSqlServer(connectionString), "wolverine");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L18-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_efcore_registration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L19-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_efcore_registration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That registration will:
@@ -219,7 +219,7 @@ public async Task Post(
     await outbox.SaveChangesAndFlushMessagesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L8-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L10-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or use the `IDbContextOutbox` as shown below, but in this case you will need to explicitly call `Enroll()` on
@@ -261,7 +261,7 @@ public async Task Post3(
     await outbox.SaveChangesAndFlushMessagesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L41-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_2' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L43-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_2' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## As Saga Storage

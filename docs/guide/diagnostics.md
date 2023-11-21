@@ -150,3 +150,36 @@ public static void assert_configuration_is_valid(IHost host)
 Note that this method will attempt to generate and compile the source code for each message type and use [Lamar's own
 diagnostics](https://jasperfx.github.io/lamar/guide/ioc/diagnostics/) as well.
 
+## Troubleshooting Message Routing
+
+Among other information, you can find a preview of how Wolverine will route known message types through the command line
+with:
+
+```bash
+dotnet run -- describe
+```
+
+Part of this output is a table of the known message types and the routed destination of any subscriptions. You can enhance
+this diagnostic by helping Wolverine to [discover message types](/guide/messages#message-discovery) in your system. 
+
+And lastly, there's a programmatic way to "preview" the Wolverine message routing at runtime that might 
+be helpful:
+
+<!-- snippet: sample_using_preview_subscriptions -->
+<a id='snippet-sample_using_preview_subscriptions'></a>
+```cs
+public static void using_preview_subscriptions(IMessageBus bus)
+{
+    // Preview where Wolverine is wanting to send a message
+    var outgoing = bus.PreviewSubscriptions(new BlueMessage());
+    foreach (var envelope in outgoing)
+    {
+        // The URI value here will identify the endpoint where the message is
+        // going to be sent (Rabbit MQ exchange, Azure Service Bus topic, Kafka topic, local queue, etc.)
+        Debug.WriteLine(envelope.Destination);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_precedence.cs#L76-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+

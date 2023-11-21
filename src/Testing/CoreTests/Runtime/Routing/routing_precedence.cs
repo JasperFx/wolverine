@@ -1,6 +1,7 @@
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -71,6 +72,22 @@ public class routing_precedence
         bus.PreviewSubscriptions(new BlueMessage())
             .Single().Destination.ShouldBe(new Uri("local://purple"));
     }
+
+    #region sample_using_preview_subscriptions
+
+    public static void using_preview_subscriptions(IMessageBus bus)
+    {
+        // Preview where Wolverine is wanting to send a message
+        var outgoing = bus.PreviewSubscriptions(new BlueMessage());
+        foreach (var envelope in outgoing)
+        {
+            // The URI value here will identify the endpoint where the message is
+            // going to be sent (Rabbit MQ exchange, Azure Service Bus topic, Kafka topic, local queue, etc.)
+            Debug.WriteLine(envelope.Destination);
+        }
+    }
+
+    #endregion
     
     [Fact]
     public async Task explicit_routing_to_elsewhere_wins()
