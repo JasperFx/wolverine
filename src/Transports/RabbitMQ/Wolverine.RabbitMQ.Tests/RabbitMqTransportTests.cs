@@ -1,7 +1,6 @@
 using JasperFx.Core;
 using Shouldly;
 using Wolverine.RabbitMQ.Internal;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
@@ -60,5 +59,11 @@ public class RabbitMqTransportTests
         theTransport.DeadLetterQueue.Mode.ShouldBe(DeadLetterQueueMode.Native);
         theTransport.DeadLetterQueue.QueueName.ShouldBe(RabbitMqTransport.DeadLetterQueueName);
         theTransport.DeadLetterQueue.ExchangeName.ShouldBe(RabbitMqTransport.DeadLetterQueueName);
+    }
+
+    [Fact]
+    public void declare_request_reply_system_queue_is_true_by_default()
+    {
+        theTransport.DeclareRequestReplySystemQueue.ShouldBeTrue();
     }
 }
