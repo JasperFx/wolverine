@@ -9,14 +9,14 @@ using Wolverine.Runtime;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: POST_invoices_number_approve
-    public class POST_invoices_number_approve : Wolverine.Http.HttpHandler
+    // START: POST_todoitems
+    public class POST_todoitems : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_invoices_number_approve(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
+        public POST_todoitems(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
@@ -30,22 +30,19 @@ namespace Internal.Generated.WolverineHandlers
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            if (!System.Guid.TryParse((string)httpContext.GetRouteValue("number"), out var number))
-            {
-                httpContext.Response.StatusCode = 404;
-                return;
-            }
-
-
-            var invoice = await documentSession.LoadAsync<WolverineWebApi.Marten.Invoice>(number, httpContext.RequestAborted).ConfigureAwait(false);
+            // Reading the request body via JSON deserialization
+            var (command, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Samples.CreateTodo>(httpContext);
+            if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             
             // The actual HTTP request handler execution
-            var martenOp = WolverineWebApi.Marten.InvoicesEndpoint.Approve(invoice);
+            (var todoCreationResponse_response, var todoCreated) = WolverineWebApi.Samples.TodoCreationEndpoint.Post(command, documentSession);
 
             
-            // Placed by Wolverine's ISideEffect policy
-            martenOp.Execute(documentSession);
+            // Outgoing, cascaded message
+            await messageContext.EnqueueCascadingAsync(todoCreated).ConfigureAwait(false);
 
+            // This response type customizes the HTTP response
+            ApplyHttpAware(todoCreationResponse_response, httpContext);
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
@@ -54,13 +51,13 @@ namespace Internal.Generated.WolverineHandlers
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
             await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
 
-            // Wolverine automatically sets the status code to 204 for empty responses
-            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
+            // Writing the response body to JSON because this was the first 'return variable' in the method signature
+            await WriteJsonAsync(httpContext, todoCreationResponse_response);
         }
 
     }
 
-    // END: POST_invoices_number_approve
+    // END: POST_todoitems
     
     
 }

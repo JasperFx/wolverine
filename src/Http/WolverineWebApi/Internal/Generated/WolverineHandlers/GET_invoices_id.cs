@@ -27,9 +27,6 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            // Building the Marten session
-            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
             if (!System.Guid.TryParse((string)httpContext.GetRouteValue("id"), out var id))
             {
                 httpContext.Response.StatusCode = 404;
@@ -37,6 +34,9 @@ namespace Internal.Generated.WolverineHandlers
             }
 
 
+            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            // Building the Marten session
+            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
             var invoice = await documentSession.LoadAsync<WolverineWebApi.Marten.Invoice>(id, httpContext.RequestAborted).ConfigureAwait(false);
             
             // The actual HTTP request handler execution

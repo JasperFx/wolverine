@@ -8,13 +8,13 @@ using Wolverine.Runtime;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: POST_spawn2
-    public class POST_spawn2 : Wolverine.Http.HttpHandler
+    // START: POST_spawn3
+    public class POST_spawn3 : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_spawn2(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
+        public POST_spawn3(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
@@ -25,29 +25,18 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             
             // The actual HTTP request handler execution
-            (var httpMessage1, var httpMessage2) = WolverineWebApi.MessageSpawnerEndpoint.Post();
-
-            
-            // Outgoing, cascaded message
-            await messageContext.EnqueueCascadingAsync(httpMessage1).ConfigureAwait(false);
-
-            
-            // Outgoing, cascaded message
-            await messageContext.EnqueueCascadingAsync(httpMessage2).ConfigureAwait(false);
+            await WolverineWebApi.MessageSpawnerEndpoint.SendViaMessageBus(messageContext);
 
             // Wolverine automatically sets the status code to 204 for empty responses
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
-            
-            // Making sure there is at least one call to flush outgoing, cascading messages
-            await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
-
         }
 
     }
 
-    // END: POST_spawn2
+    // END: POST_spawn3
     
     
 }

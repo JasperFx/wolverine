@@ -8,13 +8,13 @@ using Wolverine.Runtime;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: POST_spawn
-    public class POST_spawn : Wolverine.Http.HttpHandler
+    // START: POST_send_message6
+    public class POST_send_message6 : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_spawn(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
+        public POST_send_message6(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
@@ -24,28 +24,22 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
+            var sendingEndpoint = new Wolverine.Http.Runtime.SendingEndpoint<WolverineWebApi.HttpMessage6>();
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             // Reading the request body via JSON deserialization
-            var (input, jsonContinue) = await ReadJsonAsync<WolverineWebApi.SpawnInput>(httpContext);
+            var (message, jsonContinue) = await ReadJsonAsync<WolverineWebApi.HttpMessage6>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             
             // The actual HTTP request handler execution
-            (var stringValue, var outgoingMessages) = WolverineWebApi.MessageSpawnerEndpoint.Post(input);
+            var result_of_SendAsync = await sendingEndpoint.SendAsync(message, messageContext, httpContext.Response);
 
-            
-            // Outgoing, cascaded message
-            await messageContext.EnqueueCascadingAsync(outgoingMessages).ConfigureAwait(false);
-
-            await WriteString(httpContext, stringValue);
-            
-            // Making sure there is at least one call to flush outgoing, cascading messages
-            await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
-
+            await WriteString(httpContext, result_of_SendAsync);
         }
 
     }
 
-    // END: POST_spawn
+    // END: POST_send_message6
     
     
 }

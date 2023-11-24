@@ -9,14 +9,14 @@ using Wolverine.Runtime;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: POST_invoices_number_approve
-    public class POST_invoices_number_approve : Wolverine.Http.HttpHandler
+    // START: POST_reservation2
+    public class POST_reservation2 : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_invoices_number_approve(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
+        public POST_reservation2(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
@@ -30,22 +30,16 @@ namespace Internal.Generated.WolverineHandlers
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            if (!System.Guid.TryParse((string)httpContext.GetRouteValue("number"), out var number))
-            {
-                httpContext.Response.StatusCode = 404;
-                return;
-            }
-
-
-            var invoice = await documentSession.LoadAsync<WolverineWebApi.Marten.Invoice>(number, httpContext.RequestAborted).ConfigureAwait(false);
+            // Reading the request body via JSON deserialization
+            var (start, jsonContinue) = await ReadJsonAsync<WolverineWebApi.StartReservation>(httpContext);
+            if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
             
             // The actual HTTP request handler execution
-            var martenOp = WolverineWebApi.Marten.InvoicesEndpoint.Approve(invoice);
+            var reservation = WolverineWebApi.ReservationEndpoint.Post2(start);
 
             
-            // Placed by Wolverine's ISideEffect policy
-            martenOp.Execute(documentSession);
-
+            // Register the document operation with the current session
+            documentSession.Insert(reservation);
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
@@ -60,7 +54,7 @@ namespace Internal.Generated.WolverineHandlers
 
     }
 
-    // END: POST_invoices_number_approve
+    // END: POST_reservation2
     
     
 }

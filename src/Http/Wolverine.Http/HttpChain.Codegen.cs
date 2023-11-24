@@ -118,17 +118,19 @@ public partial class HttpChain
             .Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames()).ToArray();
         foreach (var frame in actionsOnOtherReturnValues) yield return frame;
 
+        foreach (var frame in Postprocessors) yield return frame;
+        
         if (!Postprocessors.OfType<MethodCall>().Any(x =>
                 x.HandlerType == typeof(MessageContext) &&
                 x.Method.Name == nameof(MessageContext.EnqueueCascadingAsync)))
         {
-            if (actionsOnOtherReturnValues.OfType<CaptureCascadingMessages>().Any())
+            if (actionsOnOtherReturnValues.OfType<CaptureCascadingMessages>().Any() && !Postprocessors.OfType<MethodCall>().Any(x => x.Method.Name == nameof(MessageContext.FlushOutgoingMessagesAsync)))
             {
-                yield return MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
+                var flush = MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
+                flush.CommentText = "Making sure there is at least one call to flush outgoing, cascading messages";
+                yield return flush;
             }
         }
-
-        foreach (var frame in Postprocessors) yield return frame;
     }
 
     private string determineFileName()

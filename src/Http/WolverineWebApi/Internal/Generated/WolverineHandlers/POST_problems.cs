@@ -25,11 +25,11 @@ namespace Internal.Generated.WolverineHandlers
             // Reading the request body via JSON deserialization
             var (message, jsonContinue) = await ReadJsonAsync<WolverineWebApi.NumberMessage>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            var problemDetails = problemDetailsUsageEndpoint.Before(message);
+            var problemDetails1 = problemDetailsUsageEndpoint.Before(message);
             // Evaluate whether the processing should stop if there are any problems
-            if (!(ReferenceEquals(problemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
+            if (!(ReferenceEquals(problemDetails1, Wolverine.Http.WolverineContinue.NoProblems)))
             {
-                await WriteProblems(problemDetails, httpContext).ConfigureAwait(false);
+                await WriteProblems(problemDetails1, httpContext).ConfigureAwait(false);
                 return;
             }
 

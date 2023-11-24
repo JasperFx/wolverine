@@ -37,11 +37,11 @@ namespace Internal.Generated.WolverineHandlers
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<WolverineWebApi.Marten.Order>(command.OrderId, httpContext.RequestAborted).ConfigureAwait(false);
 
-            var problemDetails = WolverineWebApi.Marten.CanShipOrderMiddleWare.Before(command, eventStream.Aggregate);
+            var problemDetails1 = WolverineWebApi.Marten.CanShipOrderMiddleWare.Before(command, eventStream.Aggregate);
             // Evaluate whether the processing should stop if there are any problems
-            if (!(ReferenceEquals(problemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
+            if (!(ReferenceEquals(problemDetails1, Wolverine.Http.WolverineContinue.NoProblems)))
             {
-                await WriteProblems(problemDetails, httpContext).ConfigureAwait(false);
+                await WriteProblems(problemDetails1, httpContext).ConfigureAwait(false);
                 return;
             }
 
