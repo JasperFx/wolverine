@@ -78,6 +78,62 @@ public class Samples
 
         #endregion
     }
+    
+    public static async Task use_listener_connection_only()
+    {
+        #region sample_disable_rabbit_mq_system_queue
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // *A* way to configure Rabbit MQ using their Uri schema
+                // documented here: https://www.rabbitmq.com/uri-spec.html
+                opts.UseRabbitMq(new Uri("amqp://localhost"))
+
+                    // Turn on listener connection only in case if you only need to listen for messages
+                    // The sender connection won't be activated in this case
+                    .UseListenerConnectionOnly();
+
+                // Set up a listener for a queue, but also
+                // fine-tune the queue characteristics if Wolverine
+                // will be governing the queue setup
+                opts.ListenToRabbitQueue("incoming2", q =>
+                {
+                    q.PurgeOnStartup = true;
+                    q.TimeToLive(5.Minutes());
+                });
+            }).StartAsync();
+
+        #endregion
+    }
+    
+    public static async Task use_sender_connection_only()
+    {
+        #region sample_disable_rabbit_mq_system_queue
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // *A* way to configure Rabbit MQ using their Uri schema
+                // documented here: https://www.rabbitmq.com/uri-spec.html
+                opts.UseRabbitMq(new Uri("amqp://localhost"))
+
+                    // Turn on sender connection only in case if you only need to send messages
+                    // The listener connection won't be created in this case
+                    .UseSenderConnectionOnly();
+
+                // Set up a listener for a queue, but also
+                // fine-tune the queue characteristics if Wolverine
+                // will be governing the queue setup
+                opts.ListenToRabbitQueue("incoming2", q =>
+                {
+                    q.PurgeOnStartup = true;
+                    q.TimeToLive(5.Minutes());
+                });
+            }).StartAsync();
+
+        #endregion
+    }
 
     public static async Task listen_to_queue()
     {

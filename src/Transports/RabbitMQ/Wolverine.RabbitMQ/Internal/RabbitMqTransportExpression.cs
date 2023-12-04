@@ -127,6 +127,32 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         return this;
     }
 
+    /// <summary>
+    /// Turn on listener connection only in case if you only need to listen for messages
+    /// The sender connection won't be activated in this case
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqTransportExpression UseListenerConnectionOnly()
+    {
+        Transport.UseListenerConnectionOnly = true;
+        Transport.UseSenderConnectionOnly = false;
+
+        return this;
+    }
+    
+    /// <summary>
+    /// Turn on sender connection only in case if you only need to send messages
+    /// The listener connection won't be created in this case
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqTransportExpression UseSenderConnectionOnly()
+    {
+        Transport.UseSenderConnectionOnly = true;
+        Transport.UseListenerConnectionOnly = false;
+
+        return this;
+    }
+
     public class BindingExpression
     {
         private readonly string _exchangeName;
