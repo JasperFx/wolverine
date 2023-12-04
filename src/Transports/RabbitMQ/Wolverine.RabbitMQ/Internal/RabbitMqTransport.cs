@@ -55,6 +55,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     public LightweightCache<string, RabbitMqQueue> Queues { get; }
 
     internal bool DeclareRequestReplySystemQueue { get; set; } = true;
+    internal bool UseSenderConnectionOnly { get; set; }
+    internal bool UseListenerConnectionOnly { get; set; }
 
     public void Dispose()
     {
@@ -93,13 +95,13 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
         ConnectionFactory.DispatchConsumersAsync = true;
 
-        if (_listenerConnection == null)
+        if (_listenerConnection == null && !UseSenderConnectionOnly)
         {
             _listenerConnection = BuildConnection();
             listenToEvents("Listener", _listenerConnection, logger);
         }
 
-        if (_sendingConnection == null)
+        if (_sendingConnection == null && !UseListenerConnectionOnly)
         {
             _sendingConnection = BuildConnection();
             listenToEvents("Sender", _sendingConnection, logger);

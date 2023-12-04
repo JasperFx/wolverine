@@ -66,4 +66,16 @@ public class RabbitMqTransportTests
     {
         theTransport.DeclareRequestReplySystemQueue.ShouldBeTrue();
     }
+
+    [Fact]
+    public void use_sender_connection_only_is_false_by_default()
+    {
+        theTransport.UseSenderConnectionOnly.ShouldBeFalse();
+    }
+    
+    [Fact]
+    public void use_listener_connection_only_is_false_by_default()
+    {
+        theTransport.UseListenerConnectionOnly.ShouldBeFalse();
+    }
 }
