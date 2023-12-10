@@ -461,3 +461,78 @@ builder.Host.UseWolverine(opts =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L18-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_event_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+This forwarding of events is using an outbox that can be awaited in your tests using this extension method:
+
+<!-- snippet: sample_save_in_martend_and_wait_for_outgoing_messages -->
+<a id='snippet-sample_save_in_martend_and_wait_for_outgoing_messages'></a>
+```cs
+public static Task<ITrackedSession> SaveInMartenAndWaitForOutgoingMessagesAsync(this IHost host, Action<IDocumentSession> action, int timeoutInMilliseconds = 5000)
+{
+    var factory = host.Services.GetRequiredService<OutboxedSessionFactory>();
+
+    return host.ExecuteAndWaitAsync(async context =>
+    {
+        var session = factory.OpenSession(context);
+        action(session);
+        await session.SaveChangesAsync();
+        
+        // Shouldn't be necessary, but real life says do it anyway
+        await context.As<MessageContext>().FlushOutgoingMessagesAsync();
+    }, timeoutInMilliseconds);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/MartenTestingExtensions.cs#L33-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_save_in_martend_and_wait_for_outgoing_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+To be used in your tests such as this:
+
+<!-- snippet: sample_execution_of_forwarded_events_can_be_awaited_from_tests -->
+<a id='snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests'></a>
+```cs
+[Fact]
+public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
+{
+    var host = await Host.CreateDefaultBuilder()
+        .UseWolverine()
+        .ConfigureServices(services =>
+        {
+            services.AddMarten(Servers.PostgresConnectionString)
+                .IntegrateWithWolverine().EventForwardingToWolverine(opts =>
+                {
+                    opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => 
+                        new SecondMessage(e.StreamId, e.Sequence));
+                });
+        }).StartAsync();
+
+    var aggregateId = Guid.NewGuid();
+    await host.SaveInMartenAndWaitForOutgoingMessagesAsync(session =>
+    {
+        session.Events.Append(aggregateId, new SecondEvent());
+    }, 100_000);
+    
+    using var store = host.Services.GetRequiredService<IDocumentStore>();
+    await using var session = store.LightweightSession();
+    var events = await session.Events.FetchStreamAsync(aggregateId);
+    events.Count.ShouldBe(2);
+    events[0].Data.ShouldBeOfType<SecondEvent>();
+    events[1].Data.ShouldBeOfType<FourthEvent>();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/event_streaming.cs#L104-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Where the result contains `FourthEvent` because `SecondEvent` was forwarded as `SecondMessage` and that persisted `FourthEvent` in a handler such as:
+
+
+<!-- snippet: sample_execution_of_forwarded_events_second_message_to_fourth_event -->
+<a id='snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event'></a>
+```cs
+public static Task HandleAsync(SecondMessage message, IDocumentSession session)
+{
+    session.Events.Append(message.AggregateId, new FourthEvent());
+    return session.SaveChangesAsync();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/event_streaming.cs#L180-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
