@@ -45,7 +45,7 @@ public static void Configure(HttpChain chain)
     chain.Metadata.Add(builder =>
     {
         // Adding and modifying data
-        builder.Metadata.Add(new ProducesResponseTypeMetadata { StatusCode = 202, Type = null });
+        builder.Metadata.Add(new WolverineProducesResponseTypeMetadata { StatusCode = 202, Type = null });
         builder.RemoveStatusCodeResponse(200);
     });
 }
@@ -76,7 +76,7 @@ public record CreationResponse(string Url) : IHttpAware
         builder.RemoveStatusCodeResponse(200);
 
         var create = new MethodCall(method.DeclaringType!, method).Creates.FirstOrDefault()?.VariableType;
-        var metadata = new ProducesResponseTypeMetadata { Type = create, StatusCode = 201 };
+        var metadata = new WolverineProducesResponseTypeMetadata { Type = create, StatusCode = 201 };
         builder.Metadata.Add(metadata);
     }
 
