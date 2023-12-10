@@ -1,7 +1,8 @@
 using IntegrationTests;
-using JasperFx.Core;
 using Marten;
 using Marten.Events;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
@@ -11,7 +12,6 @@ using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
-using Wolverine.Util;
 using Xunit;
 
 namespace PersistenceTests.Marten;
@@ -76,12 +76,6 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         await theSender.StopAsync();
     }
 
-    public void Dispose()
-    {
-        theReceiver?.Dispose();
-        theSender?.Dispose();
-    }
-
     [Fact]
     public void  preview_routes()
     {
@@ -106,6 +100,37 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
 
         results.Executed.SingleMessage<ThirdEvent>().ShouldNotBeNull();
     }
+
+    #region sample_execution_of_forwarded_events_can_be_awaited_from_tests
+    [Fact]
+    public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
+    {
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .ConfigureServices(services =>
+            {
+                services.AddMarten(Servers.PostgresConnectionString)
+                    .IntegrateWithWolverine().EventForwardingToWolverine(opts =>
+                    {
+                        opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => 
+                            new SecondMessage(e.StreamId, e.Sequence));
+                    });
+            }).StartAsync();
+
+        var aggregateId = Guid.NewGuid();
+        await host.SaveInMartenAndWaitForOutgoingMessagesAsync(session =>
+        {
+            session.Events.Append(aggregateId, new SecondEvent());
+        }, 100_000);
+        
+        using var store = host.Services.GetRequiredService<IDocumentStore>();
+        await using var session = store.LightweightSession();
+        var events = await session.Events.FetchStreamAsync(aggregateId);
+        events.Count.ShouldBe(2);
+        events[0].Data.ShouldBeOfType<SecondEvent>();
+        events[1].Data.ShouldBeOfType<FourthEvent>();
+    }
+    #endregion
 }
 
 
@@ -127,7 +152,7 @@ public class TriggerHandler
     }
 }
 
-public record SecondMessage(long Sequence);
+public record SecondMessage(Guid AggregateId, long Sequence);
 
 public class SecondEvent
 {
@@ -135,6 +160,7 @@ public class SecondEvent
 }
 
 public class ThirdEvent{}
+public class FourthEvent{}
 
 public class TriggeredEvent
 {
@@ -150,6 +176,12 @@ public class TriggerEventHandler
     {
         _source.SetResult(message);
     }
-    
-    public void Handle(SecondMessage message){}
+
+    #region sample_execution_of_forwarded_events_second_message_to_fourth_event
+    public static Task HandleAsync(SecondMessage message, IDocumentSession session)
+    {
+        session.Events.Append(message.AggregateId, new FourthEvent());
+        return session.SaveChangesAsync();
+    }
+    #endregion
 }

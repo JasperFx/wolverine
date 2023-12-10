@@ -61,7 +61,35 @@ for request/reply invocations (`IMessageBus.InvokeAsync<T>()` when used remotely
 have permissions with your Rabbit MQ broker to create queues, you may encounter errors. Not to worry, you can disable
 that Wolverine system queue creation with:
 
-snippet: sample_disable_rabbit_mq_system_queue
+<!-- snippet: sample_disable_rabbit_mq_system_queue -->
+<a id='snippet-sample_disable_rabbit_mq_system_queue'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // *A* way to configure Rabbit MQ using their Uri schema
+        // documented here: https://www.rabbitmq.com/uri-spec.html
+        opts.UseRabbitMq(new Uri("amqp://localhost"))
+            
+            // Stop Wolverine from trying to create a reply queue
+            // for this node if your process does not have permission to
+            // do so against your Rabbit MQ broker
+            .DisableSystemRequestReplyQueueDeclaration();
+
+        
+
+        // Set up a listener for a queue, but also
+        // fine-tune the queue characteristics if Wolverine
+        // will be governing the queue setup
+        opts.ListenToRabbitQueue("incoming2", q =>
+        {
+            q.PurgeOnStartup = true;
+            q.TimeToLive(5.Minutes());
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L53-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_rabbit_mq_system_queue' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Of course, doing so means that you will not be able to do request/reply through Rabbit MQ with your Wolverine application.
 
