@@ -61,7 +61,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
                 services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine("sender").EventForwardingToWolverine(opts =>
                     {
-                        opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => new SecondMessage(e.Sequence));
+                        opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
                     });
                 
                 services.AddResourceSetupOnStartup();
