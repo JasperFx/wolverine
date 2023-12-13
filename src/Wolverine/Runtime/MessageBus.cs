@@ -19,12 +19,19 @@ public class MessageBus : IMessageBus
 
     public MessageBus(IWolverineRuntime runtime, string? correlationId)
     {
-        Runtime?.AssertHasStarted();
+        if (runtime == null)
+        {
+            throw new ArgumentNullException(nameof(runtime));
+        }
+
+        runtime.AssertHasStarted();
 
         Runtime = runtime;
         Storage = runtime.Storage;
         CorrelationId = correlationId;
     }
+    
+
 
     public string? CorrelationId { get; set; }
 

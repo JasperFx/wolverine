@@ -102,8 +102,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     {
         if (!_hasStarted)
         {
-            throw new InvalidOperationException(
-                "WolverineRuntime has not been started. Check that you've called Start/StartAsync() to start your IHost for the application");
+            throw new WolverineHasNotStartedException();
         }
     }
 
