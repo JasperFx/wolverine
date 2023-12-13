@@ -11,8 +11,13 @@ namespace Internal.Generated.WolverineHandlers
         public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             var trackedMessageHandler = new TrackedMessageHandler();
+            // The actual message body
             var trackedMessage = (TrackedMessage)context.Envelope.Message;
+
+            
+            // The actual message execution
             trackedMessageHandler.Handle(trackedMessage);
+
             return System.Threading.Tasks.Task.CompletedTask;
         }
 

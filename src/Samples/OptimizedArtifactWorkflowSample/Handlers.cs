@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Spectre.Console;
 using Wolverine;
+using Wolverine.Runtime.Handlers;
 
 public class MessageSender : BackgroundService
 {
@@ -30,6 +31,11 @@ public class TrackedMessage
 
 public class TrackedMessageHandler
 {
+    public static void Configure(HandlerChain chain)
+    {
+        Console.WriteLine("Hey, the Configure() method was called");
+    }
+    
     public void Handle(TrackedMessage message)
     {
         AnsiConsole.MarkupLine($"[green]Got message {message.Number}[/]");

@@ -38,6 +38,7 @@ public partial class WolverineRuntime
             await Storage.InitializeAsync(this);
             
             // This MUST be done before the messaging transports are started up
+            _hasStarted = true; // Have to do this before you can use MessageBus
             await startAgentsAsync();
 
             if (Options.Durability.AssignedNodeNumber == 0)

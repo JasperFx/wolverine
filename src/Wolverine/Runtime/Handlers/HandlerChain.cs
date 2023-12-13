@@ -185,16 +185,17 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        // TEMP!
-        Debug.WriteLine(_generatedType?.SourceCode);
         _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
 
         if (_handlerType == null)
         {
             return false;
         }
-
-        Handler = (MessageHandler)services!.As<IContainer>().QuickBuild(_handlerType);
+        
+        var container = services!.As<IContainer>();
+        applyCustomizations(rules, container);
+        
+        Handler = (MessageHandler)container.QuickBuild(_handlerType);
         Handler.Chain = this;
 
         Debug.WriteLine(_generatedType?.SourceCode);
