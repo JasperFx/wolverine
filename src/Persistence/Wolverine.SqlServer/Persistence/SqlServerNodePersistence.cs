@@ -7,6 +7,7 @@ using Weasel.SqlServer;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.Runtime.Agents;
+using Wolverine.Transports;
 using CommandExtensions = Weasel.Core.CommandExtensions;
 
 namespace Wolverine.SqlServer.Persistence;
@@ -47,7 +48,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         
         var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
             .With("id", node.Id)
-            .With("uri", node.ControlUri.ToString()).With("description", node.Description)
+            .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString()).With("description", node.Description)
             .With("capabilities", strings);
 
         var raw = await cmd.ExecuteScalarAsync(cancellationToken);

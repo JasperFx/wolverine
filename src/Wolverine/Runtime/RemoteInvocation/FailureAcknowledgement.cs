@@ -5,11 +5,6 @@ namespace Wolverine.Runtime.RemoteInvocation;
 
 public class FailureAcknowledgement
 {
-    public FailureAcknowledgement()
-    {
-        Debug.WriteLine("Why?");
-    }
-
     public Guid RequestId { get; init; }
     public string Message { get; init; } = null!;
 

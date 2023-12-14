@@ -64,6 +64,15 @@ public sealed partial class WolverineOptions
 
         var serializer = new NewtonsoftSerializer(settings);
 
+        if (_defaultSerializer?.ContentType == "application/json")
+        {
+            _defaultSerializer = serializer;
+        }
+        else
+        {
+            _defaultSerializer ??= serializer;
+        }
+
         _serializers[serializer.ContentType] = serializer;
     }
 
@@ -78,6 +87,7 @@ public sealed partial class WolverineOptions
         configuration?.Invoke(options);
 
         var serializer = new SystemTextJsonSerializer(options);
+        _defaultSerializer ??= serializer;
 
         _serializers[serializer.ContentType] = serializer;
     }

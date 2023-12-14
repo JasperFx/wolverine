@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Marten;
 using Shouldly;
 using TestingSupport.Compliance;
+using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.SqlServer;
@@ -26,6 +27,8 @@ public class SqlTransportDurableFixture : TransportComplianceFixture, IAsyncLife
 
             opts.ListenToSqlServerQueue("sender");
             opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         await ReceiverIs(opts =>
@@ -33,6 +36,7 @@ public class SqlTransportDurableFixture : TransportComplianceFixture, IAsyncLife
             opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "durable");
 
             opts.ListenToSqlServerQueue("receiver").UseDurableInbox();
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
     }
 
@@ -67,6 +71,8 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
 
             #endregion
             
+            opts.Durability.Mode = DurabilityMode.Solo;
+            
         });
 
         await ReceiverIs(opts =>
@@ -75,6 +81,8 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
                 .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
 
             opts.ListenToSqlServerQueue("receiver").BufferedInMemory();
+            
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
     }
 

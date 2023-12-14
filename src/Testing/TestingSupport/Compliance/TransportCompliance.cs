@@ -69,6 +69,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
             .UseWolverine(options =>
             {
                 configure(options);
+                options.Durability.Mode = DurabilityMode.Solo;
                 configureReceiver(options);
                 configureSender(options);
             }).StartAsync();
@@ -81,6 +82,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
             {
                 configure(opts);
                 configureSender(opts);
+                opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
 
     }
@@ -97,6 +99,8 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
         options.Services.AddSingleton<IMessageSerializer, GreenTextWriter>();
         //options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        
+        options.Durability.Mode = DurabilityMode.Solo;
 
         options.UseNewtonsoftForSerialization();
     }

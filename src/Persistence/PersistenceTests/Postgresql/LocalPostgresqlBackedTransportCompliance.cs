@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using TestingSupport.Compliance;
+using Wolverine;
 using Wolverine.Postgresql;
 using Wolverine.Util;
 using Xunit;
@@ -15,7 +16,11 @@ public class LocalPostgresqlBackedFixture : TransportComplianceFixture, IAsyncLi
 
     public Task InitializeAsync()
     {
-        return TheOnlyAppIs(opts => { opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString); });
+        return TheOnlyAppIs(opts =>
+        {
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
+            opts.Durability.Mode = DurabilityMode.Solo;
+        });
     }
 
     public async Task DisposeAsync()
