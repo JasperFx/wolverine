@@ -14,7 +14,8 @@ namespace Wolverine.MQTT.Internals;
 public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 {
     public LightweightCache<string, MqttTopic> Topics { get; } = new();
-    private ImHashMap<string, MqttListener> _listeners = ImHashMap<string, MqttListener>.Empty;
+    private List<MqttListener> _listeners = new();
+    private ImHashMap<string, MqttListener> _topicListeners = ImHashMap<string, MqttListener>.Empty;
     private bool _subscribed;
     private ILogger<MqttTransport> _logger;
 
@@ -82,7 +83,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     private Task receiveAsync(MqttApplicationMessageReceivedEventArgs arg)
     {
         var topicName = arg.ApplicationMessage.Topic;
-        if (_listeners.TryFind(topicName, out var listener))
+        if (tryFindListener(topicName, out var listener))
         {
             return listener.ReceiveAsync(arg);
         }
@@ -91,6 +92,22 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
             _logger?.LogInformation("Received MQTT message for topic {TopicName} that has no listener attached", topicName);
             return Task.CompletedTask;
         }
+    }
+
+    internal bool tryFindListener(string topicName, out MqttListener listener)
+    {
+        if (_topicListeners.TryFind(topicName, out listener))
+        {
+            return listener is not null;
+        }
+
+        listener = _listeners.FirstOrDefault(x => x.TopicName == topicName) ?? _listeners.FirstOrDefault(x =>
+            MqttTopicFilterComparer.Compare(topicName, x.TopicName) == MqttTopicFilterCompareResult.IsMatch);
+
+        _topicListeners = _topicListeners.AddOrUpdate(topicName, listener);
+
+
+        return listener is not null;
     }
 
     internal IManagedMqttClient Client { get; private set; }
@@ -110,7 +127,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
     internal async ValueTask SubscribeToTopicAsync(string topicName, MqttListener listener, MqttTopic mqttTopic)
     {
-        _listeners = _listeners.AddOrUpdate(topicName, listener);
+        _listeners.Add(listener);
 
         await Client.SubscribeAsync(topicName, mqttTopic.QualityOfServiceLevel);
 

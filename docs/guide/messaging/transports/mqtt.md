@@ -147,6 +147,16 @@ public class FirstMessage
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L150-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Listening by Topic Filter
+
+Wolverine supports topic filters for listening. The syntax is still just the same `ListenToMqttTopic(filter)` as shown
+in this snippet from the Wolverine.MQTT test suite:
+
+snippet: sample_listen_to_mqtt_topic_filter
+
+In the case of receiving any message that matches the topic filter *according to the [MQTT topic filter rules](https://cedalo.com/blog/mqtt-topics-and-mqtt-wildcards-explained/)*, that message
+will be handled by the listening endpoint defined for that filter.
+
 ## Integrating with Non-Wolverine 
 
 It's quite likely that in using Wolverine with an MQTT broker that you will be communicating with non-Wolverine systems
