@@ -40,6 +40,11 @@ using var host = await Host.CreateDefaultBuilder()
         // Listen to an MQTT topic, and this could also be a wildcard
         // pattern
         opts.ListenToMqttTopic("app/incoming")
+            // In the case of receiving JSON data, but
+            // not identifying metadata, tell Wolverine
+            // to assume the incoming message is this type
+            .DefaultIncomingMessage<Message1>()
+            
             
             // The default is AtLeastOnce
             .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
@@ -50,7 +55,7 @@ using var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L10-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_mqtt' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L14-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_mqtt' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -76,7 +81,7 @@ public static async Task broadcast(IMessageBus bus)
     await bus.BroadcastToTopicAsync("region/europe/incoming", paymentMade);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L77-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_broadcast_to_mqtt' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L118-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_broadcast_to_mqtt' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing to Derived Topic Names
@@ -115,7 +120,7 @@ using var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L48-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stream_events_to_mqtt_topics' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L89-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stream_events_to_mqtt_topics' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In this approach, all messages will be routed to MQTT topics. The topic name for each message type
@@ -142,7 +147,123 @@ public class FirstMessage
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L150-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Integrating with Non-Wolverine 
 
+It's quite likely that in using Wolverine with an MQTT broker that you will be communicating with non-Wolverine systems
+or devices on the other end, so you can't depend on the Wolverine metadata being sent in MQTT `UserProperties` data. Not to
+worry, you've got options.
+
+In the case of the external system sending you JSON, but nothing else, if you can design the system such that there's
+only one type of message coming into a certain MQTT topic, you can just tell Wolverine to listen for that topic and
+what that message type would be so that Wolverine is able to deserialize the message and relay that to the correct
+message handler like so:
+
+<!-- snippet: sample_listen_for_raw_json_to_mqtt -->
+<a id='snippet-sample_listen_for_raw_json_to_mqtt'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine((context, opts) =>
+    {
+        // Connect to the MQTT broker
+        opts.UseMqtt(builder =>
+        {
+            var mqttServer = context.Configuration["mqtt_server"];
+
+            builder
+                .WithMaxPendingMessages(3)
+                .WithClientOptions(client =>
+                {
+                    client.WithTcpServer(mqttServer);
+                });
+        });
+
+        // Listen to an MQTT topic, and this could also be a wildcard
+        // pattern
+        opts.ListenToMqttTopic("app/payments/made")
+            // In the case of receiving JSON data, but
+            // not identifying metadata, tell Wolverine
+            // to assume the incoming message is this type
+            .DefaultIncomingMessage<PaymentMade>();
+    })
+    .StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L56-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_for_raw_json_to_mqtt' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For more complex interoperability, you can implement the `IMqttEnvelopeMapper` interface in Wolverine to map between
+incoming and outgoing MQTT messages and the Wolverine `Envelope` structure. Here's an example:
+
+<!-- snippet: sample_MyMqttEnvelopeMapper -->
+<a id='snippet-sample_mymqttenvelopemapper'></a>
+```cs
+public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
+{
+    public void MapEnvelopeToOutgoing(Envelope envelope, MqttApplicationMessage outgoing)
+    {
+        // This is the only absolutely mandatory item
+        outgoing.PayloadSegment = envelope.Data;
+        
+        // Maybe enrich this more?
+        outgoing.ContentType = envelope.ContentType;
+    }
+
+    public void MapIncomingToEnvelope(Envelope envelope, MqttApplicationMessage incoming)
+    {
+        // These are the absolute minimums necessary for Wolverine to function
+        envelope.MessageType = typeof(PaymentMade).ToMessageTypeName();
+        envelope.Data = incoming.PayloadSegment.Array;
+        
+        // Optional items
+        envelope.DeliverWithin = 5.Seconds(); // throw away the message if it 
+        // is not successfully processed
+        // within 5 seconds
+    }
+
+    public IEnumerable<string> AllHeaders()
+    {
+        yield break;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L167-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And apply that to an MQTT topic like so:
+
+<!-- snippet: sample_applying_custom_mqtt_envelope_mapper -->
+<a id='snippet-sample_applying_custom_mqtt_envelope_mapper'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine((context, opts) =>
+    {
+        // Connect to the MQTT broker
+        opts.UseMqtt(builder =>
+        {
+            var mqttServer = context.Configuration["mqtt_server"];
+
+            builder
+                .WithMaxPendingMessages(3)
+                .WithClientOptions(client =>
+                {
+                    client.WithTcpServer(mqttServer);
+                });
+        });
+
+        // Publish messages to MQTT topics based on
+        // the message type
+        opts.PublishAllMessages()
+            .ToMqttTopics()
+            
+            // Tell Wolverine to map envelopes to MQTT messages
+            // with our custom strategy
+            .UseInterop(new MyMqttEnvelopeMapper())
+            
+            .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
+    })
+    .StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L130-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_custom_mqtt_envelope_mapper' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 
