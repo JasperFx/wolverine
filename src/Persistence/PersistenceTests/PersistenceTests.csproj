@@ -13,7 +13,7 @@
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="7.0.1" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
 
         <PackageReference Include="GitHubActionsTestLogger" Version="2.0.1" PrivateAssets="All" />
@@ -29,6 +29,7 @@
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
         <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
         <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.0" />
     </ItemGroup>
 
     <ItemGroup>

@@ -16,10 +16,7 @@ public static class PostgresqlConfigurationExtensions
         options.Include<PostgresqlBackedPersistence>(o =>
         {
             o.Settings.ConnectionString = connectionString;
-            if (schema.IsNotEmpty())
-            {
-                o.Settings.SchemaName = schema;
-            }
+            o.Settings.SchemaName = schema ?? "public";
             
             o.Settings.ScheduledJobLockId = $"{schema ?? "public"}:scheduled-jobs".GetDeterministicHashCode();
         });
