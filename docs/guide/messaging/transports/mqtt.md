@@ -147,12 +147,75 @@ public class FirstMessage
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L150-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Publishing by Topic Rules
+
+You can publish messages to MQTT topics based on user defined logic to determine the actual topic name.
+
+As an example, say you have a marker interfaces for your messages like this:
+
+<!-- snippet: sample_mqtt_itenantmessage -->
+<a id='snippet-sample_mqtt_itenantmessage'></a>
+```cs
+public interface ITenantMessage
+{
+    string TenantId { get; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L202-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_itenantmessage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+To publish any message implementing that interface to an MQTT topic, you could specify the topic name logic like this:
+
+<!-- snippet: sample_mqtt_topic_rules -->
+<a id='snippet-sample_mqtt_topic_rules'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine((context, opts) =>
+    {
+        // Connect to the MQTT broker
+        opts.UseMqtt(builder =>
+        {
+            var mqttServer = context.Configuration["mqtt_server"];
+
+            builder
+                .WithMaxPendingMessages(3)
+                .WithClientOptions(client =>
+                {
+                    client.WithTcpServer(mqttServer);
+                });
+        });
+
+        // Publish any message that implements ITenantMessage to 
+        // MQTT with a topic derived from the message
+        opts.PublishMessagesToMqttTopic<ITenantMessage>(m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
+            
+            // Specify or configure sending through Wolverine for all
+            // MQTT topic broadcasting
+            .QualityOfService(MqttQualityOfServiceLevel.ExactlyOnce)
+            .BufferedInMemory();
+    })
+    .StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L169-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_topic_rules' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Listening by Topic Filter
 
 Wolverine supports topic filters for listening. The syntax is still just the same `ListenToMqttTopic(filter)` as shown
 in this snippet from the Wolverine.MQTT test suite:
 
-snippet: sample_listen_to_mqtt_topic_filter
+<!-- snippet: sample_listen_to_mqtt_topic_filter -->
+<a id='snippet-sample_listen_to_mqtt_topic_filter'></a>
+```cs
+_receiver = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseMqttWithLocalBroker(port);
+        opts.ListenToMqttTopic("incoming/#").RetainMessages();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/listen_with_topic_wildcards.cs#L40-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_mqtt_topic_filter' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 In the case of receiving any message that matches the topic filter *according to the [MQTT topic filter rules](https://cedalo.com/blog/mqtt-topics-and-mqtt-wildcards-explained/)*, that message
 will be handled by the listening endpoint defined for that filter.
@@ -235,7 +298,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L167-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L213-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply that to an MQTT topic like so:

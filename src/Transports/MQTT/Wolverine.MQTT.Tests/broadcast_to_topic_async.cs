@@ -22,7 +22,6 @@ public class broadcast_to_topic_async : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
-        
 
         Broker = new LocalMqttBroker(port)
         {
@@ -83,9 +82,19 @@ public class ColorMessage
     public string Color { get; set; }
 }
 
+public class SpecialColorMessage : ColorMessage
+{
+    
+}
+
 public static class ColorMessageHandler
 {
     public static void Handle(ColorMessage message)
+    {
+        Debug.WriteLine("Got " + message.Color);
+    }
+    
+    public static void Handle(SpecialColorMessage message)
     {
         Debug.WriteLine("Got " + message.Color);
     }

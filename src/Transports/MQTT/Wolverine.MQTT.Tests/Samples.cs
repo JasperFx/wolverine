@@ -160,7 +160,53 @@ public class Samples
 
         #endregion
     }
+
+    public static async Task publish_by_topic_rules()
+    {
+
+
+
+        #region sample_mqtt_topic_rules
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                // Connect to the MQTT broker
+                opts.UseMqtt(builder =>
+                {
+                    var mqttServer = context.Configuration["mqtt_server"];
+
+                    builder
+                        .WithMaxPendingMessages(3)
+                        .WithClientOptions(client =>
+                        {
+                            client.WithTcpServer(mqttServer);
+                        });
+                });
+
+                // Publish any message that implements ITenantMessage to 
+                // MQTT with a topic derived from the message
+                opts.PublishMessagesToMqttTopic<ITenantMessage>(m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
+                    
+                    // Specify or configure sending through Wolverine for all
+                    // MQTT topic broadcasting
+                    .QualityOfService(MqttQualityOfServiceLevel.ExactlyOnce)
+                    .BufferedInMemory();
+            })
+            .StartAsync();
+
+        #endregion
+    }
 }
+
+#region sample_mqtt_itenantmessage
+
+public interface ITenantMessage
+{
+    string TenantId { get; }
+}
+
+#endregion
 
 public record PaymentMade(int Amount, string Currency);
 

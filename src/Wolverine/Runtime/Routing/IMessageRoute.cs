@@ -1,4 +1,6 @@
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
@@ -38,5 +40,47 @@ internal class TransformedMessageRoute<TSource, TDestination> : IMessageRoute
     {
         var transformed = _transformation((TSource)message);
         return _inner.CreateForSending(transformed!, options, localDurableQueue, runtime);
+    }
+}
+
+
+
+
+public class TopicRouting<T> : IMessageRouteSource, IMessageRoute
+{
+    private readonly Func<T, string> _topicSource;
+    private readonly Endpoint _topicEndpoint;
+    private IMessageRoute? _route;
+
+    public TopicRouting(Func<T, string> topicSource, Endpoint topicEndpoint)
+    {
+        _topicSource = topicSource;
+        _topicEndpoint = topicEndpoint;
+    }
+
+    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
+    {
+        if (messageType.CanBeCastTo<T>())
+        {
+            yield return this;
+        }
+    }
+
+    public bool IsAdditive => true;
+
+    public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
+        WolverineRuntime runtime)
+    {
+        if (message is T typedMessage)
+        {
+            _route ??= _topicEndpoint.RouteFor(typeof(T), runtime);
+            var envelope = _route.CreateForSending(message, options, localDurableQueue, runtime);
+            envelope.TopicName = _topicSource(typedMessage);
+
+            return envelope;
+        }
+
+        throw new InvalidOperationException(
+            $"The message of type {message.GetType().FullNameInCode()} cannot be routed as a message of type {typeof(T).FullNameInCode()}");
     }
 }

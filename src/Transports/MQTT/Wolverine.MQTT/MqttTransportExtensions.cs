@@ -2,6 +2,7 @@ using JasperFx.Core.Reflection;
 using MQTTnet.Extensions.ManagedClient;
 using Wolverine.Configuration;
 using Wolverine.MQTT.Internals;
+using Wolverine.Runtime.Routing;
 
 namespace Wolverine.MQTT;
 
@@ -125,6 +126,26 @@ public static class MqttTransportExtensions
         
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(topic.Uri);
+
+        return new MqttSubscriberConfiguration(topic);
+    }
+
+    /// <summary>
+    /// Publish messages that are of type T or could be cast to type T to an MQTT
+    /// topic using the supplied function to determine the topic for the message
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="topicSource"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static MqttSubscriberConfiguration PublishMessagesToMqttTopic<T>(this WolverineOptions options, Func<T, string> topicSource)
+    {
+        var transports = options.Transports;
+        var transport = transports.GetOrCreate<MqttTransport>();
+
+        var topic = transport.Topics[MqttTopic.WolverineTopicsName];
+        var routing = new TopicRouting<T>(topicSource, topic);
+        options.PublishWithMessageRoutingSource(routing);
 
         return new MqttSubscriberConfiguration(topic);
     }
