@@ -59,7 +59,7 @@ public static class RabbitMqTransportExtensions
     {
         return options.UseRabbitMq(_ => { });
     }
-    
+
     /// <summary>
     ///     Connect to Rabbit MQ using the values from the connection string. This format is
     /// purposely designed to be compatible with the syntax from https://docs.particular.net/transports/rabbitmq/connection-settings

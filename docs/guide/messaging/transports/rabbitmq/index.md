@@ -87,7 +87,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L84-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_only_use_listener_connection_with_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L102-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_only_use_listener_connection_with_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To only send Rabbit MQ messages, but never receive them:
@@ -116,10 +116,34 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L112-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_only_use_sending_connection_with_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L130-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_only_use_sending_connection_with_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
+## Enable Rabbit MQ for Wolverine Control Queues
+
+If you are using Wolverine in a cluster of running nodes -- and it's more likely that you are than not if you have any
+kind of non trivial load -- Wolverine needs to communicate between its running nodes for various reasons if you are using
+any kind of message persistence. Normally that communication is done through little, specialized database queueing (crude polling),
+but there's an option to use more efficient Rabbit MQ queues for that inter-node communication with a non-durable Rabbit MQ
+queue for each node with this option:
+
+<!-- snippet: sample_using_rabbit_mq_control_queues -->
+<a id='snippet-sample_using_rabbit_mq_control_queues'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // *A* way to configure Rabbit MQ using their Uri schema
+        // documented here: https://www.rabbitmq.com/uri-spec.html
+        opts.UseRabbitMq(new Uri("amqp://localhost"))
+
+            // Use Rabbit MQ for inter-node communication
+            .EnableWolverineControlQueues();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L84-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_rabbit_mq_control_queues' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ## Disable Rabbit MQ Reply Queues

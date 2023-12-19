@@ -78,6 +78,24 @@ public class Samples
 
         #endregion
     }
+
+    public static async Task use_rabbit_for_control_queues()
+    {
+        #region sample_using_rabbit_mq_control_queues
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // *A* way to configure Rabbit MQ using their Uri schema
+                // documented here: https://www.rabbitmq.com/uri-spec.html
+                opts.UseRabbitMq(new Uri("amqp://localhost"))
+
+                    // Use Rabbit MQ for inter-node communication
+                    .EnableWolverineControlQueues();
+            }).StartAsync();
+
+        #endregion
+    }
     
     public static async Task use_listener_connection_only()
     {
