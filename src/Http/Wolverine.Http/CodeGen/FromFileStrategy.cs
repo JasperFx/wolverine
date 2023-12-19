@@ -4,8 +4,12 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Lamar;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Wolverine.Http.CodeGen;
+
+
+internal record FormFileMetadata(string Name) : IFromFormMetadata;
 
 public class FromFileStrategy : IParameterStrategy
 {
@@ -13,12 +17,16 @@ public class FromFileStrategy : IParameterStrategy
     {
         if (parameter.ParameterType == typeof(IFormFile))
         {
+            chain.FileParameters.Add(parameter);
+            
             var frame = new FromFileValue(parameter);
                 chain.Middleware.Add(frame);
                 variable = frame.Variable;
             return true;
         } else if (parameter.ParameterType == typeof(IFormFileCollection))
         {
+            chain.FileParameters.Add(parameter);
+            
             var frame = new FromFileValues(parameter);
                 chain.Middleware.Add(frame);
                 variable = frame.Variable;

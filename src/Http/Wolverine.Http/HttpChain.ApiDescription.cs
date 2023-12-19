@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.Linq;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
@@ -28,9 +25,9 @@ public partial class HttpChain
                 DisplayName = Endpoint.DisplayName,
                 RouteValues =
                 {
-                    ["controller"] = Method.Method.DeclaringType?.Namespace ?? Method.Method.Name,
-                },
-            },
+                    ["controller"] = Method.Method.DeclaringType?.Namespace ?? Method.Method.Name
+                }
+            }
         };
 
         foreach (var routeParameter in RoutePattern.Parameters)
@@ -45,15 +42,54 @@ public partial class HttpChain
         fillQuerystringParameters(apiDescription);
 
         fillKnownHeaderParameters(apiDescription);
-        
+
         fillResponseTypes(apiDescription);
-        
+
+        foreach (var parameter in FileParameters)
+        {
+            var parameterDescription = new ApiParameterDescription
+            {
+                Name = parameter.Name,
+                ModelMetadata = new EndpointModelMetadata(parameter.ParameterType),
+                Source = BindingSource.FormFile,
+                ParameterDescriptor = new ParameterDescriptor
+                {
+                    Name = parameter.Name,
+                    ParameterType = parameter.ParameterType
+                },
+                Type = typeof(IFormFile),
+                IsRequired = true
+            };
+
+            apiDescription.ParameterDescriptions.Add(parameterDescription);
+        }
+
+        foreach (var formMetadata in Endpoint.Metadata.OfType<IFromFormMetadata>())
+        {
+            var parameterDescription = new ApiParameterDescription
+            {
+                Name = formMetadata.Name,
+                ModelMetadata = new EndpointModelMetadata(typeof(IFormFile)),
+                Source = BindingSource.Form,
+                ParameterDescriptor = new ParameterDescriptor
+                {
+                    Name = formMetadata.Name,
+                    ParameterType = typeof(IFormFile)
+                },
+                Type = typeof(IFormFile),
+                IsRequired = true
+            };
+
+            apiDescription.ParameterDescriptions.Add(parameterDescription);
+        }
+
         return apiDescription;
     }
 
     private void fillResponseTypes(ApiDescription apiDescription)
     {
-        var responseTypes = Endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().GroupBy(x => x.StatusCode).ToArray();
+        var responseTypes = Endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().GroupBy(x => x.StatusCode)
+            .ToArray();
         foreach (var responseTypeMetadata in responseTypes)
         {
             var responseType = responseTypeMetadata.FirstOrDefault(x => x.Type != typeof(void))?.Type;
@@ -155,7 +191,7 @@ public partial class HttpChain
             ParameterDescriptor = new ParameterDescriptor
             {
                 Name = routeParameter.Name,
-                ParameterType = parameterType,
+                ParameterType = parameterType
             }
         };
         return parameter;
@@ -169,7 +205,9 @@ internal class EndpointModelMetadata : ModelMetadata
         IsBindingAllowed = true;
     }
 
-    public override IReadOnlyDictionary<object, object> AdditionalValues { get; } = ImmutableDictionary<object, object>.Empty;
+    public override IReadOnlyDictionary<object, object> AdditionalValues { get; } =
+        ImmutableDictionary<object, object>.Empty;
+
     public override string? BinderModelName { get; }
     public override Type? BinderType { get; }
     public override BindingSource? BindingSource { get; }
@@ -191,7 +229,10 @@ internal class EndpointModelMetadata : ModelMetadata
     public override bool IsFlagsEnum { get; }
     public override bool IsReadOnly { get; }
     public override bool IsRequired { get; }
-    public override ModelBindingMessageProvider ModelBindingMessageProvider { get; } = new DefaultModelBindingMessageProvider();
+
+    public override ModelBindingMessageProvider ModelBindingMessageProvider { get; } =
+        new DefaultModelBindingMessageProvider();
+
     public override string? NullDisplayText { get; }
     public override int Order { get; }
     public override string? Placeholder { get; }
