@@ -8,13 +8,13 @@ using Wolverine.Runtime;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: POST_auditable_post
-    public class POST_auditable_post : Wolverine.Http.HttpHandler
+    // START: POST_openapi_empty
+    public class POST_openapi_empty : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_auditable_post(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
+        public POST_openapi_empty(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
@@ -24,20 +24,15 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var auditableEndpoint = new WolverineWebApi.AuditableEndpoint();
+            var openApiEndpoints = new WolverineWebApi.OpenApiEndpoints();
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            // Reading the request body via JSON deserialization
-            var (body, jsonContinue) = await ReadJsonAsync<WolverineWebApi.AuditablePostBody>(httpContext);
-            if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            // Application-specific Open Telemetry auditing
-            System.Diagnostics.Activity.Current?.SetTag("id", body.Id);
             
             // The actual HTTP request handler execution
-            var result_of_Post = auditableEndpoint.Post(body);
+            var httpMessage1 = openApiEndpoints.PostCommand();
 
             
             // Outgoing, cascaded message
-            await messageContext.EnqueueCascadingAsync(result_of_Post).ConfigureAwait(false);
+            await messageContext.EnqueueCascadingAsync(httpMessage1).ConfigureAwait(false);
 
             // Wolverine automatically sets the status code to 204 for empty responses
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
@@ -49,7 +44,7 @@ namespace Internal.Generated.WolverineHandlers
 
     }
 
-    // END: POST_auditable_post
+    // END: POST_openapi_empty
     
     
 }

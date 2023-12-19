@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Alba;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
+using WolverineWebApi;
 
 namespace Wolverine.Http.Tests.Bugs;
 
@@ -20,9 +22,16 @@ public class Bug_505_required_attribute_not_working
         var breeder = new Breeder();
         var id = Guid.NewGuid();
         AggregateRepository.Breeders[id] = breeder;
-
+        
         var builder = WebApplication.CreateBuilder();
-        builder.Host.UseWolverine();
+        
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Discovery.DisableConventionalDiscovery();
+            opts.Discovery.IgnoreAssembly(typeof(OpenApiEndpoints).Assembly);
+            opts.Discovery.IncludeAssembly(GetType().Assembly);
+        });
+        
         builder.Services.AddSingleton<AggregateRepository>();
         
 

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Linq.Expressions;
 using Marten;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -121,6 +122,7 @@ public static class TestEndpoints
     {
         return direction?.ToString() ?? "none";
     }
+
 }
 
 public class ArithmeticResults

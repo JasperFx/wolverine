@@ -13,23 +13,23 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_validate2_user : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> _validator_of_CreateUser2_626131153;
-        private readonly FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> _validator_of_CreateUser21635034188;
         private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> _problemDetailSource;
+        private readonly FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> _validator_of_CreateUser2156367496;
+        private readonly FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> _validator_of_CreateUser2_1791977983;
 
-        public POST_validate2_user(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, [Lamar.Named("passwordValidator")] FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> validator_of_CreateUser2_626131153, [Lamar.Named("createUserValidator")] FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> validator_of_CreateUser21635034188, Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> problemDetailSource) : base(wolverineHttpOptions)
+        public POST_validate2_user(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> problemDetailSource, [Lamar.Named("createUserValidator")] FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> validator_of_CreateUser2156367496, [Lamar.Named("passwordValidator")] FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2> validator_of_CreateUser2_1791977983) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _validator_of_CreateUser2_626131153 = validator_of_CreateUser2_626131153;
-            _validator_of_CreateUser21635034188 = validator_of_CreateUser21635034188;
             _problemDetailSource = problemDetailSource;
+            _validator_of_CreateUser2156367496 = validator_of_CreateUser2156367496;
+            _validator_of_CreateUser2_1791977983 = validator_of_CreateUser2_1791977983;
         }
 
 
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var validatorList = new System.Collections.Generic.List<FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2>>{_validator_of_CreateUser21635034188, _validator_of_CreateUser2_626131153};
+            var validatorList = new System.Collections.Generic.List<FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2>>{_validator_of_CreateUser2156367496, _validator_of_CreateUser2_1791977983};
             // Reading the request body via JSON deserialization
             var (user, jsonContinue) = await ReadJsonAsync<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;

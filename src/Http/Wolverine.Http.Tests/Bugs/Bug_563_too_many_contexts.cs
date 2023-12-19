@@ -2,6 +2,7 @@ using Alba;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using WolverineWebApi;
 
 namespace Wolverine.Http.Tests.Bugs;
 
@@ -13,7 +14,10 @@ public class Bug_563_too_many_contexts
         var builder = WebApplication.CreateBuilder(Array.Empty<string>());
         builder.Services.AddScoped<MyService1>();
         builder.Services.AddScoped<MyService2>();
-        builder.Host.UseWolverine();
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Discovery.DisableConventionalDiscovery();
+        });
 
         await using var host = await AlbaHost.For(builder, app =>
         {

@@ -23,7 +23,10 @@ public class using_newtonsoft_for_serialization
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
         
-        builder.Host.UseWolverine();
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Discovery.IncludeAssembly(GetType().Assembly);
+        });
 
         await using var host = await AlbaHost.For(builder, app =>
         {

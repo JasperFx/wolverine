@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
@@ -9,6 +12,7 @@ using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
@@ -18,7 +22,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Http;
 
-public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICodeFile
+public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICodeFile, IEndpointNameMetadata, IEndpointSummaryMetadata, IEndpointDescriptionMetadata
 {
     public static bool IsValidResponseType(Type type)
     {
@@ -49,6 +53,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<Variable> _routeVariables = new();
 
     private readonly HttpGraph _parent;
+
+    private readonly List<QuerystringVariable> _querystringVariables = new();
+    
 
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;
@@ -247,27 +254,55 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         Metadata
             .WithMetadata(this)
             .WithMetadata(new WolverineMarker())
-            .WithMetadata(new HttpMethodMetadata(_httpMethods))
-            .WithMetadata(Method.Method);
+            .WithMetadata(new HttpMethodMetadata(_httpMethods));
+            //.WithMetadata(Method.Method);
 
         if (RequestType != null)
         {
             Metadata.Accepts(RequestType, false, "application/json");
-            Metadata.Produces(400);
-        }
-
-        if (ResourceType != null)
-        {
-            Metadata.Produces(200, ResourceType, "application/json");
-            Metadata.Produces(404);
-        }
-        else
-        {
-            Metadata.Produces(200);
         }
 
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
+    }
+
+    public QuerystringVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
+    {
+        // TODO -- will need to get fancier and search off of more than this later
+        var key = parameter.Name;
+        var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
+
+        if (variable == null)
+        {
+            if (parameter.ParameterType == typeof(string))
+            {
+                variable = new ReadStringQueryStringValue(parameter.Name!).Variable;
+                _querystringVariables.Add(variable);
+            }
+
+            if (parameter.ParameterType.IsNullable())
+            {
+                var inner = parameter.ParameterType.GetInnerTypeFromNullable();
+                if (RouteParameterStrategy.CanParse(inner))
+                {
+                    variable = new ParsedNullableQueryStringValue(parameter).Variable;
+                    _querystringVariables.Add(variable);
+                }
+            }
+
+            if (RouteParameterStrategy.CanParse(parameter.ParameterType))
+            {
+                variable = new ParsedQueryStringValue(parameter).Variable;
+                _querystringVariables.Add(variable);
+            }
+        }
+        else if (variable.VariableType != parameter.ParameterType)
+        {
+            throw new InvalidOperationException(
+                $"The query string parameter '{key}' cannot be used for multiple target types");
+        }
+
+        return variable;
     }
 
     public bool FindRouteVariable(ParameterInfo parameter, out Variable variable)
@@ -335,4 +370,31 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return false;
 
     }
+    
+    private readonly List<HeaderValueVariable> _headerVariables = new();
+
+    public HeaderValueVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, ParameterInfo parameter)
+    {
+        var existing =
+            _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == parameter.ParameterType);
+
+        if (existing != null) return existing;
+
+        if (parameter.ParameterType == typeof(string))
+        {
+            var frame = new FromHeaderValue(metadata, parameter);
+            _headerVariables.Add(frame.Variable);
+            return frame.Variable;
+        }
+        else
+        {
+            var frame = new ParsedHeaderValue(metadata, parameter);
+            _headerVariables.Add(frame.Variable);
+            return frame.Variable;
+        }
+    }
+
+    string IEndpointNameMetadata.EndpointName => ToString();
+
+    string IEndpointSummaryMetadata.Summary => throw new Exception("You cannot have the summary");
 }

@@ -1,0 +1,208 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Linq;
+using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
+
+namespace Wolverine.Http;
+
+public partial class HttpChain
+{
+    public ApiDescription CreateApiDescription(string httpMethod)
+    {
+        var apiDescription = new ApiDescription
+        {
+            HttpMethod = httpMethod,
+            GroupName = Endpoint.Metadata.GetMetadata<IEndpointGroupNameMetadata>()?.EndpointGroupName,
+            RelativePath = Endpoint.RoutePattern.RawText?.TrimStart('/'),
+            ActionDescriptor = new ActionDescriptor
+            {
+                DisplayName = Endpoint.DisplayName,
+                RouteValues =
+                {
+                    ["controller"] = Method.Method.DeclaringType?.Namespace ?? Method.Method.Name,
+                },
+            },
+        };
+
+        foreach (var routeParameter in RoutePattern.Parameters)
+        {
+            var parameter = buildParameterDescription(routeParameter);
+
+            apiDescription.ParameterDescriptions.Add(parameter);
+        }
+
+        fillRequestType(apiDescription);
+
+        fillQuerystringParameters(apiDescription);
+
+        fillKnownHeaderParameters(apiDescription);
+        
+        fillResponseTypes(apiDescription);
+        
+        return apiDescription;
+    }
+
+    private void fillResponseTypes(ApiDescription apiDescription)
+    {
+        var responseTypes = Endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().GroupBy(x => x.StatusCode).ToArray();
+        foreach (var responseTypeMetadata in responseTypes)
+        {
+            var responseType = responseTypeMetadata.FirstOrDefault(x => x.Type != typeof(void))?.Type;
+
+
+            var apiResponseType = new ApiResponseType
+            {
+                StatusCode = responseTypeMetadata.Key,
+                ModelMetadata = responseType == null ? null : new EndpointModelMetadata(responseType),
+                IsDefaultResponse = false, // this seems to mean "no explicit response", so never set this to true
+                ApiResponseFormats = new List<ApiResponseFormat>(responseTypeMetadata.SelectMany(x => x.ContentTypes)
+                    .Select(x => new ApiResponseFormat
+                    {
+                        MediaType = x
+                    })),
+                Type = responseType
+            };
+
+            apiDescription.SupportedResponseTypes.Add(apiResponseType);
+        }
+    }
+
+    private void fillRequestType(ApiDescription apiDescription)
+    {
+        if (RequestType != null)
+        {
+            var parameterDescription = new ApiParameterDescription
+            {
+                Name = RequestType.NameInCode(),
+                ModelMetadata = new EndpointModelMetadata(RequestType),
+                Source = BindingSource.Body,
+                Type = RequestType,
+                IsRequired = true
+            };
+
+            apiDescription.ParameterDescriptions.Add(parameterDescription);
+
+            foreach (var metadata in Endpoint.Metadata.OfType<IAcceptsMetadata>())
+            {
+                foreach (var contentType in metadata.ContentTypes)
+                {
+                    apiDescription.SupportedRequestFormats.Add(new ApiRequestFormat
+                    {
+                        MediaType = contentType
+                    });
+                }
+            }
+        }
+    }
+
+    private void fillKnownHeaderParameters(ApiDescription apiDescription)
+    {
+        foreach (var headerGroup in _headerVariables.GroupBy(x => x.Name))
+        {
+            var variableType = headerGroup.First().VariableType;
+            var parameterDescription = new ApiParameterDescription
+            {
+                Name = headerGroup.Key,
+                ModelMetadata = new EndpointModelMetadata(variableType),
+                Source = BindingSource.Header,
+                Type = variableType,
+                IsRequired = false
+            };
+
+            apiDescription.ParameterDescriptions.Add(parameterDescription);
+        }
+    }
+
+    private void fillQuerystringParameters(ApiDescription apiDescription)
+    {
+        foreach (var querystringVariable in _querystringVariables)
+        {
+            var parameterDescription = new ApiParameterDescription
+            {
+                Name = querystringVariable.Name,
+                ModelMetadata = new EndpointModelMetadata(querystringVariable.VariableType),
+                Source = BindingSource.Query,
+                Type = querystringVariable.VariableType,
+                IsRequired = false
+            };
+
+            apiDescription.ParameterDescriptions.Add(parameterDescription);
+        }
+    }
+
+    private ApiParameterDescription buildParameterDescription(RoutePatternParameterPart routeParameter)
+    {
+        var variable = _routeVariables.FirstOrDefault(x => x.Usage == routeParameter.Name);
+
+        var parameterType = variable?.VariableType ?? typeof(string);
+        var parameter = new ApiParameterDescription
+        {
+            Name = routeParameter.Name,
+            ModelMetadata = new EndpointModelMetadata(parameterType),
+            Source = BindingSource.Path,
+            //DefaultValue = parameter.DefaultValue,
+            Type = parameterType,
+            IsRequired = true,
+            ParameterDescriptor = new ParameterDescriptor
+            {
+                Name = routeParameter.Name,
+                ParameterType = parameterType,
+            }
+        };
+        return parameter;
+    }
+}
+
+internal class EndpointModelMetadata : ModelMetadata
+{
+    public EndpointModelMetadata(Type modelType) : base(ModelMetadataIdentity.ForType(modelType))
+    {
+        IsBindingAllowed = true;
+    }
+
+    public override IReadOnlyDictionary<object, object> AdditionalValues { get; } = ImmutableDictionary<object, object>.Empty;
+    public override string? BinderModelName { get; }
+    public override Type? BinderType { get; }
+    public override BindingSource? BindingSource { get; }
+    public override bool ConvertEmptyStringToNull { get; }
+    public override string? DataTypeName { get; }
+    public override string? Description { get; }
+    public override string? DisplayFormatString { get; }
+    public override string? DisplayName { get; }
+    public override string? EditFormatString { get; }
+    public override ModelMetadata? ElementMetadata { get; }
+    public override IEnumerable<KeyValuePair<EnumGroupAndName, string>>? EnumGroupedDisplayNamesAndValues { get; }
+    public override IReadOnlyDictionary<string, string>? EnumNamesAndValues { get; }
+    public override bool HasNonDefaultEditFormat { get; }
+    public override bool HideSurroundingHtml { get; }
+    public override bool HtmlEncode { get; }
+    public override bool IsBindingAllowed { get; }
+    public override bool IsBindingRequired { get; }
+    public override bool IsEnum { get; }
+    public override bool IsFlagsEnum { get; }
+    public override bool IsReadOnly { get; }
+    public override bool IsRequired { get; }
+    public override ModelBindingMessageProvider ModelBindingMessageProvider { get; } = new DefaultModelBindingMessageProvider();
+    public override string? NullDisplayText { get; }
+    public override int Order { get; }
+    public override string? Placeholder { get; }
+    public override ModelPropertyCollection Properties { get; } = new(Enumerable.Empty<ModelMetadata>());
+    public override IPropertyFilterProvider? PropertyFilterProvider { get; }
+    public override Func<object, object>? PropertyGetter { get; }
+    public override Action<object, object?>? PropertySetter { get; }
+    public override bool ShowForDisplay { get; }
+    public override bool ShowForEdit { get; }
+    public override string? SimpleDisplayProperty { get; }
+    public override string? TemplateHint { get; }
+    public override bool ValidateChildren { get; }
+    public override IReadOnlyList<object> ValidatorMetadata { get; } = Array.Empty<object>();
+}

@@ -28,8 +28,8 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var efCoreEndpoints = new WolverineWebApi.EfCoreEndpoints();
-            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             await using var itemsDbContext = new WolverineWebApi.ItemsDbContext(_dbContextOptions);
+            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             
             // Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction

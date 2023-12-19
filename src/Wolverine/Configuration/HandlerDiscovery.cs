@@ -234,4 +234,9 @@ public sealed partial class HandlerDiscovery
 
         return this;
     }
+
+    public void IgnoreAssembly(Assembly assembly)
+    {
+        Assemblies.Remove(assembly);
+    }
 }

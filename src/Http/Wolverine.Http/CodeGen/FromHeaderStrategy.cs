@@ -9,27 +9,26 @@ using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Wolverine.Http.CodeGen;
 
+public class HeaderValueVariable : Variable
+{
+    public HeaderValueVariable(IFromHeaderMetadata metadata, Type variableType, string usage, Frame? creator) : base(variableType, usage, creator)
+    {
+        Name = metadata.Name!;
+    }
+
+    public string Name { get; }
+}
+
+
 public class FromHeaderStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable)
     {
         var att = parameter.GetCustomAttributes().OfType<IFromHeaderMetadata>().FirstOrDefault();
+        
         if (att != null)
         {
-            if (parameter.ParameterType == typeof(string))
-            {
-                var frame = new FromHeaderValue(att, parameter);
-                chain.Middleware.Add(frame);
-                variable = frame.Variable;
-            }
-            else
-            {
-                var frame = new ParsedHeaderValue(att, parameter);
-                chain.Middleware.Add(frame);
-                variable = frame.Variable;
-            }
-
-
+            variable = chain.GetOrCreateHeaderVariable(att, parameter);
             return true;
         }
 
@@ -45,11 +44,11 @@ internal class FromHeaderValue : SyncFrame
 
     public FromHeaderValue(IFromHeaderMetadata header, ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new HeaderValueVariable(header, parameter.ParameterType, parameter.Name!, this);
         _header = header.Name ?? parameter.Name!;
     }
 
-    public Variable Variable { get; }
+    public HeaderValueVariable Variable { get; }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
@@ -74,7 +73,7 @@ internal class ParsedHeaderValue : SyncFrame
     public ParsedHeaderValue(IFromHeaderMetadata header, ParameterInfo parameter)
     {
         _header = header.Name ?? parameter.Name!;
-        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new HeaderValueVariable(header, parameter.ParameterType, parameter.Name!, this);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
@@ -83,7 +82,7 @@ internal class ParsedHeaderValue : SyncFrame
         yield return _httpContext;
     }
 
-    public Variable Variable { get; }
+    public HeaderValueVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {

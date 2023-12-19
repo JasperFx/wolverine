@@ -14,12 +14,19 @@ using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Http.Tests.Bugs;
 using Wolverine.Marten;
+using Xunit.Abstractions;
 
 namespace Wolverine.Http.Tests;
 
 public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDisposable
 {
+    private readonly ITestOutputHelper _output;
     private IAlbaHost theHost;
+
+    public multi_tenancy_detection_and_integration(ITestOutputHelper output)
+    {
+        _output = output;
+    }
 
     public void Dispose()
     {
@@ -44,6 +51,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         // Defaults are good enough here
         builder.Host.UseWolverine(opts =>
         {
+            opts.Discovery.IncludeAssembly(GetType().Assembly);
             opts.Policies.AutoApplyTransactions();
         });
         
@@ -59,6 +67,12 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         {
             app.MapWolverineEndpoints(configure);
         }, securityStub);
+
+        var graph = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints;
+        foreach (var chain in graph.Chains.OrderBy(x => x.Description))
+        {
+            _output.WriteLine(chain.Description);
+        }
 
         await theHost.Services.GetRequiredService<IDocumentStore>().Advanced.Clean
             .DeleteDocumentsByTypeAsync(typeof(TenantTodo));

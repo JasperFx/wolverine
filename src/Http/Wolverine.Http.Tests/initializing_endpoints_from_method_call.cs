@@ -76,15 +76,11 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
 
         var endpoint = chain.BuildEndpoint();
         var metadata = endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().ToArray();
-        metadata.Length.ShouldBeGreaterThanOrEqualTo(3);
+        metadata.Length.ShouldBeGreaterThanOrEqualTo(2);
 
         var responseBody = metadata.FirstOrDefault(x => x.StatusCode == 200);
         responseBody.Type.ShouldBe(typeof(ArithmeticResults));
         responseBody.ContentTypes.Single().ShouldBe("application/json");
-
-        var badRequest = metadata.FirstOrDefault(x => x.StatusCode == 400);
-        badRequest.ContentTypes.Any().ShouldBeFalse();
-        badRequest.Type.ShouldBe(typeof(void));
 
         var noValue = metadata.FirstOrDefault(x => x.StatusCode == 404);
         noValue.ContentTypes.Any().ShouldBeFalse();

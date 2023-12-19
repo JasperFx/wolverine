@@ -18,7 +18,10 @@ public class Bug_463_codegen_with_IQuerySession
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
         
-        builder.Host.UseWolverine();
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Discovery.IncludeAssembly(GetType().Assembly);
+        });
 
         await using var host = await AlbaHost.For(builder, app =>
         {

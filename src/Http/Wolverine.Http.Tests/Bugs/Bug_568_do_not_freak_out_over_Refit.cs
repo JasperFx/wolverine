@@ -24,7 +24,10 @@ public class Bug_568_do_not_freak_out_over_Refit
         
         builder.Services.AddRefitClient<ITestHttpClient>();
         
-        builder.Host.UseWolverine();
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Discovery.IncludeAssembly(GetType().Assembly);
+        });
 
         await using var host = await AlbaHost.For(builder, app =>
         {

@@ -1,9 +1,14 @@
 using Alba;
 using Marten;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Models;
 using Oakton;
+using Shouldly;
+using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Tracking;
+using WolverineWebApi.TestSupport;
 
 namespace Wolverine.Http.Tests;
 
@@ -95,8 +100,10 @@ public class IntegrationCollection : ICollectionFixture<AppFixture>
 {
 }
 
+
+
 [Collection("integration")]
-public abstract class IntegrationContext : IAsyncLifetime
+public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
 {
     private readonly AppFixture _fixture;
 
@@ -179,4 +186,47 @@ public abstract class IntegrationContext : IAsyncLifetime
 
         return (tracked, result);
     }
+
+    protected Endpoint EndpointFor(string routePattern)
+    {
+        var endpoint = Host.Services.GetRequiredService<EndpointDataSource>()
+            .Endpoints.OfType<RouteEndpoint>().FirstOrDefault(x => x.RoutePattern.RawText == routePattern);
+
+        endpoint.ShouldNotBeNull();
+
+        return endpoint;
+    }
+    
+    protected (OpenApiPathItem, OpenApiOperation) FindOpenApiDocument(string path)
+    {
+        var swagger = Host.Services.GetRequiredService<ISwaggerProvider>();
+        var document = swagger.GetSwagger("v1");
+
+        if (document.Paths.TryGetValue(path, out var item))
+        {
+            return (item, item.Operations.Values.Single());
+        }
+
+        throw new Exception($"Unable to find {path}");
+    }
+
+    public (OpenApiPathItem, OpenApiOperation) FindOpenApiDocument(OperationType httpMethod, string path)
+    {
+        var swagger = Host.Services.GetRequiredService<ISwaggerProvider>();
+        var document = swagger.GetSwagger("v1");
+
+        if (document.Paths.TryGetValue(path, out var item))
+        {
+            if (item.Operations.TryGetValue(httpMethod, out var operation))
+            {
+                return (item, operation);
+            }
+        }
+
+        throw new Exception($"Unable to find {httpMethod} {path}");
+    }
+
+
 }
+
+

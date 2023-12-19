@@ -4,17 +4,28 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Lamar;
+using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Wolverine.Http.CodeGen;
+
+public class QuerystringVariable : Variable
+{
+    public QuerystringVariable(Type variableType, string usage, Frame? creator) : base(variableType, usage, creator)
+    {
+        Name = usage;
+    }
+
+    public string Name { get; set; }
+}
 
 internal class ReadStringQueryStringValue : SyncFrame
 {
     public ReadStringQueryStringValue(string name)
     {
-        Variable = new Variable(typeof(string), name, this);
+        Variable = new QuerystringVariable(typeof(string), name, this);
     }
 
-    public Variable Variable { get; }
+    public QuerystringVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -28,10 +39,10 @@ internal class ParsedQueryStringValue : SyncFrame
 {
     public ParsedQueryStringValue(ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
     }
 
-    public Variable Variable { get; }
+    public QuerystringVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -63,12 +74,12 @@ internal class ParsedNullableQueryStringValue : SyncFrame
 
     public ParsedNullableQueryStringValue(ParameterInfo parameter)
     {
-        Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
         _innerTypeFromNullable = parameter.ParameterType.GetInnerTypeFromNullable();
         _alias = _innerTypeFromNullable.FullNameInCode();
     }
 
-    public Variable Variable { get; }
+    public QuerystringVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -96,30 +107,7 @@ internal class QueryStringParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
     {
-        variable = default!;
-
-        if (parameter.ParameterType == typeof(string))
-        {
-            variable = new ReadStringQueryStringValue(parameter.Name!).Variable;
-            return true;
-        }
-
-        if (parameter.ParameterType.IsNullable())
-        {
-            var inner = parameter.ParameterType.GetInnerTypeFromNullable();
-            if (RouteParameterStrategy.CanParse(inner))
-            {
-                variable = new ParsedNullableQueryStringValue(parameter).Variable;
-                return true;
-            }
-        }
-
-        if (RouteParameterStrategy.CanParse(parameter.ParameterType))
-        {
-            variable = new ParsedQueryStringValue(parameter).Variable;
-            return true;
-        }
-
-        return false;
+        variable = chain.TryFindOrCreateQuerystringValue(parameter);
+        return variable != null;
     }
 }

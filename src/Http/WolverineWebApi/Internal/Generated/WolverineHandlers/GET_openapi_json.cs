@@ -9,14 +9,14 @@ using Wolverine.Runtime;
 
 namespace Internal.Generated.WolverineHandlers
 {
-    // START: POST_some_id
-    public class POST_some_id : Wolverine.Http.HttpHandler
+    // START: GET_openapi_json
+    public class GET_openapi_json : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_some_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
+        public GET_openapi_json(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
             _wolverineRuntime = wolverineRuntime;
@@ -30,25 +30,10 @@ namespace Internal.Generated.WolverineHandlers
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            var id = (string)httpContext.GetRouteValue("id");
-            // Reading the request body via JSON deserialization
-            var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Bugs.SomeRequest>(httpContext);
-            if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            var someDocument = await WolverineWebApi.Bugs.SomeEndpoint.LoadAsync(id, documentSession).ConfigureAwait(false);
-            // 404 if this required object is null
-            if (someDocument == null)
-            {
-                httpContext.Response.StatusCode = 404;
-                return;
-            }
-
+            var openApiEndpoints = new WolverineWebApi.OpenApiEndpoints();
             
             // The actual HTTP request handler execution
-            var storeDoc = WolverineWebApi.Bugs.SomeEndpoint.Handle(request, someDocument);
-
-            
-            // Placed by Wolverine's ISideEffect policy
-            storeDoc.Execute(documentSession);
+            var reservation_response = openApiEndpoints.GetJson();
 
             
             // Commit any outstanding Marten changes
@@ -58,13 +43,13 @@ namespace Internal.Generated.WolverineHandlers
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
             await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
 
-            // Wolverine automatically sets the status code to 204 for empty responses
-            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
+            // Writing the response body to JSON because this was the first 'return variable' in the method signature
+            await WriteJsonAsync(httpContext, reservation_response);
         }
 
     }
 
-    // END: POST_some_id
+    // END: GET_openapi_json
     
     
 }

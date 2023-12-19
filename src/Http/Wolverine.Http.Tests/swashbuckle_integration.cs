@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Wolverine.Http.Tests;
@@ -17,4 +20,7 @@ public class swashbuckle_integration : IntegrationContext
 
         doc.ShouldContain("/fromservice");
     }
+    
+    
+
 }

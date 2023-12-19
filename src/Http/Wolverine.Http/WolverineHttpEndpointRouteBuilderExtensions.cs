@@ -4,6 +4,7 @@ using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -157,6 +158,8 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
 
         var container = (IContainer)endpoints.ServiceProvider;
 
+        // I hate this, but can't think of any other possible way to do this
+        container.Configure(x => x.AddSingleton<IApiDescriptionProvider, WolverineApiDescriptionProvider>());
         
         // This let's Wolverine weave in middleware that might return ProblemDetails
         runtime.Options.CodeGeneration.AddContinuationStrategy<ProblemDetailsContinuationPolicy>();

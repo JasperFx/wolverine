@@ -22,7 +22,10 @@ public class Bug_582_erroneous_faliure_ack
         
         builder.Services.AddRefitClient<ITestHttpClient>();
         
-        builder.Host.UseWolverine();
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Discovery.IncludeAssembly(GetType().Assembly);
+        });
 
         await using var host = await AlbaHost.For(builder, app =>
         {

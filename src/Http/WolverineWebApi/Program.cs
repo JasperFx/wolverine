@@ -91,6 +91,10 @@ app.UseSwaggerUI();
 
 app.UseAuthorization();
 
+// These routes are for doing
+OpenApiEndpoints.BuildComparisonRoutes(app);
+
+
 app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>>(int orderId)
     => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(orderId)));
 

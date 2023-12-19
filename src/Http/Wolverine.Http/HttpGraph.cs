@@ -41,6 +41,8 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         Rules = _options.CodeGeneration;
     }
 
+    public IReadOnlyList<HttpChain> Chains => _chains;
+
     internal IContainer Container { get; }
 
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _writerPolicies;
