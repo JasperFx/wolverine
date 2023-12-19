@@ -81,7 +81,7 @@ public class Samples
     
     public static async Task use_listener_connection_only()
     {
-        #region sample_disable_rabbit_mq_system_queue
+        #region sample_only_use_listener_connection_with_rabbitmq
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -109,7 +109,7 @@ public class Samples
     
     public static async Task use_sender_connection_only()
     {
-        #region sample_disable_rabbit_mq_system_queue
+        #region sample_only_use_sending_connection_with_rabbitmq
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

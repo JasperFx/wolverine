@@ -43,6 +43,7 @@ public class end_to_end
         var queueName = RabbitTesting.NextQueueName();
         using var publisher = WolverineHost.For(opts =>
         {
+
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
@@ -162,6 +163,105 @@ public class end_to_end
                 .SendInline();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        });
+
+
+        using var receiver = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision();
+
+            opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
+            opts.Services.AddSingleton<ColorHistory>();
+
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        });
+
+        await receiver.ResetResourceState();
+
+        for (int i = 0; i < 10000; i++)
+        {
+            await publisher.SendAsync(new ColorChosen { Name = "blue" });
+        }
+
+        var cancellation = new CancellationTokenSource(30.Seconds());
+        var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
+
+        while (!cancellation.IsCancellationRequested && queue.QueuedCount() > 0)
+        {
+            await Task.Delay(250.Milliseconds(), cancellation.Token);
+        }
+        
+        cancellation.Token.ThrowIfCancellationRequested();
+
+        
+    }
+    
+    [Fact]
+    public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_only_listener_connection()
+    {
+        var queueName = RabbitTesting.NextQueueName();
+        using var publisher = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+
+            opts.PublishAllMessages()
+                .ToRabbitQueue(queueName)
+                .SendInline();
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+            
+            
+        });
+
+
+        using var receiver = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision().UseListenerConnectionOnly();
+
+            opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
+            opts.Services.AddSingleton<ColorHistory>();
+
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        });
+
+        await receiver.ResetResourceState();
+
+        for (int i = 0; i < 10000; i++)
+        {
+            await publisher.SendAsync(new ColorChosen { Name = "blue" });
+        }
+
+        var cancellation = new CancellationTokenSource(30.Seconds());
+        var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
+
+        while (!cancellation.IsCancellationRequested && queue.QueuedCount() > 0)
+        {
+            await Task.Delay(250.Milliseconds(), cancellation.Token);
+        }
+        
+        cancellation.Token.ThrowIfCancellationRequested();
+
+        
+    }
+    
+        
+    [Fact]
+    public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_only_subscriber_connection()
+    {
+        var queueName = RabbitTesting.NextQueueName();
+        using var publisher = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup().UseSenderConnectionOnly();
+
+            opts.PublishAllMessages()
+                .ToRabbitQueue(queueName)
+                .SendInline();
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+            
+            
         });
 
 

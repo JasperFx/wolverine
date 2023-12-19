@@ -54,6 +54,74 @@ return await Host.CreateDefaultBuilder(args)
 See the [Rabbit MQ .NET Client documentation](https://www.rabbitmq.com/dotnet-api-guide.html#connecting) for more information about configuring the `ConnectionFactory` to connect to Rabbit MQ.
 
 
+## Managing Rabbit MQ Connections
+
+In its default setup, the Rabbit MQ transport in Wolverine will open two connections, one for listening and another for sending
+messages. All Rabbit MQ endpoints will share these two connections. If you need to conserve Rabbit MQ connections
+and have a process that is only sending or only receiving messages through Rabbit MQ, you can opt to turn off one or the 
+other connections that might not be used at runtime.
+
+To only listen to Rabbit MQ messages, but never send them:
+
+<!-- snippet: sample_only_use_listener_connection_with_rabbitmq -->
+<a id='snippet-sample_only_use_listener_connection_with_rabbitmq'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // *A* way to configure Rabbit MQ using their Uri schema
+        // documented here: https://www.rabbitmq.com/uri-spec.html
+        opts.UseRabbitMq(new Uri("amqp://localhost"))
+
+            // Turn on listener connection only in case if you only need to listen for messages
+            // The sender connection won't be activated in this case
+            .UseListenerConnectionOnly();
+
+        // Set up a listener for a queue, but also
+        // fine-tune the queue characteristics if Wolverine
+        // will be governing the queue setup
+        opts.ListenToRabbitQueue("incoming2", q =>
+        {
+            q.PurgeOnStartup = true;
+            q.TimeToLive(5.Minutes());
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L84-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_only_use_listener_connection_with_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+To only send Rabbit MQ messages, but never receive them:
+
+<!-- snippet: sample_only_use_sending_connection_with_rabbitmq -->
+<a id='snippet-sample_only_use_sending_connection_with_rabbitmq'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // *A* way to configure Rabbit MQ using their Uri schema
+        // documented here: https://www.rabbitmq.com/uri-spec.html
+        opts.UseRabbitMq(new Uri("amqp://localhost"))
+
+            // Turn on sender connection only in case if you only need to send messages
+            // The listener connection won't be created in this case
+            .UseSenderConnectionOnly();
+
+        // Set up a listener for a queue, but also
+        // fine-tune the queue characteristics if Wolverine
+        // will be governing the queue setup
+        opts.ListenToRabbitQueue("incoming2", q =>
+        {
+            q.PurgeOnStartup = true;
+            q.TimeToLive(5.Minutes());
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L112-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_only_use_sending_connection_with_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+
+
 ## Disable Rabbit MQ Reply Queues
 
 By default, Wolverine creates an in memory queue in the Rabbit MQ broker for each individual node that is used by Wolverine
