@@ -13,6 +13,7 @@ using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Configuration;
@@ -268,15 +269,20 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public QuerystringVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
     {
-        // TODO -- will need to get fancier and search off of more than this later
         var key = parameter.Name;
+
+        if (parameter.TryGetAttribute<FromQueryAttribute>(out var att))
+        {
+            key = att.Name;
+        }
+
         var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
 
         if (variable == null)
         {
             if (parameter.ParameterType == typeof(string))
             {
-                variable = new ReadStringQueryStringValue(parameter.Name!).Variable;
+                variable = new ReadStringQueryStringValue(key).Variable;
                 _querystringVariables.Add(variable);
             }
 
@@ -286,6 +292,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 if (RouteParameterStrategy.CanParse(inner))
                 {
                     variable = new ParsedNullableQueryStringValue(parameter).Variable;
+                    variable.Name = key;
                     _querystringVariables.Add(variable);
                 }
             }
@@ -293,6 +300,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
                 variable = new ParsedQueryStringValue(parameter).Variable;
+                variable.Name = key;
                 _querystringVariables.Add(variable);
             }
         }

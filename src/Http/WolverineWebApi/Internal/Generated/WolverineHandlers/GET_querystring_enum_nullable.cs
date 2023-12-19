@@ -23,10 +23,9 @@ namespace Internal.Generated.WolverineHandlers
         {
             WolverineWebApi.Direction? direction = null;
             if (WolverineWebApi.Direction.TryParse<WolverineWebApi.Direction>(httpContext.Request.Query["direction"], out var directionParsed)) direction = directionParsed;
-            // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
             
             // The actual HTTP request handler execution
-            var result_of_UsingNullableEnumQuerystring = WolverineWebApi.TestEndpoints.UsingNullableEnumQuerystring(direction);
+            var result_of_UsingNullableEnumQuerystring = WolverineWebApi.QuerystringEndpoints.UsingNullableEnumQuerystring(direction);
 
             await WriteString(httpContext, result_of_UsingNullableEnumQuerystring);
         }

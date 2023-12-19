@@ -8,13 +8,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: BookReservationHandler1573485708
     public class BookReservationHandler1573485708 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> _logger;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> _logger;
 
-        public BookReservationHandler1573485708(Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public BookReservationHandler1573485708(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Microsoft.Extensions.Logging.ILogger<WolverineWebApi.Reservation> logger)
         {
-            _logger = logger;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _logger = logger;
         }
 
 

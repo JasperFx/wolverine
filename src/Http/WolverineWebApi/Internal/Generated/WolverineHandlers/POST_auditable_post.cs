@@ -24,8 +24,8 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var auditableEndpoint = new WolverineWebApi.AuditableEndpoint();
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            var auditableEndpoint = new WolverineWebApi.AuditableEndpoint();
             // Reading the request body via JSON deserialization
             var (body, jsonContinue) = await ReadJsonAsync<WolverineWebApi.AuditablePostBody>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;

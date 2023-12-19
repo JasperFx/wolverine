@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_ef_publish : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> _dbContextOptions;
+        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_ef_publish(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions) : base(wolverineHttpOptions)
+        public POST_ef_publish(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Microsoft.EntityFrameworkCore.DbContextOptions<WolverineWebApi.ItemsDbContext> dbContextOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _wolverineRuntime = wolverineRuntime;
             _dbContextOptions = dbContextOptions;
+            _wolverineRuntime = wolverineRuntime;
         }
 
 
@@ -28,8 +28,8 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var efCoreEndpoints = new WolverineWebApi.EfCoreEndpoints();
-            await using var itemsDbContext = new WolverineWebApi.ItemsDbContext(_dbContextOptions);
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            await using var itemsDbContext = new WolverineWebApi.ItemsDbContext(_dbContextOptions);
             Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             
             // Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction

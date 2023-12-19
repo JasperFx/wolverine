@@ -24,8 +24,8 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var openApiEndpoints = new WolverineWebApi.OpenApiEndpoints();
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            var openApiEndpoints = new WolverineWebApi.OpenApiEndpoints();
             
             // The actual HTTP request handler execution
             var httpMessage1 = openApiEndpoints.PostCommand();

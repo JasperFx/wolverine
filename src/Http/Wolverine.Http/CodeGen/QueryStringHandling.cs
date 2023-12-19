@@ -29,7 +29,7 @@ internal class ReadStringQueryStringValue : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"string {Variable.Usage} = httpContext.Request.Query[\"{Variable.Usage}\"].FirstOrDefault();");
+        writer.Write($"string {Variable.Usage} = httpContext.Request.Query[\"{Variable.Name}\"].FirstOrDefault();");
 
         Next?.GenerateCode(method, writer);
     }
@@ -52,15 +52,15 @@ internal class ParsedQueryStringValue : SyncFrame
 
         if (Variable.VariableType.IsEnum)
         {
-            writer.Write($"{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
+            writer.Write($"{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Name}\"], out {Variable.Usage});");
         }
         else if (Variable.VariableType.IsBoolean())
         {
-            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
+            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], out {Variable.Usage});");
         }
         else
         {
-            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out {Variable.Usage});");
+            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], System.Globalization.CultureInfo.InvariantCulture, out {Variable.Usage});");
         }
 
         Next?.GenerateCode(method, writer);
