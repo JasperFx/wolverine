@@ -15,7 +15,7 @@ public static ArithmeticResults PostJson(Question question)
     };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L83-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L85-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the method signature above, `Question` is the "request" type (the payload sent from the client to the server) and `Answer` is the "resource" type (what is being returned to the client).
@@ -36,7 +36,7 @@ public static Task<ArithmeticResults> PostJsonAsync(Question question)
     return Task.FromResult(results);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L97-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L99-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The resource type is still `Answer`. Likewise, if an endpoint returns `ValueTask<Answer>`, the resource type
@@ -311,7 +311,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L146-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L150-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:

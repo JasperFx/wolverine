@@ -170,3 +170,17 @@ public class ManuallyRoutedResponseHandler
 }
 
 #endregion
+
+
+#region sample_cascaded_to_topic_message
+
+public class ManuallyRoutedTopicResponseHandler
+{
+    public IEnumerable<object> Consume(MyMessage message, Envelope envelope)
+    {
+        // Go North now at the "direction" queue
+        yield return new GoNorth().ToTopic($"direction/{envelope.TenantId}");
+    }
+}
+
+#endregion

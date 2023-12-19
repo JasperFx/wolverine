@@ -34,10 +34,22 @@ await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L72-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Topic Sending as Cascading Message
 
-## Scheduling Message Delivery
+Wolverine is pretty serious about enabling as many message handlers or HTTP endpoints as possible to be [pure functions](https://en.wikipedia.org/wiki/Pure_function)
+where the unit testing is easier, so there's an option to broadcast messages to a particular topic as a cascaded message:
 
-TODO -- write stuff here
-
-
-
+<!-- snippet: sample_cascaded_to_topic_message -->
+<a id='snippet-sample_cascaded_to_topic_message'></a>
+```cs
+public class ManuallyRoutedTopicResponseHandler
+{
+    public IEnumerable<object> Consume(MyMessage message, Envelope envelope)
+    {
+        // Go North now at the "direction" queue
+        yield return new GoNorth().ToTopic($"direction/{envelope.TenantId}");
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L175-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_cascaded_to_topic_message' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

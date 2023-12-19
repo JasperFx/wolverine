@@ -100,7 +100,10 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddMarten(Servers.PostgresConnectionString)
     .IntegrateWithWolverine();
 
-builder.Host.UseWolverine();
+builder.Host.UseWolverine(opts =>
+{
+    opts.Discovery.IncludeAssembly(GetType().Assembly);
+});
 
 await using var host = await AlbaHost.For(builder, app =>
 {
@@ -112,5 +115,5 @@ await using var host = await AlbaHost.For(builder, app =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_newtonsoft_for_serialization.cs#L18-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_newtonsoft_for_http_serialization' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_newtonsoft_for_serialization.cs#L18-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_newtonsoft_for_http_serialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

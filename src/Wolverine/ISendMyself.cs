@@ -121,7 +121,29 @@ public static class ConfiguredMessageExtensions
     {
         return new RoutedToEndpointMessage<T>(destination, message, options);
     }
+
+    /// <summary>
+    /// Send a message to the supplied topic
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="topic">The topic name for the underlying message broker</param>
+    /// <param name="options">Optional delivery options</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static TopicMessage<T> ToTopic<T>(this T message, string topic, DeliveryOptions? options = null)
+    {
+        return new TopicMessage<T>(message, topic, options);
+    }
 }
+
+public record TopicMessage<T>(T Message, string Topic, DeliveryOptions? Options) : ISendMyself
+{
+    ValueTask ISendMyself.ApplyAsync(IMessageContext context)
+    {
+        return context.BroadcastToTopicAsync(Topic, Message!);
+    }
+}
+
 
 /// <summary>
 ///     Wrapper for a cascading message that has delayed delivery

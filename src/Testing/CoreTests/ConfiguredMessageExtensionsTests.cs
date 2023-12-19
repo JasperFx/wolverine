@@ -1,4 +1,7 @@
 ﻿using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using NSubstitute;
+using TestingSupport;
 using TestMessages;
 using Xunit;
 
@@ -50,6 +53,20 @@ public class ConfiguredMessageExtensionsTests
         message.Message.ShouldBe(inner);
         message.Destination.ShouldBe(destination);
         message.DeliveryOptions.DeliverBy.HasValue.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task to_topic()
+    {
+        var inner = new Message1();
+        var message = inner.ToTopic("blue");
+        message.Message.ShouldBeSameAs(inner);
+        message.Topic.ShouldBe("blue");
+
+        var bus = Substitute.For<IMessageContext>();
+        await message.As<ISendMyself>().ApplyAsync(bus);
+
+        await bus.Received().BroadcastToTopicAsync("blue", inner);
     }
     
     
