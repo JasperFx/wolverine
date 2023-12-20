@@ -271,7 +271,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         var key = parameter.Name;
 
-        if (parameter.TryGetAttribute<FromQueryAttribute>(out var att))
+        if (parameter.TryGetAttribute<FromQueryAttribute>(out var att) && att.Name.IsNotEmpty())
         {
             key = att.Name;
         }
