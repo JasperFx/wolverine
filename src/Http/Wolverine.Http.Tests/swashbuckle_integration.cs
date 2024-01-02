@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Models;
 using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
 
@@ -34,6 +36,27 @@ public class swashbuckle_integration : IntegrationContext
         
         doc.Paths.Any(x => x.Key == "/ignore").ShouldBeFalse();
     }
+
+    [Fact]
+    public void derive_the_operation_id()
+    {
+        var (_, op) = FindOpenApiDocument(OperationType.Get, "/result");
+        
+        op.OperationId.ShouldBe("WolverineWebApi.ResultEndpoints.GetResult");
+    }
+
+    [Fact]
+    public void apply_tags_from_tags_attribute()
+    {
+        var endpoint = EndpointFor("/users/sign-up");
+        var tags = endpoint.Metadata.GetOrderedMetadata<ITagsMetadata>();
+        tags.Any().ShouldBeTrue();
+        
+        var (item, op) = FindOpenApiDocument(OperationType.Post, "/users/sign-up");
+        op.Tags.ShouldContain(x => x.Name == "Users");
+    }
+    
+    
     
     
 

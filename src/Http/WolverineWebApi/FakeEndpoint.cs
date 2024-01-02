@@ -10,11 +10,17 @@ public class FakeEndpoint
         return "Hello";
     }
 
-    [WolverineGet("/fake/hello/async")]
+    #region sample_override_operation_id_for_openapi
+
+    // Override the operation id within the generated OpenAPI
+    // metadata
+    [WolverineGet("/fake/hello/async", OperationId = "OverriddenId")]
     public Task<string> SayHelloAsync()
     {
         return Task.FromResult("Hello");
     }
+
+    #endregion
 
     [WolverineGet("/fake/hello/async2")]
     public ValueTask<string> SayHelloAsync2()

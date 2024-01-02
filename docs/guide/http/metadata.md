@@ -53,6 +53,73 @@ public static void Configure(HttpChain chain)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/PublishingEndpoint.cs#L15-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_one_off_openapi_metadata' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Swashbuckle and Wolverine
+
+[Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) is de facto the default OpenAPI tooling and it is added in by the default `dotnet new` templates for ASP.Net Core
+applications. It's also very MVC Core-centric in its assumptions about how to generate OpenAPI metadata to describe endpoints.
+If you need to (or just want to), you can do quite a bit to control exactly how Swashbuckle works against
+Wolverine endpoints by using a custom `IOperationFilter` of your making that can use Wolverine's own `HttpChain` model
+for finer grained control. Here's a sample from the Wolverine testing code that just uses Wolverine' own model to
+determine the OpenAPI operation id:
+
+<!-- snippet: sample_WolverineOperationFilter -->
+<a id='snippet-sample_wolverineoperationfilter'></a>
+```cs
+// This class is NOT distributed in any kind of Nuget today, but feel very free
+// to copy this code into your own as it is at least tested through Wolverine's
+// CI test suite
+public class WolverineOperationFilter : IOperationFilter // IOperationFilter is from Swashbuckle itself
+{
+    public void Apply(OpenApiOperation operation, OperationFilterContext context)
+    {
+        if (context.ApiDescription.ActionDescriptor is WolverineActionDescriptor action)
+        {
+            operation.OperationId = action.Chain.OperationId;
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/WolverineOperationFilter.cs#L7-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineoperationfilter' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And that would be registered with Swashbuckle inside of your `Program.Main()` method like so:
+
+<!-- snippet: sample_register_custom_swashbuckle_filter -->
+<a id='snippet-sample_register_custom_swashbuckle_filter'></a>
+```cs
+builder.Services.AddSwaggerGen(x =>
+{
+    x.OperationFilter<WolverineOperationFilter>();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L32-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Operation Id
+
+::: warning
+You will have to use the custom `WolverineOperationFilter` in the previous section to relay Wolverine's operation id
+determination to Swashbuckle. We have not (yet) been able to relay that information to Swashbuckle otherwise.
+:::
+
+By default, Wolverine.HTTP is trying to mimic the logic for determining the OpenAPI `operationId` logic from MVC Core which
+is *endpoint class name*.*method name*. You can also override the operation id through the normal routing attribute through
+an optional property as shown below (from the Wolverine.HTTP test code):
+
+<!-- snippet: sample_override_operation_id_for_openapi -->
+<a id='snippet-sample_override_operation_id_for_openapi'></a>
+```cs
+// Override the operation id within the generated OpenAPI
+// metadata
+[WolverineGet("/fake/hello/async", OperationId = "OverriddenId")]
+public Task<string> SayHelloAsync()
+{
+    return Task.FromResult("Hello");
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FakeEndpoint.cs#L13-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_operation_id_for_openapi' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## IHttpAware or IEndpointMetadataProvider Models
 
 Wolverine honors the ASP.Net Core [IEndpointMetadataProvider](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.metadata.iendpointmetadataprovider?view=aspnetcore-7.0)

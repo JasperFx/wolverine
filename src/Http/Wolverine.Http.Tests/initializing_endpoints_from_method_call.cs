@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -41,6 +42,20 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
 
         endpoint.RoutePattern.RawText.ShouldBe("/fake/hello");
         endpoint.RoutePattern.Parameters.Any().ShouldBeFalse();
+    }
+
+    [Fact]
+    public void default_operation_id_is_endpoint_class_and_method()
+    {
+        var endpoint = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHello());
+        endpoint.OperationId.ShouldBe($"{typeof(FakeEndpoint).FullNameInCode()}.{nameof(FakeEndpoint.SayHello)}");
+    }
+
+    [Fact]
+    public void override_operation_id_on_attributes()
+    {
+        var endpoint = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHelloAsync());
+        endpoint.OperationId.ShouldBe("OverriddenId");
     }
 
     [Fact]

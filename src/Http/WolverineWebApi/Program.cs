@@ -28,7 +28,15 @@ builder.Services.AddLogging();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+#region sample_register_custom_swashbuckle_filter
+
+builder.Services.AddSwaggerGen(x =>
+{
+    x.OperationFilter<WolverineOperationFilter>();
+});
+
+#endregion
 
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<Broadcaster>();
@@ -118,7 +126,6 @@ app.MapWolverineEndpoints(opts =>
 
         // This adds metadata for OpenAPI
         httpChain.WithMetadata(new CustomMetadata());
-        httpChain.WithTags("wolverine");
     });
     
     // more configuration for HTTP...
@@ -139,10 +146,10 @@ app.MapWolverineEndpoints(opts =>
 #endregion
 
     // Publish messages coming from 
-    opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1");
-    opts.PublishMessage<HttpMessage2>("/publish/message2");
-    opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5");
-    opts.SendMessage<HttpMessage6>("/send/message6");
+    opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1").WithTags("messages");
+    opts.PublishMessage<HttpMessage2>("/publish/message2").WithTags("messages");
+    opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5").WithTags("messages");
+    opts.SendMessage<HttpMessage6>("/send/message6").WithTags("messages");
     
     opts.AddPolicy<StreamCollisionExceptionPolicy>();
 

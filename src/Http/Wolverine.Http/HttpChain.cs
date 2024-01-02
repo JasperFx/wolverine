@@ -56,6 +56,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly HttpGraph _parent;
 
     private readonly List<QuerystringVariable> _querystringVariables = new();
+
+    public string OperationId { get; set; }
     
 
     // Make the assumption that the route argument has to match the parameter name
@@ -93,7 +95,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             {
                 DisplayName = att.Name;
             }
+
+            if (att.OperationId.IsNotEmpty())
+            {
+                OperationId = att.OperationId;
+            }
         }
+
+        OperationId ??= $"{Method.HandlerType.FullNameInCode()}.{Method.Method.Name}";
 
         // Apply attributes and the Configure() method if that exists too
         applyAttributesAndConfigureMethods(_parent.Rules, _parent.Container);

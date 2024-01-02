@@ -64,6 +64,13 @@ public abstract class WolverineHttpMethodAttribute : Attribute
     ///     Name for the route in ASP.Net Core
     /// </summary>
     public string? Name { get; set; }
+    
+    /// <summary>
+    /// Overrides the OperationId property on HttpChain
+    /// Can be used to seed OpenAPI documentation with
+    /// Swashbuckle
+    /// </summary>
+    public string? OperationId { get; set; }
 }
 
 /// <summary>

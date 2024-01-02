@@ -11,6 +11,37 @@ using Microsoft.AspNetCore.Routing.Patterns;
 
 namespace Wolverine.Http;
 
+/// <summary>
+/// Describes a Wolverine HTTP endpoint implementation
+/// </summary>
+public class WolverineActionDescriptor : ActionDescriptor
+{
+    public WolverineActionDescriptor(HttpChain chain)
+    {
+        RouteValues = new Dictionary<string, string?>();
+        RouteValues["controller"] = chain.Method.Method.DeclaringType?.FullNameInCode();
+        RouteValues["action"] = chain.Method.Method.Name;
+        Chain = chain;
+
+        if (chain.Endpoint != null)
+        {
+            EndpointMetadata = chain.Endpoint!.Metadata.ToArray();
+        }
+    }
+
+    public override string? DisplayName
+    {
+        get => Chain.DisplayName;
+        set{}
+    }
+
+    /// <summary>
+    /// The raw Wolverine model of the HTTP endpoint
+    /// </summary>
+    public HttpChain Chain { get; }
+
+}
+
 public partial class HttpChain
 {
     public ApiDescription CreateApiDescription(string httpMethod)
@@ -20,14 +51,7 @@ public partial class HttpChain
             HttpMethod = httpMethod,
             GroupName = Endpoint.Metadata.GetMetadata<IEndpointGroupNameMetadata>()?.EndpointGroupName,
             RelativePath = Endpoint.RoutePattern.RawText?.TrimStart('/'),
-            ActionDescriptor = new ActionDescriptor
-            {
-                DisplayName = Endpoint.DisplayName,
-                RouteValues =
-                {
-                    ["controller"] = Method.Method.DeclaringType?.Namespace ?? Method.Method.Name
-                }
-            }
+            ActionDescriptor = new WolverineActionDescriptor(this)
         };
 
         foreach (var routeParameter in RoutePattern.Parameters)
