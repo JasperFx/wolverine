@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Routing;
@@ -25,6 +26,12 @@ internal class WolverineApiDescriptionProvider : IApiDescriptionProvider
         {
             if (endpoint is RouteEndpoint routeEndpoint && routeEndpoint.Metadata.GetMetadata<HttpChain>() is {} chain)
             {
+                if (chain.Method.HandlerType.HasAttribute<ExcludeFromDescriptionAttribute>() ||
+                    chain.Method.Method.HasAttribute<ExcludeFromDescriptionAttribute>())
+                {
+                    continue;
+                }
+                
                 foreach (var httpMethod in chain.HttpMethods)
                 {
                     context.Results.Add(chain.CreateApiDescription(httpMethod));
