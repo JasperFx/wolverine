@@ -96,10 +96,7 @@ public partial class NodeAgentController
         try
         {
             await _persistence.DeleteAsync(_runtime.Options.UniqueNodeId);
-            if (_runtime.Options.Durability.Mode == DurabilityMode.Balanced)
-            {
-                await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStopped));
-            }
+            await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStopped));
         }
         catch (Exception e)
         {

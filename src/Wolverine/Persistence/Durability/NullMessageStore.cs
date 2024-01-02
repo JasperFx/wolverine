@@ -211,3 +211,91 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         throw new NotSupportedException();
     }
 }
+
+internal class NullNodeAgentPersistence : INodeAgentPersistence
+{
+    public Task ClearAllAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(0);
+    }
+
+    public Task DeleteAsync(Guid nodeId)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult((IReadOnlyList<WolverineNode>)Array.Empty<WolverineNode>());
+    }
+
+    public Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
+    {
+        return Task.FromResult(default(Guid?));
+    }
+
+    public Task<Uri?> FindLeaderControlUriAsync(Guid selfId)
+    {
+        return Task.FromResult(default(Uri?));
+    }
+
+    public Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(default(WolverineNode?));
+    }
+
+    public Task MarkHealthCheckAsync(Guid nodeId)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
+    {
+        return Task.FromResult((IReadOnlyList<Uri>)Array.Empty<Uri>());
+    }
+
+    public Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime, CancellationToken cancellation)
+    {
+        return Task.FromResult((IReadOnlyList<WolverineNode>)Array.Empty<WolverineNode>());
+    }
+
+    public Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
+    {
+        return Task.FromResult((IReadOnlyList<int>)Array.Empty<int>());
+    }
+
+    public Task LogRecordsAsync(params NodeRecord[] records)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
+    {
+        return Task.FromResult((IReadOnlyList<NodeRecord>)Array.Empty<NodeRecord>());
+    }
+}

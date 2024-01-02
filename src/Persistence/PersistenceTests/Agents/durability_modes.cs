@@ -157,9 +157,9 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should NOT have a system queue for internal node management messages
         runtime.SystemQueue.ShouldBeNull();
         
-        // verify that there's a persisted node
+        // verify that there's NOT a persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
-        node.ShouldNotBeNull();
+        node.ShouldBeNull();
         
         // All agents should be running here
         await _host.WaitUntilAssignmentsChangeTo(w =>

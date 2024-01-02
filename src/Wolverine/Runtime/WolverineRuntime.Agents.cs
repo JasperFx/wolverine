@@ -128,7 +128,11 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private void startNodeAgentController()
     {
-        NodeController = new NodeAgentController(this, Tracker, Storage.Nodes, _container.GetAllInstances<IAgentFamily>(),
+        INodeAgentPersistence nodePersistence = Options.Durability.Mode == DurabilityMode.Balanced
+            ? Storage.Nodes
+            : new NullNodeAgentPersistence();
+        
+        NodeController = new NodeAgentController(this, Tracker, nodePersistence, _container.GetAllInstances<IAgentFamily>(),
             LoggerFactory.CreateLogger<NodeAgentController>(), Options.Durability.Cancellation);
 
         NodeController.AddHandlers(this);
