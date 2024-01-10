@@ -37,7 +37,7 @@ public sealed partial class WolverineOptions
 
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
-        CodeGeneration.Assemblies.Add(GetType().GetTypeInfo().Assembly);
+        CodeGeneration.Assemblies.Add(GetType().Assembly);
 
         establishApplicationAssembly(assemblyName);
 

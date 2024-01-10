@@ -110,19 +110,19 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     {
         var handlers = HandlerCalls();
         var configureMethods = handlers.Select(x => x.HandlerType).Distinct()
-            .SelectMany(x => x.GetTypeInfo().GetMethods())
+            .SelectMany(x => x.GetMethods())
             .Where(isConfigureMethod);
 
         foreach (var method in configureMethods) method.Invoke(null, new object[] { this });
 
-        var handlerAtts = handlers.SelectMany(x => x.HandlerType.GetTypeInfo()
+        var handlerAtts = handlers.SelectMany(x => x.HandlerType
             .GetCustomAttributes<TModifyAttribute>());
 
         var methodAtts = handlers.SelectMany(x => x.Method.GetCustomAttributes<TModifyAttribute>());
 
         foreach (var attribute in handlerAtts.Concat(methodAtts)) attribute.Modify(this.As<TChain>(), rules);
 
-        var genericHandlerAtts = handlers.SelectMany(x => x.HandlerType.GetTypeInfo()
+        var genericHandlerAtts = handlers.SelectMany(x => x.HandlerType
             .GetCustomAttributes<ModifyChainAttribute>());
 
         var genericMethodAtts = handlers.SelectMany(x => x.Method.GetCustomAttributes<ModifyChainAttribute>());
