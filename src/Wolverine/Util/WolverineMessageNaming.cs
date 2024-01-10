@@ -67,7 +67,7 @@ internal class FullTypeNaming : IMessageTypeNaming
     public bool TryDetermineName(Type messageType, out string messageTypeName)
     {
         var nameToAlias = messageType.FullName;
-        if (messageType.GetTypeInfo().IsGenericType)
+        if (messageType.IsGenericType)
         {
             nameToAlias = _aliasSanitizer.Replace(messageType.GetPrettyName(), string.Empty);
         }
@@ -131,7 +131,7 @@ public static class WolverineMessageNaming
 
     public static string GetPrettyName(this Type t)
     {
-        if (!t.GetTypeInfo().IsGenericType)
+        if (!t.IsGenericType)
         {
             return t.Name;
         }
@@ -139,7 +139,7 @@ public static class WolverineMessageNaming
         var sb = new StringBuilder();
 
         sb.Append(t.Name.Substring(0, t.Name.LastIndexOf("`", StringComparison.Ordinal)));
-        sb.Append(t.GetTypeInfo().GetGenericArguments().Aggregate("<",
+        sb.Append(t.GetGenericArguments().Aggregate("<",
             (aggregate, type) => aggregate + (aggregate == "<" ? "" : ",") + GetPrettyName(type)));
         sb.Append(">");
 

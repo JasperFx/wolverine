@@ -15,7 +15,7 @@ internal class BusHostInfo
         var entryAssembly = System.Reflection.Assembly.GetEntryAssembly() ??
                             System.Reflection.Assembly.GetCallingAssembly();
         MachineName = Environment.MachineName;
-        MassTransitVersion = typeof(BusHostInfo).GetTypeInfo().Assembly.GetName().Version?.ToString();
+        MassTransitVersion = typeof(BusHostInfo).Assembly.GetName().Version?.ToString();
 
         try
         {

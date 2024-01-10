@@ -331,11 +331,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
             applyAttributesAndConfigureMethods(rules, container);
 
-            foreach (var attribute in MessageType.GetTypeInfo()
+            foreach (var attribute in MessageType
                          .GetCustomAttributes(typeof(ModifyHandlerChainAttribute))
                          .OfType<ModifyHandlerChainAttribute>()) attribute.Modify(this, rules);
 
-            foreach (var attribute in MessageType.GetTypeInfo().GetCustomAttributes(typeof(ModifyChainAttribute))
+            foreach (var attribute in MessageType.GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
         }
 
