@@ -68,6 +68,16 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         add(e => e.MessageBatchSize = batchSize);
         return this.As<T>();
     }
+    
+    /// <summary>
+    /// For endpoints that send messages in batches, this governs the maximum number
+    /// of concurrent outgoing batches 
+    /// </summary>
+    public T MessageBatchMaxDegreeOfParallelism(int batchMaxDegreeOfParallelism)
+    {
+        add(e => e.MessageBatchMaxDegreeOfParallelism = batchMaxDegreeOfParallelism);
+        return this.As<T>();
+    }
 
     public T DefaultSerializer(IMessageSerializer serializer)
     {
