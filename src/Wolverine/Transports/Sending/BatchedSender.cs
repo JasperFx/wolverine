@@ -29,7 +29,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
 
         _sender = new ActionBlock<OutgoingMessageBatch>(SendBatchAsync, new ExecutionDataflowBlockOptions
         {
-            MaxDegreeOfParallelism = 1,
+            MaxDegreeOfParallelism = destination.MessageBatchMaxDegreeOfParallelism,
             CancellationToken = _cancellation,
             BoundedCapacity = DataflowBlockOptions.Unbounded
         });
