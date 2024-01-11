@@ -234,7 +234,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChaosSender", "src\Samples\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http.Marten", "src\Http\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj", "{A484AD9E-04C7-4CF9-BB59-5C7DE772851C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenApiDemonstrator", "src\http\OpenApiDemonstrator\OpenApiDemonstrator.csproj", "{4FA38CED-74C9-4969-83B2-6BD54F245E6C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenApiDemonstrator", "src\Http\OpenApiDemonstrator\OpenApiDemonstrator.csproj", "{4FA38CED-74C9-4969-83B2-6BD54F245E6C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
