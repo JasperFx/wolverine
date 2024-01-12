@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
+using Wolverine.Http.Resources;
 using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Middleware;
@@ -100,6 +101,8 @@ public class WolverineHttpOptions
 
     public List<IHttpPolicy> Policies { get; } = new();
 
+    public List<IResourceWriterPolicy> ResourceWriterPolicies { get; } = new();
+
     /// <summary>
     /// Configure built in tenant id detection strategies
     /// </summary>
@@ -155,6 +158,16 @@ public class WolverineHttpOptions
     public void AddPolicy<T>() where T : IHttpPolicy, new()
     {
         Policies.Add(new T());
+    }
+    
+    
+    /// <summary>
+    ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void AddResourceWriterPolicy<T>() where T : IResourceWriterPolicy, new()
+    {
+        ResourceWriterPolicies.Add(new T());
     }
 
     /// <summary>
