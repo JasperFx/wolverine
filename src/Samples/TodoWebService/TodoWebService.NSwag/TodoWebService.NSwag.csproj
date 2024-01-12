@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFrameworks>net8.0</TargetFrameworks>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<!-- This can be used to generate an NSwag client -->
+		<!-- <OpenApiGenerateDocumentsOnBuild>true</OpenApiGenerateDocumentsOnBuild> -->
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Include="..\TodoWebService\Endpoints.cs" Link="Endpoints.cs" />
+		<Compile Include="..\TodoWebService\HelloEndpoint.cs" Link="HelloEndpoint.cs" />
+		<Compile Include="..\TodoWebService\TodoListEndpoint.cs" Link="TodoListEndpoint.cs" />
+		<None Include="..\TodoWebService\README.md" Link="README.md" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- 
+			To use OpenApiGenerateDocumentsOnBuild with Wolverine, upgrade Microsoft.Extensions.ApiDescription.Server (transitive NSwag dependency).
+			See also: https://github.com/RicoSuter/NSwag/issues/3403 
+		-->
+		<!-- <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" Version="8.0.1"> -->
+		<!-- 	<PrivateAssets>all</PrivateAssets> -->
+		<!-- 	<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets> -->
+		<!-- </PackageReference> -->
+		<PackageReference Include="NSwag.AspNetCore" Version="14.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
+		<ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+	</ItemGroup>
+
+</Project>

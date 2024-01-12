@@ -1,248 +1,247 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30114.105
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34408.163
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine", "src\Wolverine\Wolverine.csproj", "{C61E1BA2-5C3A-4319-9212-F0CA1514A205}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine", "src\Wolverine\Wolverine.csproj", "{C61E1BA2-5C3A-4319-9212-F0CA1514A205}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Testing", "Testing", "{96119B5E-B5F0-400A-9580-B342EBE26212}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestingSupport", "src\Testing\TestingSupport\TestingSupport.csproj", "{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestingSupport", "src\Testing\TestingSupport\TestingSupport.csproj", "{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoreTests", "src\Testing\CoreTests\CoreTests.csproj", "{76B3D37E-E3DC-4F6D-B20D-D27DFBD716F7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CoreTests", "src\Testing\CoreTests\CoreTests.csproj", "{76B3D37E-E3DC-4F6D-B20D-D27DFBD716F7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderExtension", "src\Testing\OrderExtension\OrderExtension.csproj", "{3991BE77-2223-4CBA-B223-973CA49938F8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrderExtension", "src\Testing\OrderExtension\OrderExtension.csproj", "{3991BE77-2223-4CBA-B223-973CA49938F8}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Persistence", "Persistence", "{7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.RDBMS", "src\Persistence\Wolverine.RDBMS\Wolverine.RDBMS.csproj", "{6ED2C542-265E-464A-911C-D74476F75740}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.RDBMS", "src\Persistence\Wolverine.RDBMS\Wolverine.RDBMS.csproj", "{6ED2C542-265E-464A-911C-D74476F75740}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Marten", "src\Persistence\Wolverine.Marten\Wolverine.Marten.csproj", "{00FF6FFE-7B23-4DD3-BC95-6908072F357E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Marten", "src\Persistence\Wolverine.Marten\Wolverine.Marten.csproj", "{00FF6FFE-7B23-4DD3-BC95-6908072F357E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Postgresql", "src\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj", "{6850F1A0-FA56-4C43-A860-0F0BDAD6187D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Postgresql", "src\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj", "{6850F1A0-FA56-4C43-A860-0F0BDAD6187D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.SqlServer", "src\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj", "{EFEB9600-F513-48AD-8F4B-D8994B9182CA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.SqlServer", "src\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj", "{EFEB9600-F513-48AD-8F4B-D8994B9182CA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PersistenceTests", "src\Persistence\PersistenceTests\PersistenceTests.csproj", "{9CF0B286-90B6-4A2E-BB93-CE17BA822757}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PersistenceTests", "src\Persistence\PersistenceTests\PersistenceTests.csproj", "{9CF0B286-90B6-4A2E-BB93-CE17BA822757}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Transports", "Transports", "{84D32C8B-9CCE-4925-9AEC-8F445C7A2E3D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{D953D733-D154-4DF2-B2B9-30BF942E1B6B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Module1", "src\Testing\Module1\Module1.csproj", "{712FCA00-FEAC-495B-85E4-ED2FCE2F43E7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Module1", "src\Testing\Module1\Module1.csproj", "{712FCA00-FEAC-495B-85E4-ED2FCE2F43E7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommandBus", "src\Samples\CommandBus\CommandBus.csproj", "{356D46CF-6006-49FE-AD07-CFE212CA2BDC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CommandBus", "src\Samples\CommandBus\CommandBus.csproj", "{356D46CF-6006-49FE-AD07-CFE212CA2BDC}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CQRSWithMarten", "CQRSWithMarten", "{BA2F4808-DB5C-4B3D-953C-0AA441AC2987}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TeleHealth.Backend", "src\Samples\CQRSWithMarten\TeleHealth.Backend\TeleHealth.Backend.csproj", "{E36A8B0E-38EB-4054-AFB9-FE8461FA9B56}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeleHealth.Backend", "src\Samples\CQRSWithMarten\TeleHealth.Backend\TeleHealth.Backend.csproj", "{E36A8B0E-38EB-4054-AFB9-FE8461FA9B56}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TeleHealth.Common", "src\Samples\CQRSWithMarten\TeleHealth.Common\TeleHealth.Common.csproj", "{F2D003CC-D471-4888-8224-F90B58A2A51F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeleHealth.Common", "src\Samples\CQRSWithMarten\TeleHealth.Common\TeleHealth.Common.csproj", "{F2D003CC-D471-4888-8224-F90B58A2A51F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TeleHealth.Tests", "src\Samples\CQRSWithMarten\TeleHealth.Tests\TeleHealth.Tests.csproj", "{0241A677-B90A-44C2-A3CF-5A6A40A4AF4E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeleHealth.Tests", "src\Samples\CQRSWithMarten\TeleHealth.Tests\TeleHealth.Tests.csproj", "{0241A677-B90A-44C2-A3CF-5A6A40A4AF4E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TeleHealth.WebApi", "src\Samples\CQRSWithMarten\TeleHealth.WebApi\TeleHealth.WebApi.csproj", "{BB2B1BF3-316E-46EC-AC48-634160E81149}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeleHealth.WebApi", "src\Samples\CQRSWithMarten\TeleHealth.WebApi\TeleHealth.WebApi.csproj", "{BB2B1BF3-316E-46EC-AC48-634160E81149}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentationSamples", "src\Samples\DocumentationSamples\DocumentationSamples.csproj", "{806CCDA3-1322-4FD5-B986-563A5A1FD157}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DocumentationSamples", "src\Samples\DocumentationSamples\DocumentationSamples.csproj", "{806CCDA3-1322-4FD5-B986-563A5A1FD157}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InMemoryMediator", "src\Samples\InMemoryMediator\InMemoryMediator.csproj", "{18DD9E1E-DFF6-4BF6-A309-8532B7F301FB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InMemoryMediator", "src\Samples\InMemoryMediator\InMemoryMediator.csproj", "{18DD9E1E-DFF6-4BF6-A309-8532B7F301FB}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "KitchenSink", "KitchenSink", "{68B9476F-412C-44F5-86F1-3E9C06935C97}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MartenAndRabbitEmailService", "src\Samples\KitchenSink\MartenAndRabbitEmailService\MartenAndRabbitEmailService.csproj", "{9AA81B40-D973-49EB-8A95-8441707268C1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MartenAndRabbitEmailService", "src\Samples\KitchenSink\MartenAndRabbitEmailService\MartenAndRabbitEmailService.csproj", "{9AA81B40-D973-49EB-8A95-8441707268C1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MartenAndRabbitIssueService", "src\Samples\KitchenSink\MartenAndRabbitIssueService\MartenAndRabbitIssueService.csproj", "{386A2A1F-E923-40E4-9A4C-92391AE29502}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MartenAndRabbitIssueService", "src\Samples\KitchenSink\MartenAndRabbitIssueService\MartenAndRabbitIssueService.csproj", "{386A2A1F-E923-40E4-9A4C-92391AE29502}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MartenAndRabbitMessages", "src\Samples\KitchenSink\MartenAndRabbitMessages\MartenAndRabbitMessages.csproj", "{7C430B1E-880A-4E9B-A826-6BCBA9183C29}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MartenAndRabbitMessages", "src\Samples\KitchenSink\MartenAndRabbitMessages\MartenAndRabbitMessages.csproj", "{7C430B1E-880A-4E9B-A826-6BCBA9183C29}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderSagaSample", "src\Samples\OrderSagaSample\OrderSagaSample.csproj", "{6ACCD616-C165-4D92-A6E0-8070C26BC6C4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrderSagaSample", "src\Samples\OrderSagaSample\OrderSagaSample.csproj", "{6ACCD616-C165-4D92-A6E0-8070C26BC6C4}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PingPong", "PingPong", "{3C152F85-B9BE-40E5-A4AF-EF03DC96DE17}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Messages", "src\Samples\PingPong\Messages\Messages.csproj", "{3C401613-DFD3-4EF7-A085-150F16727FD4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Messages", "src\Samples\PingPong\Messages\Messages.csproj", "{3C401613-DFD3-4EF7-A085-150F16727FD4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pinger", "src\Samples\PingPong\Pinger\Pinger.csproj", "{E202C1F9-34A2-4778-9943-FAC44868DDC2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pinger", "src\Samples\PingPong\Pinger\Pinger.csproj", "{E202C1F9-34A2-4778-9943-FAC44868DDC2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ponger", "src\Samples\PingPong\Ponger\Ponger.csproj", "{AE8766B0-3168-4FBD-AAF6-E2DAF7F3D009}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ponger", "src\Samples\PingPong\Ponger\Ponger.csproj", "{AE8766B0-3168-4FBD-AAF6-E2DAF7F3D009}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PingPongWithRabbitMq", "PingPongWithRabbitMq", "{77430826-FF01-4D14-A0B5-2B544872F252}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pinger", "src\Samples\PingPongWithRabbitMq\Pinger\Pinger.csproj", "{49A3EB4F-1488-4AC5-93FB-D259E4A5326D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pinger", "src\Samples\PingPongWithRabbitMq\Pinger\Pinger.csproj", "{49A3EB4F-1488-4AC5-93FB-D259E4A5326D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ponger", "src\Samples\PingPongWithRabbitMq\Ponger\Ponger.csproj", "{32122415-00BB-4513-A30E-648FA5AC1C2E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ponger", "src\Samples\PingPongWithRabbitMq\Ponger\Ponger.csproj", "{32122415-00BB-4513-A30E-648FA5AC1C2E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quickstart", "src\Samples\Quickstart\Quickstart.csproj", "{317567E6-9AEB-4ABD-80AA-55ADE710F01A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Quickstart", "src\Samples\Quickstart\Quickstart.csproj", "{317567E6-9AEB-4ABD-80AA-55ADE710F01A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebApiWithMarten", "src\Samples\WebApiWithMarten\WebApiWithMarten.csproj", "{57DA3CBC-7337-4BE5-8737-DACD066EC043}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebApiWithMarten", "src\Samples\WebApiWithMarten\WebApiWithMarten.csproj", "{57DA3CBC-7337-4BE5-8737-DACD066EC043}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "OpenTelemetry", "OpenTelemetry", "{0676FAFE-9E98-4723-84D3-74450BB9BA21}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OtelMessages", "src\Testing\OpenTelemetry\OtelMessages\OtelMessages.csproj", "{8EB941B2-9265-44C5-B58C-C9C4B6ADD7CE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OtelMessages", "src\Testing\OpenTelemetry\OtelMessages\OtelMessages.csproj", "{8EB941B2-9265-44C5-B58C-C9C4B6ADD7CE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OtelWebApi", "src\Testing\OpenTelemetry\OtelWebApi\OtelWebApi.csproj", "{2D98B315-03F7-43E0-96FF-B45DA8CCBC84}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OtelWebApi", "src\Testing\OpenTelemetry\OtelWebApi\OtelWebApi.csproj", "{2D98B315-03F7-43E0-96FF-B45DA8CCBC84}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Subscriber1", "src\Testing\OpenTelemetry\Subscriber1\Subscriber1.csproj", "{FE227CDD-DCA9-4B28-9B4F-B809D0012E48}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Subscriber1", "src\Testing\OpenTelemetry\Subscriber1\Subscriber1.csproj", "{FE227CDD-DCA9-4B28-9B4F-B809D0012E48}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Subscriber2", "src\Testing\OpenTelemetry\Subscriber2\Subscriber2.csproj", "{4BE7FE28-5764-43EE-9D7B-6D53A9B58F53}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Subscriber2", "src\Testing\OpenTelemetry\Subscriber2\Subscriber2.csproj", "{4BE7FE28-5764-43EE-9D7B-6D53A9B58F53}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TracingTests", "src\Testing\OpenTelemetry\TracingTests\TracingTests.csproj", "{3246F150-2653-4093-86E6-617D22F08A03}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TracingTests", "src\Testing\OpenTelemetry\TracingTests\TracingTests.csproj", "{3246F150-2653-4093-86E6-617D22F08A03}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.EntityFrameworkCore", "src\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj", "{EFD8CCE3-BF02-4EA4-8859-DF02692E08C8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.EntityFrameworkCore", "src\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj", "{EFD8CCE3-BF02-4EA4-8859-DF02692E08C8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OptimizedArtifactWorkflowSample", "src\Samples\OptimizedArtifactWorkflowSample\OptimizedArtifactWorkflowSample.csproj", "{3D535F13-5F10-46B1-B68C-A37E6DBA8A9B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OptimizedArtifactWorkflowSample", "src\Samples\OptimizedArtifactWorkflowSample\OptimizedArtifactWorkflowSample.csproj", "{3D535F13-5F10-46B1-B68C-A37E6DBA8A9B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Extensions", "Extensions", "{F429686D-BB41-4E1C-A84E-518F8A289AEF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.FluentValidation", "src\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj", "{2348222B-ECFA-46EB-9956-E6500C1B7AF0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.FluentValidation", "src\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj", "{2348222B-ECFA-46EB-9956-E6500C1B7AF0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.FluentValidation.Tests", "src\Extensions\Wolverine.FluentValidation.Tests\Wolverine.FluentValidation.Tests.csproj", "{13882AAB-B2EC-48E0-8D11-20810DDB7516}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.FluentValidation.Tests", "src\Extensions\Wolverine.FluentValidation.Tests\Wolverine.FluentValidation.Tests.csproj", "{13882AAB-B2EC-48E0-8D11-20810DDB7516}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Middleware", "Middleware", "{1FC63454-ADB1-48A8-8B2C-3635AAE97126}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppWithMiddleware", "src\Samples\Middleware\AppWithMiddleware\AppWithMiddleware.csproj", "{4819C739-6312-4DA5-8C30-CD3313F3B49B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AppWithMiddleware", "src\Samples\Middleware\AppWithMiddleware\AppWithMiddleware.csproj", "{4819C739-6312-4DA5-8C30-CD3313F3B49B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppWithMiddleware.Tests", "src\Samples\Middleware\AppWithMiddleware.Tests\AppWithMiddleware.Tests.csproj", "{53B3D48F-D6CE-4292-856F-AB369844FF4C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AppWithMiddleware.Tests", "src\Samples\Middleware\AppWithMiddleware.Tests\AppWithMiddleware.Tests.csproj", "{53B3D48F-D6CE-4292-856F-AB369844FF4C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".SolutionItems", ".SolutionItems", "{51B05E49-D96B-45BB-AA24-C3F37C143727}"
 	ProjectSection(SolutionItems) = preProject
-		Directory.Build.props = Directory.Build.props
 		Analysis.Build.props = Analysis.Build.props
+		Directory.Build.props = Directory.Build.props
+		docker-compose.yml = docker-compose.yml
+		.github\workflows\docs.yml = .github\workflows\docs.yml
+		.github\workflows\dotnet.yml = .github\workflows\dotnet.yml
 		global.json = global.json
 		mdsnippets.json = mdsnippets.json
-		README.md = README.md
-		docker-compose.yml = docker-compose.yml
 		.github\workflows\publish_nugets.yml = .github\workflows\publish_nugets.yml
-		.github\workflows\dotnet.yml = .github\workflows\dotnet.yml
-		.github\workflows\docs.yml = .github\workflows\docs.yml
+		README.md = README.md
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MemoryPack", "src\Extensions\Wolverine.MemoryPack\Wolverine.MemoryPack.csproj", "{469A2C91-64B4-439B-9097-05499770FFB3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.MemoryPack", "src\Extensions\Wolverine.MemoryPack\Wolverine.MemoryPack.csproj", "{469A2C91-64B4-439B-9097-05499770FFB3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MemoryPack.Tests", "src\Extensions\Wolverine.MemoryPack.Tests\Wolverine.MemoryPack.Tests.csproj", "{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.MemoryPack.Tests", "src\Extensions\Wolverine.MemoryPack.Tests\Wolverine.MemoryPack.Tests.csproj", "{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "EFCoreSample", "EFCoreSample", "{D7E65E36-A803-4240-A049-659BC93627F3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ItemService", "src\Samples\EFCoreSample\ItemService\ItemService.csproj", "{CF735D62-B33E-4E3D-9045-43850531F867}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ItemService", "src\Samples\EFCoreSample\ItemService\ItemService.csproj", "{CF735D62-B33E-4E3D-9045-43850531F867}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ItemService.Tests", "src\Samples\EFCoreSample\ItemService.Tests\ItemService.Tests.csproj", "{055A5C37-ECAA-4111-9AB9-FC7C85B86222}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ItemService.Tests", "src\Samples\EFCoreSample\ItemService.Tests\ItemService.Tests.csproj", "{055A5C37-ECAA-4111-9AB9-FC7C85B86222}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Http", "Http", "{4B0BC1E5-17F9-4DD0-AC93-DDC522E1BE3C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http", "src\Http\Wolverine.Http\Wolverine.Http.csproj", "{4DF54E7E-3BC2-4B16-9296-C2E198EF1E09}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Http", "src\Http\Wolverine.Http\Wolverine.Http.csproj", "{4DF54E7E-3BC2-4B16-9296-C2E198EF1E09}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http.Tests", "src\Http\Wolverine.Http.Tests\Wolverine.Http.Tests.csproj", "{77323165-5363-4FFD-B00C-9385DDE3DCB4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Http.Tests", "src\Http\Wolverine.Http.Tests\Wolverine.Http.Tests.csproj", "{77323165-5363-4FFD-B00C-9385DDE3DCB4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WolverineWebApi", "src\Http\WolverineWebApi\WolverineWebApi.csproj", "{4B60B80B-48AC-4628-90D4-35BE8D959988}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WolverineWebApi", "src\Http\WolverineWebApi\WolverineWebApi.csproj", "{4B60B80B-48AC-4628-90D4-35BE8D959988}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TodoWebService", "TodoWebService", "{52628041-CDDB-48AE-B8A7-007D4563CFEC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TodoWebService", "src\Samples\TodoWebService\TodoWebService\TodoWebService.csproj", "{9A9ECFF6-520C-4067-B946-1904D4A51550}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TodoWebService", "src\Samples\TodoWebService\TodoWebService\TodoWebService.csproj", "{9A9ECFF6-520C-4067-B946-1904D4A51550}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TodoWebServiceTests", "src\Samples\TodoWebService\TodoWebServiceTests\TodoWebServiceTests.csproj", "{234B46D6-9EA9-43A7-852C-C3F7124FBDE9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TodoWebServiceTests", "src\Samples\TodoWebService\TodoWebServiceTests\TodoWebServiceTests.csproj", "{234B46D6-9EA9-43A7-852C-C3F7124FBDE9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Module2", "src\Testing\Module2\Module2.csproj", "{8E9DF445-9191-4CF7-B606-248229F3CB23}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Module2", "src\Testing\Module2\Module2.csproj", "{8E9DF445-9191-4CF7-B606-248229F3CB23}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Diagnostics", "Diagnostics", "{DCF93293-FDC0-4483-9281-BFD5BD7B125C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiagnosticsApp", "src\Samples\Diagnostics\DiagnosticsApp\DiagnosticsApp.csproj", "{47FF7E31-4AA1-48C1-B90C-916C42623629}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DiagnosticsApp", "src\Samples\Diagnostics\DiagnosticsApp\DiagnosticsApp.csproj", "{47FF7E31-4AA1-48C1-B90C-916C42623629}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiagnosticsTests", "src\Samples\Diagnostics\DiagnosticsTests\DiagnosticsTests.csproj", "{73BAE655-BFE7-458F-B96E-E9FC054ADBA5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DiagnosticsTests", "src\Samples\Diagnostics\DiagnosticsTests\DiagnosticsTests.csproj", "{73BAE655-BFE7-458F-B96E-E9FC054ADBA5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiagnosticsModule", "src\Samples\Diagnostics\DiagnosticsModule\DiagnosticsModule.csproj", "{D70EF204-4913-4007-9929-5EB49E2F578A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DiagnosticsModule", "src\Samples\Diagnostics\DiagnosticsModule\DiagnosticsModule.csproj", "{D70EF204-4913-4007-9929-5EB49E2F578A}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TestHarness", "TestHarness", "{29803A34-9F89-456D-AD67-C80CF43A5E7E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BankingService", "src\Samples\TestHarness\BankingService\BankingService.csproj", "{5B541CD6-7982-4BE3-9999-E950E0A73F10}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BankingService", "src\Samples\TestHarness\BankingService\BankingService.csproj", "{5B541CD6-7982-4BE3-9999-E950E0A73F10}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BankingService.Tests", "src\Samples\TestHarness\BankingService.Tests\BankingService.Tests.csproj", "{07EC869F-89F4-4277-94FC-6CFFA391FF63}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BankingService.Tests", "src\Samples\TestHarness\BankingService.Tests\BankingService.Tests.csproj", "{07EC869F-89F4-4277-94FC-6CFFA391FF63}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http.FluentValidation", "src\Http\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj", "{02FAB18B-BD65-4F93-9B76-BCE0A8111FB8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Http.FluentValidation", "src\Http\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj", "{02FAB18B-BD65-4F93-9B76-BCE0A8111FB8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlowTests", "src\Testing\SlowTests\SlowTests.csproj", "{0817E7C3-A97D-4513-8B97-7317364D3C41}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SlowTests", "src\Testing\SlowTests\SlowTests.csproj", "{0817E7C3-A97D-4513-8B97-7317364D3C41}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MessagePack", "src\Extensions\Wolverine.MessagePack\Wolverine.MessagePack.csproj", "{1F8B20E2-6863-43F3-BD01-56F0B1054A90}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.MessagePack", "src\Extensions\Wolverine.MessagePack\Wolverine.MessagePack.csproj", "{1F8B20E2-6863-43F3-BD01-56F0B1054A90}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MessagePack.Tests", "src\Extensions\Wolverine.MessagePack.Tests\Wolverine.MessagePack.Tests.csproj", "{6575C65A-D859-4179-8EF0-ED03D1CDAAF0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.MessagePack.Tests", "src\Extensions\Wolverine.MessagePack.Tests\Wolverine.MessagePack.Tests.csproj", "{6575C65A-D859-4179-8EF0-ED03D1CDAAF0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PolicyTests", "src\Testing\PolicyTests\PolicyTests.csproj", "{8A59EF24-A6A1-4D8C-89DA-2C33AC16B3B8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PolicyTests", "src\Testing\PolicyTests\PolicyTests.csproj", "{8A59EF24-A6A1-4D8C-89DA-2C33AC16B3B8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScheduledJobTests", "src\Persistence\ScheduledJobTests\ScheduledJobTests.csproj", "{08E93343-8314-4DCC-8AE9-F5D8C4C6482F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScheduledJobTests", "src\Persistence\ScheduledJobTests\ScheduledJobTests.csproj", "{08E93343-8314-4DCC-8AE9-F5D8C4C6482F}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RabbitMQ", "RabbitMQ", "{FFA5D61B-D6F7-4113-9B59-21C261DA919F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.RabbitMQ", "src\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj", "{42769A54-BE7F-4093-BE96-6E3322C83E98}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.RabbitMQ", "src\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj", "{42769A54-BE7F-4093-BE96-6E3322C83E98}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.RabbitMQ.Tests", "src\Transports\RabbitMQ\Wolverine.RabbitMQ.Tests\Wolverine.RabbitMQ.Tests.csproj", "{ED818FA4-1012-4C62-BC2B-0AEE3986425D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.RabbitMQ.Tests", "src\Transports\RabbitMQ\Wolverine.RabbitMQ.Tests\Wolverine.RabbitMQ.Tests.csproj", "{ED818FA4-1012-4C62-BC2B-0AEE3986425D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MassTransitRabbitMqService", "src\Transports\RabbitMQ\MassTransitRabbitMqService\MassTransitRabbitMqService.csproj", "{78176781-2678-4A64-9EB9-1697B36F8479}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MassTransitRabbitMqService", "src\Transports\RabbitMQ\MassTransitRabbitMqService\MassTransitRabbitMqService.csproj", "{78176781-2678-4A64-9EB9-1697B36F8479}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NServiceBusRabbitMqService", "src\Transports\RabbitMQ\NServiceBusRabbitMqService\NServiceBusRabbitMqService.csproj", "{D312DE3D-4CAD-4EA4-8DCD-70A8291F6992}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NServiceBusRabbitMqService", "src\Transports\RabbitMQ\NServiceBusRabbitMqService\NServiceBusRabbitMqService.csproj", "{D312DE3D-4CAD-4EA4-8DCD-70A8291F6992}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChaosTesting", "src\Transports\RabbitMQ\ChaosTesting\ChaosTesting.csproj", "{F021E1B6-81C7-4C18-9051-BF91948CEC31}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ChaosTesting", "src\Transports\RabbitMQ\ChaosTesting\ChaosTesting.csproj", "{F021E1B6-81C7-4C18-9051-BF91948CEC31}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CircuitBreakingTests", "src\Transports\RabbitMQ\CircuitBreakingTests\CircuitBreakingTests.csproj", "{BF377A3C-105C-492A-AA76-D6ABB097EC82}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CircuitBreakingTests", "src\Transports\RabbitMQ\CircuitBreakingTests\CircuitBreakingTests.csproj", "{BF377A3C-105C-492A-AA76-D6ABB097EC82}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InteropTests", "src\Transports\RabbitMQ\InteropTests\InteropTests.csproj", "{894D694A-410F-4FE1-80D2-D8B3F06ABA69}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InteropTests", "src\Transports\RabbitMQ\InteropTests\InteropTests.csproj", "{894D694A-410F-4FE1-80D2-D8B3F06ABA69}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Pulsar", "Pulsar", "{2ED4563B-740C-4102-8E4C-F4B047104229}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Pulsar", "src\Transports\Pulsar\Wolverine.Pulsar\Wolverine.Pulsar.csproj", "{2363437A-1965-4316-8D33-79EA6E4D86A9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Pulsar", "src\Transports\Pulsar\Wolverine.Pulsar\Wolverine.Pulsar.csproj", "{2363437A-1965-4316-8D33-79EA6E4D86A9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Pulsar.Tests", "src\Transports\Pulsar\Wolverine.Pulsar.Tests\Wolverine.Pulsar.Tests.csproj", "{7AABB5FF-A93E-468F-A7F8-D16B876589BD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Pulsar.Tests", "src\Transports\Pulsar\Wolverine.Pulsar.Tests\Wolverine.Pulsar.Tests.csproj", "{7AABB5FF-A93E-468F-A7F8-D16B876589BD}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AWS", "AWS", "{ABE5F332-6709-4EDF-B88A-39DB96542B18}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AmazonSqs", "src\Transports\AWS\Wolverine.AmazonSqs\Wolverine.AmazonSqs.csproj", "{76BD802A-74DE-4E27-AF3F-34173D1CFF62}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.AmazonSqs", "src\Transports\AWS\Wolverine.AmazonSqs\Wolverine.AmazonSqs.csproj", "{76BD802A-74DE-4E27-AF3F-34173D1CFF62}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AmazonSqs.Tests", "src\Transports\AWS\Wolverine.AmazonSqs.Tests\Wolverine.AmazonSqs.Tests.csproj", "{56C404E9-9B7F-424C-AC47-7B67366DE2CF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.AmazonSqs.Tests", "src\Transports\AWS\Wolverine.AmazonSqs.Tests\Wolverine.AmazonSqs.Tests.csproj", "{56C404E9-9B7F-424C-AC47-7B67366DE2CF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Azure", "Azure", "{9877471A-3D66-4279-8C57-FCA6CACF4C48}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AzureServiceBus", "src\Transports\Azure\Wolverine.AzureServiceBus\Wolverine.AzureServiceBus.csproj", "{1FD88857-4571-4DC4-80A9-F40E2CFAE274}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.AzureServiceBus", "src\Transports\Azure\Wolverine.AzureServiceBus\Wolverine.AzureServiceBus.csproj", "{1FD88857-4571-4DC4-80A9-F40E2CFAE274}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AzureServiceBus.Tests", "src\Transports\Azure\Wolverine.AzureServiceBus.Tests\Wolverine.AzureServiceBus.Tests.csproj", "{723E0112-1BCC-4FCF-A5C9-D61C381771AC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.AzureServiceBus.Tests", "src\Transports\Azure\Wolverine.AzureServiceBus.Tests\Wolverine.AzureServiceBus.Tests.csproj", "{723E0112-1BCC-4FCF-A5C9-D61C381771AC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RabbitMqBootstrapping", "src\Transports\RabbitMQ\RabbitMqBootstrapping\RabbitMqBootstrapping.csproj", "{83743B8A-E4DF-4DCE-81C5-7708F342A18A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RabbitMqBootstrapping", "src\Transports\RabbitMQ\RabbitMqBootstrapping\RabbitMqBootstrapping.csproj", "{83743B8A-E4DF-4DCE-81C5-7708F342A18A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrderEventSourcingSample", "src\Persistence\OrderEventSourcingSample\OrderEventSourcingSample.csproj", "{97EB688E-12A7-4273-9893-131670E49A33}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrderEventSourcingSample", "src\Persistence\OrderEventSourcingSample\OrderEventSourcingSample.csproj", "{97EB688E-12A7-4273-9893-131670E49A33}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp", "src\Testing\ConsoleApp\ConsoleApp.csproj", "{A71F5DC1-8EC9-4C79-951C-7F374961C2F7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleApp", "src\Testing\ConsoleApp\ConsoleApp.csproj", "{A71F5DC1-8EC9-4C79-951C-7F374961C2F7}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MultiTenantedTodoService", "MultiTenantedTodoService", "{E426CBC2-E4AE-49B2-840E-14D54442FDAC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiTenantedTodoWebService", "src\Samples\MultiTenantedTodoService\MultiTenantedTodoService\MultiTenantedTodoWebService.csproj", "{9B6BD2ED-B58D-4557-B54C-EAB0268862FB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MultiTenantedTodoWebService", "src\Samples\MultiTenantedTodoService\MultiTenantedTodoService\MultiTenantedTodoWebService.csproj", "{9B6BD2ED-B58D-4557-B54C-EAB0268862FB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MultiTenantedTodoWebService.Tests", "src\Samples\MultiTenantedTodoService\MultiTenantedTodoWebService.Tests\MultiTenantedTodoWebService.Tests.csproj", "{A4F1E33D-DA47-476A-B628-2CB8E775819E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MultiTenantedTodoWebService.Tests", "src\Samples\MultiTenantedTodoService\MultiTenantedTodoWebService.Tests\MultiTenantedTodoWebService.Tests.csproj", "{A4F1E33D-DA47-476A-B628-2CB8E775819E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http.Tests.DifferentAssembly", "src\Http\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj", "{5F51ACE8-6DFC-40CF-91C9-9CD96F77971F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Http.Tests.DifferentAssembly", "src\Http\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj", "{5F51ACE8-6DFC-40CF-91C9-9CD96F77971F}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Kafka", "Kafka", "{63E9B289-95E8-4F2B-A064-156971A6853C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MQTT", "MQTT", "{F8DCB579-56BE-49D2-9A9B-BEAA0C457A8B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Kafka", "src\Transports\Kafka\Wolverine.Kafka\Wolverine.Kafka.csproj", "{CB7C26B1-A8B5-4B66-BB81-40E59918A6ED}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Kafka", "src\Transports\Kafka\Wolverine.Kafka\Wolverine.Kafka.csproj", "{CB7C26B1-A8B5-4B66-BB81-40E59918A6ED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Kafka.Tests", "src\Transports\Kafka\Wolverine.Kafka.Tests\Wolverine.Kafka.Tests.csproj", "{7040CD14-EF4B-40B4-B702-0D59D1F3AEE5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Kafka.Tests", "src\Transports\Kafka\Wolverine.Kafka.Tests\Wolverine.Kafka.Tests.csproj", "{7040CD14-EF4B-40B4-B702-0D59D1F3AEE5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MQTT", "src\Transports\MQTT\Wolverine.MQTT\Wolverine.MQTT.csproj", "{92A1F3D3-1AF1-4112-B956-38E8DB1B345B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.MQTT", "src\Transports\MQTT\Wolverine.MQTT\Wolverine.MQTT.csproj", "{92A1F3D3-1AF1-4112-B956-38E8DB1B345B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MQTT.Tests", "src\Transports\MQTT\Wolverine.MQTT.Tests\Wolverine.MQTT.Tests.csproj", "{F0F8EA19-0AB7-4D23-944A-59DA514B20D0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.MQTT.Tests", "src\Transports\MQTT\Wolverine.MQTT.Tests\Wolverine.MQTT.Tests.csproj", "{F0F8EA19-0AB7-4D23-944A-59DA514B20D0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AdminApi", "src\Http\Wolverine.AdminApi\Wolverine.AdminApi.csproj", "{9A3741FD-C0EF-4275-8CB0-77D6EB407E88}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.AdminApi", "src\Http\Wolverine.AdminApi\Wolverine.AdminApi.csproj", "{9A3741FD-C0EF-4275-8CB0-77D6EB407E88}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChaosSender", "src\Samples\ChaosSender\ChaosSender.csproj", "{6F6FB8FC-564C-4B04-B254-EB53A7E4562F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ChaosSender", "src\Samples\ChaosSender\ChaosSender.csproj", "{6F6FB8FC-564C-4B04-B254-EB53A7E4562F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http.Marten", "src\Http\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj", "{A484AD9E-04C7-4CF9-BB59-5C7DE772851C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wolverine.Http.Marten", "src\Http\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj", "{A484AD9E-04C7-4CF9-BB59-5C7DE772851C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenApiDemonstrator", "src\http\OpenApiDemonstrator\OpenApiDemonstrator.csproj", "{4FA38CED-74C9-4969-83B2-6BD54F245E6C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OpenApiDemonstrator", "src\http\OpenApiDemonstrator\OpenApiDemonstrator.csproj", "{4FA38CED-74C9-4969-83B2-6BD54F245E6C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TodoWebService.NSwag", "src\Samples\TodoWebService\TodoWebService.NSwag\TodoWebService.NSwag.csproj", "{FA0DDAD9-B6A9-4A3A-9405-C4344B11FA60}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{C61E1BA2-5C3A-4319-9212-F0CA1514A205}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -401,14 +400,6 @@ Global
 		{53B3D48F-D6CE-4292-856F-AB369844FF4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{53B3D48F-D6CE-4292-856F-AB369844FF4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{53B3D48F-D6CE-4292-856F-AB369844FF4C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{CF735D62-B33E-4E3D-9045-43850531F867}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{CF735D62-B33E-4E3D-9045-43850531F867}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{CF735D62-B33E-4E3D-9045-43850531F867}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{CF735D62-B33E-4E3D-9045-43850531F867}.Release|Any CPU.Build.0 = Release|Any CPU
-		{055A5C37-ECAA-4111-9AB9-FC7C85B86222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{055A5C37-ECAA-4111-9AB9-FC7C85B86222}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{055A5C37-ECAA-4111-9AB9-FC7C85B86222}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{055A5C37-ECAA-4111-9AB9-FC7C85B86222}.Release|Any CPU.Build.0 = Release|Any CPU
 		{469A2C91-64B4-439B-9097-05499770FFB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{469A2C91-64B4-439B-9097-05499770FFB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{469A2C91-64B4-439B-9097-05499770FFB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -417,6 +408,14 @@ Global
 		{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF735D62-B33E-4E3D-9045-43850531F867}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF735D62-B33E-4E3D-9045-43850531F867}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF735D62-B33E-4E3D-9045-43850531F867}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF735D62-B33E-4E3D-9045-43850531F867}.Release|Any CPU.Build.0 = Release|Any CPU
+		{055A5C37-ECAA-4111-9AB9-FC7C85B86222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{055A5C37-ECAA-4111-9AB9-FC7C85B86222}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{055A5C37-ECAA-4111-9AB9-FC7C85B86222}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{055A5C37-ECAA-4111-9AB9-FC7C85B86222}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4DF54E7E-3BC2-4B16-9296-C2E198EF1E09}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4DF54E7E-3BC2-4B16-9296-C2E198EF1E09}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4DF54E7E-3BC2-4B16-9296-C2E198EF1E09}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -593,6 +592,13 @@ Global
 		{4FA38CED-74C9-4969-83B2-6BD54F245E6C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4FA38CED-74C9-4969-83B2-6BD54F245E6C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4FA38CED-74C9-4969-83B2-6BD54F245E6C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA0DDAD9-B6A9-4A3A-9405-C4344B11FA60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA0DDAD9-B6A9-4A3A-9405-C4344B11FA60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA0DDAD9-B6A9-4A3A-9405-C4344B11FA60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA0DDAD9-B6A9-4A3A-9405-C4344B11FA60}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4} = {96119B5E-B5F0-400A-9580-B342EBE26212}
@@ -639,11 +645,11 @@ Global
 		{1FC63454-ADB1-48A8-8B2C-3635AAE97126} = {D953D733-D154-4DF2-B2B9-30BF942E1B6B}
 		{4819C739-6312-4DA5-8C30-CD3313F3B49B} = {1FC63454-ADB1-48A8-8B2C-3635AAE97126}
 		{53B3D48F-D6CE-4292-856F-AB369844FF4C} = {1FC63454-ADB1-48A8-8B2C-3635AAE97126}
+		{469A2C91-64B4-439B-9097-05499770FFB3} = {F429686D-BB41-4E1C-A84E-518F8A289AEF}
+		{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049} = {F429686D-BB41-4E1C-A84E-518F8A289AEF}
 		{D7E65E36-A803-4240-A049-659BC93627F3} = {D953D733-D154-4DF2-B2B9-30BF942E1B6B}
 		{CF735D62-B33E-4E3D-9045-43850531F867} = {D7E65E36-A803-4240-A049-659BC93627F3}
 		{055A5C37-ECAA-4111-9AB9-FC7C85B86222} = {D7E65E36-A803-4240-A049-659BC93627F3}
-		{469A2C91-64B4-439B-9097-05499770FFB3} = {F429686D-BB41-4E1C-A84E-518F8A289AEF}
-		{A2A46E0F-EAE5-45E5-B17B-0EEB554B1049} = {F429686D-BB41-4E1C-A84E-518F8A289AEF}
 		{4DF54E7E-3BC2-4B16-9296-C2E198EF1E09} = {4B0BC1E5-17F9-4DD0-AC93-DDC522E1BE3C}
 		{77323165-5363-4FFD-B00C-9385DDE3DCB4} = {4B0BC1E5-17F9-4DD0-AC93-DDC522E1BE3C}
 		{4B60B80B-48AC-4628-90D4-35BE8D959988} = {4B0BC1E5-17F9-4DD0-AC93-DDC522E1BE3C}
@@ -698,5 +704,6 @@ Global
 		{6F6FB8FC-564C-4B04-B254-EB53A7E4562F} = {D953D733-D154-4DF2-B2B9-30BF942E1B6B}
 		{A484AD9E-04C7-4CF9-BB59-5C7DE772851C} = {4B0BC1E5-17F9-4DD0-AC93-DDC522E1BE3C}
 		{4FA38CED-74C9-4969-83B2-6BD54F245E6C} = {4B0BC1E5-17F9-4DD0-AC93-DDC522E1BE3C}
+		{FA0DDAD9-B6A9-4A3A-9405-C4344B11FA60} = {52628041-CDDB-48AE-B8A7-007D4563CFEC}
 	EndGlobalSection
 EndGlobal
