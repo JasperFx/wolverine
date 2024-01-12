@@ -24,7 +24,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
     private readonly List<RouteEndpoint> _endpoints = new();
     private readonly WolverineOptions _options;
 
-    private readonly List<IResourceWriterPolicy> _writerPolicies = new()
+    private readonly List<IResourceWriterPolicy> _builtInWriterPolicies = new()
     {
         new EmptyBody204Policy(),
         new StatusCodePolicy(),
@@ -33,6 +33,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         new JsonResourceWriterPolicy()
     };
 
+    private readonly List<IResourceWriterPolicy> _optionsWriterPolicies = new();
 
     public HttpGraph(WolverineOptions options, IContainer container)
     {
@@ -45,7 +46,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
 
     internal IContainer Container { get; }
 
-    internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _writerPolicies;
+    internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);
 
     public override IReadOnlyList<Endpoint> Endpoints => _endpoints;
 
@@ -107,6 +108,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
         
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
+        _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies); 
 
         var policies = _options.Policies.OfType<IChainPolicy>();
         foreach (var policy in policies) policy.Apply(_chains, Rules, Container);
@@ -136,7 +138,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
 
     internal void UseNewtonsoftJson()
     {
-        _writerPolicies.OfType<JsonResourceWriterPolicy>().Single().Usage = JsonUsage.NewtonsoftJson;
+        _builtInWriterPolicies.OfType<JsonResourceWriterPolicy>().Single().Usage = JsonUsage.NewtonsoftJson;
         _strategies.OfType<JsonBodyParameterStrategy>().Single().Usage = JsonUsage.NewtonsoftJson;
     }
 }
