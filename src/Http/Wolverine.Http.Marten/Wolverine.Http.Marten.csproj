@@ -18,6 +18,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
+        <PackageReference Include="Marten.AspNetCore" Version="6.4.0" />
     </ItemGroup>
 
 </Project>
