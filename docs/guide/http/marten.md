@@ -33,7 +33,7 @@ look like this:
         return Results.Ok(invoice);
     }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L11-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_invoice_longhand' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L13-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_invoice_longhand' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Pretty straightforward, but it's a little annoying to have to scatter in all the attributes for OpenAPI and there's definitely
@@ -49,7 +49,7 @@ public static Invoice Get([Document] Invoice invoice)
     return invoice;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L30-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L32-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Notice that the `[Document]` attribute was able to use the "id" route parameter. By default, Wolverine is looking first
@@ -66,7 +66,7 @@ public static IMartenOp Approve([Document("number")] Invoice invoice)
     return MartenOps.Store(invoice);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L47-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_route_argument_with_document_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L49-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_route_argument_with_document_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -253,3 +253,42 @@ public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L193-L223' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Compiled Query Resource Writer Policy
+
+Marten integration comes with an `IResourceWriterPolicy` policy that handles compiled queries as return types. 
+Register it in `WolverineHttpOptions` like this:
+
+<!-- snippet: sample_user_marten_compiled_query_policy -->
+<a id='snippet-sample_user_marten_compiled_query_policy'></a>
+```cs
+opts.UseMartenCompiledQueryResultPolicy();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L144-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+If you now return a compiled query from an Endpoint the result will get directly streamed to the client as JSON. Short circuiting JSON deserialization.
+<!-- snippet: sample_compiled_query_return_endpoint -->
+<a id='snippet-sample_compiled_query_return_endpoint'></a>
+```cs
+[WolverineGet("/invoices/approved")]
+public static ApprovedInvoicedCompiledQuery GetApproved()
+{
+    return new ApprovedInvoicedCompiledQuery();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L60-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_endpoint' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample_compiled_query_return_query -->
+<a id='snippet-sample_compiled_query_return_query'></a>
+```cs
+public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
+{
+    public Expression<Func<IMartenQueryable<Invoice>, IEnumerable<Invoice>>> QueryIs()
+    {
+        return q => q.Where(x => x.Approved);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L82-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_query' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

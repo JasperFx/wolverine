@@ -57,11 +57,13 @@ public class InvoicesEndpoint
 
     #endregion
 
+    #region sample_compiled_query_return_endpoint
     [WolverineGet("/invoices/approved")]
     public static ApprovedInvoicedCompiledQuery GetApproved()
     {
         return new ApprovedInvoicedCompiledQuery();
     } 
+    #endregion
     
     [WolverineGet("/invoices/compiled/{id}")]
     public static ByIdCompiled GetCompiled(Guid id)
@@ -77,6 +79,8 @@ public class Invoice
     public bool Approved { get; set; }
 }
 
+#region sample_compiled_query_return_query
+
 public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
 {
     public Expression<Func<IMartenQueryable<Invoice>, IEnumerable<Invoice>>> QueryIs()
@@ -84,6 +88,8 @@ public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
         return q => q.Where(x => x.Approved);
     }
 }
+
+#endregion
 
 public class ByIdCompiled : ICompiledQuery<Invoice, Invoice?>
 {
