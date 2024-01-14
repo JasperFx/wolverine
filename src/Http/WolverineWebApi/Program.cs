@@ -141,11 +141,17 @@ app.MapWolverineEndpoints(opts =>
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
     
+#region sample_user_marten_compiled_query_policy
     opts.UseMartenCompiledQueryResultPolicy();
+#endregion
 
 #region sample_register_http_middleware_by_type
     opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
     opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
+#endregion
+
+#region sample_register_resource_writer_policy
+    opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
 #endregion
 
     // Publish messages coming from 
