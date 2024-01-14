@@ -12,6 +12,7 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
+using Wolverine.Http.Marten;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using Wolverine.Marten;
 using WolverineWebApi;
@@ -139,6 +140,8 @@ app.MapWolverineEndpoints(opts =>
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
+    
+    opts.UseMartenCompiledQueryResultPolicy();
 
 #region sample_register_http_middleware_by_type
     opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
