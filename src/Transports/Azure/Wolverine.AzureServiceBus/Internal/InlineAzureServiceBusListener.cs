@@ -36,14 +36,14 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
 
         _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) =>
         {
-            return e.Args.CompleteMessageAsync(e.AzureMessage);
+            return e.CompleteAsync(_cancellation.Token);
         }, _logger, _cancellation.Token);
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
         {
-            if (envelope is AzureServiceBusEnvelope e)
+            if (envelope is { } e)
             {
-                await e.Args.CompleteMessageAsync(e.AzureMessage);
+                await e.CompleteAsync(_cancellation.Token);
                 e.IsCompleted = true;
             }
         
@@ -51,7 +51,7 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
         }, logger, _cancellation.Token);
 
         _deadLetter =
-            new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.Args.DeadLetterMessageAsync(e.AzureMessage, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
+            new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.DeadLetterAsync(_cancellation.Token, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
                 _cancellation.Token);
         
         _processor.ProcessMessageAsync += processMessageAsync;

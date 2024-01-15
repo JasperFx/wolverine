@@ -146,16 +146,13 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
         _mapper = mapper;
         _logger = logger;
 
-        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) =>
-        {
-            return e.Args.CompleteMessageAsync(e.AzureMessage);
-        }, _logger, _cancellation.Token);
+        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) => e.CompleteAsync(_cancellation.Token), _logger, _cancellation.Token);
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
         {
-            if (envelope is AzureServiceBusEnvelope e)
+            if (envelope is { } e)
             {
-                await e.Args.CompleteMessageAsync(e.AzureMessage);
+                await e.CompleteAsync(_cancellation.Token);
                 e.IsCompleted = true;
             }
 
@@ -163,7 +160,7 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
         }, logger, _cancellation.Token);
         
         _deadLetter =
-            new RetryBlock<AzureServiceBusEnvelope>((e, c) => _sessionReceiver.DeadLetterMessageAsync(e.AzureMessage, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
+            new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.DeadLetterAsync(_cancellation.Token, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
                 _cancellation.Token);
     }
 
@@ -176,7 +173,8 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
         {
             try
             {
-                var envelope = new AzureServiceBusEnvelope(message);
+                var envelope = new AzureServiceBusEnvelope(message, _sessionReceiver);
+
                 _mapper.MapIncomingToEnvelope(envelope, message);
 
                 try

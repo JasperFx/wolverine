@@ -37,7 +37,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
         _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) =>
         {
-            return _receiver.CompleteMessageAsync(e.AzureMessage);
+            return e.CompleteAsync(_cancellation.Token);
         }, _logger, _cancellation.Token);
 
         _defer = new RetryBlock<Envelope>(async (envelope, _) =>
@@ -46,7 +46,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
         }, logger, _cancellation.Token);
 
         _deadLetter =
-            new RetryBlock<AzureServiceBusEnvelope>((e, c) => _receiver.DeadLetterMessageAsync(e.AzureMessage, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
+            new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.DeadLetterAsync(_cancellation.Token, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
                 _cancellation.Token);
     }
 
@@ -116,7 +116,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                     {
                         try
                         {
-                            var envelope = new AzureServiceBusEnvelope(message);
+                            var envelope = new AzureServiceBusEnvelope(message, _receiver);
                             _mapper.MapIncomingToEnvelope(envelope, message);
 
                             envelopes.Add(envelope);
