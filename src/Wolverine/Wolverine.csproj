@@ -8,14 +8,14 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="FastExpressionCompiler" Version="4.0.0" />
-        <PackageReference Include="Lamar.Microsoft.DependencyInjection" Version="12.1.0" />
+        <PackageReference Include="Lamar.Microsoft.DependencyInjection" Version="13.0.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
         <PackageReference Include="Oakton" Version="6.1.0" />
         <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
         <PackageReference Include="System.Threading.Tasks.Dataflow" Version="7.0.0" />
         <PackageReference Include="System.ComponentModel" Version="4.3.0" />
-        <PackageReference Include="JasperFx.CodeGeneration.Commands" Version="3.4.0" />
-        <PackageReference Include="JasperFx.RuntimeCompiler" Version="3.4.0" />
+        <PackageReference Include="JasperFx.CodeGeneration.Commands" Version="3.4.1" />
+        <PackageReference Include="JasperFx.RuntimeCompiler" Version="3.4.1" />
         <PackageReference Include="JasperFx.Core" Version="1.5.1" />
     </ItemGroup>
 
