@@ -98,8 +98,12 @@ public static class HostBuilderExtensions
                 }
 #endif
 
-                options.CodeGeneration.GeneratedCodeOutputPath =
-                    directory!.AppendPath("Internal", "Generated");
+                // Don't correct for the path if it's already been set
+                if (options.CodeGeneration.GeneratedCodeOutputPath == "Internal/Generated")
+                {
+                    options.CodeGeneration.GeneratedCodeOutputPath =
+                        directory!.AppendPath("Internal", "Generated");
+                }
 
                 return options;
             });
