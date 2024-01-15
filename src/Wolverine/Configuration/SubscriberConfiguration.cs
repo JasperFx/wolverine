@@ -71,7 +71,8 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
     
     /// <summary>
     /// For endpoints that send messages in batches, this governs the maximum number
-    /// of concurrent outgoing batches 
+    /// of concurrent outgoing batches. The default is 1 to ensure message order, but increase this
+    /// number to improve outgoing throughput 
     /// </summary>
     public T MessageBatchMaxDegreeOfParallelism(int batchMaxDegreeOfParallelism)
     {

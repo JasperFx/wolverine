@@ -147,7 +147,11 @@ public class Bootstrapping
                 opts.UseAmazonSqsTransport();
 
                 opts.PublishMessage<Message1>()
-                    .ToSqsQueue("outbound1");
+                    .ToSqsQueue("outbound1")
+                    
+                    // Increase the outgoing message throughput, but at the cost
+                    // of strict ordering 
+                    .MessageBatchMaxDegreeOfParallelism(Environment.ProcessorCount);
 
 
                 opts.PublishMessage<Message2>()

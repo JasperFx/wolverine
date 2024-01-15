@@ -27,6 +27,8 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
         EndpointName = queueName;
 
         Configuration = new CreateQueueRequest(QueueName);
+
+        MessageBatchSize = 10;
     }
 
     /// <summary>

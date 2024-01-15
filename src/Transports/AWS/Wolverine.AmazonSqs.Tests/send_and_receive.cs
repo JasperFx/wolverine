@@ -19,7 +19,7 @@ public class send_and_receive : IAsyncLifetime
 
                 opts.ListenToSqsQueue("send_and_receive");
 
-                opts.PublishAllMessages().ToSqsQueue("send_and_receive");
+                opts.PublishAllMessages().ToSqsQueue("send_and_receive").MessageBatchMaxDegreeOfParallelism(5);
             }).StartAsync();
     }
 
@@ -40,6 +40,24 @@ public class send_and_receive : IAsyncLifetime
 
         session.Received.SingleMessage<SqsMessage>()
             .Name.ShouldBe(message.Name);
+    }
+    
+    [Fact]
+    public async Task send_and_receive_many_messages()
+    {
+        Func<IMessageBus, Task> sending = async bus =>
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                await bus.PublishAsync(new SqsMessage(Guid.NewGuid().ToString()));
+            }
+        };
+
+        await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(5.Minutes())
+            .ExecuteAndWaitAsync(sending);
+
     }
 }
 
