@@ -31,7 +31,7 @@ internal class WolverineApiDescriptionProvider : IApiDescriptionProvider
                 {
                     continue;
                 }
-                
+
                 foreach (var httpMethod in chain.HttpMethods)
                 {
                     context.Results.Add(chain.CreateApiDescription(httpMethod));

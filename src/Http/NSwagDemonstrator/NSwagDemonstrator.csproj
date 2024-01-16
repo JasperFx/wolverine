@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Include="..\..\Servers.cs">
+        <Link>Servers.cs</Link>
+      </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- 
+            To use OpenApiGenerateDocumentsOnBuild with Wolverine, upgrade Microsoft.Extensions.ApiDescription.Server (transitive NSwag dependency).
+            See also: https://github.com/RicoSuter/NSwag/issues/3403 
+        -->
+        <!-- <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" Version="8.0.1"> -->
+        <!-- 	<PrivateAssets>all</PrivateAssets> -->
+        <!-- 	<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets> -->
+        <!-- </PackageReference> -->
+        <PackageReference Include="NSwag.AspNetCore" Version="14.0.0" />
+    </ItemGroup>
+
+</Project>

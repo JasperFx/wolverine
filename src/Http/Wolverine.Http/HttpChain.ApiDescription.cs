@@ -1,9 +1,11 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.AspNetCore.Routing;
@@ -14,7 +16,7 @@ namespace Wolverine.Http;
 /// <summary>
 /// Describes a Wolverine HTTP endpoint implementation
 /// </summary>
-public class WolverineActionDescriptor : ActionDescriptor
+public class WolverineActionDescriptor : ControllerActionDescriptor
 {
     public WolverineActionDescriptor(HttpChain chain)
     {
@@ -23,10 +25,16 @@ public class WolverineActionDescriptor : ActionDescriptor
         RouteValues["action"] = chain.Method.Method.Name;
         Chain = chain;
 
+        ControllerTypeInfo = chain.Method.HandlerType.GetTypeInfo();
+
         if (chain.Endpoint != null)
         {
             EndpointMetadata = chain.Endpoint!.Metadata.ToArray();
         }
+
+        ActionName = chain.OperationId;
+
+        MethodInfo = chain.Method.Method;
     }
 
     public override string? DisplayName
@@ -53,7 +61,7 @@ public partial class HttpChain
             RelativePath = Endpoint.RoutePattern.RawText?.TrimStart('/'),
             ActionDescriptor = new WolverineActionDescriptor(this)
         };
-
+        
         foreach (var routeParameter in RoutePattern.Parameters)
         {
             var parameter = buildParameterDescription(routeParameter);
