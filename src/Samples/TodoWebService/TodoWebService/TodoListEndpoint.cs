@@ -13,20 +13,20 @@ public class TodoList
 
 public record TodoListCreated(Guid ListId, string Title);
 
+public record TodoCreationResponse(Guid ListId) : CreationResponse("api/todo-lists/" + ListId);
+
 public static class TodoListEndpoint
 {
     [WolverinePost("/api/todo-lists")]
-    public static (IResult, IStartStream) CreateTodoList(
-        CreateTodoListRequest request,
-        HttpRequest req
+    public static (TodoCreationResponse, IStartStream) CreateTodoList(
+        CreateTodoListRequest request
     )
     {
         var listId = CombGuidIdGeneration.NewGuid();
         var result = new TodoListCreated(listId, request.Title);
-        var startStream = MartenOps.StartStream<TodoList>(result);
-        var response = Results.Created("api/todo-lists/" + listId, result); 
+        var startStream = MartenOps.StartStream<TodoList>(listId, result);
        
-        return (response, startStream);
+        return (new TodoCreationResponse(listId), startStream);
     }
 }
 
