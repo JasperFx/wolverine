@@ -174,7 +174,7 @@ public class WolverinePatchAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverineOptionsAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineOptionsAttribute(string template) : base("PATCH", template)
+    public WolverineOptionsAttribute(string template) : base("OPTIONS", template)
     {
     }
 }
