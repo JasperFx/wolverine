@@ -3,9 +3,11 @@ using System.Reflection;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.AspNetCore.Routing;
@@ -118,25 +120,51 @@ public partial class HttpChain
         return apiDescription;
     }
 
+    private sealed record NormalizedResponseMetadata(int StatusCode, Type? Type, IEnumerable<string> ContentTypes)
+    {
+        // if an attribute doesn't specific the content type, conform with OpenAPI internals and infer.
+        public IEnumerable<string> GetContentTypes()
+        {
+            if (ContentTypes.Any())
+                return ContentTypes;
+            if (Type == typeof(string))
+                return new[] { "text/plain" };
+            if (Type == typeof(ProblemDetails))
+                return new[] { "application/problem+json" };
+            return new[] { "application/json" };
+        }
+    }
     private void fillResponseTypes(ApiDescription apiDescription)
     {
-        var responseTypes = Endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().GroupBy(x => x.StatusCode)
-            .ToArray();
+        var attributeMetadata = Endpoint!.Metadata
+            .OfType<IApiResponseMetadataProvider>()
+            .Select(x =>
+            {
+                var attributeContentTypes = new MediaTypeCollection();
+                x.SetContentTypes(attributeContentTypes);
+                return new NormalizedResponseMetadata(x.StatusCode, x.Type, attributeContentTypes);
+            });
+
+        var responseMetadata = Endpoint.Metadata
+            .OfType<IProducesResponseTypeMetadata>()
+            .Select(x=> new NormalizedResponseMetadata(x.StatusCode, x.Type, x.ContentTypes));
+
+        // Attributes take priority over computed metadata
+        var responseTypes = attributeMetadata.Concat(responseMetadata).GroupBy(x => x.StatusCode);
+        
         foreach (var responseTypeMetadata in responseTypes)
         {
             var responseType = responseTypeMetadata.FirstOrDefault(x => x.Type != typeof(void))?.Type;
-
-
             var apiResponseType = new ApiResponseType
             {
                 StatusCode = responseTypeMetadata.Key,
                 ModelMetadata = responseType == null ? null : new EndpointModelMetadata(responseType),
                 IsDefaultResponse = false, // this seems to mean "no explicit response", so never set this to true
-                ApiResponseFormats = new List<ApiResponseFormat>(responseTypeMetadata.SelectMany(x => x.ContentTypes)
+                ApiResponseFormats = responseTypeMetadata.First().GetContentTypes()
                     .Select(x => new ApiResponseFormat
                     {
                         MediaType = x
-                    })),
+                    }).ToList(),
                 Type = responseType
             };
 
