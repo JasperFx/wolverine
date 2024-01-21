@@ -45,30 +45,9 @@ internal class Executor : IExecutor
     private readonly IMessageTracker _tracker;
 
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler,
-        FailureRuleCollection rules, TimeSpan timeout)
+        FailureRuleCollection rules, TimeSpan timeout) 
+        : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler, runtime.MessageTracking, rules, timeout)
     {
-        _handler = handler;
-        _timeout = timeout;
-        _rules = rules;
-        _tracker = runtime.MessageTracking;
-        _contextPool = contextPool;
-
-        _logger = runtime.LoggerFactory.CreateLogger(handler.MessageType);
-
-        _messageSucceeded =
-            LoggerMessage.Define<string, Guid, string>(handler.ExecutionLogLevel, MessageSucceededEventId,
-                "Successfully processed message {Name}#{envelope} from {ReplyUri}");
-
-        _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
-            "Failed to process message {Name}#{envelope} from {ReplyUri}");
-
-        _executionStarted = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionStartedEventId,
-            "{CorrelationId}: Started processing {Name}#{Id}");
-
-        _executionFinished = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionFinishedEventId,
-            "{CorrelationId}: Finished processing {Name}#{Id}");
-        
-        _messageTypeName = handler.MessageType.ToMessageTypeName();
     }
 
     public Executor(ObjectPool<MessageContext> contextPool, ILogger logger, IMessageHandler handler,
@@ -91,10 +70,10 @@ internal class Executor : IExecutor
 
         _messageTypeName = handler.MessageType.ToMessageTypeName();
         
-        _executionStarted = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionStartedEventId,
+        _executionStarted = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionStartedEventId,
             "{CorrelationId}: Started processing {Name}#{Id}");
 
-        _executionFinished = LoggerMessage.Define<string, string, Guid>(LogLevel.Debug, ExecutionFinishedEventId,
+        _executionFinished = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionFinishedEventId,
             "{CorrelationId}: Finished processing {Name}#{Id}");
     }
 
@@ -196,8 +175,6 @@ internal class Executor : IExecutor
         {
             _messageFailed(_logger, _messageTypeName, envelope.Id, envelope.Destination!.ToString(), e);
 
-            _logger.LogError(e, "Failure during message processing execution of message {Id}, {Message}",
-                context.Envelope!.Id, context.Envelope.Message);
             _tracker
                 .ExecutionFinished(envelope, e); // Need to do this to make the MessageHistory complete
 
