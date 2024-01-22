@@ -25,6 +25,11 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         endpoint.OutgoingRules.Concat(RulesForMessageType(messageType)), replies)
     {
         IsLocal = endpoint is LocalQueue;
+
+        if (messageType.CanBeCastTo(typeof(ISerializable)))
+        {
+            Serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
+        }
     }
 
     public MessageRoute(IMessageSerializer serializer, ISendingAgent sender, IEnumerable<IEnvelopeRule> rules,
@@ -36,6 +41,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         Rules.AddRange(rules);
 
         IsLocal = sender.Endpoint is LocalQueue;
+
     }
 
     public bool IsLocal { get; }
@@ -54,13 +60,18 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime)
     {
-        var envelope = new Envelope(message, Sender);
+        var envelope = new Envelope(message, Sender)
+        {
+            Serializer = Serializer,
+            ContentType = Serializer.ContentType
+        };
+
         if (Sender.Endpoint is LocalQueue)
         {
             envelope.Status = EnvelopeStatus.Incoming;
         }
 
-        if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != envelope.ContentType)
+        if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != Serializer.ContentType)
         {
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
         }

@@ -350,5 +350,18 @@ Using this strategy, other systems could still send your system the original `ap
 message, and on the receiving end, Wolverine would know to deserialize the Json data into the `PersonBorn` object, then call its
 `Transform()` method to build out the `PersonBornV2` type that matches up with your message handler.
 
+## "Self Serializing" Messages
 
+::: info
+This was originally built for an unusual MQTT requirement, but is going to be used extensively by Wolverine
+internals as a tiny optimization
+:::
+
+This is admittedly an oddball use case for micro-optimization, but you may embed the serialization logic for a message type right into the 
+message type itself through Wolverine's `ISerializable` interface as shown below:
+
+snippet: sample_intrinsic_serialization
+
+Wolverine will see the interface implementation of the message type, and automatically opt into using this "intrinsic" 
+serialization. 
 
