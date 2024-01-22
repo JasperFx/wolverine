@@ -30,7 +30,7 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
         var compiledQueryClosure = result.VariableType.FindInterfaceThatCloses(typeof(ICompiledQuery<,>));
         if (compiledQueryClosure is null) return false;
 
-        var arguments = result.VariableType.FindInterfaceThatCloses(typeof(ICompiledQuery<,>))!.GetGenericArguments();
+        var arguments = compiledQueryClosure.GetGenericArguments();
 
         var methodCall = typeof(MartenWriteArrayMethodCall<,>).CloseAndBuildAs<MethodCall>(result, (_responseType, _successStatusCode), arguments);
 
