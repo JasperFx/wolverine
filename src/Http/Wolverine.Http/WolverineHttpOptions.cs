@@ -169,6 +169,15 @@ public class WolverineHttpOptions
     {
         ResourceWriterPolicies.Add(new T());
     }
+    
+    /// <summary>
+    ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void AddResourceWriterPolicy<T>(T policy) where T : IResourceWriterPolicy
+    {
+        ResourceWriterPolicies.Add(policy);
+    }
 
     /// <summary>
     ///     Apply user-defined customizations to how endpoints are handled
