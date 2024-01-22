@@ -29,7 +29,7 @@ namespace Internal.Generated.WolverineHandlers
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
-            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+            await using var querySession = _outboxedSessionFactory.QuerySession(messageContext);
             if (!System.Guid.TryParse((string)httpContext.GetRouteValue("id"), out var id))
             {
                 httpContext.Response.StatusCode = 404;
@@ -41,8 +41,7 @@ namespace Internal.Generated.WolverineHandlers
             // The actual HTTP request handler execution
             var byIdCompiled = WolverineWebApi.Marten.InvoicesEndpoint.GetCompiled(id);
 
-            // Run the compiled query and stream the response
-            await Marten.AspNetCore.QueryableExtensions.WriteOne(documentSession, byIdCompiled, httpContext);
+            await Marten.AspNetCore.QueryableExtensions.WriteOne<WolverineWebApi.Marten.Invoice, WolverineWebApi.Marten.Invoice>(querySession, byIdCompiled, httpContext, "application/json", 200).ConfigureAwait(false);
         }
 
     }

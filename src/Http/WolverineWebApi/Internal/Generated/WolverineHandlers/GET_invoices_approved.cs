@@ -29,13 +29,12 @@ namespace Internal.Generated.WolverineHandlers
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
-            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+            await using var querySession = _outboxedSessionFactory.QuerySession(messageContext);
             
             // The actual HTTP request handler execution
             var approvedInvoicedCompiledQuery = WolverineWebApi.Marten.InvoicesEndpoint.GetApproved();
 
-            // Run the compiled query and stream the response
-            await Marten.AspNetCore.QueryableExtensions.WriteArray(documentSession, approvedInvoicedCompiledQuery, httpContext);
+            await Marten.AspNetCore.QueryableExtensions.WriteArray<WolverineWebApi.Marten.Invoice, System.Collections.Generic.IEnumerable<WolverineWebApi.Marten.Invoice>>(querySession, approvedInvoicedCompiledQuery, httpContext, "application/json", 200).ConfigureAwait(false);
         }
 
     }
