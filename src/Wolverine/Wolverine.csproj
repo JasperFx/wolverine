@@ -3,7 +3,7 @@
         <Description>Next Generation .NET Mediator and Message Bus</Description>
         <DebugType>portable</DebugType>
         <PackageId>WolverineFx</PackageId>
-        <LangVersion>latest</LangVersion>
+        <LangVersion>12</LangVersion>
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
