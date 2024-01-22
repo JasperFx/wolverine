@@ -6,8 +6,9 @@ public static class WolverineHttpOptionsExtensions
     /// Adds an <see cref="IResourceWriterPolicy"/> that streams <see cref="ICompiledQuery"/> 
     /// </summary>
     /// <param name="options">Options to apply policy on</param>
-    public static void UseMartenCompiledQueryResultPolicy(this WolverineHttpOptions options)
+    public static void UseMartenCompiledQueryResultPolicy(this WolverineHttpOptions options,
+        string responseType = "application/json", int successStatusCode = 200)
     {
-            options.AddResourceWriterPolicy<CompiledQueryWriterPolicy>();
-    } 
+        options.AddResourceWriterPolicy(new CompiledQueryWriterPolicy(responseType, successStatusCode));
+    }
 }
