@@ -360,7 +360,29 @@ internals as a tiny optimization
 This is admittedly an oddball use case for micro-optimization, but you may embed the serialization logic for a message type right into the 
 message type itself through Wolverine's `ISerializable` interface as shown below:
 
-snippet: sample_intrinsic_serialization
+<!-- snippet: sample_intrinsic_serialization -->
+<a id='snippet-sample_intrinsic_serialization'></a>
+```cs
+public class SerializedMessage : ISerializable
+{
+    public string Name { get; set; } = "Bob Schneider";
+    
+    public byte[] Write()
+    {
+        return Encoding.Default.GetBytes(Name);
+    }
+
+    // You'll need at least C# 11 for static methods
+    // on interfaces!
+    public static object Read(byte[] bytes)
+    {
+        var name = Encoding.Default.GetString(bytes);
+        return new SerializedMessage { Name = name };
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Serialization/intrinsic_serialization.cs#L25-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_intrinsic_serialization' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Wolverine will see the interface implementation of the message type, and automatically opt into using this "intrinsic" 
 serialization. 

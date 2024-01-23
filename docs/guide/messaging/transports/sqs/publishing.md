@@ -12,7 +12,11 @@ var host = await Host.CreateDefaultBuilder()
         opts.UseAmazonSqsTransport();
 
         opts.PublishMessage<Message1>()
-            .ToSqsQueue("outbound1");
+            .ToSqsQueue("outbound1")
+            
+            // Increase the outgoing message throughput, but at the cost
+            // of strict ordering 
+            .MessageBatchMaxDegreeOfParallelism(Environment.ProcessorCount);
 
         opts.PublishMessage<Message2>()
             .ToSqsQueue("outbound2").ConfigureQueueCreation(request =>
@@ -21,5 +25,5 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L142-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L142-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

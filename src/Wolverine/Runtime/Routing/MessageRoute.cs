@@ -74,6 +74,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != Serializer.ContentType)
         {
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
+            envelope.ContentType = envelope.Serializer.ContentType;
         }
 
         foreach (var rule in Rules) rule.Modify(envelope);

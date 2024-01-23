@@ -5,7 +5,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Serialization;
 
-internal class IntrinsicSerializer : IMessageSerializer
+public class IntrinsicSerializer : IMessageSerializer
 {
     public const string MimeType = "binary/wolverine";
 
@@ -14,7 +14,14 @@ internal class IntrinsicSerializer : IMessageSerializer
     public string ContentType => MimeType;
     public byte[] Write(Envelope envelope)
     {
-        throw new NotSupportedException();
+        var messageType = envelope.Message.GetType();
+        if (_inner.TryFind(messageType, out var serializer))
+        {
+            return serializer.Write(envelope);
+        }
+
+        serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
+        return serializer.Write(envelope);
     }
 
     public object ReadFromData(Type messageType, Envelope envelope)

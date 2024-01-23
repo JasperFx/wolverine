@@ -338,5 +338,33 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L130-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_custom_mqtt_envelope_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Clearing Out Retained Messages
+
+MQTT brokers allow you to publish retained messages to a topic, meaning that the last message will always be retained by the 
+broker and sent to any new subscribers. That's a little bit problematic if your Wolverine application happens to be restarted,
+because that last retained message may easily be resent to your Wolverine application when you restart.
+
+Not to fear, the MQTT protocol allows you to "clear" out a topic by sending it a zero byte message, and Wolverine has a couple
+shortcuts for doing just that by returning a cascading message to "zero out" the topic a message was received on or a named topic like
+this:
+
+<!-- snippet: sample_ack_mqtt_topic -->
+<a id='snippet-sample_ack_mqtt_topic'></a>
+```cs
+public static AckMqttTopic Handle(ZeroMessage message)
+{
+    // "Zero out" the topic that the original message was received from
+    return new AckMqttTopic();
+}
+
+public static ClearMqttTopic Handle(TriggerZero message)
+{
+    // "Zero out" the designated topic
+    return new ClearMqttTopic("red");
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/ack_smoke_tests.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ack_mqtt_topic' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 
 

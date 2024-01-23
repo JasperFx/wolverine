@@ -21,6 +21,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
     public static string TopicForUri(Uri uri)
     {
+        if (uri == null) return string.Empty;
         return uri.LocalPath.Trim('/');
     }
     
