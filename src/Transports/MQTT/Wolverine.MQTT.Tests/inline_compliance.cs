@@ -38,16 +38,16 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         {
             opts.UseMqttWithLocalBroker(port);
 
-            opts.ListenToMqttTopic(senderTopic).RetainMessages();
+            opts.ListenToMqttTopic(senderTopic);
 
-            opts.PublishAllMessages().ToMqttTopic(receiverTopic).RetainMessages().SendInline();
+            opts.PublishAllMessages().ToMqttTopic(receiverTopic).SendInline();
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseMqttWithLocalBroker(port);
 
-            opts.ListenToMqttTopic(receiverTopic).Named("receiver").RetainMessages().ProcessInline();
+            opts.ListenToMqttTopic(receiverTopic).Named("receiver").ProcessInline();
         });
     }
 
@@ -74,6 +74,19 @@ public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineCom
         transport.ResponseTopic.ShouldBe("wolverine/response/" + options.Durability.AssignedNodeNumber);
         
         transport.ReplyEndpoint().ShouldBeOfType<MqttTopic>().TopicName.ShouldBe(transport.ResponseTopic);
+    }
+
+    [Fact]
+    public void topics_are_all_retain_equals_false()
+    {
+        var options = theSender.Services.GetRequiredService<IWolverineRuntime>().Options;
+        var transport = options.Transports
+            .GetOrCreate<MqttTransport>();
+
+        foreach (var topic in transport.Topics)
+        {
+            topic.Retain.ShouldBeFalse();
+        }
     }
 
 }

@@ -32,4 +32,12 @@ public class MqttTransportTests
         new MqttTopic("one/two", transport, EndpointRole.Application)
             .EndpointName.ShouldBe("one/two");
     }
+
+    [Fact]
+    public void retain_is_false_by_default()
+    {
+        var transport = new MqttTransport();
+        new MqttTopic("one/two", transport, EndpointRole.Application)
+            .Retain.ShouldBeFalse();
+    }
 }

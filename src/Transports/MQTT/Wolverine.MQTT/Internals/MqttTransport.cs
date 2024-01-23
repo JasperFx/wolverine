@@ -52,7 +52,6 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
         var topics = Topics[MqttTopic.WolverineTopicsName];
         topics.RoutingType = RoutingMode.ByTopic;
-        topics.Retain = true;
         topics.OutgoingRules.Add(new TopicRoutingRule()); // this will make any messages use the auto resolved topic name
         
         _logger = runtime.LoggerFactory.CreateLogger<MqttTransport>();

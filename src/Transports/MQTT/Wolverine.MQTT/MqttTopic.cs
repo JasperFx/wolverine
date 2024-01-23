@@ -101,7 +101,7 @@ public class MqttTopic : Endpoint, ISender
     
     public MqttQualityOfServiceLevel QualityOfServiceLevel { get; set; } = MqttQualityOfServiceLevel.AtLeastOnce;
 
-    public bool Retain { get; set; } = true;
+    public bool Retain { get; set; } = false;
 
 
 
