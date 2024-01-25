@@ -76,6 +76,12 @@ public class InvoicesEndpoint
     {
         return new CompiledCountQuery();
     } 
+    
+    [WolverineGet("/invoices/compiled/string/{id}")]
+    public static CompiledStringQuery GetCompiledString(Guid id)
+    {
+        return new CompiledStringQuery(id);
+    } 
 }
 
 public class Invoice
@@ -117,5 +123,18 @@ public class CompiledCountQuery : ICompiledQuery<Invoice, int>
     public Expression<Func<IMartenQueryable<Invoice>, int>> QueryIs()
     {
         return q => q.Count();
+    }
+}
+public class CompiledStringQuery : ICompiledQuery<Invoice, string>
+{
+    public readonly Guid Id;
+
+    public CompiledStringQuery(Guid id)
+    {
+        Id = id;
+    }
+    public Expression<Func<IMartenQueryable<Invoice>, string>> QueryIs()
+    {
+        return q => q.Where(x => x.Id == Id).Select(x => x.Id.ToString()).First();
     }
 }
