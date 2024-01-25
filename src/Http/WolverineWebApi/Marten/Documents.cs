@@ -70,6 +70,12 @@ public class InvoicesEndpoint
     {
         return new ByIdCompiled(id);
     } 
+    
+    [WolverineGet("/invoices/compiled/count")]
+    public static CompiledCountQuery GetCompiledCount()
+    {
+        return new CompiledCountQuery();
+    } 
 }
 
 public class Invoice
@@ -103,5 +109,13 @@ public class ByIdCompiled : ICompiledQuery<Invoice, Invoice?>
     public Expression<Func<IMartenQueryable<Invoice>, Invoice?>> QueryIs()
     {
         return q => q.FirstOrDefault(x => x.Id == Id);
+    }
+}
+
+public class CompiledCountQuery : ICompiledQuery<Invoice, int>
+{
+    public Expression<Func<IMartenQueryable<Invoice>, int>> QueryIs()
+    {
+        return q => q.Count();
     }
 }
