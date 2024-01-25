@@ -43,6 +43,28 @@ public class compiled_query_writer : IntegrationContext
         approvedInvoiceList.ShouldNotBeNull();
         approvedInvoiceList.Count.ShouldBe(approvedInvoices);
     }
+    
+    [Fact]
+    public async Task endpoint_returning_compiled_primitive_query_should_return_query_result()
+    {
+        await using var session = Store.LightweightSession();
+        int invoicesCount = 5;
+        for (int i = 0; i < invoicesCount; i++)
+        {
+            var invoice =
+                new Invoice()
+                {
+                };
+            session.Store(invoice);
+        }
+
+        await session.SaveChangesAsync();
+
+        var approvedInvoiceList = await Host.GetAsText("/invoices/compiled/count");
+        approvedInvoiceList.ShouldNotBeNull();
+        int.TryParse(approvedInvoiceList, out var result).ShouldBeTrue();
+        result.ShouldBe(invoicesCount);
+    }
 
     [Fact]
     public async Task endpoint_returning_compiled_query_should_return_query_result()
