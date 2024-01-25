@@ -34,7 +34,7 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
         var arguments = compiledQueryClosure.GetGenericArguments();
         
         // If we're dealing with a primitive return type we need to write its string representation directly
-        if (arguments[1].IsPrimitive)
+        if (arguments[1].IsPrimitive || arguments[1] == typeof(string) || arguments[1] == typeof(decimal))
         {
             // This call runs the query
             var queryCall =
