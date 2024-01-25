@@ -140,7 +140,7 @@ public record TopicMessage<T>(T Message, string Topic, DeliveryOptions? Options)
 {
     ValueTask ISendMyself.ApplyAsync(IMessageContext context)
     {
-        return context.BroadcastToTopicAsync(Topic, Message!);
+        return context.BroadcastToTopicAsync(Topic, Message!, Options);
     }
 }
 
