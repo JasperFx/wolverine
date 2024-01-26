@@ -94,6 +94,10 @@ public static class EnvelopeSerializer
                 case EnvelopeConstants.TenantIdKey:
                     env.TenantId = value;
                     break;
+                
+                case EnvelopeConstants.TopicNameKey:
+                    env.TopicName = value;
+                    break;
 
                 default:
                     env.Headers.Add(key, value);
@@ -220,6 +224,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.SagaIdKey, env.SagaId);
         writer.WriteProp(ref count, EnvelopeConstants.ParentIdKey, env.ParentId);
         writer.WriteProp(ref count, EnvelopeConstants.TenantIdKey, env.TenantId);
+        writer.WriteProp(ref count, EnvelopeConstants.TopicNameKey, env.TopicName);
 
         if (env.AcceptedContentTypes.Any())
         {

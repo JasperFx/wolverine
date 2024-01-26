@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -140,6 +141,17 @@ public class send_by_topics : IDisposable
             .OrderBy(x => x)
             .ShouldHaveTheSameElementsAs("Second", "Third");
     }
+
+    [Fact]
+    public async Task send_to_topic_with_delay()
+    {
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .WaitForMessageToBeReceivedAt<FirstMessage>(theSecondReceiver)
+            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .InvokeMessageAndWaitAsync(new TriggerTopicMessage());
+    }
 }
 
 [Topic("color.purple")]
@@ -165,8 +177,15 @@ public class ThirdMessage : FirstMessage
 {
 }
 
+public class TriggerTopicMessage{}
+
 public class MessagesHandler
 {
+    public object Handle(TriggerTopicMessage message)
+    {
+        return new FirstMessage().ToTopic("color.blue", new DeliveryOptions { ScheduleDelay = 3.Seconds() });
+    }
+    
     public void Handle(FirstMessage message)
     {
     }

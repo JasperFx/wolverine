@@ -43,6 +43,12 @@ public class serialization_and_deserialization_of_single_message
         }
     }
 
+    [Fact]
+    public void topic_name_is_round_tripped()
+    {
+        outgoing.TopicName = Guid.NewGuid().ToString();
+        incoming.TopicName.ShouldBe(outgoing.TopicName);
+    }
 
     [Fact]
     public void accepted_content_types_positive()
