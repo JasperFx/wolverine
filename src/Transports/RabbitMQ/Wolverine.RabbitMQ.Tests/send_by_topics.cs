@@ -15,8 +15,8 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class send_by_topics : IDisposable
 {
-    private readonly IHost theFirstReceiver;
-    private readonly IHost theSecondReceiver;
+    private readonly IHost theGreenReceiver;
+    private readonly IHost theBlueReceiver;
     private readonly IHost theSender;
     private readonly IHost theThirdReceiver;
 
@@ -34,20 +34,22 @@ public class send_by_topics : IDisposable
                     exchange.BindTopic("color.blue").ToQueue("blue");
                     exchange.BindTopic("color.*").ToQueue("all");
                 });
+
+                opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
             }).Start();
 
         #endregion
 
-        theFirstReceiver = WolverineHost.For(opts =>
+        theGreenReceiver = WolverineHost.For(opts =>
         {
-            opts.ServiceName = "First";
+            opts.ServiceName = "Green";
             opts.ListenToRabbitQueue("green");
             opts.UseRabbitMq();
         });
 
-        theSecondReceiver = WolverineHost.For(opts =>
+        theBlueReceiver = WolverineHost.For(opts =>
         {
-            opts.ServiceName = "Second";
+            opts.ServiceName = "Blue";
             opts.ListenToRabbitQueue("blue");
             opts.UseRabbitMq();
         });
@@ -63,8 +65,8 @@ public class send_by_topics : IDisposable
     public void Dispose()
     {
         theSender?.Dispose();
-        theFirstReceiver?.Dispose();
-        theSecondReceiver?.Dispose();
+        theGreenReceiver?.Dispose();
+        theBlueReceiver?.Dispose();
         theThirdReceiver?.Dispose();
     }
 
@@ -86,7 +88,7 @@ public class send_by_topics : IDisposable
         var session = await theSender
             .TrackActivity()
             .IncludeExternalTransports()
-            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .SendMessageAndWaitAsync(new PurpleMessage());
 
         session.FindEnvelopesWithMessageType<PurpleMessage>()
@@ -101,13 +103,13 @@ public class send_by_topics : IDisposable
         var session = await theSender
             .TrackActivity()
             .IncludeExternalTransports()
-            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .SendMessageAndWaitAsync(new FirstMessage());
 
         session.FindEnvelopesWithMessageType<FirstMessage>()
             .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
-            .OrderBy(x => x).ShouldHaveTheSameElementsAs("Second", "Third");
+            .OrderBy(x => x).ShouldHaveTheSameElementsAs("Blue", "Third");
     }
 
     [Fact]
@@ -116,14 +118,14 @@ public class send_by_topics : IDisposable
         var session = await theSender
             .TrackActivity()
             .IncludeExternalTransports()
-            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .BroadcastMessageToTopicAndWaitAsync("color.green", new PurpleMessage());
 
         session.FindEnvelopesWithMessageType<PurpleMessage>()
             .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
             .OrderBy(x => x)
-            .ShouldHaveTheSameElementsAs("First", "Third");
+            .ShouldHaveTheSameElementsAs("Green", "Third");
     }
 
     [Fact] // this is occasionally failing with timeouts when running in combination with the entire suite
@@ -132,14 +134,14 @@ public class send_by_topics : IDisposable
         var session = await theSender
             .TrackActivity()
             .IncludeExternalTransports()
-            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .BroadcastMessageToTopicAndWaitAsync("color.blue", new PurpleMessage());
 
         session.FindEnvelopesWithMessageType<PurpleMessage>()
             .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
             .OrderBy(x => x)
-            .ShouldHaveTheSameElementsAs("Second", "Third");
+            .ShouldHaveTheSameElementsAs("Blue", "Third");
     }
 
     [Fact]
@@ -148,9 +150,27 @@ public class send_by_topics : IDisposable
         var session = await theSender
             .TrackActivity()
             .IncludeExternalTransports()
-            .WaitForMessageToBeReceivedAt<FirstMessage>(theSecondReceiver)
-            .AlsoTrack(theFirstReceiver, theSecondReceiver, theThirdReceiver)
+            .WaitForMessageToBeReceivedAt<FirstMessage>(theBlueReceiver)
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .InvokeMessageAndWaitAsync(new TriggerTopicMessage());
+    }
+
+    [Fact]
+    public async Task publish_by_user_message_topic_logic()
+    {
+        var routed = new RoutedMessage { TopicName = "color.blue" };
+
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .WaitForMessageToBeReceivedAt<RoutedMessage>(theBlueReceiver)
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
+            .SendMessageAndWaitAsync(routed);
+
+        var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
+        
+        record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
+            .Id.ShouldBe(routed.Id);
     }
 }
 
@@ -177,10 +197,21 @@ public class ThirdMessage : FirstMessage
 {
 }
 
+public class RoutedMessage
+{
+    public string TopicName { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+
 public class TriggerTopicMessage{}
 
 public class MessagesHandler
 {
+    public static void Handle(RoutedMessage message)
+    {
+        
+    }
+    
     public object Handle(TriggerTopicMessage message)
     {
         return new FirstMessage().ToTopic("color.blue", new DeliveryOptions { ScheduleDelay = 3.Seconds() });

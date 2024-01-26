@@ -62,7 +62,7 @@ public class FirstMessage
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L150-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L182-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Of course, you can always explicitly send a message to a specific topic with this syntax:
@@ -98,7 +98,50 @@ theSender = Host.CreateDefaultBuilder()
             exchange.BindTopic("color.blue").ToQueue("blue");
             exchange.BindTopic("color.*").ToQueue("all");
         });
+
+        opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
     }).Start();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L24-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L25-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Publishing by Topic Rule
+
+As of Wolverine 1.16, you can specify publishing rules for messages by supplying
+the logic to determine the topic name from the message itself. Let's say that we have
+an interface that several of our message types implement like so:
+
+<!-- snippet: sample_rabbit_itenantmessage -->
+<a id='snippet-sample_rabbit_itenantmessage'></a>
+```cs
+public interface ITenantMessage
+{
+    string TenantId { get; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L501-L508' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_itenantmessage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Let's say that any message that implements that interface, we want published to the 
+topic for that messages `TenantId`. We can implement that rule like so:
+
+<!-- snippet: sample_rabbit_topic_rules -->
+<a id='snippet-sample_rabbit_topic_rules'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine((context, opts) =>
+    {
+        opts.UseRabbitMq();
+
+        // Publish any message that implements ITenantMessage to 
+        // a Rabbit MQ "Topic" exchange named "tenant.messages"
+        opts.PublishMessagesToRabbitMqExchange<ITenantMessage>("tenant.messages",m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
+            
+            // Specify or configure sending through Wolverine for all
+            // messages through this Exchange
+            .BufferedInMemory();
+    })
+    .StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L480-L497' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_topic_rules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

@@ -3,6 +3,7 @@ using JasperFx.Core.Reflection;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
+using Wolverine.Runtime.Routing;
 
 namespace Wolverine.RabbitMQ;
 
@@ -19,6 +20,28 @@ public static class RabbitMqTransportExtensions
         var transports = endpoints.As<WolverineOptions>().Transports;
 
         return transports.GetOrCreate<RabbitMqTransport>();
+    }
+    
+    /// <summary>
+    /// Publish messages that are of type T or could be cast to type T to a Rabbit MQ
+    /// topic exchange using the supplied function to determine the topic for the message
+    /// </summary>
+    /// <param name="exchangeName"></param>
+    /// <param name="topicSource"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static RabbitMqExchangeConfiguration PublishMessagesToRabbitMqExchange<T>(this WolverineOptions options, string exchangeName,
+        Func<T, string> topicSource)
+    {
+        var transport = options.RabbitMqTransport();
+        var exchange = transport.Exchanges[exchangeName];
+        exchange.ExchangeType = ExchangeType.Topic;
+        exchange.RoutingType = RoutingMode.ByTopic;
+        
+        var routing = new TopicRouting<T>(topicSource, exchange);
+        options.PublishWithMessageRoutingSource(routing);
+
+        return new RabbitMqExchangeConfiguration(exchange);
     }
 
     /// <summary>

@@ -473,7 +473,39 @@ public class Samples
 
         #endregion
     }
+    
+    
+    public static async Task publish_by_topic_rules()
+    {
+        #region sample_rabbit_topic_rules
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                opts.UseRabbitMq();
+
+                // Publish any message that implements ITenantMessage to 
+                // a Rabbit MQ "Topic" exchange named "tenant.messages"
+                opts.PublishMessagesToRabbitMqExchange<ITenantMessage>("tenant.messages",m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
+                    
+                    // Specify or configure sending through Wolverine for all
+                    // messages through this Exchange
+                    .BufferedInMemory();
+            })
+            .StartAsync();
+
+        #endregion
+    }
 }
+
+#region sample_rabbit_itenantmessage
+
+public interface ITenantMessage
+{
+    string TenantId { get; }
+}
+
+#endregion
 
 
 public record SendEmail();

@@ -34,7 +34,11 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     internal LightweightCache<string, RabbitMqTopicEndpoint> Topics { get; }
     internal LightweightCache<string, RabbitMqRouting> Routings { get; }
-    
+
+    public override bool AutoStartSendingAgent()
+    {
+        return base.AutoStartSendingAgent() || ExchangeType == ExchangeType.Topic;
+    }
 
     public bool HasDeclared { get; private set; }
 
