@@ -1,7 +1,9 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Routing;
+using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
@@ -10,6 +12,34 @@ public interface IMessageRouteSource
 {
     IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime);
     bool IsAdditive { get; }
+}
+
+internal class InternalMessages : IMessageRouteSource
+{
+    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
+    {
+        if (messageType.CanBeCastTo<IInternalMessage>())
+        {
+            var queue = runtime.Endpoints.AgentForLocalQueue(TransportConstants.System);
+            yield return new MessageRoute(messageType, queue.Endpoint, runtime.Replies);
+        }
+    }
+
+    public bool IsAdditive => false;
+}
+
+internal class AgentMessages : IMessageRouteSource
+{
+    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
+    {
+        if (messageType.CanBeCastTo<IAgentCommand>())
+        {
+            var queue = runtime.Endpoints.AgentForLocalQueue(TransportConstants.Agents);
+            yield return new MessageRoute(messageType, queue.Endpoint, runtime.Replies);
+        }
+    }
+
+    public bool IsAdditive => false;
 }
 
 internal class ExplicitRouting : IMessageRouteSource
