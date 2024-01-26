@@ -133,4 +133,14 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
         startSubscribing();
     }
+
+    private int _senderIndex = 0;
+    
+    internal MqttTopic NewTopicSender()
+    {
+        var topicName = MqttTopic.WolverineTopicsName + (++_senderIndex);
+        var topic = Topics[topicName];
+        topic.RoutingType = RoutingMode.ByTopic;
+        return topic;
+    }
 }

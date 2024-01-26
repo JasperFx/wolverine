@@ -143,7 +143,7 @@ public static class MqttTransportExtensions
         var transports = options.Transports;
         var transport = transports.GetOrCreate<MqttTransport>();
 
-        var topic = transport.Topics[MqttTopic.WolverineTopicsName];
+        var topic = transport.NewTopicSender();
         var routing = new TopicRouting<T>(topicSource, topic);
         options.PublishWithMessageRoutingSource(routing);
 
