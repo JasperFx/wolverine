@@ -72,6 +72,34 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
         _output.WriteLine(ex.ToString());
     }
 
+    public void LogSuccess(NpgsqlBatch batch)
+    {
+        foreach (var command in batch.BatchCommands)
+        {
+            _output.WriteLine(command.CommandText);
+            foreach (var p in command.Parameters.OfType<NpgsqlParameter>())
+                _output.WriteLine($"  {p.ParameterName}: {p.Value}");
+
+            Debug.WriteLine(command.CommandText);
+            foreach (var p in command.Parameters.OfType<NpgsqlParameter>())
+                Debug.WriteLine($"  {p.ParameterName}: {p.Value}");
+        }
+    }
+
+    public void LogFailure(NpgsqlBatch batch, Exception ex)
+    {
+        _output.WriteLine("Postgresql batch failed!");
+
+        foreach (var command in batch.BatchCommands)
+        {
+            _output.WriteLine(command.CommandText);
+            foreach (var p in command.Parameters.OfType<NpgsqlParameter>())
+                _output.WriteLine($"  {p.ParameterName}: {p.Value}");
+        }
+        
+        _output.WriteLine(ex.ToString());
+    }
+
     public void RecordSavedChanges(IDocumentSession session, IChangeSet commit)
     {
         var lastCommit = commit;
@@ -81,6 +109,11 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
 
     public void OnBeforeExecute(NpgsqlCommand command)
     {
+    }
+
+    public void OnBeforeExecute(NpgsqlBatch batch)
+    {
+        throw new NotImplementedException();
     }
 
     private class NoopTestOutputHelper : ITestOutputHelper

@@ -150,8 +150,9 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
                 $"insert into {_assignmentTable} (id, node_id) values (:{parameter.ParameterName}, :{nodeParameter.ParameterName}) on conflict (id) do update set node_id = :{nodeParameter.ParameterName};");
         }
 
-        await builder.ExecuteNonQueryAsync(conn, cancellationToken);
-
+        var command = builder.Compile();
+        command.Connection = conn;
+        await command.ExecuteNonQueryAsync(cancellationToken);
 
         await conn.CloseAsync();
     }

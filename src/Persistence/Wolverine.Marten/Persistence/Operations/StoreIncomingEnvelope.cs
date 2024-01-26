@@ -21,24 +21,35 @@ internal class StoreIncomingEnvelope : IStorageOperation, NoDataReturnedCall
 
     public Envelope Envelope { get; }
 
-    public void ConfigureCommand(CommandBuilder builder, IMartenSession session)
+    public void ConfigureCommand(ICommandBuilder builder, IMartenSession session)
     {
-        var list = new List<DbParameter>
-        {
-            builder.AddParameter(EnvelopeSerializer.Serialize(Envelope)),
-            builder.AddParameter(Envelope.Id),
-            builder.AddParameter(Envelope.Status.ToString()),
-            builder.AddParameter(Envelope.OwnerId),
-            builder.AddParameter(Envelope.ScheduledTime),
-            builder.AddParameter(Envelope.Attempts),
-            builder.AddParameter(Envelope.MessageType),
-            builder.AddParameter(Envelope.Destination?.ToString())
-        };
-
-        var parameterList = list.Select(x => $":{x.ParameterName}").Join(", ");
-
         builder.Append(
-            $@"insert into {_incomingTable} ({DatabaseConstants.IncomingFields}) values ({parameterList});");
+            $@"insert into {_incomingTable} ({DatabaseConstants.IncomingFields}) values (");
+        
+        builder.AppendParameter(EnvelopeSerializer.Serialize(Envelope));
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.Id);
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.Status.ToString());
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.OwnerId);
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.ScheduledTime.HasValue ? Envelope.ScheduledTime.Value : DBNull.Value);
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.Attempts);
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.MessageType);
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.Destination?.ToString());
+        
+        builder.Append(");");
     }
 
     public void Postprocess(DbDataReader reader, IList<Exception> exceptions)

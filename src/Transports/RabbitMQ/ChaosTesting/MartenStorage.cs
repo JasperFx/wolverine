@@ -75,7 +75,7 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         var store = container.GetInstance<IDocumentStore>();
         await using var session = store.LightweightSession();
         
-        return await session.Query<MessageRecord>().CountLongAsync(cancellation);
+        return await session.Query<MessageRecord>().CountAsync(cancellation);
     }
 }
 
@@ -130,7 +130,7 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
         foreach (var database in await store.Storage.AllDatabases())
         {
             await using var session = store.OpenSession(SessionOptions.ForDatabase(database));
-            count += await session.Query<MessageRecord>().CountLongAsync(cancellation);
+            count += await session.Query<MessageRecord>().CountAsync(cancellation);
         }
 
         return count;
@@ -206,7 +206,7 @@ public class MartenMessageRecordRepository : IMessageRecordRepository
         foreach (var database in await store.Storage.AllDatabases())
         {
             using var session = store.OpenSession(SessionOptions.ForDatabase(database));
-            count += await session.Query<MessageRecord>().CountLongAsync(token);
+            count += await session.Query<MessageRecord>().CountAsync(token);
         }
 
         return count;

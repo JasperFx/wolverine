@@ -23,23 +23,32 @@ internal class StoreOutgoingEnvelope : IStorageOperation, NoDataReturnedCall
 
     public Envelope Envelope { get; }
 
-    public void ConfigureCommand(CommandBuilder builder, IMartenSession session)
+    public void ConfigureCommand(ICommandBuilder builder, IMartenSession session)
     {
-        var list = new List<DbParameter>
-        {
-            builder.AddParameter(EnvelopeSerializer.Serialize(Envelope)),
-            builder.AddParameter(Envelope.Id),
-            builder.AddParameter(_ownerId),
-            builder.AddParameter(Envelope.Destination!.ToString()),
-            builder.AddParameter(Envelope.DeliverBy),
-            builder.AddParameter(Envelope.Attempts),
-            builder.AddParameter(Envelope.MessageType)
-        };
-
-        var parameterList = list.Select(x => $":{x.ParameterName}").Join(", ");
-
         builder.Append(
-            $"insert into {_outgoingTable} ({DatabaseConstants.OutgoingFields}) values ({parameterList});");
+            $"insert into {_outgoingTable} ({DatabaseConstants.OutgoingFields}) values (");
+
+        builder.AppendParameter(EnvelopeSerializer.Serialize(Envelope));
+        builder.Append(',');
+
+        builder.AppendParameter(Envelope.Id);
+        builder.Append(',');
+        
+        builder.AppendParameter(_ownerId);
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.Destination!.ToString());
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.DeliverBy.HasValue ? Envelope.DeliverBy.Value : DBNull.Value);
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.Attempts);
+        builder.Append(',');
+        
+        builder.AppendParameter(Envelope.MessageType);
+        
+        builder.Append(");");
     }
 
     public void Postprocess(DbDataReader reader, IList<Exception> exceptions)

@@ -81,7 +81,7 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         var store = container.GetInstance<IDocumentStore>();
         await using var session = store.LightweightSession();
         
-        return await session.Query<MessageRecord>().CountLongAsync(cancellation);
+        return await session.Query<MessageRecord>().CountAsync(cancellation);
     }
 }
 
@@ -96,7 +96,7 @@ public class MartenMessageRecordRepository : IMessageRecordRepository
 
     public async Task<long> FindOutstandingMessageCount(CancellationToken token)
     {
-        var count = await _session.Query<MessageRecord>().CountLongAsync(token);
+        var count = await _session.Query<MessageRecord>().CountAsync(token);
 
         return count;
     }

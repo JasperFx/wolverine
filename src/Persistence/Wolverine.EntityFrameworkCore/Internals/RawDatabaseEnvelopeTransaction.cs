@@ -79,7 +79,12 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
         var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
         var builder = _database.ToCommandBuilder();
         DatabasePersistence.BuildIncomingStorageCommand(_database, builder, envelope);
-        await builder.ExecuteNonQueryAsync(conn, tx: tx);
+
+
+        var command = builder.Compile();
+        command.Connection = conn;
+        command.Transaction = tx;
+        await command.ExecuteNonQueryAsync();
     }
 
     public ValueTask RollbackAsync()
