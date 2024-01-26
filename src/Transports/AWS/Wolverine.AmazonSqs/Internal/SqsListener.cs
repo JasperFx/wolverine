@@ -29,7 +29,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
         _queue = queue;
         _transport = transport;
 
-        if (_queue.DeadLetterQueueName != null)
+        if (_queue.DeadLetterQueueName != null && !transport.DisableDeadLetterQueues)
         {
             NativeDeadLetterQueueEnabled = true;
             _deadLetterQueue = _transport.Queues[_queue.DeadLetterQueueName];

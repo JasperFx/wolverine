@@ -37,6 +37,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }
+    public bool DisableDeadLetterQueues { get; set; }
 
     public static string SanitizeSqsName(string identifier)
     {
@@ -64,8 +65,11 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     protected override IEnumerable<AmazonSqsQueue> endpoints()
     {
-        var dlqNames = Queues.Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
-        foreach (var dlqName in dlqNames) Queues.FillDefault(dlqName!);
+        if (!DisableDeadLetterQueues)
+        {
+            var dlqNames = Queues.Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
+            foreach (var dlqName in dlqNames) Queues.FillDefault(dlqName!);
+        }
 
         return Queues;
     }

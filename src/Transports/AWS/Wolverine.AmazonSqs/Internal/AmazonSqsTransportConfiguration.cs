@@ -73,4 +73,15 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
 
         return this;
     }
+
+    /// <summary>
+    /// Globally disable all native dead letter queueing with AWS SQS queues within this entire
+    /// application
+    /// </summary>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration DisableAllNativeDeadLetterQueues()
+    {
+        Transport.DisableDeadLetterQueues = true;
+        return this;
+    }
 }

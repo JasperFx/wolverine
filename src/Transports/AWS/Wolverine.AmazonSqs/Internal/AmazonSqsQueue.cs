@@ -315,7 +315,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
-        if (DeadLetterQueueName.IsNotEmpty())
+        if (DeadLetterQueueName.IsNotEmpty() && !_parent.DisableDeadLetterQueues)
         {
             var dlq = _parent.Queues[DeadLetterQueueName];
             deadLetterSender = new InlineSqsSender(runtime, dlq);

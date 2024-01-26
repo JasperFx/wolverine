@@ -29,5 +29,14 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L184-L205' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_dead_letter_queue_for_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Disabling All Native Dead Letter Queueing
+
+In one stroke, you can disable all usage of native SQS queues for dead letter queueing with this 
+syntax:
+
+snippet: sample_disabling_all_sqs_dead_letter_queueing
+
+This would force Wolverine to use any persistent envelope storage for dead letter queueing.
+
 
 
