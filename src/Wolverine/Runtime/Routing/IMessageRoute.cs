@@ -77,7 +77,7 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute
             topicName ??= _topicSource(typedMessage);
             
             var envelope = _route.CreateForSending(message, options, localDurableQueue, runtime, topicName);
-            
+
             // This is an unfortunate timing of operation issue.
             if (envelope is { Message: Envelope scheduled, Status: EnvelopeStatus.Scheduled })
             {
