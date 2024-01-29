@@ -40,7 +40,7 @@ public class SagaChain : HandlerChain
                 e);
         }
 
-        SagaIdMember = DetermineSagaIdMember(MessageType);
+        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType);
     }
 
     public Type SagaType { get; }
@@ -53,11 +53,11 @@ public class SagaChain : HandlerChain
 
     public MethodCall[] NotFoundCalls { get; set; } = Array.Empty<MethodCall>();
 
-    internal static MemberInfo? DetermineSagaIdMember(Type messageType)
+    internal static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType)
     {
         var members = messageType.GetFields().OfType<MemberInfo>().Concat(messageType.GetProperties()).ToArray();
         return members.FirstOrDefault(x => x.HasAttribute<SagaIdentityAttribute>())
-               ?? members.FirstOrDefault(x => x.Name.EqualsIgnoreCase($"{messageType.Name}Id"))
+               ?? members.FirstOrDefault(x => x.Name.EqualsIgnoreCase($"{sagaType.Name}Id"))
                ?? members.FirstOrDefault(x => x.Name == SagaIdMemberName) ??
                members.FirstOrDefault(x => x.Name.EqualsIgnoreCase("Id"));
     }
