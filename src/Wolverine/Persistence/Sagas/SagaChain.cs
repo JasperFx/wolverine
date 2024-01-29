@@ -57,6 +57,7 @@ public class SagaChain : HandlerChain
     {
         var members = messageType.GetFields().OfType<MemberInfo>().Concat(messageType.GetProperties()).ToArray();
         return members.FirstOrDefault(x => x.HasAttribute<SagaIdentityAttribute>())
+               ?? members.FirstOrDefault(x => x.Name.EqualsIgnoreCase($"{messageType.Name}Id"))
                ?? members.FirstOrDefault(x => x.Name == SagaIdMemberName) ??
                members.FirstOrDefault(x => x.Name.EqualsIgnoreCase("Id"));
     }
