@@ -172,6 +172,25 @@ public class send_by_topics : IDisposable
         record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }
+    
+    [Fact]
+    public async Task publish_by_user_message_topic_logic_and_delay()
+    {
+        var routed = new RoutedMessage { TopicName = "color.blue" };
+
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(15.Seconds())
+            .WaitForMessageToBeReceivedAt<RoutedMessage>(theBlueReceiver)
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
+            .SendMessageAndWaitAsync(routed, new DeliveryOptions{ScheduleDelay = 3.Seconds()});
+
+        var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
+        
+        record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
+            .Id.ShouldBe(routed.Id);
+    }
 }
 
 [Topic("color.purple")]

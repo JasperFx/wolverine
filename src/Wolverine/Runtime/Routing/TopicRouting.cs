@@ -27,7 +27,13 @@ internal static class TopicRouting
 
     public static string DetermineTopicName(Envelope envelope)
     {
-        return envelope.TopicName ?? DetermineTopicName(envelope.Message!.GetType());
+        if (envelope.TopicName.IsNotEmpty()) return envelope.TopicName;
+
+        if (envelope.Message == null)
+            throw new ArgumentNullException(nameof(envelope),
+                $"{nameof(envelope.Message)} is null, making this operation invalid");
+        
+        return envelope.TopicName ?? DetermineTopicName(envelope.Message?.GetType());
     }
 }
 

@@ -18,7 +18,8 @@ internal static class EnvelopeScheduleExtensions
             Status = EnvelopeStatus.Scheduled,
             OwnerId = TransportConstants.AnyNode,
             Sender = sender,
-            Data = EnvelopeSerializer.Serialize(envelope)
+            Data = EnvelopeSerializer.Serialize(envelope),
+            TopicName = envelope.TopicName
         };
     }
 }
