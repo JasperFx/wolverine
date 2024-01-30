@@ -72,7 +72,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         }
 
         return RouteForUri(uri)
-            .CreateForSending(message, options, LocalDurableQueue, Runtime);
+            .CreateForSending(message, options, LocalDurableQueue, Runtime, null);
     }
 
     public IMessageRoute RouteForUri(Uri destination)
@@ -104,8 +104,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         var envelopes = new Envelope[_topicRoutes.Length];
         for (var i = 0; i < envelopes.Length; i++)
         {
-            envelopes[i] = _topicRoutes[i].CreateForSending(message, options, LocalDurableQueue, Runtime);
-            envelopes[i].TopicName = topicName;
+            envelopes[i] = _topicRoutes[i].CreateForSending(message, options, LocalDurableQueue, Runtime, topicName);
         }
 
         return envelopes;

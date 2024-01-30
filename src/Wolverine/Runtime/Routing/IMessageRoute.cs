@@ -8,7 +8,7 @@ namespace Wolverine.Runtime.Routing;
 public interface IMessageRoute
 {
     Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
-        WolverineRuntime runtime);
+        WolverineRuntime runtime, string? topicName);
 
 }
 
@@ -36,10 +36,10 @@ internal class TransformedMessageRoute<TSource, TDestination> : IMessageRoute
     }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
-        WolverineRuntime runtime)
+        WolverineRuntime runtime, string? topicName)
     {
         var transformed = _transformation((TSource)message);
-        return _inner.CreateForSending(transformed!, options, localDurableQueue, runtime);
+        return _inner.CreateForSending(transformed!, options, localDurableQueue, runtime, topicName);
     }
 }
 
@@ -69,13 +69,14 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute
     public bool IsAdditive => true;
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
-        WolverineRuntime runtime)
+        WolverineRuntime runtime, string? topicName)
     {
         if (message is T typedMessage)
         {
             _route ??= _topicEndpoint.RouteFor(typeof(T), runtime);
-            var envelope = _route.CreateForSending(message, options, localDurableQueue, runtime);
-            envelope.TopicName = _topicSource(typedMessage);
+            topicName ??= _topicSource(typedMessage);
+            
+            var envelope = _route.CreateForSending(message, options, localDurableQueue, runtime, topicName);
             
             // This is an unfortunate timing of operation issue.
             if (envelope is { Message: Envelope scheduled, Status: EnvelopeStatus.Scheduled })

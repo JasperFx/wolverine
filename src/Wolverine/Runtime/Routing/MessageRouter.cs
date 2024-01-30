@@ -37,7 +37,7 @@ public class MessageRouter<T> : MessageRouterBase<T>
         var envelopes = new Envelope[Routes.Length];
         for (var i = 0; i < envelopes.Length; i++)
         {
-            envelopes[i] = Routes[i].CreateForSending(message, options, LocalDurableQueue, Runtime);
+            envelopes[i] = Routes[i].CreateForSending(message, options, LocalDurableQueue, Runtime, null);
         }
 
         return envelopes;

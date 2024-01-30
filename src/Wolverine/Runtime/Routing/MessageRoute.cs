@@ -58,12 +58,13 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
-        WolverineRuntime runtime)
+        WolverineRuntime runtime, string? topicName)
     {
         var envelope = new Envelope(message, Sender)
         {
             Serializer = Serializer,
-            ContentType = Serializer.ContentType
+            ContentType = Serializer.ContentType,
+            TopicName = topicName
         };
 
         if (Sender.Endpoint is LocalQueue)
