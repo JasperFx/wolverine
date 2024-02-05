@@ -21,17 +21,35 @@ public static class WolverineEntityCoreExtensions
     /// <returns></returns>
     public static IServiceCollection AddDbContextWithWolverineIntegration<T>(this IServiceCollection services, Action<DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
-        services.AddDbContext<T>(b =>
+        return addDbContextWithWolverineIntegration<T>(services, (_, b) => configure(b), wolverineDatabaseSchema);
+     }
+
+    /// <summary>
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configure"></param>
+    /// <param name="wolverineDatabaseSchema"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection AddDbContextWithWolverineIntegration<T>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
+    {
+        return addDbContextWithWolverineIntegration<T>(services, configure, wolverineDatabaseSchema);
+    }
+
+    private static IServiceCollection addDbContextWithWolverineIntegration<T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
+    {
+        services.AddDbContext<T>((s, b) =>
         {
-            configure(b);
+            configure(s, b);
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
 
-        services.AddSingleton<WolverineDbContextCustomizationOptions>(_ => 
-            string.IsNullOrEmpty(wolverineDatabaseSchema) ? 
-                WolverineDbContextCustomizationOptions.Default : new WolverineDbContextCustomizationOptions { DatabaseSchema = wolverineDatabaseSchema});
+        services.AddSingleton<WolverineDbContextCustomizationOptions>(_ =>
+            string.IsNullOrEmpty(wolverineDatabaseSchema)
+                ? WolverineDbContextCustomizationOptions.Default
+                : new WolverineDbContextCustomizationOptions {DatabaseSchema = wolverineDatabaseSchema});
 
         return services;
     }
