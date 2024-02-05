@@ -87,7 +87,7 @@ public sealed partial class WolverineOptions
         configuration?.Invoke(options);
 
         var serializer = new SystemTextJsonSerializer(options);
-        _defaultSerializer ??= serializer;
+        _defaultSerializer = serializer;
 
         _serializers[serializer.ContentType] = serializer;
     }
