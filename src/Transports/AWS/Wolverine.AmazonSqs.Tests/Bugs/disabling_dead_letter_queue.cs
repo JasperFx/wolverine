@@ -36,7 +36,7 @@ public class disabling_dead_letter_queue
         transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName)
             .ShouldBeFalse();
     }
-
+    
     [Fact]
     public async Task do_not_use_default_dlq_when_all_listener_dlqs_are_configured()
     {

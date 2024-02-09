@@ -66,7 +66,26 @@ public class compiled_query_writer : IntegrationContext
         result.ShouldBe(invoicesCount);
     }
 
-
+    // [Fact]
+    // public async Task endpoint_returning_compiled_primitive_query_should_return_query_result_for_string()
+    // {
+    //     if (DateTime.Today > new DateTime(2024, 2, 28)) throw new Exception("JEREMY NEEDS TO FIX THIS");
+    //     return;
+    //     
+    //     await using var session = Store.LightweightSession();
+    //     int invoicesCount = 5;
+    //     Guid id = Guid.Empty;
+    //     for (int i = 0; i < invoicesCount; i++)
+    //     {
+    //         var invoice =
+    //             new Invoice()
+    //             {
+    //             };
+    //         session.Store(invoice);
+    //         id = invoice.Id;
+    //     }
+    //     id.ShouldNotBe(Guid.Empty);
+    
     // TODO -- come back to this soon.
     // [Fact]
     // public async Task endpoint_returning_compiled_primitive_query_should_return_query_result_for_string()
