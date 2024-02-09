@@ -23,6 +23,11 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
 
     public virtual ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
+        foreach (var endpoint in Endpoints())
+        {
+            endpoint.Compile(runtime);
+        }
+        
         // Nothing
         return ValueTask.CompletedTask;
     }

@@ -82,6 +82,11 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
 
     public ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
+        foreach (var endpoint in Endpoints())
+        {
+            endpoint.Compile(runtime);
+        }
+        
         _deleteBlock = new RetryBlock<List<Envelope>>(deleteEnvelopesAsync,
             runtime.LoggerFactory.CreateLogger<DatabaseControlTransport>(), runtime.Options.Durability.Cancellation);
         return ValueTask.CompletedTask;

@@ -152,12 +152,6 @@ public partial class WolverineRuntime
 
         foreach (var transport in Options.Transports)
         {
-            foreach (var endpoint in transport.Endpoints())
-            {
-                endpoint.Runtime = this; // necessary to locate serialization
-                endpoint.Compile(this);
-            }
-            
             if (!Options.ExternalTransportsAreStubbed)
             {
                 await transport.InitializeAsync(this).ConfigureAwait(false);

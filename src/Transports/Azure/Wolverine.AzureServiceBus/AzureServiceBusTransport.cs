@@ -97,6 +97,15 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
     internal AzureServiceBusQueue? RetryQueue { get; set; }
 
+    protected override IEnumerable<Endpoint> explicitEndpoints()
+    {
+        foreach (var queue in Queues) yield return queue;
+
+        foreach (var topic in Topics) yield return topic;
+
+        foreach (var subscription in Subscriptions) yield return subscription;
+    }
+
     protected override IEnumerable<AzureServiceBusEndpoint> endpoints()
     {
         var dlqNames = Queues.Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();

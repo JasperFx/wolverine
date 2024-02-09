@@ -278,6 +278,8 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             return;
         }
 
+        Runtime = runtime;
+
         foreach (var policy in runtime.Options.Transports.EndpointPolicies) policy.Apply(this, runtime);
 
         foreach (var configuration in DelayedConfiguration.ToArray()) configuration.Apply();

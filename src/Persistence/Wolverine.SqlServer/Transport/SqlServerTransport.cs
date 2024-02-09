@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Spectre.Console;
 using Weasel.SqlServer;
+using Wolverine.Configuration;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
@@ -22,6 +23,11 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     public LightweightCache<string, SqlServerQueue> Queues { get; }
 
     protected override IEnumerable<SqlServerQueue> endpoints()
+    {
+        return Queues;
+    }
+
+    protected override IEnumerable<Endpoint> explicitEndpoints()
     {
         return Queues;
     }

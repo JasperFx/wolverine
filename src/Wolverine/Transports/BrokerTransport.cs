@@ -73,11 +73,31 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     {
         runtime.Logger.LogInformation("Initializing the Wolverine {TransportName}", GetType().Name);
 
+        foreach (var endpoint in explicitEndpoints())
+        {
+            endpoint.Compile(runtime);
+        }
+
         tryBuildSystemEndpoints(runtime);
 
         await ConnectAsync(runtime);
 
-        foreach (var endpoint in endpoints()) await endpoint.InitializeAsync(runtime.Logger);
+        foreach (var endpoint in endpoints())
+        {
+            endpoint.Compile(runtime);
+            await endpoint.InitializeAsync(runtime.Logger);
+        }
+    }
+
+    /// <summary>
+    /// This should be overridden in transports that infer dead letter queues from
+    /// the main endpoints so that dead letter queue configuration is applied
+    /// before trying to derive DLQ endpoints
+    /// </summary>
+    /// <returns></returns>
+    protected virtual IEnumerable<Endpoint> explicitEndpoints()
+    {
+        return endpoints();
     }
 
 

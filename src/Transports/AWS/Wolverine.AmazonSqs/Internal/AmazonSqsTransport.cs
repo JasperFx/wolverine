@@ -3,6 +3,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
 using Spectre.Console;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -61,6 +62,11 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     public override string SanitizeIdentifier(string identifier)
     {
         return SanitizeSqsName(identifier);
+    }
+
+    protected override IEnumerable<Endpoint> explicitEndpoints()
+    {
+        return Queues;
     }
 
     protected override IEnumerable<AmazonSqsQueue> endpoints()

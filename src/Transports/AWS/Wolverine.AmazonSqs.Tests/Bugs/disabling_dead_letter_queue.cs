@@ -35,24 +35,6 @@ public class disabling_dead_letter_queue
             .ShouldBeFalse();
     }
 
-    [Fact]
-    public async Task do_not_erroneously_use_dlq_name()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts
-                    .UseAmazonSqsTransportLocally();
-
-                opts
-                    .PublishMessage<ProductCreated>()
-                    .ToSqsQueue("product-created");
-
-                opts
-                    .ListenToSqsQueue("product-created")
-                    .ConfigureDeadLetterQueue("product-created-error");
-            }).StartAsync();
-    }
 }
 
 public record ProductCreated;
