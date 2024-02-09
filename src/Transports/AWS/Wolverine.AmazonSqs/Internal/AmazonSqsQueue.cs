@@ -188,22 +188,30 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
             throw new InvalidOperationException($"Parent {nameof(AmazonSqsTransport)} has not been initialized");
         }
 
-        if (_parent.AutoProvision)
+        try
         {
-            await SetupAsync(client);
-            logger.LogInformation("Tried to create Amazon SQS queue {Name} if missing", QueueUrl);
-        }
+            if (_parent.AutoProvision)
+            {
+                await SetupAsync(client);
+                logger.LogInformation("Tried to create Amazon SQS queue {Name} if missing", QueueUrl);
+            }
 
-        if (QueueUrl.IsEmpty())
-        {
-            var response = await client.GetQueueUrlAsync(QueueName);
-            QueueUrl = response.QueueUrl;
-        }
+            if (QueueUrl.IsEmpty())
+            {
+                var response = await client.GetQueueUrlAsync(QueueName);
+                QueueUrl = response.QueueUrl;
+            }
 
-        if (_parent.AutoPurgeAllQueues)
+            if (_parent.AutoPurgeAllQueues)
+            {
+                await PurgeAsync(logger);
+                logger.LogInformation("Purging Amazon SQS queue {Name}", QueueUrl);
+            }
+        }
+        catch (Exception e)
         {
-            await PurgeAsync(logger);
-            logger.LogInformation("Purging Amazon SQS queue {Name}", QueueUrl);
+            throw new WolverineSqsTransportException($"Error while trying to initialize Amazon SQS queue '{QueueName}'",
+                e);
         }
 
         _initialized = true;
