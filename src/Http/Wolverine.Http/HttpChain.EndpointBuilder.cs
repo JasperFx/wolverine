@@ -16,6 +16,7 @@ namespace Wolverine.Http;
 public partial class HttpChain : IEndpointConventionBuilder
 {
     private readonly List<Action<EndpointBuilder>> _builderConfigurations = new();
+    private readonly List<Action<EndpointBuilder>> _finallyBuilderConfigurations = new();
 
     /// <summary>
     /// Configure ASP.Net Core endpoint metadata
@@ -26,6 +27,11 @@ public partial class HttpChain : IEndpointConventionBuilder
     public void Add(Action<EndpointBuilder> convention)
     {
         _builderConfigurations.Add(convention);
+    }
+
+    public void Finally(Action<EndpointBuilder> finallyConvention)
+    {
+        _finallyBuilderConfigurations.Add(finallyConvention);
     }
 
     private bool tryApplyAsEndpointMetadataProvider(Type? type, RouteEndpointBuilder builder)
@@ -56,6 +62,7 @@ public partial class HttpChain : IEndpointConventionBuilder
 
         establishResourceTypeMetadata(builder);
         foreach (var configuration in _builderConfigurations) configuration(builder);
+        foreach (var finallyConfiguration in _finallyBuilderConfigurations) finallyConfiguration(builder);
 
         foreach (var parameter in Method.Method.GetParameters())
         {
