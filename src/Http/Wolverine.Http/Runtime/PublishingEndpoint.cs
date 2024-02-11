@@ -20,8 +20,13 @@ public class PublishingEndpoint<T>
         // a request directly to a Wolverine messaging endpoint for later processing
         chain.Metadata.Add(builder =>
         {
-            // Adding and modifying data
+            // Adding metadata
             builder.Metadata.Add(new WolverineProducesResponseTypeMetadata { StatusCode = 202, Type = null });
+        });
+        // This is run after all other metadata has been applied, even after the wolverine built-in metadata
+        // So use this if you want to change or remove some metadata
+        chain.Metadata.Finally(builder =>
+        {
             builder.RemoveStatusCodeResponse(200);
         });
     }
