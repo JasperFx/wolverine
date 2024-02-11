@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http.Metadata;
 using Shouldly;
 using WolverineWebApi;
 
@@ -20,5 +21,17 @@ public class publishing_messages_from_http_endpoint : IntegrationContext
 
         tracked.Sent.SingleMessage<HttpMessage1>()
             .Name.ShouldBe("Glenn Frey");
+    }
+
+    [Fact]
+    public void endpoint_should_not_produce_status_code_200()
+    {
+        var endpoint = EndpointFor("/publish/message1");
+        
+        // Status-code 202 should be added in the PublishingEndpoint
+        endpoint.Metadata.FirstOrDefault(x => x is IProducesResponseTypeMetadata m && m.StatusCode == 202).ShouldNotBeNull();
+        
+        // And status-code 200 is removed
+        endpoint.Metadata.FirstOrDefault(x => x is IProducesResponseTypeMetadata m && m.StatusCode == 200).ShouldBeNull();
     }
 }
