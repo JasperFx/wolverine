@@ -73,7 +73,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     {
         if (!DisableDeadLetterQueues)
         {
-            var dlqNames = Queues.Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
+            var dlqNames = Queues.Where(x => x.IsListener).Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
             foreach (var dlqName in dlqNames) Queues.FillDefault(dlqName!);
         }
 
