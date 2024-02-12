@@ -35,6 +35,28 @@ public class disabling_dead_letter_queue
             .ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task do_not_use_default_dlq_when_all_listener_dlqs_are_configured()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransportLocally()
+                    .AutoProvision();
+
+                opts.PublishMessage<ProductCreated>()
+                    .ToSqsQueue("product-created");
+
+                opts.ListenToSqsQueue("product-shipped")
+                    .ConfigureDeadLetterQueue("product-shipped-error");
+            }).StartAsync();
+
+        var transport = host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>()
+            .Options.Transports.GetOrCreate<AmazonSqsTransport>();
+        
+        transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName)
+            .ShouldBeFalse();
+    }
 }
 
 public record ProductCreated;
