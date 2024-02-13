@@ -160,6 +160,6 @@ public record CreationResponse(string Url) : IHttpAware
 <!-- endSnippet -->
 
 Any endpoint that returns `CreationResponse` or a sub class will automatically expose a status code of `201` for successful
-processing to denote resource creation instead of the generic `200`. Your own custom implementations of the `IHttpAware`
+processing to denote resource creation instead of the generic `200`. Same goes for the built-in `AcceptResponse` type, but returning `202` status. Your own custom implementations of the `IHttpAware`
 interface would apply the metadata declarations at configuration time so that those customizations would be part of the
 exported Swashbuckle documentation of the system.

@@ -1,11 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using Microsoft.AspNetCore.Http.Metadata;
 
 namespace Wolverine.Http.Resources;
 
-internal class WolverineProducesResponseTypeMetadata : IProducesResponseTypeMetadata
+public class WolverineProducesResponseTypeMetadata : IProducesResponseTypeMetadata
 {
     public Type? Type { get; init; }
     public int StatusCode { get; init; }
