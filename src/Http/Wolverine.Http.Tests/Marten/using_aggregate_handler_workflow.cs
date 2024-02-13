@@ -217,7 +217,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         {
             x.Post.Json(new ConfirmOrder(status.OrderId)).ToUrl($"/orders/{status.OrderId}/confirm");
             
-            x.StatusCodeShouldBe(204);
+            x.StatusCodeShouldBe(202);
         });
         
         var acceptResponse = await result.ReadAsJsonAsync<AcceptResponse>();
