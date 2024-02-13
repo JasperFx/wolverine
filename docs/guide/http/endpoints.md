@@ -94,6 +94,7 @@ In terms of the response type, you can use:
 | `int`                          | Empty        | Value of response |                                                                                |
 | Type that implements `IResult` | Varies       | Varies            | The `IResult.ExecuteAsync()` method is executed                                |
 | `CreationResponse` or subclass | JSON         | 201               | The response is serialized, and writes a `location` response header            |
+| `AcceptResponse` or subclass   | JSON         | 202               | The response is serialized, and writes a `location` response header            |
 | Any other type                 | JSON         | 200               | The response is serialized to JSON                                             |
 
 In all cases up above, if the endpoint method is asynchronous using either `Task<T>` or `ValueTask<T>`, the `T` is the 

@@ -16,6 +16,7 @@ public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 public record OrderShipped;
 public record OrderCreated(Item[] Items);
 public record OrderReady;
+public record OrderConfirmed;
 public interface IShipOrder
 {
     Guid OrderId { init; }
@@ -77,6 +78,8 @@ public record OrderStarted;
 public record StartOrder(string[] Items);
 
 public record StartOrderWithId(Guid Id, string[] Items);
+
+public record ConfirmOrder(Guid OrderId);
 
 public static class CanShipOrderMiddleWare
 {
@@ -237,5 +240,14 @@ public static class MarkItemEndpoint
             startStream
         );
     }
-
+    
+    [AggregateHandler]
+    [WolverinePost("/orders/{id}/confirm")]
+    public static (AcceptResponse, Events) Confirm(ConfirmOrder command, Order order)
+    {
+        return (
+            new AcceptResponse($"/orders/{order.Id}"),
+            [new OrderConfirmed()]
+        );
+    }
 }

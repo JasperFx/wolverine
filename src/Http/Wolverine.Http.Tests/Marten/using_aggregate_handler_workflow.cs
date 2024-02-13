@@ -4,12 +4,8 @@ using WolverineWebApi.Marten;
 
 namespace Wolverine.Http.Tests.Marten;
 
-public class using_aggregate_handler_workflow : IntegrationContext
+public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationContext(fixture)
 {
-    public using_aggregate_handler_workflow(AppFixture fixture) : base(fixture)
-    {
-    }
-
     [Theory]
     [InlineData("/orders/create")]
     [InlineData("/orders/create2")]
@@ -17,10 +13,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
     {
         var result1 = await Scenario(x =>
         {
-            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl(createEndpoint);
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl(createEndpoint);
         });
 
         var status1 = result1.ReadAsJson<OrderStatus>();
+        status1.ShouldNotBeNull();
 
         await Scenario(x =>
         {
@@ -28,8 +25,9 @@ public class using_aggregate_handler_workflow : IntegrationContext
         });
 
         await using var session = Store.LightweightSession();
+        
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
-
+        
         order.ShouldNotBeNull();
         order.Items["Socks"].Ready.ShouldBeTrue();
     }
@@ -39,12 +37,13 @@ public class using_aggregate_handler_workflow : IntegrationContext
     {
         var result1 = await Scenario(x =>
         {
-            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create3");
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create3");
             x.StatusCodeShouldBe(201);
         });
         
         var response = result1.ReadAsJson<CreationResponse>();
-        var raw = response.Url.ToString().Split('/').Last();
+        response.ShouldNotBeNull();
+        var raw = response.Url.Split('/').Last();
         var id = Guid.Parse(raw);
 
         await Scenario(x =>
@@ -53,6 +52,7 @@ public class using_aggregate_handler_workflow : IntegrationContext
         });
         
         await using var session = Store.LightweightSession();
+        
         var order = await session.Events.AggregateStreamAsync<Order>(id);
         
         order.ShouldNotBeNull();
@@ -64,10 +64,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
     {
         var result1 = await Scenario(x =>
         {
-            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create");
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
         var status1 = result1.ReadAsJson<OrderStatus>();
+        status1.ShouldNotBeNull();
 
         await Scenario(x =>
         {
@@ -75,8 +76,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        using var session = Store.LightweightSession();
+        await using var session = Store.LightweightSession();
+        
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        
+        order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
     
@@ -85,10 +89,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
     {
         var result1 = await Scenario(x =>
         {
-            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create");
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
         var status1 = result1.ReadAsJson<OrderStatus>();
+        status1.ShouldNotBeNull();
 
         await Scenario(x =>
         {
@@ -97,8 +102,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        using var session = Store.LightweightSession();
+        await using var session = Store.LightweightSession();
+        
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        
+        order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
     
@@ -107,10 +115,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
     {
         var result1 = await Scenario(x =>
         {
-            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create");
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
         var status1 = result1.ReadAsJson<OrderStatus>();
+        status1.ShouldNotBeNull();
 
         await Scenario(x =>
         {
@@ -119,8 +128,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        using var session = Store.LightweightSession();
+        await using var session = Store.LightweightSession();
+        
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        
+        order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
     
@@ -140,10 +152,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
     {
         var result1 = await Scenario(x =>
         {
-            x.Post.Json(new StartOrder(new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create");
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
         var status1 = result1.ReadAsJson<OrderStatus>();
+        status1.ShouldNotBeNull();
 
         await Scenario(x =>
         {
@@ -152,8 +165,11 @@ public class using_aggregate_handler_workflow : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        using var session = Store.LightweightSession();
+        await using var session = Store.LightweightSession();
+        
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        
+        order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
     
@@ -165,20 +181,47 @@ public class using_aggregate_handler_workflow : IntegrationContext
         // First time should be fine
         await Scenario(x =>
         {
-            x.Post.Json(new StartOrderWithId(id, new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create4");
+            x.Post.Json(new StartOrderWithId(id, ["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create4");
         });
         
         // Second time hits an exception from stream id collision
         var result2 = await Scenario(x =>
         {
-            x.Post.Json(new StartOrderWithId(id, new[] { "Socks", "Shoes", "Shirt" })).ToUrl("/orders/create4");
+            x.Post.Json(new StartOrderWithId(id, ["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create4");
             x.StatusCodeShouldBe(400);
         });
 
         // And let's verify that we got what we expected for the ProblemDetails
         // in the HTTP response body of the 2nd request
         var details = result2.ReadAsJson<ProblemDetails>();
-        Guid.Parse(details.Extensions["Id"].ToString()).ShouldBe(id);
+        details.ShouldNotBeNull();
+        var detailsId = details.Extensions["Id"]?.ToString();
+        detailsId.ShouldNotBeEmpty();
+        
+        Guid.Parse(detailsId).ShouldBe(id);
         details.Detail.ShouldBe($"Duplicated id '{id}'");
+    }
+    
+    [Fact]
+    public async Task accept_response_returns_proper_status_and_url()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
+        });
+
+        var status = result.ReadAsJson<OrderStatus>();
+        status.ShouldNotBeNull();
+
+        result = await Scenario(x =>
+        {
+            x.Post.Json(new ConfirmOrder(status.OrderId)).ToUrl($"/orders/{status.OrderId}/confirm");
+            
+            x.StatusCodeShouldBe(204);
+        });
+        
+        var acceptResponse = await result.ReadAsJsonAsync<AcceptResponse>();
+        acceptResponse.ShouldNotBeNull();
+        acceptResponse.Url.ShouldBe($"/orders/{status.OrderId}");
     }
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
     <PropertyGroup>
-        <LangVersion>11</LangVersion>
+        <LangVersion>12</LangVersion>
         <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618</NoWarn>
 
         <Authors>Jeremy D. Miller</Authors>

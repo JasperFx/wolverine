@@ -109,3 +109,36 @@ public record CreationResponse<T>(string Url, T Value) : CreationResponse(Url)
 {
     
 }
+
+    
+#region sample_AcceptResponse
+
+/// <summary>
+/// Base class for resource types that denote some kind of request being accepted in the system.
+/// </summary>
+public record AcceptResponse(string Url) : IHttpAware
+{
+    public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
+    {
+        builder.RemoveStatusCodeResponse(202);
+
+        var create = new MethodCall(method.DeclaringType!, method).Creates.FirstOrDefault()?.VariableType;
+        var metadata = new WolverineProducesResponseTypeMetadata { Type = create, StatusCode = 202 };
+        builder.Metadata.Add(metadata);
+    }
+
+    void IHttpAware.Apply(HttpContext context)
+    {
+        context.Response.Headers.Location = Url;
+        context.Response.StatusCode = 202;
+    }
+
+    public static AcceptResponse<T> For<T>(T value, string url) => new AcceptResponse<T>(url, value);
+}
+
+#endregion
+
+public record AcceptResponse<T>(string Url, T Value) : CreationResponse(Url)
+{
+    
+}
