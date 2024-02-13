@@ -120,7 +120,7 @@ public record AcceptResponse(string Url) : IHttpAware
 {
     public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
     {
-        builder.RemoveStatusCodeResponse(202);
+        builder.RemoveStatusCodeResponse(200);
 
         var create = new MethodCall(method.DeclaringType!, method).Creates.FirstOrDefault()?.VariableType;
         var metadata = new WolverineProducesResponseTypeMetadata { Type = create, StatusCode = 202 };
