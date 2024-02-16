@@ -214,7 +214,7 @@ create separation of concerns and testability.
 
 ::: tip
 Despite its name, "Vertical Slice Architecture" is really just an idea about organizing code and not what I would normally
-think of as a try architectural pattern. You could technically follow any kind of ports and adapter style of coding like
+think of as a true architectural pattern. You could technically follow any kind of ports and adapter style of coding like
 the Clean Architecture while still organizing your code in vertical slices instead of horizontal layers. 
 :::
 
