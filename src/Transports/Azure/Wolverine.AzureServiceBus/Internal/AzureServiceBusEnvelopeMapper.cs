@@ -43,6 +43,13 @@ internal class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceived
         outgoing.ApplicationProperties[key] = value;
     }
 
+    protected override void writeIncomingHeaders(ServiceBusReceivedMessage incoming, Envelope envelope)
+    {
+        if (incoming.ApplicationProperties == null) return;
+
+        foreach (var pair in incoming.ApplicationProperties) envelope.Headers[pair.Key] = pair.Value?.ToString();
+    }
+
     protected override bool tryReadIncomingHeader(ServiceBusReceivedMessage incoming, string key, out string? value)
     {
         if (incoming.ApplicationProperties.TryGetValue(key, out var header))
