@@ -91,7 +91,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
             _cancellation);
 
         Channel!.BasicQos(0, Queue.PreFetchCount, false);
-        Channel.BasicConsume(_consumer, queue.QueueName);
+        Channel.BasicConsume(_consumer, queue.QueueName, false, transport.ConnectionFactory.ClientProvidedName);
 
         _callback = (queue.DeadLetterQueue != null) &
                     (queue.DeadLetterQueue?.Mode == DeadLetterQueueMode.InteropFriendly)
