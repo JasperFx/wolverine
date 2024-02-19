@@ -47,7 +47,7 @@ internal class AzureServiceBusSessionListener : IListener
         {
             try
             {
-                var sessionReceiver = await _endpoint.AcceptNextSessionAsync(_cancellation.Token);
+                await using var sessionReceiver = await _endpoint.AcceptNextSessionAsync(_cancellation.Token);
                 var sessionListener =
                     new SessionSpecificListener(sessionReceiver, _endpoint, _receiver, _mapper, _logger, _requeue);
                 var count = await sessionListener.ExecuteAsync(_cancellation.Token);
