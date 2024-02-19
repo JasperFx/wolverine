@@ -221,7 +221,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 var reassign = conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);
                 reassign.CommandType = CommandType.StoredProcedure;
         
-                await cmd
+                await reassign
                     .WithIdList(this, envelopes)
                     .With("owner", durabilitySettings.AssignedNodeNumber)
                     .ExecuteNonQueryAsync(_cancellation);

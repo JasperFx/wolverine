@@ -404,6 +404,28 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     }
 
     [Fact]
+    public async Task should_reasign_incoming_envelope_to_owner_id()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.ScheduledTime = DateTimeOffset.Now;
+        
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.ScheduleExecutionAsync(envelope);
+
+        var durabilitySettings = theHost.Services.GetRequiredService<DurabilitySettings>();
+        await thePersistence.PollForScheduledMessagesAsync(theReceiver,
+            NullLogger.Instance,
+            durabilitySettings,
+            default);
+        
+        var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
+
+        stored.OwnerId.ShouldBe(durabilitySettings.AssignedNodeNumber);
+        stored.Status.ShouldBe(EnvelopeStatus.Incoming);
+    }
+
+    [Fact]
     public async Task store_a_single_outgoing_envelope()
     {
         var envelope = ObjectMother.Envelope();
