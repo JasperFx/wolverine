@@ -41,4 +41,11 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
 
         return this;
     }
+
+    public LocalQueueConfiguration CustomizeOutgoing(Action<Envelope> customize)
+    {
+        add(e => e.OutgoingRules.Add(new LambdaEnvelopeRule(customize)));
+
+        return this;
+    }
 }
