@@ -23,9 +23,11 @@ public class AmazonSqsTransportTests
         var one = transport.Queues["one"];
         var two = transport.Queues["two"];
         var three = transport.Queues["three"];
+        three.IsListener = true;
 
         one.DeadLetterQueueName = null;
         two.DeadLetterQueueName = "two-dead-letter-queue";
+        two.IsListener = true;
 
         var endpoints = transport.Endpoints().OfType<AmazonSqsQueue>().ToArray();
         
