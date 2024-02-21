@@ -1,8 +1,10 @@
+using IntegrationTests;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.AmazonSqs.Internal;
+using Wolverine.Postgresql;
 using Wolverine.Runtime;
 
 namespace Wolverine.AmazonSqs.Tests.Bugs;
@@ -51,6 +53,28 @@ public class disabling_dead_letter_queue
                     .ConfigureDeadLetterQueue("product-shipped-error");
             }).StartAsync();
 
+        var transport = host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>()
+            .Options.Transports.GetOrCreate<AmazonSqsTransport>();
+        
+        transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task no_seriously_do_not_create_dlq()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(options =>
+            {
+                options.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
+                options.UseAmazonSqsTransportLocally();
+
+                options.Durability.Mode = DurabilityMode.Solo;
+
+                options.ListenToSqsQueue("product-created")
+                    .ConfigureDeadLetterQueue("product-created-error");
+            }).StartAsync();
+        
         var transport = host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>()
             .Options.Transports.GetOrCreate<AmazonSqsTransport>();
         
