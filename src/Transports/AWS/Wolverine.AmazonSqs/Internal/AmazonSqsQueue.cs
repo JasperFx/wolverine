@@ -167,7 +167,15 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
         var body = _mapper.BuildMessageBody(envelope);
         var request = new SendMessageRequest(QueueUrl, body);
-        
+        if (envelope.GroupId.IsNotEmpty())
+        {
+            request.MessageGroupId = envelope.GroupId;
+        }
+        if (envelope.DeduplicationId.IsNotEmpty())
+        {
+            request.MessageDeduplicationId = envelope.DeduplicationId;
+        }
+
         foreach (var attribute in _mapper.ToAttributes(envelope))
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
 
