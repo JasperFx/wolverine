@@ -118,25 +118,25 @@ public static class TestEndpoints
 public static class QuerystringCollectionEndpoints
 {
     [WolverineGet("/querystring/collection/string")]
-    public static string UsingStringCollection(IList<string> collection)
+    public static string UsingStringCollection(List<string> collection)
     {
         return string.Join(",", collection);
     }
 
     [WolverineGet("/querystring/collection/int")]
-    public static string UsingIntCollection(IReadOnlyList<int> collection)
+    public static string UsingIntCollection(IList<int> collection)
     {
         return string.Join(",", collection);
     }
 
     [WolverineGet("/querystring/collection/guid")]
-    public static string UsingGuidCollection(IEnumerable<Guid> collection)
+    public static string UsingGuidCollection(IReadOnlyList<Guid> collection)
     {
         return string.Join(",", collection);
     }
 
     [WolverineGet("/querystring/collection/enum")]
-    public static string UsingEnumCollection(IList<Direction> collection)
+    public static string UsingEnumCollection(IEnumerable<Direction> collection)
     {
         return string.Join(",", collection);
     }
