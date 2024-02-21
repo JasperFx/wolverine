@@ -103,6 +103,83 @@ internal class ParsedNullableQueryStringValue : SyncFrame
     }
 }
 
+internal class ParsedCollectionQueryStringValue : SyncFrame
+{
+    private readonly Type _collectionElementType;
+
+    public ParsedCollectionQueryStringValue(ParameterInfo parameter)
+    {
+        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
+        _collectionElementType = GetCollectionElementType(parameter.ParameterType);
+    }
+
+    public QuerystringVariable Variable { get; }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var collectionAlias = typeof(List<>).MakeGenericType(_collectionElementType).FullNameInCode();
+        var elementAlias = _collectionElementType.FullNameInCode();
+
+        writer.Write($"var {Variable.Usage} = new {collectionAlias}();");
+
+        if (_collectionElementType == typeof(string))
+        {
+            writer.Write($"{Variable.Usage}.AddRange(httpContext.Request.Query[\"{Variable.Usage}\"]);");
+        }
+        else
+        {
+            writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Query[\"{Variable.Usage}\"])");
+
+            if (_collectionElementType.IsEnum)
+            {
+                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
+            }
+            else if (_collectionElementType.IsBoolean())
+            {
+                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
+            }
+            else
+            {
+                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Usage}Value, System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}ValueParsed))");
+            }
+
+            writer.Write($"{Variable.Usage}.Add({Variable.Usage}ValueParsed);");
+            writer.FinishBlock(); // parsing block
+
+            writer.FinishBlock(); // foreach blobck
+        }
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public static bool CanParse(Type argType)
+    {
+        if (!argType.IsGenericType)
+        {
+            return false;
+        }
+
+        var elementType = GetCollectionElementType(argType);
+
+        var genericListConcreteType = typeof(List<>).MakeGenericType(elementType);
+        var genericListInterfaceType = typeof(IList<>).MakeGenericType(elementType);
+        var genericReadOnlyListType = typeof(IReadOnlyList<>).MakeGenericType(elementType);
+        var genericEnumerableType = typeof(IEnumerable<>).MakeGenericType(elementType);
+
+        var collectionTypeSupported = argType == genericListConcreteType
+            || argType == genericListInterfaceType
+            || argType == genericReadOnlyListType
+            || argType == genericEnumerableType;
+
+        var elementTypeSupported = elementType == typeof(string) || RouteParameterStrategy.CanParse(elementType);
+
+        return collectionTypeSupported && elementTypeSupported;
+    }
+
+    private static Type GetCollectionElementType(Type collectionType)
+        => collectionType.GetGenericArguments()[0];
+}
+
 internal class QueryStringParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)

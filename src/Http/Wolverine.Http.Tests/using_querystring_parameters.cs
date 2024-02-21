@@ -128,6 +128,78 @@ public class using_querystring_parameters : IntegrationContext
         body.ReadAsText().ShouldBe("Age is missing");
     }
 
+    [Fact]
+    public async Task use_parsed_string_collection()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/collection/string")
+                .QueryString("collection", "foo")
+                .QueryString("collection", "bar")
+                .QueryString("collection", "baz");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("foo,bar,baz");
+    }
+
+    [Fact]
+    public async Task use_parsed_int_collection()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/collection/int")
+                .QueryString("collection", "5")
+                .QueryString("collection", "8")
+                .QueryString("collection", "13");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("5,8,13");
+    }
+
+    [Fact]
+    public async Task use_parsed_guid_collection()
+    {
+        var guid1 = Guid.NewGuid();
+        var guid2 = Guid.NewGuid();
+        var guid3 = Guid.NewGuid();
+
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/collection/guid")
+                .QueryString("collection", guid1.ToString())
+                .QueryString("collection", guid2.ToString())
+                .QueryString("collection", guid3.ToString());
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe($"{guid1},{guid2},{guid3}");
+    }
+
+    [Fact]
+    public async Task use_parsed_enum_collection()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/collection/enum")
+                .QueryString("collection", "North")
+                .QueryString("collection", "East")
+                .QueryString("collection", "South");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe($"North,East,South");
+    }
+
     #region sample_query_string_usage
 
     [Fact]

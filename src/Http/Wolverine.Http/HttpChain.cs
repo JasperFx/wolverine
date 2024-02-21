@@ -306,6 +306,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 }
             }
 
+            if (ParsedCollectionQueryStringValue.CanParse(parameter.ParameterType))
+            {
+                variable = new ParsedCollectionQueryStringValue(parameter).Variable;
+                _querystringVariables.Add(variable);
+            }
+
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
                 variable = new ParsedQueryStringValue(parameter).Variable;
