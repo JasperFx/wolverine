@@ -1,6 +1,7 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
+using JasperFx.Core;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
@@ -53,7 +54,15 @@ internal class OutgoingSqsBatch
             try
             {
                 var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(), queue.Mapper.BuildMessageBody(envelope));
-
+                if (envelope.GroupId.IsNotEmpty())
+                {
+                    entry.MessageGroupId = envelope.GroupId;
+                }
+                if (envelope.DeduplicationId.IsNotEmpty())
+                {
+                    entry.MessageDeduplicationId = envelope.DeduplicationId;
+                }
+				
                 entries.Add(entry);
                 _envelopes.Add(entry.Id, envelope);
             }

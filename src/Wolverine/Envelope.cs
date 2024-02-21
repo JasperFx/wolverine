@@ -240,9 +240,14 @@ public partial class Envelope
     
     /// <summary>
     /// Application defined message group identifier. Part of AMQP 1.0 spec as the "group-id" property. Session identifier
-    /// for Azure Service Bus
+    /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue
     /// </summary>
     public string? GroupId { get; set; }
+
+    /// <summary>
+    /// MessageDeduplicationId for Amazon SQS FIFO Queue
+    /// </summary>
+    public string? DeduplicationId { get; set; }
 
     /// <summary>
     ///     Schedule this envelope to be sent or executed
