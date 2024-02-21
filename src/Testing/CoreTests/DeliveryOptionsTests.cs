@@ -74,6 +74,21 @@ public class DeliveryOptionsTests
     }
 
     [Fact]
+    public void override_deduplication_id()
+    {
+        var options = new DeliveryOptions()
+        {
+            DeduplicationId = "foo"
+        };
+        
+        var envelope = new Envelope();
+        
+        options.Override(envelope);
+        
+        envelope.DeduplicationId.ShouldBe("foo");
+    }
+
+    [Fact]
     public void override_ack_requested()
     {
         var options = new DeliveryOptions
