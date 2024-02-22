@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <ImplicitUsings>enable</ImplicitUsings>
-        <TargetFrameworks>net7.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>

@@ -1,9 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <!-- Leave this be, needing to override the Directory defaults -->
-        <TargetFrameworks>net7.0;net8.0</TargetFrameworks>
-
         <Description>Marten middleware and other helpers for Wolverine HTTP Endpoints</Description>
         <DebugType>portable</DebugType>
         <PackageId>WolverineFx.Http.Marten</PackageId>

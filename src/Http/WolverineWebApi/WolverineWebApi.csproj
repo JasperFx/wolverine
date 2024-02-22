@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <!-- Leave this alone -->
-        <TargetFrameworks>net7.0;net8.0</TargetFrameworks>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>

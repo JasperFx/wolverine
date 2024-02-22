@@ -1,9 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <!-- Leave this be, needing to override the Directory defaults -->
-        <TargetFrameworks>net7.0;net8.0</TargetFrameworks>
-
         <Description>Fluent Validation middleware for Wolverine HTTP Endpoints</Description>
         <DebugType>portable</DebugType>
         <PackageId>WolverineFx.Http.FluentValidation</PackageId>

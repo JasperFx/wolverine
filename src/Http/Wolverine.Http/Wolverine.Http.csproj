@@ -2,9 +2,6 @@
 
     <PropertyGroup>
         <Description>High Performance ASP.Net Core HTTP endpoints using the Wolverine runtime</Description>
-
-        <!-- Leave this be, needing to override the Directory defaults -->
-        <TargetFrameworks>net7.0;net8.0</TargetFrameworks>
         <DebugType>portable</DebugType>
         <PackageId>WolverineFx.Http</PackageId>
         <Nullable>enable</Nullable>

@@ -1,13 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <TargetFrameworks>net8.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <InvariantGlobalization>true</InvariantGlobalization>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0"/>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.0"/>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
     </ItemGroup>
 

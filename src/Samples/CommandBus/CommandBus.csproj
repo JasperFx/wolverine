@@ -4,8 +4,6 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>CommandBusSamples</RootNamespace>
-        <LangVersion>10</LangVersion>
-        <TargetFrameworks>net7.0;net8.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
