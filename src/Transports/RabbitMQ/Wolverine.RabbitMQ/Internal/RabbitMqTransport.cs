@@ -45,7 +45,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
     internal IConnection SendingConnection => _sendingConnection ??= BuildConnection();
 
-    public ConnectionFactory ConnectionFactory { get; } = new();
+    public ConnectionFactory ConnectionFactory { get; } = new(){ClientProvidedName = "Wolverine"};
 
     public IList<AmqpTcpEndpoint> AmqpTcpEndpoints { get; } = new List<AmqpTcpEndpoint>();
 
