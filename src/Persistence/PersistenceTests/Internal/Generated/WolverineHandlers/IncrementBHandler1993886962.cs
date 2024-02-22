@@ -8,13 +8,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: IncrementBHandler1993886962
     public class IncrementBHandler1993886962 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> _logger_of_LetterAggregateHandler1182587933;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> _logger_of_LetterAggregateHandler1284687934;
 
-        public IncrementBHandler1993886962([Lamar.Named("logger2")] Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> logger_of_LetterAggregateHandler1182587933, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementBHandler1993886962(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, [Lamar.Named("logger2")] Microsoft.Extensions.Logging.ILogger<PersistenceTests.Marten.LetterAggregateHandler> logger_of_LetterAggregateHandler1284687934)
         {
-            _logger_of_LetterAggregateHandler1182587933 = logger_of_LetterAggregateHandler1182587933;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _logger_of_LetterAggregateHandler1284687934 = logger_of_LetterAggregateHandler1284687934;
         }
 
 
@@ -33,7 +33,7 @@ namespace Internal.Generated.WolverineHandlers
 
             
             // The actual message execution
-            var outgoing1 = await letterAggregateHandler.Handle(incrementB, eventStream.Aggregate, _logger_of_LetterAggregateHandler1182587933).ConfigureAwait(false);
+            var outgoing1 = await letterAggregateHandler.Handle(incrementB, eventStream.Aggregate, _logger_of_LetterAggregateHandler1284687934).ConfigureAwait(false);
 
             eventStream.AppendOne(outgoing1);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);

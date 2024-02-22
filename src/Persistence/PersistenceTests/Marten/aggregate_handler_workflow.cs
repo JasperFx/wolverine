@@ -31,7 +31,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
                 opts.Services.AddMarten(m =>
                     {
                         m.Connection(Servers.PostgresConnectionString);
-                        m.Projections.SelfAggregate<LetterAggregate>(ProjectionLifecycle.Inline);
+                        m.Projections.Snapshot<LetterAggregate>(SnapshotLifecycle.Inline);
                     })
                     .UseLightweightSessions()
                     .IntegrateWithWolverine();

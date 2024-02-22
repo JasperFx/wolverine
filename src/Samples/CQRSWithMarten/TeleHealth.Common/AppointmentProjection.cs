@@ -1,9 +1,10 @@
+using System.Threading.Tasks;
 using Marten;
 using Marten.Events.Aggregation;
 
 namespace TeleHealth.Common;
 
-public class AppointmentProjection : SingleStreamAggregation<Appointment>
+public class AppointmentProjection : SingleStreamProjection<Appointment>
 {
     public AppointmentProjection()
     {

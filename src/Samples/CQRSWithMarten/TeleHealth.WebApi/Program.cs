@@ -70,7 +70,7 @@ builder.Services.AddMarten(opts =>
 
         opts.Projections.Add<AppointmentProjection>(ProjectionLifecycle.Inline);
         opts.Projections
-            .SelfAggregate<ProviderShift>(ProjectionLifecycle.Async);
+            .Snapshot<ProviderShift>(SnapshotLifecycle.Async);
     })
 
     // This adds a hosted service to run

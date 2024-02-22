@@ -11,6 +11,7 @@ using Shouldly;
 using TestingSupport;
 using Wolverine.Marten;
 using Wolverine.Tracking;
+using Wolverine;
 using Xunit;
 
 namespace PersistenceTests.Marten;
@@ -23,20 +24,21 @@ public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisp
 
     public using_an_aggregate_that_handles_commands()
     {
-        theHost = WolverineHost.For(opts =>
-        {
-            opts.ApplicationAssembly = GetType().Assembly;
-            opts.Services.AddMarten(opts =>
+        theHost = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
             {
-                opts.Connection(Servers.PostgresConnectionString);
-                opts.Projections.SelfAggregate<SelfLetteredAggregate>(ProjectionLifecycle.Inline);
-            }).IntegrateWithWolverine();
-            
-            opts.Services.AddResourceSetupOnStartup();
+                opts.ApplicationAssembly = GetType().Assembly;
+                opts.Services.AddMarten(o =>
+                {
+                    o.Connection(Servers.PostgresConnectionString);
+                    o.Projections.Snapshot<SelfLetteredAggregate>(SnapshotLifecycle.Inline);
+                }).IntegrateWithWolverine();
 
-            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-        });
+                opts.Services.AddResourceSetupOnStartup();
 
+                opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            }).Start();
+        
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 

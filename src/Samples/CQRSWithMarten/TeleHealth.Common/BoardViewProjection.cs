@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
@@ -5,7 +8,7 @@ using Marten.Events.Projections;
 
 namespace TeleHealth.Common;
 
-public class BoardViewProjection : ExperimentalMultiStreamAggregation<BoardView, Guid>
+public class BoardViewProjection : ExperimentalMultiStreamProjection<BoardView, Guid>
 {
     public BoardViewProjection()
     {

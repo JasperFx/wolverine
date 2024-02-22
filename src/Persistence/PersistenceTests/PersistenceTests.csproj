@@ -2,11 +2,7 @@
 
     <PropertyGroup>
         <IsPackable>false</IsPackable>
-
-        <LangVersion>10</LangVersion>
-
         <RootNamespace>PersistenceTests</RootNamespace>
-
         <Nullable>enable</Nullable>
     </PropertyGroup>
 

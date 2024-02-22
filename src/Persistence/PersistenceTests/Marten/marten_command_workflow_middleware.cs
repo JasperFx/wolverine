@@ -31,7 +31,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
             opts.Services.AddMarten(opts =>
                 {
                     opts.Connection(Servers.PostgresConnectionString);
-                    opts.Projections.SelfAggregate<LetterAggregate>(ProjectionLifecycle.Inline);
+                    opts.Projections.Snapshot<LetterAggregate>(SnapshotLifecycle.Inline);
                 })
                 .UseLightweightSessions()
                 .IntegrateWithWolverine();

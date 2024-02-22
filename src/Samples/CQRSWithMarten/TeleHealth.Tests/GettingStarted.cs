@@ -73,8 +73,8 @@ public class GettingStarted
         var store = DocumentStore.For(opts =>
         {
             opts.Connection(ConnectionSource.ConnectionString);
-            opts.Projections.SelfAggregate<ProviderShift>(
-                ProjectionLifecycle.Inline);
+            opts.Projections.Snapshot<ProviderShift>(
+                SnapshotLifecycle.Inline);
         });
 
         var provider = new Provider

@@ -100,6 +100,12 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
         _output.WriteLine(ex.ToString());
     }
 
+    public void LogFailure(Exception ex, string message)
+    {
+        _output.WriteLine(message);
+        _output.WriteLine(ex.ToString());
+    }
+
     public void RecordSavedChanges(IDocumentSession session, IChangeSet commit)
     {
         var lastCommit = commit;
