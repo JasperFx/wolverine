@@ -206,7 +206,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         foreach (var database in databases()) await database.DisposeAsync();
     }
 
-    public async Task InitializeAsync(IWolverineRuntime runtime)
+    public async void Initialize(IWolverineRuntime runtime)
     {
         if (_initialized)
         {
@@ -215,7 +215,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
         await _databases.InitializeAsync();
 
-        foreach (var database in databases()) await database.InitializeAsync(runtime);
+        foreach (var database in databases()) database.Initialize(runtime);
 
         _initialized = true;
     }
@@ -333,7 +333,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     {
         if (!_initialized)
         {
-            await InitializeAsync(_runtime);
+            Initialize(_runtime);
         }
 
         await executeOnAllAsync(d => d.Admin.MigrateAsync());

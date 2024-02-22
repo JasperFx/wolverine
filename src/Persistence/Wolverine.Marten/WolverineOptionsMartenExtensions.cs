@@ -68,18 +68,18 @@ public static class WolverineOptionsMartenExtensions
             _runtime = runtime;
         }
 
-        public async ValueTask<IReadOnlyList<IDatabase>> BuildDatabases()
+        public ValueTask<IReadOnlyList<IDatabase>> BuildDatabases()
         {
             if (_runtime.Storage is PostgresqlMessageStore database)
-                return new List<IDatabase>{database};
+                return new ValueTask<IReadOnlyList<IDatabase>>(new List<IDatabase>{database});
 
             if (_runtime.Storage is MultiTenantedMessageDatabase tenants)
             {
-                await tenants.InitializeAsync(_runtime);
-                return tenants.AllDatabases();
+                tenants.Initialize(_runtime);
+                return new ValueTask<IReadOnlyList<IDatabase>>(tenants.AllDatabases());
             }
 
-            return Array.Empty<IDatabase>();
+            return new ValueTask<IReadOnlyList<IDatabase>>(Array.Empty<IDatabase>());
         }
     }
 

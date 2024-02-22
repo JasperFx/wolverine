@@ -104,9 +104,9 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
-    public Task InitializeAsync(IWolverineRuntime runtime)
+    public void Initialize(IWolverineRuntime runtime)
     {
-        return Task.CompletedTask;
+
     }
 
     public IMessageInbox Inbox => this;

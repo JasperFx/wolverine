@@ -65,7 +65,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         }
 
         // Got to do this to start the database batching
-        await store.InitializeAsync(_runtime);
+        store.Initialize(_runtime);
         
         return store;
     }

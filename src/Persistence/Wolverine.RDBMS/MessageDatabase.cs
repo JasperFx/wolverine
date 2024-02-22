@@ -113,7 +113,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
 
-    public Task InitializeAsync(IWolverineRuntime runtime)
+    public void Initialize(IWolverineRuntime runtime)
     {
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
 
@@ -124,8 +124,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
             runtime.Options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
         }
-
-        return Task.CompletedTask;
     }
 
     public IMessageStoreAdmin Admin => this;

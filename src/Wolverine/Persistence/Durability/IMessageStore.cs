@@ -47,7 +47,7 @@ public interface IMessageStore : IAsyncDisposable
     /// </summary>
     /// <param name="runtime"></param>
     /// <returns></returns>
-    Task InitializeAsync(IWolverineRuntime runtime);
+    void Initialize(IWolverineRuntime runtime);
 
     void Describe(TextWriter writer);
 
