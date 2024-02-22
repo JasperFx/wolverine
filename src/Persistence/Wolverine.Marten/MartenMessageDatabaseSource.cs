@@ -94,7 +94,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         };
     }
 
-    public async Task InitializeAsync()
+    public async Task RefreshAsync()
     {
         var martenDatabases = await _store.Storage.AllDatabases();
         foreach (var martenDatabase in martenDatabases)

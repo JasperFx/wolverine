@@ -213,7 +213,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             return;
         }
 
-        await _databases.InitializeAsync();
+        await _databases.RefreshAsync();
 
         foreach (var database in databases()) database.Initialize(runtime);
 

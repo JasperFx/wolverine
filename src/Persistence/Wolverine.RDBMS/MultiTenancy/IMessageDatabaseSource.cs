@@ -6,7 +6,7 @@ namespace Wolverine.RDBMS.MultiTenancy;
 public interface IMessageDatabaseSource
 {
     ValueTask<IMessageDatabase> FindDatabaseAsync(string tenantId);
-    Task InitializeAsync();
+    Task RefreshAsync();
 
     IReadOnlyList<IMessageDatabase> AllActive();
 }
