@@ -8,11 +8,11 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
 {
     public string Scheme { get; } = DurabilityAgent.AgentScheme;
 
-    public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
+    public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
-        
+        await _databases.RefreshAsync();
         var uris = databases().Select(x => new Uri($"{Scheme}://{x.Name}")).ToList();
-        return new ValueTask<IReadOnlyList<Uri>>(uris);
+        return uris;
     }
 
     public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)

@@ -87,11 +87,13 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
             ConnectionString = database.CreateConnection().ConnectionString
         };
 
-        return new PostgresqlMessageStore(settings, _runtime.Options.Durability,
+        var store = new PostgresqlMessageStore(settings, _runtime.Options.Durability,
             _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
             Name = new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database ?? database.Identifier
         };
+
+        return store;
     }
 
     public async Task RefreshAsync()
@@ -100,6 +102,12 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         foreach (var martenDatabase in martenDatabases)
         {
             var wolverineStore = createWolverineStore(martenDatabase);
+
+            if (martenDatabase.AutoCreate != AutoCreate.None)
+            {
+                await wolverineStore.MigrateAsync();
+            }
+            
             _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
         }
     }

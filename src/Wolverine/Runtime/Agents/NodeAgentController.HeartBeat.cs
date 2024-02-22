@@ -45,8 +45,6 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
                 }).ToArray();
 
                 await _persistence.LogRecordsAsync(records);
-                    
-                yield return new EvaluateAssignments();
             }
 
             if (_lastAssignmentCheck != null && DateTimeOffset.UtcNow >
@@ -81,5 +79,8 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
                 }
             }
         }
+        
+        // We want this to be evaluated no matter what
+        yield return new EvaluateAssignments();
     }
 }

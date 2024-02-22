@@ -62,7 +62,7 @@ public class DurabilitySettings
     ///     How frequently Wolverine will attempt to reassign incoming or outgoing
     ///     persisted methods from nodes that are detected to be offline
     /// </summary>
-    public TimeSpan NodeReassignmentPollingTime { get; set; } = 1.Minutes();
+    public TimeSpan NodeReassignmentPollingTime { get; set; } = 5.Seconds();
 
     /// <summary>
     ///     When should the first execution of the node reassignment job
@@ -79,7 +79,7 @@ public class DurabilitySettings
     ///     How long to wait before the first execution of polling
     ///     for ready, persisted scheduled messages
     /// </summary>
-    public TimeSpan ScheduledJobFirstExecution { get; set; } = new Random().Next(500, 5000).Milliseconds();
+    public TimeSpan ScheduledJobFirstExecution { get; set; } = Random.Shared.Next(500, 5000).Milliseconds();
 
     /// <summary>
     ///     Polling interval for executing scheduled messages

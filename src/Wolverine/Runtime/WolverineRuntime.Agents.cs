@@ -50,7 +50,7 @@ public partial class WolverineRuntime : IAgentRuntime
         else if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, Cancellation, 10.Seconds());
+            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, Cancellation, 30.Seconds());
         }
         else
         {

@@ -132,6 +132,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public Task DrainAsync()
     {
+        if (_batcher == null) return Task.CompletedTask;
         return _batcher!.DrainAsync();
     }
 

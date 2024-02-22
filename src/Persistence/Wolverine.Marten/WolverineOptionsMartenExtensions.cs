@@ -10,6 +10,7 @@ using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using JasperFx.Core;
+using Marten.Storage;
 
 namespace Wolverine.Marten;
 
