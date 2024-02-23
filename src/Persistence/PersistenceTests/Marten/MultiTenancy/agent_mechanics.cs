@@ -1,8 +1,10 @@
+using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Npgsql;
 using PersistenceTests.Agents;
 using Weasel.Postgresql;
+using Wolverine;
 using Wolverine.RDBMS;
 using Wolverine.Tracking;
 using Xunit;

@@ -188,6 +188,7 @@ public static class TestingExtensions
         return waiter.Start(timeout);
     }
     
+    // Used internally by the method above
     public class AssignmentWaiter : IObserver<IWolverineEvent>
     {
         private readonly TaskCompletionSource<bool> _completion = new();
