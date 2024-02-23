@@ -12,8 +12,8 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
+        <ProjectReference Include="..\..\..\..\marten\src\Marten.CommandLine\Marten.CommandLine.csproj" />
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
-        <PackageReference Include="Marten.CommandLine" Version="7.0.0-rc.2" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />
