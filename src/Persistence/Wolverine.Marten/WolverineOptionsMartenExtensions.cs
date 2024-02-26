@@ -107,6 +107,8 @@ public static class WolverineOptionsMartenExtensions
         {
             Name = "Master"
         };
+        
+        master.Initialize(runtime);
 
         return new MultiTenantedMessageDatabase(master, runtime, source);
     }

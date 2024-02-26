@@ -1,7 +1,10 @@
+using System.Text;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Logging;
+using Wolverine.Runtime;
 using Wolverine.Tracking;
 
 namespace Wolverine;
@@ -187,6 +190,16 @@ public static class TestingExtensions
 
         return waiter.Start(timeout);
     }
+
+    /// <summary>
+    /// Test helper to quickly retrieve the identity list of all running agents
+    /// </summary>
+    /// <param name="host"></param>
+    /// <returns></returns>
+    public static IReadOnlyList<Uri> RunningAgents(this IHost host)
+    {
+        return host.GetRuntime().Agents.AllRunningAgentUris();
+    }
     
     // Used internally by the method above
     public class AssignmentWaiter : IObserver<IWolverineEvent>
@@ -195,6 +208,7 @@ public static class TestingExtensions
     
         private IDisposable _unsubscribe;
         private readonly WolverineTracker _tracker;
+        private readonly IHost _leader;
 
         public Dictionary<Guid, int> AgentCountByHost { get; } = new();
         public string AgentScheme { get; set; }
@@ -202,6 +216,7 @@ public static class TestingExtensions
         public AssignmentWaiter(IHost leader)
         {
             _tracker = leader.GetRuntime().Tracker;
+            _leader = leader;
         }
 
         public void ExpectRunningAgents(IHost host, int runningCount)
@@ -219,8 +234,23 @@ public static class TestingExtensions
             var timeout1 = new CancellationTokenSource(timeout);
             timeout1.Token.Register(() =>
             {
+                var assignments = _leader.Services.GetRequiredService<IWolverineRuntime>().Storage.Nodes
+                    .LoadAllNodesAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+                var builder = new StringBuilder();
+                var writer = new StringWriter(builder);
+                writer.WriteLine("Did not reach the expected state or message in time, here's the current status:");
+                foreach (var node in assignments)
+                {
+                    writer.WriteLine($"Node: " + node.AssignedNodeId);
+                    foreach (var uri in node.ActiveAgents.OrderBy(x => x.ToString()))
+                    {
+                        writer.WriteLine(uri);
+                    }
+                }
+                
                 _completion.TrySetException(new TimeoutException(
-                    "Did not reach the expected state or message in time"));
+                    builder.ToString()));
             });
 
 

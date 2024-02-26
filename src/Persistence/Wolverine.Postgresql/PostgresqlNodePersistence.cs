@@ -7,6 +7,7 @@ using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using CommandExtensions = Weasel.Core.CommandExtensions;

@@ -93,7 +93,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     {
         if (_batcher == null)
         {
-            throw new InvalidOperationException("This message database has not yet been initialized");
+            throw new InvalidOperationException($"Message database '{Identifier}' has not yet been initialized for node {Durability.AssignedNodeNumber}");
         }
 
         return _batcher.EnqueueAsync(operation);
@@ -103,7 +103,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     {
         if (_batcher == null)
         {
-            throw new InvalidOperationException("This message database has not yet been initialized");
+            throw new InvalidOperationException($"Message database '{Identifier}' has not yet been initialized");
         }
 
         _batcher.Enqueue(operation);
@@ -115,6 +115,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public void Initialize(IWolverineRuntime runtime)
     {
+        if (_batcher != null) return;
+        
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
 
         if (Settings.IsMaster && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)

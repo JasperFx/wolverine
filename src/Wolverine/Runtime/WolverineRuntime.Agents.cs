@@ -144,11 +144,11 @@ public partial class WolverineRuntime : IAgentRuntime
 
         var startingTime = new Random().Next(0, 2000);
 
-        AgentTimer = new Timer(fireHealthCheck, null, startingTime.Milliseconds(),
-            Options.Durability.HealthCheckPollingTime);
-
         var bus = new MessageBus(this);
         await bus.InvokeAsync(new StartLocalAgentProcessing(Options), Cancellation);
+        
+        AgentTimer = new Timer(fireHealthCheck, null, startingTime.Milliseconds(),
+            Options.Durability.HealthCheckPollingTime);
     }
     
     private void fireHealthCheck(object? state)
