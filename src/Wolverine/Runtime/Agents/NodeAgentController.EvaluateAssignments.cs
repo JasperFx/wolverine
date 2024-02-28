@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
@@ -10,6 +11,12 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
     public async IAsyncEnumerable<object> HandleAsync(EvaluateAssignments command)
     {
         var grid = AssignmentGrid.ForTracker(_tracker);
+
+        // Load all other nodes to also pick up capabilities that might not exist in the leader
+        // This is specifically to enable blue/green deployment
+        var nodes = await _persistence.LoadAllNodesAsync(_cancellation);
+        var capabilities = nodes.SelectMany(x => x.Capabilities).Distinct().ToArray();
+        grid.WithAgents(capabilities);
 
         foreach (var controller in _agentFamilies.Values)
         {

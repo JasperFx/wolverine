@@ -26,7 +26,7 @@ internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand
             }
         }
 
-        runtime.Logger.LogInformation("Successfully started agent {AgentUri} on node {NodeId}", AgentUri, NodeId);
+        runtime.Logger.LogInformation("Successfully started agent {AgentUri} on node {NodeId}", AgentUri, runtime.Options.Durability.AssignedNodeNumber);
         runtime.Tracker.Publish(new AgentStarted(NodeId, AgentUri));
     }
 

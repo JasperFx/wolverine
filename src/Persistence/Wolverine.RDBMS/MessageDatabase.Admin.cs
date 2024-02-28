@@ -62,6 +62,14 @@ public abstract partial class MessageDatabase<T>
         {
             await tryMigrate();
         }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
         catch (Exception)
         {
             await Task.Delay(new Random().Next(250, 1000).Milliseconds(), _cancellation);

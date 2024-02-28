@@ -35,7 +35,7 @@ public class AssignmentGrid
         var grid = new AssignmentGrid();
         foreach (var node in tracker.AllNodes())
         {
-            var copy = grid.WithNode(node.AssignedNodeId, node.Id, node.Capabilities);
+            var copy = grid.WithNode(node.AssignedNodeId, node.Id);
             copy.Running(node.ActiveAgents.ToArray());
             copy.IsLeader = node.IsLeader();
         }
@@ -51,11 +51,10 @@ public class AssignmentGrid
     /// </summary>
     /// <param name="assignedId"></param>
     /// <param name="id"></param>
-    /// <param name="nodeCapabilities"></param>
     /// <returns></returns>
-    public Node WithNode(int assignedId, Guid id, List<Uri> nodeCapabilities)
+    public Node WithNode(int assignedId, Guid id)
     {
-        var node = new Node(this, assignedId, id, nodeCapabilities);
+        var node = new Node(this, assignedId, id);
         _nodes.Add(node);
 
         return node;
@@ -114,6 +113,7 @@ public class AssignmentGrid
         {
             throw new InvalidOperationException("There are no active nodes");
         }
+
 
         var agents = _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
         if (agents.Count == 0)
@@ -334,17 +334,13 @@ public class AssignmentGrid
     {
         private readonly List<Agent> _agents = new();
         private readonly AssignmentGrid _parent;
-        private readonly List<Uri> _nodeCapabilities;
 
-        public Node(AssignmentGrid parent, int assignedId, Guid nodeId, List<Uri> nodeCapabilities)
+        public Node(AssignmentGrid parent, int assignedId, Guid nodeId)
         {
             _parent = parent;
-            _nodeCapabilities = nodeCapabilities;
             AssignedId = assignedId;
             NodeId = nodeId;
         }
-
-        public IReadOnlyList<Uri> Capabilities => _nodeCapabilities;
 
         public int AssignedId { get; }
         public Guid NodeId { get; }

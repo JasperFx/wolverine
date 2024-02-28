@@ -9,7 +9,7 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
         if (_tracker.Self!.IsLeader())
         {
             _logger.LogInformation("Already the current leader ({NodeId}), ignoring the request to assume leadership",
-                _tracker.Self.Id);
+                _tracker.Self.AssignedNodeId);
             yield break;
         }
 
@@ -21,7 +21,7 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
         {
             if (assigned == _tracker.Self.Id)
             {
-                _logger.LogInformation("Node {NodeId} successfully assumed leadership", _tracker.Self.Id);
+                _logger.LogInformation("Node {NodeNumber} successfully assumed leadership", _tracker.Self.AssignedNodeId);
                 await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options,
                     NodeRecordType.LeadershipAssumed, LeaderUri));
 
@@ -50,8 +50,8 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
                 if (leader != null)
                 {
                     _logger.LogInformation(
-                        "Tried to assume leadership at node {NodeId}, but another node {LeaderId} has assumed leadership beforehand",
-                        _tracker.Self.Id, assigned.Value);
+                        "Tried to assume leadership at node {NodeNumber}, but another node {LeaderId} has assumed leadership beforehand",
+                        _tracker.Self.AssignedNodeId, assigned.Value);
                     _tracker.Publish(new NodeEvent(leader, NodeEventType.LeadershipAssumed));
                 }
                 else
@@ -64,8 +64,8 @@ public partial class NodeAgentController : IInternalHandler<TryAssumeLeadership>
             yield break;
         }
 
-        _logger.LogInformation("Node {NodeId} was unable to assume leadership, and no leader was found",
-            _tracker.Self.Id);
+        _logger.LogInformation("Node {NodeNumber} was unable to assume leadership, and no leader was found",
+            _tracker.Self.AssignedNodeId);
 
         // Try it again
         yield return new TryAssumeLeadership();

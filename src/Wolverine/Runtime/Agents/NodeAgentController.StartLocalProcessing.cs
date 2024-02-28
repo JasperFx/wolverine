@@ -9,6 +9,10 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         var others = await _persistence.LoadAllNodesAsync(_cancellation);
 
         var current = WolverineNode.For(command.Options);
+        foreach (var controller in _agentFamilies.Values.OfType<IStaticAgentFamily>())
+        {
+            current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
+        }
 
         current.AssignedNodeId = await _persistence.PersistAsync(current, _cancellation);
         await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
@@ -17,9 +21,6 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
 
         _logger.LogInformation("Starting agents for Node {NodeId} with assigned node id {Id}",
             command.Options.UniqueNodeId, current.AssignedNodeId);
-
-        foreach (var controller in _agentFamilies.Values)
-            current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
 
         _tracker.MarkCurrent(current);
 
@@ -38,15 +39,15 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
 
                 _logger.LogInformation(
                     "Found no elected leader on node startup, requesting node {NodeId} to be the new leader",
-                    leaderCandidate.Id);
+                    leaderCandidate.AssignedNodeId);
 
                 yield return new TryAssumeLeadership { CurrentLeaderId = null }.ToNode(leaderCandidate);
             }
         }
         else
         {
-            _logger.LogInformation("Found no other existing nodes, deciding to assume leadership in node {NodeId}",
-                command.Options.UniqueNodeId);
+            _logger.LogInformation("Found no other existing nodes, deciding to assume leadership in node {NodeNumber}",
+                command.Options.Durability.AssignedNodeNumber);
 
             // send local command
             yield return new TryAssumeLeadership { CurrentLeaderId = null };

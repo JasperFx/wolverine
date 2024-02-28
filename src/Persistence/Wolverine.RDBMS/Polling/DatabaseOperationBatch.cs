@@ -1,5 +1,7 @@
 using System.Data.Common;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using JasperFx.Core;
 using JasperFx.Core.Exceptions;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -15,6 +17,12 @@ public class DatabaseBatchCommandException : Exception
     private static string toMessage(DbCommand command)
     {
         var message = "Database operation batch failure:\n";
+
+        if (command.CommandText.IsEmpty())
+        {
+            Debug.WriteLine("Stop");
+        }
+        
         message += command.CommandText;
         foreach (DbParameter parameter in command.Parameters)
             message += $"\n{parameter.ParameterName}: {parameter.Value}";

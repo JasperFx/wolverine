@@ -21,6 +21,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     public RabbitMqTransport() : base(ProtocolName, "Rabbit MQ")
     {
         ConnectionFactory.AutomaticRecoveryEnabled = true;
+        ConnectionFactory.DispatchConsumersAsync = true;
+        
         Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
         Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
 

@@ -7,7 +7,6 @@ using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
-using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using CommandExtensions = Weasel.Core.CommandExtensions;
@@ -54,7 +53,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             .With("description", node.Description);
 
         var strings = node.Capabilities.Select(x => x.ToString()).ToArray();
-        CommandExtensions.With(cmd, "capabilities", strings);
+        cmd.With("capabilities", strings);
 
         var raw = await cmd.ExecuteScalarAsync(cancellationToken);
 
@@ -357,6 +356,8 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
     public Task LogRecordsAsync(params NodeRecord[] records)
     {
+        if (!records.Any()) return Task.CompletedTask;
+        
         var op = new PersistNodeRecord(_settings, records);
         return _database.EnqueueAsync(op);
     }

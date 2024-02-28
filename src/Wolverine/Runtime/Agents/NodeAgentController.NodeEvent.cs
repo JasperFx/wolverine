@@ -7,8 +7,8 @@ public partial class NodeAgentController : IInternalHandler<NodeEvent>
     // Do assignments one by one, agent by agent
     public async IAsyncEnumerable<object> HandleAsync(NodeEvent @event)
     {
-        _logger.LogInformation("Processing node event {Type} from node {OtherId} in node {NodeId}", @event.Node.Id,
-            @event.Type, _tracker.Self!.Id);
+        _logger.LogInformation("Processing node event {Type} from node {OtherId} in node {NodeNumber}", @event.Node.Id,
+            @event.Type, _tracker.Self!.AssignedNodeId);
 
         switch (@event.Type)
         {

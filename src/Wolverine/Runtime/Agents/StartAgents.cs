@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -14,7 +15,7 @@ internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand
         var startAgents = new StartAgents(AgentIds);
         var response = await runtime.Agents.InvokeAsync<AgentsStarted>(NodeId, startAgents);
 
-        runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeId}", AgentIds, NodeId);
+        runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeNumber}", AgentIds, runtime.Options.Durability.AssignedNodeNumber);
 
         foreach (var uri in response.AgentUris) runtime.Tracker.Publish(new AgentStarted(NodeId, uri));
 
@@ -45,7 +46,14 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand
         {
             try
             {
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                
                 await runtime.Agents.StartLocallyAsync(agentUri);
+
+                Debug.WriteLine($"STARTED {agentUri} in {stopwatch.ElapsedMilliseconds} MILLISECONDS");
+                stopwatch.Stop();
+                
                 successful.Add(agentUri);
             }
             catch (Exception e)

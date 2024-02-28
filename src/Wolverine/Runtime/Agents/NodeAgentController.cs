@@ -177,7 +177,7 @@ public partial class NodeAgentController
             // Need to update the current node
             _tracker.Publish(new AgentStarted(_runtime.Options.UniqueNodeId, agentUri));
 
-            _logger.LogInformation("Successfully started agent {AgentUri}", agentUri);
+            _logger.LogInformation("Successfully started agent {AgentUri} on Node {NodeNumber}", agentUri, _runtime.Options.Durability.AssignedNodeNumber);
         }
         catch (Exception e)
         {
@@ -207,7 +207,7 @@ public partial class NodeAgentController
             try
             {
                 await agent.StopAsync(_cancellation);
-                _logger.LogInformation("Successfully stopped agent {AgentUri}", agentUri);
+                _logger.LogInformation("Successfully stopped agent {AgentUri} on node {NodeNumber}", agentUri, _runtime.Options.Durability.AssignedNodeNumber);
                 await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStopped,
                     agentUri));
             }

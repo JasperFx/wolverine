@@ -201,14 +201,12 @@ public static class TestingExtensions
         return host.GetRuntime().Agents.AllRunningAgentUris();
     }
     
-    // Used internally by the method above
     public class AssignmentWaiter : IObserver<IWolverineEvent>
     {
         private readonly TaskCompletionSource<bool> _completion = new();
     
         private IDisposable _unsubscribe;
         private readonly WolverineTracker _tracker;
-        private readonly IHost _leader;
 
         public Dictionary<Guid, int> AgentCountByHost { get; } = new();
         public string AgentScheme { get; set; }
@@ -216,7 +214,6 @@ public static class TestingExtensions
         public AssignmentWaiter(IHost leader)
         {
             _tracker = leader.GetRuntime().Tracker;
-            _leader = leader;
         }
 
         public void ExpectRunningAgents(IHost host, int runningCount)
@@ -234,23 +231,8 @@ public static class TestingExtensions
             var timeout1 = new CancellationTokenSource(timeout);
             timeout1.Token.Register(() =>
             {
-                var assignments = _leader.Services.GetRequiredService<IWolverineRuntime>().Storage.Nodes
-                    .LoadAllNodesAsync(CancellationToken.None).GetAwaiter().GetResult();
-
-                var builder = new StringBuilder();
-                var writer = new StringWriter(builder);
-                writer.WriteLine("Did not reach the expected state or message in time, here's the current status:");
-                foreach (var node in assignments)
-                {
-                    writer.WriteLine($"Node: " + node.AssignedNodeId);
-                    foreach (var uri in node.ActiveAgents.OrderBy(x => x.ToString()))
-                    {
-                        writer.WriteLine(uri);
-                    }
-                }
-                
                 _completion.TrySetException(new TimeoutException(
-                    builder.ToString()));
+                    "Did not reach the expected state or message in time"));
             });
 
 
@@ -290,5 +272,117 @@ public static class TestingExtensions
             }
         }
     }
+
+
+    
+    // // Used internally by the method above
+    // public class AssignmentWaiter
+    // {
+    //     public Dictionary<Guid, int> AgentCountByHost { get; } = new();
+    //     private readonly Dictionary<Guid, IAgentRuntime> _runtimes = new();
+    //     private readonly WolverineRuntime _leaderRuntime;
+    //
+    //     public string AgentScheme { get; set; }
+    //
+    //     public AssignmentWaiter(IHost leader)
+    //     {
+    //         var runtime = leader.GetRuntime();
+    //         _leaderRuntime = runtime;
+    //         _runtimes[runtime.Options.UniqueNodeId] = runtime.Agents;
+    //     }
+    //
+    //     public void ExpectRunningAgents(IHost host, int runningCount)
+    //     {
+    //         var runtime = host.GetRuntime();
+    //         var id = runtime.Options.UniqueNodeId;
+    //         AgentCountByHost[id] = runningCount;
+    //         _runtimes[id] = runtime.Agents;
+    //     }
+    //
+    //     public Task<bool> Start(TimeSpan timeout)
+    //     {
+    //         if (HasReached()) return Task.FromResult(true);
+    //
+    //         var timeout1 = new CancellationTokenSource(timeout);
+    //         timeout1.CancelAfter(timeout);
+    //         return Task.Factory.StartNew(async () =>
+    //         {
+    //             try
+    //             {
+    //                 while (!timeout1.IsCancellationRequested)
+    //                 {
+    //                     if (HasReached()) return true;
+    //                     await Task.Delay(1.Seconds(), timeout1.Token);
+    //                 }
+    //
+    //                 if (HasReached()) return true;
+    //
+    //                 var builder = await writePersistedActualsAsync();
+    //
+    //                 throw new TimeoutException(builder.ToString());
+    //             }
+    //             catch (TaskCanceledException)
+    //             {
+    //                 if (HasReached()) return true;
+    //                 
+    //                 var builder = await writePersistedActualsAsync();
+    //
+    //                 throw new TimeoutException(builder.ToString());
+    //             }
+    //         }, timeout1.Token).Unwrap();
+    //     }
+    //
+    //     private async Task<StringBuilder> writePersistedActualsAsync()
+    //     {
+    //         var nodes = await _leaderRuntime.Storage.Nodes.LoadAllNodesAsync(CancellationToken.None);
+    //
+    //         var builder = new StringBuilder();
+    //         var writer = new StringWriter(builder);
+    //         
+    //         writer.WriteLine("According to the database...");
+    //             
+    //         foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
+    //         {
+    //             writer.WriteLine($"Node {node.AssignedNodeId} is running:");
+    //             foreach (var uri in node.ActiveAgents.OrderBy(x => x.ToString()))
+    //             {
+    //                 writer.WriteLine(uri);
+    //             }
+    //         }
+    //         
+    //         writer.WriteLine();
+    //         writer.WriteLine("According to the runtimes");
+    //         foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
+    //         {
+    //             writer.WriteLine($"Node {node.AssignedNodeId} is running:");
+    //             var runtime = _runtimes[node.Id];
+    //             
+    //             foreach (var uri in runtime.AllRunningAgentUris().OrderBy(x => x.ToString()))
+    //             {
+    //                 writer.WriteLine(uri);
+    //             }
+    //         }
+    //
+    //         return builder;
+    //     }
+    //
+    //     public bool HasReached()
+    //     {
+    //         Func<Uri, bool> filter = AgentScheme.IsEmpty()
+    //             ? x => !x.Scheme.StartsWith("wolverine")
+    //             : x => x.Scheme.EqualsIgnoreCase(AgentScheme);
+    //         
+    //         foreach (var pair in AgentCountByHost)
+    //         {
+    //             var runtime = _runtimes[pair.Key];
+    //
+    //             var runningCount = runtime.AllRunningAgentUris().Count(x => filter(x));
+    //             if (pair.Value != runningCount) return false;
+    //         }
+    //
+    //         return true;
+    //     }
+    //
+    // }
 }
 

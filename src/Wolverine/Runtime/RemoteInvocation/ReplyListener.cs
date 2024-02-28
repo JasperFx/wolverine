@@ -6,6 +6,7 @@ internal class ReplyListener<T> : IReplyListener
 {
     private readonly CancellationTokenSource _cancellation;
     private readonly TaskCompletionSource<T> _completion;
+    private readonly TimeSpan _timeout;
 
     public ReplyListener(Envelope envelope, ReplyTracker parent, TimeSpan timeout, CancellationToken cancellationToken)
     {
@@ -18,6 +19,8 @@ internal class ReplyListener<T> : IReplyListener
         _cancellation = new CancellationTokenSource(timeout);
 
         _cancellation.Token.Register(onCancellation);
+
+        _timeout = timeout;
     }
 
     public string? RequestType { get; set; }
@@ -60,7 +63,7 @@ internal class ReplyListener<T> : IReplyListener
         else
         {
             _completion.TrySetException(new TimeoutException(
-                $"Timed out waiting for expected response {typeof(T).FullNameInCode()} for original message {RequestId} of type {RequestType}"));
+                $"Timed out waiting for expected response {typeof(T).FullNameInCode()} for original message {RequestId} of type {RequestType} with a configured timeout of {_timeout.TotalMilliseconds} milliseconds"));
         }
 
 

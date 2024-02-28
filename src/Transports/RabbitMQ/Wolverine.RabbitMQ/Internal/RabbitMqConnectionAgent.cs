@@ -53,7 +53,7 @@ internal abstract class RabbitMqConnectionAgent : IDisposable
 
         Channel.CallbackException += (sender, args) =>
         {
-            Logger.LogError(args.Exception, "Callback error in Rabbit Mq agent {Description}", ToString());
+            Logger.LogError(args.Exception, "Callback error in Rabbit Mq agent");
         };
         
         Channel.ModelShutdown += ChannelOnModelShutdown;

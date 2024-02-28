@@ -50,7 +50,7 @@ public partial class WolverineRuntime : IAgentRuntime
         else if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, Cancellation, 30.Seconds());
+            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, Cancellation, 60.Seconds());
         }
         else
         {
@@ -62,13 +62,13 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         if (Tracker.Self!.Id == nodeId)
         {
-            return await new MessageBus(this).InvokeAsync<T>(command, Cancellation);
+            return await new MessageBus(this).InvokeAsync<T>(command, Cancellation, 30.Seconds());
         }
 
         if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            return await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync<T>(command, Cancellation, 10.Seconds());
+            return await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync<T>(command, Cancellation, 60.Seconds());
         }
 
         throw new UnknownWolverineNodeException(nodeId);
