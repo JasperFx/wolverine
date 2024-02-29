@@ -298,7 +298,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             eventTable.AddColumn<int>("node_number").NotNull();
             eventTable.AddColumn<string>("event_name").NotNull();
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("GETUTCDATE()").NotNull();
-            eventTable.AddColumn<string>("description").AllowNulls();
+            eventTable.AddColumn("description", "varchar(500)").AllowNulls();
             yield return eventTable;
         }
     }
