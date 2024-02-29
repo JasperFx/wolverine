@@ -41,11 +41,13 @@ internal class SideEffectPolicy : IChainPolicy
 
                 effect.UseReturnAction(_ =>
                 {
-                    return new MethodCall(effect.VariableType, method)
-                    {
-                        Target = effect,
-                        CommentText = $"Placed by Wolverine's {nameof(ISideEffect)} policy"
-                    };
+                    return new IfElseNullGuardFrame.IfNullGuardFrame(
+                        effect,
+                        new MethodCall(effect.VariableType, method)
+                        {
+                            Target = effect,
+                            CommentText = $"Placed by Wolverine's {nameof(ISideEffect)} policy"
+                        });
                 }, "Side Effect Policy");
             }
         }
