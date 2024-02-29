@@ -49,6 +49,8 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.CheckAssignmentPeriod = 5.Seconds();
+                
                 opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
 
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
@@ -237,7 +239,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     public async Task verify_assignments_can_make_corrections()
     {
         var tracker = _originalHost.GetRuntime().Tracker;
-        await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
+        await tracker.WaitUntilAssumesLeadershipAsync(20.Seconds());
 
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();

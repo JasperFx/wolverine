@@ -35,7 +35,7 @@ public class AssignmentGrid
         var grid = new AssignmentGrid();
         foreach (var node in tracker.AllNodes())
         {
-            var copy = grid.WithNode(node.AssignedNodeId, node.Id);
+            var copy = grid.WithNode(node.AssignedNodeId, node.Id, node.Capabilities);
             copy.Running(node.ActiveAgents.ToArray());
             copy.IsLeader = node.IsLeader();
         }
@@ -51,10 +51,19 @@ public class AssignmentGrid
     /// </summary>
     /// <param name="assignedId"></param>
     /// <param name="id"></param>
+    /// <param name="capabilities"></param>
     /// <returns></returns>
+    public Node WithNode(int assignedId, Guid id, List<Uri> capabilities)
+    {
+        var node = new Node(this, assignedId, id, capabilities);
+        _nodes.Add(node);
+
+        return node;
+    }
+    
     public Node WithNode(int assignedId, Guid id)
     {
-        var node = new Node(this, assignedId, id);
+        var node = new Node(this, assignedId, id, new List<Uri>());
         _nodes.Add(node);
 
         return node;
@@ -80,6 +89,24 @@ public class AssignmentGrid
     }
 
     /// <summary>
+    /// Match up the agents for a particular scheme to any nodes that could
+    /// run that agent. This is meant for blue/green development
+    /// </summary>
+    /// <param name="scheme"></param>
+    /// <returns></returns>
+    public IReadOnlyList<Agent> MatchAgentsToCapableNodesFor(string scheme)
+    {
+        var agents = _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
+        foreach (var agent in agents)
+        {
+            agent.CandidateNodes.Clear();
+            agent.CandidateNodes.AddRange(_nodes.Where(x => x.Capabilities.Contains(agent.Uri)).OrderBy(x => x.AssignedId));
+        }
+
+        return agents;
+    }
+
+    /// <summary>
     ///     Find information about a single agent by its Uri
     /// </summary>
     /// <param name="agentUri"></param>
@@ -100,7 +127,7 @@ public class AssignmentGrid
 
         return AgentFor(uri);
     }
-
+    
     /// <summary>
     ///     Attempts to redistribute agents for a given agent type evenly
     ///     across the known, executing nodes with minimal disruption
@@ -172,9 +199,72 @@ public class AssignmentGrid
         while (missing.Any())
         {
             var agent = missing.Dequeue();
-            var node = nodeQueue.Dequeue();
 
+            var node = _nodes.FirstOrDefault(x => !x.IsLeader && x.ForScheme(scheme).Count() < maximum) ?? _nodes.FirstOrDefault(x => !x.IsLeader) ?? _nodes.First();
             node.Assign(agent);
+        }
+    }
+
+    /// <summary>
+    /// Attempts to redistribute agents for a given agent type evenly
+    /// across the known, executing nodes with minimal disruption. This version assumes
+    /// that there is some blue/green deployment capability matching
+    /// </summary>
+    /// <param name="scheme"></param>
+    /// <exception cref="InvalidOperationException"></exception>
+    public void DistributeEvenlyWithBlueGreenSemantics(string scheme)
+    {
+        var nodes = _nodes;
+        if (!nodes.Any())
+        {
+            throw new InvalidOperationException("There are no active nodes");
+        }
+
+        var agents = MatchAgentsToCapableNodesFor(scheme);
+
+        if (agents.Count == 0)
+        {
+            return;
+        }
+
+        if (nodes.Count == 1)
+        {
+            var node = nodes.Single();
+            foreach (var agent in agents) node.Assign(agent);
+
+            return;
+        }
+
+        var spread = (double)agents.Count / nodes.Count;
+        var minimum = (int)Math.Floor(spread);
+        var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
+
+        // First, pair down number of running agents if necessary. Might have to steal some later
+        foreach (var node in nodes)
+        {
+            var extras = node.ForCurrentlyAssigned(agents).Skip(maximum).ToArray();
+            foreach (var agent in extras)
+            {
+                agent.Detach();
+            }
+        }
+
+        // In the missing, we're going to put the agents up top that can be supported in fewer places 
+        var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count()).ToList();
+        foreach (var agent in missing)
+        {
+            // First try to find a node that has less than the minimum number of nodes
+            var candidate = agent
+                .CandidateNodes
+                .FirstOrDefault(x => x.ForScheme(scheme).Count() < minimum) 
+                            
+                            // Or fall back to the least loaded down node
+                            ?? agent.CandidateNodes.MinBy(x => x.ForScheme(scheme).Count());
+
+            if (candidate != null)
+            {
+                candidate.Assign(agent);
+            }
         }
     }
 
@@ -282,6 +372,12 @@ public class AssignmentGrid
         /// </summary>
         public Node? AssignedNode { get; internal set; }
 
+        /// <summary>
+        /// Possible nodes that can support this agent. NOTE: this is only applied through
+        /// MatchAgentsToNodesFor()
+        /// </summary>
+        public List<Node> CandidateNodes { get; } = new();
+
         public void Detach()
         {
             if (AssignedNode == null)
@@ -327,6 +423,11 @@ public class AssignmentGrid
             command = new ReassignAgent(Uri, OriginalNode.NodeId, AssignedNode.NodeId);
             return true;
         }
+
+        public override string ToString()
+        {
+            return $"{nameof(Uri)}: {Uri}";
+        }
     }
 
 
@@ -334,13 +435,17 @@ public class AssignmentGrid
     {
         private readonly List<Agent> _agents = new();
         private readonly AssignmentGrid _parent;
+        private readonly List<Uri> _capabilities;
 
-        public Node(AssignmentGrid parent, int assignedId, Guid nodeId)
+        public Node(AssignmentGrid parent, int assignedId, Guid nodeId, List<Uri> capabilities)
         {
             _parent = parent;
+            _capabilities = capabilities;
             AssignedId = assignedId;
             NodeId = nodeId;
         }
+
+        public IReadOnlyList<Uri> Capabilities => _capabilities;
 
         public int AssignedId { get; }
         public Guid NodeId { get; }
@@ -352,6 +457,17 @@ public class AssignmentGrid
         public IEnumerable<Agent> ForScheme(string agentScheme)
         {
             return _agents.Where(x => x.Uri.Scheme.EqualsIgnoreCase(agentScheme));
+        }
+
+        /// <summary>
+        /// Fetch any agents that are currently assigned to this node from the supplied
+        /// list of agents
+        /// </summary>
+        /// <param name="agents"></param>
+        /// <returns></returns>
+        public IEnumerable<Agent> ForCurrentlyAssigned(IEnumerable<Agent> agents)
+        {
+            return _agents.Intersect(agents);
         }
 
         public Node Running(params Uri[] agentUris)
@@ -379,6 +495,17 @@ public class AssignmentGrid
         public void Detach(Agent agent)
         {
             agent.Detach();
+        }
+
+        public bool TryAssign(Uri agentUri)
+        {
+            if (_capabilities.Contains(agentUri))
+            {
+                Assign(agentUri);
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

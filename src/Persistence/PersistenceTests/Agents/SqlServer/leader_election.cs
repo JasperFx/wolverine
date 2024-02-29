@@ -57,7 +57,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime, IObserver<IWol
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Durability.CheckAssignmentPeriod = 1.Seconds();
+                opts.Durability.CheckAssignmentPeriod = 5.Seconds();
                 
                 opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
                 
