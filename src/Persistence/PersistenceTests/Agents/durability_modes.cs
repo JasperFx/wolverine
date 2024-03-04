@@ -1,3 +1,7 @@
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,7 +9,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Oakton.Resources;
-using PersistenceTests.Marten;
 using Shouldly;
 using TestingSupport;
 using Weasel.Postgresql;
