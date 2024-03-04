@@ -5,7 +5,7 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Marten;
 using Wolverine.Runtime;
 using Xunit;

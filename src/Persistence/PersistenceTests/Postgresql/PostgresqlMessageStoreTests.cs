@@ -1,4 +1,8 @@
-﻿using IntegrationTests;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
@@ -116,7 +120,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
     [Fact]
     public async Task store_a_single_incoming_envelope()
     {
-        var envelope = SqlServer.ObjectMother.Envelope();
+        var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
         envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
 
@@ -134,7 +138,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
     [Fact]
     public async Task store_a_single_incoming_envelope_that_is_a_duplicate()
     {
-        var envelope = SqlServer.ObjectMother.Envelope();
+        var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
 
         await thePersistence.Inbox.StoreIncomingAsync(envelope);
@@ -148,7 +152,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
     [Fact]
     public async Task store_a_single_outgoing_envelope()
     {
-        var envelope = SqlServer.ObjectMother.Envelope();
+        var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Outgoing;
         envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
 

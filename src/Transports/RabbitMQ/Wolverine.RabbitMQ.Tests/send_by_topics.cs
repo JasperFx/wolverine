@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Tracking;

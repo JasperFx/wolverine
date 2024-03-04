@@ -5,7 +5,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TestMessages;
+using TestingSupport.Compliance;
 
 namespace Wolverine.RabbitMQ.Tests;
 

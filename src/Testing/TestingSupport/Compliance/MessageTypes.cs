@@ -1,8 +1,7 @@
-﻿using System;
-using Wolverine;
+﻿using Wolverine;
 using Wolverine.Attributes;
 
-namespace TestMessages;
+namespace TestingSupport.Compliance;
 
 [MessageIdentity("Message1")]
 public class Message1

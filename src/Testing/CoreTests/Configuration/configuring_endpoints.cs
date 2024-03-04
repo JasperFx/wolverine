@@ -3,7 +3,7 @@ using System.Linq;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;

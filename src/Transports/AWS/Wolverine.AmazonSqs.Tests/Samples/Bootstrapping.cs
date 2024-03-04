@@ -5,7 +5,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
-using TestMessages;
+using TestingSupport.Compliance;
 
 namespace Wolverine.AmazonSqs.Tests.Samples;
 

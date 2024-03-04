@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
@@ -8,7 +12,6 @@ using Marten.Events.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
-using PersistenceTests.SqlServer;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;

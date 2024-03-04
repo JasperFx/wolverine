@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using JasperFx.Core;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Wolverine.Util;

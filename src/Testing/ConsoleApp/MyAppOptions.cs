@@ -1,4 +1,4 @@
-﻿using TestMessages;
+﻿using TestingSupport.Compliance;
 
 namespace ConsoleApp;
 

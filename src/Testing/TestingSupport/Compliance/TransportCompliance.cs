@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport.ErrorHandling;
-using TestMessages;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;

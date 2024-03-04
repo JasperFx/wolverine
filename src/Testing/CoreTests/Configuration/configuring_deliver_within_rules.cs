@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Xunit;

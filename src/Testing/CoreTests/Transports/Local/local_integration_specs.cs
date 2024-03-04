@@ -1,7 +1,7 @@
 ﻿using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using JasperFx.Core;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;

@@ -1,7 +1,7 @@
 using Marten;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine;
 using Wolverine.Attributes;
 

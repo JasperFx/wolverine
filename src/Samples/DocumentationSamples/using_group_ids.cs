@@ -1,5 +1,5 @@
 using JasperFx.Core;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine;
 
 namespace DocumentationSamples;

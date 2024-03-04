@@ -7,7 +7,7 @@ using NSubstitute;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;

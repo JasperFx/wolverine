@@ -7,7 +7,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using NSubstitute;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Tracking;

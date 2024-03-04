@@ -10,7 +10,7 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
-internal class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
+public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
     IAsyncDisposable
 {
     private readonly Endpoint _endpoint;

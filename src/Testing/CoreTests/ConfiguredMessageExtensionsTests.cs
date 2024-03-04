@@ -2,7 +2,7 @@
 using JasperFx.Core.Reflection;
 using NSubstitute;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Xunit;
 
 namespace CoreTests;

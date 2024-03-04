@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Hosting;
 using TestingSupport.Compliance;
-using TestMessages;
 using Wolverine;
 using Wolverine.Transports.Tcp;
 

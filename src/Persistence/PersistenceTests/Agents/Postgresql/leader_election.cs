@@ -10,6 +10,7 @@ using Npgsql;
 using Oakton.Resources;
 using PersistenceTests.Marten;
 using Shouldly;
+using TestingSupport;
 using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Logging;

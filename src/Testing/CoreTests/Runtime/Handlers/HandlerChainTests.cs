@@ -3,7 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Lamar;
 using Microsoft.Extensions.Logging;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Xunit;

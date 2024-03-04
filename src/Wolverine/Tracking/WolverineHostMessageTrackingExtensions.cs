@@ -6,7 +6,12 @@ namespace Wolverine.Tracking;
 
 public static class WolverineHostMessageTrackingExtensions
 {
-    internal static WolverineRuntime GetRuntime(this IHost host)
+    /// <summary>
+    /// Fetch the WolverineRuntime for a given IHost. Useful for testing
+    /// </summary>
+    /// <param name="host"></param>
+    /// <returns></returns>
+    public static WolverineRuntime GetRuntime(this IHost host)
     {
         return (WolverineRuntime)host.Get<IWolverineRuntime>();
     }

@@ -1,6 +1,6 @@
 ﻿using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Tracking;
 using Xunit;
 

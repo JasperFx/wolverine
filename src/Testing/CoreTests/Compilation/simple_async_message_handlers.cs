@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Xunit;
 
 namespace CoreTests.Compilation;

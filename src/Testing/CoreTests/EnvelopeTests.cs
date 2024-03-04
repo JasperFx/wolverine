@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using CoreTests.Messaging;
 using JasperFx.Core;
 using NSubstitute;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;

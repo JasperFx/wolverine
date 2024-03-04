@@ -1,6 +1,6 @@
 using CoreTests.Messaging;
 using CoreTests.Runtime;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Transports.Local;
 using Xunit;

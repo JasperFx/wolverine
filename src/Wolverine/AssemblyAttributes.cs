@@ -20,6 +20,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus.Tests")]
 [assembly: InternalsVisibleTo("PersistenceTests")]
 [assembly: InternalsVisibleTo("EfCoreTests")]
+[assembly: InternalsVisibleTo("SqlServerTests")]
 [assembly: InternalsVisibleTo("ScheduledJobTests")]
 [assembly: InternalsVisibleTo("Wolverine.RDBMS")]
 [assembly: InternalsVisibleTo("Wolverine.Marten")]

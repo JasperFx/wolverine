@@ -3,7 +3,7 @@ using System.Linq;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Shouldly;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;

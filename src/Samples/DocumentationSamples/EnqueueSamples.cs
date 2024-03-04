@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Hosting;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine;
 
 namespace DocumentationSamples;

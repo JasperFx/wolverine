@@ -1,5 +1,5 @@
 ﻿using System;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Attributes;
 using Xunit;
 

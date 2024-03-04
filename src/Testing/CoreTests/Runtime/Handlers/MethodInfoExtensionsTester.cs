@@ -2,7 +2,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.Core.Reflection;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 

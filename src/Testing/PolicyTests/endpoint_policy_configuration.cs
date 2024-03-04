@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Marten;

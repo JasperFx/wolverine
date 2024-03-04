@@ -2,7 +2,7 @@ using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Util;
 

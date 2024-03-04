@@ -1,8 +1,8 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using TestingSupport;
+using TestingSupport.Compliance;
 using TestingSupport.Fakes;
-using TestMessages;
 using Wolverine.Attributes;
 using Xunit;
 

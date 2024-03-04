@@ -2,7 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using MQTTnet;
 using MQTTnet.Protocol;
-using TestMessages;
+using TestingSupport.Compliance;
 using Wolverine.Util;
 
 namespace Wolverine.MQTT.Tests;
