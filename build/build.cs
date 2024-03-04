@@ -92,7 +92,7 @@ namespace build
                 Directory.SetCurrentDirectory(original);
             });
 
-            Target("ci", DependsOn("compile"));
+            Target("ci", DependsOn("test-core"));
 
             Target("install", () =>
                 RunNpm("install"));
