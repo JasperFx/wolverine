@@ -90,6 +90,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
 
     public async Task DisposeAsync()
     {
+        _hosts.Reverse();
         foreach (var host in _hosts)
         {
             await host.StopAsync();

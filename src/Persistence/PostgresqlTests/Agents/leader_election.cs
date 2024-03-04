@@ -37,7 +37,11 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        foreach (var host in _hosts) await host.StopAsync();
+        _hosts.Reverse();
+        foreach (var host in _hosts)
+        {
+            await host.StopAsync();
+        }
     }
 
     private async Task<IHost> startHostAsync()

@@ -38,6 +38,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        _hosts.Reverse();
         foreach (var host in _hosts) await host.StopAsync();
     }
 
