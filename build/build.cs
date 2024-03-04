@@ -29,6 +29,9 @@ namespace build
             {
                 Run("dotnet",
                     $"build wolverine.sln --no-restore --framework net7.0");
+                
+                Run("dotnet",
+                    $"build wolverine.sln --no-restore --framework net8.0");
             });
 
             Target("clean",() =>
