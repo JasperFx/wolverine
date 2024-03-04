@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
+using TestingSupport.Compliance;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport;
+using TestingSupport.Compliance;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Durability;
@@ -12,12 +13,6 @@ using Wolverine.SqlServer.Persistence;
 using Wolverine.Transports;
 
 namespace SqlServerTests.Persistence;
-
-[MessageIdentity("Message1")]
-public class Message1
-{
-    public Guid Id = Guid.NewGuid();
-}
 
 public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
 {

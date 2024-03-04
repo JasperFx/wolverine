@@ -6,6 +6,7 @@ using Marten;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using TestingSupport;
+using TestingSupport.Compliance;
 using Weasel.Core;
 using Wolverine;
 using Wolverine.Attributes;

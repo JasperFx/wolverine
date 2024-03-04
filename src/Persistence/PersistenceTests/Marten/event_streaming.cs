@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Threading.Tasks;
 using IntegrationTests;
 using Marten;
 using Marten.Events;
