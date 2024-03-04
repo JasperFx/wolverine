@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TestingSupport;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
@@ -614,77 +615,3 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
 }
 
-public class FakeAgentFamily : IAgentFamily
-{
-    public FakeAgentFamily(string protocol)
-    {
-        Scheme = protocol;
-    }
-
-    public string Scheme { get; } 
-
-    public static string[] Names = new string[]
-    {
-        "one",
-        "two",
-        "three",
-        "four",
-        "five",
-        "six",
-        "seven",
-        "eight",
-        "nine",
-        "ten",
-        "eleven",
-        "twelve"
-    };
-
-    public LightweightCache<Uri, FakeAgent> Agents { get; } = new(x => new FakeAgent(x));
-    
-    public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
-    {
-        assignments.DistributeEvenly(Scheme);
-        return new ValueTask();
-    }
-
-    public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
-    {
-        var agents = Names.Select(x => new Uri($"{Scheme}://{x}")).ToArray();
-        return ValueTask.FromResult((IReadOnlyList<Uri>)agents);
-    }
-
-    public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
-    {
-        return new ValueTask<IAgent>(Agents[uri]);
-    }
-
-    public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
-    {
-        var agents = Names.Select(x => new Uri($"{Scheme}://{x}")).ToArray();
-        return ValueTask.FromResult((IReadOnlyList<Uri>)agents);
-    }
-}
-
-public class FakeAgent : IAgent
-{
-    public FakeAgent(Uri uri)
-    {
-        Uri = uri;
-    }
-    
-    public bool IsRunning { get; private set; }
-
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        IsRunning = true;
-        return Task.CompletedTask;
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        IsRunning = false;
-        return Task.CompletedTask;
-    }
-
-    public Uri Uri { get; }
-}

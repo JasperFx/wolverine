@@ -4,8 +4,17 @@ using Wolverine.Runtime.Agents;
 
 namespace TestingSupport;
 
-public class FakeAgentFamily : IAgentFamily
+public class FakeAgentFamily : IStaticAgentFamily
 {
+    public FakeAgentFamily()
+    {
+    }
+
+    public FakeAgentFamily(string scheme)
+    {
+        Scheme = scheme;
+    }
+
     public string Scheme { get; } = "fake";
 
     public static string[] Names = new string[]
@@ -34,7 +43,7 @@ public class FakeAgentFamily : IAgentFamily
 
     public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
-        var agents = Names.Select(x => new Uri($"fake://{x}")).ToArray();
+        var agents = Names.Select(x => new Uri($"{Scheme}://{x}")).ToArray();
         return ValueTask.FromResult((IReadOnlyList<Uri>)agents);
     }
 
@@ -49,8 +58,8 @@ public class FakeAgentFamily : IAgentFamily
         return ValueTask.FromResult((IReadOnlyList<Uri>)agents);
     }
 
-    public static Uri[] AllAgentUris()
+    public Uri[] AllAgentUris()
     {
-        return Names.Select(x => new Uri($"fake://{x}")).ToArray();
+        return Names.Select(x => new Uri($"{Scheme}://{x}")).ToArray();
     }
 }

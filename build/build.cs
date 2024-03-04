@@ -36,7 +36,7 @@ namespace build
 
             Target("clean",() =>
             {
-                Run("dotnet", "clean wolverine.sln --framework net7.0");
+                Run("dotnet", "clean wolverine.sln --framework net8.0");
             });
             
             TestTarget("test-core", "CoreTests");
@@ -210,7 +210,7 @@ namespace build
 
         private static void RunCurrentProject(string args)
         {
-            Run("dotnet", $"run  --framework net7.0 --no-build --no-restore -- {args}");
+            Run("dotnet", $"run  --framework net8.0 --no-build --no-restore -- {args}");
         }
 
         private static void CopyFilesRecursively(string sourcePath, string targetPath)
@@ -276,7 +276,7 @@ namespace build
             }
 
             
-            Run("dotnet", "test --no-build --no-restore --logger GitHubActions --framework net7.0 " + path);
+            Run("dotnet", "test --no-build --no-restore --logger GitHubActions --framework net8.0 " + path);
 
         }
 

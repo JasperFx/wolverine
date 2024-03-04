@@ -86,7 +86,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
 
     private bool allAgentsAreRunning(WolverineTracker tracker)
     {
-        var agents = FakeAgentFamily.AllAgentUris();
+        var agents = new FakeAgentFamily().AllAgentUris();
         return agents.All(tracker.AgentIsRunning);
     }
 
@@ -381,78 +381,5 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
     }
 }
 
-public class FakeAgentFamily : IAgentFamily
-{
-    public string Scheme { get; } = "fake";
 
-    public static string[] Names = new string[]
-    {
-        "one",
-        "two",
-        "three",
-        "four",
-        "five",
-        "six",
-        "seven",
-        "eight",
-        "nine",
-        "ten",
-        "eleven",
-        "twelve"
-    };
-
-    public LightweightCache<Uri, FakeAgent> Agents { get; } = new(x => new FakeAgent(x));
-    
-    public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
-    {
-        assignments.DistributeEvenly(Scheme);
-        return new ValueTask();
-    }
-
-    public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
-    {
-        var agents = Names.Select(x => new Uri($"fake://{x}")).ToArray();
-        return ValueTask.FromResult((IReadOnlyList<Uri>)agents);
-    }
-
-    public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime runtime)
-    {
-        return new ValueTask<IAgent>(Agents[uri]);
-    }
-
-    public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
-    {
-        var agents = AllAgentUris();
-        return ValueTask.FromResult((IReadOnlyList<Uri>)agents);
-    }
-
-    public static Uri[] AllAgentUris()
-    {
-        return Names.Select(x => new Uri($"fake://{x}")).ToArray();
-    }
-}
-
-public class FakeAgent : IAgent
-{
-    public FakeAgent(Uri uri)
-    {
-        Uri = uri;
-    }
-    
-    public bool IsRunning { get; private set; }
-
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        IsRunning = true;
-        return Task.CompletedTask;
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        IsRunning = false;
-        return Task.CompletedTask;
-    }
-
-    public Uri Uri { get; }
-}
 

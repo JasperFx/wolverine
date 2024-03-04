@@ -108,7 +108,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
 
     private bool allAgentsAreRunning(WolverineTracker tracker)
     {
-        var agents = FakeAgentFamily.AllAgentUris();
+        var agents = new FakeAgentFamily().AllAgentUris();
         return agents.All(tracker.AgentIsRunning);
     }
     

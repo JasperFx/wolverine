@@ -40,7 +40,7 @@ public class TestingExtensionsTests
         });
 
         ex.Message.ShouldBe(
-            "Should be no messages of type TestMessages.Message1, but the actual messages were TestMessages.Message1, TestMessages.Message3");
+            "Should be no messages of type TestingSupport.Compliance.Message1, but the actual messages were TestingSupport.Compliance.Message1, TestingSupport.Compliance.Message3");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class TestingExtensionsTests
         });
 
         ex.Message.ShouldBe(
-            "Should be no messages of type TestMessages.Message1, but the actual messages were Wolverine.DeliveryMessage`1[TestMessages.Message1]");
+            "Should be no messages of type TestingSupport.Compliance.Message1, but the actual messages were Wolverine.DeliveryMessage`1[TestingSupport.Compliance.Message1]");
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class TestingExtensionsTests
         });
 
         ex.Message.ShouldBe(
-            "Should be no messages of type TestMessages.Message3, but the actual messages were TestMessages.Message1, TestMessages.Message3");
+            "Should be no messages of type TestingSupport.Compliance.Message3, but the actual messages were TestingSupport.Compliance.Message1, TestingSupport.Compliance.Message3");
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class TestingExtensionsTests
         });
 
         ex.Message.ShouldBe(
-            "Should be a message of type TestMessages.Message4, but actual messages were TestMessages.Message1, TestMessages.Message2, TestMessages.Message3");
+            "Should be a message of type TestingSupport.Compliance.Message4, but actual messages were TestingSupport.Compliance.Message1, TestingSupport.Compliance.Message2, TestingSupport.Compliance.Message3");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class TestingExtensionsTests
                 .ShouldHaveMessageOfType<Message4>();
         });
 
-        ex.Message.ShouldBe("Should be a message of type TestMessages.Message4, but there were no messages");
+        ex.Message.ShouldBe("Should be a message of type TestingSupport.Compliance.Message4, but there were no messages");
     }
 
     [Fact]

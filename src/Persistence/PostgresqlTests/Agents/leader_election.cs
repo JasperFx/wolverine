@@ -88,7 +88,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
 
     private bool allAgentsAreRunning(WolverineTracker tracker)
     {
-        var agents = FakeAgentFamily.AllAgentUris();
+        var agents = new FakeAgentFamily().AllAgentUris();
         return agents.All(tracker.AgentIsRunning);
     }
 
