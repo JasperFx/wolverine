@@ -8,9 +8,8 @@ using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.SqlServer;
-using Xunit;
 
-namespace PersistenceTests.EFCore;
+namespace EfCoreTests;
 
 [Collection("sqlserver")]
 public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime

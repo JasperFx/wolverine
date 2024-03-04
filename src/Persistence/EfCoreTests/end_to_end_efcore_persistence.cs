@@ -1,7 +1,7 @@
-using System.Data.SqlClient;
 using IntegrationTests;
 using JasperFx.Core.Reflection;
 using Lamar;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,9 +18,8 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Transports;
-using Xunit;
 
-namespace PersistenceTests.EFCore;
+namespace EfCoreTests;
 
 public class EFCorePersistenceContext : BaseContext
 {

@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using IntegrationTests;
 using Lamar;
 using Marten;
@@ -7,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Oakton.Resources;
-using PersistenceTests.EFCore;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;

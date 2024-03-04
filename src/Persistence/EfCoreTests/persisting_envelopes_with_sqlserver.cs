@@ -13,9 +13,8 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
-using Xunit;
 
-namespace PersistenceTests.EFCore;
+namespace EfCoreTests;
 
 [Collection("sqlserver")]
 public class persisting_envelopes_with_sqlserver : IAsyncLifetime

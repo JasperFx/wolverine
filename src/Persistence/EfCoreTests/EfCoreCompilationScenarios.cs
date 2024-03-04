@@ -1,9 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using TestingSupport;
 using Wolverine;
-using Xunit;
 
-namespace PersistenceTests.EFCore;
+namespace EfCoreTests;
 
 [Collection("sqlserver")]
 public class EfCoreCompilationScenarios

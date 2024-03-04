@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 
-namespace PersistenceTests.EFCore;
+namespace EfCoreTests;
 
 public class SampleUsageWithAutoApplyTransactions
 {

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TestingSupport.Sagas;
 
-namespace PersistenceTests.EFCore.Sagas;
+namespace EfCoreTests.Sagas;
 
 public class SagaDbContext : DbContext
 {

@@ -1,17 +1,12 @@
 using IntegrationTests;
-using JasperFx.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
-using PersistenceTests.EFCore;
 using Wolverine;
 using Wolverine.Postgresql;
-using Wolverine.Runtime.Interop.MassTransit;
-using Xunit;
-using Xunit.Sdk;
 
-namespace PersistenceTests.Postgresql;
+namespace EfCoreTests;
 
 public class Bug_661_postgresql_with_ef_core 
 {

@@ -1,6 +1,6 @@
 using Weasel.SqlServer.Tables;
 
-namespace PersistenceTests.EFCore.Sagas;
+namespace EfCoreTests.Sagas;
 
 internal class WorkflowStateTable<T> : Table
 {

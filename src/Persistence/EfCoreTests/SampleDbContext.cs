@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore;
 
-namespace PersistenceTests.EFCore;
+namespace EfCoreTests;
 
 public class SampleDbContext : DbContext
 {

@@ -12,7 +12,7 @@ using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.SqlServer;
 
-namespace PersistenceTests.EFCore.Sagas;
+namespace EfCoreTests.Sagas;
 
 public class EfCoreSagaHost : ISagaHost
 {

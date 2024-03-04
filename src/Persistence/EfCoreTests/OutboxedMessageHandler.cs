@@ -1,8 +1,6 @@
-using System;
-using System.Threading.Tasks;
 using JasperFx.Core;
 
-namespace PersistenceTests;
+namespace EfCoreTests;
 
 public record OutboxedMessage
 {

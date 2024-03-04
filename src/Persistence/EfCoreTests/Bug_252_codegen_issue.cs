@@ -14,10 +14,9 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.Runtime.Handlers;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
-using Xunit;
 using Xunit.Abstractions;
 
-namespace PersistenceTests.EFCore;
+namespace EfCoreTests;
 
 [Collection("sqlserver")]
 public class Bug_252_codegen_issue
@@ -104,7 +103,7 @@ public class Bug_252_codegen_issue
         // for creating the handler
         lines.Any(x =>
                 x.Contains(
-                    "var createOrderHandler = new PersistenceTests.EFCore.CreateOrderHandler(orderRepository, context);"))
+                    "var createOrderHandler = new EfCoreTests.CreateOrderHandler(orderRepository, context);"))
             .ShouldBeTrue();
     }
 }
