@@ -1,9 +1,9 @@
 using System;
 using System.Diagnostics;
-using CoreTests.Messaging;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using TestingSupport;
 using Wolverine.Runtime;
 using Xunit;
 

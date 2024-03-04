@@ -1,7 +1,7 @@
 ﻿using Wolverine;
 using Wolverine.Transports;
 
-namespace SqlServerTests;
+namespace TestingSupport;
 
 public static class ObjectMother
 {
@@ -16,7 +16,8 @@ public static class ObjectMother
             ContentType = EnvelopeConstants.JsonContentType,
             Source = "SomeApp",
             DeliverBy = new DateTimeOffset(DateTime.Today.AddHours(4)),
-            OwnerId = 567
+            OwnerId = 567,
+            Attempts = 1
         };
     }
 }

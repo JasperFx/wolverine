@@ -1,8 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
-using CoreTests.Messaging;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using NSubstitute;
@@ -47,14 +43,14 @@ public class MessageContextTests
     {
         using var activity = new Activity("DoWork");
         activity.Start();
-        
+
         theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
-        
+
         theEnvelope.TenantId.ShouldBe(theContext.TenantId);
-        
+
         theEnvelope.SagaId.ShouldBe("some saga");
         theEnvelope.ConversationId.ShouldBe(theContext.Envelope.ConversationId);
-        
+
         theEnvelope.Source.ShouldBe("MyService");
         theEnvelope.CorrelationId.ShouldBe(theContext.CorrelationId);
 
@@ -162,7 +158,7 @@ public class MessageContextTests
         await theRuntime.Storage.Inbox.DidNotReceive()
             .MoveToDeadLetterStorageAsync(theEnvelope, exception);
     }
-    
+
     [Fact]
     public async Task move_to_dead_letter_queue_without_native_dead_letter_if_native_dlq_is_disabled()
     {

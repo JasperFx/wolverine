@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Oakton.Resources;
 using Shouldly;
+using TestingSupport;
 using TestingSupport.Compliance;
 using Weasel.SqlServer;
 using Wolverine;

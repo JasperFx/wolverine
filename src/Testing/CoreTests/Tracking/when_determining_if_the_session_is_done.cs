@@ -1,12 +1,8 @@
-using System;
-using System.Threading.Tasks;
-using CoreTests.Messaging;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using Wolverine.Tracking;
 using Wolverine.Transports;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Tracking;
@@ -38,14 +34,21 @@ public class when_determining_if_the_session_is_done : IDisposable
     [InlineData(new[] { MessageEventType.Sent, MessageEventType.NoRoutes }, true)]
     [InlineData(new[] { MessageEventType.Received }, false)]
     [InlineData(new[] { MessageEventType.Received, MessageEventType.ExecutionStarted }, false)]
-    [InlineData(new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished }, false)]
     [InlineData(
-        new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished, MessageEventType.MessageFailed },
+        new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished },
+        false)]
+    [InlineData(
+        new[]
+        {
+            MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished,
+            MessageEventType.MessageFailed
+        },
         true)]
     [InlineData(
         new[]
         {
-            MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished, MessageEventType.MessageSucceeded
+            MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished,
+            MessageEventType.MessageSucceeded
         }, true)]
     public void envelope_history_determining_when_complete_locally(MessageEventType[] events, bool isComplete)
     {
@@ -87,14 +90,21 @@ public class when_determining_if_the_session_is_done : IDisposable
     [InlineData(new[] { MessageEventType.Sent }, false)]
     [InlineData(new[] { MessageEventType.Received }, false)]
     [InlineData(new[] { MessageEventType.Received, MessageEventType.ExecutionStarted }, false)]
-    [InlineData(new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished }, false)]
     [InlineData(
-        new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished, MessageEventType.MessageFailed },
+        new[] { MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished },
+        false)]
+    [InlineData(
+        new[]
+        {
+            MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished,
+            MessageEventType.MessageFailed
+        },
         true)]
     [InlineData(
         new[]
         {
-            MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished, MessageEventType.MessageSucceeded
+            MessageEventType.Received, MessageEventType.ExecutionStarted, MessageEventType.ExecutionFinished,
+            MessageEventType.MessageSucceeded
         }, true)]
     [InlineData(new[] { MessageEventType.NoRoutes }, true)]
     [InlineData(new[] { MessageEventType.Sent, MessageEventType.NoRoutes }, true)]
@@ -154,6 +164,4 @@ public class when_determining_if_the_session_is_done : IDisposable
 
         session.Status.ShouldBe(TrackingStatus.Completed);
     }
-
-
 }
