@@ -63,6 +63,12 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
         
         var mapper = new AzureServiceBusEnvelopeMapper(this, runtime);
 
+        // Important for interoperability
+        if (MessageType != null)
+        {
+            mapper.ReceivesMessage(MessageType);
+        }
+
         return mapper;
     }
 
