@@ -102,13 +102,15 @@ public class SagaChain : HandlerChain
         var findSagaId = SagaIdMember == null
             ? (Frame)new PullSagaIdFromEnvelopeFrame(frameProvider.DetermineSagaIdType(SagaType, container))
             : new PullSagaIdFromMessageFrame(MessageType, SagaIdMember);
-        frames.Add(findSagaId);
+        
 
-        var sagaId = findSagaId.Creates.Single();
-
-        var load = frameProvider.DetermineLoadFrame(container, SagaType, sagaId);
-        var saga = load.Creates.Single();
-        frames.Add(load);
+        var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.Single());
+        
+        // Using this one frame to tie everything together
+        var resolve = new ResolveSagaFrame(findSagaId, load);
+        frames.Add(resolve);
+        var saga = resolve.Saga;
+        var sagaId = resolve.SagaId;
 
         var startingFrames = DetermineSagaDoesNotExistSteps(sagaId, saga, frameProvider, container).ToArray();
         var existingFrames = DetermineSagaExistsSteps(sagaId, saga, frameProvider, container).ToArray();
