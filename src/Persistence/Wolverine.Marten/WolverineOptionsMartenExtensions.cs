@@ -32,6 +32,12 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null,
         string? masterDatabaseConnectionString = null)
     {
+        if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
+        {
+            throw new ArgumentOutOfRangeException(nameof(schemaName),
+                "The schema name must be in all lower case characters");
+        }
+        
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
         expression.Services.AddSingleton<IMessageStore>(s =>
