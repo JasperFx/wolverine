@@ -1,9 +1,12 @@
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
 public partial class NodeAgentController
 {
+    private Task _soloCheckingTask;
+    
     public async Task StartSoloModeAsync()
     {
         await _runtime.Storage.Nodes.ClearAllAsync(_cancellation);
@@ -14,6 +17,29 @@ public partial class NodeAgentController
         _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId = 1;
         await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
 
+        await startAllAgentsAsync();
+
+        _soloCheckingTask = Task.Run(async () =>
+        {
+            while (!_cancellation.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(_runtime.Options.Durability.CheckAssignmentPeriod, _cancellation);
+                    await startAllAgentsAsync();
+                }
+                catch (OperationCanceledException)
+                {
+                    // Just done
+                }
+            }
+        }, _cancellation);
+
+        HasStartedInSoloMode = true;
+    }
+
+    private async Task startAllAgentsAsync()
+    {
         foreach (var controller in _agentFamilies.Values)
         {
             try
@@ -21,6 +47,7 @@ public partial class NodeAgentController
                 var allAgents = await controller.AllKnownAgentsAsync();
                 foreach (var uri in allAgents)
                 {
+                    // This is idempotent, so call away!
                     await StartAgentAsync(uri);
                 }
             }
@@ -30,7 +57,5 @@ public partial class NodeAgentController
                     controller.Scheme);
             }
         }
-
-        HasStartedInSoloMode = true;
     }
 }

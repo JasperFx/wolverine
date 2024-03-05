@@ -13,7 +13,7 @@ using Wolverine.RDBMS;
 
 namespace MartenTests.MultiTenancy;
 
-public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases : IAsyncLifetime
+public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifetime
 {
     private IHost _host;
     private IDocumentStore theStore;
@@ -21,22 +21,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
     private string tenant2ConnectionString;
     private string tenant3ConnectionString;
     private string tenant4ConnectionString;
-
-    private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
-    {
-        var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
-
-        var exists = await conn.DatabaseExists(databaseName);
-        if (!exists)
-        {
-            await new DatabaseSpecification().BuildDatabase(conn, databaseName);
-        }
-
-        builder.Database = databaseName;
-
-        return builder.ConnectionString;
-    }
-
+    
     public async Task InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
@@ -54,6 +39,8 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                
                 // This is too extreme for real usage, but helps tests to run faster
                 opts.Durability.NodeReassignmentPollingTime = 1.Seconds();
                 
@@ -77,14 +64,29 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
         await tenancy.ClearAllDatabaseRecordsAsync();
     }
+    
+    private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
+
+        var exists = await conn.DatabaseExists(databaseName);
+        if (!exists)
+        {
+            await new DatabaseSpecification().BuildDatabase(conn, databaseName);
+        }
+
+        builder.Database = databaseName;
+
+        return builder.ConnectionString;
+    }
 
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
     }
-
+    
     [Fact]
-    public async Task add_databases_and_see_durability_agents_start()
+    public async Task add_databases_in_solo_mode_and_see_durability_agents_start()
     {
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
@@ -108,6 +110,4 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
             w.ExpectRunningAgents(_host, 4);
         }, 1.Minutes());
     }
-    
-
 }
