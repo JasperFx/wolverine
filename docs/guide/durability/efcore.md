@@ -105,7 +105,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.AutoApplyTransactions();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/EFCore/SampleUsageWithAutoApplyTransactions.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this option, you will no longer need to decorate handler methods with the `[Transactional]` attribute.
@@ -174,7 +174,34 @@ public class SampleMappedDbContext : DbContext
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/EFCore/SampleDbContext.cs#L50-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleDbContext.cs#L50-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_mapping_envelope_storage_to_dbcontext-1'></a>
+```cs
+public class SampleMappedDbContext : DbContext
+{
+    public SampleMappedDbContext(DbContextOptions<SampleMappedDbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<Item> Items { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // This enables your DbContext to map the incoming and
+        // outgoing messages as part of the outbox
+        modelBuilder.MapWolverineEnvelopeStorage();
+
+        // Your normal EF Core mapping
+        modelBuilder.Entity<Item>(map =>
+        {
+            map.ToTable("items");
+            map.HasKey(x => x.Id);
+            map.Property(x => x.Name);
+        });
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/SampleDbContext.cs#L57-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

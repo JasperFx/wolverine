@@ -36,6 +36,11 @@ You've got a couple different options, but the easiest by far is to use Wolverin
 
 ## Conventional Middleware
 
+::: info
+Conventional application of middleware is done separately between HTTP endpoints and message handlers. To apply global middleware
+to HTTP endpoints, see [HTTP endpoint middleware](/guide/http/middleware).
+:::
+
 As an example middleware using Wolverine's conventional approach, here's the stopwatch functionality from above:
 
 <!-- snippet: sample_StopwatchMiddleware_1 -->
