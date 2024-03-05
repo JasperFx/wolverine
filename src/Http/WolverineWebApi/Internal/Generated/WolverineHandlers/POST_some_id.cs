@@ -13,24 +13,24 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_some_id : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_some_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
+        public POST_some_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _outboxedSessionFactory = outboxedSessionFactory;
             _wolverineRuntime = wolverineRuntime;
+            _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var id = (string)httpContext.GetRouteValue("id");
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+            var id = (string)httpContext.GetRouteValue("id");
             // Reading the request body via JSON deserialization
             var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Bugs.SomeRequest>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
@@ -46,9 +46,13 @@ namespace Internal.Generated.WolverineHandlers
             // The actual HTTP request handler execution
             var storeDoc = WolverineWebApi.Bugs.SomeEndpoint.Handle(request, someDocument);
 
-            
-            // Placed by Wolverine's ISideEffect policy
-            storeDoc.Execute(documentSession);
+            if (storeDoc != null)
+            {
+                
+                // Placed by Wolverine's ISideEffect policy
+                storeDoc.Execute(documentSession);
+
+            }
 
             
             // Commit any outstanding Marten changes

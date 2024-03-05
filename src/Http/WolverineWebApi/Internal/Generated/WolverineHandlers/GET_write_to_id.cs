@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class GET_write_to_id : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public GET_write_to_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
+        public GET_write_to_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _outboxedSessionFactory = outboxedSessionFactory;
             _wolverineRuntime = wolverineRuntime;
+            _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 

@@ -33,4 +33,8 @@
         <ProjectReference Include="..\WolverineWebApi\WolverineWebApi.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Remove="Bugs\Bug_748_using_side_effect_in_tuple.cs" />
+    </ItemGroup>
+
 </Project>

@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class PUT_todos_id : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public PUT_todos_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
+        public PUT_todos_id(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _outboxedSessionFactory = outboxedSessionFactory;
             _wolverineRuntime = wolverineRuntime;
+            _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
@@ -52,9 +52,13 @@ namespace Internal.Generated.WolverineHandlers
             // The actual HTTP request handler execution
             var storeDoc = WolverineWebApi.Samples.UpdateEndpoint.Put(id, request, todo);
 
-            
-            // Placed by Wolverine's ISideEffect policy
-            storeDoc.Execute(documentSession);
+            if (storeDoc != null)
+            {
+                
+                // Placed by Wolverine's ISideEffect policy
+                storeDoc.Execute(documentSession);
+
+            }
 
             
             // Commit any outstanding Marten changes

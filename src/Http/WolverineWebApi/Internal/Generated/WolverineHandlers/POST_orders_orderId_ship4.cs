@@ -13,21 +13,20 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_orders_orderId_ship4 : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_orders_orderId_ship4(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
+        public POST_orders_orderId_ship4(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _outboxedSessionFactory = outboxedSessionFactory;
             _wolverineRuntime = wolverineRuntime;
+            _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             if (!System.Guid.TryParse((string)httpContext.GetRouteValue("orderId"), out var orderId))
             {
                 httpContext.Response.StatusCode = 404;
@@ -35,6 +34,7 @@ namespace Internal.Generated.WolverineHandlers
             }
 
 
+            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
             var eventStore = documentSession.Events;
             

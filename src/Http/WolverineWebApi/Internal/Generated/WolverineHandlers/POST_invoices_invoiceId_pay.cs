@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_invoices_invoiceId_pay : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
+        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public POST_invoices_invoiceId_pay(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
+        public POST_invoices_invoiceId_pay(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _outboxedSessionFactory = outboxedSessionFactory;
             _wolverineRuntime = wolverineRuntime;
+            _outboxedSessionFactory = outboxedSessionFactory;
         }
 
 
@@ -42,9 +42,13 @@ namespace Internal.Generated.WolverineHandlers
             // The actual HTTP request handler execution
             var martenOp = WolverineWebApi.Marten.InvoicesEndpoint.Pay(invoice);
 
-            
-            // Placed by Wolverine's ISideEffect policy
-            martenOp.Execute(documentSession);
+            if (martenOp != null)
+            {
+                
+                // Placed by Wolverine's ISideEffect policy
+                martenOp.Execute(documentSession);
+
+            }
 
             
             // Commit any outstanding Marten changes

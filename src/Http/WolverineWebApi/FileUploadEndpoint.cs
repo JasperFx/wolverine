@@ -1,3 +1,4 @@
+using Wolverine;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -26,3 +27,22 @@ public class FileUploadEndpoint
 }
 
 #endregion
+
+public static class Bug748Endpoint
+{
+    [WolverinePost("/upload/sideeffect")]
+    public static (SomeSideEffect, OutgoingMessages) Upload(IFormFile file)
+    {
+        return (new SomeSideEffect(), []);
+    }
+}
+
+public class SomeSideEffect : ISideEffect
+{
+    public static bool WasExecuted = false;
+
+    public void Execute()
+    {
+        WasExecuted = true;
+    }
+}
