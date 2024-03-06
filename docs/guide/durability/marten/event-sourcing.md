@@ -41,7 +41,7 @@ public class Order
     // This would be the stream id
     public Guid Id { get; set; }
 
-    // This is important, by Marten convention this would
+    // This is important; by Marten convention, this would
     // be the
     public int Version { get; set; }
 
@@ -54,11 +54,15 @@ public class Order
     public void Apply(IEvent<OrderShipped> shipped)
     {
         Shipped = shipped.Timestamp;
+
+        Version++;
     }
 
     public void Apply(ItemReady ready)
     {
         Items[ready.Name].Ready = true;
+
+        Version++;
     }
 
     public bool IsReadyToShip()
@@ -82,7 +86,7 @@ public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L65-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-In the code above we're also utilizing Wolverine's [outbox messaging](/guide/durability/) support to both order and guarantee the delivery of a `ShipOrder` message when
+In the code above, we're also utilizing Wolverine's [outbox messaging](/guide/durability/) support to both order and guarantee the delivery of a `ShipOrder` message when
 the Marten transaction
 
 Before getting into Wolverine middleware strategies, let's first build out an MVC controller method for the command above:
@@ -111,9 +115,7 @@ public async Task Post(
 
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
-        item.Ready = true;
-
-        // Mark that the this item is ready
+        // Mark that this item is ready
         stream.AppendOne(new ItemReady(command.ItemName));
     }
     else
@@ -128,7 +130,7 @@ public async Task Post(
         // Publish a cascading command to do whatever it takes
         // to actually ship the order
         // Note that because the context here is enrolled in a Wolverine
-        // outbox, the message is registered, but not "released" to
+        // outbox, the message is registered but not "released" to
         // be sent out until SaveChangesAsync() is called down below
         await outbox.PublishAsync(new ShipOrder(command.OrderId));
         stream.AppendOne(new OrderReady());
@@ -142,9 +144,9 @@ public async Task Post(
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L74-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Hopefully that code is easy to understand, but there's some potentially repetitive code
-(loading aggregates, appending events, committing transactions) that's going to reoccur
-across basically all your command handlers. Likewise, it would be best if you could completely
+Hopefully, that code is easy to understand, but there's some potentially repetitive code
+(loading aggregates, appending events, committing transactions) that will reoccur
+across all your command handlers. Likewise, it would be best to completely
 isolate your business logic that *decides* what new events should be appended completely
 away from the infrastructure code so that you can more easily reason about that code and
 easily test that business logic. To that end, Wolverine supports the [Decider](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider)
@@ -163,7 +165,7 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
         // trying to illustrate the Wolverine mechanics
         item.Ready = true;
 
-        // Mark that the this item is ready
+        // Mark that this item is ready
         yield return new ItemReady(command.ItemName);
     }
     else
@@ -250,11 +252,7 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
 
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
-        // Not doing this in a purist way here, but just
-        // trying to illustrate the Wolverine mechanics
-        item.Ready = true;
-
-        // Mark that the this item is ready
+        // Mark that this item is ready
         stream.AppendOne(new ItemReady(command.ItemName));
     }
     else
@@ -288,7 +286,7 @@ As for the return values from these handler methods, you can use:
 * Any other type would be considered to be a separate event type, and you may happily use that for either a single event
   or a tuple of separate events that will be appended to the event stream
 
-Here's an alternative of the `MarkItemReady` handler that uses `Events`:
+Here's an alternative to the `MarkItemReady` handler that uses `Events`:
 
 <!-- snippet: sample_using_events_and_messages_from_AggregateHandler -->
 <a id='snippet-sample_using_events_and_messages_from_aggregatehandler'></a>
@@ -297,7 +295,7 @@ Here's an alternative of the `MarkItemReady` handler that uses `Events`:
 public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
 {
     // All contrived, let's say we need to call some 
-    // kind of service to get data so this handler has to be
+    // kind of service to get data, so this handler has to be
     // async
     var data = await service.FindDataAsync();
 
@@ -306,11 +304,7 @@ public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady c
     
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
-        // Not doing this in a purist way here, but just
-        // trying to illustrate the Wolverine mechanics
-        item.Ready = true;
-
-        // Mark that the this item is ready
+        // Mark that this item is ready
         events += new ItemReady(command.ItemName);
     }
     else
@@ -374,7 +368,7 @@ public class MarkItemReady
 ## Publishing Events
 
 ::: tip
-This functionality is *brand spanking new* and will likely be enhanced after user feedback.
+This functionality is *brand-spanking new* and will likely be enhanced after user feedback.
 :::
 
 ::: warning
@@ -423,7 +417,7 @@ builder.Services.AddMarten(opts =>
     // I added this to enroll Marten in the Wolverine outbox
     .IntegrateWithWolverine()
 
-    // I also added this to opt into events being forward to
+    // I also added this to opt into events being forwarded to
     // the Wolverine outbox during SaveChangesAsync()
     .EventForwardingToWolverine();
 ```
@@ -448,7 +442,7 @@ builder.Host.UseWolverine(opts =>
     // up to 3 times total
     opts.Policies.OnException<ConcurrencyException>().RetryTimes(3);
 
-    // It's an imperfect world, and sometimes transient connectivity errors
+    // It's an imperfect world and sometimes transient connectivity errors
     // to the database happen
     opts.Policies.OnException<NpgsqlException>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
@@ -477,7 +471,7 @@ public static Task<ITrackedSession> SaveInMartenAndWaitForOutgoingMessagesAsync(
         action(session);
         await session.SaveChangesAsync();
         
-        // Shouldn't be necessary, but real life says do it anyway
+        // Shouldn't be necessary, but real life says to do it anyway
         await context.As<MessageContext>().FlushOutgoingMessagesAsync();
     }, timeoutInMilliseconds);
 }
