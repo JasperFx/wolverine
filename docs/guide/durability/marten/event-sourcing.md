@@ -161,10 +161,6 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
 {
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
-        // Not doing this in a purist way here, but just
-        // trying to illustrate the Wolverine mechanics
-        item.Ready = true;
-
         // Mark that this item is ready
         yield return new ItemReady(command.ItemName);
     }
