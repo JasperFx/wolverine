@@ -137,5 +137,5 @@ public static ProblemDetails Before(IShipOrder command, Order order)
     return WolverineContinue.NoProblems;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L83-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_before_on_http_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L86-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_before_on_http_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

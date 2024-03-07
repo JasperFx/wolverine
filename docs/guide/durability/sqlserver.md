@@ -78,7 +78,7 @@ using var host = await Host.CreateDefaultBuilder()
             .MaximumMessagesToReceive(50);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/SqlServer/Transport/DocumentationSamples.cs#L13-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sql_server_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/DocumentationSamples.cs#L12-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sql_server_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The Sql Server transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
@@ -89,7 +89,7 @@ that they are utilizing the transactional inbox and outbox. The Sql Server queue
 ```cs
 opts.ListenToSqlServerQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/SqlServer/Transport/compliance_tests.cs#L68-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L65-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the Sql Server queues can be used for both sending or receiving with no integration 

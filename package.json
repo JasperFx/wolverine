@@ -8,12 +8,17 @@
         "docs:build": "npm-run-all -s mdsnippets vitepress-build",
         "docs:publish": "netlify deploy --prod"
     },
-    "dependencies": {
-        "vitepress": "^1.0.0-alpha.19",
-        "vitepress-plugin-mermaid": "^2.0.8"
-    },
     "devDependencies": {
+        "@mermaid-js/mermaid-mindmap": "^9.3.0",
+        "chai": "^4",
+        "lodash": "^4.17.21",
+        "mermaid": "^10",
+        "mocha": "^10.2.0",
+        "netlify-cli": "^17.13.1",
         "npm-run-all": "^4.1.5",
-        "netlify-cli": "^11.5.1"
+        "shiki": "^1.1.7",
+        "vitepress": "1.0.0-rc.36",
+        "vitepress-plugin-mermaid": "2.0.16",
+        "vue": "^3.4.10"
     }
 }

@@ -1,12 +1,7 @@
-import {BUNDLED_LANGUAGES} from 'shiki'
-//import {withMermaid} from "vitepress-plugin-mermaid"
+import {bundledLanguages} from 'shiki';
+import { withMermaid } from "vitepress-plugin-mermaid"
 
-// Include `cs` as alias for csharp
-BUNDLED_LANGUAGES
-    .find(lang => lang.id === 'csharp').aliases.push('cs');
-
-//export default withMermaid({
-export default {
+export default withMermaid( {
     base: '/',
     lang: 'en-US',
     title: 'Wolverine',
@@ -114,7 +109,7 @@ export default {
                         {text: 'Introduction to Messaging', link: '/guide/messaging/introduction'},
                         {text: 'Sending Messages', link: '/guide/messaging/message-bus'},
                         {text: 'Subscriptions & Message Routing', link: '/guide/messaging/subscriptions'},
-                        {text: 'Message Listeners', link: '/guide/messaging/listeners'},
+                        {text: 'Listening Endpoints', link: '/guide/messaging/listeners'},
                         {
                             text: 'Transports',
                             collapsible: true,
@@ -215,5 +210,7 @@ export default {
         linkify: false
     },
     ignoreDeadLinks: true
-}
+});
+
+
 

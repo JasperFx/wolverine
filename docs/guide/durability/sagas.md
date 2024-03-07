@@ -149,8 +149,6 @@ on old or missing data. Utilize cascading messages for subsequent work.
 Wolverine is wrapping some generated code around your `Saga.Start()` and `Saga.Handle()` methods for loading and persisting the state. Here's a (mildly cleaned up) version
 of the generated code for starting the `Order` saga shown above:
 
-<!-- snippet: sample_generated_code_for_start_order_handler -->
-<a id='snippet-sample_generated_code_for_start_order_handler'></a>
 ```cs
 public class StartOrderHandler133227374 : MessageHandler
 {
@@ -180,13 +178,9 @@ public class StartOrderHandler133227374 : MessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Internal/Generated/WolverineHandlers/StartOrderHandler133227374.cs.cs#L11-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_code_for_start_order_handler' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 And here's the code that's generated for the `CompleteOrder` command from the sample above:
 
-<!-- snippet: sample_generated_code_for_CompleteOrder -->
-<a id='snippet-sample_generated_code_for_completeorder'></a>
 ```cs
 public class CompleteOrderHandler1228388417 : MessageHandler
 {
@@ -235,8 +229,6 @@ public class CompleteOrderHandler1228388417 : MessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Internal/Generated/WolverineHandlers/CompleteOrderHandler1228388417.cs.cs#L12-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_code_for_completeorder' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 ## Saga Message Identity
 

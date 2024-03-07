@@ -192,8 +192,7 @@ to:
 
 To make this more clear, here's the generated code (with some reformatting and extra comments):
 
-<!-- snippet: sample_generated_MarkItemReadyHandler -->
-<a id='snippet-sample_generated_markitemreadyhandler'></a>
+
 ```cs
 public class MarkItemReadyHandler1442193977 : MessageHandler
 {
@@ -225,8 +224,6 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
 
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Internal/Generated/JasperHandlers/MarkItemReadyHandler1442193977.cs.cs#L13-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_generated_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 As you probably guessed, there are some naming conventions or other questions you need to be aware of
 before you use this middleware strategy.
@@ -413,7 +410,7 @@ builder.Services.AddMarten(opts =>
 
         opts.Projections.Add<AppointmentProjection>(ProjectionLifecycle.Inline);
         opts.Projections
-            .SelfAggregate<ProviderShift>(ProjectionLifecycle.Async);
+            .Snapshot<ProviderShift>(SnapshotLifecycle.Async);
     })
 
     // This adds a hosted service to run
@@ -519,7 +516,7 @@ public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
     events[1].Data.ShouldBeOfType<FourthEvent>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/event_streaming.cs#L104-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L121-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Where the result contains `FourthEvent` because `SecondEvent` was forwarded as `SecondMessage` and that persisted `FourthEvent` in a handler such as:
@@ -534,5 +531,5 @@ public static Task HandleAsync(SecondMessage message, IDocumentSession session)
     return session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/event_streaming.cs#L180-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L197-L203' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

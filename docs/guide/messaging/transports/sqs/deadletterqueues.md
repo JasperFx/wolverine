@@ -48,7 +48,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenToSqsQueue("incoming");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Bugs/disabling_dead_letter_queue.cs#L15-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_all_sqs_dead_letter_queueing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Bugs/disabling_dead_letter_queue.cs#L17-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_all_sqs_dead_letter_queueing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This would force Wolverine to use any persistent envelope storage for dead letter queueing.

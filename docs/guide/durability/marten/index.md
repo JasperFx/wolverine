@@ -255,7 +255,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.AutoApplyTransactions();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/Sample/BootstrapWithAutoTransactions.cs#L12-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_auto_apply_transactions_with_marten' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Sample/BootstrapWithAutoTransactions.cs#L12-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_auto_apply_transactions_with_marten' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this enabled, Wolverine will automatically use the Marten
@@ -345,7 +345,7 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
@@ -360,7 +360,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.Add<CommandsAreTransactional>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Marten/transactional_frame_end_to_end.cs#L44-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L44-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
