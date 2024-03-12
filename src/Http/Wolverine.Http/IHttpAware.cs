@@ -138,7 +138,7 @@ public record AcceptResponse(string Url) : IHttpAware
 
 #endregion
 
-public record AcceptResponse<T>(string Url, T Value) : CreationResponse(Url)
+public record AcceptResponse<T>(string Url, T Value) : AcceptResponse(Url)
 {
     
 }
