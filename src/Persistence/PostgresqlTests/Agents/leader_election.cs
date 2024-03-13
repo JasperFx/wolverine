@@ -40,7 +40,8 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         _hosts.Reverse();
         foreach (var host in _hosts)
         {
-            await host.StopAsync();
+            //await host.StopAsync();
+            host.Dispose();
         }
     }
 
@@ -69,6 +70,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     private async Task shutdownHostAsync(IHost host)
     {
         await host.StopAsync();
+        host.Dispose();
         _hosts.Remove(host);
     }
 
@@ -177,11 +179,11 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         var host3 = await startHostAsync();
         var host4 = await startHostAsync();
 
-        await _originalHost.StopAsync();
+        await shutdownHostAsync(_originalHost);
 
         await host2.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
 
-        await host2.StopAsync();
+        await shutdownHostAsync(host2);
 
         await host3.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(30.Seconds());
     }
@@ -205,7 +207,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
             w.ExpectRunningAgents(host4, 3);
         }, 30.Seconds());
 
-        await _originalHost.StopAsync();
+        await shutdownHostAsync(_originalHost);
 
         await host2.WaitUntilAssignmentsChangeTo(w =>
         {
@@ -225,7 +227,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         var host3 = await startHostAsync();
         var host4 = await startHostAsync();
 
-        await host3.StopAsync();
+        await shutdownHostAsync(host3);
 
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {

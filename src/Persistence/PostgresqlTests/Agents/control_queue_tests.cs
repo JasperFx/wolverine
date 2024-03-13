@@ -27,7 +27,9 @@ public class control_queue_tests : PostgresqlContext, IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 
     private static async Task dropControlSchema()

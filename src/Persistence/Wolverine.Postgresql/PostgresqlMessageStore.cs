@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
 using Weasel.Core;
@@ -12,6 +13,7 @@ using Wolverine.RDBMS;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
+using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.Postgresql;
 
@@ -24,8 +26,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     private readonly string _reassignIncomingSql;
 
 
-    public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings,
-        ILogger<PostgresqlMessageStore> logger) : base(databaseSettings,
+    public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
+        ILogger<PostgresqlMessageStore> logger) : base(databaseSettings, dataSource,
         settings, logger, new PostgresqlMigrator(), "public")
     {
         _deleteIncomingEnvelopesSql =
@@ -41,11 +43,17 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
         _discardAndReassignOutgoingSql = _deleteOutgoingEnvelopesSql +
                                          $";update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
+
+        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
     }
 
-    protected override INodeAgentPersistence buildNodeStorage(DatabaseSettings databaseSettings)
+    public NpgsqlDataSource DataSource { get; }
+
+
+    protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
+        DbDataSource dataSource)
     {
-        return new PostgresqlNodePersistence(databaseSettings, this);
+        return new PostgresqlNodePersistence(databaseSettings, this, (NpgsqlDataSource)dataSource);
     }
 
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
@@ -63,13 +71,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         var counts = new PersistedCounts();
 
-        await using var conn = CreateConnection();
-        await conn.OpenAsync();
-
-
-        await using (var reader = await conn
-                         .CreateCommand(
-                             $"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
+        await using (var reader = await CreateCommand( $"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
                          .ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
@@ -90,21 +92,19 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
                     counts.Scheduled = count;
                 }
             }
+
+            await reader.CloseAsync();
         }
 
-        var longCount = await conn
-            .CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")
+        var longCount = await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteScalarAsync();
 
         counts.Outgoing = Convert.ToInt32(longCount);
 
-        var deadLetterCount = await conn
-            .CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
+        var deadLetterCount = await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
             .ExecuteScalarAsync();
 
         counts.DeadLetter = Convert.ToInt32(deadLetterCount);
-
-        await conn.CloseAsync();
 
         return counts;
     }
@@ -112,6 +112,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
+        if (HasDisposed) return;
+        
         try
         {
             var builder = ToCommandBuilder();
@@ -123,7 +125,17 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
             DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
 
-            await builder.Compile().ExecuteOnce(_cancellation);
+            var cmd = builder.Compile();
+            await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+            cmd.Connection = conn;
+            try
+            {
+                await cmd.ExecuteNonQueryAsync(_cancellation);
+            }
+            finally
+            {
+                await conn.CloseAsync();
+            }
         }
         catch (Exception e)
         {
@@ -138,20 +150,23 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         writer.WriteLine($"Persistent Envelope storage using Postgresql in schema '{SchemaName}'");
     }
 
-    public override Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
+    public override async Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
-        return CreateCommand(_discardAndReassignOutgoingSql)
+        await using var cmd = CreateCommand(_discardAndReassignOutgoingSql)
             .WithEnvelopeIds("ids", discards)
             .With("node", nodeId)
-            .WithEnvelopeIds("rids", reassigned)
-            .ExecuteOnce(_cancellation);
+            .WithEnvelopeIds("rids", reassigned);
+            
+        await cmd.ExecuteNonQueryAsync(_cancellation);
     }
 
-    public override Task DeleteOutgoingAsync(Envelope[] envelopes)
+    public override async Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
-        return CreateCommand(_deleteOutgoingEnvelopesSql)
+        if (HasDisposed) return;
+        
+        await CreateCommand(_deleteOutgoingEnvelopesSql)
             .WithEnvelopeIds("ids", envelopes)
-            .ExecuteOnce(_cancellation);
+            .ExecuteNonQueryAsync(_cancellation);
     }
 
 
@@ -164,30 +179,23 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress,
         int limit)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync();
-
-        var list = await conn
-            .CreateCommand(_findAtLargeEnvelopesSql)
+        return await CreateCommand(_findAtLargeEnvelopesSql)
             .With("address", listenerAddress.ToString())
             .With("limit", limit)
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
+    }
 
-        await conn.CloseAsync();
-
-        return list;
+    public override DbCommandBuilder ToCommandBuilder()
+    {
+        return new DbCommandBuilder(new NpgsqlCommand());
     }
 
     public override async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync();
-        await conn.CreateCommand(_reassignIncomingSql)
+        await CreateCommand(_reassignIncomingSql)
             .With("owner", ownerId)
             .With("ids", incoming.Select(x => x.Id).ToArray())
             .ExecuteNonQueryAsync(_cancellation);
-
-        await conn.CloseAsync();
     }
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
@@ -203,9 +211,10 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
     {
         IReadOnlyList<Envelope> envelopes;
+
+        if (HasDisposed) return;
         
-        using var conn = new NpgsqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync(cancellationToken);
+        await using var conn = await DataSource.OpenConnectionAsync(cancellationToken);
         try
         {
             var tx = await conn.BeginTransactionAsync(cancellationToken);
@@ -254,9 +263,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         yield return new OutgoingEnvelopeTable(SchemaName);
         yield return new IncomingEnvelopeTable(SchemaName);
         yield return new DeadLettersTable(SchemaName);
-        
-        
-
 
         if (_settings.IsMaster)
         {

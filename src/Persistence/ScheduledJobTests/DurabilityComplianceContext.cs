@@ -85,11 +85,13 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         if (theReceiver != null)
         {
             await theReceiver.StopAsync();
+            theReceiver.Dispose();
         }
 
         if (theSender != null)
         {
             await theSender.StopAsync();
+            theSender.Dispose();
         }
     }
 

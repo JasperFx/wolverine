@@ -38,6 +38,7 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     #region sample_using_conjoined_tenancy

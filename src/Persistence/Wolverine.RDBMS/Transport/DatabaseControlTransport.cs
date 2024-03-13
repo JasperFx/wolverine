@@ -110,32 +110,38 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
 
     private async Task deleteEnvelopesAsync(List<Envelope> envelopes, CancellationToken cancellationToken)
     {
-        await using var conn = Database.CreateConnection();
-        await conn.OpenAsync(cancellationToken);
+        if (cancellationToken.IsCancellationRequested || Database.HasDisposed) return;
+        
+        await using var conn = await Database.DataSource.OpenConnectionAsync(cancellationToken);
 
-        if (envelopes.Count == 1)
+        try
         {
-            await conn.CreateCommand($"delete from {TableName} where id = @id").With("id", envelopes.Single().Id)
-                .ExecuteNonQueryAsync(cancellationToken);
-        }
-        else
-        {
-            var builder = Database.ToCommandBuilder();
-            foreach (var envelope in envelopes)
+            if (envelopes.Count == 1)
             {
-                builder.Append("delete from ");
-                builder.Append(TableName.QualifiedName);
-                builder.Append(" where id = ");
-                builder.AppendParameter(envelope.Id);
-                builder.Append(";");
+                await conn.CreateCommand($"delete from {TableName} where id = @id").With("id", envelopes.Single().Id)
+                    .ExecuteNonQueryAsync(cancellationToken);
             }
+            else
+            {
+                var builder = Database.ToCommandBuilder();
+                foreach (var envelope in envelopes)
+                {
+                    builder.Append("delete from ");
+                    builder.Append(TableName.QualifiedName);
+                    builder.Append(" where id = ");
+                    builder.AppendParameter(envelope.Id);
+                    builder.Append(";");
+                }
 
-            var command = builder.Compile();
-            command.Connection = conn;
+                var command = builder.Compile();
+                command.Connection = conn;
 
-            await command.ExecuteNonQueryAsync(cancellationToken);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
         }
-
-        await conn.CloseAsync();
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 }

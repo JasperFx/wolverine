@@ -10,7 +10,10 @@ using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using JasperFx.Core;
+using Lamar;
 using Marten.Storage;
+using Npgsql;
+using Weasel.Postgresql;
 
 namespace Wolverine.Marten;
 
@@ -55,7 +58,7 @@ public static class WolverineOptionsMartenExtensions
                 return BuildSinglePostgresqlMessageStore(schemaName, store, runtime, logger);
             }
 
-            return BuildMultiTenantedMessageDatabase(schemaName, masterDatabaseConnectionString, store, runtime);
+            return BuildMultiTenantedMessageDatabase(schemaName, masterDatabaseConnectionString, store, runtime, s);
         });
 
         expression.Services.AddSingleton<IDatabaseSource, MartenMessageDatabaseDiscovery>();
@@ -90,8 +93,25 @@ public static class WolverineOptionsMartenExtensions
         }
     }
 
+    internal static NpgsqlDataSource findMasterDataSource(DocumentStore store, IWolverineRuntime runtime,
+        DatabaseSettings masterSettings, IServiceProvider container)
+    {
+        if (store.Tenancy is ITenancyWithMasterDatabase m) return m.TenantDatabase.DataSource;
+
+        if (masterSettings.DataSource != null) return (NpgsqlDataSource)masterSettings.DataSource;
+        
+        if (masterSettings.ConnectionString.IsNotEmpty()) return NpgsqlDataSource.Create(masterSettings.ConnectionString);
+
+        var source = container.GetService<NpgsqlDataSource>();
+
+        return source ??
+               throw new InvalidOperationException(
+                   "There is no configured connectivity for the required master PostgreSQL message database");
+    }
+
     internal static IMessageStore BuildMultiTenantedMessageDatabase(string schemaName,
-        string? masterDatabaseConnectionString, DocumentStore store, IWolverineRuntime runtime)
+        string? masterDatabaseConnectionString, DocumentStore store, IWolverineRuntime runtime,
+        IServiceProvider serviceProvider)
     {
         if (masterDatabaseConnectionString.IsEmpty())
         {
@@ -107,12 +127,15 @@ public static class WolverineOptionsMartenExtensions
             CommandQueuesEnabled = true
         };
 
-        var source = new MartenMessageDatabaseSource(schemaName, store, runtime);
-        var master = new PostgresqlMessageStore(masterSettings, runtime.Options.Durability,
+        var dataSource = findMasterDataSource(store, runtime, masterSettings, serviceProvider);
+        var master = new PostgresqlMessageStore(masterSettings, runtime.Options.Durability, dataSource,
             runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
             Name = "Master"
         };
+
+
+        var source = new MartenMessageDatabaseSource(schemaName, store, runtime);
         
         master.Initialize(runtime);
 
@@ -122,17 +145,16 @@ public static class WolverineOptionsMartenExtensions
     internal static IMessageStore BuildSinglePostgresqlMessageStore(string schemaName, DocumentStore store,
         IWolverineRuntime runtime, ILogger<PostgresqlMessageStore> logger)
     {
-        var martenDatabase = store.Storage.Database;
-
         var settings = new DatabaseSettings
         {
-            ConnectionString = martenDatabase.CreateConnection().ConnectionString,
             SchemaName = schemaName,
             IsMaster = true,
             ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
 
-        return new PostgresqlMessageStore(settings, runtime.Options.Durability, logger);
+        var dataSource = store.Storage.Database.As<PostgresqlDatabase>().DataSource;
+
+        return new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger);
     }
 
 

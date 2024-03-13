@@ -24,8 +24,9 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         Databases.Master.Name.ShouldBe("Master");
         Databases.Master.SchemaName.ShouldBe("control");
-
-        Databases.Master.CreateConnection().ConnectionString.ShouldBe(Servers.PostgresConnectionString);
+            
+        new NpgsqlConnectionStringBuilder(Databases.Master.DataSource.CreateConnection().ConnectionString)
+            .Database.ShouldBe("postgres");
     }
 
     [Fact]
@@ -44,8 +45,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         foreach (var database in Databases.ActiveDatabases().Where(x => x.Name != "Master"))
         {
-            await using var conn = (NpgsqlConnection)database.CreateConnection();
-            await conn.OpenAsync();
+            await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
 
             var tables = (await conn.ExistingTablesAsync()).ToArray();
 
@@ -63,8 +63,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         foreach (var database in Databases.ActiveDatabases().Where(x => x.Name != "Master"))
         {
-            await using var conn = (NpgsqlConnection)database.CreateConnection();
-            await conn.OpenAsync();
+            await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
 
             var tables = (await conn.ExistingTablesAsync()).Where(x => x.Schema == "mt").ToArray();
             tables.ShouldNotContain(x => x.Name == DatabaseConstants.NodeTableName);
@@ -84,8 +83,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task master_database_has_every_storage_table()
     {
-        await using var conn = (NpgsqlConnection)Databases.Master.CreateConnection();
-        await conn.OpenAsync();
+        await using var conn = (NpgsqlConnection)await Databases.Master.DataSource.OpenConnectionAsync();
 
         var tables = (await conn.ExistingTablesAsync()).Where(x => x.Schema == "control").ToArray();
         tables.ShouldContain(x => x.Name == DatabaseConstants.IncomingTable);

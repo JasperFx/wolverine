@@ -45,6 +45,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
     
     internal async Task GivenAggregate()

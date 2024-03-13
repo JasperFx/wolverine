@@ -30,6 +30,7 @@ public class EfCoreCompilationScenarios
 
         await host.Services.GetRequiredService<IMessageBus>().InvokeAsync(new CreateItem { Name = "foo" });
         await host.StopAsync();
+        host.Dispose();
     }
 
 

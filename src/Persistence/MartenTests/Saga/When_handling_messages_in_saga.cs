@@ -36,6 +36,8 @@ public class When_handling_messages_in_saga : PostgresqlContext
                 subscriptionId.ToString()
             )
         );
+        
+        
     }
 
     [Fact]

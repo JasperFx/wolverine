@@ -97,6 +97,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             dict[nodeId].ActiveAgents.Add(agentId);
         }
 
+        await reader.CloseAsync();
         await conn.CloseAsync();
 
         return nodes;
@@ -163,6 +164,8 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
                 returnValue.ActiveAgents.Add(agentId);
             }
         }
+
+        await reader.CloseAsync();
 
         return returnValue;
     }

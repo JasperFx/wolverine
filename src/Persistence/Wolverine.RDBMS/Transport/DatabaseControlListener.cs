@@ -62,15 +62,12 @@ internal class DatabaseControlListener : IListener
         _transport.Database.Enqueue(new PollDatabaseControlQueue(_transport, _receiver, this));
     }
 
-    private async Task deleteEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken)
+    private Task deleteEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken)
     {
-        await using var conn = _transport.Database.CreateConnection();
-        await conn.OpenAsync(cancellationToken);
-
-        await conn.CreateCommand($"delete from {_transport.TableName} where id = @id")
+        if (_transport.Database.HasDisposed) return Task.CompletedTask;
+        
+        return _transport.Database.DataSource.CreateCommand($"delete from {_transport.TableName} where id = @id")
             .With("id", envelope.Id)
             .ExecuteNonQueryAsync(cancellationToken);
-
-        await conn.CloseAsync();
     }
 }

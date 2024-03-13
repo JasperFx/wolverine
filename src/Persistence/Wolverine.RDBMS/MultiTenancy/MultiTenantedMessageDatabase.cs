@@ -203,10 +203,28 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var database in databases()) await database.DisposeAsync();
+        if (HasDisposed) return;
+        foreach (var database in databases())
+        {
+            try
+            {
+                await database.DisposeAsync();
+            }
+            // ReSharper disable once EmptyGeneralCatchClause
+            catch (Exception)
+            {
+            }
+        }
+
+        HasDisposed = true;
     }
 
-    public async void Initialize(IWolverineRuntime runtime)
+    public void Initialize(IWolverineRuntime runtime)
+    {
+        InitializeAsync(runtime).GetAwaiter().GetResult();
+    }
+
+    public async Task InitializeAsync(IWolverineRuntime runtime)
     {
         if (_initialized)
         {
@@ -215,11 +233,15 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
         await _databases.RefreshAsync();
 
-        foreach (var database in databases()) database.Initialize(runtime);
+        foreach (var database in databases())
+        {
+            database.Initialize(runtime);
+        }
 
         _initialized = true;
     }
 
+    public bool HasDisposed { get; private set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public INodeAgentPersistence Nodes => Master.Nodes;
@@ -333,7 +355,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     {
         if (!_initialized)
         {
-            Initialize(_runtime);
+            await InitializeAsync(_runtime);
         }
 
         await executeOnAllAsync(d => d.Admin.MigrateAsync());

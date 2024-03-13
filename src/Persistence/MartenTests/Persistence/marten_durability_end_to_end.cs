@@ -4,6 +4,7 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Shouldly;
 using TestingSupport;
 using Weasel.Postgresql;
@@ -50,12 +51,12 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
         var logger = new NullLogger<PostgresqlMessageStore>();
         await new PostgresqlMessageStore(new DatabaseSettings()
-                    { ConnectionString = Servers.PostgresConnectionString, SchemaName = ReceiverSchemaName }, advanced,
+                    { ConnectionString = Servers.PostgresConnectionString, SchemaName = ReceiverSchemaName }, advanced, NpgsqlDataSource.Create(Servers.PostgresConnectionString), 
                 logger)
             .RebuildAsync();
 
         await new PostgresqlMessageStore(new DatabaseSettings()
-                    { ConnectionString = Servers.PostgresConnectionString, SchemaName = SenderSchemaName }, advanced,
+                    { ConnectionString = Servers.PostgresConnectionString, SchemaName = SenderSchemaName }, advanced, NpgsqlDataSource.Create(Servers.PostgresConnectionString),
                 logger)
             .RebuildAsync();
 
@@ -112,11 +113,19 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        foreach (var host in _receivers) await host.StopAsync();
+        foreach (var host in _receivers)
+        {
+            await host.StopAsync();
+            host.Dispose();
+        }
 
         _receivers.Clear();
 
-        foreach (var host in _senders) await host.StopAsync();
+        foreach (var host in _senders)
+        {
+            await host.StopAsync();
+            host.Dispose();
+        }
 
         _senders.Clear();
 

@@ -30,9 +30,10 @@ public class Bug_191_marten_aggregate_handler_command_should_not_require_version
             }).StartAsync();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

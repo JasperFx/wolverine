@@ -35,6 +35,8 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
         tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant3");
         tenant4ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant4");
 
+        await conn.CloseAsync();
+
         // Setting up a Host with Multi-tenancy
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -83,6 +85,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

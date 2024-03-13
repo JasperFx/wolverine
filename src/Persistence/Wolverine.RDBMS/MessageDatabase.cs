@@ -21,21 +21,18 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     protected readonly CancellationToken _cancellation;
     private readonly string _outgoingEnvelopeSql;
     protected readonly DatabaseSettings _settings;
+    private readonly DbDataSource _dataSource;
     private readonly ILogger _logger;
     private DatabaseBatcher? _batcher;
     private string _schemaName;
 
-    protected MessageDatabase(DatabaseSettings databaseSettings, DurabilitySettings settings,
+    protected MessageDatabase(DatabaseSettings databaseSettings, DbDataSource dataSource, DurabilitySettings settings,
         ILogger logger, Migrator migrator, string defaultSchema) : base(new MigrationLogger(logger),
         AutoCreate.CreateOrUpdate, migrator,
-        "WolverineEnvelopeStorage", databaseSettings.ConnectionString!)
+        "WolverineEnvelopeStorage", () => (T)dataSource.CreateConnection())
     {
-        if (databaseSettings.ConnectionString == null)
-        {
-            throw new ArgumentNullException(nameof(DatabaseSettings.ConnectionString));
-        }
-
         _settings = databaseSettings;
+        _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         _logger = logger;
         _schemaName = databaseSettings.SchemaName ?? defaultSchema;
 
@@ -45,7 +42,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Durability = settings;
         _cancellation = settings.Cancellation;
 
-        _cancellation = settings.Cancellation;
         _deleteIncomingEnvelopeById =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
         _incrementIncominEnvelopeAttempts =
@@ -55,8 +51,14 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(settings);
 
         // ReSharper disable once VirtualMemberCallInConstructor
-        Nodes = buildNodeStorage(databaseSettings)!;
+        Nodes = buildNodeStorage(databaseSettings, dataSource)!;
+
+        DataSource = dataSource;
     }
+
+    public bool HasDisposed { get; protected set; }
+
+    public DbDataSource DataSource { get; }
 
     public string OutgoingFullName { get; private set; }
 
@@ -132,36 +134,48 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public abstract void Describe(TextWriter writer);
 
-    public Task DrainAsync()
+    public async Task DrainAsync()
     {
-        if (_batcher == null) return Task.CompletedTask;
-        return _batcher!.DrainAsync();
+        if (_batcher != null)
+        {
+            try
+            {
+                await _batcher!.DrainAsync();
+            }
+            catch (TaskCanceledException)
+            {
+            }
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
+        if (HasDisposed) return;
+        
         if (_batcher != null)
         {
             await _batcher.DisposeAsync();
         }
+
+        try
+        {
+            await DataSource.DisposeAsync();
+        }
+        catch
+        {
+            // Not letting this fail out of here            
+        }
+
+        HasDisposed = true;
     }
 
-    DbConnection IMessageDatabase.CreateConnection()
-    {
-        return CreateConnection();
-    }
-
-    public DbCommandBuilder ToCommandBuilder()
-    {
-        return CreateConnection().ToCommandBuilder();
-    }
+    public abstract DbCommandBuilder ToCommandBuilder();
 
     public async Task ReleaseIncomingAsync(int ownerId)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
-        await conn
+        if (_cancellation.IsCancellationRequested) return;
+        
+        await _dataSource
             .CreateCommand(
                 $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner")
             .With("owner", ownerId)
@@ -170,10 +184,9 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
-        var impacted = await conn
+        if (HasDisposed) return;
+        
+        var impacted = await _dataSource
             .CreateCommand(
                 $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
             .With("owner", ownerId)
@@ -185,23 +198,18 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         _logger.LogInformation("Reassigned {Impacted} incoming messages from {Owner} and endpoint at {Uri} to any node in the durable inbox", impacted, ownerId, receivedAt);
     }
 
-    protected abstract INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings);
+    protected abstract INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
+        DbDataSource dataSource);
 
     public DbCommand CreateCommand(string command)
     {
-        var cmd = CreateConnection().CreateCommand();
-        cmd.CommandText = command;
-
-        return cmd;
+        return _dataSource.CreateCommand(command);
     }
 
     public DbCommand CallFunction(string functionName)
     {
-        var cmd = CreateConnection().CreateCommand();
-        cmd.CommandText = SchemaName + "." + functionName;
-
+        var cmd = CreateCommand(SchemaName + "." + functionName);
         cmd.CommandType = CommandType.StoredProcedure;
-
         return cmd;
     }
 

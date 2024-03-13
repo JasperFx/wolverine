@@ -77,6 +77,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
     private async Task shutdownHostAsync(IHost host)
     {
         await host.StopAsync();
+        host.Dispose();
         _hosts.Remove(host);
     }
 
@@ -94,6 +95,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         foreach (var host in _hosts)
         {
             await host.StopAsync();
+            host.Dispose();
         }
     }
 
@@ -205,10 +207,12 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         }, 30.Seconds());
 
         await _originalHost.StopAsync();
+        _originalHost.Dispose();
         
         await host2.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
 
         await host2.StopAsync();
+        host2.Dispose();
 
         await host3.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
     }
@@ -234,6 +238,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         }, 30.Seconds());
 
         await _originalHost.StopAsync();
+        _originalHost.Dispose();
 
         await host2.WaitUntilAssignmentsChangeTo(w =>
         {
@@ -253,7 +258,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         var host3 = await startHostAsync();
         var host4 = await startHostAsync();
 
-        await host3.StopAsync();
+        await shutdownHostAsync(host3);
 
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {

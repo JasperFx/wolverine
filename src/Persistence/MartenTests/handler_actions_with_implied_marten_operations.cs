@@ -32,9 +32,10 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument));
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

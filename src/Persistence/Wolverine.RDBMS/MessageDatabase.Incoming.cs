@@ -26,16 +26,14 @@ public abstract partial class MessageDatabase<T>
 
     public async Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
-        var cmd = conn.CreateCommand(
-            $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id");
-        cmd.With("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(_cancellation);
+        await using var reader = await CreateCommand(
+            $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id")
+            .With("id", id)
+            .ExecuteReaderAsync(_cancellation);
+        
         if (!await reader.ReadAsync(_cancellation))
         {
+            await reader.CloseAsync();
             return null;
         }
 
@@ -48,6 +46,8 @@ public abstract partial class MessageDatabase<T>
             ExceptionMessage = await reader.GetFieldValueAsync<string>(7, _cancellation)
         };
 
+        await reader.CloseAsync();
+
         return report;
     }
 
@@ -55,22 +55,26 @@ public abstract partial class MessageDatabase<T>
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
+        if (HasDisposed) return Task.CompletedTask;
         return CreateCommand(_deleteIncomingEnvelopeById)
             .With("id", envelope.Id)
             .With("keepUntil", DateTimeOffset.UtcNow.Add(Durability.KeepAfterMessageHandling))
-            .ExecuteOnce(_cancellation);
+            .ExecuteNonQueryAsync(_cancellation);
     }
 
     public Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
+        if (HasDisposed) return Task.CompletedTask;
         return CreateCommand(_incrementIncominEnvelopeAttempts)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
-            .ExecuteOnce(_cancellation);
+            .ExecuteNonQueryAsync(_cancellation);
     }
 
     public async Task StoreIncomingAsync(Envelope envelope)
     {
+        if (HasDisposed) return;
+        
         if (envelope.OwnerId == TransportConstants.AnyNode && envelope.Status == EnvelopeStatus.Incoming)
         {
             throw new ArgumentOutOfRangeException(nameof(Envelope),
@@ -83,7 +87,16 @@ public abstract partial class MessageDatabase<T>
         var cmd = builder.Compile();
         try
         {
-            await cmd.ExecuteOnce(_cancellation).ConfigureAwait(false);
+            await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+            try
+            {
+                cmd.Connection = conn;
+                await cmd.ExecuteNonQueryAsync(_cancellation).ConfigureAwait(false);
+            }
+            finally
+            {
+                await conn.CloseAsync();
+            }
         }
         catch (Exception e)
         {
@@ -100,12 +113,18 @@ public abstract partial class MessageDatabase<T>
     {
         var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, this);
 
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
+        await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
+        try
+        {
 
-        cmd.Connection = conn;
+            cmd.Connection = conn;
 
-        await cmd.ExecuteNonQueryAsync(_cancellation);
+            await cmd.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     protected abstract bool isExceptionFromDuplicateEnvelope(Exception ex);

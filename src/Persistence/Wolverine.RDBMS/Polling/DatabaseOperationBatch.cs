@@ -10,13 +10,19 @@ namespace Wolverine.RDBMS.Polling;
 
 public class DatabaseBatchCommandException : Exception
 {
-    public DatabaseBatchCommandException(DbCommand command, Exception inner) : base(toMessage(command), inner)
+    public DatabaseBatchCommandException(DbCommand command, IDatabaseOperation[] operations, Exception inner) : base(toMessage(command, operations), inner)
     {
     }
 
-    private static string toMessage(DbCommand command)
+    private static string toMessage(DbCommand command, IDatabaseOperation[] operations)
     {
         var message = "Database operation batch failure:\n";
+
+        var count = 0;
+        foreach (var operation in operations)
+        {
+            message += $"{++count}. {operation}\n";
+        }
 
         if (command.CommandText.IsEmpty())
         {
@@ -45,13 +51,16 @@ internal class DatabaseOperationBatch : IAgentCommand
     public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        if (!_operations.Any()) yield break;
+        
         var builder = _database.ToCommandBuilder();
         foreach (var operation in _operations) operation.ConfigureCommand(builder);
 
         var cmd = builder.Compile();
-        await using var conn = cmd.Connection;
-        await conn!.OpenAsync(cancellationToken);
 
+        await using var conn = await _database.DataSource.OpenConnectionAsync(cancellationToken);
+
+        cmd.Connection = conn;
         var tx = await conn.BeginTransactionAsync(cancellationToken);
         cmd.Transaction = tx;
 
@@ -67,7 +76,7 @@ internal class DatabaseOperationBatch : IAgentCommand
         catch (Exception e)
         {
             await conn.CloseAsync();
-            throw new DatabaseBatchCommandException(cmd, e);
+            throw new DatabaseBatchCommandException(cmd, _operations, e);
         }
 
         try
