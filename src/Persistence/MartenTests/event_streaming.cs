@@ -91,6 +91,9 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
     {
         await theReceiver.StopAsync();
         await theSender.StopAsync();
+        
+        theReceiver.Dispose();
+        theSender.Dispose();
     }
 
     [Fact]

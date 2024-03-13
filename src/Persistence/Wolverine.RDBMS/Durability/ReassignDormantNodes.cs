@@ -22,11 +22,8 @@ public class ReassignDormantNodes : IAgentCommand
     {
         var sql =
             $"select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id > 0 union select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id > 0;";
-
-        await using var conn = _database.CreateConnection();
-        await conn.OpenAsync(cancellationToken);
-        var owners = await conn.CreateCommand(sql).FetchListAsync<int>(cancellationToken);
-        await conn.CloseAsync();
+        
+        var owners = await _database.DataSource.CreateCommand(sql).FetchListAsync<int>(cancellationToken);
 
         var nodes = await _nodes.LoadAllNodeAssignedIdsAsync();
 

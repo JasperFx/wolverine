@@ -19,9 +19,10 @@ public class AppFixture : IAsyncLifetime
         Host = await AlbaHost.For<Program>(x => { });
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return Host!.StopAsync();
+        await Host!.StopAsync();
+        Host.Dispose();
     }
 }
 

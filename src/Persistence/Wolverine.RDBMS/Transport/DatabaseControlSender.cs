@@ -36,8 +36,7 @@ internal class DatabaseControlSender : ISender, IAsyncDisposable
     {
         try
         {
-            await using var conn = _transport.Database.CreateConnection();
-            await conn.OpenAsync();
+            await using var conn = await _transport.Database.DataSource.OpenConnectionAsync();
             await conn.CloseAsync();
             return true;
         }
@@ -56,19 +55,14 @@ internal class DatabaseControlSender : ISender, IAsyncDisposable
 
     private async Task sendMessageAsync(Envelope envelope, CancellationToken cancellationToken)
     {
-        if (cancellationToken.IsCancellationRequested)
+        if (cancellationToken.IsCancellationRequested || _transport.Database.HasDisposed)
         {
             return;
         }
 
-        await using var conn = _transport.Database.CreateConnection();
-
-
         try
         {
-            await conn.OpenAsync(cancellationToken);
-
-            await conn.CreateCommand(
+            await _transport.Database.DataSource.CreateCommand(
                     $"insert into {_transport.TableName} (id, message_type, node_id, body, expires) values (@id, @messagetype, @node, @body, @expires)")
                 .With("id", envelope.Id)
                 .With("messagetype", envelope.MessageType!)
@@ -83,7 +77,5 @@ internal class DatabaseControlSender : ISender, IAsyncDisposable
                 throw;
             }
         }
-
-        await conn.CloseAsync();
     }
 }

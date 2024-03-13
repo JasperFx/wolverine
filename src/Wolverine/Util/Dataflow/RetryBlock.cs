@@ -79,12 +79,16 @@ public class RetryBlock<T> : IDisposable
 
     public void Post(T message)
     {
+        if (_cancellationToken.IsCancellationRequested) return;
+        
         var item = new Item(message);
         _block.Post(item);
     }
 
     public async Task PostAsync(T message)
     {
+        if (_cancellationToken.IsCancellationRequested) return;
+        
         try
         {
             await _handler.ExecuteAsync(message, _cancellationToken);
@@ -108,6 +112,8 @@ public class RetryBlock<T> : IDisposable
 
     private async Task executeAsync(Item item)
     {
+        if (_cancellationToken.IsCancellationRequested) return;
+        
         try
         {
             item.Attempts++;
@@ -123,6 +129,8 @@ public class RetryBlock<T> : IDisposable
         {
             _logger.LogError(e, "Error while trying to retry {Item}", item.Message);
 
+            if (_cancellationToken.IsCancellationRequested) return;
+            
             if (item.Attempts < MaximumAttempts)
             {
                 _block.Post(item);

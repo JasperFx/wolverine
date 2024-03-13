@@ -21,9 +21,10 @@ public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
 
     private IHost theHost;
 
-    public override Task DisposeAsync()
+    public override async Task DisposeAsync()
     {
-        return theHost.StopAsync();
+        await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     protected override async Task initialize()

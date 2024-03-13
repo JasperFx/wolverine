@@ -17,12 +17,15 @@ public class UnknownWolverineNodeException : Exception
 
 public partial class WolverineRuntime : IAgentRuntime
 {
+    private bool _agentsAreDisabled;
     internal Timer? AgentTimer { get; private set; }
 
     public NodeAgentController? NodeController { get; private set; }
 
     public Task StartLocallyAsync(Uri agentUri)
     {
+        if (Cancellation.IsCancellationRequested || _agentsAreDisabled) return Task.CompletedTask;
+        
         if (NodeController == null)
         {
             throw new InvalidOperationException("This WolverineRuntime does not support stateful agents");
@@ -33,6 +36,8 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public Task StopLocallyAsync(Uri agentUri)
     {
+        if (Cancellation.IsCancellationRequested || _agentsAreDisabled) return Task.CompletedTask;
+        
         if (NodeController == null)
         {
             throw new InvalidOperationException("This WolverineRuntime does not support stateful agents");
@@ -195,6 +200,8 @@ public partial class WolverineRuntime : IAgentRuntime
     /// <param name="lastHeartbeatTime"></param>
     internal async Task DisableAgentsAsync(DateTimeOffset lastHeartbeatTime)
     {
+        _agentsAreDisabled = true;
+        
         if (AgentTimer != null)
         {
             try

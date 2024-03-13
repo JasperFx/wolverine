@@ -78,12 +78,14 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         if (_host != null)
         {
             await _host.StopAsync();
+            _host.Dispose();
         }
     }
 
     protected async Task stopAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
         _host = null;
     }
 

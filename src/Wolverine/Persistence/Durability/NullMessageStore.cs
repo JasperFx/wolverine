@@ -109,6 +109,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     }
 
+    public bool HasDisposed { get; set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public INodeAgentPersistence Nodes => throw new NotSupportedException();
@@ -127,6 +128,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public ValueTask DisposeAsync()
     {
+        HasDisposed = true;
         return ValueTask.CompletedTask;
     }
 

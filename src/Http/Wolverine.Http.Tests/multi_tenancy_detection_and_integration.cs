@@ -84,6 +84,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         // Make sure you clean up after your tests
         // to make the subsequent tests run cleanly
         await theHost.StopAsync();
+        await theHost.DisposeAsync();
     }
 
     [Fact]

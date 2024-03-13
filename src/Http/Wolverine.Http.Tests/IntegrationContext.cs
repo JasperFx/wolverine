@@ -57,6 +57,7 @@ public class AppFixture : IAsyncLifetime
             catch (Exception e)
             {
                 await Host.StopAsync();
+                Host.Dispose();
                 Host = null;
             }
         }

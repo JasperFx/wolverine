@@ -39,6 +39,7 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
 

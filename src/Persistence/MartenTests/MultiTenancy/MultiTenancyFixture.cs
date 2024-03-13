@@ -55,6 +55,7 @@ public class MultiTenancyFixture : IAsyncLifetime
         if (Host != null)
         {
             await Host.StopAsync();
+            Host.Dispose();
         }
 
         await InitializeAsync();
@@ -90,6 +91,8 @@ public class MultiTenancyFixture : IAsyncLifetime
                 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
+
+        await conn.CloseAsync();
     }
 
     public async Task DisposeAsync()
@@ -97,6 +100,7 @@ public class MultiTenancyFixture : IAsyncLifetime
         if (Host != null)
         {
             await Host.StopAsync();
+            Host.Dispose();
         }
     }
 }

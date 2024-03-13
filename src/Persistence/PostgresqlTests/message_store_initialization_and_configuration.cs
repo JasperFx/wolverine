@@ -45,6 +45,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
         if (_host != null)
         {
             await _host.StopAsync();
+            _host.Dispose();
         }
     }
 
@@ -92,6 +93,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
     public async Task deletes_the_node_on_shutdown()
     {
         await _host.StopAsync();
+        _host.Dispose();
         _host = null;
 
         var settings = new DatabaseSettings
@@ -101,7 +103,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
             SchemaName = "registry"
         };
 
-        var store = new PostgresqlMessageStore(settings, new DurabilitySettings(),
+        var store = new PostgresqlMessageStore(settings, new DurabilitySettings(), NpgsqlDataSource.Create(Servers.PostgresConnectionString),
             NullLogger<PostgresqlMessageStore>.Instance);
         
         // Should delete itself at the end

@@ -23,6 +23,8 @@ public class node_persistence : PostgresqlContext, IAsyncLifetime
             await conn.OpenAsync();
 
             await conn.DropSchemaAsync("nodes");
+
+            await conn.CloseAsync();
         }
 
         var settings = new DatabaseSettings
@@ -32,7 +34,7 @@ public class node_persistence : PostgresqlContext, IAsyncLifetime
             IsMaster = true
         };
 
-        _database = new PostgresqlMessageStore(settings, new DurabilitySettings(),
+        _database = new PostgresqlMessageStore(settings, new DurabilitySettings(), NpgsqlDataSource.Create(Servers.PostgresConnectionString), 
             NullLogger<PostgresqlMessageStore>.Instance);
 
         await _database.Admin.MigrateAsync();

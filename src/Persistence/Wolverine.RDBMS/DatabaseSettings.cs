@@ -1,9 +1,12 @@
+using System.Data.Common;
 using JasperFx.Core;
 
 namespace Wolverine.RDBMS;
 
 public class DatabaseSettings
 {
+    public DbDataSource? DataSource { get; set; }
+    
     public string? ConnectionString { get; set; }
     public string? SchemaName { get; set; }
 

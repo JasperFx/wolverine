@@ -46,6 +46,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
         if (_host != null)
         {
             await _host.StopAsync();
+            _host.Dispose();
         }
     }
 
@@ -93,6 +94,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
     public async Task deletes_the_node_on_shutdown()
     {
         await _host.StopAsync();
+        _host.Dispose();
         _host = null;
 
         var settings = new DatabaseSettings

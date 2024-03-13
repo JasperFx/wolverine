@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Marten;
 using TestingSupport;
 using TestingSupport.Compliance;
+using Wolverine;
 using Wolverine.Marten;
 
 namespace MartenTests;
@@ -28,6 +29,8 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
                 o.Connection(Servers.PostgresConnectionString);
                 o.DatabaseSchemaName = "sender";
             }).IntegrateWithWolverine();
+
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         await ReceiverIs(opts =>
@@ -40,7 +43,7 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
                 o.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine();
             
-            
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
     }
 

@@ -22,7 +22,7 @@ public class durability_with_local : PostgresqlContext
     [Fact]
     public async Task should_recover_persisted_messages()
     {
-        var host1 = await WolverineHost.ForAsync(opts => opts.ConfigureDurableSender(true, true));
+        using var host1 = await WolverineHost.ForAsync(opts => opts.ConfigureDurableSender(true, true));
         await host1.SendAsync(new ReceivedMessage());
 
         var counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();
@@ -32,7 +32,7 @@ public class durability_with_local : PostgresqlContext
         counts.Incoming.ShouldBe(1);
 
         // Don't use WolverineHost here because you need the existing persisted state!!!!
-        var host2 = await Host.CreateDefaultBuilder().UseWolverine(opts => opts.ConfigureDurableSender(true, false))
+        using var host2 = await Host.CreateDefaultBuilder().UseWolverine(opts => opts.ConfigureDurableSender(true, false))
             .StartAsync();
         var counts2 = await host2.Get<IMessageStore>().Admin.FetchCountsAsync();
 

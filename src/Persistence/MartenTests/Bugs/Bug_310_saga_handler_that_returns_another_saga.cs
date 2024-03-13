@@ -32,6 +32,7 @@ public class Bug_310_saga_handler_that_returns_another_saga : PostgresqlContext,
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

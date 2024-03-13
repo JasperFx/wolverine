@@ -15,17 +15,19 @@ public abstract partial class MessageDatabase<T>
 
     public async Task ClearAllAsync()
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-        await truncateEnvelopeDataAsync(conn);
-        await conn.CloseAsync();
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        try
+        {
+            await truncateEnvelopeDataAsync(conn);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
         var sql =
             $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay";
 
@@ -34,28 +36,40 @@ public abstract partial class MessageDatabase<T>
             sql = $"{sql} where {DatabaseConstants.ExceptionType} = @extype";
         }
 
-        return await conn.CreateCommand(sql).With("replay", true).With("extype", exceptionType)
+        return await CreateCommand(sql).With("replay", true).With("extype", exceptionType)
             .ExecuteNonQueryAsync(_cancellation);
     }
 
     public async Task RebuildAsync()
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
 
-        await migrateAsync(conn);
+        try
+        {
+            await migrateAsync(conn);
 
-        await truncateEnvelopeDataAsync(conn);
+            await truncateEnvelopeDataAsync(conn);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     public async Task MigrateAsync()
     {
         Func<Task> tryMigrate = async () =>
         {
-            await using var conn = CreateConnection();
-            await conn.OpenAsync(_cancellation);
+            await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
 
-            await migrateAsync(conn);
+            try
+            {
+                await migrateAsync(conn);
+            }
+            finally
+            {
+                await conn.CloseAsync();
+            }
         };
 
         try
@@ -79,40 +93,28 @@ public abstract partial class MessageDatabase<T>
 
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
-        return await conn
-            .CreateCommand(
+        return await CreateCommand(
                 $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable}")
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 
-    public async Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
+    public Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
-        return await conn
-            .CreateCommand(
+        return CreateCommand(
                 $"select {DatabaseConstants.OutgoingFields} from {SchemaName}.{DatabaseConstants.OutgoingTable}")
             .FetchListAsync(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
     }
 
-    public async Task ReleaseAllOwnershipAsync()
+    public Task ReleaseAllOwnershipAsync()
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
-        await conn.CreateCommand(
+        return CreateCommand(
                 $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0;update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0")
             .ExecuteNonQueryAsync(_cancellation);
     }
 
     public async Task CheckConnectivityAsync(CancellationToken token)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(token);
+        await using var conn = await DataSource.OpenConnectionAsync(token);
         await conn.CloseAsync();
     }
 

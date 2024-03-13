@@ -57,6 +57,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
         await theContainer.DisposeAsync();
     }
 

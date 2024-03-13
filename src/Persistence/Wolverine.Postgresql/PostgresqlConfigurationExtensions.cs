@@ -1,4 +1,5 @@
 ﻿using JasperFx.Core;
+using Npgsql;
 
 namespace Wolverine.Postgresql;
 
@@ -19,11 +20,11 @@ public static class PostgresqlConfigurationExtensions
                 "The schema name must be in all lower case characters");
         }
         
-        
         options.Include<PostgresqlBackedPersistence>(o =>
         {
             o.Settings.ConnectionString = connectionString;
             o.Settings.SchemaName = schemaName ?? "public";
+            o.Settings.DataSource = NpgsqlDataSource.Create(connectionString);
             
             o.Settings.ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode();
         });

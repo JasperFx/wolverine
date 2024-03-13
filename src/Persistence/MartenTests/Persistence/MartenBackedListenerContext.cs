@@ -2,6 +2,7 @@
 using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using NSubstitute;
 using Shouldly;
 using Wolverine;
@@ -46,7 +47,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
 {
     protected readonly IMessageStoreAdmin MessageStoreAdmin =
         new PostgresqlMessageStore(new DatabaseSettings()
-                { ConnectionString = Servers.PostgresConnectionString }, new DurabilitySettings(),
+                { ConnectionString = Servers.PostgresConnectionString }, new DurabilitySettings(), NpgsqlDataSource.Create(Servers.PostgresConnectionString),
             new NullLogger<PostgresqlMessageStore>());
 
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
@@ -71,7 +72,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
 
         var persistence =
             new PostgresqlMessageStore(
-                new DatabaseSettings() { ConnectionString = Servers.PostgresConnectionString }, theSettings,
+                new DatabaseSettings() { ConnectionString = Servers.PostgresConnectionString }, theSettings, NpgsqlDataSource.Create(Servers.PostgresConnectionString),
                 new NullLogger<PostgresqlMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();

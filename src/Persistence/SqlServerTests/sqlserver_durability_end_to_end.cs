@@ -88,11 +88,19 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        foreach (var host in _receivers) await host.StopAsync();
+        foreach (var host in _receivers)
+        {
+            await host.StopAsync();
+            host.Dispose();
+        }
 
         _receivers.Clear();
 
-        foreach (var host in _senders) await host.StopAsync();
+        foreach (var host in _senders)
+        {
+            await host.StopAsync();
+            host.Dispose();
+        }
 
         _senders.Clear();
     }

@@ -24,30 +24,38 @@ public abstract partial class MessageDatabase<T>
 
     public async Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(_cancellation);
-
-        var envelopes = await conn.CreateCommand(_outgoingEnvelopeSql)
+        return await _dataSource.CreateCommand(_outgoingEnvelopeSql)
             .With("destination", destination.ToString())
             .FetchListAsync(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
-
-        await conn.CloseAsync();
-
-        return envelopes;
     }
 
     public Task DeleteOutgoingAsync(Envelope envelope)
     {
+        if (HasDisposed) return Task.CompletedTask;
+        
         return CreateCommand(
                 $"delete from {SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
             .With("id", envelope.Id)
-            .ExecuteOnce(_cancellation);
+            .ExecuteNonQueryAsync(_cancellation);
     }
 
     public async Task StoreOutgoingAsync(Envelope envelope, int ownerId)
     {
-        await DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, this)
-            .ExecuteOnce(_cancellation);
+        if (HasDisposed) return;
+        
+        var command = DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, this);
+
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+
+        try
+        {
+            command.Connection = conn;
+            await command.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
 
         envelope.WasPersistedInOutbox = true;
     }

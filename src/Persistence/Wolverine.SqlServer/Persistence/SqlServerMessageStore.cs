@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Data.Common;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
@@ -27,7 +28,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
         ILogger<SqlServerMessageStore> logger)
-        : base(database, settings, logger, new SqlServerMigrator(), "dbo")
+        : base(database, SqlClientFactory.Instance.CreateDataSource(database.ConnectionString), settings, logger, new SqlServerMigrator(), "dbo")
     {
         _findAtLargeEnvelopesSql =
             $"select top (@limit) {DatabaseConstants.IncomingFields} from {database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
@@ -37,7 +38,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         _scheduledLockId = "Wolverine:Scheduled:" + database.ScheduledJobLockId.ToString();
     }
 
-    protected override INodeAgentPersistence buildNodeStorage(DatabaseSettings databaseSettings)
+    protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
+        DbDataSource dataSource)
     {
         return new SqlServerNodePersistence(databaseSettings, this);
     }
@@ -51,10 +53,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         var counts = new PersistedCounts();
 
-        await using var conn = CreateConnection();
-        await conn.OpenAsync();
-
-        await using (var reader = await CommandExtensions.CreateCommand(conn, $"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
+        await using (var reader = await CreateCommand($"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
                          .ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
@@ -77,16 +76,15 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                         break;
                 }
             }
+
+            await reader.CloseAsync();
         }
 
-        counts.Outgoing = (int)(await CommandExtensions.CreateCommand(conn, $"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")
+        counts.Outgoing = (int)(await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteScalarAsync())!;
 
-        counts.DeadLetter = (int)(await CommandExtensions.CreateCommand(conn, $"select count(*) from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
+        counts.DeadLetter = (int)(await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
             .ExecuteScalarAsync())!;
-
-
-        await conn.CloseAsync();
 
         return counts;
     }
@@ -98,6 +96,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
+        if (HasDisposed) return;
+        
         var table = new DataTable();
         table.Columns.Add(new DataColumn("ID", typeof(Guid)));
         table.Rows.Add(envelope.Id);
@@ -112,14 +112,22 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
         DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
 
+        var cmd = builder.Compile();
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        cmd.Connection = conn;
+        
         try
         {
-            await builder.Compile().ExecuteOnce(_cancellation);
+            await cmd.ExecuteNonQueryAsync(_cancellation);
         }
         catch (Exception e)
         {
             if (isExceptionFromDuplicateEnvelope(e)) return;
             throw;
+        }
+        finally
+        {
+            await conn.CloseAsync();
         }
     }
 
@@ -141,44 +149,39 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             .WithIdList(this, reassigned, "reassigned")
             .With("ownerId", nodeId);
 
-        return cmd.ExecuteOnce(_cancellation);
+        return cmd.ExecuteNonQueryAsync(_cancellation);
     }
 
     public override Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
+        if (HasDisposed) return Task.CompletedTask;
+        
         return CallFunction("uspDeleteOutgoingEnvelopes")
-            .WithIdList(this, envelopes).ExecuteOnce(_cancellation);
+            .WithIdList(this, envelopes).ExecuteNonQueryAsync(_cancellation);
     }
 
-    public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
+    public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync();
-        
-        var list = await conn.CreateCommand(_findAtLargeEnvelopesSql)
+        return CreateCommand(_findAtLargeEnvelopesSql)
             .With("address", listenerAddress.ToString())
             .With("limit", limit)
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
-
-        await conn.CloseAsync();
-
-        return list;
     }
 
-    public override async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    public override DbCommandBuilder ToCommandBuilder()
     {
-        await using var conn = CreateConnection();
-        await conn.OpenAsync();
+        return new DbCommandBuilder(new SqlCommand());
+    }
 
-        var cmd = conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership");
+    public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        var cmd = CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership");
         cmd.CommandType = CommandType.StoredProcedure;
         
-        await cmd
+        return cmd
             .WithIdList(this, incoming)
             .With("owner", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
-
-        await conn.CloseAsync();
     }
 
 
@@ -194,9 +197,11 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         ILogger logger,
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
     {
-        IReadOnlyList<Envelope> envelopes;
+        if (HasDisposed) return;
         
-        using var conn = new SqlConnection(_settings.ConnectionString);
+        IReadOnlyList<Envelope> envelopes;
+
+        await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
         try
         {
