@@ -126,6 +126,15 @@ public partial class WolverineRuntime
         await _endpoints.DrainAsync();
 
         DurabilitySettings.Cancel();
+
+        try
+        {
+            // Do this to release pooled connections in Npgsql just in case
+            await Storage.DisposeAsync();
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private void startInMemoryScheduledJobs()

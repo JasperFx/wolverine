@@ -25,15 +25,22 @@ public static class WolverineOptionsMartenExtensions
     /// </summary>
     /// <param name="expression"></param>
     /// <param name="schemaName">Optionally move the Wolverine envelope storage to a separate schema</param>
+    /// <param name="masterDataSource">
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    /// </param>
     /// <param name="masterDatabaseConnectionString">
     ///     In the case of Marten using a database per tenant, you may wish to
     ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
     ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
     /// </param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null,
-        string? masterDatabaseConnectionString = null)
+        string? masterDatabaseConnectionString = null, NpgsqlDataSource? masterDataSource = null)
     {
         if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
         {
@@ -58,7 +65,7 @@ public static class WolverineOptionsMartenExtensions
                 return BuildSinglePostgresqlMessageStore(schemaName, store, runtime, logger);
             }
 
-            return BuildMultiTenantedMessageDatabase(schemaName, masterDatabaseConnectionString, store, runtime, s);
+            return BuildMultiTenantedMessageDatabase(schemaName, masterDatabaseConnectionString, masterDataSource, store, runtime, s);
         });
 
         expression.Services.AddSingleton<IDatabaseSource, MartenMessageDatabaseDiscovery>();
@@ -110,21 +117,17 @@ public static class WolverineOptionsMartenExtensions
     }
 
     internal static IMessageStore BuildMultiTenantedMessageDatabase(string schemaName,
-        string? masterDatabaseConnectionString, DocumentStore store, IWolverineRuntime runtime,
+        string? masterDatabaseConnectionString, NpgsqlDataSource? masterDataSource, DocumentStore store,
+        IWolverineRuntime runtime,
         IServiceProvider serviceProvider)
     {
-        if (masterDatabaseConnectionString.IsEmpty())
-        {
-            throw new ArgumentOutOfRangeException(nameof(masterDatabaseConnectionString),
-                "Must specify a master Wolverine database connection string in the case of using Marten multi-tenancy with multiple databases");
-        }
-
         var masterSettings = new DatabaseSettings
         {
             ConnectionString = masterDatabaseConnectionString,
             SchemaName = schemaName,
             IsMaster = true,
-            CommandQueuesEnabled = true
+            CommandQueuesEnabled = true,
+            DataSource = masterDataSource
         };
 
         var dataSource = findMasterDataSource(store, runtime, masterSettings, serviceProvider);
