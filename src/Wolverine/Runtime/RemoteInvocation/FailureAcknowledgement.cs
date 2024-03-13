@@ -1,12 +1,32 @@
 ﻿
 using System.Diagnostics;
+using System.Text;
 
 namespace Wolverine.Runtime.RemoteInvocation;
 
-public class FailureAcknowledgement
+public class FailureAcknowledgement : ISerializable
 {
     public Guid RequestId { get; init; }
     public string Message { get; init; } = null!;
+
+    public byte[] Write()
+    {
+        var guid = RequestId.ToByteArray();
+        var message = Encoding.UTF8.GetBytes(Message ?? string.Empty);
+        return guid.Concat(message).ToArray();
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        var requestId = new Guid(bytes.Take(16).ToArray());
+        var message = Encoding.UTF8.GetString(bytes.Skip(16).ToArray());
+
+        return new FailureAcknowledgement
+        {
+            Message = message,
+            RequestId = requestId
+        };
+    }
 
     protected bool Equals(FailureAcknowledgement other)
     {
