@@ -26,10 +26,14 @@ export default withMermaid( {
             {text: 'Support Plans', link: 'https://www.jasperfx.net/support-plans/'}
         ],
 
-        algolia: {
-            appId: 'IS2ZRHIXW9',
-            apiKey: 'c8a9f5cb4e0f80733d0dadb4ae8d06ad',
-            indexName: 'wolverine_index'
+        // algolia: {
+        //     appId: 'IS2ZRHIXW9',
+        //     apiKey: 'c8a9f5cb4e0f80733d0dadb4ae8d06ad',
+        //     indexName: 'wolverine_index'
+        // },
+
+        search: {
+      	    provider: 'local'
         },
 
         editLink: {
