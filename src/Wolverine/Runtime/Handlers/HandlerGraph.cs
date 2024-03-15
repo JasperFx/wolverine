@@ -284,10 +284,23 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         }
     }
 
+    private bool isSagaMethod(HandlerCall call)
+    {
+        if (call.HandlerType.CanBeCastTo<Saga>())
+        {
+            if (!call.Method.IsStatic) return true;
+
+            if (call.Method.Name.EqualsIgnoreCase("Start")) return true;
+            if (call.Method.Name.EqualsIgnoreCase("StartAsync")) return true;
+        }
+
+        return false;
+    }
+
     private HandlerChain buildHandlerChain(IGrouping<Type, HandlerCall> group)
     {
         // If the SagaChain handler method is a static, then it's valid to be a "Start" method
-        if (group.Any(x => x.HandlerType.CanBeCastTo<Saga>() && !x.Method.IsStatic))
+        if (group.Any(isSagaMethod))
         {
             return new SagaChain(group, this);
         }
