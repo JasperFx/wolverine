@@ -286,6 +286,8 @@ public class TryFinallyWrapperFrame : Frame
     {
         _inner = inner;
         _finallys = finallys;
+
+        creates.AddRange(inner.Creates.Select(x => new Variable(x.VariableType, x.Usage)));
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
