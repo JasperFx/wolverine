@@ -303,7 +303,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         if (AuditedMembers.Any())
         {
-            Middleware.Insert(0, new AuditToActivityFrame(this));
+            Middleware.Insert(0, new LoggerBeginScopeWithAuditFrame(this));
+            Middleware.Insert(1, new AuditToActivityFrame(this));
         }
         
         Middleware.Insert(0, messageVariable.Creator!);
