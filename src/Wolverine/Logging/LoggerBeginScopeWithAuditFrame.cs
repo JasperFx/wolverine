@@ -37,11 +37,13 @@ internal class LoggerBeginScopeWithAuditFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        if (_members.Count == 0) return;
-        writer.WriteComment("Adding audited members to log context");
-        writer.Write(
-            $"using var disposable_{Guid.NewGuid().ToString().Replace("-", "_")} = {_logger!.Usage}.{nameof(ILogger.BeginScope)}"
-            + $"(new {typeof(Dictionary<string, object>).FullNameInCode()}(){{{string.Join(", ", _members.Select(member => $"{{\"{member.MemberName}\", {_withAudit!.Usage}.{member.Member.Name}}}"))}}});");
+        if (_members.Count > 0)
+        {
+            writer.WriteComment("Adding audited members to log context");
+            writer.Write(
+                $"using var disposable_{Guid.NewGuid().ToString().Replace("-", "_")} = {_logger!.Usage}.{nameof(ILogger.BeginScope)}"
+                + $"(new {typeof(Dictionary<string, object>).FullNameInCode()}(){{{string.Join(", ", _members.Select(member => $"{{\"{member.MemberName}\", {_withAudit!.Usage}.{member.Member.Name}}}"))}}});");
+        }
 
         Next?.GenerateCode(method, writer);
     }
