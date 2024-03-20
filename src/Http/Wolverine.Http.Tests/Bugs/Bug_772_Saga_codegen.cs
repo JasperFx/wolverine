@@ -34,8 +34,6 @@ public class Bug_772_Saga_codegen
             options.Policies.AutoApplyTransactions();
             options.Policies.UseDurableLocalQueues();
             options.Policies.UseDurableOutboxOnAllSendingEndpoints();
-            
-            Debug.WriteLine(options.DescribeHandlerMatch(typeof(LongProcessSaga)));
         });
 
         builder.Services.AddScoped<IDataService, DataService>();
@@ -88,6 +86,11 @@ public static class BeginProcessMiddleware
 
 public class LongProcessSaga : Saga
 {
+    public LongProcessSaga()
+    {
+        Debug.WriteLine("What?");
+    }
+
     public Guid Id { get; init; }
     
     [Wolverine.Attributes.Middleware(typeof(BeginProcessMiddleware))]
