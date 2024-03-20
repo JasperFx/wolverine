@@ -123,8 +123,13 @@ public class SagaChain : HandlerChain
     private void generateForOnlyStartingSaga(IContainer container, IPersistenceFrameProvider frameProvider,
         List<Frame> frames)
     {
-        var creator = new CreateNewSagaFrame(SagaType);
-        frames.Add(creator);
+        var sagaVariable = StartingCalls.SelectMany(x => x.Creates).FirstOrDefault(x => x.VariableType == SagaType);
+        if (sagaVariable == null)
+        {
+            var creator = new CreateNewSagaFrame(SagaType);
+            frames.Add(creator);
+            sagaVariable = creator.Saga;
+        }
 
         foreach (var startingCall in StartingCalls)
         {
@@ -132,8 +137,8 @@ public class SagaChain : HandlerChain
             foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
                 frames.Add(frame);
         }
-
-        var ifNotCompleted = buildFrameForConditionalInsert(creator.Saga, frameProvider, container);
+        
+        var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
         frames.Add(ifNotCompleted);
     }
 
