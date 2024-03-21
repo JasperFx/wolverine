@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -83,7 +84,7 @@ public static class EndpointBuilderExtensions
 /// Base class for resource types that denote some kind of resource being created
 /// in the system. Wolverine specific, and more efficient, version of Created<T> from ASP.Net Core
 /// </summary>
-public record CreationResponse(string Url) : IHttpAware
+public record CreationResponse([StringSyntax("Route")]string Url) : IHttpAware
 {
     public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
     {

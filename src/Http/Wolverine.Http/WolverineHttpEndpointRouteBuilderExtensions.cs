@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
 using Lamar;
@@ -46,7 +47,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <param name="url"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static RouteHandlerBuilder MapPostToWolverine<T>(this IEndpointRouteBuilder endpoints, string url)
+    public static RouteHandlerBuilder MapPostToWolverine<T>(this IEndpointRouteBuilder endpoints, [StringSyntax("Route")]string url)
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
@@ -62,7 +63,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <param name="url"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static RouteHandlerBuilder MapPutToWolverine<T>(this IEndpointRouteBuilder endpoints, string url)
+    public static RouteHandlerBuilder MapPutToWolverine<T>(this IEndpointRouteBuilder endpoints, [StringSyntax("Route")]string url)
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
@@ -78,7 +79,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <param name="url"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static RouteHandlerBuilder MapDeleteToWolverine<T>(this IEndpointRouteBuilder endpoints, string url)
+    public static RouteHandlerBuilder MapDeleteToWolverine<T>(this IEndpointRouteBuilder endpoints, [StringSyntax("Route")]string url)
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
@@ -97,7 +98,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
     public static RouteHandlerBuilder MapPostToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
-        string url)
+        [StringSyntax("Route")] string url)
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
@@ -116,7 +117,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
     public static RouteHandlerBuilder MapPutToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
-        string url)
+        [StringSyntax("Route")] string url)
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
@@ -135,7 +136,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
     public static RouteHandlerBuilder MapDeleteToWolverine<TRequest, TResponse>(this IEndpointRouteBuilder endpoints,
-        string url)
+        [StringSyntax("Route")] string url)
     {
         var runtime = GetWolverineRuntime(endpoints);
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));

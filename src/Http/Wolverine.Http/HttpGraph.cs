@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
@@ -123,7 +124,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         return this;
     }
 
-    public HttpChain? ChainFor(string httpMethod, string urlPattern)
+    public HttpChain? ChainFor(string httpMethod, [StringSyntax("Route")]string urlPattern)
     {
         return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern!.RawText == urlPattern);
     }
