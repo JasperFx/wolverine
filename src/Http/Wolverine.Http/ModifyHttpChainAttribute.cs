@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
@@ -112,7 +113,7 @@ public class RequiresTenantAttribute : ModifyHttpChainAttribute
 /// </summary>
 public class WolverineGetAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineGetAttribute(string template) : base("GET", template)
+    public WolverineGetAttribute([StringSyntax("Route")]string template) : base("GET", template)
     {
     }
 
@@ -124,7 +125,7 @@ public class WolverineGetAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverinePostAttribute : WolverineHttpMethodAttribute
 {
-    public WolverinePostAttribute(string template) : base("POST", template)
+    public WolverinePostAttribute([StringSyntax("Route")]string template) : base("POST", template)
     {
     }
 }
@@ -134,7 +135,7 @@ public class WolverinePostAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverinePutAttribute : WolverineHttpMethodAttribute
 {
-    public WolverinePutAttribute(string template) : base("PUT", template)
+    public WolverinePutAttribute([StringSyntax("Route")]string template) : base("PUT", template)
     {
     }
 }
@@ -144,7 +145,7 @@ public class WolverinePutAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverineHeadAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineHeadAttribute(string template) : base("HEAD", template)
+    public WolverineHeadAttribute([StringSyntax("Route")]string template) : base("HEAD", template)
     {
     }
 }
@@ -154,7 +155,7 @@ public class WolverineHeadAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverineDeleteAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineDeleteAttribute(string template) : base("DELETE", template)
+    public WolverineDeleteAttribute([StringSyntax("Route")]string template) : base("DELETE", template)
     {
     }
 }
@@ -164,7 +165,7 @@ public class WolverineDeleteAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverinePatchAttribute : WolverineHttpMethodAttribute
 {
-    public WolverinePatchAttribute(string template) : base("PATCH", template)
+    public WolverinePatchAttribute([StringSyntax("Route")]string template) : base("PATCH", template)
     {
     }
 }
@@ -174,7 +175,7 @@ public class WolverinePatchAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverineOptionsAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineOptionsAttribute(string template) : base("OPTIONS", template)
+    public WolverineOptionsAttribute([StringSyntax("Route")]string template) : base("OPTIONS", template)
     {
     }
 }
