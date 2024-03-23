@@ -136,7 +136,7 @@ public class MyMessageHandler
         _messageBus = messageBus;
     }
     
-    public async Task HandleAsync(MyMessage message, IMessageBus messageBus)
+    public async Task HandleAsync(MyMessage message)
     {
          // handle the message..;
     }
