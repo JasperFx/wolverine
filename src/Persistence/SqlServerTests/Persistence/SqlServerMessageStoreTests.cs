@@ -303,12 +303,12 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
         
 
-        var stored = await thePersistence.LoadDeadLetterEnvelopeAsync(report2.Id);
+        var stored = await thePersistence.DeadLetters.DeadLetterEnvelopeByIdAsync(report2.Id);
 
         stored.ShouldNotBeNull();
 
         stored.ExceptionMessage.ShouldBe(report2.ExceptionMessage);
-        stored.Id.ShouldBe(report2.Id);
+        stored.Envelope.Id.ShouldBe(report2.Id);
         stored.ExceptionType.ShouldBe(report2.ExceptionType);
         stored.Envelope.MessageType.ShouldBe(report2.Envelope.MessageType);
         stored.Envelope.Source.ShouldBe(report2.Envelope.Source);

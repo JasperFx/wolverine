@@ -654,14 +654,14 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var db2 = await Databases.GetDatabaseAsync("tenant2");
         var db3 = await Databases.GetDatabaseAsync("tenant3");
 
-        (await Databases.Master.LoadDeadLetterEnvelopeAsync(fromMaster.Id)).ShouldNotBeNull();
-        (await db1.LoadDeadLetterEnvelopeAsync(from1.Id)).ShouldNotBeNull();
-        (await db2.LoadDeadLetterEnvelopeAsync(from2.Id)).ShouldNotBeNull();
-        (await db3.LoadDeadLetterEnvelopeAsync(from3.Id)).ShouldNotBeNull();
+        (await Databases.Master.DeadLetters.DeadLetterEnvelopeByIdAsync(fromMaster.Id)).ShouldNotBeNull();
+        (await db1.DeadLetters.DeadLetterEnvelopeByIdAsync(from1.Id)).ShouldNotBeNull();
+        (await db2.DeadLetters.DeadLetterEnvelopeByIdAsync(from2.Id)).ShouldNotBeNull();
+        (await db3.DeadLetters.DeadLetterEnvelopeByIdAsync(from3.Id)).ShouldNotBeNull();
     }
     
     [Fact]
-    public async Task load_dead_letter_report_across_databases()
+    public async Task load_dead_letter_envelopes_across_databases()
     {
         var envelopes = new List<Envelope>();
         envelopes.Add(envelopeFor("tenant1"));
@@ -701,10 +701,10 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Inbox.MoveToDeadLetterStorageAsync(from2, new NotSupportedException());
         await Databases.Inbox.MoveToDeadLetterStorageAsync(from3, new NotSupportedException());
 
-        (await Databases.LoadDeadLetterEnvelopeAsync(fromMaster.Id)).ShouldNotBeNull();
-        (await Databases.LoadDeadLetterEnvelopeAsync(from1.Id)).ShouldNotBeNull();
-        (await Databases.LoadDeadLetterEnvelopeAsync(from2.Id)).ShouldNotBeNull();
-        (await Databases.LoadDeadLetterEnvelopeAsync(from3.Id)).ShouldNotBeNull();
+        (await Databases.DeadLetterEnvelopeByIdAsync(fromMaster.Id)).ShouldNotBeNull();
+        (await Databases.DeadLetterEnvelopeByIdAsync(from1.Id)).ShouldNotBeNull();
+        (await Databases.DeadLetterEnvelopeByIdAsync(from2.Id)).ShouldNotBeNull();
+        (await Databases.DeadLetterEnvelopeByIdAsync(from3.Id)).ShouldNotBeNull();
     }
     
     [Fact]
