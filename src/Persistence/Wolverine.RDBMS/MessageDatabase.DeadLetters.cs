@@ -8,7 +8,7 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
-    public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters)
+    public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string tenantId)
     {
         var query = $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1";
         
@@ -75,10 +75,10 @@ public abstract partial class MessageDatabase<T>
             deadLetterEnvelopes.RemoveAt(deadLetterEnvelopes.Count - 1);
         }
 
-        return new(deadLetterEnvelopes, nextId.GetValueOrDefault());
+        return new(deadLetterEnvelopes, nextId.GetValueOrDefault(), tenantId);
     }
 
-    public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id)
+    public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
         await using var reader = await CreateCommand(
                 $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id")
