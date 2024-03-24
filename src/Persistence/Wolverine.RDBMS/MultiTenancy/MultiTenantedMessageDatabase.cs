@@ -1,5 +1,4 @@
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core.Migrations;
 using Wolverine.Logging;
@@ -11,7 +10,7 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.MultiTenancy;
 
-public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin
+public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
 {
     private readonly IMessageDatabaseSource _databases;
     private readonly ILogger _logger;
@@ -244,26 +243,13 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     public bool HasDisposed { get; private set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
+    public IDeadLetters DeadLetters => this;
     public INodeAgentPersistence Nodes => Master.Nodes;
     public IMessageStoreAdmin Admin => this;
 
     public void Describe(TextWriter writer)
     {
         Master.Describe(writer);
-    }
-
-    public async Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
-    {
-        foreach (var database in databases())
-        {
-            var report = await database.LoadDeadLetterEnvelopeAsync(id);
-            if (report != null)
-            {
-                return report;
-            }
-        }
-
-        return null;
     }
 
     public Task DrainAsync()
@@ -405,5 +391,24 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     public IReadOnlyList<IDatabase> AllDatabases()
     {
         return _databases.AllActive().OfType<IDatabase>().ToList();
+    }
+
+    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id)
+    {
+        foreach (var database in databases())
+        {
+            var deadLetterEnvelope = await database.DeadLetters.DeadLetterEnvelopeByIdAsync(id);
+            if (deadLetterEnvelope != null)
+            {
+                return deadLetterEnvelope;
+            }
+        }
+
+        return null;
     }
 }

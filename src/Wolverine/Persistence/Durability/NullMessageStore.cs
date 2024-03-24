@@ -8,7 +8,7 @@ namespace Wolverine.Persistence.Durability;
 /// <summary>
 ///     Nullo implementation of a message store
 /// </summary>
-public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin
+public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
 
@@ -112,14 +112,10 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public bool HasDisposed { get; set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
+    public IDeadLetters DeadLetters => this;
     public INodeAgentPersistence Nodes => throw new NotSupportedException();
 
     public IMessageStoreAdmin Admin => this;
-
-    public Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
-    {
-        throw new NotSupportedException();
-    }
 
     public void Describe(TextWriter writer)
     {
@@ -209,6 +205,16 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     }
 
     public Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<DeadLetterEnvelope> DeadLetterEnvelopeByIdAsync(Guid id)
     {
         throw new NotSupportedException();
     }

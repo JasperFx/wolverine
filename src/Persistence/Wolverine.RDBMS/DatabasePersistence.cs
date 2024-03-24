@@ -1,6 +1,7 @@
 using System.Data.Common;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Serialization;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -96,6 +97,15 @@ public static class DatabasePersistence
         envelope.Attempts = await reader.GetFieldValueAsync<int>(5, cancellation);
 
         return envelope;
+    }
+
+    public static async Task<DeadLetterEnvelope> ReadDeadLetterAsync(DbDataReader reader, CancellationToken cancellation = default)
+    {
+        var envelope = await ReadIncomingAsync(reader, cancellation);
+        var exceptionType = await reader.GetFieldValueAsync<string>(6, cancellation);
+        var exceptionMessage = await reader.GetFieldValueAsync<string>(7, cancellation);
+
+        return new (envelope, exceptionType, exceptionMessage);
     }
 
     public static void ConfigureDeadLetterCommands(Envelope envelope, Exception? exception, DbCommandBuilder builder,

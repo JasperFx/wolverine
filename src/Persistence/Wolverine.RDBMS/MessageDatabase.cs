@@ -15,7 +15,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
-    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin where T : DbConnection, new()
+    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters where T : DbConnection, new()
 {
     // ReSharper disable once InconsistentNaming
     protected readonly CancellationToken _cancellation;
@@ -78,6 +78,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public IMessageInbox Inbox => this;
 
     public IMessageOutbox Outbox => this;
+    public IDeadLetters DeadLetters => this;
 
     public string SchemaName
     {

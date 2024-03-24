@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;

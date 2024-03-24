@@ -24,33 +24,6 @@ public abstract partial class MessageDatabase<T>
         return cmd.ExecuteNonQueryAsync(_cancellation);
     }
 
-    public async Task<ErrorReport?> LoadDeadLetterEnvelopeAsync(Guid id)
-    {
-        await using var reader = await CreateCommand(
-            $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id")
-            .With("id", id)
-            .ExecuteReaderAsync(_cancellation);
-        
-        if (!await reader.ReadAsync(_cancellation))
-        {
-            await reader.CloseAsync();
-            return null;
-        }
-
-        var body = await reader.GetFieldValueAsync<byte[]>(2, _cancellation);
-        var envelope = EnvelopeSerializer.Deserialize(body);
-
-        var report = new ErrorReport(envelope)
-        {
-            ExceptionType = await reader.GetFieldValueAsync<string>(6, _cancellation),
-            ExceptionMessage = await reader.GetFieldValueAsync<string>(7, _cancellation)
-        };
-
-        await reader.CloseAsync();
-
-        return report;
-    }
-
     public abstract Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception);
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)

@@ -8,22 +8,22 @@ public class DeadLetterQueue
 
     public async Task load_error_report(IMessageStore messageStore, Guid envelopeId)
     {
-        var report = await messageStore.LoadDeadLetterEnvelopeAsync(envelopeId);
+        var deadLetterEnvelope = await messageStore.DeadLetters.DeadLetterEnvelopeByIdAsync(envelopeId);
 
         // The Id
-        Console.WriteLine(report.Id);
+        Console.WriteLine(deadLetterEnvelope!.Envelope.Id);
 
         // The underlying message typ
-        Console.WriteLine(report.Envelope.MessageType);
+        Console.WriteLine(deadLetterEnvelope.Envelope.MessageType);
 
         // The name of the system that sent the message
-        Console.WriteLine(report.Envelope.Source);
+        Console.WriteLine(deadLetterEnvelope.Envelope.Source);
 
         // The .Net Exception type name
-        Console.WriteLine(report.ExceptionType);
+        Console.WriteLine(deadLetterEnvelope.ExceptionType);
 
         // Just the message of the exception
-        Console.WriteLine(report.ExceptionMessage);
+        Console.WriteLine(deadLetterEnvelope.ExceptionMessage);
     }
 
     #endregion
