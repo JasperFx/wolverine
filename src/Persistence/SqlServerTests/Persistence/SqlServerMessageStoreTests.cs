@@ -315,6 +315,201 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     }
 
     [Fact]
+    public async Task load_dead_letter_envelopes_by_message_type()
+    {
+        var list = new List<Envelope>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Incoming;
+
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
+
+
+        var ex = new DivideByZeroException("Kaboom!");
+
+        var report2 = new ErrorReport(list[2], ex);
+        var report3 = new ErrorReport(list[3], ex);
+        var report4 = new ErrorReport(list[4], ex);
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
+
+
+        var stored = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(new DeadLetterEnvelopeQueryParameters
+        {
+            MessageType = report2.Envelope.MessageType
+        });
+
+        stored.DeadLetterEnvelopes.Count.ShouldBe(3);
+        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report2.Id);
+        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
+        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
+    }
+
+    [Fact]
+    public async Task load_dead_letter_envelopes_by_exception_type()
+    {
+        var list = new List<Envelope>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Incoming;
+
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
+
+
+        var ex = new DivideByZeroException("Kaboom!");
+
+        var report2 = new ErrorReport(list[2], ex);
+        var report3 = new ErrorReport(list[3], ex);
+        var report4 = new ErrorReport(list[4], ex);
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
+
+
+        var stored = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(new DeadLetterEnvelopeQueryParameters
+        {
+            ExceptionType = report2.ExceptionType
+        });
+
+        stored.DeadLetterEnvelopes.Count.ShouldBe(3);
+        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report2.Id);
+        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
+        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
+    }
+
+
+    [Fact]
+    public async Task query_dead_letter_envelopes_with_start_id()
+    {
+        var list = new List<Envelope>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Id = Guid.Parse($"00000000-0000-0000-0000-00000000000{i}");
+            envelope.Status = EnvelopeStatus.Incoming;
+            
+
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
+
+
+        var ex = new DivideByZeroException("Kaboom!");
+
+        var report2 = new ErrorReport(list[2], ex);
+        var report3 = new ErrorReport(list[3], ex);
+        var report4 = new ErrorReport(list[4], ex);
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
+
+
+        var parameters = new DeadLetterEnvelopeQueryParameters
+        {
+            StartId = report3.Id
+        };
+
+        var result = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(parameters);
+
+        result.DeadLetterEnvelopes.Count.ShouldBe(2);
+        result.DeadLetterEnvelopes.ShouldNotContain(x => x.Envelope.Id == report2.Id);
+        result.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
+        result.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
+    }
+
+
+    [Fact]
+    public async Task query_dead_letter_envelopes_with_from_and_until()
+    {
+        var list = new List<Envelope>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Incoming;
+
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
+
+
+        var ex = new DivideByZeroException("Kaboom!");
+
+        var report2 = new ErrorReport(list[2], ex);
+        var report3 = new ErrorReport(list[3], ex);
+        var report4 = new ErrorReport(list[4], ex);
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
+
+
+        var parameters = new DeadLetterEnvelopeQueryParameters
+        {
+            From = DateTimeOffset.Now.AddDays(-1),
+            Until = DateTimeOffset.Now.AddDays(1)
+        };
+
+        var result = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(parameters);
+
+        result.DeadLetterEnvelopes.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task load_dead_letter_envelopes_with_limit()
+    {
+        var list = new List<Envelope>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Incoming;
+
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
+
+
+        var ex = new DivideByZeroException("Kaboom!");
+
+        var report2 = new ErrorReport(list[2], ex);
+        var report3 = new ErrorReport(list[3], ex);
+        var report4 = new ErrorReport(list[4], ex);
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
+
+
+        var stored = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(new DeadLetterEnvelopeQueryParameters
+        {
+            Limit = 2
+        });
+
+        stored.DeadLetterEnvelopes.Count.ShouldBe(2);
+    }
+
+
+
+    [Fact]
     public async Task move_to_dead_letter_storage()
     {
         var list = new List<Envelope>();

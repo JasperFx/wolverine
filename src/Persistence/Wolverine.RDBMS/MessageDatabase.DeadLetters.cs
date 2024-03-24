@@ -1,20 +1,22 @@
-﻿using System.Data.Common;
-using Weasel.Core;
+﻿using Weasel.Core;
 using Wolverine.Persistence.Durability;
-using Wolverine.Runtime.Serialization;
-using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
-    public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string tenantId)
+    public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
     {
         var query = $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1";
         
         if (!string.IsNullOrEmpty(queryParameters.ExceptionType))
         {
             query += $" and {DatabaseConstants.ExceptionType} = @exceptionType";
+        }
+
+        if (!string.IsNullOrEmpty(queryParameters.ExceptionMessage))
+        {
+            query += $" and {DatabaseConstants.ExceptionMessage} LIKE '@exceptionMessage'";
         }
 
         if (!string.IsNullOrEmpty(queryParameters.MessageType))
@@ -24,12 +26,12 @@ public abstract partial class MessageDatabase<T>
 
         if (queryParameters.From.HasValue)
         {
-            query += $" and {DatabaseConstants.ReceivedAt} >= @from";
+            query += $" and {DatabaseConstants.SentAt} >= @from";
         }
 
         if (queryParameters.Until.HasValue)
         {
-            query += $" and {DatabaseConstants.ReceivedAt}  <= @until";
+            query += $" and {DatabaseConstants.SentAt} <= @until";
         }
 
         if (queryParameters.StartId.HasValue)
@@ -42,6 +44,11 @@ public abstract partial class MessageDatabase<T>
         if (!string.IsNullOrEmpty(queryParameters.ExceptionType))
         {
             command = command.With("exceptionType", queryParameters.ExceptionType);
+        }
+
+        if (!string.IsNullOrEmpty(queryParameters.ExceptionMessage))
+        {
+            command = command.With("exceptionMessage", queryParameters.ExceptionMessage);
         }
 
         if (!string.IsNullOrEmpty(queryParameters.MessageType))
@@ -69,13 +76,14 @@ public abstract partial class MessageDatabase<T>
         var deadLetterEnvelopes = (List<DeadLetterEnvelope>)await command.FetchListAsync(reader =>
             DatabasePersistence.ReadDeadLetterAsync(reader, _cancellation), cancellation: _cancellation);
 
-        var nextId = deadLetterEnvelopes.LastOrDefault()?.Envelope.Id;
-        if (deadLetterEnvelopes.Count > 1)
+        if (deadLetterEnvelopes.Count > queryParameters.Limit)
         {
             deadLetterEnvelopes.RemoveAt(deadLetterEnvelopes.Count - 1);
+            var nextId = deadLetterEnvelopes.LastOrDefault()?.Envelope.Id;
+            return new(deadLetterEnvelopes, nextId, tenantId);
         }
 
-        return new(deadLetterEnvelopes, nextId.GetValueOrDefault(), tenantId);
+        return new(deadLetterEnvelopes, null, tenantId);
     }
 
     public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
