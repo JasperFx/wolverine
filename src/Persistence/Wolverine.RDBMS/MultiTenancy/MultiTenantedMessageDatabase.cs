@@ -393,13 +393,20 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         return _databases.AllActive().OfType<IDatabase>().ToList();
     }
 
-    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters)
+    public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string tenantId)
     {
-        throw new NotImplementedException();
+        var database = await GetDatabaseAsync(tenantId);
+        return await database.DeadLetters.QueryDeadLetterEnvelopesAsync(queryParameters, tenantId);
     }
 
-    public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id)
+    public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
+        if (tenantId is { })
+        {
+            var database = await GetDatabaseAsync(tenantId);
+            return await database.DeadLetters.DeadLetterEnvelopeByIdAsync(id);
+        }
+
         foreach (var database in databases())
         {
             var deadLetterEnvelope = await database.DeadLetters.DeadLetterEnvelopeByIdAsync(id);

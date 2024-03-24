@@ -209,14 +209,15 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         throw new NotSupportedException();
     }
 
-    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters)
+
+    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string tenantId)
     {
-        throw new NotSupportedException();
+        throw new NotImplementedException();
     }
 
-    public Task<DeadLetterEnvelope> DeadLetterEnvelopeByIdAsync(Guid id)
+    public Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
-        throw new NotSupportedException();
+        throw new NotImplementedException();
     }
 }
 

@@ -32,7 +32,7 @@ public interface IMessageOutbox
     Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
 }
 
-public record DeadLetterEnvelopesFound(IReadOnlyList<DeadLetterEnvelope> DeadLetterEnvelopes, Guid NextId);
+public record DeadLetterEnvelopesFound(IReadOnlyList<DeadLetterEnvelope> DeadLetterEnvelopes, Guid NextId, string? TenantId);
 public record DeadLetterEnvelope(Envelope Envelope, string ExceptionType, string ExceptionMessage);
 
 public class DeadLetterEnvelopeQueryParameters
@@ -47,8 +47,10 @@ public class DeadLetterEnvelopeQueryParameters
 
 public interface IDeadLetters
 {
-    Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters);
-    Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id);
+    Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string tenantId);
+
+    /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
+    Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null);
 }
 
 public interface IMessageStore : IAsyncDisposable
