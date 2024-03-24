@@ -210,7 +210,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     }
 
 
-    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string tenantId)
+    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
     {
         throw new NotImplementedException();
     }

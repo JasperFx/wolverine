@@ -32,8 +32,8 @@ public interface IMessageOutbox
     Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
 }
 
-public record DeadLetterEnvelopesFound(IReadOnlyList<DeadLetterEnvelope> DeadLetterEnvelopes, Guid NextId, string? TenantId);
-public record DeadLetterEnvelope(Envelope Envelope, string ExceptionType, string ExceptionMessage);
+public record DeadLetterEnvelopesFound(IReadOnlyList<DeadLetterEnvelope> DeadLetterEnvelopes, Guid? NextId, string? TenantId);
+public record DeadLetterEnvelope(Guid Id, Envelope Envelope, string ExceptionType, string ExceptionMessage);
 
 public class DeadLetterEnvelopeQueryParameters
 {
@@ -41,13 +41,14 @@ public class DeadLetterEnvelopeQueryParameters
     public Guid? StartId { get; set; }
     public string? MessageType { get; set; }
     public string? ExceptionType { get; set; }
-    public DateTime? From { get; set; }
-    public DateTime? Until { get; set; }
+    public string? ExceptionMessage { get; set; }
+    public DateTimeOffset? From { get; set; }
+    public DateTimeOffset? Until { get; set; }
 }
 
 public interface IDeadLetters
 {
-    Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string tenantId);
+    Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId = null);
 
     /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
     Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null);
