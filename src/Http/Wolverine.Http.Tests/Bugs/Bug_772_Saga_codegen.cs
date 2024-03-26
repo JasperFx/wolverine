@@ -5,6 +5,8 @@ using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
+using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Postgresql;
 using Wolverine.Runtime;
@@ -17,6 +19,7 @@ public class Bug_772_Saga_codegen
     [Fact]
     public async Task can_compile_without_issue()
     {
+        // Arrange -- and sorry, it's a bit of "Arrange" to get an IHost
         var builder = WebApplication.CreateBuilder(Array.Empty<string>());
 
         builder.Services
@@ -38,12 +41,25 @@ public class Bug_772_Saga_codegen
 
         builder.Services.AddScoped<IDataService, DataService>();
 
+        // This is using Alba, which uses WebApplicationFactory under the covers
         await using var host = await AlbaHost.For(builder, app =>
         {
             app.MapWolverineEndpoints();
         });
 
-        await host.InvokeMessageAndWaitAsync(new BeginProcess(Guid.NewGuid()));
+        // Finally, the "Act"!
+        var originalMessage = new BeginProcess(Guid.NewGuid());
+        
+        // This is a built in extension method to Wolverine to "wait" until
+        // all activity triggered by this operation is completed
+        var tracked = await host.InvokeMessageAndWaitAsync(originalMessage);
+        
+        // And now it's okay to do assertions....
+        // This would have failed if there was 0 or many ContinueProcess messages
+        var continueMessage = tracked.Executed.SingleMessage<ContinueProcess>();
+        
+        continueMessage.DataId.ShouldBe(originalMessage.DataId);
+
     }
 }
 
@@ -86,21 +102,16 @@ public static class BeginProcessMiddleware
 
 public class LongProcessSaga : Saga
 {
-    public LongProcessSaga()
-    {
-        Debug.WriteLine("What?");
-    }
-
     public Guid Id { get; init; }
     
-    [Wolverine.Attributes.Middleware(typeof(BeginProcessMiddleware))]
+    [Middleware(typeof(BeginProcessMiddleware))]
     public static (LongProcessSaga, OutgoingMessages) Start(BeginProcess message, RecordData? sourceData = null)
     {
         var outgoingMessages = new OutgoingMessages();
 
         var saga = new LongProcessSaga
         {
-            Id = Guid.NewGuid(),
+            Id = message.DataId,
         };
 
         if (sourceData is not null)
@@ -113,4 +124,11 @@ public class LongProcessSaga : Saga
             outgoingMessages
         );
     }
+
+    public void Handle(ContinueProcess process)
+    {
+        Continued = true;
+    }
+
+    public bool Continued { get; set; }
 }
