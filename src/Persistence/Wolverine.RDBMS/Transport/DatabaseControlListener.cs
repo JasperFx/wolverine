@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
+using Wolverine.RDBMS.Polling;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
@@ -10,24 +11,43 @@ internal class DatabaseControlListener : IListener
 {
     private readonly IReceiver _receiver;
     private readonly RetryBlock<Envelope> _retryBlock;
-    private readonly Timer _timer;
     private readonly DatabaseControlTransport _transport;
+    private readonly Task _receivingLoop;
+    private readonly CancellationTokenSource _cancellation;
 
     public DatabaseControlListener(DatabaseControlTransport transport, DatabaseControlEndpoint endpoint,
         IReceiver receiver, ILogger<DatabaseControlListener> logger, CancellationToken cancellationToken)
     {
         _transport = transport;
         _receiver = receiver;
-        
-        _timer = new Timer(
-            fireTimer!, 
-            this, 
-            
-            // Purposely using a random time period to start the timer
-            // to keep each node starting up at the same time from hammering
-            // the database table at the exact same time
-            new Random().Next(100, 1000).Milliseconds(), 
-            1.Seconds());
+
+        _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        _receivingLoop = Task.Run(async () =>
+        {
+            await Task.Delay(Random.Shared.Next(100, 1000).Milliseconds());
+
+            while (!_cancellation.IsCancellationRequested)
+            {
+                try
+                {
+                    var batch = new DatabaseOperationBatch(_transport.Database,
+                        new IDatabaseOperation[]
+                        {
+                            new DeleteExpiredMessages(_transport, DateTimeOffset.UtcNow),
+                            new PollDatabaseControlQueue(_transport, _receiver, this)
+                        });
+                    await receiver.ReceivedAsync(this, new Envelope(batch));
+                }
+                catch (Exception e)
+                {
+                    logger.LogError(e, "Error trying to poll for messages from the database control queue");
+                }
+
+                await Task.Delay(1.Seconds());
+            }
+        }, _cancellation.Token);
+
 
         Address = endpoint.Uri;
 
@@ -46,22 +66,23 @@ internal class DatabaseControlListener : IListener
 
     public ValueTask DisposeAsync()
     {
-        return _timer.DisposeAsync();
+        _receivingLoop.SafeDispose();
+        return ValueTask.CompletedTask;
     }
 
     public Uri Address { get; }
 
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
-        return _timer.DisposeAsync();
+#if NET8_0_OR_GREATER
+        await _cancellation.CancelAsync();
+        
+        #else
+        _cancellation.Cancel();
+#endif
+        _receivingLoop.Dispose();
     }
-
-    private void fireTimer(object status)
-    {
-        _transport.Database.Enqueue(new DeleteExpiredMessages(_transport, DateTimeOffset.UtcNow));
-        _transport.Database.Enqueue(new PollDatabaseControlQueue(_transport, _receiver, this));
-    }
-
+    
     private Task deleteEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         if (_transport.Database.HasDisposed) return Task.CompletedTask;
