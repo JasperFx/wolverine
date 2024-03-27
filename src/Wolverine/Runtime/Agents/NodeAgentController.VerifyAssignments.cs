@@ -31,7 +31,7 @@ public partial class NodeAgentController : IInternalHandler<VerifyAssignments>
     }
 }
 
-internal class QueryAgents : IAgentCommand
+internal class QueryAgents : IAgentCommand, ISerializable
 {
     
 #pragma warning disable CS1998
@@ -41,6 +41,16 @@ internal class QueryAgents : IAgentCommand
     {
         var agents = runtime.Agents.AllRunningAgentUris();
         yield return new RunningAgents(runtime.Options.UniqueNodeId, agents);
+    }
+
+    public byte[] Write()
+    {
+        return Array.Empty<byte>();
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        return new QueryAgents();
     }
 }
 
