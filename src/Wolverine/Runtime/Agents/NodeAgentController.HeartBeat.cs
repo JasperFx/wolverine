@@ -1,24 +1,30 @@
 namespace Wolverine.Runtime.Agents;
 
-public record CheckAgentHealth : IInternalMessage;
+public record CheckAgentHealth : IAgentCommand
+{
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        return runtime.Agents.DoHealthChecksAsync();
+    }
+}
 
-public record VerifyAssignments : IInternalMessage;
-
-public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
+public partial class NodeAgentController 
 {
     private DateTimeOffset? _lastAssignmentCheck;
 
-    public async IAsyncEnumerable<object> HandleAsync(CheckAgentHealth message)
+    public async Task<AgentCommands> DoHealthChecksAsync()
     {
         if (_cancellation.IsCancellationRequested)
         {
-            yield break;
+            return AgentCommands.Empty;
         }
 
         if (_tracker.Self == null)
         {
-            yield break;
+            return AgentCommands.Empty;
         }
+
+        var commands = new AgentCommands();
 
         // write health check regardless
         await _persistence.MarkHealthCheckAsync(_tracker.Self.Id);
@@ -50,7 +56,7 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
             if (_lastAssignmentCheck != null && DateTimeOffset.UtcNow >
                 _lastAssignmentCheck.Value.Add(_runtime.Options.Durability.CheckAssignmentPeriod))
             {
-                yield return new VerifyAssignments();
+                commands.Add(new VerifyAssignments());
             }
         }
         else
@@ -70,17 +76,19 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
                 if (candidate == null || candidate.AssignedNodeId > _tracker.Self.AssignedNodeId)
                 {
                     // Try to take leadership in this node
-                    yield return new TryAssumeLeadership();
+                    commands.Add(new TryAssumeLeadership());
                 }
                 else
                 {
                     // Ask another, older node to take leadership
-                    yield return new TryAssumeLeadership().ToNode(candidate);
+                    commands.Add(new TryAssumeLeadership(){CandidateId = candidate.Id});
                 }
             }
         }
         
         // We want this to be evaluated no matter what
-        yield return new EvaluateAssignments(this);
+        commands.Add(new EvaluateAssignments(this));
+
+        return commands;
     }
 }

@@ -86,7 +86,22 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public async Task KickstartHealthDetectionAsync()
     {
-        await new MessageBus(this).InvokeAsync(new CheckAgentHealth(), Options.Durability.Cancellation);
+        if (NodeController != null)
+        {
+            await new MessageBus(this).InvokeAsync(new CheckAgentHealth(), Options.Durability.Cancellation);
+        }
+    }
+
+    public Task<AgentCommands> DoHealthChecksAsync()
+    {
+        if (NodeController != null) return NodeController.DoHealthChecksAsync();
+        return Task.FromResult(AgentCommands.Empty);
+    }
+
+    public Task<AgentCommands> VerifyAssignmentsAsync()
+    {
+        if (NodeController != null) return NodeController.VerifyAssignmentsAsync();
+        return Task.FromResult(AgentCommands.Empty);
     }
 
     public IAgentRuntime Agents => this;
@@ -156,8 +171,11 @@ public partial class WolverineRuntime : IAgentRuntime
             Options.Durability.HealthCheckPollingTime);
     }
     
+    [Obsolete("Try to kill and use a looping Task instead")]
     private void fireHealthCheck(object? state)
     {
+        if (NodeController == null) return;
+        
         try
         {
             SystemQueue!.EnqueueDirectly(new Envelope(new CheckAgentHealth())
@@ -221,5 +239,32 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         NodeController = null;
+    }
+
+    public Task<AgentCommands> AssumeLeadershipAsync(Guid? currentLeaderId)
+    {
+        if (NodeController != null)
+        {
+            return NodeController.AssumeLeadershipAsync(currentLeaderId);
+        }
+        
+        return Task.FromResult(AgentCommands.Empty);
+    }
+
+    public Task<AgentCommands> ApplyNodeEvent(NodeEvent nodeEvent)
+    {
+        if (NodeController != null) return NodeController.ApplyNodeEventAsync(nodeEvent);
+
+        return Task.FromResult(AgentCommands.Empty);
+    }
+
+    public Task<AgentCommands> StartLocalAgentProcessingAsync()
+    {
+        if (NodeController != null)
+        {
+            return NodeController.StartLocalAgentProcessingAsync(Options);
+        }
+        
+        return Task.FromResult(AgentCommands.Empty);
     }
 }

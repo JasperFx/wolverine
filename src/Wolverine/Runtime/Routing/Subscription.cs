@@ -82,7 +82,7 @@ public class Subscription
                                  type.ToMessageTypeName().EqualsIgnoreCase(Match),
             RoutingScope.TypeName => type.ToMessageTypeName().EqualsIgnoreCase(Match),
             RoutingScope.Implements => type.CanBeCastTo(BaseType!),
-            _ => !type.CanBeCastTo<IAgentCommand>() && !type.CanBeCastTo<IInternalMessage>()
+            _ => !type.CanBeCastTo<IAgentCommand>()
         };
     }
 

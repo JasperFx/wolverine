@@ -14,19 +14,6 @@ public interface IMessageRouteSource
     bool IsAdditive { get; }
 }
 
-internal class InternalMessages : IMessageRouteSource
-{
-    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
-    {
-        if (messageType.CanBeCastTo<IInternalMessage>())
-        {
-            var queue = runtime.Endpoints.AgentForLocalQueue(TransportConstants.System);
-            yield return new MessageRoute(messageType, queue.Endpoint, runtime.Replies);
-        }
-    }
-
-    public bool IsAdditive => false;
-}
 
 internal class AgentMessages : IMessageRouteSource
 {

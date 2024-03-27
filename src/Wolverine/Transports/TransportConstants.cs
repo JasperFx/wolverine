@@ -11,7 +11,6 @@ public static class TransportConstants
 
     public const string Default = "default";
     public const string Replies = "replies";
-    public const string System = "system";
 
     public const string WolverineTransport = "WolverineTransport";
     public const string Agents = "agents";

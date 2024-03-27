@@ -2,13 +2,21 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-public partial class NodeAgentController : IInternalHandler<StartLocalAgentProcessing>
+public record StartLocalAgentProcessing(WolverineOptions Options) : IAgentCommand
 {
-    public async IAsyncEnumerable<object> HandleAsync(StartLocalAgentProcessing command)
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        return runtime.Agents.StartLocalAgentProcessingAsync();
+    }
+}
+
+public partial class NodeAgentController
+{
+    public async Task<AgentCommands> StartLocalAgentProcessingAsync(WolverineOptions options)
     {
         var others = await _persistence.LoadAllNodesAsync(_cancellation);
 
-        var current = WolverineNode.For(command.Options);
+        var current = WolverineNode.For(options);
         foreach (var controller in _agentFamilies.Values.OfType<IStaticAgentFamily>())
         {
             current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
@@ -20,16 +28,19 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
         _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId;
 
         _logger.LogInformation("Starting agents for Node {NodeId} with assigned node id {Id}",
-            command.Options.UniqueNodeId, current.AssignedNodeId);
+            options.UniqueNodeId, current.AssignedNodeId);
 
         _tracker.MarkCurrent(current);
+
+        var commands = new AgentCommands();
 
         if (others.Any())
         {
             foreach (var other in others)
             {
                 var active = _tracker.Add(other);
-                yield return new NodeEvent(current, NodeEventType.Started).ToNode(active);
+                
+                commands.Add(new RemoteNodeEvent(current, NodeEventType.Started, active));
             }
 
             if (_tracker.Leader == null)
@@ -40,20 +51,22 @@ public partial class NodeAgentController : IInternalHandler<StartLocalAgentProce
                 _logger.LogInformation(
                     "Found no elected leader on node startup, requesting node {NodeId} to be the new leader",
                     leaderCandidate.AssignedNodeId);
-
-                yield return new TryAssumeLeadership { CurrentLeaderId = null }.ToNode(leaderCandidate);
+                
+                commands.Add(new TryAssumeLeadership { CurrentLeaderId = null, CandidateId = leaderCandidate.Id});
             }
         }
         else
         {
             _logger.LogInformation("Found no other existing nodes, deciding to assume leadership in node {NodeNumber}",
-                command.Options.Durability.AssignedNodeNumber);
+                options.Durability.AssignedNodeNumber);
 
             // send local command
-            yield return new TryAssumeLeadership { CurrentLeaderId = null };
+            commands.Add(new TryAssumeLeadership { CurrentLeaderId = null });
         }
 
         HasStartedLocalAgentWorkflowForBalancedMode = true;
+
+        return commands;
     }
 
     public bool HasStartedLocalAgentWorkflowForBalancedMode { get; private set; }
