@@ -20,4 +20,11 @@ public class AgentCommands : List<IAgentCommand>, ISendMyself
             await context.PublishAsync(command);
         }
     }
+
+    public IAgentCommand Pop()
+    {
+        var command = this[0];
+        Remove(command);
+        return command;
+    }
 }
