@@ -81,6 +81,6 @@ public partial class NodeAgentController : IInternalHandler<CheckAgentHealth>
         }
         
         // We want this to be evaluated no matter what
-        yield return new EvaluateAssignments();
+        yield return new EvaluateAssignments(this);
     }
 }

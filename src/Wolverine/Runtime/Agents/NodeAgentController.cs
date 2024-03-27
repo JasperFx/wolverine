@@ -14,7 +14,7 @@ public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMes
        
 }
 
-public record EvaluateAssignments : IInternalMessage;
+
 
 public partial class NodeAgentController
 {
@@ -54,7 +54,7 @@ public partial class NodeAgentController
         _assignmentBlock = new ActionBlock<EvaluateAssignments[]>(
             async _ =>
             {
-                await new MessageBus(runtime).PublishAsync(new EvaluateAssignments());
+                await new MessageBus(runtime).PublishAsync(new EvaluateAssignments(this));
             },
             new ExecutionDataflowBlockOptions { CancellationToken = runtime.Cancellation });
 
@@ -72,7 +72,6 @@ public partial class NodeAgentController
         handlers.AddMessageHandler(typeof(NodeEvent), new InternalMessageHandler<NodeEvent>(this));
         handlers.AddMessageHandler(typeof(StartLocalAgentProcessing),
             new InternalMessageHandler<StartLocalAgentProcessing>(this));
-        handlers.AddMessageHandler(typeof(EvaluateAssignments), new InternalMessageHandler<EvaluateAssignments>(this));
         handlers.AddMessageHandler(typeof(TryAssumeLeadership), new InternalMessageHandler<TryAssumeLeadership>(this));
         handlers.AddMessageHandler(typeof(CheckAgentHealth), new InternalMessageHandler<CheckAgentHealth>(this));
         handlers.AddMessageHandler(typeof(VerifyAssignments), new InternalMessageHandler<VerifyAssignments>(this));
