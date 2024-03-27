@@ -9,11 +9,11 @@ namespace Wolverine.Runtime.Agents;
 /// <param name="AgentUri"></param>
 internal record StartAgent(Uri AgentUri) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         await runtime.Agents.StartLocallyAsync(AgentUri);
-        yield break;
+        return AgentCommands.Empty;
     }
 
     public virtual bool Equals(StartAgent? other)

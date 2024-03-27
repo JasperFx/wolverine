@@ -48,10 +48,10 @@ internal class DatabaseOperationBatch : IAgentCommand
         _operations = operations;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
-        if (!_operations.Any()) yield break;
+        if (!_operations.Any()) return AgentCommands.Empty;
         
         var builder = _database.ToCommandBuilder();
         foreach (var operation in _operations) operation.ConfigureCommand(builder);
@@ -81,7 +81,9 @@ internal class DatabaseOperationBatch : IAgentCommand
 
         try
         {
-            foreach (var command in _operations.SelectMany(x => x.PostProcessingCommands())) yield return command;
+            var commands = new AgentCommands();
+            commands.AddRange(_operations.SelectMany(x => x.PostProcessingCommands()));
+            return commands;
         }
         finally
         {

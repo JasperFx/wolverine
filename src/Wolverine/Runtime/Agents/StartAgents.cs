@@ -3,15 +3,22 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Oakton.Internal.Conversion;
 
 namespace Wolverine.Runtime.Agents;
 
-internal record AgentsStarted(Uri[] AgentUris);
+internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand
+{
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(AgentCommands.Empty);
+    }
+}
 
 internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         var startAgents = new StartAgents(AgentIds);
         var response = await runtime.Agents.InvokeAsync<AgentsStarted>(NodeId, startAgents);
@@ -20,7 +27,7 @@ internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISeri
 
         foreach (var uri in response.AgentUris) runtime.Tracker.Publish(new AgentStarted(NodeId, uri));
 
-        yield break;
+        return AgentCommands.Empty;
     }
 
     public byte[] Write()
@@ -38,15 +45,15 @@ internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISeri
 
 internal record StopRemoteAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         var startAgents = new StopAgents(AgentIds);
         var response = await runtime.Agents.InvokeAsync<AgentsStopped>(NodeId, startAgents);
 
         foreach (var uri in response.AgentUris) runtime.Tracker.Publish(new AgentStopped(uri));
 
-        yield break;
+        return AgentCommands.Empty;
     }
     
     public byte[] Write()
@@ -64,7 +71,8 @@ internal record StopRemoteAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, I
 
 internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var successful = new List<Uri>(AgentUris.Length);
         foreach (var agentUri in AgentUris)
@@ -87,7 +95,7 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
             }
         }
 
-        yield return new AgentsStarted(successful.ToArray());
+        return [new AgentsStarted(successful.ToArray())];
     }
 
     public virtual bool Equals(StartAgents? other)
@@ -128,12 +136,18 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
     }
 }
 
-internal record AgentsStopped(Uri[] AgentUris);
+internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand
+{
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(AgentCommands.Empty);
+    }
+}
 
 internal record StopAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         var successful = new List<Uri>(AgentUris.Length);
         foreach (var agentUri in AgentUris)
@@ -149,7 +163,7 @@ internal record StopAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
             }
         }
 
-        yield return new AgentsStopped(successful.ToArray());
+        return [new AgentsStopped(successful.ToArray())];
     }
 
     public virtual bool Equals(StopAgents? other)

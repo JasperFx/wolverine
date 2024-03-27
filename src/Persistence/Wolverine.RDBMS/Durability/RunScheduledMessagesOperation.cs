@@ -19,10 +19,10 @@ internal class RunScheduledMessagesOperation : IAgentCommand
         _localQueue = localQueue;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         await _database.PollForScheduledMessagesAsync(_localQueue, runtime.Logger, _settings, cancellationToken);
 
-        yield break;
+        return AgentCommands.Empty;
     }
 }

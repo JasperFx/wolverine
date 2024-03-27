@@ -14,13 +14,13 @@ internal class NodeRecoveryOperation : IAgentCommand
         _ownerNodeId = ownerNodeId;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         runtime.Logger.LogInformation("Releasing node ownership in the inbox/outbox from dormant node {Node}",
             _ownerNodeId);
         await runtime.Storage.Admin.ReleaseAllOwnershipAsync();
 
-        yield break;
+        return AgentCommands.Empty;
     }
 }

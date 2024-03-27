@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <ImplicitUsings>enable</ImplicitUsings>
-        <LangVersion>10</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>

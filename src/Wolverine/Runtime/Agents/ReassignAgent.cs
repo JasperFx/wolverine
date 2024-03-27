@@ -6,8 +6,7 @@ namespace Wolverine.Runtime.Agents;
 
 internal record ReassignAgent(Uri AgentUri, Guid OriginalNodeId, Guid ActiveNodeId) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         try
         {
@@ -18,7 +17,7 @@ internal record ReassignAgent(Uri AgentUri, Guid OriginalNodeId, Guid ActiveNode
             runtime.Logger.LogWarning(e,
                 "Error trying to reassign a running agent {AgentUri} from {CurrentNodeId} to {NewNodeId}", AgentUri,
                 OriginalNodeId, ActiveNodeId);
-            yield break;
+            return AgentCommands.Empty;
         }
 
         runtime.Logger.LogInformation("Successfully stopped agent {Agent} on node {OriginalNode}", AgentUri,
@@ -26,7 +25,7 @@ internal record ReassignAgent(Uri AgentUri, Guid OriginalNodeId, Guid ActiveNode
         runtime.Tracker.Publish(new AgentStopped(AgentUri));
 
         // Do this in separate steps
-        yield return new AssignAgent(AgentUri, ActiveNodeId);
+        return [new AssignAgent(AgentUri, ActiveNodeId)];
     }
 
     public byte[] Write()
