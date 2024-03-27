@@ -9,7 +9,10 @@ internal interface IInternalMessage
 {
 }
 
-public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMessage;
+public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMessage
+{
+       
+}
 
 public record EvaluateAssignments : IInternalMessage;
 
