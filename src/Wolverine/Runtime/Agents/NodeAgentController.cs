@@ -5,16 +5,6 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.Agents;
 
-internal interface IInternalMessage
-{
-}
-
-public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMessage
-{
-       
-}
-
-
 
 public partial class NodeAgentController
 {
@@ -33,6 +23,7 @@ public partial class NodeAgentController
     private readonly INodeStateTracker _tracker;
 
     private ImHashMap<Uri, IAgent> _agents = ImHashMap<Uri, IAgent>.Empty;
+
 
     internal NodeAgentController(IWolverineRuntime runtime, INodeStateTracker tracker,
         INodeAgentPersistence persistence,
@@ -69,12 +60,6 @@ public partial class NodeAgentController
     internal void AddHandlers(WolverineRuntime runtime)
     {
         var handlers = runtime.Handlers;
-        handlers.AddMessageHandler(typeof(NodeEvent), new InternalMessageHandler<NodeEvent>(this));
-        handlers.AddMessageHandler(typeof(StartLocalAgentProcessing),
-            new InternalMessageHandler<StartLocalAgentProcessing>(this));
-        handlers.AddMessageHandler(typeof(TryAssumeLeadership), new InternalMessageHandler<TryAssumeLeadership>(this));
-        handlers.AddMessageHandler(typeof(CheckAgentHealth), new InternalMessageHandler<CheckAgentHealth>(this));
-        handlers.AddMessageHandler(typeof(VerifyAssignments), new InternalMessageHandler<VerifyAssignments>(this));
 
         handlers.RegisterMessageType(typeof(StartAgent));
         handlers.RegisterMessageType(typeof(StartAgents));

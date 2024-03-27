@@ -89,7 +89,6 @@ public class endpoint_policy_configuration : IDisposable
         
         queues[TransportConstants.Agents].Mode.ShouldBe(EndpointMode.BufferedInMemory);
         queues[TransportConstants.Durable].Mode.ShouldBe(EndpointMode.Durable);
-        queues[TransportConstants.System].Mode.ShouldBe(EndpointMode.BufferedInMemory);
 
 
     }

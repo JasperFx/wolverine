@@ -70,6 +70,25 @@ public interface IAgentRuntime
     /// </summary>
     /// <returns></returns>
     Task KickstartHealthDetectionAsync();
+
+    /// <summary>
+    /// Use with caution! This will force Wolverine to try to take leadership
+    /// on this node or a designated node
+    /// </summary>
+    /// <param name="currentLeaderId"></param>
+    /// <returns></returns>
+    Task<AgentCommands> AssumeLeadershipAsync(Guid? currentLeaderId);
+
+    /// <summary>
+    /// Use with caution! Used internally to start local agent processing
+    /// and health checks
+    /// </summary>
+    /// <returns></returns>
+    Task<AgentCommands> StartLocalAgentProcessingAsync();
+
+    Task<AgentCommands> ApplyNodeEvent(NodeEvent nodeEvent);
+    Task<AgentCommands> VerifyAssignmentsAsync();
+    Task<AgentCommands> DoHealthChecksAsync();
 }
 
 internal interface IExecutorFactory

@@ -2,14 +2,28 @@ using Wolverine.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
+internal record RemoteNodeEvent(WolverineNode Node, NodeEventType Type, WolverineNode Leader) : IAgentCommand
+{
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        await runtime.Agents.InvokeAsync(Leader.Id, new NodeEvent(Node, Type));
+        return AgentCommands.Empty;
+    }
+}
+
 /// <summary>
 ///     Records a change in state for the active nodes within this Wolverine system
 /// </summary>
 /// <param name="Node"></param>
 /// <param name="Type"></param>
-public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEvent, IInternalMessage
+public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEvent, IAgentCommand
 {
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
+
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        return runtime.Agents.ApplyNodeEvent(this);
+    }
 
     public virtual bool Equals(NodeEvent? other)
     {

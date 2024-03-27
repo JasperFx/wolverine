@@ -2,13 +2,21 @@ using System.Runtime.CompilerServices;
 
 namespace Wolverine.Runtime.Agents;
 
-public partial class NodeAgentController : IInternalHandler<VerifyAssignments>
+public record VerifyAssignments : IAgentCommand
 {
-    public async IAsyncEnumerable<object> HandleAsync(VerifyAssignments message)
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        return runtime.Agents.VerifyAssignmentsAsync();
+    }
+}
+
+public partial class NodeAgentController
+{
+    public async Task<AgentCommands> VerifyAssignmentsAsync()
     {
         if (LastAssignments == null)
         {
-            yield break;
+            return AgentCommands.Empty;
         }
 
         var dict = new Dictionary<Uri, Guid>();
@@ -24,10 +32,12 @@ public partial class NodeAgentController : IInternalHandler<VerifyAssignments>
         }
 
         var delta = LastAssignments.FindDelta(dict);
-
-        foreach (var command in delta) yield return command;
+        var commands = new AgentCommands();
+        commands.AddRange(delta);
 
         _lastAssignmentCheck = DateTimeOffset.UtcNow;
+
+        return commands;
     }
 }
 
