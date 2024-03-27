@@ -3,12 +3,27 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
+public record EvaluateAssignments : IAgentCommand
+{
+    private readonly NodeAgentController _controller;
+
+    public EvaluateAssignments(NodeAgentController controller)
+    {
+        _controller = controller;
+    }
+
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        return _controller.EvaluateAssignmentsAsync();
+    }
+}
+
+public partial class NodeAgentController 
 {
     public AssignmentGrid? LastAssignments { get; internal set; }
 
     // Tested w/ integration tests all the way
-    public async IAsyncEnumerable<object> HandleAsync(EvaluateAssignments command)
+    public async Task<AgentCommands> EvaluateAssignmentsAsync()
     {
         var grid = AssignmentGrid.ForTracker(_tracker);
 
@@ -35,7 +50,7 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
             }
         }
 
-        var commands = new List<IAgentCommand>();
+        var commands = new AgentCommands();
 
         foreach (var agent in grid.AllAgents)
         {
@@ -53,7 +68,6 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
         }).ToArray();
 
         await _persistence.LogRecordsAsync(records);
-            
 
         _tracker.Publish(new AgentAssignmentsChanged(commands, grid));
 
@@ -63,9 +77,9 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
         if (commands.Any())
         {
             batchCommands(commands);
-
-            foreach (var agentCommand in commands) yield return agentCommand;
         }
+
+        return commands;
     }
 
     private static void batchCommands(List<IAgentCommand> commands)
@@ -94,5 +108,5 @@ public partial class NodeAgentController : IInternalHandler<EvaluateAssignments>
         // This buffers requests to reevaluate and reassign node
         // assignments so that the system isn't repeatedly redoing
         // this work as a node cluster spins up
-        _assignmentBufferBlock.SendAsync(new EvaluateAssignments());
+        _assignmentBufferBlock.SendAsync(new EvaluateAssignments(this));
 }
