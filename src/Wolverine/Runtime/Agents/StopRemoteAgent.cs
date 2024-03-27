@@ -5,7 +5,7 @@ namespace Wolverine.Runtime.Agents;
 
 internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         if (NodeId == runtime.Options.UniqueNodeId)
         {
@@ -18,7 +18,7 @@ internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISer
 
         runtime.Tracker.Publish(new AgentStopped(AgentUri));
 
-        yield break;
+        return AgentCommands.Empty;
     }
 
     public virtual bool Equals(StopRemoteAgent? other)

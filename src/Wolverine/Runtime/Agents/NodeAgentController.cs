@@ -84,7 +84,6 @@ public partial class NodeAgentController
         handlers.RegisterMessageType(typeof(StopAgent));
         handlers.RegisterMessageType(typeof(StopAgents));
         handlers.RegisterMessageType(typeof(QueryAgents));
-        handlers.RegisterMessageType(typeof(RunningAgents));
     }
 
     public async Task StopAsync(IMessageBus messageBus)

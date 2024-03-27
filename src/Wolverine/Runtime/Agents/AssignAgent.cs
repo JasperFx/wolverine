@@ -6,8 +6,7 @@ namespace Wolverine.Runtime.Agents;
 
 internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         if (NodeId == runtime.Options.UniqueNodeId)
         {
@@ -23,12 +22,14 @@ internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISeriali
             {
                 runtime.Logger.LogWarning(e, "Error while trying to assign agent {AgentUri} to {NodeId}", AgentUri,
                     NodeId);
-                yield break;
+                return AgentCommands.Empty;
             }
         }
 
         runtime.Logger.LogInformation("Successfully started agent {AgentUri} on node {NodeId}", AgentUri, runtime.Options.Durability.AssignedNodeNumber);
         runtime.Tracker.Publish(new AgentStarted(NodeId, AgentUri));
+        
+        return AgentCommands.Empty;
     }
 
     public byte[] Write()

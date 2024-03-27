@@ -28,11 +28,12 @@ internal class AgentCommandHandler : MessageHandler
             return;
         }
 
-        var action = (IAgentCommand)context.Envelope!.Message!;
+        var command = (IAgentCommand)context.Envelope!.Message!;
+        
         try
         {
-            await foreach (var cascading in action.ExecuteAsync(_runtime, cancellation))
-                await context.EnqueueCascadingAsync(cascading);
+            var results = await command.ExecuteAsync(_runtime, cancellation);
+            await context.EnqueueCascadingAsync(results);
         }
         catch (TimeoutException)
         {

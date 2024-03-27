@@ -17,7 +17,7 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         Endpoint = endpoint;
     }
 
-    public ListeningStatus Status { get; }
+    public ListeningStatus Status { get; } = ListeningStatus.Accepting;
     public Endpoint Endpoint { get; }
 
     // Edge case, but this actually happened to someone

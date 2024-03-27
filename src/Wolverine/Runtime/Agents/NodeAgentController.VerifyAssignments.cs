@@ -35,12 +35,12 @@ internal class QueryAgents : IAgentCommand, ISerializable
 {
     
 #pragma warning disable CS1998
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-#pragma warning restore CS1998
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         var agents = runtime.Agents.AllRunningAgentUris();
-        yield return new RunningAgents(runtime.Options.UniqueNodeId, agents);
+        AgentCommands commands = [new RunningAgents(runtime.Options.UniqueNodeId, agents)];
+        return Task.FromResult(commands) ;
     }
 
     public byte[] Write()
@@ -54,4 +54,10 @@ internal class QueryAgents : IAgentCommand, ISerializable
     }
 }
 
-internal record RunningAgents(Guid NodeId, Uri[] Agents);
+internal record RunningAgents(Guid NodeId, Uri[] Agents) : IAgentCommand
+{
+    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(AgentCommands.Empty);
+    }
+}
