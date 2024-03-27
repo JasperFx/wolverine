@@ -95,9 +95,6 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         var runtime = await withConfig(DurabilityMode.Balanced);
 
 
-        // agent timer should be running
-        runtime.AgentTimer.ShouldNotBeNull();
-
         runtime.NodeController.ShouldNotBeNull();
         runtime.NodeController.HasStartedLocalAgentWorkflowForBalancedMode.ShouldBeTrue();
         runtime.NodeController.HasStartedInSoloMode.ShouldBeFalse();
@@ -142,9 +139,6 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     {
         var runtime = await withConfig(DurabilityMode.Solo);
 
-        // agent timer should be running
-        runtime.AgentTimer.ShouldBeNull();
-
         runtime.NodeController.ShouldNotBeNull();
         runtime.NodeController.HasStartedLocalAgentWorkflowForBalancedMode.ShouldBeFalse();
         runtime.NodeController.HasStartedInSoloMode.ShouldBeTrue();
@@ -183,10 +177,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     public async Task start_in_serverless_mode()
     {
         var runtime = await withConfig(DurabilityMode.Serverless);
-
-        // agent timer should be running
-        runtime.AgentTimer.ShouldBeNull();
-
+        
         runtime.NodeController.ShouldBeNull();
 
         // Should NOT be listening on the control endpoint
@@ -215,9 +206,6 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     public async Task start_in_mediator_mode()
     {
         var runtime = await withConfig(DurabilityMode.MediatorOnly);
-
-        // agent timer should be running
-        runtime.AgentTimer.ShouldBeNull();
 
         runtime.NodeController.ShouldBeNull();
 

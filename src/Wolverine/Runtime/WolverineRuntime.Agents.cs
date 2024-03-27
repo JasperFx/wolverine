@@ -18,7 +18,7 @@ public class UnknownWolverineNodeException : Exception
 public partial class WolverineRuntime : IAgentRuntime
 {
     private bool _agentsAreDisabled;
-    internal Timer? AgentTimer { get; private set; }
+    private Task _healthCheckLoop;
 
     public NodeAgentController? NodeController { get; private set; }
 
@@ -161,48 +161,50 @@ public partial class WolverineRuntime : IAgentRuntime
     private async Task startNodeAgentWorkflowAsync()
     {
         SystemQueue = (BufferedLocalQueue)Endpoints.GetOrBuildSendingAgent(TransportConstants.SystemQueueUri);
-
-        var startingTime = new Random().Next(0, 2000);
-
+        
         var bus = new MessageBus(this);
         await bus.InvokeAsync(new StartLocalAgentProcessing(Options), Cancellation);
-        
-        AgentTimer = new Timer(fireHealthCheck, null, startingTime.Milliseconds(),
-            Options.Durability.HealthCheckPollingTime);
+
+        _healthCheckLoop = Task.Run(executeHealthChecks, Cancellation);
     }
-    
-    [Obsolete("Try to kill and use a looping Task instead")]
-    private void fireHealthCheck(object? state)
+
+    private async Task executeHealthChecks()
     {
-        if (NodeController == null) return;
-        
-        try
+        var startingTime = Random.Shared.Next(0, 2000);
+        await Task.Delay(startingTime, Cancellation);
+
+        while (!Cancellation.IsCancellationRequested)
         {
-            SystemQueue!.EnqueueDirectly(new Envelope(new CheckAgentHealth())
+            await Task.Delay(Options.Durability.HealthCheckPollingTime, Cancellation);
+            
+            if (NodeController != null)
             {
-                Serializer = Options.DefaultSerializer,
-                Destination = TransportConstants.SystemQueueUri
-            });
-        }
-        catch (Exception e)
-        {
-            // No earthly idea why this would happen, but real life and all
-            Logger.LogError(e, "Error trying to enqueue a CheckAgentHealth message");
+                try
+                {
+                    var bus = new MessageBus(this);
+                    var commands = await bus.InvokeAsync<AgentCommands>(new CheckAgentHealth(), Cancellation);
+
+                    // TODO -- try to parallelize this later!!!
+                    while (commands.Any())
+                    {
+                        var command = commands.Pop();
+                        var additional = await bus.InvokeAsync<AgentCommands>(command, Cancellation);
+                        commands.AddRange(additional);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError(e, "Error trying to perform agent health checks");
+                }
+            }
         }
     }
 
     private async Task teardownAgentsAsync()
     {
-        if (AgentTimer != null)
+        if (_healthCheckLoop != null)
         {
-            try
-            {
-                await AgentTimer.DisposeAsync();
-            }
-            catch (Exception)
-            {
-                // Don't really care, make this stop
-            }
+            _healthCheckLoop.SafeDispose();
         }
 
         if (NodeController != null)
@@ -220,16 +222,9 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         _agentsAreDisabled = true;
         
-        if (AgentTimer != null)
+        if (_healthCheckLoop != null)
         {
-            try
-            {
-                await AgentTimer.DisposeAsync();
-            }
-            catch (Exception)
-            {
-                // Don't really care, make this stop
-            }
+            _healthCheckLoop.SafeDispose();
         }
 
         if (NodeController != null)
