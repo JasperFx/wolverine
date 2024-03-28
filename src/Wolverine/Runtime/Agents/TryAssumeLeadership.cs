@@ -1,6 +1,6 @@
 namespace Wolverine.Runtime.Agents;
 
-public record TryAssumeLeadership : IAgentCommand
+public record TryAssumeLeadership : IAgentCommand, ISerializable
 {
     public Guid? CurrentLeaderId { get; set; }
     public Guid? CandidateId { get; set; }
@@ -15,5 +15,22 @@ public record TryAssumeLeadership : IAgentCommand
         await runtime.Agents.InvokeAsync(CandidateId.Value, new TryAssumeLeadership());
         return AgentCommands.Empty;
 
+    }
+
+    public byte[] Write()
+    {
+        return (CurrentLeaderId ?? Guid.Empty).ToByteArray().Concat((CandidateId ?? Guid.Empty).ToByteArray())
+            .ToArray();
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        var leaderId = new Guid(bytes.Take(16).ToArray());
+        var candidateId = new Guid(bytes.Skip(16).ToArray());
+        return new TryAssumeLeadership
+        {
+            CurrentLeaderId = leaderId == Guid.Empty ? null : leaderId,
+            CandidateId = candidateId == Guid.Empty ? null : candidateId
+        };
     }
 }

@@ -1,17 +1,26 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Text;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Oakton.Internal.Conversion;
 
 namespace Wolverine.Runtime.Agents;
 
-internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand
+internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand, ISerializable
 {
     public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         return Task.FromResult(AgentCommands.Empty);
+    }
+
+    public byte[] Write()
+    {
+        return Encoding.UTF8.GetBytes(AgentUris.Select(x => x.ToString()).Join(","));
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        var uris = Encoding.UTF8.GetString(bytes).Split(',').Select(x => new Uri(x)).ToArray();
+        return new AgentsStarted(uris);
     }
 }
 
@@ -22,6 +31,11 @@ internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISeri
     {
         var startAgents = new StartAgents(AgentIds);
         var response = await runtime.Agents.InvokeAsync<AgentsStarted>(NodeId, startAgents);
+
+        if (response == null)
+        {
+            return AgentCommands.Empty;
+        }
 
         runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeNumber}", AgentIds, runtime.Options.Durability.AssignedNodeNumber);
 
@@ -71,8 +85,7 @@ internal record StopRemoteAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, I
 
 internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 {
-    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         var successful = new List<Uri>(AgentUris.Length);
         foreach (var agentUri in AgentUris)
@@ -100,11 +113,6 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public virtual bool Equals(StartAgents? other)
     {
-        if (ReferenceEquals(null, other))
-        {
-            return false;
-        }
-
         if (ReferenceEquals(this, other))
         {
             return true;
@@ -136,11 +144,22 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
     }
 }
 
-internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand
+internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand, ISerializable
 {
     public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         return Task.FromResult(AgentCommands.Empty);
+    }
+    
+    public byte[] Write()
+    {
+        return Encoding.UTF8.GetBytes(AgentUris.Select(x => x.ToString()).Join(","));
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        var uris = Encoding.UTF8.GetString(bytes).Split(',').Select(x => new Uri(x)).ToArray();
+        return new AgentsStopped(uris);
     }
 }
 

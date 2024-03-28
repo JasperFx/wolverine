@@ -1,13 +1,25 @@
+using System.Text;
+using Newtonsoft.Json;
 using Wolverine.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-internal record RemoteNodeEvent(WolverineNode Node, NodeEventType Type, WolverineNode Leader) : IAgentCommand
+internal record RemoteNodeEvent(WolverineNode Node, NodeEventType Type, WolverineNode Leader) : IAgentCommand, ISerializable
 {
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         await runtime.Agents.InvokeAsync(Leader.Id, new NodeEvent(Node, Type));
         return AgentCommands.Empty;
+    }
+
+    public byte[] Write()
+    {
+        return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(this));
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        return JsonConvert.DeserializeObject<RemoteNodeEvent>(Encoding.UTF8.GetString(bytes));
     }
 }
 
@@ -16,7 +28,7 @@ internal record RemoteNodeEvent(WolverineNode Node, NodeEventType Type, Wolverin
 /// </summary>
 /// <param name="Node"></param>
 /// <param name="Type"></param>
-public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEvent, IAgentCommand
+public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEvent, IAgentCommand, ISerializable
 {
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
 
@@ -79,6 +91,16 @@ public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEven
                 Node.ActiveAgents.Add(NodeAgentController.LeaderUri);
                 break;
         }
+    }
+    
+    public byte[] Write()
+    {
+        return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(this));
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        return JsonConvert.DeserializeObject<NodeEvent>(Encoding.UTF8.GetString(bytes));
     }
 
     public override string ToString()

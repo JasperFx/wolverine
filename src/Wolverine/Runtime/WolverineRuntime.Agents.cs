@@ -141,9 +141,7 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         DurableScheduledJobs = Storage.StartScheduledJobs(this);
     }
-
-    internal BufferedLocalQueue? SystemQueue { get; private set; }
-
+    
     internal IAgent? DurableScheduledJobs { get; private set; }
 
     private void startNodeAgentController()
@@ -160,18 +158,21 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private async Task startNodeAgentWorkflowAsync()
     {
-        SystemQueue = (BufferedLocalQueue)Endpoints.GetOrBuildSendingAgent(TransportConstants.SystemQueueUri);
-        
-        var bus = new MessageBus(this);
-        await bus.InvokeAsync(new StartLocalAgentProcessing(Options), Cancellation);
+        if (NodeController != null)
+        {
+            var commands = await NodeController.StartLocalAgentProcessingAsync(Options);
+            foreach (var command in commands)
+            {
+                await new MessageBus(this).PublishAsync(command);
+            }
+        }
 
         _healthCheckLoop = Task.Run(executeHealthChecks, Cancellation);
     }
 
     private async Task executeHealthChecks()
     {
-        var startingTime = Random.Shared.Next(0, 2000);
-        await Task.Delay(startingTime, Cancellation);
+        await Task.Delay(Options.Durability.FirstHealthCheckExecution, Cancellation);
 
         while (!Cancellation.IsCancellationRequested)
         {
@@ -181,15 +182,19 @@ public partial class WolverineRuntime : IAgentRuntime
             {
                 try
                 {
+
+                    var commands = await NodeController.DoHealthChecksAsync();
                     var bus = new MessageBus(this);
-                    var commands = await bus.InvokeAsync<AgentCommands>(new CheckAgentHealth(), Cancellation);
 
                     // TODO -- try to parallelize this later!!!
                     while (commands.Any())
                     {
                         var command = commands.Pop();
                         var additional = await bus.InvokeAsync<AgentCommands>(command, Cancellation);
-                        commands.AddRange(additional);
+                        if (additional != null)
+                        {
+                            commands.AddRange(additional);
+                        }
                     }
                 }
                 catch (Exception e)

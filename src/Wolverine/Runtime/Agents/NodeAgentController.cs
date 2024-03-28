@@ -13,8 +13,6 @@ public partial class NodeAgentController
     private readonly Dictionary<string, IAgentFamily>
         _agentFamilies = new();
 
-    private readonly ActionBlock<EvaluateAssignments[]> _assignmentBlock;
-    private readonly BatchingBlock<EvaluateAssignments> _assignmentBufferBlock;
     private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
     private readonly INodeAgentPersistence _persistence;
@@ -41,17 +39,6 @@ public partial class NodeAgentController
 
         _cancellation = cancellation;
         _logger = logger;
-
-        _assignmentBlock = new ActionBlock<EvaluateAssignments[]>(
-            async _ =>
-            {
-                await new MessageBus(runtime).PublishAsync(new EvaluateAssignments(this));
-            },
-            new ExecutionDataflowBlockOptions { CancellationToken = runtime.Cancellation });
-
-        _assignmentBufferBlock =
-            new BatchingBlock<EvaluateAssignments>(runtime.Options.Durability.EvaluateAssignmentBufferTime,
-                _assignmentBlock);
     }
 
     public bool HasStartedInSoloMode { get; private set; }
@@ -68,6 +55,7 @@ public partial class NodeAgentController
         handlers.RegisterMessageType(typeof(StopAgent));
         handlers.RegisterMessageType(typeof(StopAgents));
         handlers.RegisterMessageType(typeof(QueryAgents));
+        handlers.RegisterMessageType(typeof(NodeEvent));
     }
 
     public async Task StopAsync(IMessageBus messageBus)
@@ -185,9 +173,6 @@ public partial class NodeAgentController
 
     public async Task StopAgentAsync(Uri agentUri)
     {
-        _assignmentBufferBlock.Complete();
-        _assignmentBlock.Complete();
-
         if (_agents.TryFind(agentUri, out var agent))
         {
             try

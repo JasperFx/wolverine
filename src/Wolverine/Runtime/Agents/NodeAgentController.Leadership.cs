@@ -42,8 +42,6 @@ public partial class NodeAgentController
                     var agents = await controller.AllKnownAgentsAsync();
                     _tracker.RegisterAgents(agents);
                 }
-
-                await requestAssignmentEvaluationAsync();
             }
             else
             {

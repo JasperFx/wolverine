@@ -1,12 +1,33 @@
 namespace Wolverine.Runtime.Agents;
 
-public record CheckAgentHealth : IAgentCommand
+public record CheckAgentHealth : IAgentCommand, ISerializable
 {
     public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         return runtime.Agents.DoHealthChecksAsync();
     }
+
+    public byte[] Write()
+    {
+        return Array.Empty<byte>();
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        return new CheckAgentHealth();
+    }
 }
+
+/* Notes
+ DistributeEvenly should abort quickly if every node has either the ceiling or floor number
+ No local messages should ever go through the transport
+ Verify vs evaluate
+ - If no dynamic, no nodes changed, do a verify
+ 
+ 
+ 
+ 
+ */
 
 public partial class NodeAgentController 
 {
@@ -24,71 +45,76 @@ public partial class NodeAgentController
             return AgentCommands.Empty;
         }
 
-        var commands = new AgentCommands();
-
         // write health check regardless
         await _persistence.MarkHealthCheckAsync(_tracker.Self.Id);
 
+        var nodes = await _persistence.LoadAllNodesAsync(_cancellation);
+
         // Check for stale nodes that are no longer writing health checks
         var staleTime = DateTimeOffset.UtcNow.Subtract(_runtime.Options.Durability.StaleNodeTimeout);
-        var staleNodes = await _persistence.LoadAllStaleNodesAsync(staleTime, _cancellation);
-
+        var staleNodes = nodes.Where(x => x.LastHealthCheck < staleTime).ToArray();
+        nodes = nodes.Where(x => !staleNodes.Contains(x)).ToList();
+        
+        
         if (_tracker.Self.IsLeader())
         {
-            foreach (var staleNode in staleNodes)
-            {
-                await _persistence.DeleteAsync(staleNode.Id);
-                _tracker.Remove(staleNode);
-            }
+            await ejectStaleNodes(staleNodes);
 
-            if (staleNodes.Any())
-            {
-                var records = staleNodes.Select(x => new NodeRecord
-                {
-                    NodeNumber = x.AssignedNodeId,
-                    RecordType = NodeRecordType.DormantNodeEjected,
-                    Description = "Health check on Node " + _runtime.Options.Durability.AssignedNodeNumber
-                }).ToArray();
-
-                await _persistence.LogRecordsAsync(records);
-            }
-
-            if (_lastAssignmentCheck != null && DateTimeOffset.UtcNow >
-                _lastAssignmentCheck.Value.Add(_runtime.Options.Durability.CheckAssignmentPeriod))
-            {
-                commands.Add(new VerifyAssignments());
-            }
+            // TODO -- do the verification here too!
+            return await EvaluateAssignmentsAsync(nodes);
         }
         else
         {
-            var leaderNode = staleNodes.FirstOrDefault(x => x.Id == _tracker.Leader?.Id);
-            if (leaderNode != null)
+            return await tryElectNewLeaderIfNecessary(staleNodes);
+        }
+    }
+
+    private async Task<AgentCommands> tryElectNewLeaderIfNecessary(IReadOnlyList<WolverineNode> staleNodes)
+    {
+        var leaderNode = staleNodes.FirstOrDefault(x => x.Id == _tracker.Leader?.Id);
+        if (leaderNode != null)
+        {
+            await _persistence.DeleteAsync(leaderNode.Id);
+            _tracker.Remove(leaderNode);
+        }
+
+        // If there is no known leader, try to elect a newer one
+        if (_tracker.Leader == null)
+        {
+            var candidate = _tracker.OtherNodes().MinBy(x => x.AssignedNodeId);
+
+            if (candidate == null || candidate.AssignedNodeId > _tracker.Self.AssignedNodeId)
             {
-                await _persistence.DeleteAsync(leaderNode.Id);
-                _tracker.Remove(leaderNode);
+                // Try to take leadership in this node
+                return [new TryAssumeLeadership()];
             }
 
-            // If there is no known leader, try to elect a newer one
-            if (_tracker.Leader == null)
-            {
-                var candidate = _tracker.OtherNodes().MinBy(x => x.AssignedNodeId);
-
-                if (candidate == null || candidate.AssignedNodeId > _tracker.Self.AssignedNodeId)
-                {
-                    // Try to take leadership in this node
-                    commands.Add(new TryAssumeLeadership());
-                }
-                else
-                {
-                    // Ask another, older node to take leadership
-                    commands.Add(new TryAssumeLeadership(){CandidateId = candidate.Id});
-                }
-            }
+            // Ask another, older node to take leadership
+            return [new TryAssumeLeadership(){CandidateId = candidate.Id}];
         }
         
-        // We want this to be evaluated no matter what
-        commands.Add(new EvaluateAssignments(this));
+        return AgentCommands.Empty;
+    }
 
-        return commands;
+
+    private async Task ejectStaleNodes(IReadOnlyList<WolverineNode> staleNodes)
+    {
+        foreach (var staleNode in staleNodes)
+        {
+            await _persistence.DeleteAsync(staleNode.Id);
+            _tracker.Remove(staleNode);
+        }
+
+        if (staleNodes.Any())
+        {
+            var records = staleNodes.Select(x => new NodeRecord
+            {
+                NodeNumber = x.AssignedNodeId,
+                RecordType = NodeRecordType.DormantNodeEjected,
+                Description = "Health check on Node " + _runtime.Options.Durability.AssignedNodeNumber
+            }).ToArray();
+
+            await _persistence.LogRecordsAsync(records);
+        }
     }
 }

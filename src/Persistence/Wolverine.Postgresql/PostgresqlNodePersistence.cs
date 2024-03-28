@@ -229,6 +229,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         return list.Select(x => x!.ToUri()).ToList();
     }
 
+    [Obsolete("Will be removed in Wolverine 3.0")]
     public async Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime,
         CancellationToken cancellationToken)
     {
