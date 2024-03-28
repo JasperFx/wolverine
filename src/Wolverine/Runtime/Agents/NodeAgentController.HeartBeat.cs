@@ -31,8 +31,6 @@ public record CheckAgentHealth : IAgentCommand, ISerializable
 
 public partial class NodeAgentController 
 {
-    private DateTimeOffset? _lastAssignmentCheck;
-
     public async Task<AgentCommands> DoHealthChecksAsync()
     {
         if (_cancellation.IsCancellationRequested)
@@ -48,7 +46,7 @@ public partial class NodeAgentController
         // write health check regardless
         await _persistence.MarkHealthCheckAsync(_tracker.Self.Id);
 
-        var nodes = await _persistence.LoadAllNodesAsync(_cancellation);
+        var nodes = await _persistence.LoadAllNodesAsync(_cancellation.Token);
 
         // Check for stale nodes that are no longer writing health checks
         var staleTime = DateTimeOffset.UtcNow.Subtract(_runtime.Options.Durability.StaleNodeTimeout);
@@ -63,10 +61,8 @@ public partial class NodeAgentController
             // TODO -- do the verification here too!
             return await EvaluateAssignmentsAsync(nodes);
         }
-        else
-        {
-            return await tryElectNewLeaderIfNecessary(staleNodes);
-        }
+
+        return await tryElectNewLeaderIfNecessary(staleNodes);
     }
 
     private async Task<AgentCommands> tryElectNewLeaderIfNecessary(IReadOnlyList<WolverineNode> staleNodes)
@@ -116,5 +112,10 @@ public partial class NodeAgentController
 
             await _persistence.LogRecordsAsync(records);
         }
+    }
+
+    public void CancelHeartbeatChecking()
+    {
+        _cancellation.Cancel();
     }
 }

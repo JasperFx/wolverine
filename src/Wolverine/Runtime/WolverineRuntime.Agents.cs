@@ -18,7 +18,9 @@ public class UnknownWolverineNodeException : Exception
 public partial class WolverineRuntime : IAgentRuntime
 {
     private bool _agentsAreDisabled;
-    private Task _healthCheckLoop;
+    private Task? _healthCheckLoop;
+
+    private CancellationTokenSource _agentCancellation;
 
     public NodeAgentController? NodeController { get; private set; }
 
@@ -50,12 +52,12 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         if (Tracker.Self!.Id == nodeId)
         {
-            await new MessageBus(this).InvokeAsync(command, Cancellation);
+            await new MessageBus(this).InvokeAsync(command, _agentCancellation.Token);
         }
         else if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, Cancellation, 60.Seconds());
+            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, _agentCancellation.Token, 60.Seconds());
         }
         else
         {
@@ -67,13 +69,13 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         if (Tracker.Self!.Id == nodeId)
         {
-            return await new MessageBus(this).InvokeAsync<T>(command, Cancellation, 30.Seconds());
+            return await new MessageBus(this).InvokeAsync<T>(command, _agentCancellation.Token, 30.Seconds());
         }
 
         if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            return await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync<T>(command, Cancellation, 60.Seconds());
+            return await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync<T>(command, _agentCancellation.Token, 60.Seconds());
         }
 
         throw new UnknownWolverineNodeException(nodeId);
@@ -96,6 +98,18 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         if (NodeController != null) return NodeController.DoHealthChecksAsync();
         return Task.FromResult(AgentCommands.Empty);
+    }
+
+    public void DisableHealthChecks()
+    {
+        _agentCancellation.Cancel();
+        
+        if (_healthCheckLoop == null) return;
+
+        if (NodeController != null)
+        {
+            NodeController.CancelHeartbeatChecking();
+        }
     }
 
     public Task<AgentCommands> VerifyAssignmentsAsync()
@@ -151,7 +165,7 @@ public partial class WolverineRuntime : IAgentRuntime
             : new NullNodeAgentPersistence();
         
         NodeController = new NodeAgentController(this, Tracker, nodePersistence, _container.GetAllInstances<IAgentFamily>(),
-            LoggerFactory.CreateLogger<NodeAgentController>(), Options.Durability.Cancellation);
+            LoggerFactory.CreateLogger<NodeAgentController>(), _agentCancellation.Token);
 
         NodeController.AddHandlers(this);
     }
@@ -196,6 +210,10 @@ public partial class WolverineRuntime : IAgentRuntime
                             commands.AddRange(additional);
                         }
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Nothing here
                 }
                 catch (Exception e)
                 {

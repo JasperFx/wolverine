@@ -89,6 +89,12 @@ public interface IAgentRuntime
     Task<AgentCommands> ApplyNodeEvent(NodeEvent nodeEvent);
     Task<AgentCommands> VerifyAssignmentsAsync();
     Task<AgentCommands> DoHealthChecksAsync();
+    
+    /// <summary>
+    /// ONLY FOR TESTING! Disables all health check monitoring and heart beats
+    /// </summary>
+    /// <returns></returns>
+    void DisableHealthChecks();
 }
 
 internal interface IExecutorFactory
