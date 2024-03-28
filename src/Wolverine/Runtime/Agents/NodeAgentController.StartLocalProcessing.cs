@@ -6,7 +6,7 @@ public partial class NodeAgentController
 {
     public async Task<AgentCommands> StartLocalAgentProcessingAsync(WolverineOptions options)
     {
-        var others = await _persistence.LoadAllNodesAsync(_cancellation);
+        var others = await _persistence.LoadAllNodesAsync(_cancellation.Token);
 
         var current = WolverineNode.For(options);
         foreach (var controller in _agentFamilies.Values.OfType<IStaticAgentFamily>())
@@ -14,7 +14,7 @@ public partial class NodeAgentController
             current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
         }
 
-        current.AssignedNodeId = await _persistence.PersistAsync(current, _cancellation);
+        current.AssignedNodeId = await _persistence.PersistAsync(current, _cancellation.Token);
         await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
         
         _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId;

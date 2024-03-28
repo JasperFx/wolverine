@@ -27,7 +27,7 @@ public partial class NodeAgentController
                 await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options,
                     NodeRecordType.LeadershipAssumed, LeaderUri));
 
-                var all = await _persistence.LoadAllNodesAsync(_cancellation);
+                var all = await _persistence.LoadAllNodesAsync(_cancellation.Token);
                 var others = all.Where(x => x.Id != _tracker.Self.Id).ToArray();
                 foreach (var other in others)
                 {
@@ -45,7 +45,7 @@ public partial class NodeAgentController
             }
             else
             {
-                var leader = await _persistence.LoadNodeAsync(assigned.Value, _cancellation);
+                var leader = await _persistence.LoadNodeAsync(assigned.Value, _cancellation.Token);
 
                 if (leader != null)
                 {

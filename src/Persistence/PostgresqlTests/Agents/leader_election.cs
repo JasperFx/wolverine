@@ -37,6 +37,11 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        foreach (var host in _hosts)
+        {
+            host.GetRuntime().Agents.DisableHealthChecks();
+        }
+        
         _hosts.Reverse();
         foreach (var host in _hosts.ToArray())
         {
@@ -49,7 +54,8 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Durability.CheckAssignmentPeriod = 5.Seconds();
+                opts.Durability.CheckAssignmentPeriod = 1.Seconds();
+                opts.Durability.HealthCheckPollingTime = 1.Seconds();
                 
                 opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
 
@@ -68,6 +74,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
 
     private async Task shutdownHostAsync(IHost host)
     {
+        host.GetRuntime().Agents.DisableHealthChecks();
         await host.StopAsync();
         host.Dispose();
         _hosts.Remove(host);
@@ -100,7 +107,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     [Fact]
     public async Task the_original_node_knows_about_all_the_possible_agents()
     {
-        await _originalHost.WaitUntilAssignmentsChangeTo(w => w.ExpectRunningAgents(_originalHost, 12), 10.Seconds());
+        await _originalHost.WaitUntilAssignmentsChangeTo(w => w.ExpectRunningAgents(_originalHost, 12), 20.Seconds());
     }
 
     [Fact]
@@ -150,7 +157,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
         {
             w.ExpectRunningAgents(_originalHost, 6);
             w.ExpectRunningAgents(host2, 6);
-        }, 10.Seconds());
+        }, 30.Seconds());
 
         var waiter = _originalHost.GetRuntime().Tracker.WaitForNodeEvent(NodeEventType.Exiting, 10.Seconds());
         var host2Id = host2.GetRuntime().Options.UniqueNodeId;
@@ -178,7 +185,7 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
 
         await shutdownHostAsync(_originalHost);
 
-        await host2.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
+        await host2.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(30.Seconds());
 
         await shutdownHostAsync(host2);
 

@@ -9,12 +9,26 @@ public record TryAssumeLeadership : IAgentCommand, ISerializable
     {
         if (CandidateId == null)
         {
-            return await runtime.Agents.AssumeLeadershipAsync(CurrentLeaderId);
+            try
+            {
+                return await runtime.Agents.AssumeLeadershipAsync(CurrentLeaderId);
+            }
+            catch (OperationCanceledException)
+            {
+                // Just shutting down, don't log here
+            }
         }
 
-        await runtime.Agents.InvokeAsync(CandidateId.Value, new TryAssumeLeadership());
-        return AgentCommands.Empty;
+        try
+        {
+            await runtime.Agents.InvokeAsync(CandidateId.Value, new TryAssumeLeadership());
+        }
+        catch (UnknownWolverineNodeException)
+        {
+            return [new TryAssumeLeadership()];
+        }
 
+        return AgentCommands.Empty;
     }
 
     public byte[] Write()
