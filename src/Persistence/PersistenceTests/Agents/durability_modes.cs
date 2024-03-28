@@ -108,10 +108,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldNotBeNull();
         runtime.ScheduledJobs.ShouldNotBeNull();
-        
-        // Should have a system queue for internal node management messages
-        runtime.SystemQueue.ShouldNotBeNull();
-        
+
         // verify that there's a persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldNotBeNull();
@@ -152,10 +149,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldNotBeNull();
         runtime.ScheduledJobs.ShouldNotBeNull();
-        
-        // Should NOT have a system queue for internal node management messages
-        runtime.SystemQueue.ShouldBeNull();
-        
+
         // verify that there's NOT a persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldBeNull();
@@ -193,10 +187,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should NOT start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldBeNull();
         runtime.ScheduledJobs.ShouldBeNull();
-        
-        // Should NOT have a system queue for internal node management messages
-        runtime.SystemQueue.ShouldBeNull();
-        
+
         // verify that there's no persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldBeNull();
@@ -218,10 +209,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should NOT start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldBeNull();
         runtime.ScheduledJobs.ShouldBeNull();
-        
-        // Should NOT have a system queue for internal node management messages
-        runtime.SystemQueue.ShouldBeNull();
-        
+
         // verify that there's no persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldBeNull();

@@ -3,33 +3,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-public record EvaluateAssignments : IAgentCommand
-{
-    private readonly NodeAgentController _controller;
-
-    public EvaluateAssignments(NodeAgentController controller)
-    {
-        _controller = controller;
-    }
-
-    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
-    {
-        return _controller.EvaluateAssignmentsAsync();
-    }
-}
-
 public partial class NodeAgentController 
 {
     public AssignmentGrid? LastAssignments { get; internal set; }
 
     // Tested w/ integration tests all the way
-    public async Task<AgentCommands> EvaluateAssignmentsAsync()
+    public async Task<AgentCommands> EvaluateAssignmentsAsync(IReadOnlyList<WolverineNode> nodes)
     {
         var grid = AssignmentGrid.ForTracker(_tracker);
 
-        // Load all other nodes to also pick up capabilities that might not exist in the leader
-        // This is specifically to enable blue/green deployment
-        var nodes = await _persistence.LoadAllNodesAsync(_cancellation);
         var capabilities = nodes.SelectMany(x => x.Capabilities).Distinct().ToArray();
         grid.WithAgents(capabilities);
 
@@ -104,9 +86,4 @@ public partial class NodeAgentController
         }
     }
 
-    private Task requestAssignmentEvaluationAsync() =>
-        // This buffers requests to reevaluate and reassign node
-        // assignments so that the system isn't repeatedly redoing
-        // this work as a node cluster spins up
-        _assignmentBufferBlock.SendAsync(new EvaluateAssignments(this));
 }

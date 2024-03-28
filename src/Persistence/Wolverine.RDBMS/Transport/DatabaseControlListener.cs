@@ -64,10 +64,16 @@ internal class DatabaseControlListener : IListener
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+#if NET8_0_OR_GREATER
+        await _cancellation.CancelAsync();
+        
+        
+#else
+        _cancellation.Cancel();
+#endif
         _receivingLoop.SafeDispose();
-        return ValueTask.CompletedTask;
     }
 
     public Uri Address { get; }
@@ -77,10 +83,15 @@ internal class DatabaseControlListener : IListener
 #if NET8_0_OR_GREATER
         await _cancellation.CancelAsync();
         
+        
         #else
         _cancellation.Cancel();
 #endif
-        _receivingLoop.Dispose();
+        if (_receivingLoop != null)
+        {
+            await _receivingLoop;
+            _receivingLoop.Dispose();
+        }
     }
     
     private Task deleteEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken)

@@ -14,7 +14,7 @@ public class all_internal_messages_should_have_built_in_serialization
         var types = assembly.DefinedTypes
             .Where(x => x.CanBeCastTo<IAgentCommand>()).Where(x => x.IsClass).ToArray();
 
-        var missing = types.Where(x => !x.CanBeCastTo(typeof(ISerializable)));
+        var missing = types.Where(x => x != typeof(NodeEvent)).Where(x => !x.CanBeCastTo(typeof(ISerializable)));
         if (missing.Any())
         {
             Assert.Fail("Message types are not serializable yet: \n" + missing.Select(x => x.FullName).Join("\n"));

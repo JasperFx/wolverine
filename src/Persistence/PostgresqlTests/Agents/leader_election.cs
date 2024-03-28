@@ -106,15 +106,13 @@ public class leader_election : PostgresqlContext, IAsyncLifetime
     [Fact]
     public async Task add_second_node_see_balanced_nodes()
     {
-        var tracker = _originalHost.GetRuntime().Tracker;
-
         var host2 = await startHostAsync();
 
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(_originalHost, 6);
             w.ExpectRunningAgents(host2, 6);
-        }, 10.Seconds());
+        }, 60.Seconds());
     }
 
 

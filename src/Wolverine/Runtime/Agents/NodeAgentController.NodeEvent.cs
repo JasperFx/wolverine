@@ -20,7 +20,6 @@ public partial class NodeAgentController
                 if (_tracker.Self.IsLeader())
                 {
                     await _persistence.DeleteAsync(@event.Node.Id);
-                    await requestAssignmentEvaluationAsync();
                 }
                 else if (_tracker.Leader == null || _tracker.Leader.Id == @event.Node.Id)
                 {
@@ -40,10 +39,6 @@ public partial class NodeAgentController
 
             case NodeEventType.Started:
                 _tracker.Add(@event.Node);
-                if (_tracker.Self.IsLeader())
-                {
-                    await requestAssignmentEvaluationAsync();
-                }
 
                 break;
 

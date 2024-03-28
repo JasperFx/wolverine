@@ -2,14 +2,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-public record StartLocalAgentProcessing(WolverineOptions Options) : IAgentCommand
-{
-    public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
-    {
-        return runtime.Agents.StartLocalAgentProcessingAsync();
-    }
-}
-
 public partial class NodeAgentController
 {
     public async Task<AgentCommands> StartLocalAgentProcessingAsync(WolverineOptions options)
