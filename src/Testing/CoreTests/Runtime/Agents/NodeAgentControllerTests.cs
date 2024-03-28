@@ -236,11 +236,8 @@ public class try_assume_leadership_from_scratch_happy_path : NodeAgentController
         thePersistence.MarkNodeAsLeaderAsync(null, theOptions.UniqueNodeId).Returns(theOptions.UniqueNodeId);
         
         theNodes.MarkCurrent(WolverineNode.For(theOptions));
-        
-        await foreach (var message in theController.HandleAsync(new TryAssumeLeadership()).WithCancellation(theCancellation))
-        {
-            theCascadedMessages.Add(message);
-        }
+
+        theCascadedMessages = await theController.AssumeLeadershipAsync(null);
 
         await theTracker.DrainAsync();
     }
@@ -306,11 +303,8 @@ public class try_assume_leadership_from_scratch_nothing_is_assigned : NodeAgentC
         thePersistence.MarkNodeAsLeaderAsync(null, theOptions.UniqueNodeId).Returns((Guid?)null);
         
         theNodes.MarkCurrent(WolverineNode.For(theOptions));
-        
-        await foreach (var message in theController.HandleAsync(new TryAssumeLeadership()).WithCancellation(theCancellation))
-        {
-            theCascadedMessages.Add(message);
-        }
+
+        theCascadedMessages = await theController.AssumeLeadershipAsync(null);
 
         await theTracker.DrainAsync();
     }
@@ -369,11 +363,8 @@ public class try_assume_leadership_and_another_node_was_already_there : NodeAgen
         thePersistence.LoadNodeAsync(node3.Id, theCancellation).Returns(node3);
         
         theNodes.MarkCurrent(WolverineNode.For(theOptions));
-        
-        await foreach (var message in theController.HandleAsync(new TryAssumeLeadership()).WithCancellation(theCancellation))
-        {
-            theCascadedMessages.Add(message);
-        }
+
+        theCascadedMessages = await theController.AssumeLeadershipAsync(null);
 
         await theTracker.DrainAsync();
     }
@@ -545,7 +536,7 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
     protected readonly CancellationToken theCancellation = CancellationToken.None;
     protected readonly List<IAgentFamily> theControllers = new();
     
-    protected readonly List<object> theCascadedMessages = new();
+    protected AgentCommands theCascadedMessages = new();
 
     protected NodeAgentControllerTestsContext()
     {
@@ -595,20 +586,14 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
     public async Task afterStarting()
     {
-        await foreach (var message in theController.HandleAsync(new StartLocalAgentProcessing(theOptions)).WithCancellation(theCancellation))
-        {
-            theCascadedMessages.Add(message);
-        }
+        theCascadedMessages = await theController.StartLocalAgentProcessingAsync(theOptions);
 
         await theTracker.DrainAsync();
     }
 
     public async Task afterHandlingEvent(NodeEvent @event)
     {
-        await foreach (var message in theController.HandleAsync(@event).WithCancellation(theCancellation))
-        {
-            theCascadedMessages.Add(message);
-        }
+        theCascadedMessages = await theController.ApplyNodeEventAsync(@event);
 
         await theTracker.DrainAsync();
     }

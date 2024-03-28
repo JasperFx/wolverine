@@ -10,7 +10,6 @@ public sealed partial class WolverineOptions
     internal readonly List<IMessageRouteSource> InternalRouteSources = new()
     {
         new TransformedMessageRouteSource(),
-        new InternalMessages(),
         new AgentMessages(),
         new ExplicitRouting(),
         new LocalRouting(),

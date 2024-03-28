@@ -1,12 +1,12 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand
+internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         if (NodeId == runtime.Options.UniqueNodeId)
         {
@@ -22,12 +22,25 @@ internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand
             {
                 runtime.Logger.LogWarning(e, "Error while trying to assign agent {AgentUri} to {NodeId}", AgentUri,
                     NodeId);
-                yield break;
+                return AgentCommands.Empty;
             }
         }
 
         runtime.Logger.LogInformation("Successfully started agent {AgentUri} on node {NodeId}", AgentUri, runtime.Options.Durability.AssignedNodeNumber);
         runtime.Tracker.Publish(new AgentStarted(NodeId, AgentUri));
+        
+        return AgentCommands.Empty;
+    }
+
+    public byte[] Write()
+    {
+        return NodeId.ToByteArray().Concat(Encoding.UTF8.GetBytes(AgentUri.ToString())).ToArray();
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        var agentUriString = Encoding.UTF8.GetString(bytes.Skip(16).ToArray());
+        return new AssignAgent(new Uri(agentUriString), new Guid(bytes.Take(16).ToArray()));
     }
 
     public virtual bool Equals(AssignAgent? other)

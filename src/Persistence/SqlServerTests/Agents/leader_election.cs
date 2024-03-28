@@ -57,7 +57,8 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Durability.CheckAssignmentPeriod = 5.Seconds();
+                opts.Durability.CheckAssignmentPeriod = 1.Seconds();
+                opts.Durability.HealthCheckPollingTime = 1.Seconds();
                 
                 opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
                 
@@ -91,11 +92,22 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
 
     public async Task DisposeAsync()
     {
-        _hosts.Reverse();
         foreach (var host in _hosts)
         {
-            await host.StopAsync();
-            host.Dispose();
+            try
+            {
+                host.GetRuntime().Agents.DisableHealthChecks();
+            }
+            catch (ObjectDisposedException)
+            {
+
+            }
+        }
+        
+        _hosts.Reverse();
+        foreach (var host in _hosts.ToArray())
+        {
+            await shutdownHostAsync(host);
         }
     }
 

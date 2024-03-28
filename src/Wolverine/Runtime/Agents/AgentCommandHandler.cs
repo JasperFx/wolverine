@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -28,11 +29,24 @@ internal class AgentCommandHandler : MessageHandler
             return;
         }
 
-        var action = (IAgentCommand)context.Envelope!.Message!;
+        var command = (IAgentCommand)context.Envelope!.Message!;
+        
         try
         {
-            await foreach (var cascading in action.ExecuteAsync(_runtime, cancellation))
-                await context.EnqueueCascadingAsync(cascading);
+            var results = await command.ExecuteAsync(_runtime, cancellation);
+            if (context.Envelope.ReplyRequested.IsNotEmpty() &&
+                context.Envelope.ReplyRequested != typeof(AgentCommands).ToMessageTypeName())
+            {
+                foreach (var agentCommand in results)
+                {
+                    await context.EnqueueCascadingAsync(agentCommand);
+                }
+            }
+            else
+            {
+                await context.EnqueueCascadingAsync(results);
+            }
+            
         }
         catch (TimeoutException)
         {

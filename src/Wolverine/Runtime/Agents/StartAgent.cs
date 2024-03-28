@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -6,13 +7,13 @@ namespace Wolverine.Runtime.Agents;
 ///     Command message used to start and assign an agent to a node
 /// </summary>
 /// <param name="AgentUri"></param>
-internal record StartAgent(Uri AgentUri) : IAgentCommand
+internal record StartAgent(Uri AgentUri) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         await runtime.Agents.StartLocallyAsync(AgentUri);
-        yield break;
+        return AgentCommands.Empty;
     }
 
     public virtual bool Equals(StartAgent? other)
@@ -38,5 +39,15 @@ internal record StartAgent(Uri AgentUri) : IAgentCommand
     public override string ToString()
     {
         return $"Start agent {AgentUri}";
+    }
+
+    public byte[] Write()
+    {
+        return Encoding.UTF8.GetBytes(AgentUri.ToString());
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        return new StartAgent(new Uri(Encoding.UTF8.GetString(bytes)));
     }
 }

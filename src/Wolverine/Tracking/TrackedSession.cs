@@ -341,7 +341,7 @@ internal class TrackedSession : ITrackedSession
         }
 
         // Ignore these
-        if (envelope.Message is IInternalMessage || envelope.Message is IAgentCommand)
+        if (envelope.Message is IAgentCommand)
         {
             return;
         }

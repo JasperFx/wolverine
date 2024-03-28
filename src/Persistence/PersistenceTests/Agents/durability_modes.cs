@@ -95,9 +95,6 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         var runtime = await withConfig(DurabilityMode.Balanced);
 
 
-        // agent timer should be running
-        runtime.AgentTimer.ShouldNotBeNull();
-
         runtime.NodeController.ShouldNotBeNull();
         runtime.NodeController.HasStartedLocalAgentWorkflowForBalancedMode.ShouldBeTrue();
         runtime.NodeController.HasStartedInSoloMode.ShouldBeFalse();
@@ -111,10 +108,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldNotBeNull();
         runtime.ScheduledJobs.ShouldNotBeNull();
-        
-        // Should have a system queue for internal node management messages
-        runtime.SystemQueue.ShouldNotBeNull();
-        
+
         // verify that there's a persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldNotBeNull();
@@ -142,9 +136,6 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     {
         var runtime = await withConfig(DurabilityMode.Solo);
 
-        // agent timer should be running
-        runtime.AgentTimer.ShouldBeNull();
-
         runtime.NodeController.ShouldNotBeNull();
         runtime.NodeController.HasStartedLocalAgentWorkflowForBalancedMode.ShouldBeFalse();
         runtime.NodeController.HasStartedInSoloMode.ShouldBeTrue();
@@ -158,10 +149,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldNotBeNull();
         runtime.ScheduledJobs.ShouldNotBeNull();
-        
-        // Should NOT have a system queue for internal node management messages
-        runtime.SystemQueue.ShouldBeNull();
-        
+
         // verify that there's NOT a persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldBeNull();
@@ -183,10 +171,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     public async Task start_in_serverless_mode()
     {
         var runtime = await withConfig(DurabilityMode.Serverless);
-
-        // agent timer should be running
-        runtime.AgentTimer.ShouldBeNull();
-
+        
         runtime.NodeController.ShouldBeNull();
 
         // Should NOT be listening on the control endpoint
@@ -202,10 +187,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should NOT start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldBeNull();
         runtime.ScheduledJobs.ShouldBeNull();
-        
-        // Should NOT have a system queue for internal node management messages
-        runtime.SystemQueue.ShouldBeNull();
-        
+
         // verify that there's no persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldBeNull();
@@ -215,9 +197,6 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     public async Task start_in_mediator_mode()
     {
         var runtime = await withConfig(DurabilityMode.MediatorOnly);
-
-        // agent timer should be running
-        runtime.AgentTimer.ShouldBeNull();
 
         runtime.NodeController.ShouldBeNull();
 
@@ -230,10 +209,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should NOT start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldBeNull();
         runtime.ScheduledJobs.ShouldBeNull();
-        
-        // Should NOT have a system queue for internal node management messages
-        runtime.SystemQueue.ShouldBeNull();
-        
+
         // verify that there's no persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldBeNull();

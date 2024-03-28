@@ -1,10 +1,11 @@
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Wolverine.Runtime.Agents;
 
-internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand
+internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISerializable
 {
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         if (NodeId == runtime.Options.UniqueNodeId)
         {
@@ -17,7 +18,7 @@ internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand
 
         runtime.Tracker.Publish(new AgentStopped(AgentUri));
 
-        yield break;
+        return AgentCommands.Empty;
     }
 
     public virtual bool Equals(StopRemoteAgent? other)
@@ -43,5 +44,16 @@ internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand
     public override string ToString()
     {
         return $"{nameof(AgentUri)}: {AgentUri}, {nameof(NodeId)}: {NodeId}";
+    }
+    
+    public byte[] Write()
+    {
+        return NodeId.ToByteArray().Concat(Encoding.UTF8.GetBytes(AgentUri.ToString())).ToArray();
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        var agentUriString = Encoding.UTF8.GetString(bytes.Skip(16).ToArray());
+        return new StopRemoteAgent(new Uri(agentUriString), new Guid(bytes.Take(16).ToArray()));
     }
 }

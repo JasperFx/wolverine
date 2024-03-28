@@ -9,7 +9,7 @@ public partial class NodeAgentController
     
     public async Task StartSoloModeAsync()
     {
-        await _runtime.Storage.Nodes.ClearAllAsync(_cancellation);
+        await _runtime.Storage.Nodes.ClearAllAsync(_cancellation.Token);
         await _runtime.Storage.Admin.ReleaseAllOwnershipAsync();
         
         var current = WolverineNode.For(_runtime.Options);
@@ -25,7 +25,7 @@ public partial class NodeAgentController
             {
                 try
                 {
-                    await Task.Delay(_runtime.Options.Durability.CheckAssignmentPeriod, _cancellation);
+                    await Task.Delay(_runtime.Options.Durability.CheckAssignmentPeriod, _cancellation.Token);
                     await startAllAgentsAsync();
                 }
                 catch (OperationCanceledException)
@@ -33,7 +33,7 @@ public partial class NodeAgentController
                     // Just done
                 }
             }
-        }, _cancellation);
+        }, _cancellation.Token);
 
         HasStartedInSoloMode = true;
     }

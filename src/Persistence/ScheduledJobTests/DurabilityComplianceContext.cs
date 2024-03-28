@@ -29,6 +29,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
 
         var senderRegistry = new WolverineOptions();
+        senderRegistry.Durability.Mode = DurabilityMode.Solo;
         senderRegistry.Durability.ScheduledJobFirstExecution = 0.Seconds(); // Start immediately!
         senderRegistry.Durability.ScheduledJobPollingTime = 1.Seconds();
         senderRegistry.Services.ForSingletonOf<ILogger>().Use(NullLogger.Instance);
@@ -57,6 +58,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await theSender.ClearAllPersistedWolverineDataAsync();
 
         var receiverRegistry = new WolverineOptions();
+        receiverRegistry.Durability.Mode = DurabilityMode.Solo;
         receiverRegistry.Services.ForSingletonOf<ILogger>().Use(NullLogger.Instance);
         receiverRegistry.DisableConventionalDiscovery()
             .IncludeType<TTriggerHandler>()

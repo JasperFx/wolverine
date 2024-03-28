@@ -2,13 +2,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-public partial class NodeAgentController : IInternalHandler<NodeEvent>
+public partial class NodeAgentController 
 {
     // Do assignments one by one, agent by agent
-    public async IAsyncEnumerable<object> HandleAsync(NodeEvent @event)
+    public async Task<AgentCommands> ApplyNodeEventAsync(NodeEvent @event)
     {
         _logger.LogInformation("Processing node event {Type} from node {OtherId} in node {NodeNumber}", @event.Node.Id,
             @event.Type, _tracker.Self!.AssignedNodeId);
+
+        var commands = new AgentCommands();
 
         switch (@event.Type)
         {
@@ -18,7 +20,6 @@ public partial class NodeAgentController : IInternalHandler<NodeEvent>
                 if (_tracker.Self.IsLeader())
                 {
                     await _persistence.DeleteAsync(@event.Node.Id);
-                    await requestAssignmentEvaluationAsync();
                 }
                 else if (_tracker.Leader == null || _tracker.Leader.Id == @event.Node.Id)
                 {
@@ -26,11 +27,11 @@ public partial class NodeAgentController : IInternalHandler<NodeEvent>
 
                     if (candidate == null || candidate.AssignedNodeId > _tracker.Self.AssignedNodeId)
                     {
-                        yield return new TryAssumeLeadership();
+                        commands.Add(new TryAssumeLeadership());
                     }
                     else
                     {
-                        yield return new TryAssumeLeadership().ToNode(candidate);
+                        commands.Add(new TryAssumeLeadership{CandidateId = candidate.Id});
                     }
                 }
 
@@ -38,10 +39,6 @@ public partial class NodeAgentController : IInternalHandler<NodeEvent>
 
             case NodeEventType.Started:
                 _tracker.Add(@event.Node);
-                if (_tracker.Self.IsLeader())
-                {
-                    await requestAssignmentEvaluationAsync();
-                }
 
                 break;
 
@@ -57,5 +54,7 @@ public partial class NodeAgentController : IInternalHandler<NodeEvent>
 
         // If the call above succeeded, this is low risk
         _tracker.Publish(@event);
+
+        return commands;
     }
 }

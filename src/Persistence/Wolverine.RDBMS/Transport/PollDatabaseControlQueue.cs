@@ -24,14 +24,14 @@ internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
         _listener = listener;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         await _receiver.ReceivedAsync(_listener, _envelopes.ToArray());
 
         await _transport.DeleteEnvelopesAsync(_envelopes, cancellationToken);
 
-        yield break;
+        return AgentCommands.Empty;
     }
 
     public string Description { get; } = "Polling for new control messages";

@@ -80,13 +80,13 @@ internal class RecoverOutgoingMessagesCommand : IAgentCommand
         _logger = logger;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         // It's possible that this could happen between the command being created and executed
         if (_sendingAgent.Latched)
         {
-            yield break;
+            return AgentCommands.Empty;
         }
 
         var outgoing = await _database.Outbox.LoadOutgoingAsync(_sendingAgent.Destination);
@@ -101,5 +101,7 @@ internal class RecoverOutgoingMessagesCommand : IAgentCommand
         _logger.LogInformation(
             "Recovered {Count} messages from outbox for destination {Destination} while discarding {ExpiredCount} expired messages",
             good.Length, _sendingAgent.Destination, expiredMessages.Length);
+        
+        return AgentCommands.Empty;
     }
 }

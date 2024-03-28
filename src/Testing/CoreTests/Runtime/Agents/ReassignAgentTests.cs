@@ -6,16 +6,13 @@ namespace CoreTests.Runtime.Agents;
 
 public class ReassignAgentTests : IAsyncLifetime
 {
-    private List<object> theCascadingMessages;
+    private AgentCommands theCascadingMessages;
     private readonly ReassignAgent theCommand = new(new Uri("blue://one"), Guid.NewGuid(), Guid.NewGuid());
     private readonly MockWolverineRuntime theRuntime = new();
 
     public async Task InitializeAsync()
     {
-        var enumerable = theCommand.ExecuteAsync(theRuntime, CancellationToken.None);
-
-        theCascadingMessages = new List<object>();
-        await foreach (var message in enumerable) theCascadingMessages.Add(message);
+        theCascadingMessages = await theCommand.ExecuteAsync(theRuntime, CancellationToken.None);
 
         await theRuntime.Tracker.DrainAsync();
     }

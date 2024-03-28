@@ -45,14 +45,16 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
     private async Task<IHost> startHostAsync()
     {
         var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
-            {
-                opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
-                opts.UseRabbitMq().EnableWolverineControlQueues();
-                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
-                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
+        {
+            opts.Durability.HealthCheckPollingTime = 1.Seconds();
+                
+            opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
+            opts.UseRabbitMq().EnableWolverineControlQueues();
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
+            opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
-                opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            opts.Services.AddResourceSetupOnStartup();
+        }).StartAsync();
 
         new XUnitEventObserver(host, _output);
 
@@ -63,6 +65,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
 
     private async Task shutdownHostAsync(IHost host)
     {
+        host.GetRuntime().Agents.DisableHealthChecks();
         await host.StopAsync();
         _hosts.Remove(host);
     }

@@ -18,7 +18,8 @@ public class ReassignDormantNodes : IAgentCommand
 
     public string Description { get; } = "Reassigning persisted messages from obsolete nodes";
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         var sql =
             $"select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id > 0 union select distinct owner_id from {_database.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id > 0;";
@@ -28,6 +29,10 @@ public class ReassignDormantNodes : IAgentCommand
         var nodes = await _nodes.LoadAllNodeAssignedIdsAsync();
 
         var dormant = owners.Where(x => !nodes.Contains(x));
-        foreach (var owner in dormant) yield return new NodeRecoveryOperation(owner);
+
+        var commands = new AgentCommands();
+        commands.AddRange(dormant.Select(x => new NodeRecoveryOperation(x)));
+
+        return commands;
     }
 }

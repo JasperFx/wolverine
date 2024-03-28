@@ -18,7 +18,9 @@ public class UnknownWolverineNodeException : Exception
 public partial class WolverineRuntime : IAgentRuntime
 {
     private bool _agentsAreDisabled;
-    internal Timer? AgentTimer { get; private set; }
+    private Task? _healthCheckLoop;
+
+    private CancellationTokenSource _agentCancellation;
 
     public NodeAgentController? NodeController { get; private set; }
 
@@ -50,12 +52,12 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         if (Tracker.Self!.Id == nodeId)
         {
-            await new MessageBus(this).InvokeAsync(command, Cancellation);
+            await new MessageBus(this).InvokeAsync(command, _agentCancellation.Token);
         }
         else if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, Cancellation, 60.Seconds());
+            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, _agentCancellation.Token, 60.Seconds());
         }
         else
         {
@@ -67,13 +69,13 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         if (Tracker.Self!.Id == nodeId)
         {
-            return await new MessageBus(this).InvokeAsync<T>(command, Cancellation, 30.Seconds());
+            return await new MessageBus(this).InvokeAsync<T>(command, _agentCancellation.Token, 30.Seconds());
         }
 
         if (Tracker.Nodes.TryGetValue(nodeId, out var node))
         {
             var endpoint = node.ControlUri;
-            return await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync<T>(command, Cancellation, 60.Seconds());
+            return await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync<T>(command, _agentCancellation.Token, 60.Seconds());
         }
 
         throw new UnknownWolverineNodeException(nodeId);
@@ -86,7 +88,34 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public async Task KickstartHealthDetectionAsync()
     {
-        await new MessageBus(this).InvokeAsync(new CheckAgentHealth(), Options.Durability.Cancellation);
+        if (NodeController != null)
+        {
+            await new MessageBus(this).InvokeAsync(new CheckAgentHealth(), Options.Durability.Cancellation);
+        }
+    }
+
+    public Task<AgentCommands> DoHealthChecksAsync()
+    {
+        if (NodeController != null) return NodeController.DoHealthChecksAsync();
+        return Task.FromResult(AgentCommands.Empty);
+    }
+
+    public void DisableHealthChecks()
+    {
+        _agentCancellation.Cancel();
+        
+        if (_healthCheckLoop == null) return;
+
+        if (NodeController != null)
+        {
+            NodeController.CancelHeartbeatChecking();
+        }
+    }
+
+    public Task<AgentCommands> VerifyAssignmentsAsync()
+    {
+        if (NodeController != null) return NodeController.VerifyAssignmentsAsync();
+        return Task.FromResult(AgentCommands.Empty);
     }
 
     public IAgentRuntime Agents => this;
@@ -126,9 +155,7 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         DurableScheduledJobs = Storage.StartScheduledJobs(this);
     }
-
-    internal BufferedLocalQueue? SystemQueue { get; private set; }
-
+    
     internal IAgent? DurableScheduledJobs { get; private set; }
 
     private void startNodeAgentController()
@@ -138,53 +165,69 @@ public partial class WolverineRuntime : IAgentRuntime
             : new NullNodeAgentPersistence();
         
         NodeController = new NodeAgentController(this, Tracker, nodePersistence, _container.GetAllInstances<IAgentFamily>(),
-            LoggerFactory.CreateLogger<NodeAgentController>(), Options.Durability.Cancellation);
+            LoggerFactory.CreateLogger<NodeAgentController>(), _agentCancellation.Token);
 
         NodeController.AddHandlers(this);
     }
 
     private async Task startNodeAgentWorkflowAsync()
     {
-        SystemQueue = (BufferedLocalQueue)Endpoints.GetOrBuildSendingAgent(TransportConstants.SystemQueueUri);
-
-        var startingTime = new Random().Next(0, 2000);
-
-        var bus = new MessageBus(this);
-        await bus.InvokeAsync(new StartLocalAgentProcessing(Options), Cancellation);
-        
-        AgentTimer = new Timer(fireHealthCheck, null, startingTime.Milliseconds(),
-            Options.Durability.HealthCheckPollingTime);
-    }
-    
-    private void fireHealthCheck(object? state)
-    {
-        try
+        if (NodeController != null)
         {
-            SystemQueue!.EnqueueDirectly(new Envelope(new CheckAgentHealth())
+            var commands = await NodeController.StartLocalAgentProcessingAsync(Options);
+            foreach (var command in commands)
             {
-                Serializer = Options.DefaultSerializer,
-                Destination = TransportConstants.SystemQueueUri
-            });
+                await new MessageBus(this).PublishAsync(command);
+            }
         }
-        catch (Exception e)
+
+        _healthCheckLoop = Task.Run(executeHealthChecks, Cancellation);
+    }
+
+    private async Task executeHealthChecks()
+    {
+        await Task.Delay(Options.Durability.FirstHealthCheckExecution, Cancellation);
+
+        while (!Cancellation.IsCancellationRequested)
         {
-            // No earthly idea why this would happen, but real life and all
-            Logger.LogError(e, "Error trying to enqueue a CheckAgentHealth message");
+            await Task.Delay(Options.Durability.HealthCheckPollingTime, Cancellation);
+            
+            if (NodeController != null)
+            {
+                try
+                {
+
+                    var commands = await NodeController.DoHealthChecksAsync();
+                    var bus = new MessageBus(this);
+
+                    // TODO -- try to parallelize this later!!!
+                    while (commands.Any())
+                    {
+                        var command = commands.Pop();
+                        var additional = await bus.InvokeAsync<AgentCommands>(command, Cancellation);
+                        if (additional != null)
+                        {
+                            commands.AddRange(additional);
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Nothing here
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError(e, "Error trying to perform agent health checks");
+                }
+            }
         }
     }
 
     private async Task teardownAgentsAsync()
     {
-        if (AgentTimer != null)
+        if (_healthCheckLoop != null)
         {
-            try
-            {
-                await AgentTimer.DisposeAsync();
-            }
-            catch (Exception)
-            {
-                // Don't really care, make this stop
-            }
+            _healthCheckLoop.SafeDispose();
         }
 
         if (NodeController != null)
@@ -202,16 +245,9 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         _agentsAreDisabled = true;
         
-        if (AgentTimer != null)
+        if (_healthCheckLoop != null)
         {
-            try
-            {
-                await AgentTimer.DisposeAsync();
-            }
-            catch (Exception)
-            {
-                // Don't really care, make this stop
-            }
+            _healthCheckLoop.SafeDispose();
         }
 
         if (NodeController != null)
@@ -221,5 +257,32 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         NodeController = null;
+    }
+
+    public Task<AgentCommands> AssumeLeadershipAsync(Guid? currentLeaderId)
+    {
+        if (NodeController != null)
+        {
+            return NodeController.AssumeLeadershipAsync(currentLeaderId);
+        }
+        
+        return Task.FromResult(AgentCommands.Empty);
+    }
+
+    public Task<AgentCommands> ApplyNodeEvent(NodeEvent nodeEvent)
+    {
+        if (NodeController != null) return NodeController.ApplyNodeEventAsync(nodeEvent);
+
+        return Task.FromResult(AgentCommands.Empty);
+    }
+
+    public Task<AgentCommands> StartLocalAgentProcessingAsync()
+    {
+        if (NodeController != null)
+        {
+            return NodeController.StartLocalAgentProcessingAsync(Options);
+        }
+        
+        return Task.FromResult(AgentCommands.Empty);
     }
 }

@@ -29,20 +29,6 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         scheduledQueue.Mode = EndpointMode.Durable;
         scheduledQueue.Role = EndpointRole.System;
 
-
-        var systemQueue = _queues[TransportConstants.System];
-        systemQueue.TelemetryEnabled = false;
-        systemQueue.Role = EndpointRole.System;
-        systemQueue.ExecutionOptions.EnsureOrdered = true;
-        systemQueue.ExecutionOptions.MaxDegreeOfParallelism = 1;
-        systemQueue.Mode = EndpointMode.BufferedInMemory;
-
-        systemQueue.Subscriptions.Add(new Subscription
-        {
-            Scope = RoutingScope.Implements,
-            BaseType = typeof(IInternalMessage)
-        });
-
         var durableQueue = _queues[TransportConstants.Durable];
         durableQueue.Mode = EndpointMode.Durable;
         durableQueue.Role = EndpointRole.System;

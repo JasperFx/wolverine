@@ -22,7 +22,7 @@ public interface INodeAgentPersistence
     Task MarkHealthCheckAsync(Guid nodeId);
     Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId);
 
-
+    [Obsolete("Will be removed in Wolverine 3.0")]
     Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime, CancellationToken cancellation);
     Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime);
     Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync();

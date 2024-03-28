@@ -104,8 +104,8 @@ internal class RecoverableIncomingMessagesOperation : IAgentCommand
         _logger = logger;
     }
 
-    public async IAsyncEnumerable<object> ExecuteAsync(IWolverineRuntime runtime,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
+        CancellationToken cancellationToken)
     {
         var pageSize = DeterminePageSize(_circuit, _count, _settings);
         if (pageSize == 0)
@@ -113,7 +113,7 @@ internal class RecoverableIncomingMessagesOperation : IAgentCommand
             _logger.LogInformation(
                 "Unable to recover inbox messages to destination {Destination}. Listener has status {Status} and queued count {QueuedCount}",
                 _count.Destination, _circuit.Status, _circuit.QueueCount);
-            yield break;
+            return AgentCommands.Empty;
         }
 
         var envelopes = await _database.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
@@ -129,8 +129,10 @@ internal class RecoverableIncomingMessagesOperation : IAgentCommand
         {
             var count = _count with { Count = _count.Count - pageSize };
 
-            yield return new RecoverableIncomingMessagesOperation(_database, count, _circuit, _settings, _logger);
+            return [new RecoverableIncomingMessagesOperation(_database, count, _circuit, _settings, _logger)];
         }
+        
+        return AgentCommands.Empty;
     }
 
     public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count,

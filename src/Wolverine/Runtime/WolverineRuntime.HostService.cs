@@ -37,6 +37,8 @@ public partial class WolverineRuntime
             Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
             Storage.Initialize(this);
             
+            _agentCancellation = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
+            
             // This MUST be done before the messaging transports are started up
             _hasStarted = true; // Have to do this before you can use MessageBus
             await startAgentsAsync();
@@ -112,11 +114,16 @@ public partial class WolverineRuntime
         {
             return;
         }
+        
+        _agentCancellation.Cancel();
 
         _hasStopped = true;
 
         // This is important!
         _container.As<Container>().DisposalLock = DisposalLock.Unlocked;
+
+        // Latch health checks ASAP
+        DisableHealthChecks();
 
         await Storage.DrainAsync();
 

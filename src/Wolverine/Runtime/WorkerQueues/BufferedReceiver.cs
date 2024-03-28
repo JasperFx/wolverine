@@ -66,7 +66,6 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             }
         }, endpoint.ExecutionOptions);
 
-
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
             _deadLetterSender = dlq;

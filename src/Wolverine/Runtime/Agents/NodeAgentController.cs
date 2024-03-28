@@ -1,17 +1,7 @@
-using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.Agents;
-
-internal interface IInternalMessage
-{
-}
-
-public record StartLocalAgentProcessing(WolverineOptions Options) : IInternalMessage;
-
-public record EvaluateAssignments : IInternalMessage;
 
 public partial class NodeAgentController
 {
@@ -20,9 +10,7 @@ public partial class NodeAgentController
     private readonly Dictionary<string, IAgentFamily>
         _agentFamilies = new();
 
-    private readonly ActionBlock<EvaluateAssignments[]> _assignmentBlock;
-    private readonly BatchingBlock<EvaluateAssignments> _assignmentBufferBlock;
-    private readonly CancellationToken _cancellation;
+    private readonly CancellationTokenSource _cancellation;
     private readonly ILogger _logger;
     private readonly INodeAgentPersistence _persistence;
 
@@ -30,6 +18,10 @@ public partial class NodeAgentController
     private readonly INodeStateTracker _tracker;
 
     private ImHashMap<Uri, IAgent> _agents = ImHashMap<Uri, IAgent>.Empty;
+    
+    // May be valuable later
+    private DateTimeOffset? _lastAssignmentCheck;
+
 
     internal NodeAgentController(IWolverineRuntime runtime, INodeStateTracker tracker,
         INodeAgentPersistence persistence,
@@ -45,19 +37,8 @@ public partial class NodeAgentController
             _agentFamilies[agentFamily.Scheme] = agentFamily;
         }
 
-        _cancellation = cancellation;
+        _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         _logger = logger;
-
-        _assignmentBlock = new ActionBlock<EvaluateAssignments[]>(
-            async _ =>
-            {
-                await new MessageBus(runtime).PublishAsync(new EvaluateAssignments());
-            },
-            new ExecutionDataflowBlockOptions { CancellationToken = runtime.Cancellation });
-
-        _assignmentBufferBlock =
-            new BatchingBlock<EvaluateAssignments>(runtime.Options.Durability.EvaluateAssignmentBufferTime,
-                _assignmentBlock);
     }
 
     public bool HasStartedInSoloMode { get; private set; }
@@ -66,13 +47,6 @@ public partial class NodeAgentController
     internal void AddHandlers(WolverineRuntime runtime)
     {
         var handlers = runtime.Handlers;
-        handlers.AddMessageHandler(typeof(NodeEvent), new InternalMessageHandler<NodeEvent>(this));
-        handlers.AddMessageHandler(typeof(StartLocalAgentProcessing),
-            new InternalMessageHandler<StartLocalAgentProcessing>(this));
-        handlers.AddMessageHandler(typeof(EvaluateAssignments), new InternalMessageHandler<EvaluateAssignments>(this));
-        handlers.AddMessageHandler(typeof(TryAssumeLeadership), new InternalMessageHandler<TryAssumeLeadership>(this));
-        handlers.AddMessageHandler(typeof(CheckAgentHealth), new InternalMessageHandler<CheckAgentHealth>(this));
-        handlers.AddMessageHandler(typeof(VerifyAssignments), new InternalMessageHandler<VerifyAssignments>(this));
 
         handlers.RegisterMessageType(typeof(StartAgent));
         handlers.RegisterMessageType(typeof(StartAgents));
@@ -81,7 +55,8 @@ public partial class NodeAgentController
         handlers.RegisterMessageType(typeof(StopAgent));
         handlers.RegisterMessageType(typeof(StopAgents));
         handlers.RegisterMessageType(typeof(QueryAgents));
-        handlers.RegisterMessageType(typeof(RunningAgents));
+        handlers.RegisterMessageType(typeof(NodeEvent));
+        handlers.RegisterMessageType(typeof(TryAssumeLeadership));
     }
 
     public async Task StopAsync(IMessageBus messageBus)
@@ -170,14 +145,15 @@ public partial class NodeAgentController
         var agent = await findAgentAsync(agentUri);
         try
         {
-            await agent.StartAsync(_cancellation);
+            await agent.StartAsync(_cancellation.Token);
             await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStarted,
                 agentUri));
 
             // Need to update the current node
             _tracker.Publish(new AgentStarted(_runtime.Options.UniqueNodeId, agentUri));
 
-            _logger.LogInformation("Successfully started agent {AgentUri} on Node {NodeNumber}", agentUri, _runtime.Options.Durability.AssignedNodeNumber);
+            _logger.LogInformation("Successfully started agent {AgentUri} on Node {NodeNumber}", agentUri,
+                _runtime.Options.Durability.AssignedNodeNumber);
         }
         catch (Exception e)
         {
@@ -188,7 +164,7 @@ public partial class NodeAgentController
 
         try
         {
-            await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation);
+            await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation.Token);
         }
         catch (Exception e)
         {
@@ -199,15 +175,13 @@ public partial class NodeAgentController
 
     public async Task StopAgentAsync(Uri agentUri)
     {
-        _assignmentBufferBlock.Complete();
-        _assignmentBlock.Complete();
-
         if (_agents.TryFind(agentUri, out var agent))
         {
             try
             {
-                await agent.StopAsync(_cancellation);
-                _logger.LogInformation("Successfully stopped agent {AgentUri} on node {NodeNumber}", agentUri, _runtime.Options.Durability.AssignedNodeNumber);
+                await agent.StopAsync(_cancellation.Token);
+                _logger.LogInformation("Successfully stopped agent {AgentUri} on node {NodeNumber}", agentUri,
+                    _runtime.Options.Durability.AssignedNodeNumber);
                 await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStopped,
                     agentUri));
             }
@@ -221,7 +195,7 @@ public partial class NodeAgentController
 
         try
         {
-            await _persistence.RemoveAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation);
+            await _persistence.RemoveAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation.Token);
         }
         catch (Exception e)
         {
@@ -247,7 +221,6 @@ public partial class NodeAgentController
 
         _agents = ImHashMap<Uri, IAgent>.Empty;
     }
-
 
 }
 
