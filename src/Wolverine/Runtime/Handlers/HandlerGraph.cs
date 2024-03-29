@@ -274,7 +274,7 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
                 return;
             }
 
-            _calls.Where(x => x.MessageType.IsConcrete())
+            _calls
                 .GroupBy(x => x.MessageType)
                 .Select(buildHandlerChain)
                 .Each(chain => { _chains = _chains.AddOrUpdate(chain.MessageType, chain); });

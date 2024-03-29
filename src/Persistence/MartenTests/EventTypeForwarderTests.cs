@@ -4,13 +4,13 @@ using Wolverine.Marten;
 
 namespace MartenTests;
 
-public class EventTypeForwarderTests
+public class EventWrapperForwarderTests
 {
     [Fact]
     public void positive_forward()
     {
         var messageType = typeof(FakeEvent<SecondEvent>);
-        var forwarder = new EventTypeForwarder();
+        var forwarder = new EventWrapperForwarder();
         forwarder.TryFindHandledType(messageType, out var actual)
             .ShouldBeTrue();
         
@@ -20,7 +20,7 @@ public class EventTypeForwarderTests
     [Fact]
     public void negative_forwarding()
     {
-        var forwarder = new EventTypeForwarder();
+        var forwarder = new EventWrapperForwarder();
         forwarder.TryFindHandledType(typeof(SecondEvent), out var actual)
             .ShouldBeFalse();
     }

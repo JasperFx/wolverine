@@ -13,6 +13,7 @@ using TestingSupport;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Marten;
+using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Xunit.Abstractions;
@@ -105,6 +106,18 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
     }
 
     [Fact]
+    public void routing_for_event_type_where_we_handle_IEvent_of_T()
+    {
+        var runtime = theSender.GetRuntime();
+
+        runtime.RoutingFor(typeof(IEvent<FifthEvent>)).Routes.Single().ShouldBeOfType<MessageRoute>()
+            .IsLocal.ShouldBeTrue();
+        
+        var routes = runtime.RoutingFor(typeof(FakeEvent<FifthEvent>)).Routes;
+        routes.Single().ShouldBeOfType<MessageRoute>().MessageType.ShouldBe(typeof(IEvent<FifthEvent>));
+    }
+
+    [Fact]
     public async Task event_should_be_published_from_sender_to_receiver()
     {
         var command = new TriggerCommand();
@@ -119,6 +132,9 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             .Sequence.ShouldBeGreaterThan(0);
 
         results.Executed.SingleMessage<ThirdEvent>().ShouldNotBeNull();
+        
+        // Can also use IEvent<T> as your handler type!!!
+        results.Executed.SingleMessage<IEvent<FifthEvent>>().ShouldNotBeNull();
     }
 
     #region sample_execution_of_forwarded_events_can_be_awaited_from_tests
@@ -164,11 +180,16 @@ public class TriggerHandler
     [Transactional]
     public void Handle(TriggerCommand command, IDocumentSession session)
     {
-        session.Events.StartStream(command.Id, new TriggeredEvent { Id = command.Id }, new SecondEvent(), new ThirdEvent());
+        session.Events.StartStream(command.Id, new TriggeredEvent { Id = command.Id }, new SecondEvent(), new ThirdEvent(), new FifthEvent());
     }
 
     public void Handle(ThirdEvent e)
     {
+    }
+
+    public void Handle(IEvent<FifthEvent> e)
+    {
+        
     }
 }
 
@@ -181,6 +202,7 @@ public class SecondEvent
 
 public class ThirdEvent{}
 public class FourthEvent{}
+public class FifthEvent{}
 
 public class TriggeredEvent
 {

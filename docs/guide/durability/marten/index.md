@@ -472,10 +472,6 @@ IoC container.
 
 See the [Saga with Marten sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderSagaSample).
 
-## Event Store & CQRS Support
-
-
-
 
 
 

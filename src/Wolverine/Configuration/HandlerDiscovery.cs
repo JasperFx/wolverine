@@ -12,7 +12,7 @@ public sealed partial class HandlerDiscovery
 {
     private readonly IList<Type> _explicitTypes = new List<Type>();
 
-    private readonly TypeQuery _messageQuery = new(TypeClassification.Concretes | TypeClassification.Closed);
+    private readonly TypeQuery _messageQuery = new(TypeClassification.Concretes| TypeClassification.Closed);
 
     private readonly string[] _validMethods =
     {
@@ -33,6 +33,7 @@ public sealed partial class HandlerDiscovery
         _messageQuery.Includes.Implements<IMessage>();
         _messageQuery.Includes.WithAttribute<WolverineMessageAttribute>();
         _messageQuery.Excludes.IsNotPublic();
+        _messageQuery.Includes.WithCondition("Is concrete", x => x.IsConcrete());
     }
 
     internal JasperFx.Core.Filters.CompositeFilter<MethodInfo> MethodIncludes { get; } = new();
@@ -40,7 +41,6 @@ public sealed partial class HandlerDiscovery
     internal JasperFx.Core.Filters.CompositeFilter<MethodInfo> MethodExcludes { get; } = new();
 
     internal TypeQuery HandlerQuery { get; } = new(TypeClassification.Concretes | TypeClassification.Closed);
-
 
     internal IList<Assembly> Assemblies { get; } = new List<Assembly>();
 
@@ -118,6 +118,12 @@ public sealed partial class HandlerDiscovery
         configure(HandlerQuery);
         return this;
     }
+
+    /// <summary>
+    /// Customize rules for what Wolverine does or does not consider a valid message type
+    /// Advanced usage!
+    /// </summary>
+    public TypeQuery MessageQuery => _messageQuery;
 
     /// <summary>
     ///     Disables *all* conventional discovery of message handlers from type scanning. This is mostly useful for

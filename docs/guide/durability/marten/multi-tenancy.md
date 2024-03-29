@@ -143,7 +143,7 @@ public static class CreateTenantDocumentHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L86-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_multi_tenancy_sample_code' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L87-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_multi_tenancy_sample_code' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For completeness, here's the Wolverine and Marten bootstrapping:
@@ -208,7 +208,7 @@ public async Task execute_with_tenancy()
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L43-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L44-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

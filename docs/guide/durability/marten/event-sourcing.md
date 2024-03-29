@@ -41,7 +41,7 @@ public class Order
     // This would be the stream id
     public Guid Id { get; set; }
 
-    // This is important; by Marten convention, this would
+    // This is important, by Marten convention this would
     // be the
     public int Version { get; set; }
 
@@ -54,15 +54,11 @@ public class Order
     public void Apply(IEvent<OrderShipped> shipped)
     {
         Shipped = shipped.Timestamp;
-
-        Version++;
     }
 
     public void Apply(ItemReady ready)
     {
         Items[ready.Name].Ready = true;
-
-        Version++;
     }
 
     public bool IsReadyToShip()
@@ -115,7 +111,9 @@ public async Task Post(
 
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
-        // Mark that this item is ready
+        item.Ready = true;
+
+        // Mark that the this item is ready
         stream.AppendOne(new ItemReady(command.ItemName));
     }
     else
@@ -130,7 +128,7 @@ public async Task Post(
         // Publish a cascading command to do whatever it takes
         // to actually ship the order
         // Note that because the context here is enrolled in a Wolverine
-        // outbox, the message is registered but not "released" to
+        // outbox, the message is registered, but not "released" to
         // be sent out until SaveChangesAsync() is called down below
         await outbox.PublishAsync(new ShipOrder(command.OrderId));
         stream.AppendOne(new OrderReady());
@@ -161,7 +159,11 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
 {
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
-        // Mark that this item is ready
+        // Not doing this in a purist way here, but just
+        // trying to illustrate the Wolverine mechanics
+        item.Ready = true;
+
+        // Mark that the this item is ready
         yield return new ItemReady(command.ItemName);
     }
     else
@@ -245,7 +247,11 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
 
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
-        // Mark that this item is ready
+        // Not doing this in a purist way here, but just
+        // trying to illustrate the Wolverine mechanics
+        item.Ready = true;
+
+        // Mark that the this item is ready
         stream.AppendOne(new ItemReady(command.ItemName));
     }
     else
@@ -288,7 +294,7 @@ Here's an alternative to the `MarkItemReady` handler that uses `Events`:
 public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
 {
     // All contrived, let's say we need to call some 
-    // kind of service to get data, so this handler has to be
+    // kind of service to get data so this handler has to be
     // async
     var data = await service.FindDataAsync();
 
@@ -297,7 +303,11 @@ public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady c
     
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
-        // Mark that this item is ready
+        // Not doing this in a purist way here, but just
+        // trying to illustrate the Wolverine mechanics
+        item.Ready = true;
+
+        // Mark that the this item is ready
         events += new ItemReady(command.ItemName);
     }
     else
@@ -358,7 +368,12 @@ public class MarkItemReady
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L8-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-## Publishing Events
+## Forwarding Events
+
+::: tip
+As of Wolverine 2.2, you can use `IEvent<T>` as the message type in a handler as part of the event forwarding when you
+need to utilize Marten metadata
+:::
 
 ::: warning
 The Wolverine team recommends against combining this functionality with **also** using events as either a handler response
@@ -368,7 +383,15 @@ instead of the raw event types when using the event forwarding.
 
 You can also opt to automatically publish any event types captured by Marten through Wolverine's persistent
 outbox. Do note that only event types that have a matching subscription in the Wolverine configuration
-will actually be published.
+will actually be published. To be clear, this will work for:
+
+* Any event type where the Wolverine application has a message handler for either the event type itself, or `IEvent<T>` where `T` is the event type
+* Any event type where there is a known message subscription for that event type or its wrapping `IEvent<T>` to an external transport
+
+Timing wise, the "event forwarding" happens at the time of committing the transaction for the original message that spawned the
+new events, and the resulting event messages go out as cascading messages only after the original transaction succeeds -- just
+like any other outbox usage. **There is no guarantee about ordering in this case.** Instead, Wolverine is trying to have these
+events processed as soon as possible. 
 
 To opt into this feature, chain the Wolverine `AddMarten().EventForwardingToWolverine()` call as
 shown in this application bootstrapping sample shown below:
@@ -406,7 +429,7 @@ builder.Services.AddMarten(opts =>
     // I added this to enroll Marten in the Wolverine outbox
     .IntegrateWithWolverine()
 
-    // I also added this to opt into events being forwarded to
+    // I also added this to opt into events being forward to
     // the Wolverine outbox during SaveChangesAsync()
     .EventForwardingToWolverine();
 ```
@@ -431,7 +454,7 @@ builder.Host.UseWolverine(opts =>
     // up to 3 times total
     opts.Policies.OnException<ConcurrencyException>().RetryTimes(3);
 
-    // It's an imperfect world and sometimes transient connectivity errors
+    // It's an imperfect world, and sometimes transient connectivity errors
     // to the database happen
     opts.Policies.OnException<NpgsqlException>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
@@ -460,7 +483,7 @@ public static Task<ITrackedSession> SaveInMartenAndWaitForOutgoingMessagesAsync(
         action(session);
         await session.SaveChangesAsync();
         
-        // Shouldn't be necessary, but real life says to do it anyway
+        // Shouldn't be necessary, but real life says do it anyway
         await context.As<MessageContext>().FlushOutgoingMessagesAsync();
     }, timeoutInMilliseconds);
 }
@@ -502,7 +525,7 @@ public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
     events[1].Data.ShouldBeOfType<FourthEvent>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L121-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L144-L173' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Where the result contains `FourthEvent` because `SecondEvent` was forwarded as `SecondMessage` and that persisted `FourthEvent` in a handler such as:
@@ -517,5 +540,5 @@ public static Task HandleAsync(SecondMessage message, IDocumentSession session)
     return session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L197-L203' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L226-L232' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
