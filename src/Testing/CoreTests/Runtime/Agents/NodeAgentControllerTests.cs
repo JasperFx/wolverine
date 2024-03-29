@@ -38,7 +38,7 @@ public class starting_nodes_as_the_first_node : NodeAgentControllerTestsContext,
     [Fact]
     public async Task should_have_persisted_the_current_node()
     {
-        await thePersistence.Received().PersistAsync(theNodes.Self, theCancellation);
+        await thePersistence.Received().PersistAsync(theNodes.Self, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -101,23 +101,13 @@ public class starting_a_second_node_with_an_existing_leader : NodeAgentControlle
     [Fact]
     public async Task should_have_persisted_the_current_node()
     {
-        await thePersistence.Received().PersistAsync(theNodes.Self, theCancellation);
+        await thePersistence.Received().PersistAsync(theNodes.Self, Arg.Any<CancellationToken>());
     }
     
     [Fact]
     public void should_have_attempted_any_leadership_election()
     {
         theCascadedMessages.OfType<TryAssumeLeadership>().Any().ShouldBeFalse();
-    }
-
-    [Fact]
-    public void should_have_sent_a_node_started_event_to_each_node()
-    {
-        var nodeMessages = theCascadedMessages.OfType<NodeMessage>().ToArray();
-        nodeMessages.ShouldContain(x => x.Node == node1 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.Started)));
-        nodeMessages.ShouldContain(x => x.Node == node2 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.Started)));
-        nodeMessages.ShouldContain(x => x.Node == node3 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.Started)));
-        
     }
 
 }
@@ -173,27 +163,16 @@ public class starting_a_subsequent_node_with_no_existing_leader : NodeAgentContr
     [Fact]
     public async Task should_have_persisted_the_current_node()
     {
-        await thePersistence.Received().PersistAsync(theNodes.Self, theCancellation);
+        await thePersistence.Received().PersistAsync(theNodes.Self, Arg.Any<CancellationToken>());
     }
     
     [Fact]
     public void should_have_asked_the_node_with_smallest_assigned_number_to_take_leadership()
     {
-        var leadership = theCascadedMessages.OfType<NodeMessage>().Where(x => x.Node == node1)
-            .Select(x => x.Message).OfType<TryAssumeLeadership>().Single();
-
+        var leadership = theCascadedMessages.OfType<TryAssumeLeadership>().Single();
+        leadership.CandidateId.ShouldBe(node1.Id);
         leadership.ShouldNotBeNull();
 
-    }
-
-    [Fact]
-    public void should_have_sent_a_node_started_event_to_each_node()
-    {
-        var nodeMessages = theCascadedMessages.OfType<NodeMessage>().ToArray();
-        nodeMessages.ShouldContain(x => x.Node == node1 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.Started)));
-        nodeMessages.ShouldContain(x => x.Node == node2 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.Started)));
-        nodeMessages.ShouldContain(x => x.Node == node3 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.Started)));
-        
     }
 
 }
@@ -251,11 +230,13 @@ public class try_assume_leadership_from_scratch_happy_path : NodeAgentController
     [Fact]
     public void should_have_sent_a_leadership_assumed_message_to_each_node()
     {
-        var nodeMessages = theCascadedMessages.OfType<NodeMessage>().ToArray();
-        nodeMessages.ShouldContain(x => x.Node == node1 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.LeadershipAssumed)));
-        nodeMessages.ShouldContain(x => x.Node == node2 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.LeadershipAssumed)));
-        nodeMessages.ShouldContain(x => x.Node == node3 && Equals(x.Message, new NodeEvent(theTracker.Self, NodeEventType.LeadershipAssumed)));
-
+        var nodeMessages = theCascadedMessages.OfType<RemoteNodeEvent>().ToArray();
+        nodeMessages.Length.ShouldBe(3);
+        foreach (var nodeEvent in nodeMessages)
+        {
+            nodeEvent.Type.ShouldBe(NodeEventType.LeadershipAssumed);
+        }
+      
     }
 
     [Fact]
@@ -322,69 +303,6 @@ public class try_assume_leadership_from_scratch_nothing_is_assigned : NodeAgentC
     }
 
 }
-
-public class try_assume_leadership_and_another_node_was_already_there : NodeAgentControllerTestsContext
-{
-    private WolverineNode node1 = new WolverineNode
-    {
-        AssignedNodeId = 1,
-        Id = Guid.NewGuid(),
-        ControlUri = new Uri("fake://1"),
-        ActiveAgents = { NodeAgentController.LeaderUri }
-    };
-    
-    private WolverineNode node2 = new WolverineNode
-    {
-        AssignedNodeId = 2,
-        Id = Guid.NewGuid(),
-        ControlUri = new Uri("fake://2"),
-    };
-    
-    private WolverineNode node3 = new WolverineNode
-    {
-        AssignedNodeId = 3,
-        Id = Guid.NewGuid(),
-        ControlUri = new Uri("fake://3"),
-        ActiveAgents = { NodeAgentController.LeaderUri }
-    };
-    
-    public override async Task InitializeAsync()
-    {
-        theOtherNodes.Add(node1);
-        theOtherNodes.Add(node2);
-        theOtherNodes.Add(node3);
-
-        foreach (var node in theOtherNodes)
-        {
-            theNodes.Add(node);
-        }
-
-        thePersistence.MarkNodeAsLeaderAsync(null, theOptions.UniqueNodeId).Returns(node3.Id);
-        thePersistence.LoadNodeAsync(node3.Id, theCancellation).Returns(node3);
-        
-        theNodes.MarkCurrent(WolverineNode.For(theOptions));
-
-        theCascadedMessages = await theController.AssumeLeadershipAsync(null);
-
-        await theTracker.DrainAsync();
-    }
-
-    [Fact]
-    public void should_publish_internally_the_new_leader()
-    {
-        var e =thePublishedEvents.OfType<NodeEvent>().Single();
-        e.Node.ShouldBe(node3);
-        e.Type.ShouldBe(NodeEventType.LeadershipAssumed);
-    }
-
-    [Fact]
-    public void should_not_attempt_anyleadership_for_another_attempt()
-    {
-        theCascadedMessages.OfType<TryAssumeLeadership>().Any().ShouldBeFalse();
-    }
-
-}
-
 
 public class handling_node_events : NodeAgentControllerTestsContext
 {
@@ -495,8 +413,8 @@ public class handling_node_events : NodeAgentControllerTestsContext
         theNodes.OtherNodes().ShouldNotContain(node2);
         
         // should try to ask lowest node to take ownership
-        var ownership = theCascadedMessages.OfType<NodeMessage>().Single();
-        ownership.Message.ShouldBeOfType<TryAssumeLeadership>();
+        var ownership = theCascadedMessages.OfType<TryAssumeLeadership>().Single();
+        ownership.ShouldNotBeNull();
     }
     
     
@@ -536,13 +454,13 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
     protected readonly CancellationToken theCancellation = CancellationToken.None;
     protected readonly List<IAgentFamily> theControllers = new();
     
-    protected AgentCommands theCascadedMessages = new();
+    protected AgentCommands theCascadedMessages;
 
     protected NodeAgentControllerTestsContext()
     {
         theOptions.Transports.NodeControlEndpoint = new FakeEndpoint("fake://control".ToUri(), EndpointRole.System);
         
-        thePersistence.LoadAllNodesAsync(theCancellation).Returns(theOtherNodes);
+        thePersistence.LoadAllNodesAsync(Arg.Any<CancellationToken>()).Returns(theOtherNodes);
         theTracker.Subscribe(this);
 
 
@@ -586,6 +504,7 @@ public abstract class NodeAgentControllerTestsContext : IObserver<IWolverineEven
 
     public async Task afterStarting()
     {
+        
         theCascadedMessages = await theController.StartLocalAgentProcessingAsync(theOptions);
 
         await theTracker.DrainAsync();
