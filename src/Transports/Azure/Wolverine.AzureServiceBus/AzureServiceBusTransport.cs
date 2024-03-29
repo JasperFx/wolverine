@@ -95,6 +95,14 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
     }
 
+    public override Endpoint? ReplyEndpoint()
+    {
+        var replies = base.ReplyEndpoint();
+        if (replies is AzureServiceBusQueue) return replies;
+
+        return null;
+    }
+
     internal AzureServiceBusQueue? RetryQueue { get; set; }
 
     protected override IEnumerable<Endpoint> explicitEndpoints()
