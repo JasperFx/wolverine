@@ -1,3 +1,5 @@
+using JasperFx.Core.Reflection;
+
 namespace Wolverine.Runtime.Agents;
 
 /// <summary>
@@ -26,5 +28,20 @@ public class AgentCommands : List<IAgentCommand>, ISendMyself
         var command = this[0];
         Remove(command);
         return command;
+    }
+}
+
+internal class AgentCommandHandledTypeRule : IHandledTypeRule
+{
+    public bool TryFindHandledType(Type concreteType, out Type handlerType)
+    {
+        if (concreteType.CanBeCastTo(typeof(IAgentCommand)))
+        {
+            handlerType = typeof(IAgentCommand);
+            return true;
+        }
+
+        handlerType = default;
+        return false;
     }
 }

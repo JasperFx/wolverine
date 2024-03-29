@@ -360,13 +360,9 @@ public class MarkItemReady
 
 ## Publishing Events
 
-::: tip
-This functionality is *brand-spanking new* and will likely be enhanced after user feedback.
-:::
-
 ::: warning
 The Wolverine team recommends against combining this functionality with **also** using events as either a handler response
-or cascaded messages as the behavior can easily become confusing. Instead, prefer using custom types for handler responses
+or cascaded messages as the behavior can easily become confusing. Instead, prefer using custom types for handler responses or HTTP response bodies
 instead of the raw event types when using the event forwarding.
 :::
 

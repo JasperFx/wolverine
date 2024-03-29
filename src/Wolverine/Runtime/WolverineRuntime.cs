@@ -159,11 +159,14 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     {
         try
         {
-            if (messageType.CanBeCastTo<IAgentCommand>())
+            foreach (var rule in Options.HandledTypeRules)
             {
-                return this.As<IExecutorFactory>().BuildFor(typeof(IAgentCommand));
+                if (rule.TryFindHandledType(messageType, out var handledType))
+                {
+                    return this.As<IExecutorFactory>().BuildFor(handledType);
+                }
             }
-            
+
             if (Options.HandlerGraph.CanHandle(messageType))
             {
                 return this.As<IExecutorFactory>().BuildFor(messageType);
