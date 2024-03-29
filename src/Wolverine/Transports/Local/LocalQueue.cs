@@ -44,7 +44,7 @@ public class LocalQueue : Endpoint
         Compile(runtime);
 
         Agent = BuildAgent(runtime);
-
+        
         return Agent;
     }
 

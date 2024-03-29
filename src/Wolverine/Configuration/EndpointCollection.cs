@@ -23,6 +23,7 @@ public interface IEndpointCollection : IAsyncDisposable
     Task StartListenersAsync();
     LocalQueue? LocalQueueForMessageType(Type messageType);
     IEnumerable<ISendingAgent> ActiveSendingAgents();
+    ISendingAgent? AgentForLocalQueue(Uri uri);
 }
 
 public class EndpointCollection : IEndpointCollection
@@ -119,6 +120,11 @@ public class EndpointCollection : IEndpointCollection
             agent = buildSendingAgent(address, configureNewEndpoint);
             _senders = _senders.AddOrUpdate(address, agent);
 
+            if (agent is DurableLocalQueue || agent is BufferedLocalQueue)
+            {
+                _localSenders = _localSenders.AddOrUpdate(LocalTransport.QueueName(address), agent);
+            }
+
             return agent;
         }
     }
@@ -142,6 +148,17 @@ public class EndpointCollection : IEndpointCollection
         _localSenders = _localSenders.AddOrUpdate(queueName, agent);
 
         return agent;
+    }
+
+    public ISendingAgent? AgentForLocalQueue(Uri uri)
+    {
+        if (_senders.TryFind(uri, out var agent))
+        {
+            return agent;
+        }
+        
+        var queueName = LocalTransport.QueueName(uri);
+        return AgentForLocalQueue(queueName);
     }
 
     public Endpoint? EndpointByName(string endpointName)
@@ -257,5 +274,20 @@ public class EndpointCollection : IEndpointCollection
                 _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in local sender {Queue}", queue);
             }
         }
+    }
+
+    internal void StoreSendingAgent(ISendingAgent agent)
+    {
+        _senders = _senders.AddOrUpdate(agent.Destination, agent);
+
+        if (agent is DurableLocalQueue || agent is BufferedLocalQueue)
+        {
+            _localSenders = _localSenders.AddOrUpdate(LocalTransport.QueueName(agent.Destination), agent);
+        }
+    }
+
+    public bool HasSender(Uri uri)
+    {
+        return _senders.Contains(uri);
     }
 }

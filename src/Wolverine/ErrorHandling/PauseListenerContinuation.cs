@@ -22,7 +22,7 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
         if (destination?.Scheme == "local")
         {
             // This will only work for durable, local queues
-            agent = runtime.Endpoints.GetOrBuildSendingAgent(destination) as IListenerCircuit;
+            agent = runtime.Endpoints.AgentForLocalQueue(destination) as IListenerCircuit;
         }
         else
         {
@@ -33,17 +33,12 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
         {
             activity?.AddEvent(new ActivityEvent(WolverineTracing.PausedListener));
 
-#pragma warning disable VSTHRD110
-            Task.Factory.StartNew(() =>
-#pragma warning restore VSTHRD110
-                agent.PauseAsync(PauseTime), CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
+            return agent.PauseAsync(PauseTime);
         }
-        else
-        {
-            runtime.Logger.LogInformation(
-                "Unable to pause listening endpoint {Destination}. Is this a local queue that is not durable?",
-                destination);
-        }
+
+        runtime.Logger.LogInformation(
+            "Unable to pause listening endpoint {Destination}. Is this a local queue that is not durable?",
+            destination);
 
         return ValueTask.CompletedTask;
     }

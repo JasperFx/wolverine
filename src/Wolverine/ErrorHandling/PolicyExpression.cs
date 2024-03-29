@@ -89,7 +89,10 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
     public IAdditionalActions AndPauseProcessing(TimeSpan pauseTime)
     {
-        foreach (var slot in _slots) slot.AddAdditionalSource(new PauseListenerContinuation(pauseTime));
+        foreach (var slot in _slots)
+        {
+            slot.InsertSourceAtTop(new PauseListenerContinuation(pauseTime));
+        }
 
         return this;
     }

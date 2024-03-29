@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
@@ -83,6 +84,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         {
             try
             {
+                _receiver.Latch();
                 await _receiver.DrainAsync();
             }
             catch (Exception e)
@@ -94,7 +96,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _receiver = null;
 
         CircuitBreaker?.Reset();
-
+        
         _runtime.Tracker.Publish(
             new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
 
@@ -136,6 +138,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     async ValueTask IReceiver.DrainAsync()
     {
+        _receiver.Latch();
         await _storeAndEnqueue.DrainAsync();
         await _receiver!.DrainAsync();
     }
