@@ -41,6 +41,15 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
     }
 }
 
+internal class EventTypeForwarder : IHandledTypeRule
+{
+    public bool TryFindHandledType(Type concreteType, out Type handlerType)
+    {
+        handlerType = concreteType.FindInterfaceThatCloses(typeof(IEvent<>));
+        return handlerType != null;
+    }
+}
+
 internal class MartenEventRouter : IMessageRouteSource
 {
     
