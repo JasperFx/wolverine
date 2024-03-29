@@ -40,7 +40,11 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
         Rules.AddRange(endpoint.OutgoingRules);
         Rules.AddRange(RulesForMessageType(messageType));
+
+        MessageType = messageType;
     }
+
+    public Type MessageType { get; }
 
     public bool IsLocal { get; }
 

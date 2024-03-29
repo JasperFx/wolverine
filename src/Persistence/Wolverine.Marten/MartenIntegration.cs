@@ -28,9 +28,14 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
 
-        options.Discovery.CustomizeHandlerDiscovery(x => x.Includes.WithAttribute<AggregateHandlerAttribute>());
+        options.Discovery.CustomizeHandlerDiscovery(x =>
+        {
+            x.Includes.WithAttribute<AggregateHandlerAttribute>();
+        });
 
         options.PublishWithMessageRoutingSource(EventRouter);
+        
+        options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
     }
 
     internal MartenEventRouter EventRouter { get; } = new();
@@ -41,7 +46,7 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
     }
 }
 
-internal class EventTypeForwarder : IHandledTypeRule
+internal class EventWrapperForwarder : IHandledTypeRule
 {
     public bool TryFindHandledType(Type concreteType, out Type handlerType)
     {
@@ -52,27 +57,34 @@ internal class EventTypeForwarder : IHandledTypeRule
 
 internal class MartenEventRouter : IMessageRouteSource
 {
-    
-    
     public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
     {
         if (messageType.Closes(typeof(IEvent<>)))
         {
             var eventType = messageType.GetGenericArguments().Single();
             var wrappedType = typeof(IEvent<>).MakeGenericType(eventType);
+
+            if (messageType.IsConcrete())
+            {
+                return runtime.RoutingFor(wrappedType).Routes;
+            }
+            
+            MessageRoute[] innerRoutes = Array.Empty<MessageRoute>();
+            if (messageType.IsConcrete())
+            {
+                var inner = runtime.RoutingFor(wrappedType);
+                innerRoutes = inner.Routes.OfType<MessageRoute>().ToArray();
+            }
             
             // First look for explicit transformations
             var transformers = Transformers.Where(x => x.SourceType == wrappedType);
             var transformed = transformers.SelectMany(x =>
                 runtime.RoutingFor(x.DestinationType).Routes.Select(x.CreateRoute));
 
-            var forInner =  runtime.RoutingFor(eventType).Routes.Select(route =>
+            var forEventType =  runtime.RoutingFor(eventType).Routes.Select(route =>
                 typeof(EventUnwrappingMessageRoute<>).CloseAndBuildAs<IMessageRoute>(route, eventType));
 
-            var locals = new LocalRouting().FindRoutes(wrappedType, runtime);
-            
-            
-            var candidates = forInner.Concat(transformed).Concat(locals).ToArray();
+            var candidates = forEventType.Concat(transformed).Concat(innerRoutes).ToArray();
             return candidates;
         }
         else

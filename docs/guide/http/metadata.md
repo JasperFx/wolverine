@@ -141,7 +141,7 @@ consider the `CreationResponse` type in Wolverine:
 /// Base class for resource types that denote some kind of resource being created
 /// in the system. Wolverine specific, and more efficient, version of Created<T> from ASP.Net Core
 /// </summary>
-public record CreationResponse(string Url) : IHttpAware
+public record CreationResponse([StringSyntax("Route")]string Url) : IHttpAware
 {
     public static void PopulateMetadata(MethodInfo method, EndpointBuilder builder)
     {
@@ -161,7 +161,7 @@ public record CreationResponse(string Url) : IHttpAware
     public static CreationResponse<T> For<T>(T value, string url) => new CreationResponse<T>(url, value);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpAware.cs#L80-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creationresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpAware.cs#L81-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creationresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Any endpoint that returns `CreationResponse` or a sub class will automatically expose a status code of `201` for successful
