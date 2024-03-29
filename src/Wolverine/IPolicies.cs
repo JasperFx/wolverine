@@ -124,4 +124,12 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// </summary>
     /// <param name="logLevel"></param>
     void MessageExecutionLogLevel(LogLevel logLevel);
+
+    /// <summary>
+    /// Advanced usage to forward concrete message types to the actual
+    /// message type in Wolverine handlers. Mostly to map concrete types
+    /// to the message handler for a particular interface or abstract class
+    /// </summary>
+    /// <param name="rule"></param>
+    void ForwardHandledTypes(IHandledTypeRule rule);
 }

@@ -9,12 +9,22 @@ using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 using Wolverine.Util;
 
 namespace Wolverine;
+
+/// <summary>
+/// Extension point to help forward concrete message types to the correct
+/// message type that Wolverine handles
+/// </summary>
+public interface IHandledTypeRule
+{
+    bool TryFindHandledType(Type concreteType, out Type handlerType);
+}
 
 public sealed partial class WolverineOptions : IPolicies
 {
@@ -44,6 +54,13 @@ public sealed partial class WolverineOptions : IPolicies
     void IPolicies.UseDurableInboxOnAllListeners()
     {
         this.As<IPolicies>().AllListeners(x => x.UseDurableInbox());
+    }
+
+    internal readonly List<IHandledTypeRule> HandledTypeRules = new(){new AgentCommandHandledTypeRule()};
+
+    void IPolicies.ForwardHandledTypes(IHandledTypeRule rule)
+    {
+        HandledTypeRules.Add(rule);
     }
 
     void IPolicies.UseDurableLocalQueues()
