@@ -50,19 +50,19 @@ internal class ReplyListener<T> : IReplyListener
 
     public void Dispose()
     {
-        _cancellation.Dispose();
+        _cancellation?.Dispose();
     }
 
     private void onCancellation()
     {
         if (typeof(T) == typeof(Acknowledgement))
         {
-            _completion.TrySetException(new TimeoutException(
-                $"Timed out waiting for expected acknowledgement for original message {RequestId} of type {RequestType}"));
+            _completion?.TrySetException(new TimeoutException(
+                $"Timed out waiting for expected acknowledgement for original message {RequestId} of type {RequestType ?? "None"}"));
         }
         else
         {
-            _completion.TrySetException(new TimeoutException(
+            _completion?.TrySetException(new TimeoutException(
                 $"Timed out waiting for expected response {typeof(T).FullNameInCode()} for original message {RequestId} of type {RequestType} with a configured timeout of {_timeout.TotalMilliseconds} milliseconds"));
         }
 

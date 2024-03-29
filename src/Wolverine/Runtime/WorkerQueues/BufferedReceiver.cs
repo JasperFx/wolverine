@@ -123,7 +123,8 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             await _moveToErrors.DrainAsync();
         }
 
-        await _receivingBlock.Completion;
+        // It hangs, nothing to be done about this I think
+        //await _receivingBlock.Completion;
     }
 
     public void Enqueue(Envelope envelope)

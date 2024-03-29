@@ -146,6 +146,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public ValueTask DeferAsync(Envelope envelope)
     {
+        if (_latched)
+        {
+            return new ValueTask(executeWithRetriesAsync(() => receiveOneAsync(envelope)));
+        }
+        
         envelope.Attempts++;
 
         Enqueue(envelope);
@@ -180,6 +185,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new ArgumentNullException(nameof(envelope));
         }
 
+        if (_latched)
+        {
+            await executeWithRetriesAsync(() => receiveOneAsync(envelope));
+            return;
+        }
+
         if (envelope.IsExpired())
         {
             await _completeBlock.PostAsync(envelope);
@@ -204,7 +215,9 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         _latched = true;
         _receiver.Complete();
-        await _receiver.Completion;
+        
+        // Latching is the best you can do here, otherwise it can hang
+        //await _receiver.Completion;
 
         await _incrementAttempts.DrainAsync();
         await _scheduleExecution.DrainAsync();
@@ -347,5 +360,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     public Task ClearInFlightIncomingAsync()
     {
         return executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
+    }
+
+    public void Latch()
+    {
+        _latched = true;
     }
 }

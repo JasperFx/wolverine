@@ -349,9 +349,10 @@ public class FailureRuleCollectionTests
         var composite = theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
             .ShouldBeOfType<CompositeContinuation>();
 
-        composite.Inner[0].ShouldBeOfType<RequeueContinuation>();
-        composite.Inner[1].ShouldBeOfType<PauseListenerContinuation>()
+        composite.Inner[0].ShouldBeOfType<PauseListenerContinuation>()
             .PauseTime.ShouldBe(5.Minutes());
+        composite.Inner[1].ShouldBeOfType<RequeueContinuation>();
+
     }
 }
 

@@ -13,6 +13,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 
@@ -33,6 +34,8 @@ public class stopping_and_starting_listeners : IDisposable
 
         theListener = WolverineHost.For(opts =>
         {
+            opts.Durability.Mode = DurabilityMode.Solo;
+            
             opts.Services.AddMarten(Servers.PostgresConnectionString)
                 .IntegrateWithWolverine();
 
@@ -42,7 +45,8 @@ public class stopping_and_starting_listeners : IDisposable
             opts.ListenAtPort(_port2).Named("two");
             opts.ListenAtPort(_port3).Named("three");
 
-            opts.PublishMessage<Message1>().ToLocalQueue("one").UseDurableInbox();
+            opts.PublishMessage<Message1>().ToLocalQueue("one").UseDurableInbox().Named("local");
+            opts.PublishMessage<CanCauseErrorMessage>().ToLocalQueue("one").UseDurableInbox();
 
             opts.Policies.OnException<DivideByZeroException>()
                 .Requeue().AndPauseProcessing(5.Seconds());
@@ -166,7 +170,11 @@ public class stopping_and_starting_listeners : IDisposable
     [Fact]
     public async Task pause_listener_on_matching_error_condition()
     {
-        using var sender = WolverineHost.For(opts => { opts.PublishAllMessages().ToPort(_port1).Named("one"); });
+        using var sender = await WolverineHost.ForAsync(opts =>
+        {
+            opts.Durability.Mode = DurabilityMode.Solo;
+            opts.PublishAllMessages().ToPort(_port1).Named("one");
+        });
 
         var runtime = theListener.GetRuntime();
 
@@ -198,6 +206,63 @@ public class stopping_and_starting_listeners : IDisposable
         }
 
         agent.Status.ShouldBe(ListeningStatus.Accepting);
+    }
+    
+    [Fact]
+    public async Task pause_local_listener_on_matching_error_condition()
+    {
+        var runtime = theListener.GetRuntime();
+
+        var stopWaiter =
+            runtime.Tracker.WaitForListenerStatusAsync("one", ListeningStatus.Stopped, 1.Minutes());
+
+        await theListener
+            .TrackActivity()
+            .AlsoTrack(theListener)
+            .DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new CanCauseErrorMessage{Throw = true});
+
+        await stopWaiter;
+
+        var agent = (IListenerCircuit)runtime.Endpoints.AgentForLocalQueue("one");
+        agent.Status.ShouldBe(ListeningStatus.TooBusy);
+        
+        CanCauseErrorMessageHandler.Handled.ShouldBe(1);
+
+        // should restart
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
+
+        while (stopwatch.Elapsed < 10.Seconds())
+        {
+            if (agent.Status == ListeningStatus.Accepting)
+            {
+                stopwatch.Stop();
+                return;
+            }
+        }
+
+        agent.Status.ShouldBe(ListeningStatus.Accepting);
+    }
+}
+
+public class CanCauseErrorMessage
+{
+    public bool Throw;
+}
+
+public static class CanCauseErrorMessageHandler
+{
+    public static int Handled = 0;
+    
+    public static void Handle(CanCauseErrorMessage message, Envelope envelope)
+    {
+        Handled++;
+
+        if (envelope.Attempts <= 1)
+        {
+            throw new DivideByZeroException();
+        }
     }
 }
 
