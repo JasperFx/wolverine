@@ -1,5 +1,4 @@
-﻿using Spectre.Console;
-using Weasel.Core;
+﻿using Weasel.Core;
 using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
@@ -9,7 +8,7 @@ public abstract partial class MessageDatabase<T>
     public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
     {
         var query = $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1";
-        
+
         if (!string.IsNullOrEmpty(queryParameters.ExceptionType))
         {
             query += $" and {DatabaseConstants.ExceptionType} = @exceptionType";
@@ -120,14 +119,7 @@ public abstract partial class MessageDatabase<T>
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-    public Task MarkDeadLetterEnvelopeAsReplayableAsync(Guid id, string? tenantId = null) =>
-        CreateCommand($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay where id = @id")
-            .With("replay", true)
-            .With("id", id)
-            .ExecuteNonQueryAsync(_cancellation);
+    public abstract Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null);
 
-    public Task DeleteDeadLetterEnvelopeAsync(Guid id, string? tenantId = null)=>
-        CreateCommand($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id")
-            .With("id", id)
-            .ExecuteNonQueryAsync(_cancellation);
+    public abstract Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null);
 }

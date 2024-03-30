@@ -283,33 +283,33 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         return size;
     }
 
-    public async Task MarkDeadLetterEnvelopeAsReplayableAsync(Guid id, string? tenantId = null)
+    public async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
     {
         if (tenantId is { })
         {
             var database = await GetDatabaseAsync(tenantId);
-            await database.DeadLetters.MarkDeadLetterEnvelopeAsReplayableAsync(id);
+            await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
             return;
         }
 
         foreach (var database in databases())
         {
-            await database.DeadLetters.MarkDeadLetterEnvelopeAsReplayableAsync(id);
+            await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
         }
     }
 
-    public async Task DeleteDeadLetterEnvelopeAsync(Guid id, string? tenantId = null)
+    public async Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
     {
         if (tenantId is { })
         {
             var database = await GetDatabaseAsync(tenantId);
-            await database.DeadLetters.DeleteDeadLetterEnvelopeAsync(id);
+            await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
             return;
         }
 
         foreach (var database in databases())
         {
-            await database.DeadLetters.DeleteDeadLetterEnvelopeAsync(id);
+            await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
         }
     }
 

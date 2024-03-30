@@ -156,10 +156,10 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         await thePersistence
             .DeadLetters
-            .MarkDeadLetterEnvelopeAsReplayableAsync(replayableEnvelope.Id);
+            .MarkDeadLetterEnvelopesAsReplayableAsync([replayableEnvelope.Id]);
 
         var operation = new MoveReplayableErrorMessagesToIncomingOperation(thePersistence);
-        var batch = new DatabaseOperationBatch(thePersistence, new IDatabaseOperation[] { operation });
+        var batch = new DatabaseOperationBatch(thePersistence, [operation]);
         await theHost.InvokeAsync(batch);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
@@ -185,7 +185,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         await thePersistence
             .DeadLetters
-            .DeleteDeadLetterEnvelopeAsync(replayableEnvelope.Id);
+            .DeleteDeadLetterEnvelopesAsync([replayableEnvelope.Id]);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
