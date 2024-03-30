@@ -65,14 +65,16 @@ public interface IDeadLetters
     ///     Marks the Envelope in DeadLetterTable
     ///     as replayable. DurabilityAgent will move the envelopes to IncomingTable.
     /// </summary>
+    /// <param name="ids"></param>
     /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
-    Task MarkDeadLetterEnvelopeAsReplayableAsync(Guid id, string? tenantId = null);
+    Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null);
 
     /// <summary>
     /// Deletes the DeadLetterEnvelope from the DeadLetterTable
     /// </summary>
+    /// <param name="ids"></param>
     /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
-    Task DeleteDeadLetterEnvelopeAsync(Guid id, string? tenantId = null);
+    Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null);
 }
 
 public interface IMessageStore : IAsyncDisposable
