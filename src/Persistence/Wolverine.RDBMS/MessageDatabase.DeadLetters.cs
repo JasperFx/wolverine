@@ -125,4 +125,9 @@ public abstract partial class MessageDatabase<T>
             .With("replay", true)
             .With("id", id)
             .ExecuteNonQueryAsync(_cancellation);
+
+    public Task DeleteDeadLetterEnvelopeAsync(Guid id, string? tenantId = null)=>
+        CreateCommand($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = @id")
+            .With("id", id)
+            .ExecuteNonQueryAsync(_cancellation);
 }

@@ -171,6 +171,31 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
     }
 
     [Fact]
+    public async Task delete_dead_letter_message_by_id()
+    {
+        var unReplayableEnvelope = ObjectMother.Envelope();
+        var replayableEnvelope = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(unReplayableEnvelope);
+        await thePersistence.Inbox.StoreIncomingAsync(replayableEnvelope);
+
+        var divideByZeroException = new DivideByZeroException("Kaboom!");
+        var applicationException = new ApplicationException("Kaboom!");
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
+
+        await thePersistence
+            .DeadLetters
+            .DeleteDeadLetterEnvelopeAsync(replayableEnvelope.Id);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+
+        counts.DeadLetter.ShouldBe(1);
+        counts.Incoming.ShouldBe(0);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task delete_multiple_outgoing_envelope()
     {
         var list = new List<Envelope>();
