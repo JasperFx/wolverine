@@ -67,6 +67,12 @@ public interface IDeadLetters
     /// </summary>
     /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
     Task MarkDeadLetterEnvelopeAsReplayableAsync(Guid id, string? tenantId = null);
+
+    /// <summary>
+    /// Deletes the DeadLetterEnvelope from the DeadLetterTable
+    /// </summary>
+    /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
+    Task DeleteDeadLetterEnvelopeAsync(Guid id, string? tenantId = null);
 }
 
 public interface IMessageStore : IAsyncDisposable

@@ -180,6 +180,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     }
 
     public Task MarkDeadLetterEnvelopeAsReplayableAsync(Guid id, string? tenantId = null) => Task.CompletedTask;
+    public Task DeleteDeadLetterEnvelopeAsync(Guid id, string? tenantId = null) => Task.CompletedTask;
 
     public Task RebuildAsync()
     {

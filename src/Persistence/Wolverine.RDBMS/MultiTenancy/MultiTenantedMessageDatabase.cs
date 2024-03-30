@@ -298,6 +298,21 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         }
     }
 
+    public async Task DeleteDeadLetterEnvelopeAsync(Guid id, string? tenantId = null)
+    {
+        if (tenantId is { })
+        {
+            var database = await GetDatabaseAsync(tenantId);
+            await database.DeadLetters.DeleteDeadLetterEnvelopeAsync(id);
+            return;
+        }
+
+        foreach (var database in databases())
+        {
+            await database.DeadLetters.DeleteDeadLetterEnvelopeAsync(id);
+        }
+    }
+
     Task IMessageStoreAdmin.RebuildAsync()
     {
         return executeOnAllAsync(d => d.Admin.RebuildAsync());
