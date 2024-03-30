@@ -52,6 +52,21 @@ public interface IDeadLetters
 
     /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
     Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null);
+
+    /// <summary>
+    ///     Marks the Envelopes in DeadLetterTable
+    ///     as replayable. DurabilityAgent will move the envelopes to IncomingTable.
+    /// </summary>
+    /// <param name="exceptionType">Exception Type that should be marked. Default is any.</param>
+    /// <returns>Number of envelopes marked.</returns>
+    Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType = "");
+
+    /// <summary>
+    ///     Marks the Envelope in DeadLetterTable
+    ///     as replayable. DurabilityAgent will move the envelopes to IncomingTable.
+    /// </summary>
+    /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
+    Task MarkDeadLetterEnvelopeAsReplayableAsync(Guid id, string? tenantId = null);
 }
 
 public interface IMessageStore : IAsyncDisposable

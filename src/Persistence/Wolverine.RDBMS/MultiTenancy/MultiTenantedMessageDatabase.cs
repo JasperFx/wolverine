@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using Weasel.Core.Migrations;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -262,7 +263,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         return executeOnAllAsync(d => d.Admin.ClearAllAsync());
     }
 
-    async Task<int> IMessageStoreAdmin.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    async Task<int> IDeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
     {
         var size = 0;
 
@@ -270,7 +271,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         {
             try
             {
-                size += await database.Admin.MarkDeadLetterEnvelopesAsReplayableAsync(exceptionType);
+                size += await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(exceptionType);
             }
             catch (Exception e)
             {
@@ -280,6 +281,21 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         }
 
         return size;
+    }
+
+    public async Task MarkDeadLetterEnvelopeAsReplayableAsync(Guid id, string? tenantId = null)
+    {
+        if (tenantId is { })
+        {
+            var database = await GetDatabaseAsync(tenantId);
+            await database.DeadLetters.MarkDeadLetterEnvelopeAsReplayableAsync(id);
+            return;
+        }
+
+        foreach (var database in databases())
+        {
+            await database.DeadLetters.MarkDeadLetterEnvelopeAsReplayableAsync(id);
+        }
     }
 
     Task IMessageStoreAdmin.RebuildAsync()

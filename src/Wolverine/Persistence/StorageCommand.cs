@@ -79,7 +79,7 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
 
             case StorageAction.replay:
                 var markedCount =
-                    await persistence.Admin.MarkDeadLetterEnvelopesAsReplayableAsync(input.ExceptionTypeForReplayFlag);
+                    await persistence.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(input.ExceptionTypeForReplayFlag);
                 var exceptionType = string.IsNullOrEmpty(input.ExceptionTypeForReplayFlag)
                     ? "any"
                     : input.ExceptionTypeForReplayFlag;

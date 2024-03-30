@@ -26,20 +26,6 @@ public abstract partial class MessageDatabase<T>
         }
     }
 
-    public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
-    {
-        var sql =
-            $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay";
-
-        if (!string.IsNullOrEmpty(exceptionType))
-        {
-            sql = $"{sql} where {DatabaseConstants.ExceptionType} = @extype";
-        }
-
-        return await CreateCommand(sql).With("replay", true).With("extype", exceptionType)
-            .ExecuteNonQueryAsync(_cancellation);
-    }
-
     public async Task RebuildAsync()
     {
         await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
