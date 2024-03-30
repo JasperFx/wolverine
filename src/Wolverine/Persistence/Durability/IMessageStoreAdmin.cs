@@ -11,14 +11,6 @@ public interface IMessageStoreAdmin
     Task ClearAllAsync();
 
     /// <summary>
-    ///     Marks the Envelopes in DeadLetterTable
-    ///     as replayable. DurabilityAgent will move the envelopes to IncomingTable.
-    /// </summary>
-    /// <param name="exceptionType">Exception Type that should be marked. Default is any.</param>
-    /// <returns>Number of envelopes marked.</returns>
-    Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType = "");
-
-    /// <summary>
     ///     Rebuilds the envelope storage and clears out any
     ///     persisted state
     /// </summary>

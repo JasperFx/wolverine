@@ -1,4 +1,5 @@
-﻿using Weasel.Core;
+﻿using Spectre.Console;
+using Weasel.Core;
 using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
@@ -104,4 +105,24 @@ public abstract partial class MessageDatabase<T>
 
         return deadLetterEnvelope;
     }
+
+    public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    {
+        var sql =
+            $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay";
+
+        if (!string.IsNullOrEmpty(exceptionType))
+        {
+            sql = $"{sql} where {DatabaseConstants.ExceptionType} = @extype";
+        }
+
+        return await CreateCommand(sql).With("replay", true).With("extype", exceptionType)
+            .ExecuteNonQueryAsync(_cancellation);
+    }
+
+    public Task MarkDeadLetterEnvelopeAsReplayableAsync(Guid id, string? tenantId = null) =>
+        CreateCommand($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay where id = @id")
+            .With("replay", true)
+            .With("id", id)
+            .ExecuteNonQueryAsync(_cancellation);
 }
