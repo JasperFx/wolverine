@@ -2,16 +2,12 @@
 
     <PropertyGroup>
         <Description>Postgresql Saga, Message, and Outbox storage for Wolverine applications</Description>
-        <Authors>Jeremy D. Miller</Authors>
-        <DebugType>portable</DebugType>
-        <AssemblyName>Wolverine.Postgresql</AssemblyName>
         <PackageId>WolverineFx.Postgresql</PackageId>
         <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
         <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>

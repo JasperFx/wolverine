@@ -2,10 +2,7 @@
 
     <PropertyGroup>
         <Description>MemoryPack serialization for Wolverine Applications</Description>
-        <DebugType>portable</DebugType>
         <PackageId>WolverineFx.MemoryPack</PackageId>
-        <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>

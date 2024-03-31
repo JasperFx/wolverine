@@ -1,11 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-    <PropertyGroup>
-        <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <RootNamespace>CommandBusSamples</RootNamespace>
-    </PropertyGroup>
-
     <ItemGroup>
         <PackageReference Include="Marten.AspNetCore" Version="6.0.1" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />

@@ -1,10 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <Description>Next Generation .NET Mediator and Message Bus</Description>
-        <DebugType>portable</DebugType>
         <PackageId>WolverineFx</PackageId>
-        <LangVersion>12</LangVersion>
-        <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="FastExpressionCompiler" Version="4.1.0" />

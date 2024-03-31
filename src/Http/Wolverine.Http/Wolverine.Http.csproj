@@ -2,10 +2,7 @@
 
     <PropertyGroup>
         <Description>High Performance ASP.Net Core HTTP endpoints using the Wolverine runtime</Description>
-        <DebugType>portable</DebugType>
         <PackageId>WolverineFx.Http</PackageId>
-        <Nullable>enable</Nullable>
-        <OutputType>library</OutputType>
     </PropertyGroup>
 
     <ItemGroup>

@@ -2,10 +2,7 @@
 
     <PropertyGroup>
         <Description>MessagePack serialization for Wolverine Applications</Description>
-        <DebugType>portable</DebugType>
         <PackageId>WolverineFx.MessagePack</PackageId>
-        <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
 
     <ItemGroup>
