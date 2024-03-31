@@ -73,17 +73,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             return false;
         }
 
-        if (method.GetParameters().Length != 1)
+        var parameters = method.GetParameters();
+        if (parameters.Length != 1)
         {
             return false;
         }
 
-        if (typeof(TChain).CanBeCastTo(method.GetParameters().Single().ParameterType))
-        {
-            return true;
-        }
-
-        return false;
+        return typeof(TChain).CanBeCastTo(parameters.Single().ParameterType);
     }
 
 
