@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <UserSecretsId>dotnet-MassTransitService-3A37565D-F988-4D84-B612-FBA761D1E656</UserSecretsId>
-        <RootNamespace>MassTransitService</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

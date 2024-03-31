@@ -2,9 +2,6 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <RootNamespace>NServiceBusRabbitMqService</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

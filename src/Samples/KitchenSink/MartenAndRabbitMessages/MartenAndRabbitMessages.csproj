@@ -1,9 +1,3 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <Nullable>enable</Nullable>
-        <LangVersion>latestmajor</LangVersion>
-        <ImplicitUsings>true</ImplicitUsings>
-    </PropertyGroup>
-
 </Project>

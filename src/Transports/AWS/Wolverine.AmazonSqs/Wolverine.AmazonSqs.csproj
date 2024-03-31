@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
         <PackageId>WolverineFx.AmazonSqs</PackageId>
         <Description>Amazon SQS transport for Wolverine applications</Description>
     </PropertyGroup>
@@ -14,5 +12,5 @@
     <ItemGroup>
         <PackageReference Include="AWSSDK.SQS" Version="3.7.100.16"/>
     </ItemGroup>
-
 </Project>
+

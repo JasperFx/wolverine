@@ -1,9 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
     <PropertyGroup>
-        <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-MartenAndRabbitEmailService-2B290414-3EBA-4078-A3DA-934A211D43DE</UserSecretsId>
-        <LangVersion>latestmajor</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>

@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
     <PropertyGroup>
-        <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-Subscriber2-0332C66C-99C6-4B10-A43D-356A26FE69C0</UserSecretsId>
     </PropertyGroup>
 
