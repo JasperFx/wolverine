@@ -7,20 +7,17 @@ public sealed partial class HandlerDiscovery
 {
     internal string DescribeHandlerMatch(WolverineOptions options, Type candidateType)
     {
-        var writer = new StringWriter();
-
         if (candidateType.IsOpenGeneric())
         {
-            writer.WriteLine("MISS -- Wolverine cannot use open generic types as handlers");
-            return writer.ToString();
+            return "MISS -- Wolverine cannot use open generic types as handlers";
         }
 
         if (!candidateType.IsStatic() && (candidateType.IsInterface || candidateType.IsAbstract))
         {
-            writer.WriteLine("MISS -- Handler types can only be concrete types");
-            return writer.ToString();
+            return "MISS -- Handler types can only be concrete types";
         }
 
+        var writer = new StringWriter();
         if (!Assemblies.Contains(candidateType.Assembly))
         {
             writeAssemblyIsNotRegistered(options, candidateType, writer);
