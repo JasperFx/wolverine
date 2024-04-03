@@ -22,7 +22,7 @@ internal class DeleteExpiredMessages : IDatabaseOperation, IDoNotReturnData
     {
         builder.Append($"delete from {_transport.TableName} where expires < ");
         builder.AppendParameter(_utcNow);
-        builder.Append(";");
+        builder.Append(';');
     }
 
     public Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)

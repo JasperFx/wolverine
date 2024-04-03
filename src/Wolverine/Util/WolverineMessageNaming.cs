@@ -138,10 +138,10 @@ public static class WolverineMessageNaming
 
         var sb = new StringBuilder();
 
-        sb.Append(t.Name.Substring(0, t.Name.LastIndexOf("`", StringComparison.Ordinal)));
+        sb.Append(t.Name[..t.Name.LastIndexOf('`')]);
         sb.Append(t.GetGenericArguments().Aggregate("<",
             (aggregate, type) => aggregate + (aggregate == "<" ? "" : ",") + GetPrettyName(type)));
-        sb.Append(">");
+        sb.Append('>');
 
         return sb.ToString();
     }

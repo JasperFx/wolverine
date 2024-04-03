@@ -40,7 +40,7 @@ internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
     {
         builder.Append($"select body from {_transport.TableName} where node_id = ");
         builder.AppendParameter(_transport.Options.UniqueNodeId);
-        builder.Append(";");
+        builder.Append(';');
     }
 
     public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)

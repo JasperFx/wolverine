@@ -24,7 +24,7 @@ internal class DeleteExpiredEnvelopesOperation : IDatabaseOperation, IDoNotRetur
         builder.Append(
             $"delete from {_incomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= ");
         builder.AppendParameter(_utcNow);
-        builder.Append(";");
+        builder.Append(';');
     }
 
     public Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)
