@@ -190,7 +190,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
         builder.AppendParameter(utcNow);
         builder.Append(" order by execution_time");
-        builder.Append(";");
+        builder.Append(';');
     }
 
     public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue,

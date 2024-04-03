@@ -130,7 +130,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
                     builder.Append(TableName.QualifiedName);
                     builder.Append(" where id = ");
                     builder.AppendParameter(envelope.Id);
-                    builder.Append(";");
+                    builder.Append(';');
                 }
 
                 var command = builder.Compile();

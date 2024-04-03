@@ -24,31 +24,22 @@ internal class StoreIncomingEnvelope : IStorageOperation, NoDataReturnedCall
     public void ConfigureCommand(ICommandBuilder builder, IMartenSession session)
     {
         builder.Append(
-            $@"insert into {_incomingTable} ({DatabaseConstants.IncomingFields}) values (");
-        
+            $"insert into {_incomingTable} ({DatabaseConstants.IncomingFields}) values (");
         builder.AppendParameter(EnvelopeSerializer.Serialize(Envelope));
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.Id);
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.Status.ToString());
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.OwnerId);
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.ScheduledTime.HasValue ? Envelope.ScheduledTime.Value : DBNull.Value);
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.Attempts);
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.MessageType);
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.Destination?.ToString());
-        
         builder.Append(");");
     }
 

@@ -30,24 +30,17 @@ internal class StoreOutgoingEnvelope : IStorageOperation, NoDataReturnedCall
 
         builder.AppendParameter(EnvelopeSerializer.Serialize(Envelope));
         builder.Append(',');
-
         builder.AppendParameter(Envelope.Id);
         builder.Append(',');
-        
         builder.AppendParameter(_ownerId);
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.Destination!.ToString());
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.DeliverBy.HasValue ? Envelope.DeliverBy.Value : DBNull.Value);
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.Attempts);
         builder.Append(',');
-        
         builder.AppendParameter(Envelope.MessageType);
-        
         builder.Append(");");
     }
 
