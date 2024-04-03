@@ -187,7 +187,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
 
         var hourAgo = DateTimeOffset.UtcNow.Add(1.Hours());
         var operation = new DeleteExpiredEnvelopesOperation(new DbObjectName("receiver", DatabaseConstants.IncomingTable), hourAgo);
-        var batch = new DatabaseOperationBatch(thePersistence, new IDatabaseOperation[] { operation });
+        var batch = new DatabaseOperationBatch(thePersistence, [operation]);
         await theHost.InvokeAsync(batch);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
@@ -262,7 +262,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
 
         // run the action
         var operation = new MoveReplayableErrorMessagesToIncomingOperation(thePersistence);
-        var batch = new DatabaseOperationBatch(thePersistence, new IDatabaseOperation[] { operation });
+        var batch = new DatabaseOperationBatch(thePersistence, [operation]);
         await theHost.InvokeAsync(batch);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();

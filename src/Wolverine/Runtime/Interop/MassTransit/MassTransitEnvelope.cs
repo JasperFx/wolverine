@@ -35,7 +35,7 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
         Message = (T)envelope.Message!;
 
         var messageType = envelope.Message.GetType();
-        MessageType = new[] { $"urn:message:{messageType.Namespace}:{messageType.NameInCode()}" };
+        MessageType = [$"urn:message:{messageType.Namespace}:{messageType.NameInCode()}"];
 
         if (envelope.DeliverBy != null)
         {

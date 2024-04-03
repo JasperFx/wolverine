@@ -23,13 +23,13 @@ internal class MqttEnvelopeMapper : IMqttEnvelopeMapper
         message.PayloadSegment = envelope.Data;
         message.Topic = envelope.TopicName ?? _topic.TopicName; // Don't override so that user supplied topics can work!
 
-        message.UserProperties = new()
-        {
+        message.UserProperties =
+        [
             new MqttUserProperty(EnvelopeConstants.AttemptsKey, envelope.Attempts.ToString()),
             new MqttUserProperty(EnvelopeConstants.MessageTypeKey, envelope.MessageType),
             new MqttUserProperty(EnvelopeConstants.IdKey, envelope.Id.ToString()),
-            new MqttUserProperty(EnvelopeConstants.ConversationIdKey, envelope.ConversationId.ToString()),
-        };
+            new MqttUserProperty(EnvelopeConstants.ConversationIdKey, envelope.ConversationId.ToString())
+        ];
 
         foreach (var header in envelope.Headers)
         {

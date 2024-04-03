@@ -5,8 +5,8 @@ namespace Wolverine.Http;
 
 public partial class HttpGraph
 {
-    private readonly List<IParameterStrategy> _strategies = new()
-    {
+    private readonly List<IParameterStrategy> _strategies =
+    [
         new FromFileStrategy(),
         new HttpChainParameterAttributeStrategy(),
         new FromServicesParameterStrategy(),
@@ -16,7 +16,7 @@ public partial class HttpGraph
         new FromHeaderStrategy(),
         new QueryStringParameterStrategy(),
         new JsonBodyParameterStrategy()
-    };
+    ];
 
     internal void ApplyParameterMatching(HttpChain chain)
     {

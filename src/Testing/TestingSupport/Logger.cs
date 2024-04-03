@@ -27,11 +27,11 @@ public class XUnitLogger : ILogger
 {
     private readonly string _categoryName;
 
-    private readonly List<string> _ignoredStrings = new()
-    {
+    private readonly List<string> _ignoredStrings =
+    [
         "Declared",
         "Successfully processed message"
-    };
+    ];
 
     private readonly ITestOutputHelper _testOutputHelper;
 

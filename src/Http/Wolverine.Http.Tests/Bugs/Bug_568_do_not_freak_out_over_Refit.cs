@@ -54,7 +54,7 @@ public class Test1Endpoint
     [WolverinePost("/refit1")]
     public static OutgoingMessages Post(Bug568Message1 message, ITestHttpClient testCLient)
     {
-        return new OutgoingMessages { new Bug568Message2(message.Text) };
+        return [new Bug568Message2(message.Text)];
     }
 }
 

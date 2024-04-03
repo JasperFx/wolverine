@@ -238,7 +238,7 @@ public class WorkConsumer
 
         _tracker.LastMessage = message;
 
-        return new object[] { new Message1 { Id = message.Id }, new Message2 { Id = message.Id } };
+        return [new Message1 { Id = message.Id }, new Message2 { Id = message.Id }];
     }
 
 

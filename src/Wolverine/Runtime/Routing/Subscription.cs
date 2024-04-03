@@ -10,7 +10,7 @@ namespace Wolverine.Runtime.Routing;
 
 public class Subscription
 {
-    private string[] _contentTypes = { EnvelopeConstants.JsonContentType };
+    private string[] _contentTypes = [EnvelopeConstants.JsonContentType];
 
     public Subscription()
     {

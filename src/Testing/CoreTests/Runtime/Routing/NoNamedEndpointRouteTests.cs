@@ -8,7 +8,7 @@ public class NoNamedEndpointRouteTests
     [Fact]
     public void throws_descriptive_exception()
     {
-        var route = new NoNamedEndpointRoute("foo", new[] { "bar", "baz" });
+        var route = new NoNamedEndpointRoute("foo", ["bar", "baz"]);
 
         var ex = Should.Throw<UnknownEndpointException>(() => route.CreateForSending(null, null, null, null, null));
 

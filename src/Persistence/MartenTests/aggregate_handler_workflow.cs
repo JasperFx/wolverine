@@ -245,15 +245,15 @@ public static class FooHandler
 {
     // AppendMany events to aggregate.
     public static Events Handle(Event1 ev, Aggregate agg)
-        => new();
+        => [];
 
     // AppendMany events to aggregate, cascaded messages.
     public static (Events, OutgoingMessages) Handle(Event2 ev, Aggregate agg)
-        => (new(), new());
+        => ([], []);
 
     // BUG: AppendOne messages to aggregate.
     public static OutgoingMessages Handle(Event3 ev, Aggregate agg) =>
-        new() { new Outgoing1 { Event = ev, Aggregate = agg } };
+        [new Outgoing1 {Event = ev, Aggregate = agg}];
 }
 
 public static class Outgoing1Handler
@@ -287,7 +287,7 @@ public static class RaiseLetterHandler
         aggregate.ACount++;
         aggregate.BCount++;
         aggregate.CCount++;
-        return (new object[] { new AEvent(), new BEvent(), new CEvent() }, Response.For(aggregate));
+        return ([new AEvent(), new BEvent(), new CEvent()], Response.For(aggregate));
     }
     
     public static (Response, Events) Handle(RaiseAABCC command, LetterAggregate aggregate)
@@ -296,7 +296,7 @@ public static class RaiseLetterHandler
         aggregate.BCount++;
         aggregate.CCount += 2;
         
-        return (Response.For(aggregate), new Events{new AEvent(), new AEvent(), new BEvent(), new CEvent(), new CEvent()});
+        return (Response.For(aggregate), [new AEvent(), new AEvent(), new BEvent(), new CEvent(), new CEvent()]);
     }
 
     public static (Response, Events, OutgoingMessages) Handle(RaiseBBCCC command, LetterAggregate aggregate)

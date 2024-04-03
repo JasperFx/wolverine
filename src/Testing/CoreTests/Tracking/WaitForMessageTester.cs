@@ -27,10 +27,10 @@ public class WaitForMessageTester
         waiter.IsCompleted().ShouldBe(isCompleted);
     }
 
-    public static Guid[] guids = new[]
-    {
-        Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-    };
+    public static Guid[] guids =
+    [
+        Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()
+    ];
 
     [Theory]
     [InlineData(MessageEventType.Received, typeof(Message1), 1, false)]

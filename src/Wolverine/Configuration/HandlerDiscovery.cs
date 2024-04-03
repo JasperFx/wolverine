@@ -15,11 +15,11 @@ public sealed partial class HandlerDiscovery
     private readonly TypeQuery _messageQuery = new(TypeClassification.Concretes| TypeClassification.Closed);
 
     private readonly string[] _validMethods =
-    {
+    [
         HandlerChain.Handle, HandlerChain.Handles, HandlerChain.Consume, HandlerChain.Consumes, SagaChain.Orchestrate,
         SagaChain.Orchestrates, SagaChain.Start, SagaChain.Starts, SagaChain.StartOrHandle, SagaChain.StartsOrHandles,
         SagaChain.NotFound
-    };
+    ];
 
     private bool _conventionalDiscoveryDisabled;
 

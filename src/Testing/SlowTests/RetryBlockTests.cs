@@ -18,7 +18,7 @@ public class RetryBlockTests
         theBlock = new RetryBlock<SometimesFailingMessage>(theHandler, theLogger,
             CancellationToken.None);
 
-        theBlock.Pauses = new[] { 1.Seconds(), 3.Seconds(), 5.Seconds() };
+        theBlock.Pauses = [1.Seconds(), 3.Seconds(), 5.Seconds()];
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class RetryBlockTests
         var theMessage = new SometimesFailingMessage(5, "Aubrey");
         theBlock.Post(theMessage);
 
-        theBlock.Pauses = new[] { 0.Milliseconds(), 50.Milliseconds() };
+        theBlock.Pauses = [0.Milliseconds(), 50.Milliseconds()];
 
         var tries = 0;
         while (tries < 10 && !theLogger.Messages[LogLevel.Information].Any())
@@ -121,8 +121,8 @@ public class SometimesFailingMessage
 
 public class SpyLogger : ILogger, IDisposable
 {
-    public readonly List<Exception> Exceptions = new();
-    public readonly LightweightCache<LogLevel, List<string>> Messages = new(_ => new());
+    public readonly List<Exception> Exceptions = [];
+    public readonly LightweightCache<LogLevel, List<string>> Messages = new(_ => []);
 
     public void Dispose()
     {

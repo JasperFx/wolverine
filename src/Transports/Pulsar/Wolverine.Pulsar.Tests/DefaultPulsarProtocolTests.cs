@@ -92,7 +92,7 @@ public class DefaultPulsarProtocolTests
     [Fact]
     public void accepted_types()
     {
-        theOriginal.AcceptedContentTypes = new[] { "text/json", "text/xml" };
+        theOriginal.AcceptedContentTypes = ["text/json", "text/xml"];
         theEnvelope.AcceptedContentTypes
             .ShouldHaveTheSameElementsAs(theOriginal.AcceptedContentTypes);
     }

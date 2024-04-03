@@ -32,11 +32,10 @@ internal class DatabaseControlListener : IListener
                 try
                 {
                     var batch = new DatabaseOperationBatch(_transport.Database,
-                        new IDatabaseOperation[]
-                        {
-                            new DeleteExpiredMessages(_transport, DateTimeOffset.UtcNow),
+                    [
+                        new DeleteExpiredMessages(_transport, DateTimeOffset.UtcNow),
                             new PollDatabaseControlQueue(_transport, _receiver, this)
-                        });
+                    ]);
                     await receiver.ReceivedAsync(this, new Envelope(batch));
                 }
                 catch (Exception e)

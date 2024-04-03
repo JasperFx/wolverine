@@ -12,16 +12,16 @@ public class Target
     private static readonly Random _random = new(67);
 
     private static readonly string[] _strings =
-    {
+    [
         "Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Violet",
         "Pink", "Gray", "Black"
-    };
+    ];
 
     private static readonly string[] _otherStrings =
-    {
+    [
         "one", "two", "three", "four", "five", "six", "seven", "eight",
         "nine", "ten"
-    };
+    ];
 
     public float Float;
 
@@ -88,7 +88,7 @@ public class Target
 
         target.Float = float.Parse(_random.NextDouble().ToString());
 
-        target.NumberArray = new[] { _random.Next(0, 10), _random.Next(0, 10), _random.Next(0, 10) };
+        target.NumberArray = [_random.Next(0, 10), _random.Next(0, 10), _random.Next(0, 10)];
 
         target.NumberArray = target.NumberArray.Distinct().ToArray();
 

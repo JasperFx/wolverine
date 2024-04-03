@@ -84,7 +84,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
     {
         await GivenAggregate();
         await theHost.TrackActivity()
-            .SendMessageAndWaitAsync(new IncrementMany(theStreamId, new[] { "A", "A", "B", "C", "C", "C" }));
+            .SendMessageAndWaitAsync(new IncrementMany(theStreamId, ["A", "A", "B", "C", "C", "C"]));
 
         await OnAggregate(a =>
         {
@@ -108,7 +108,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
     {
         await GivenAggregate();
         await theHost.TrackActivity()
-            .SendMessageAndWaitAsync(new IncrementManyAsync(theStreamId, new[] { "A", "A", "B", "C", "C", "C" }));
+            .SendMessageAndWaitAsync(new IncrementManyAsync(theStreamId, ["A", "A", "B", "C", "C", "C"]));
 
         await OnAggregate(a =>
         {

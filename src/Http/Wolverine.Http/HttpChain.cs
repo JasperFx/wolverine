@@ -50,13 +50,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
 
     private string? _fileName;
-    private readonly List<string> _httpMethods = new();
+    private readonly List<string> _httpMethods = [];
 
-    private readonly List<Variable> _routeVariables = new();
+    private readonly List<Variable> _routeVariables = [];
 
     private readonly HttpGraph _parent;
 
-    private readonly List<QuerystringVariable> _querystringVariables = new();
+    private readonly List<QuerystringVariable> _querystringVariables = [];
 
     public string OperationId { get; set; }
     
@@ -229,7 +229,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override MethodCall[] HandlerCalls()
     {
-        return new[] { Method };
+        return [Method];
     }
 
     public override bool HasAttribute<T>()
@@ -395,7 +395,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     }
     
-    private readonly List<HeaderValueVariable> _headerVariables = new();
+    private readonly List<HeaderValueVariable> _headerVariables = [];
 
     public HeaderValueVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, ParameterInfo parameter)
     {
@@ -422,5 +422,5 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     string IEndpointSummaryMetadata.Summary => throw new Exception("You cannot have the summary");
 
-    public List<ParameterInfo> FileParameters { get; } = new();
+    public List<ParameterInfo> FileParameters { get; } = [];
 }
