@@ -42,7 +42,7 @@ using var host = await Host.CreateDefaultBuilder()
 The `MediatorOnly` mode sharply reduces the overhead of using Wolverine you don't care about or need if Wolverine is only
 being used as a mediator tool. 
 
-## Staring with Wolverine as Mediator
+## Starting with Wolverine as Mediator
 
 
 Let's jump into a sample project. Let's say that your system creates and tracks *Items* of some sort. One of the API requirements is to expose an HTTP
