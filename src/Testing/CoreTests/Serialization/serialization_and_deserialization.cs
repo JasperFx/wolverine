@@ -17,7 +17,7 @@ public class serialization_and_deserialization_of_single_message
         outgoing = new Envelope
         {
             SentAt = DateTime.Today.ToUniversalTime(),
-            Data = new byte[] { 1, 5, 6, 11, 2, 3 },
+            Data = [1, 5, 6, 11, 2, 3],
             Destination = "tcp://localhost:2222/incoming".ToUri(),
             DeliverBy = DateTime.Today.ToUniversalTime(),
             ReplyUri = "tcp://localhost:2221/replies".ToUri(),
@@ -53,7 +53,7 @@ public class serialization_and_deserialization_of_single_message
     [Fact]
     public void accepted_content_types_positive()
     {
-        outgoing.AcceptedContentTypes = new[] { "a", "b" };
+        outgoing.AcceptedContentTypes = ["a", "b"];
         incoming.AcceptedContentTypes.ShouldHaveTheSameElementsAs("a", "b");
     }
 

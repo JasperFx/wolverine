@@ -5,18 +5,18 @@ namespace Wolverine;
 
 public sealed partial class WolverineOptions
 {
-    internal readonly List<IMessageTransformation> MessageTransformations = new();
+    internal readonly List<IMessageTransformation> MessageTransformations = [];
     
-    internal readonly List<IMessageRouteSource> InternalRouteSources = new()
-    {
+    internal readonly List<IMessageRouteSource> InternalRouteSources =
+    [
         new TransformedMessageRouteSource(),
         new AgentMessages(),
         new ExplicitRouting(),
         new LocalRouting(),
         new MessageRoutingConventions()
-    };
+    ];
 
-    internal readonly List<IMessageRouteSource> CustomRouteSources = new();
+    internal readonly List<IMessageRouteSource> CustomRouteSources = [];
 
     internal IEnumerable<IMessageRouteSource> RouteSources()
     {

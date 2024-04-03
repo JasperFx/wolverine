@@ -80,7 +80,7 @@ public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisp
     {
         await GivenAggregate();
         await theHost.TrackActivity()
-            .SendMessageAndWaitAsync(new IncrementMany2(theStreamId, new[] { "A", "A", "B", "C", "C", "C" }));
+            .SendMessageAndWaitAsync(new IncrementMany2(theStreamId, ["A", "A", "B", "C", "C", "C"]));
 
         await OnAggregate(a =>
         {

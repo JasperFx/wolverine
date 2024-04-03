@@ -99,7 +99,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
     {
         var env = new Envelope
         {
-            Data = new byte[] { 1, 2, 3, 4 },
+            Data = [1, 2, 3, 4],
             MessageType = "foo",
             ContentType = EnvelopeConstants.JsonContentType
         };
@@ -113,7 +113,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
     {
         var env = new Envelope
         {
-            Data = new byte[] { 1, 2, 3, 4 },
+            Data = [1, 2, 3, 4],
             ScheduledTime = DateTimeOffset.Now.Add(1.Hours()),
             MessageType = "foo",
             ContentType = EnvelopeConstants.JsonContentType
@@ -128,7 +128,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
     {
         var env = new Envelope
         {
-            Data = new byte[] { 1, 2, 3, 4 },
+            Data = [1, 2, 3, 4],
             ScheduledTime = DateTimeOffset.Now.Add(-1.Hours()),
             ContentType = EnvelopeConstants.JsonContentType,
             MessageType = "foo"

@@ -60,7 +60,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     {
         var dbContextType = DetermineDbContextType(saga.VariableType, container);
         var method =
-            dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
+            dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
 
         var call = new MethodCall(dbContextType, method!);
         call.CommentText = "Committing any pending entity changes to the database";
@@ -90,7 +90,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
 
         var saveChangesAsync =
-            dbType.GetMethod(nameof(DbContext.SaveChangesAsync), new[] { typeof(CancellationToken) });
+            dbType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
 
         var call = new MethodCall(dbType, saveChangesAsync!)
         {

@@ -116,7 +116,7 @@ public partial class Envelope
     /// <param name="value"></param>
     public void SetMetricsTag(string tagName, object value)
     {
-        _metricHeaders ??= new List<KeyValuePair<string, object?>>();
+        _metricHeaders ??= [];
         _metricHeaders.Add(new KeyValuePair<string, object?>(tagName, value));
     }
 
@@ -246,7 +246,7 @@ public partial class Envelope
         return new Envelope
         {
             MessageType = PingMessageType,
-            Data = new byte[] { 1, 2, 3, 4 },
+            Data = [1, 2, 3, 4],
             ContentType = "wolverine/ping",
             Destination = destination
         };

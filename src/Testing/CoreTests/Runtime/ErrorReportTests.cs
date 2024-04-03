@@ -14,7 +14,7 @@ public class ErrorReportTests
     {
         theEnvelope = new Envelope();
         theEnvelope.ContentType = EnvelopeConstants.JsonContentType;
-        theEnvelope.Data = new byte[] { 1, 2, 3, 4 };
+        theEnvelope.Data = [1, 2, 3, 4];
         theEnvelope.Source = "OtherApp";
         theEnvelope.Destination = TransportConstants.RepliesUri;
 

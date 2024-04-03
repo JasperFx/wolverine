@@ -10,7 +10,7 @@ namespace Wolverine.Marten;
 
 internal class MartenIntegration : IWolverineExtension, IEventForwarding
 {
-    private readonly List<Action<WolverineOptions>> _actions = new();
+    private readonly List<Action<WolverineOptions>> _actions = [];
     
     /// <summary>
     ///     This directs the Marten integration to try to publish events out of the enrolled outbox
@@ -94,7 +94,7 @@ internal class MartenEventRouter : IMessageRouteSource
     }
 
     public bool IsAdditive => false;
-    public List<IMessageTransformation> Transformers { get; } = new();
+    public List<IMessageTransformation> Transformers { get; } = [];
 }
 
 internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T>

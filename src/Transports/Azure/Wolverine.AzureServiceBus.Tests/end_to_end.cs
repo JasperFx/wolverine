@@ -130,7 +130,7 @@ public class end_to_end : IAsyncLifetime
 
         var names = session.Received.MessagesOf<AsbMessage2>().Select(x => x.Name).ToArray();
         names
-            .ShouldBe(new string[]{"One", "Two", "Three"});
+            .ShouldBe(["One", "Two", "Three"]);
     }
 
     [Fact]

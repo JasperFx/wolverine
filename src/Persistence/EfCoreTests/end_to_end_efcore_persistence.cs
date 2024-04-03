@@ -142,7 +142,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var envelope = new Envelope
         {
-            Data = new byte[] { 1, 2, 3, 4 },
+            Data = [1, 2, 3, 4],
             OwnerId = 5,
             Destination = TransportConstants.RepliesUri,
             DeliverBy = new DateTimeOffset(DateTime.Today),
@@ -190,7 +190,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var envelope = new Envelope
         {
-            Data = new byte[] { 1, 2, 3, 4 },
+            Data = [1, 2, 3, 4],
             OwnerId = 5,
             Destination = TransportConstants.RepliesUri,
             DeliverBy = new DateTimeOffset(DateTime.Today),
@@ -385,7 +385,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var envelope = new Envelope
         {
-            Data = new byte[] { 1, 2, 3, 4 },
+            Data = [1, 2, 3, 4],
             OwnerId = 5,
             ScheduledTime = DateTime.Today.AddDays(1),
             DeliverBy = new DateTimeOffset(DateTime.Today),
@@ -431,7 +431,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var envelope = new Envelope
         {
-            Data = new byte[] { 1, 2, 3, 4 },
+            Data = [1, 2, 3, 4],
             OwnerId = 5,
             ScheduledTime = DateTime.Today.AddDays(1),
             DeliverBy = new DateTimeOffset(DateTime.Today),

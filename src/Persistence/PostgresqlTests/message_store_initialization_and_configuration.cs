@@ -55,7 +55,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
 
-        var tables = await conn.ExistingTablesAsync(schemas: new[] { "registry" });
+        var tables = await conn.ExistingTablesAsync(schemas: ["registry"]);
         await conn.CloseAsync();
         
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeTableName);

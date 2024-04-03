@@ -65,7 +65,7 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
     public async Task run_setup()
     {
         var result = await ConfigureBuilder(false)
-            .RunOaktonCommands(new[] { "resources", "setup" });
+            .RunOaktonCommands(["resources", "setup"]);
         result.ShouldBe(0);
     }
 
@@ -73,10 +73,10 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
     public async Task statistics()
     {
         (await ConfigureBuilder(false)
-            .RunOaktonCommands(new[] { "resources", "setup" })).ShouldBe(0);
+            .RunOaktonCommands(["resources", "setup"])).ShouldBe(0);
 
         var result = await ConfigureBuilder(false)
-            .RunOaktonCommands(new[] { "resources", "statistics" });
+            .RunOaktonCommands(["resources", "statistics"]);
 
         result.ShouldBe(0);
     }
@@ -85,10 +85,10 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
     public async Task check_positive()
     {
         (await ConfigureBuilder(false)
-            .RunOaktonCommands(new[] { "resources", "setup" })).ShouldBe(0);
+            .RunOaktonCommands(["resources", "setup"])).ShouldBe(0);
 
         var result = await ConfigureBuilder(false)
-            .RunOaktonCommands(new[] { "resources", "check" });
+            .RunOaktonCommands(["resources", "check"]);
 
         result.ShouldBe(0);
     }
@@ -97,7 +97,7 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
     public async Task check_negative()
     {
         var result = await ConfigureBuilder(false, 10)
-            .RunOaktonCommands(new[] { "resources", "check" });
+            .RunOaktonCommands(["resources", "check"]);
 
         result.ShouldBe(1);
     }
@@ -106,20 +106,20 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
     public async Task clear_state()
     {
         (await ConfigureBuilder(false, 20)
-            .RunOaktonCommands(new[] { "resources", "setup" })).ShouldBe(0);
+            .RunOaktonCommands(["resources", "setup"])).ShouldBe(0);
 
         (await ConfigureBuilder(false, 20)
-            .RunOaktonCommands(new[] { "resources", "clear" })).ShouldBe(0);
+            .RunOaktonCommands(["resources", "clear"])).ShouldBe(0);
     }
 
     [Fact]
     public async Task teardown()
     {
         (await ConfigureBuilder(false, 30)
-            .RunOaktonCommands(new[] { "resources", "setup" })).ShouldBe(0);
+            .RunOaktonCommands(["resources", "setup"])).ShouldBe(0);
 
         (await ConfigureBuilder(false, 30)
-            .RunOaktonCommands(new[] { "resources", "teardown" })).ShouldBe(0);
+            .RunOaktonCommands(["resources", "teardown"])).ShouldBe(0);
     }
 }
 

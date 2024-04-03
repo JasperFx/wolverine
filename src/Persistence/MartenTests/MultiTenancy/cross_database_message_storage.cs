@@ -597,7 +597,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var from2 = envelopes.FirstOrDefault(x => x.TenantId == "tenant2");
         var from3 = envelopes.FirstOrDefault(x => x.TenantId == "tenant3");
 
-        await Databases.Outbox.DeleteOutgoingAsync(new[] { fromMaster, from1, from2, from3 });
+        await Databases.Outbox.DeleteOutgoingAsync([fromMaster, from1, from2, from3]);
 
         var all = await Databases.Admin.AllOutgoingAsync();
         

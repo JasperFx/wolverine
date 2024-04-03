@@ -13,11 +13,11 @@ namespace Wolverine.Middleware;
 
 public class MiddlewarePolicy : IChainPolicy
 {
-    public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync", "Load", "LoadAsync" };
-    public static readonly string[] AfterMethodNames = { "After", "AfterAsync", "PostProcess", "PostProcessAsync" };
-    public static readonly string[] FinallyMethodNames = { "Finally", "FinallyAsync" };
+    public static readonly string[] BeforeMethodNames = ["Before", "BeforeAsync", "Load", "LoadAsync"];
+    public static readonly string[] AfterMethodNames = ["After", "AfterAsync", "PostProcess", "PostProcessAsync"];
+    public static readonly string[] FinallyMethodNames = ["Finally", "FinallyAsync"];
 
-    private readonly List<Application> _applications = new();
+    private readonly List<Application> _applications = [];
 
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {

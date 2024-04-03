@@ -70,7 +70,7 @@ public class RetryBlock<T> : IDisposable
     }
 
     public int MaximumAttempts { get; set; } = 3;
-    public TimeSpan[] Pauses { get; set; } = { 50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds() };
+    public TimeSpan[] Pauses { get; set; } = [50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds()];
 
     public void Dispose()
     {

@@ -65,7 +65,7 @@ public class control_queue_tests : PostgresqlContext, IAsyncLifetime
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
 
-        var tables = await conn.ExistingTablesAsync(schemas: new[] { "pgcontrol" });
+        var tables = await conn.ExistingTablesAsync(schemas: ["pgcontrol"]);
         await conn.CloseAsync();
 
         tables.ShouldContain(x => x.Name == DatabaseConstants.ControlQueueTableName);

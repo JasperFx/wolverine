@@ -21,6 +21,6 @@ public abstract partial class MessageDatabase<T> : IFeatureSchema
 
     public override IFeatureSchema[] BuildFeatureSchemas()
     {
-        return new IFeatureSchema[] { this };
+        return [this];
     }
 }

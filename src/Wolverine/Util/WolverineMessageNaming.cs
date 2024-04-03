@@ -85,7 +85,7 @@ internal class FullTypeNaming : IMessageTypeNaming
 
 internal class InteropAssemblyInterfaces : IMessageTypeNaming
 {
-    internal List<Assembly> Assemblies { get; } = new();
+    internal List<Assembly> Assemblies { get; } = [];
 
     public bool TryDetermineName(Type messageType, out string messageTypeName)
     {
@@ -107,16 +107,14 @@ public static class WolverineMessageNaming
 {
     private static ImHashMap<Type, string> _typeNames = ImHashMap<Type, string>.Empty;
 
-    private static readonly List<IMessageTypeNaming> _namingStrategies = new()
-    {
+    private static readonly List<IMessageTypeNaming> _namingStrategies =
+    [
         new MessageIdentityAttributeNaming(),
         new InteropAttributeForwardingNaming(),
         new ForwardNaming(),
         new InteropAssemblyInterfaces(),
         new FullTypeNaming()
-    };
-
-
+    ];
 
     /// <summary>
     ///     Tag an assembly as containing message types that should be used for interoperability with

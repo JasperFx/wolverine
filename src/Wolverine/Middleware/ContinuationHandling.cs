@@ -15,7 +15,7 @@ public static class ContinuationHandling
             return list;
         }
 
-        return new List<IContinuationStrategy> { new HandlerContinuationPolicy() };
+        return [new HandlerContinuationPolicy()];
     }
 
     /// <summary>
@@ -32,11 +32,11 @@ public static class ContinuationHandling
         }
         else
         {
-            list = new List<IContinuationStrategy>
-            {
+            list =
+            [
                 new HandlerContinuationPolicy(),
                 new T()
-            };
+            ];
             rules.Properties[Continuations] = list;
         }
     }

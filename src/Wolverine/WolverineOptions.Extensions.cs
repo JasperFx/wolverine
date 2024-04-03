@@ -5,7 +5,7 @@ namespace Wolverine;
 public sealed partial class WolverineOptions
 {
     private readonly IList<Type> _extensionTypes = new List<Type>();
-    internal List<IWolverineExtension> AppliedExtensions { get; } = new();
+    internal List<IWolverineExtension> AppliedExtensions { get; } = [];
 
     /// <summary>
     ///     Applies the extension to this application
@@ -13,7 +13,7 @@ public sealed partial class WolverineOptions
     /// <param name="extension"></param>
     public void Include(IWolverineExtension extension)
     {
-        ApplyExtensions(new[] { extension });
+        ApplyExtensions([extension]);
     }
 
     internal void ApplyExtensions(IWolverineExtension[] extensions)
@@ -40,6 +40,6 @@ public sealed partial class WolverineOptions
         var extension = new T();
         configure?.Invoke(extension);
 
-        ApplyExtensions(new IWolverineExtension[] { extension });
+        ApplyExtensions([extension]);
     }
 }

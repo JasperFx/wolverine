@@ -28,7 +28,7 @@ public interface IHandledTypeRule
 
 public sealed partial class WolverineOptions : IPolicies
 {
-    internal List<IWolverinePolicy> RegisteredPolicies { get; } = new();
+    internal List<IWolverinePolicy> RegisteredPolicies { get; } = [];
 
 
     void IPolicies.AutoApplyTransactions()
@@ -56,7 +56,7 @@ public sealed partial class WolverineOptions : IPolicies
         this.As<IPolicies>().AllListeners(x => x.UseDurableInbox());
     }
 
-    internal readonly List<IHandledTypeRule> HandledTypeRules = new(){new AgentCommandHandledTypeRule()};
+    internal readonly List<IHandledTypeRule> HandledTypeRules = [new AgentCommandHandledTypeRule()];
 
     void IPolicies.ForwardHandledTypes(IHandledTypeRule rule)
     {

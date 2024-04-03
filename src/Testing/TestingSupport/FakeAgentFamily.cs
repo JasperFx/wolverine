@@ -17,8 +17,8 @@ public class FakeAgentFamily : IStaticAgentFamily
 
     public string Scheme { get; } = "fake";
 
-    public static string[] Names = new string[]
-    {
+    public static string[] Names =
+    [
         "one",
         "two",
         "three",
@@ -31,7 +31,7 @@ public class FakeAgentFamily : IStaticAgentFamily
         "ten",
         "eleven",
         "twelve"
-    };
+    ];
 
     public LightweightCache<Uri, FakeAgent> Agents { get; } = new(x => new FakeAgent(x));
     

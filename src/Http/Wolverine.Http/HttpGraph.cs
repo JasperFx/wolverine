@@ -21,20 +21,20 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
 {
     public static readonly string Context = "httpContext";
 
-    private readonly List<HttpChain> _chains = new();
-    private readonly List<RouteEndpoint> _endpoints = new();
+    private readonly List<HttpChain> _chains = [];
+    private readonly List<RouteEndpoint> _endpoints = [];
     private readonly WolverineOptions _options;
 
-    private readonly List<IResourceWriterPolicy> _builtInWriterPolicies = new()
-    {
+    private readonly List<IResourceWriterPolicy> _builtInWriterPolicies =
+    [
         new EmptyBody204Policy(),
         new StatusCodePolicy(),
         new ResultWriterPolicy(),
         new StringResourceWriterPolicy(),
         new JsonResourceWriterPolicy()
-    };
+    ];
 
-    private readonly List<IResourceWriterPolicy> _optionsWriterPolicies = new();
+    private readonly List<IResourceWriterPolicy> _optionsWriterPolicies = [];
 
     public HttpGraph(WolverineOptions options, IContainer container)
     {
