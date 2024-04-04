@@ -8,7 +8,6 @@ using Microsoft.Extensions.ObjectPool;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
-using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
