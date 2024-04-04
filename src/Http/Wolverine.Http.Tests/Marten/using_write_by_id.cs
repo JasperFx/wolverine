@@ -1,4 +1,3 @@
-using Marten;
 using Marten.AspNetCore;
 using Microsoft.AspNetCore.Http;
 using Shouldly;
