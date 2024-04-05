@@ -134,14 +134,21 @@ public static class WolverineMessageNaming
             return t.Name;
         }
 
-        var sb = new StringBuilder();
+        var name = t.Name[..t.Name.LastIndexOf('`')];
+        var generics = t.GetGenericArguments()
+            .Aggregate("<",
+                (aggregate, type) =>
+                {
+                    var prettyName = GetPrettyName(type);
 
-        sb.Append(t.Name[..t.Name.LastIndexOf('`')]);
-        sb.Append(t.GetGenericArguments().Aggregate("<",
-            (aggregate, type) => aggregate + (aggregate == "<" ? "" : ",") + GetPrettyName(type)));
-        sb.Append('>');
+                    if (aggregate == "<")
+                    {
+                        return $"{aggregate}{prettyName}";
+                    }
 
-        return sb.ToString();
+                    return $"{aggregate},{prettyName}";
+                });
+        return $"{name}{generics}>";
     }
 
     public static string ToMessageTypeName(this Type type)
