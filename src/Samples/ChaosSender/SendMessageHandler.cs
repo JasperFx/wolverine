@@ -8,7 +8,7 @@ public class SendMessageHandler
 {
     private static T send<T>(IDocumentSession session) where T : ITrackedMessage
     {
-        var message = (T)Activator.CreateInstance(typeof(T), Guid.NewGuid());
+        var message = (T)Activator.CreateInstance(typeof(T), Guid.NewGuid())!;
         var record = MessageRecord.For(message);
         session.Store(record);
 
