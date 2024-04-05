@@ -167,7 +167,7 @@ internal class TrackedSession : ITrackedSession
 
     public void AssertNoExceptionsWereThrown()
     {
-        if (_exceptions.ToArray().Any())
+        if (_exceptions.Count > 0)
         {
             throw new AggregateException(_exceptions);
         }
