@@ -41,7 +41,7 @@ public class BrokerResource : IStatefulResource
             }
         }
 
-        if (missing.Any())
+        if (missing.Count != 0)
         {
             throw new Exception($"Missing known broker resources: {missing.Select(x => x.ToString()).Join(", ")}");
         }
@@ -95,7 +95,7 @@ public class BrokerResource : IStatefulResource
         };
 
         var columns = _transport.DiagnosticColumns().ToArray();
-        if (!columns.Any()) return table;
+        if (columns.Length == 0) return table;
         
         foreach (var column in columns)
             table.AddColumn(new TableColumn(column.Header) { Alignment = column.Alignment });

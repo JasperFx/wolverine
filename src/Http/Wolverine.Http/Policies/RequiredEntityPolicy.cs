@@ -17,7 +17,7 @@ internal class RequiredEntityPolicy : IHttpPolicy
             var requiredParameters = chain.Method.Method.GetParameters()
                 .Where(x => x.HasAttribute<RequiredAttribute>() && x.ParameterType.IsClass).ToArray();
 
-            if (requiredParameters.Any())
+            if (requiredParameters.Length != 0)
             {
                 chain.Metadata.Produces(404);
 

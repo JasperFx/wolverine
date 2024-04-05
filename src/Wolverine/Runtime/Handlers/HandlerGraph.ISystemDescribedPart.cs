@@ -27,14 +27,14 @@ public partial class HandlerGraph : IDescribedSystemPart, IWriteToConsole
     {
         writeHandlerDiscoveryRules();
 
-        if (Chains.Any())
-        {
-            writeHandlerTable();
-        }
-        else
+        if (Chains.Length == 0)
         {
             AnsiConsole.Write(
                 "[yellow]No message handlers were discovered, you may want to review the discovery rules above.[/]");
+        }
+        else
+        {
+            writeHandlerTable();
         }
 
         return Task.CompletedTask;

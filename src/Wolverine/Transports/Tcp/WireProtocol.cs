@@ -100,7 +100,7 @@ public static class WireProtocol
         Envelope[] messages)
     {
         // Just a ping
-        if (messages.Any() && messages.First().IsPing())
+        if (messages.Length != 0 && messages.First().IsPing())
         {
             await stream.SendBufferAsync(ReceivedBuffer);
 

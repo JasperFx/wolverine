@@ -94,7 +94,7 @@ public partial class WolverineRuntime
 
         var routes = findRoutes(messageType);
 
-        var router = routes.Any()
+        var router = routes.Count != 0
             ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
             : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
 
@@ -110,7 +110,7 @@ public partial class WolverineRuntime
         {
             routes.AddRange(source.FindRoutes(messageType, this));
 
-            if (routes.Any() && !source.IsAdditive) break;
+            if (routes.Count != 0 && !source.IsAdditive) break;
         }
 
         return routes;

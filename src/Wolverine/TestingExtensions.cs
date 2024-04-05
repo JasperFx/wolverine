@@ -43,7 +43,7 @@ public static class TestingExtensions
         var actual = messages
             .resolveMessages();
 
-        if (!actual.Any())
+        if (actual.Length == 0)
         {
             return "[no messages]";
         }
@@ -134,7 +134,7 @@ public static class TestingExtensions
         Action<DeliveryOptions?>? deliveryAssertions)
     {
         var actual = messages.resolveMessages();
-        if (!actual.Any())
+        if (actual.Length == 0)
         {
             throw new WolverineMessageExpectationException(
                 $"Should be a message of type {typeof(T).FullNameInCode()}, but there were no messages", actual);

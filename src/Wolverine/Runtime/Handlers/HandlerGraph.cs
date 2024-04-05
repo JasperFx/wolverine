@@ -194,13 +194,13 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
         var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
 
-        if (methods.Any())
+        if (methods.Length == 0)
         {
-            AddRange(calls);
+            logger.LogWarning("Wolverine found no handlers. If this is unexpected, check the assemblies that it's scanning. See https://wolverine.netlify.app/guide/handlers/discovery.html for more information");
         }
         else
         {
-            logger.LogWarning("Wolverine found no handlers. If this is unexpected, check the assemblies that it's scanning. See https://wolverine.netlify.app/guide/handlers/discovery.html for more information");
+            AddRange(calls);
         }
 
         Group();

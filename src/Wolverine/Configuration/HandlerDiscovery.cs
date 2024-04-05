@@ -67,7 +67,7 @@ public sealed partial class HandlerDiscovery
             method => method.HasAttribute<WolverineIgnoreAttribute>());
 
 
-        MethodExcludes.WithCondition("Has no arguments", m => !m.GetParameters().Any());
+        MethodExcludes.WithCondition("Has no arguments", m => m.GetParameters().Length == 0);
 
         MethodExcludes.WithCondition("Cannot determine a valid message type", m => m.MessageType() == null);
 

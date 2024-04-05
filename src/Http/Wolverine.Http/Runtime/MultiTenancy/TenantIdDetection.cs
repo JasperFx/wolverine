@@ -67,7 +67,7 @@ internal class TenantIdDetection : ITenantDetectionPolicies, IHttpPolicy
 
     void IHttpPolicy.Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
     {
-        if (!Strategies.Any()) return;
+        if (Strategies.Count == 0) return;
 
         foreach (var chain in chains)
         {

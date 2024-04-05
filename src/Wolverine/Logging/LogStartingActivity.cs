@@ -40,7 +40,7 @@ internal class LogStartingActivity : SyncFrame
     {
         writer.WriteComment("Application specific auditing");
         var template = $"Starting to process {_inputType.FullNameInCode()} ({{Id}})";
-        if (_members.Any())
+        if (_members.Count != 0)
         {
             template += " with " + _members.Select(m => $"{m.MemberName}: {{{m.Member.Name}}}").Join(", ");
         }

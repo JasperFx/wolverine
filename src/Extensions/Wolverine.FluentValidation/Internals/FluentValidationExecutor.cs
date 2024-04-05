@@ -10,7 +10,7 @@ public static class FluentValidationExecutor
     public static async Task ExecuteOne<T>(IValidator<T> validator, IFailureAction<T> failureAction, T message)
     {
         var result = await validator.ValidateAsync(message);
-        if (result.Errors.Any())
+        if (result.Errors.Count != 0)
         {
             failureAction.Throw(message, result.Errors);
         }
@@ -25,16 +25,15 @@ public static class FluentValidationExecutor
         foreach (var validator in validators)
         {
             var result = await validator.ValidateAsync(message);
-            if (result is not null && result.Errors.Any())
+            if (result is not null && result.Errors.Count != 0)
             {
                 failures.AddRange(result.Errors);
             }
         }
-        
-        if (failures.Any())
+
+        if (failures.Count != 0)
         {
             failureAction.Throw(message, failures);
         }
     }
-    
 }

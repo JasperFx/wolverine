@@ -156,7 +156,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
     public IAdditionalActions ScheduleRetry(params TimeSpan[] delays)
     {
-        if (!delays.Any())
+        if (delays.Length == 0)
         {
             throw new InvalidOperationException("You must specify at least one delay time");
         }
@@ -196,7 +196,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
     public IAdditionalActions RetryWithCooldown(params TimeSpan[] delays)
     {
-        if (!delays.Any())
+        if (delays.Length == 0)
         {
             throw new InvalidOperationException("You must specify at least one delay time");
         }

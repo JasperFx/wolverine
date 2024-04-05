@@ -226,7 +226,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.TenantIdKey, env.TenantId);
         writer.WriteProp(ref count, EnvelopeConstants.TopicNameKey, env.TopicName);
 
-        if (env.AcceptedContentTypes.Any())
+        if (env.AcceptedContentTypes.Length != 0)
         {
             writer.WriteProp(ref count, EnvelopeConstants.AcceptedContentTypesKey,
                 string.Join(",", env.AcceptedContentTypes));

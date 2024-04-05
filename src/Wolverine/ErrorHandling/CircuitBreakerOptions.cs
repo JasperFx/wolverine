@@ -76,7 +76,7 @@ public class CircuitBreakerOptions
     internal void AssertValid()
     {
         var messages = validate().ToArray();
-        if (messages.Any())
+        if (messages.Length != 0)
         {
             throw new InvalidCircuitBreakerException(messages);
         }

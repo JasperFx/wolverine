@@ -12,7 +12,7 @@ internal class ComplexMatch : IExceptionMatch
 
     public bool Matches(Exception ex)
     {
-        if (Includes.Any())
+        if (Includes.Count != 0)
         {
             return Includes.Any(x => x.Matches(ex)) && !Excludes.Any(x => x.Matches(ex));
         }
@@ -22,7 +22,8 @@ internal class ComplexMatch : IExceptionMatch
 
     public bool IsEmpty()
     {
-        return !Includes.Any() && !Excludes.Any();
+        return Includes.Count == 0 &&
+               Excludes.Count == 0;
     }
 
     public IExceptionMatch Reduce()

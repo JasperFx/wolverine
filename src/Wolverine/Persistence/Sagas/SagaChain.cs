@@ -83,7 +83,7 @@ public class SagaChain : HandlerChain
 
         var list = new List<Frame>();
 
-        if (!ExistingCalls.Any())
+        if (ExistingCalls.Length == 0)
         {
             generateForOnlyStartingSaga(container, frameProvider, list);
         }
@@ -151,7 +151,7 @@ public class SagaChain : HandlerChain
             yield break;
         }
 
-        if (StartingCalls.Any())
+        if (StartingCalls.Length != 0)
         {
             yield return new CreateMissingSagaFrame(saga);
 
@@ -167,7 +167,7 @@ public class SagaChain : HandlerChain
             var ifNotCompleted = buildFrameForConditionalInsert(saga, frameProvider, container);
             yield return ifNotCompleted;
         }
-        else if (NotFoundCalls.Any())
+        else if (NotFoundCalls.Length != 0)
         {
             foreach (var call in NotFoundCalls)
             {
