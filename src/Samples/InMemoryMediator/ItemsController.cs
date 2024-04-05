@@ -14,7 +14,7 @@ public class ItemsController : ControllerBase
     {
         var items = context.Items.AsQueryable().ToList();
 
-        if (items.Any())
+        if (items.Count != 0)
         {
             var text = items.Select(x => x.Name).Join("\n");
 

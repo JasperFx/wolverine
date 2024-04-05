@@ -85,7 +85,7 @@ public partial class HttpChain
             Postprocessors.Add(new WriteEmptyBodyStatusCode());
         }
 
-        if (AuditedMembers.Any())
+        if (AuditedMembers.Count != 0)
         {
             Middleware.Insert(0, new AuditToActivityFrame(this));
         }

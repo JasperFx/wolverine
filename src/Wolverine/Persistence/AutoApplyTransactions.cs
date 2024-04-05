@@ -12,7 +12,7 @@ internal class AutoApplyTransactions : IChainPolicy
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
         var providers = rules.PersistenceProviders();
-        if (!providers.Any())
+        if (providers.Count == 0)
         {
             return;
         }

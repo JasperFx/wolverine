@@ -136,11 +136,10 @@ public class AssignmentGrid
     /// <exception cref="InvalidOperationException"></exception>
     public void DistributeEvenly(string scheme)
     {
-        if (!_nodes.Any())
+        if (_nodes.Count == 0)
         {
             throw new InvalidOperationException("There are no active nodes");
         }
-
 
         var agents = _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
         if (agents.Count == 0)
@@ -172,7 +171,7 @@ public class AssignmentGrid
         // 2nd pass
         foreach (var node in _nodes)
         {
-            if (!missing.Any())
+            if (missing.Count == 0)
             {
                 break;
             }
@@ -181,7 +180,7 @@ public class AssignmentGrid
 
             for (var i = 0; i < minimum - count; i++)
             {
-                if (!missing.Any())
+                if (missing.Count == 0)
                 {
                     break;
                 }
@@ -196,7 +195,7 @@ public class AssignmentGrid
         var nodeQueue = new Queue<Node>(nodesWithCapacity.ToArray());
 
         // Last pass for remainders
-        while (missing.Any())
+        while (missing.Count != 0)
         {
             var agent = missing.Dequeue();
 
@@ -215,7 +214,7 @@ public class AssignmentGrid
     public void DistributeEvenlyWithBlueGreenSemantics(string scheme)
     {
         var nodes = _nodes;
-        if (!nodes.Any())
+        if (nodes.Count == 0)
         {
             throw new InvalidOperationException("There are no active nodes");
         }

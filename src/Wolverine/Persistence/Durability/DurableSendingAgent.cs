@@ -102,7 +102,7 @@ internal class DurableSendingAgent : SendingAgent
     protected override async Task afterRestartingAsync(ISender sender)
     {
         var expired = _queued.Where(x => x.IsExpired()).ToArray();
-        if (expired.Any())
+        if (expired.Length != 0)
         {
             await executeWithRetriesAsync(() => _outbox.DeleteOutgoingAsync(expired));
         }

@@ -41,7 +41,7 @@ internal static class ExtensionLoader
     {
         var assemblies = FindExtensionAssemblies();
 
-        if (!assemblies.Any())
+        if (assemblies.Length == 0)
         {
             Console.WriteLine("No Wolverine extensions are detected");
             return;

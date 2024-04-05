@@ -55,7 +55,7 @@ internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
 
     public IEnumerable<IAgentCommand> PostProcessingCommands()
     {
-        if (_envelopes.Any())
+        if (_envelopes.Count != 0)
         {
             yield return this;
         }

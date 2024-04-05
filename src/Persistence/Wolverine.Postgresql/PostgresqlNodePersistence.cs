@@ -307,7 +307,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
     public Task LogRecordsAsync(params NodeRecord[] records)
     {
-        if (!records.Any()) return Task.CompletedTask;
+        if (records.Length == 0) return Task.CompletedTask;
         
         var op = new PersistNodeRecord(_settings, records);
         return _database.EnqueueAsync(op);

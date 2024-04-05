@@ -49,7 +49,7 @@ public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 
     public async Task PersistOutgoingAsync(Envelope[] envelopes)
     {
-        if (!envelopes.Any())
+        if (envelopes.Length == 0)
         {
             return;
         }

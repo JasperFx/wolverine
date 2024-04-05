@@ -295,17 +295,17 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <exception cref="InvalidOperationException"></exception>
     internal virtual List<Frame> DetermineFrames(GenerationRules rules, IContainer container, MessageVariable messageVariable)
     {
-        if (!Handlers.Any())
+        if (Handlers.Count == 0)
         {
             throw new InvalidOperationException("No method handlers configured for message type " +
                                                 MessageType.FullName);
         }
 
-        if (AuditedMembers.Any())
+        if (AuditedMembers.Count != 0)
         {
             Middleware.Insert(0, new AuditToActivityFrame(this));
         }
-        
+
         Middleware.Insert(0, messageVariable.Creator!);
 
         applyCustomizations(rules, container);

@@ -17,7 +17,7 @@ internal class PublishIncomingEventsBeforeCommit : DocumentSessionListenerBase
     {
         var events = session.PendingChanges.As<IChangeSet>().GetEvents().ToArray();
 
-        if (events.Any())
+        if (events.Length != 0)
         {
             foreach (var e in events)
             {

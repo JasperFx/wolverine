@@ -196,19 +196,17 @@ internal class TrackedSession : ITrackedSession
         writer.WriteLine("Activity detected:");
 
         var grid = new Grid<EnvelopeRecord>();
-        
+
         var records = AllRecordsInOrder();
 
-        if (records.Any())
-        {
-            writeGrid(grid, records, writer);
-        }
-        else
+        if (records.Length == 0)
         {
             writer.WriteLine("No activity detected!");
         }
-
-        
+        else
+        {
+            writeGrid(grid, records, writer);
+        }
 
         if (_conditions.Any())
         {

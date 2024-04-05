@@ -51,7 +51,7 @@ internal class DatabaseOperationBatch : IAgentCommand
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
-        if (!_operations.Any()) return AgentCommands.Empty;
+        if (_operations.Length == 0) return AgentCommands.Empty;
         
         var builder = _database.ToCommandBuilder();
         foreach (var operation in _operations) operation.ConfigureCommand(builder);
