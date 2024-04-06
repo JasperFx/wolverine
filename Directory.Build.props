@@ -11,7 +11,6 @@
         <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618</NoWarn>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <DebugType>portable</DebugType>
         <Version>2.1.2</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>

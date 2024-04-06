@@ -29,7 +29,7 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
 
     public Task PersistOutgoingAsync(Envelope[] envelopes)
     {
-        if (!envelopes.Any())
+        if (envelopes.Length == 0)
         {
             return Task.CompletedTask;
         }

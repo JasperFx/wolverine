@@ -15,6 +15,19 @@ public class WolverineMessageNamingTests
     }
 
     [Fact]
+    public void GetPrettyName()
+    {
+        typeof(string).GetPrettyName()
+            .ShouldBe("String");
+        typeof(List<string>).GetPrettyName()
+            .ShouldBe("List<String>");
+        typeof(Dictionary<int, string>).GetPrettyName()
+            .ShouldBe("Dictionary<Int32,String>");
+        typeof(Dictionary<int, List<string>>).GetPrettyName()
+            .ShouldBe("Dictionary<Int32,List<String>>");
+    }
+
+    [Fact]
     public void use_the_types_full_name_otherwise()
     {
         typeof(MySpecialMessage).ToMessageTypeName()

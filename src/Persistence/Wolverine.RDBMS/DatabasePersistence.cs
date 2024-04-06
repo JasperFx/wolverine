@@ -102,12 +102,29 @@ public static class DatabasePersistence
     public static async Task<DeadLetterEnvelope> ReadDeadLetterAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
         var id = await reader.GetFieldValueAsync<Guid>(0, cancellation);
+        var executionTime = await reader.GetFieldValueAsync<DateTimeOffset?>(1, cancellation);
         var envelope = EnvelopeSerializer.Deserialize(await reader.GetFieldValueAsync<byte[]>(2, cancellation));
-
+        var messageType = await reader.GetFieldValueAsync<string>(3, cancellation);
+        var receivedAt = await reader.GetFieldValueAsync<string>(4, cancellation);
+        var source = await reader.GetFieldValueAsync<string>(5, cancellation);
         var exceptionType = await reader.GetFieldValueAsync<string>(6, cancellation);
         var exceptionMessage = await reader.GetFieldValueAsync<string>(7, cancellation);
+        var sentAt = await reader.GetFieldValueAsync<DateTimeOffset>(8, cancellation);
+        var replayable = await reader.GetFieldValueAsync<bool>(9, cancellation);
 
-        return new (id, envelope, exceptionType, exceptionMessage);
+
+        return new DeadLetterEnvelope(
+            id, 
+            executionTime, 
+            envelope, 
+            messageType, 
+            receivedAt, 
+            source, 
+            exceptionType, 
+            exceptionMessage, 
+            sentAt, 
+            replayable
+        );
     }
 
     public static void ConfigureDeadLetterCommands(Envelope envelope, Exception? exception, DbCommandBuilder builder,

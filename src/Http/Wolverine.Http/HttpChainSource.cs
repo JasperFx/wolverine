@@ -29,7 +29,7 @@ internal class HttpChainSource
     {
         var discovered = _assemblies.SelectMany(x => x.ExportedTypes)
             .Where(x => _typeFilters.Matches(x))
-            .Where(x => x.IsPublic && !x.GetGenericArguments().Any());
+            .Where(x => x.IsPublic && x.GetGenericArguments().Length == 0);
 
         return discovered
             .Distinct()

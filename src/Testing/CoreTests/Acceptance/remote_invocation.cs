@@ -137,16 +137,15 @@ public class remote_invocation : IAsyncLifetime
     [Fact]
     public async Task happy_path_with_explicit_endpoint_name()
     {
-        Response1 response = default;
-        
+        Response1 response = null!;
+
         Func<IMessageContext, Task<Response1>> fetch = async c =>
             response = await c.EndpointFor("Receiver2").InvokeAsync<Response1>(new Request1 { Name = "Croaker" });
-        
+
         var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
             .ExecuteAndWaitAsync(fetch);
-        
 
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);

@@ -747,10 +747,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Inbox.MoveToDeadLetterStorageAsync(envelopes[7], new NotImplementedException());
         await Databases.Inbox.MoveToDeadLetterStorageAsync(envelopes[15], new NotImplementedException());
 
-        await Databases.Admin.MarkDeadLetterEnvelopesAsReplayableAsync(typeof(NotImplementedException).FullName);
-        
-        
-
+        await Databases.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(typeof(NotImplementedException).FullName);
     }
 
     [Fact]

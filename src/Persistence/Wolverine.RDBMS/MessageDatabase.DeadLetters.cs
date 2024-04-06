@@ -8,7 +8,7 @@ public abstract partial class MessageDatabase<T>
     public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
     {
         var query = $"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1";
-        
+
         if (!string.IsNullOrEmpty(queryParameters.ExceptionType))
         {
             query += $" and {DatabaseConstants.ExceptionType} = @exceptionType";
@@ -16,7 +16,7 @@ public abstract partial class MessageDatabase<T>
 
         if (!string.IsNullOrEmpty(queryParameters.ExceptionMessage))
         {
-            query += $" and {DatabaseConstants.ExceptionMessage} LIKE '@exceptionMessage'";
+            query += $" and {DatabaseConstants.ExceptionMessage} LIKE @exceptionMessage";
         }
 
         if (!string.IsNullOrEmpty(queryParameters.MessageType))
@@ -104,4 +104,22 @@ public abstract partial class MessageDatabase<T>
 
         return deadLetterEnvelope;
     }
+
+    public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    {
+        var sql =
+            $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay";
+
+        if (!string.IsNullOrEmpty(exceptionType))
+        {
+            sql = $"{sql} where {DatabaseConstants.ExceptionType} = @extype";
+        }
+
+        return await CreateCommand(sql).With("replay", true).With("extype", exceptionType)
+            .ExecuteNonQueryAsync(_cancellation);
+    }
+
+    public abstract Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null);
+
+    public abstract Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null);
 }

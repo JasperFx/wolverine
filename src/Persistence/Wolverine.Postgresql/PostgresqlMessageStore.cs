@@ -1,4 +1,5 @@
-﻿using System.Data.Common;
+﻿using System.Data;
+using System.Data.Common;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
@@ -141,6 +142,47 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         {
             if (isExceptionFromDuplicateEnvelope(e)) return;
             throw;
+        }
+    }
+
+    public override async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
+    {
+        var builder = ToCommandBuilder();
+        builder.Append($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay where id = ANY(@ids)");
+
+        var cmd = builder.Compile();
+        cmd.With("replay", true);
+        var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
+        cmd.Parameters.Add(param);
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        cmd.Connection = conn;
+        try
+        {
+            await cmd.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    public override async Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
+    {
+        var builder = ToCommandBuilder();
+        builder.Append($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = ANY(@ids)");
+
+        var cmd = builder.Compile();
+        var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
+        cmd.Parameters.Add(param);
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        cmd.Connection = conn;
+        try
+        {
+            await cmd.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
         }
     }
 

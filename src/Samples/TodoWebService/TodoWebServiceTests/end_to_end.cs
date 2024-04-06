@@ -41,7 +41,7 @@ public class end_to_end : IAsyncLifetime
             x.Get.Url("/");
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
-        
+
         result.ReadAsText().ShouldBe("Hello.");
     }
 
@@ -50,8 +50,8 @@ public class end_to_end : IAsyncLifetime
     [Fact]
     public async Task create_and_load()
     {
-        string url = default;
-        
+        string url = null!;
+
         // I'm making Wolverine "wait" for all message activity that's started
         // within the supplied action to finish
         var tracked = await _host.ExecuteAndWaitAsync(async _ =>
@@ -62,11 +62,11 @@ public class end_to_end : IAsyncLifetime
                 opts.StatusCodeShouldBe(201);
             });
 
-            url = results.Context.Response.Headers.Location;
+            url = results.Context.Response.Headers.Location!;
         });
-        
+
         var todo = await _host.GetAsJson<Todo>(url);
-        todo.Name.ShouldBe("Kadarious Toney");
+        todo!.Name.ShouldBe("Kadarious Toney");
 
         // Now let's see if the message got kicked out
         var @event = tracked.Executed.SingleMessage<TodoCreated>();

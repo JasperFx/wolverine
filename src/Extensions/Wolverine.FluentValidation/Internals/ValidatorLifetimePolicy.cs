@@ -16,7 +16,7 @@ internal class ValidatorLifetimePolicy : IInstancePolicy
             {
                 var hasNonDefaultConstructor = i.ImplementationType
                     .GetConstructors()
-                    .Any(x => x.GetParameters().Any());
+                    .Any(x => x.GetParameters().Length != 0);
 
                 instance.Lifetime = hasNonDefaultConstructor ? ServiceLifetime.Scoped : ServiceLifetime.Singleton;
             }

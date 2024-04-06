@@ -155,7 +155,7 @@ public class MessageBus : IMessageBus
 
         trackEnvelopeCorrelation(Activity.Current, outgoing);
 
-        if (outgoing.Any())
+        if (outgoing.Length != 0)
         {
             return PersistOrSendAsync(outgoing);
         }

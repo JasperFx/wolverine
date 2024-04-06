@@ -257,7 +257,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
 
         // make one of the messages(DivideByZeroException) replayable
         var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
-            .Admin
+            .DeadLetters
             .MarkDeadLetterEnvelopesAsReplayableAsync(divideByZeroException.GetType().FullName!);
 
         // run the action
@@ -270,6 +270,60 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         replayableErrorMessagesCountAfterMakingReplayable.ShouldBe(1);
         counts.DeadLetter.ShouldBe(1);
         counts.Incoming.ShouldBe(1);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task move_dead_letter_messages_as_replayable_by_id_to_incoming()
+    {
+        var unReplayableEnvelope = ObjectMother.Envelope();
+        var replayableEnvelope = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(unReplayableEnvelope);
+        await thePersistence.Inbox.StoreIncomingAsync(replayableEnvelope);
+
+        var divideByZeroException = new DivideByZeroException("Kaboom!");
+        var applicationException = new ApplicationException("Kaboom!");
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
+
+        await thePersistence
+            .DeadLetters
+            .MarkDeadLetterEnvelopesAsReplayableAsync([replayableEnvelope.Id]);
+
+        var operation = new MoveReplayableErrorMessagesToIncomingOperation(thePersistence);
+        var batch = new DatabaseOperationBatch(thePersistence, [operation]);
+        await theHost.InvokeAsync(batch);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+
+        counts.DeadLetter.ShouldBe(1);
+        counts.Incoming.ShouldBe(1);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task delete_dead_letter_message_by_id()
+    {
+        var unReplayableEnvelope = ObjectMother.Envelope();
+        var replayableEnvelope = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(unReplayableEnvelope);
+        await thePersistence.Inbox.StoreIncomingAsync(replayableEnvelope);
+
+        var divideByZeroException = new DivideByZeroException("Kaboom!");
+        var applicationException = new ApplicationException("Kaboom!");
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(unReplayableEnvelope, divideByZeroException);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
+
+        await thePersistence
+            .DeadLetters
+            .DeleteDeadLetterEnvelopesAsync([replayableEnvelope.Id]);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+
+        counts.DeadLetter.ShouldBe(1);
+        counts.Incoming.ShouldBe(0);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
     }

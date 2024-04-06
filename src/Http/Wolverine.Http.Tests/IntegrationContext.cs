@@ -174,7 +174,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
     // before passing control back to the calling test
     protected async Task<(ITrackedSession, IScenarioResult)> TrackedHttpCall(Action<Scenario> configuration)
     {
-        IScenarioResult result = null;
+        IScenarioResult result = null!;
 
         // The outer part is tying into Wolverine's test support
         // to "wait" for all detected message activity to complete

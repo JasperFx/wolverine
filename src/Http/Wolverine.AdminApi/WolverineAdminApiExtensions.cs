@@ -60,7 +60,7 @@ public static class WolverineAdminApiExtensions
         CancellationToken cancellationToken)
     {
         var counts = await runtime.Storage.Admin.FetchCountsAsync();
-        var hasMultiples = counts.Tenants.Any();
+        var hasMultiples = counts.Tenants.Count != 0;
         
         var table = new TableTag();
         table.AddHeaderRow(row =>
@@ -133,7 +133,7 @@ public static class WolverineAdminApiExtensions
                 row.Cell(node.Started.ToString("u"));
                 row.Cell(node.LastHealthCheck.ToString("u"));
 
-                var agents = node.ActiveAgents.Any()
+                var agents = node.ActiveAgents.Count != 0
                     ? node.ActiveAgents.Select(x => x.ToString()).Join(", ")
                     : "None";
 

@@ -20,18 +20,17 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
     {
         writeBasics();
 
-        if (Queues.Any())
+        if (Queues.Count != 0)
         {
             AnsiConsole.WriteLine();
             writeQueues();
         }
 
-        if (Exchanges.Any())
+        if (Exchanges.Count != 0)
         {
             AnsiConsole.WriteLine();
             writeExchanges();
         }
-        
 
         return Task.CompletedTask;
     }

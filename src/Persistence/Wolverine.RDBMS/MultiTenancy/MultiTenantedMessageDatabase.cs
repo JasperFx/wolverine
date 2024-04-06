@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Spectre.Console;
 using Weasel.Core.Migrations;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -262,7 +263,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         return executeOnAllAsync(d => d.Admin.ClearAllAsync());
     }
 
-    async Task<int> IMessageStoreAdmin.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    async Task<int> IDeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
     {
         var size = 0;
 
@@ -270,7 +271,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         {
             try
             {
-                size += await database.Admin.MarkDeadLetterEnvelopesAsReplayableAsync(exceptionType);
+                size += await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(exceptionType);
             }
             catch (Exception e)
             {
@@ -280,6 +281,36 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         }
 
         return size;
+    }
+
+    public async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
+    {
+        if (tenantId is { })
+        {
+            var database = await GetDatabaseAsync(tenantId);
+            await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
+            return;
+        }
+
+        foreach (var database in databases())
+        {
+            await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
+        }
+    }
+
+    public async Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
+    {
+        if (tenantId is { })
+        {
+            var database = await GetDatabaseAsync(tenantId);
+            await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
+            return;
+        }
+
+        foreach (var database in databases())
+        {
+            await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
+        }
     }
 
     Task IMessageStoreAdmin.RebuildAsync()
@@ -382,7 +413,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             }
         }
 
-        if (exceptions.Any())
+        if (exceptions.Count != 0)
         {
             throw new AggregateException(exceptions);
         }

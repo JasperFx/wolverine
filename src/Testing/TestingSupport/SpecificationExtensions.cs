@@ -69,7 +69,7 @@ public static class Exception<T> where T : Exception
 {
     public static T ShouldBeThrownBy(Action action)
     {
-        T exception = null;
+        T? exception = null;
 
         try
         {
@@ -90,7 +90,7 @@ public static class Exception<T> where T : Exception
 
     public static async Task<T> ShouldBeThrownBy(Func<Task> action)
     {
-        T exception = null;
+        T? exception = null;
 
         try
         {

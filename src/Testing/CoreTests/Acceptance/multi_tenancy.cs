@@ -45,17 +45,17 @@ public class multi_tenancy : IAsyncLifetime
     public async Task invoke_with_tenant_with_expected_result()
     {
         var id = Guid.NewGuid();
-        TenantedResult result = default;
+        TenantedResult result = null!;
 
         var tracked = await _host.ExecuteAndWaitAsync(async c =>
         {
             result = await c.InvokeForTenantAsync<TenantedResult>("bar", new TenantedMessage1(id));
         });
-        
+
         tracked.Executed.SingleEnvelope<TenantedMessage1>().TenantId.ShouldBe("bar");
         tracked.Executed.SingleEnvelope<TenantedMessage2>().TenantId.ShouldBe("bar");
         tracked.Executed.SingleEnvelope<TenantedMessage3>().TenantId.ShouldBe("bar");
-        
+
         result.TenantId.ShouldBe("bar");
     }
 }

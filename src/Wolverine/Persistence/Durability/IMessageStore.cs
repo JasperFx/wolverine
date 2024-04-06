@@ -33,7 +33,18 @@ public interface IMessageOutbox
 }
 
 public record DeadLetterEnvelopesFound(IReadOnlyList<DeadLetterEnvelope> DeadLetterEnvelopes, Guid? NextId, string? TenantId);
-public record DeadLetterEnvelope(Guid Id, Envelope Envelope, string ExceptionType, string ExceptionMessage);
+public record DeadLetterEnvelope(
+    Guid Id, 
+    DateTimeOffset? ExecutionTime, 
+    Envelope Envelope, 
+    string MessageType, 
+    string ReceivedAt, 
+    string Source, 
+    string ExceptionType, 
+    string ExceptionMessage, 
+    DateTimeOffset SentAt, 
+    bool Replayable
+    );
 
 public class DeadLetterEnvelopeQueryParameters
 {
@@ -52,6 +63,29 @@ public interface IDeadLetters
 
     /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
     Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null);
+
+    /// <summary>
+    ///     Marks the Envelopes in DeadLetterTable
+    ///     as replayable. DurabilityAgent will move the envelopes to IncomingTable.
+    /// </summary>
+    /// <param name="exceptionType">Exception Type that should be marked. Default is any.</param>
+    /// <returns>Number of envelopes marked.</returns>
+    Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType = "");
+
+    /// <summary>
+    ///     Marks the Envelope in DeadLetterTable
+    ///     as replayable. DurabilityAgent will move the envelopes to IncomingTable.
+    /// </summary>
+    /// <param name="ids"></param>
+    /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
+    Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null);
+
+    /// <summary>
+    /// Deletes the DeadLetterEnvelope from the DeadLetterTable
+    /// </summary>
+    /// <param name="ids"></param>
+    /// <param name="tenantId">Leaving tenantId null will query all tenants</param>
+    Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null);
 }
 
 public interface IMessageStore : IAsyncDisposable

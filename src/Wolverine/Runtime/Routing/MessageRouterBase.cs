@@ -96,7 +96,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             throw new ArgumentNullException(nameof(message));
         }
 
-        if (!_topicRoutes.Any())
+        if (_topicRoutes.Length == 0)
         {
             throw new InvalidOperationException("There are no registered topic routed endpoints");
         }

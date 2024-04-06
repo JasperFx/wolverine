@@ -20,7 +20,7 @@ public static async ValueTask SendViaMessageBus(IMessageBus bus)
     await bus.PublishAsync(new HttpMessage2("bar"));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MessageHandlers.cs#L33-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_cascading_messages_from_http_endpoint_with_imessagebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MessageHandlers.cs#L36-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_cascading_messages_from_http_endpoint_with_imessagebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 But of course there's some other alternatives to directly using `IMessageBus` by utilizing Wolverine's [cascading messages](/guide/handlers/cascading)
@@ -121,7 +121,7 @@ public static (string, OutgoingMessages) Post(SpawnInput input)
     return ("got it", messages);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MessageHandlers.cs#L57-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_spawning_messages_from_http_endpoint_via_outgoingmessages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MessageHandlers.cs#L60-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_spawning_messages_from_http_endpoint_via_outgoingmessages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Otherwise, if you want to make it clearer from the signature of your HTTP handler method what messages are cascaded
@@ -138,5 +138,5 @@ public static (HttpMessage1, HttpMessage2) Post()
     return new(new HttpMessage1("foo"), new HttpMessage2("bar"));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MessageHandlers.cs#L45-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_cascading_messages_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MessageHandlers.cs#L48-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_cascading_messages_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
