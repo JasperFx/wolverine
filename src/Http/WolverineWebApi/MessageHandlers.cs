@@ -10,6 +10,8 @@ public record HttpMessage3(string Name);
 public record HttpMessage4(string Name);
 public record HttpMessage5(string Name);
 public record HttpMessage6(string Name);
+public record MessageThatAlwaysGoesToDeadLetter(string Name);
+public class AlwaysDeadLetterException(string message) : Exception(message);
 
 public record CustomRequest(string Name);
 public record CustomResponse(string Name);
@@ -24,6 +26,7 @@ public static class MessageHandler
     public static void Handle(HttpMessage4 message) => Debug.WriteLine("Got message 4");
     public static void Handle(HttpMessage5 message) => Debug.WriteLine("Got message 5");
     public static void Handle(HttpMessage6 message) => Debug.WriteLine("Got message 6");
+    public static void Handle(MessageThatAlwaysGoesToDeadLetter message) => throw new AlwaysDeadLetterException(message.Name);
 }
 
 public record SpawnInput(string Name);
