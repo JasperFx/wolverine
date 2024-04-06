@@ -15,6 +15,8 @@ public record TodoListCreated(Guid ListId, string Title);
 
 public record TodoCreationResponse(Guid ListId) : CreationResponse("api/todo-lists/" + ListId);
 
+#region sample_using_start_stream_side_effect
+
 public static class TodoListEndpoint
 {
     [WolverinePost("/api/todo-lists")]
@@ -29,4 +31,6 @@ public static class TodoListEndpoint
         return (new TodoCreationResponse(listId), startStream);
     }
 }
+
+#endregion
 

@@ -39,12 +39,16 @@ public class InvoicesEndpoint
 
     #endregion
 
+    #region sample_using_marten_op_from_http_endpoint
+
     [WolverinePost("/invoices/{invoiceId}/pay")]
     public static IMartenOp Pay([Document] Invoice invoice)
     {
         invoice.Paid = true;
         return MartenOps.Store(invoice);
     }
+
+    #endregion
 
     #region sample_overriding_route_argument_with_document_attribute
 
