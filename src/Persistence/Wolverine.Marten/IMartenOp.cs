@@ -4,6 +4,8 @@ using CombGuidIdGeneration = Marten.Schema.Identity.CombGuidIdGeneration;
 
 namespace Wolverine.Marten;
 
+#region sample_IMartenOp
+
 /// <summary>
 /// Interface for any kind of Marten related side effect
 /// </summary>
@@ -11,6 +13,8 @@ public interface IMartenOp : ISideEffect
 {
     void Execute(IDocumentSession session);
 }
+
+#endregion
 
 /// <summary>
 /// Access to Marten related side effect return values from message handlers
