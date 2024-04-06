@@ -36,7 +36,7 @@ public sealed partial class WolverineOptions
         }
     }
 
-    internal IMessageSerializer DetermineSerializer(Envelope envelope)
+    public IMessageSerializer DetermineSerializer(Envelope envelope)
     {
         if (envelope.ContentType.IsEmpty())
         {

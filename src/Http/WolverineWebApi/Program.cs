@@ -9,6 +9,7 @@ using Oakton.Resources;
 using Wolverine;
 using Wolverine.AdminApi;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
@@ -67,6 +68,7 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
 
     opts.Policies.AutoApplyTransactions();
+    opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
     opts.UseFluentValidation();
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
@@ -114,6 +116,8 @@ app.MapHub<BroadcastHub>("/updates");
 
 app.MapWolverineAdminApiEndpoints();
 
+app.MapDeadLettersEndpoints();
+
 #region sample_using_configure_endpoints
 
 app.MapWolverineEndpoints(opts =>
@@ -159,7 +163,8 @@ app.MapWolverineEndpoints(opts =>
     opts.PublishMessage<HttpMessage2>("/publish/message2").WithTags("messages");
     opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5").WithTags("messages");
     opts.SendMessage<HttpMessage6>("/send/message6").WithTags("messages");
-    
+    opts.SendMessage<MessageThatAlwaysGoesToDeadLetter>(HttpMethod.Post, "/send/always-dead-letter").WithTags("messages");
+
     opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
 
