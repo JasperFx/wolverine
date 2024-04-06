@@ -116,7 +116,9 @@ app.MapHub<BroadcastHub>("/updates");
 
 app.MapWolverineAdminApiEndpoints();
 
+#region sample_register_dead_letter_endpoints
 app.MapDeadLettersEndpoints();
+#endregion
 
 #region sample_using_configure_endpoints
 
