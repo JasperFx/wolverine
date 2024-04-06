@@ -117,7 +117,15 @@ app.MapHub<BroadcastHub>("/updates");
 app.MapWolverineAdminApiEndpoints();
 
 #region sample_register_dead_letter_endpoints
-app.MapDeadLettersEndpoints();
+app.MapDeadLettersEndpoints()
+    
+    // It's a Minimal API endpoint group,
+    // so you can add whatever authorization
+    // or OpenAPI metadata configuration you need
+    // for just these endpoints
+    //.RequireAuthorization("Admin")
+    
+    ;
 #endregion
 
 #region sample_using_configure_endpoints
