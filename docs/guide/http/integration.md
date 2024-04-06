@@ -123,7 +123,7 @@ public async Task hello_world()
         x.Get.Url("/");
         x.Header("content-type").SingleValueShouldEqual("text/plain");
     });
-    
+
     result.ReadAsText().ShouldBe("Hello.");
 }
 ```

@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
@@ -48,11 +49,15 @@ public record DeadLetterEnvelopeResponse(
 public static class DeadLettersEndpointExtensions
 {
     /// <summary>
-    /// Creates a minimal API for dead-letters using the IDeadLetters interface.
+    /// Add endpoints to manage the Wolverine database-backed deal letter queue for this
+    /// application. 
     /// </summary>
-    public static void MapDeadLettersEndpoints(this IEndpointRouteBuilder endpoints)
+    /// <param name="groupUrlPrefix">Optionally override the group Url prefix for these endpoints. The default is "/dead-letters"</param>
+    public static RouteGroupBuilder MapDeadLettersEndpoints(this IEndpointRouteBuilder endpoints, string? groupUrlPrefix = "/dead-letters")
     {
-        var deadlettersGroup = endpoints.MapGroup("/dead-letters");
+        if (groupUrlPrefix.IsEmpty())
+            throw new ArgumentNullException(nameof(groupUrlPrefix), "Cannot be empty or null");
+        var deadlettersGroup = endpoints.MapGroup(groupUrlPrefix);
 
         deadlettersGroup.MapPost("/", async (DeadLetterEnvelopeGetRequest request, IMessageStore messageStore, HandlerGraph handlerGraph, IOptions<WolverineOptions> opts) =>
         {
@@ -89,5 +94,7 @@ public static class DeadLettersEndpointExtensions
 
         deadlettersGroup.MapDelete("/", ([FromBody]DeadLetterEnvelopeIdsRequest request, IMessageStore messageStore) => 
             messageStore.DeadLetters.DeleteDeadLetterEnvelopesAsync(request.Ids, request.TenantId));
+
+        return deadlettersGroup;
     }
 }
