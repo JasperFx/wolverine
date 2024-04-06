@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using Wolverine.Persistence.Durability;
@@ -83,22 +84,10 @@ public static class DeadLettersEndpointExtensions
                 deadLetterEnvelopesFound.NextId);
         });
 
-        //deadlettersGroup.MapPost("/replay", async (DeadLetterEnvelopeIdsRequest request, HttpContext context) =>
-        //{
-        //    var deadLetters = context.RequestServices.GetRequiredService<IMessageStore>().DeadLetters;
+        deadlettersGroup.MapPost("/replay", (DeadLetterEnvelopeIdsRequest request, IMessageStore messageStore) =>
+            messageStore.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(request.Ids, request.TenantId));
 
-        //    await deadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(request.Ids, request.TenantId);
-
-        //    context.Response.StatusCode = StatusCodes.Status204NoContent;
-        //});
-
-        //deadlettersGroup.MapDelete("/", async (DeadLetterEnvelopeIdsRequest request, HttpContext context) =>
-        //{
-        //    var deadLetters = context.RequestServices.GetRequiredService<IMessageStore>().DeadLetters;
-
-        //    await deadLetters.DeleteDeadLetterEnvelopesAsync(request.Ids, request.TenantId);
-
-        //    context.Response.StatusCode = StatusCodes.Status204NoContent;
-        //});
+        deadlettersGroup.MapDelete("/", ([FromBody]DeadLetterEnvelopeIdsRequest request, IMessageStore messageStore) => 
+            messageStore.DeadLetters.DeleteDeadLetterEnvelopesAsync(request.Ids, request.TenantId));
     }
 }

@@ -16,7 +16,7 @@ public abstract partial class MessageDatabase<T>
 
         if (!string.IsNullOrEmpty(queryParameters.ExceptionMessage))
         {
-            query += $" and {DatabaseConstants.ExceptionMessage} LIKE @exceptionMessage";
+            query += $" and {DatabaseConstants.ExceptionMessage} = @exceptionMessage";
         }
 
         if (!string.IsNullOrEmpty(queryParameters.MessageType))
