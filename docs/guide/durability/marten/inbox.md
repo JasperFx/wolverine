@@ -1,19 +1,10 @@
-# Marten Integration
+# Marten as Inbox
 
-[Marten](https://martendb.io) and Wolverine are sibling projects under the [JasperFx organization](https://github.com/wolverinefx), and as such, have quite a bit of synergy when
-used together. At this point, adding the `WolverineFx.Marten` Nuget dependency to your application adds the capability to combine Marten and Wolverine to:
+On the flip side of using Wolverine's "outbox" support for outgoing messages, you can also choose to use the same message persistence for incoming messages such that
+incoming messages are first persisted to the application's underlying Postgresql database before being processed. While
+you *could* use this with external message brokers like Rabbit MQ, it's more likely this will be valuable for Wolverine's [local queues](/guide/messaging/transports/local).
 
-* Simplify persistent handler coding with transactional middleware
-* Use Marten and Postgresql as a persistent inbox or outbox with Wolverine messaging
-* Support persistent sagas within Wolverine applications
-* Effectively use Wolverine and Marten together for a [Decider](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider) function workflow with event sourcing
-* Selectively publish events captured by Marten through Wolverine messaging
-* Process events captured by Marten through Wolverine message handlers through either [subscriptions](./subscriptions) or the older [event forwarding](./event-forwarding).
-
-## Getting Started
-
-To use the Wolverine integration with Marten, just install the Wolverine.Persistence.Marten Nuget into your application. Assuming that you've [configured Marten](https://martendb.io/configuration/)
-in your application (and Wolverine itself!), you next need to add the Wolverine integration to Marten as shown in this sample application bootstrapping:
+Back to the sample Marten + Wolverine integration from this page:
 
 <!-- snippet: sample_integrating_wolverine_with_marten -->
 <a id='snippet-sample_integrating_wolverine_with_marten'></a>
@@ -68,7 +59,7 @@ builder.Services.AddMarten(opts =>
 
 // You can also place the Wolverine database objects
 // into a different database schema, in this case
-// named "wolverine_messages"
+// named "wolverine_messages"~~~~
 //.IntegrateWithWolverine("wolverine_messages");
 
 builder.Host.UseWolverine(opts =>
@@ -83,33 +74,22 @@ builder.Host.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-For more information, see [durable messaging](/guide/durability/) and the [sample Marten + Wolverine project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/WebApiWithMarten).
+But this time, focus on the Wolverine configuration of the local queue named "important." By marking this local queue as persistent, any messages sent to this queue
+in memory are first persisted to the underlying Postgresql database, and deleted when the message is successfully processed. This allows Wolverine to grant a stronger
+delivery guarantee to local messages and even allow messages to be processed if the current application node fails before the message is processed.
 
-Using the `IntegrateWithWolverine()` extension method behind your call to `AddMarten()` will:
+::: tip
+There are some vague plans to add a little more efficient integration between Wolverine and ASP.Net Core Minimal API, but we're not there yet.
+:::
 
-* Register the necessary [inbox and outbox](/guide/durability/) database tables with [Marten's database schema management](https://martendb.io/schema/migrations.html)
-* Adds Wolverine's "DurabilityAgent" to your .NET application for the inbox and outbox
-* Makes Marten the active [saga storage](/guide/durability/sagas) for Wolverine
-* Adds transactional middleware using Marten to your Wolverine application
+Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](/guide/in-memory-bus) functionality as in this sample [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) usage:
 
-
-## Marten as Outbox
-
-See the [Marten as Outbox](./outbox) page.
-
-## Transactional Middleware
-
-See the [Transactional Middleware](./transactional-middleware) page.
-
-
-## Marten as Inbox
-
-See the [Marten as Inbox](./inbox) page. 
-
-## Saga Storage
-
-See the [Marten as Saga Storage](./sagas) page.
-
-
-
-
+<!-- snippet: sample_delegate_to_command_bus_from_minimal_api -->
+<a id='snippet-sample_delegate_to_command_bus_from_minimal_api'></a>
+```cs
+// Delegate directly to Wolverine commands -- More efficient recipe coming later...
+app.MapPost("/orders/create2", (CreateOrder command, IMessageBus bus)
+    => bus.InvokeAsync(command));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L53-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delegate_to_command_bus_from_minimal_api' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
