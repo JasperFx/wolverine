@@ -30,9 +30,17 @@ public partial class NodeAgentController
         _runtime = runtime;
         _tracker = tracker;
         _persistence = persistence;
-        foreach (var agentController in agentControllers) _agentFamilies[agentController.Scheme] = agentController;
+        foreach (var agentController in agentControllers)
+        {
+            _agentFamilies[agentController.Scheme] = agentController;
+        }
 
-        if (runtime.Storage is IAgentFamily agentFamily && runtime.Options.Durability.DurabilityAgentEnabled)
+        if (runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+        {
+            _agentFamilies[ExclusiveListenerFamily.SchemeName] = new ExclusiveListenerFamily(runtime);
+        }
+
+        if (runtime is { Storage: IAgentFamily agentFamily, Options.Durability.DurabilityAgentEnabled: true })
         {
             _agentFamilies[agentFamily.Scheme] = agentFamily;
         }

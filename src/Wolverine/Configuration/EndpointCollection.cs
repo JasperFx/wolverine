@@ -24,6 +24,15 @@ public interface IEndpointCollection : IAsyncDisposable
     LocalQueue? LocalQueueForMessageType(Type messageType);
     IEnumerable<ISendingAgent> ActiveSendingAgents();
     ISendingAgent? AgentForLocalQueue(Uri uri);
+    
+    /// <summary>
+    /// Endpoints where the message listener should only be active on a single endpoint
+    /// </summary>
+    /// <returns></returns>
+    IReadOnlyList<Endpoint> ExclusiveListeners();
+
+    Task StartListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
+    Task StopListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
 }
 
 public class EndpointCollection : IEndpointCollection
@@ -161,6 +170,22 @@ public class EndpointCollection : IEndpointCollection
         return AgentForLocalQueue(queueName);
     }
 
+    public IReadOnlyList<Endpoint> ExclusiveListeners()
+    {
+        var allEndpoints = _options
+            .Transports
+            .AllEndpoints().ToArray();
+
+        foreach (var endpoint in allEndpoints)
+        {
+            endpoint.Compile(_runtime);
+        }
+        
+        return allEndpoints
+            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive })
+            .ToList();
+    }
+
     public Endpoint? EndpointByName(string endpointName)
     {
         return _options.Transports.AllEndpoints().ToArray().FirstOrDefault(x => x.EndpointName == endpointName);
@@ -168,12 +193,7 @@ public class EndpointCollection : IEndpointCollection
 
     public IListeningAgent? FindListeningAgent(Uri uri)
     {
-        if (_listeners.TryGetValue(uri, out var agent))
-        {
-            return agent;
-        }
-
-        return null;
+        return _listeners.GetValueOrDefault(uri);
     }
 
     public IListeningAgent? FindListeningAgent(string endpointName)
@@ -184,15 +204,36 @@ public class EndpointCollection : IEndpointCollection
     public async Task StartListenersAsync()
     {
         var listeningEndpoints = _options.Transports.SelectMany(x => x.Endpoints())
-            .Where(x => x.IsListener).Where(x => x is not LocalQueue);
+            .Where(x => x is not LocalQueue)
+            .Where(x => x.ShouldAutoStartAsListener(_options.Durability));
 
         foreach (var endpoint in listeningEndpoints)
         {
-            endpoint.Compile(_runtime);
-            var agent = new ListeningAgent(endpoint, _runtime);
-            await agent.StartAsync().ConfigureAwait(false);
-            _listeners[agent.Uri] = agent;
+            await StartListenerAsync(endpoint, _runtime.Cancellation);
         }
+    }
+
+    public async Task StopListenerAsync(Endpoint endpoint, CancellationToken cancellationToken)
+    {
+        if (_listeners.TryGetValue(endpoint.Uri, out var agent))
+        {
+            await agent.StopAndDrainAsync();
+        }
+    }
+
+    public async Task StartListenerAsync(Endpoint endpoint, CancellationToken cancellationToken)
+    {
+        if (_listeners.TryGetValue(endpoint.Uri, out var agent))
+        {
+            if (agent.Status == ListeningStatus.Accepting) return;
+            await agent.StartAsync();
+            return;
+        }
+        
+        endpoint.Compile(_runtime); 
+        agent = new ListeningAgent(endpoint, _runtime);
+        await agent.StartAsync().ConfigureAwait(false);
+        _listeners[agent.Uri] = agent;
     }
 
     public LocalQueue? LocalQueueForMessageType(Type messageType)
