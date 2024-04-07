@@ -195,8 +195,14 @@ export default withMermaid( {
                         {text: 'Troubleshooting and Leadership Election', link: '/guide/durability/leadership-and-troubleshooting'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
                         {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
+                                {text: 'Transactional Middleware', link: '/guide/durability/marten/transactional-middleware'},
+                                {text: 'Transactional Outbox Support', link: '/guide/durability/marten/outbox'},
+                                {text: 'Transactional Inbox Support', link: '/guide/durability/marten/inbox'},
                                 {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'},
                                 {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/event-sourcing'},
+                                {text: 'Event Forwarding to Wolverine', link: '/guide/durability/marten/event-forwarding'},
+                                {text: 'Event Subscriptions', link: '/guide/durability/marten/subscriptions'},
+                                {text: 'Sagas', link: '/guide/durability/marten/sagas'},
                                 {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'}
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},

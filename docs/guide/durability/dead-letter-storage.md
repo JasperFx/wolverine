@@ -40,9 +40,17 @@ To integrate the Dead Letters REST API into your WolverineFX application, you si
 <!-- snippet: sample_register_dead_letter_endpoints -->
 <a id='snippet-sample_register_dead_letter_endpoints'></a>
 ```cs
-app.MapDeadLettersEndpoints();
+app.MapDeadLettersEndpoints()
+    
+    // It's a Minimal API endpoint group,
+    // so you can add whatever authorization
+    // or OpenAPI metadata configuration you need
+    // for just these endpoints
+    //.RequireAuthorization("Admin")
+    
+    ;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L119-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dead_letter_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L119-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dead_letter_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using the Dead Letters REST API
