@@ -47,6 +47,15 @@ public interface IEndpointConfiguration<T>
 public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
 {
     /// <summary>
+    /// If supported, this will make Wolverine listen to this endpoint on
+    /// only one active node and with an inline listener or a sequential, buffered listener
+    /// for endpoints that do not support inline listeners
+    /// </summary>
+    /// <param name="endpointName">Wolverine requires a unique endpoint name for this usage. Most endpoints will supply one automatically, usually based on a queue or topic name, but some endpoint types may require an explicit name</param>
+    /// <returns></returns>
+    T ListenWithStrictOrdering(string? endpointName = null);
+    
+    /// <summary>
     ///     Specify the maximum number of threads that this worker queue
     ///     can use at one time
     /// </summary>

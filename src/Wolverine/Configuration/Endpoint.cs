@@ -60,6 +60,21 @@ public enum EndpointRole
     Application
 }
 
+public enum ListenerScope
+{
+    /// <summary>
+    /// If this endpoint is a listener, it should be active on all nodes for
+    /// competing consumers load balancing
+    /// </summary>
+    CompetingConsumers,
+    
+    /// <summary>
+    /// If this endpoint is a listener, it should only be active on a single node.
+    /// This is mostly appropriate for 
+    /// </summary>
+    Exclusive
+}
+
 /// <summary>
 ///     Configuration for a single message listener within a Wolverine application
 /// </summary>
@@ -85,6 +100,11 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         ExecutionOptions.MaxDegreeOfParallelism = Environment.ProcessorCount;
         ExecutionOptions.EnsureOrdered = false;
     }
+
+    /// <summary>
+    /// If a listener, what is the scope of the 
+    /// </summary>
+    public ListenerScope ListenerScope { get; set; } = ListenerScope.CompetingConsumers;
 
     /// <summary>
     /// Is OpenTelemetry enabled for this endpoint?
@@ -185,7 +205,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// <summary>
     ///     Is this endpoint used to listen for incoming messages?
     /// </summary>
-    public bool IsListener { get; set; }
+    public bool IsListener { get; set; } // TODO -- in 3.0, switch this to using ListeningScope
 
     /// <summary>
     ///     Is this a preferred endpoint for replies to the system?
@@ -406,5 +426,24 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     {
         deadLetterSender = default;
         return false;
+    }
+
+    internal bool ShouldAutoStartAsListener(DurabilitySettings durability)
+    {
+        if (!IsListener) return false;
+        switch (durability.Mode)
+        {
+            case DurabilityMode.Solo:
+                return true;
+            
+            case DurabilityMode.Balanced:
+                return ListenerScope == ListenerScope.CompetingConsumers;
+            
+            case DurabilityMode.MediatorOnly:
+            case DurabilityMode.Serverless:
+                return false;
+        }
+
+        return true;
     }
 }

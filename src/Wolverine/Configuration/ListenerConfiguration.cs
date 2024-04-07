@@ -1,4 +1,5 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
@@ -11,6 +12,8 @@ public class ListenerConfiguration : ListenerConfiguration<IListenerConfiguratio
     public ListenerConfiguration(Endpoint endpoint) : base(endpoint)
     {
     }
+
+
 }
 
 public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>,
@@ -25,6 +28,26 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     public ListenerConfiguration(Func<TEndpoint> source) : base(source)
     {
         add(e => e.IsListener = true);
+    }
+    
+    public TSelf ListenWithStrictOrdering(string? endpointName = null)
+    {
+        add(e =>
+        {
+            e.IsListener = true;
+            e.ListenerScope = ListenerScope.Exclusive;
+            e.ExecutionOptions.SingleProducerConstrained = true;
+            e.ExecutionOptions.MaxDegreeOfParallelism = 1;
+            e.ExecutionOptions.EnsureOrdered = true;
+            e.ListenerCount = 1;
+
+            if (endpointName.IsNotEmpty())
+            {
+                e.EndpointName = endpointName;
+            }
+        });
+        
+        return this.As<TSelf>();
     }
 
 

@@ -9,6 +9,13 @@ public interface IStaticAgentFamily : IAgentFamily
     
 }
 
+public class InvalidAgentException : Exception
+{
+    public InvalidAgentException(string message) : base(message)
+    {
+    }
+}
+
 /// <summary>
 ///     Pluggable model for managing the assignment and execution of stateful, "sticky"
 ///     background agents on the various nodes of a running Wolverine cluster
