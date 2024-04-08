@@ -77,6 +77,7 @@ public sealed partial class HandlerDiscovery
 
     private void specifyHandlerDiscovery()
     {
+        HandlerQuery.Excludes.WithCondition("Not GeneratedStreamStateQueryHandler", t => t.Name == "GeneratedStreamStateQueryHandler");
         HandlerQuery.Includes.WithNameSuffix(HandlerChain.HandlerSuffix);
         HandlerQuery.Includes.WithNameSuffix(HandlerChain.ConsumerSuffix);
         HandlerQuery.Includes.Implements<Saga>();
