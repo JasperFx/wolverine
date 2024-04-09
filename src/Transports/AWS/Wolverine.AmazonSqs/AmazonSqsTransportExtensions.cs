@@ -20,6 +20,17 @@ public static class AmazonSqsTransportExtensions
         return transports.GetOrCreate<AmazonSqsTransport>();
     }
 
+    /// <summary>
+    /// Apply additive configuration to the AWS SQS integration within this Wolverine application
+    /// </summary>
+    /// <param name="options"></param>
+    /// <returns></returns>
+    public static AmazonSqsTransportConfiguration ConfigureAmazonSqsTransport(this WolverineOptions options)
+    {
+        var transport = options.AmazonSqsTransport();
+        return new AmazonSqsTransportConfiguration(transport, options);
+    }
+
     public static AmazonSqsTransportConfiguration UseAmazonSqsTransport(this WolverineOptions options)
     {
         var transport = options.AmazonSqsTransport();

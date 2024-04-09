@@ -36,6 +36,19 @@ public static class KafkaTransportExtensions
 
         return new KafkaTransportExpression(transport, options);
     }
+    
+    /// <summary>
+    /// Make additive configuration to the Kafka integration for this application
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static KafkaTransportExpression ConfigureKafka(this WolverineOptions options, string bootstrapServers)
+    {
+        var transport = options.KafkaTransport();
+
+        return new KafkaTransportExpression(transport, options);
+    }
 
 
     /// <summary>
