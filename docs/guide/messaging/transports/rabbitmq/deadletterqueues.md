@@ -36,7 +36,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L353-L375' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L372-L394' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -71,7 +71,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L380-L402' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue_interop_friendly' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L399-L421' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue_interop_friendly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, if you don't particularly want to have any Rabbit MQ dead letter queues and you quite like the [database backed 
@@ -100,7 +100,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L407-L429' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L426-L448' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

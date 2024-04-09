@@ -234,7 +234,6 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    /// <exception cref="ArgumentNullException"></exception>
     public RabbitMqTransportExpression CustomizeDeadLetterQueueing(DeadLetterQueue dlq)
     {
         // copying because this is a fallback to other queues by reference

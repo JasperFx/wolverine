@@ -254,4 +254,18 @@ public static class RabbitMqTransportExtensions
 
         return new RabbitMqSubscriberConfiguration(endpoint);
     }
+
+    /// <summary>
+    /// Access the Rabbit Mq configuration for this Wolverine application
+    /// in order to add or modify the application. This was meant for Wolverine extensions
+    /// </summary>
+    /// <param name="options"></param>
+    /// <returns></returns>
+    public static RabbitMqTransportExpression ConfigureRabbitMq(this WolverineOptions options)
+    {
+        var transport = options.RabbitMqTransport();
+        var expression = new RabbitMqTransportExpression(transport, options);
+        return expression;
+    }
+    
 }
