@@ -258,6 +258,17 @@ public static class HostBuilderExtensions
     {
         return services.AddSingleton<IWolverineExtension, T>();
     }
+    
+    /// <summary>
+    /// Add an asynchronous wolverine extension to the IoC container to apply extra configuration to your system
+    /// </summary>
+    /// <param name="services"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection AddAsyncWolverineExtension<T>(this IServiceCollection services) where T : class, IAsyncWolverineExtension
+    {
+        return services.AddSingleton<IAsyncWolverineExtension, T>();
+    }
 
     /// <summary>
     ///     Validate all of the Wolverine configuration of this Wolverine application.

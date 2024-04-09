@@ -25,6 +25,12 @@ public partial class WolverineRuntime
 
             logCodeGenerationConfiguration();
 
+            var asyncExtensions = _container.GetAllInstances<IAsyncWolverineExtension>();
+            foreach (var extension in asyncExtensions)
+            {
+                await extension.Configure(Options);
+            }
+
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
