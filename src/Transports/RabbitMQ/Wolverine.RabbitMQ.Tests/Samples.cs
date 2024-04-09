@@ -264,6 +264,25 @@ public class Samples
         #endregion
     }
 
+    #region sample_RabbitMQ_configuration_in_wolverine_extension
+
+    public class MyModuleExtension : IWolverineExtension
+    {
+        public void Configure(WolverineOptions options)
+        {
+            options.ConfigureRabbitMq()
+                // Make any Rabbit Mq configuration or declare
+                // additional Rabbit Mq options through the normal
+                // syntax
+                .DeclareExchange("my-module")
+                .DeclareQueue("my-queue");
+
+                
+        }
+    }
+
+    #endregion
+
     public static async Task autopurge()
     {
         #region sample_autopurge_rabbitmq
