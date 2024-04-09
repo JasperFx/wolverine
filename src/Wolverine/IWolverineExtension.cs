@@ -15,3 +15,12 @@ public interface IWolverineExtension
 }
 
 #endregion
+
+/// <summary>
+/// Loadable extensions to Wolverine applications that may require
+/// IoC services or asynchronous operations
+/// </summary>
+public interface IAsyncWolverineExtension
+{
+    ValueTask Configure(WolverineOptions options);
+}

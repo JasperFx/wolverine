@@ -51,9 +51,23 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Including a single extension
         opts.Include<SampleExtension>();
-    }).StartAsync();
+        
+        // Or add a Wolverine extension that needs
+        // to use IoC services
+        opts.Services.AddWolverineExtension<ConfigurationUsingExtension>();
+
+    })
+    
+    .ConfigureServices(services =>
+    {
+        // This is the same logical usage, just showing that it
+        // can be done directly against IServiceCollection
+        services.AddWolverineExtension<ConfigurationUsingExtension>();
+    })
+    
+    .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L52-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_including_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L52-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_including_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, you can also add `IWolverineExtension` types to your IoC container registration that will be applied to `WolverineOptions` just
@@ -89,7 +103,7 @@ internal class DisableExternalTransports : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L298-L308' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L309-L319' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And that extension is just added to the application's IoC container at test bootstrapping time like this:
@@ -103,7 +117,7 @@ public static IServiceCollection DisableAllExternalWolverineTransports(this ISer
     return services;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L288-L296' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_extension_method_to_disable_external_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L299-L307' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_extension_method_to_disable_external_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In usage, the `IWolverineExtension` objects added to the IoC container are applied *after* the inner configuration
@@ -149,6 +163,61 @@ dead letter queue behavior. For example:
 3. `ConfigureAzureServiceBus()`
 4. `ConfigureAmazonSqs()`
 
+## Asynchronous Extensions
+
+::: tip
+This was added to Wolverine 2.3, specifically for a user needing to use the [Feature Flag library](https://learn.microsoft.com/en-us/azure/azure-app-configuration/use-feature-flags-dotnet-core) from Microsoft. 
+:::
+
+There is also any option for creating Wolverine extensions that need to use asynchronous methods to configure
+the `WolverineOptions` using the `IAsyncWolverineExtension` library. A sample is shown below:
+
+<!-- snippet: sample_async_Wolverine_extension -->
+<a id='snippet-sample_async_wolverine_extension'></a>
+```cs
+public class SampleAsyncExtension : IAsyncWolverineExtension
+{
+    private readonly IFeatureManager _features;
+
+    public SampleAsyncExtension(IFeatureManager features)
+    {
+        _features = features;
+    }
+
+    public async ValueTask Configure(WolverineOptions options)
+    {
+        if (await _features.IsEnabledAsync("Module1"))
+        {
+            // Make any kind of Wolverine configuration
+            options
+                .PublishMessage<Module1Message>()
+                .ToLocalQueue("module1-high-priority")
+                .Sequential();
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L66-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_async_wolverine_extension' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Which can be added to your application with this extension method on `IServiceCollection`:
+
+<!-- snippet: sample_registering_async_extension -->
+<a id='snippet-sample_registering_async_extension'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Services.AddFeatureManagement();
+        opts.Services.AddSingleton(featureManager);
+
+        // Adding the async extension to the underlying IoC container
+        opts.Services.AddAsyncWolverineExtension<SampleAsyncExtension>();
+
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L44-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_async_extension' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Wolverine Plugin Modules
 

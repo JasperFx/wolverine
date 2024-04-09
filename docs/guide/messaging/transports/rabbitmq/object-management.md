@@ -183,7 +183,7 @@ public class MyModuleExtension : IWolverineExtension
             .DeclareExchange("my-module")
             .DeclareQueue("my-queue");
 
-            .
+            
     }
 }
 ```
