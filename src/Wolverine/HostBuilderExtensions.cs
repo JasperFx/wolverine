@@ -249,6 +249,17 @@ public static class HostBuilderExtensions
     }
 
     /// <summary>
+    /// Add a wolverine extension to the IoC container to apply extra configuration to your system
+    /// </summary>
+    /// <param name="services"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection AddWolverineExtension<T>(this IServiceCollection services) where T : class, IWolverineExtension
+    {
+        return services.AddSingleton<IWolverineExtension, T>();
+    }
+
+    /// <summary>
     ///     Validate all of the Wolverine configuration of this Wolverine application.
     ///     This:
     ///     1. Checks that all of the known generated code elements are valid

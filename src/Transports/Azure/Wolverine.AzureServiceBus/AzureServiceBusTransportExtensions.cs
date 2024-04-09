@@ -24,6 +24,17 @@ public static class AzureServiceBusTransportExtensions
     }
 
     /// <summary>
+    /// Additive configuration to the Azure Service Bus integration for this Wolverine application
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <returns></returns>
+    public static AzureServiceBusConfiguration ConfigureAzureServiceBus(this WolverineOptions endpoints)
+    {
+        var transport = endpoints.AzureServiceBusTransport();
+        return new AzureServiceBusConfiguration(transport, endpoints);
+    }
+
+    /// <summary>
     /// Connect to Azure Service Bus with a connection string
     /// </summary>
     /// <param name="endpoints"></param>

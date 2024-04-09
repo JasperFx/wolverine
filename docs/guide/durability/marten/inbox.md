@@ -59,7 +59,7 @@ builder.Services.AddMarten(opts =>
 
 // You can also place the Wolverine database objects
 // into a different database schema, in this case
-// named "wolverine_messages"~~~~
+// named "wolverine_messages"
 //.IntegrateWithWolverine("wolverine_messages");
 
 builder.Host.UseWolverine(opts =>
