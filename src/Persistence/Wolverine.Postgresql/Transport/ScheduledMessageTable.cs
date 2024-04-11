@@ -6,7 +6,7 @@ namespace Wolverine.Postgresql.Transport;
 
 internal class ScheduledMessageTable : Table
 {
-    public ScheduledMessageTable(DatabaseSettings settings, string tableName) : base(
+    public ScheduledMessageTable(PostgresqlTransport settings, string tableName) : base(
         new DbObjectName(settings.SchemaName, tableName))
     {
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
@@ -14,7 +14,7 @@ internal class ScheduledMessageTable : Table
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.ExecutionTime).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
-        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("timezone('UTC', now())");
+        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("(transaction_timestamp())");
         
         // Definitely want to index the execution time. Far more reads than writes. We think. 
         Indexes.Add(new IndexDefinition($"idx_{tableName}_execution_time")

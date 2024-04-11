@@ -68,7 +68,7 @@ internal class PostgresqlQueueListener : IListener
                 var count = await _queue.MoveScheduledToReadyQueueAsync(_cancellation.Token);
                 if (count > 0)
                 {
-                    _logger.LogInformation("Propagated {Number} scheduled messages to Sql Server-backed queue {Queue}", count, _queue.Name);
+                    _logger.LogInformation("Propagated {Number} scheduled messages to PostgreSQL-backed queue {Queue}", count, _queue.Name);
                 }
                 
                 await _queue.DeleteExpiredAsync(CancellationToken.None);
@@ -88,7 +88,7 @@ internal class PostgresqlQueueListener : IListener
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
-                _logger.LogError(e, "Error while trying to propagate scheduled messages from Sql Server Queue {Name}",
+                _logger.LogError(e, "Error while trying to propagate scheduled messages from PostgreSQL Queue {Name}",
                     _queue.Name);
 
                 await Task.Delay(pauseTime);
@@ -132,7 +132,7 @@ internal class PostgresqlQueueListener : IListener
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
-                _logger.LogError(e, "Error while trying to retrieve messages from Sql Server Queue {Name}",
+                _logger.LogError(e, "Error while trying to retrieve messages from PostgreSQL Queue {Name}",
                     _queue.Name);
 
                 await Task.Delay(pauseTime);

@@ -449,4 +449,13 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
         return null;
     }
+    
+    /// <summary>
+    /// Add extra configuration to every actively used tenant database
+    /// </summary>
+    /// <param name="configureDatabase"></param>
+    public ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
+    {
+        return _databases.ConfigureDatabaseAsync(configureDatabase);
+    }
 }

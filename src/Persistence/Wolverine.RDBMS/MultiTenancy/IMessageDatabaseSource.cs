@@ -9,4 +9,10 @@ public interface IMessageDatabaseSource
     Task RefreshAsync();
 
     IReadOnlyList<IMessageDatabase> AllActive();
+
+    /// <summary>
+    /// Add extra configuration to every actively used tenant database
+    /// </summary>
+    /// <param name="configureDatabase"></param>
+    public ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase);
 }

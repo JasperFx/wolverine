@@ -10,11 +10,7 @@ namespace PersistenceTests.Postgresql.Transport;
 
 public class PostgresqlQueueTests
 {
-    private readonly PostgresqlTransport theTransport = new PostgresqlTransport(new DatabaseSettings
-    {
-        ConnectionString = Servers.PostgresConnectionString,
-        SchemaName = "transport"
-    });
+    private readonly PostgresqlTransport theTransport = new PostgresqlTransport();
     
     [Fact]
     public void build_uri()

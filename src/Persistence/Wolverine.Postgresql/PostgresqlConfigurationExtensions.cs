@@ -71,8 +71,13 @@ public static class PostgresqlConfigurationExtensions
         string connectionString,
         string? schema = null)
     {
-        var extension = new PostgresqlBackedPersistence();
-        extension.Settings.ConnectionString = connectionString;
+        var extension = new PostgresqlBackedPersistence
+        {
+            Settings =
+            {
+                ConnectionString = connectionString
+            }
+        };
 
         if (schema.IsNotEmpty())
         {
@@ -83,8 +88,6 @@ public static class PostgresqlConfigurationExtensions
             schema = "dbo";
                 
         }
-
-        options.Services.AddTransient<IDatabase, PostgresqlTransportDatabase>();
 
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         options.Include(extension);
@@ -106,7 +109,12 @@ public static class PostgresqlConfigurationExtensions
             x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         });
 
-        var transport = new PostgresqlTransport(extension.Settings);
+        var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
+        if (schema.IsNotEmpty())
+        {
+            transport.SchemaName = schema;
+        }
+        
         options.Transports.Add(transport);
 
         return new PostgresqlPersistenceExpression(transport, options);

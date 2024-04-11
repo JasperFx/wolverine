@@ -4,6 +4,16 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Transports;
 
+/// <summary>
+/// Transports that need to utilize the IWolverineRuntime to adjust
+/// message storage or other aspects of the Wolverine runtime just before
+/// configuring message storage should implement this interface
+/// </summary>
+public interface ITransportConfiguresRuntime
+{
+    ValueTask ConfigureAsync(IWolverineRuntime runtime);
+}
+
 public interface ITransport
 {
     public string Protocol { get; }

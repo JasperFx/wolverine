@@ -68,6 +68,11 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
             _databases = _databases.AddOrUpdate(database.Identifier, store);
         }
         
+        foreach (var configuration in _configurations)
+        {
+            await configuration(store);
+        }
+        
         if (_store.Options.As<StoreOptions>().AutoCreateSchemaObjects != AutoCreate.None)
         {
             // TODO -- add some resiliency here
@@ -115,5 +120,17 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
     public IReadOnlyList<IMessageDatabase> AllActive()
     {
         return _databases.Enumerate().Select(x => x.Value).ToList();
+    }
+
+    private readonly List<Func<IMessageDatabase, ValueTask>> _configurations = new();
+
+    public async ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
+    {
+        foreach (var database in AllActive())
+        {
+            await configureDatabase(database);
+        }
+        
+        _configurations.Add(configureDatabase);
     }
 }

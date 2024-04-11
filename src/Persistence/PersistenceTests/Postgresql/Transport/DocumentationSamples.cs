@@ -9,7 +9,7 @@ public class DocumentationSamples
 {
     public static async Task Bootstrapping()
     {
-        #region sample_using_sql_server_transport
+        #region sample_using_postgres_transport
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine((context, opts) =>
