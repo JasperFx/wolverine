@@ -24,12 +24,17 @@ public partial class WolverineRuntime
                 Options.ApplicationAssembly!.GetName());
 
             logCodeGenerationConfiguration();
-
+            
             await ApplyAsyncExtensions();
+
+            foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>())
+            {
+                await configuresRuntime.ConfigureAsync(this);
+            }
 
             // Build up the message handlers
             Handlers.Compile(Options, _container);
-
+            
             if (Options.AutoBuildMessageStorageOnStartup && Storage is not NullMessageStore)
             {
                 await Storage.Admin.MigrateAsync();

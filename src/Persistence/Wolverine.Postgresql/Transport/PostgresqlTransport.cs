@@ -1,21 +1,56 @@
 using JasperFx.Core;
-using Npgsql;
 using Spectre.Console;
-using Weasel.Postgresql;
-using Wolverine.RDBMS;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.Postgresql.Transport;
 
-public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>
+public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportConfiguresRuntime
 {
-    public const string ProtocolName = "sqlserver";
+    public const string ProtocolName = "postgresql";
 
-    public PostgresqlTransport(DatabaseSettings settings) : base(ProtocolName, "Sql Server Transport")
+    public PostgresqlTransport() : base(ProtocolName, "PostgreSQL Transport")
     {
         Queues = new LightweightCache<string, PostgresqlQueue>(name => new PostgresqlQueue(name, this));
-        Settings = settings;
+    }
+
+    /// <summary>
+    /// Schema name for the queue and scheduled message tables
+    /// </summary>
+    public string SchemaName { get; set; } = "wolverine_queues";
+
+    public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
+    {
+        if (runtime.Storage is PostgresqlMessageStore store)
+        {
+            foreach (var queue in Queues)
+            {
+                store.AddTable(queue.QueueTable);
+                store.AddTable(queue.ScheduledTable);
+            }
+        }
+        else if (runtime.Storage is MultiTenantedMessageDatabase tenants)
+        {
+            await tenants.ConfigureDatabaseAsync(messageStore =>
+            {
+                if (messageStore is PostgresqlMessageStore s)
+                {
+                    foreach (var queue in Queues)
+                    {
+                        s.AddTable(queue.QueueTable);
+                        s.AddTable(queue.ScheduledTable);
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "The PostgreSQL backed transport can only be used with PostgreSQL is the active envelope storage mechanism");
+                }
+
+                return new ValueTask();
+            });
+        }
     }
 
     public LightweightCache<string, PostgresqlQueue> Queues { get; }
@@ -41,17 +76,11 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>
         var storage = runtime.Storage as PostgresqlMessageStore;
 
         Storage = storage ?? throw new InvalidOperationException(
-            "The Sql Server Transport can only be used if the message persistence is also Sql Server backed");
+            "The PostgreSQL Transport can only be used if the message persistence is also PostgreSQL backed");
         
-        Settings = storage.Settings;
-
         // This is de facto a little environment test
-        await using var conn = new NpgsqlConnection(Settings.ConnectionString);
-        await conn.OpenAsync();
-        await conn.CloseAsync();
+        await runtime.Storage.Admin.CheckConnectivityAsync(CancellationToken.None);
     }
-
-    internal DatabaseSettings Settings { get; set; }
 
     internal PostgresqlMessageStore Storage { get; set; }
 
@@ -62,13 +91,4 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>
         yield return new PropertyColumn("Scheduled", Justify.Right);
         
     }
-
-    public async Task<DateTimeOffset> SystemTimeAsync()
-    {
-        await using var conn = new NpgsqlConnection(Settings.ConnectionString);
-        await conn.OpenAsync();
-
-        return (DateTimeOffset)await conn.CreateCommand("select SYSDATETIMEOFFSET()").ExecuteScalarAsync();
-    }
-
 }

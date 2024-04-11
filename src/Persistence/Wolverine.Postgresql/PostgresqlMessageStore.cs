@@ -347,6 +347,18 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("now()").NotNull();
             eventTable.AddColumn<string>("description").AllowNulls();
             yield return eventTable;
+
+            foreach (var table in _otherTables)
+            {
+                yield return table;
+            }
         }
+    }
+
+    private readonly List<Table> _otherTables = new();
+    
+    public void AddTable(Table table)
+    {
+        _otherTables.Add(table);
     }
 }
