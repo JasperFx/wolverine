@@ -1,5 +1,7 @@
 using JasperFx.Core;
+using Npgsql;
 using Spectre.Console;
+using Weasel.Postgresql;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -29,9 +31,13 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
                 store.AddTable(queue.QueueTable);
                 store.AddTable(queue.ScheduledTable);
             }
+
+            Store = store;
         }
         else if (runtime.Storage is MultiTenantedMessageDatabase tenants)
         {
+            Store = tenants.Master as PostgresqlMessageStore;
+            
             await tenants.ConfigureDatabaseAsync(messageStore =>
             {
                 if (messageStore is PostgresqlMessageStore s)
@@ -73,16 +79,11 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        var storage = runtime.Storage as PostgresqlMessageStore;
-
-        Storage = storage ?? throw new InvalidOperationException(
-            "The PostgreSQL Transport can only be used if the message persistence is also PostgreSQL backed");
-        
         // This is de facto a little environment test
         await runtime.Storage.Admin.CheckConnectivityAsync(CancellationToken.None);
     }
 
-    internal PostgresqlMessageStore Storage { get; set; }
+    internal PostgresqlMessageStore? Store { get; set; }
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
@@ -90,5 +91,25 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         yield return new PropertyColumn("Count", Justify.Right);
         yield return new PropertyColumn("Scheduled", Justify.Right);
         
+    }
+
+    public async Task<DateTimeOffset> SystemTimeAsync()
+    {
+        NpgsqlDataSource dataSource = null;
+        if (Store is PostgresqlMessageStore store)
+        {
+            dataSource = store.DataSource;
+        }
+
+        await using var conn = await dataSource.OpenConnectionAsync();
+        try
+        {
+            var raw = (DateTime)await conn.CreateCommand("select (now())::timestamp").ExecuteScalarAsync();
+            return new DateTimeOffset(raw, 0.Hours());
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 }

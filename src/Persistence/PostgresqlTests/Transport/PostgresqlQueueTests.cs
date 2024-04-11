@@ -1,12 +1,8 @@
-using IntegrationTests;
-using JasperFx.Core.Reflection;
 using Shouldly;
 using Wolverine.Configuration;
-using Wolverine.RDBMS;
 using Wolverine.Postgresql.Transport;
-using Xunit;
 
-namespace PersistenceTests.Postgresql.Transport;
+namespace PostgresqlTests.Transport;
 
 public class PostgresqlQueueTests
 {
@@ -17,7 +13,7 @@ public class PostgresqlQueueTests
     {
         var queue = new PostgresqlQueue("one", theTransport);
         queue.Name.ShouldBe("one");
-        queue.Uri.ShouldBe(new Uri("sqlserver://one"));
+        queue.Uri.ShouldBe(new Uri("postgresql://one"));
     }
 
     [Fact]

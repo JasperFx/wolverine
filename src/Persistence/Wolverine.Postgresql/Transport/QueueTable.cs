@@ -13,6 +13,6 @@ internal class QueueTable : Table
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
-        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("(transaction_timestamp())");
+        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("((now() at time zone 'utc'))");
     }
 }
