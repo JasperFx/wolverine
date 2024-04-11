@@ -14,7 +14,7 @@ internal class ScheduledMessageTable : Table
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.ExecutionTime).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
-        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("(transaction_timestamp())");
+        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("((now() at time zone 'utc'))");
         
         // Definitely want to index the execution time. Far more reads than writes. We think. 
         Indexes.Add(new IndexDefinition($"idx_{tableName}_execution_time")

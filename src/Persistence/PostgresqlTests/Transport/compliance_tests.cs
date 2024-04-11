@@ -5,13 +5,12 @@ using TestingSupport.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
-using Xunit;
 
-namespace PersistenceTests.Postgresql.Transport;
+namespace PostgresqlTests.Transport;
 
 public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public PostgresqlTransportDurableFixture() : base("sqlserver://receiver".ToUri(), 10)
+    public PostgresqlTransportDurableFixture() : base("postgresql://receiver".ToUri(), 10)
     {
     }
 
@@ -48,7 +47,7 @@ public class PostgresqlTransport_Durable_Compliance : TransportCompliance<Postgr
 
 public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public PostgresqlTransportBufferedFixture() : base("sqlserver://receiver".ToUri(), 10)
+    public PostgresqlTransportBufferedFixture() : base("postgresql://receiver".ToUri(), 10)
     {
     }
 
@@ -92,6 +91,6 @@ public class PostgresqlTransport_Buffered_Compliance : TransportCompliance<Postg
         // theSender.GetRuntime().Endpoints.EndpointFor(new Uri("sqlserver://sender")).Mode.ShouldBe(EndpointMode.BufferedInMemory);
         //
         // theReceiver.GetRuntime().Endpoints.EndpointFor(new Uri("sqlserver://receiver")).Mode.ShouldBe(EndpointMode.BufferedInMemory);
-        theReceiver.GetRuntime().Endpoints.GetOrBuildSendingAgent(new Uri("sqlserver://sender")).Endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        theReceiver.GetRuntime().Endpoints.GetOrBuildSendingAgent(new Uri("postgresql://sender")).Endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
     }
 }

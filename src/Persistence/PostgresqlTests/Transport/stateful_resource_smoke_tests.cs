@@ -1,30 +1,31 @@
 using IntegrationTests;
 using JasperFx.Core;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using Oakton;
 using Oakton.Resources;
 using Shouldly;
-using Weasel.SqlServer;
+using Weasel.Postgresql;
 using Wolverine;
-using Wolverine.SqlServer;
-using Wolverine.SqlServer.Transport;
-using Xunit;
+using Wolverine.Postgresql;
+using Wolverine.Postgresql.Transport;
 
-namespace PersistenceTests.Postgresql.Transport;
+namespace PostgresqlTests.Transport;
 
 [Collection("sqlserver")]
 public class stateful_resource_smoke_tests : IAsyncLifetime
 {
     private IHost _host;
-    private SqlServerTransport theTransport;
     private IStatefulResource? theResource;
+    private PostgresqlTransport theTransport;
 
     public async Task InitializeAsync()
     {
-        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
+        
         await conn.DropSchemaAsync("queues");
+        await conn.CloseAsync();
     }
 
     public Task DisposeAsync()
@@ -39,26 +40,25 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
             {
                 if (autoProvision)
                 {
-                    opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "sqlserver")
+                    opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "postgres")
                         .AutoProvision();
                 }
                 else
                 {
-                    opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "sqlserver");
+                    opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "postgres");
                 }
-                
+
                 opts.PublishMessage<SRMessage1>()
-                    .ToSqlServerQueue("sr" + starting++);
+                    .ToPostgresqlQueue("sr" + starting++);
 
                 opts.PublishMessage<SRMessage2>()
-                    .ToSqlServerQueue("sr" + starting++);
+                    .ToPostgresqlQueue("sr" + starting++);
 
                 opts.PublishMessage<SRMessage3>()
-                    .ToSqlServerQueue("sr" + starting++);
+                    .ToPostgresqlQueue("sr" + starting++);
 
                 opts.PublishMessage<SRMessage3>()
-                    .ToSqlServerQueue("sr" + starting++);
-
+                    .ToPostgresqlQueue("sr" + starting++);
             });
     }
 
