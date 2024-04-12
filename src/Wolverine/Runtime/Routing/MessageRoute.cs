@@ -25,7 +25,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         IsLocal = endpoint is LocalQueue;
         _replyTracker = replies;
         
-        Sender = endpoint.Agent ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent");
+        Sender = endpoint.Agent ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
 
         IsLocal = endpoint is LocalQueue;
         
@@ -35,7 +35,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
         else
         {
-            Serializer = endpoint.DefaultSerializer ?? throw new ArgumentOutOfRangeException(nameof(endpoint), "No DefaultSerializer on endpoint " + endpoint.Uri);
+            Serializer = endpoint.DefaultSerializer ?? throw new ArgumentOutOfRangeException(nameof(endpoint), "No DefaultSerializer on endpoint " + endpoint.Uri + ", Message type: " + messageType.FullNameInCode());
         }
 
         Rules.AddRange(endpoint.OutgoingRules);
