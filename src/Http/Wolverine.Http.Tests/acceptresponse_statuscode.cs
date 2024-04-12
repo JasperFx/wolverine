@@ -19,7 +19,10 @@ namespace Wolverine.Http.Tests
                 opts.Discovery.IncludeAssembly(GetType().Assembly);
             });
 
-            await using var host = await AlbaHost.For(builder, app => { app.MapWolverineEndpoints(); });
+            await using var host = await AlbaHost.For(builder, app =>
+            {
+                app.MapWolverineEndpoints();
+            });
 
             await host.Scenario(x =>
             {
