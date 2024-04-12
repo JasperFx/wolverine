@@ -420,7 +420,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     string IEndpointNameMetadata.EndpointName => ToString();
 
-    string IEndpointSummaryMetadata.Summary => throw new Exception("You cannot have the summary");
+    string IEndpointSummaryMetadata.Summary => ToString();
 
     public List<ParameterInfo> FileParameters { get; } = [];
 }
