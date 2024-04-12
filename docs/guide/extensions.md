@@ -103,7 +103,7 @@ internal class DisableExternalTransports : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L309-L319' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L318-L328' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And that extension is just added to the application's IoC container at test bootstrapping time like this:
@@ -117,7 +117,7 @@ public static IServiceCollection DisableAllExternalWolverineTransports(this ISer
     return services;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L299-L307' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_extension_method_to_disable_external_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L308-L316' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_extension_method_to_disable_external_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In usage, the `IWolverineExtension` objects added to the IoC container are applied *after* the inner configuration
@@ -217,6 +217,26 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L44-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_async_extension' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Asynchronous Extensions and Wolverine.HTTP
+
+Just a heads up, there's a timing issue between the application of asynchronous Wolverine extensions
+and the usage of the Wolverine.HTTP `MapWolverineEndpoints()` method. If you need the asynchronous 
+extensions to apply to the HTTP configuration, you need to help Wolverine out by explicitly calling
+this method in your `Program` file *after* building the `WebApplication`, but before calling 
+`MapWolverineEndpoints()` like so:
+
+<!-- snippet: sample_calling_ApplyAsyncWolverineExtensions -->
+<a id='snippet-sample_calling_applyasyncwolverineextensions'></a>
+```cs
+var app = builder.Build();
+
+// In order for async Wolverine extensions to apply to Wolverine.HTTP configuration,
+// you will need to explicitly call this *before* MapWolverineEndpoints()
+await app.Services.ApplyAsyncWolverineExtensions();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L89-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_applyasyncwolverineextensions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Wolverine Plugin Modules

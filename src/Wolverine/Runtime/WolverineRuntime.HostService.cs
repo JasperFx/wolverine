@@ -25,11 +25,7 @@ public partial class WolverineRuntime
 
             logCodeGenerationConfiguration();
 
-            var asyncExtensions = _container.GetAllInstances<IAsyncWolverineExtension>();
-            foreach (var extension in asyncExtensions)
-            {
-                await extension.Configure(Options);
-            }
+            await ApplyAsyncExtensions();
 
             // Build up the message handlers
             Handlers.Compile(Options, _container);
@@ -85,6 +81,29 @@ public partial class WolverineRuntime
         {
             MessageTracking.LogException(e, message: "Failed to start the Wolverine messaging");
             throw;
+        }
+    }
+
+
+    private bool _hasAppliedAsyncExtensions = false;
+    internal async Task ApplyAsyncExtensions()
+    {
+        if (_hasAppliedAsyncExtensions) return;
+        
+        var asyncExtensions = _container.GetAllInstances<IAsyncWolverineExtension>();
+        foreach (var extension in asyncExtensions)
+        {
+            await extension.Configure(Options);
+        }
+
+        _hasAppliedAsyncExtensions = true;
+    }
+    
+    public void WarnIfAnyAsyncExtensions()
+    {
+        if (!_hasAppliedAsyncExtensions && _container.Model.HasRegistrationFor(typeof(IAsyncWolverineExtension)))
+        {
+            Logger.LogInformation($"This application has asynchronous Wolverine extensions registered, but they have not been applied yet. You may want to call IServiceCollection.{nameof(ApplyAsyncExtensions)}() before configuring Wolverine.HTTP");
         }
     }
 

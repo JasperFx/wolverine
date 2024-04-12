@@ -156,6 +156,8 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     {
         var runtime = GetWolverineRuntime(endpoints);
 
+        runtime.WarnIfAnyAsyncExtensions();
+
         var container = (IContainer)endpoints.ServiceProvider;
 
         // I hate this, but can't think of any other possible way to do this

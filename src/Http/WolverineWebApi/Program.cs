@@ -86,7 +86,15 @@ builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
     o.SerializerOptions.WriteIndented = true;
 });
 
+#region sample_calling_ApplyAsyncWolverineExtensions
+
 var app = builder.Build();
+
+// In order for async Wolverine extensions to apply to Wolverine.HTTP configuration,
+// you will need to explicitly call this *before* MapWolverineEndpoints()
+await app.Services.ApplyAsyncWolverineExtensions();
+
+#endregion
 
 //Force the default culture to not be en-US to ensure code is culture agnostic
 var supportedCultures = new[] { "fr-FR", "en-US" };
