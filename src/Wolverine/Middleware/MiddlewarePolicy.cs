@@ -48,7 +48,7 @@ public class MiddlewarePolicy : IChainPolicy
             befores.SelectMany(x => x.Creates).Any(x => x.VariableType == chain.InputType()))
         {
             throw new InvalidWolverineMiddlewareException(
-                "It's not currently legal in Wolverine to return the message type from middleware");
+                $"It's not currently legal in Wolverine to return the message type for a handler or the request type for an HTTP chain from middleware. Chain: {chain}. If you receive this on the compilation for an HTTP endpoint, you may want to use [NotBody] on the HTTP endpoint parameter so Wolverine will not use that parameter as the request body model");
         }
 
         for (var i = 0; i < befores.Length; i++)

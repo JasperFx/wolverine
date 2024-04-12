@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -66,6 +67,8 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
         {
             return false;
         }
+
+        if (parameter.HasAttribute<NotBodyAttribute>()) return false;
 
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {

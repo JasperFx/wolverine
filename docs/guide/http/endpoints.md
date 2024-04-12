@@ -56,19 +56,19 @@ After that, you have quite a bit of flexibility.
 In terms of what the legal parameters to your endpoint method, Wolverine uses these rules *in order of precedence*
 to determine how to source that parameter at runtime:
 
-| Type or Description                        | Behavior                                                                                                                 |
-|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| Decorated with `[FromServices]`            | The argument is resolved as an IoC service                                                                               |
-| `IMessageBus`                              | Creates a new Wolverine message bus object                                                                               |
-| `HttpContext` or its members               | See the section below on accessing the HttpContext                                                                       |
-| Parameter name matches a route parameter   | See the [routing page](/guide/http/routing) for more information                                                         |
-| Decorated with `[FromHeader]`              | See [working with headers](/guide/http/headers) for more information                                                     |
+| Type or Description                        | Behavior                                                                                                                |
+|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| Decorated with `[FromServices]`            | The argument is resolved as an IoC service                                                                              |
+| `IMessageBus`                              | Creates a new Wolverine message bus object                                                                              |
+| `HttpContext` or its members               | See the section below on accessing the HttpContext                                                                      |
+| Parameter name matches a route parameter   | See the [routing page](/guide/http/routing) for more information                                                        |
+| Decorated with `[FromHeader]`              | See [working with headers](/guide/http/headers) for more information                                                    |
 | `string`, `int`, `Guid`, etc.              | All other "simple" .NET types are assumed to be [query string values](/guide/http/querystring) |
-| The first concrete, "not simple" parameter | Deserializes the HTTP request body as JSON to this type                                                                  |
+| The first concrete, "not simple" parameter | Deserializes the HTTP request body as JSON to this type                                                                 |
 | Every thing else                           | Wolverine will try to source the type as an IoC service |
 
 You can force Wolverine to ignore a parameter as the request body type by decorating
-the parameter with the `[NotBody` attribute like this:
+the parameter with the `[NotBody]` attribute like this:
 
 <!-- snippet: sample_using_not_body_attribute -->
 <a id='snippet-sample_using_not_body_attribute'></a>

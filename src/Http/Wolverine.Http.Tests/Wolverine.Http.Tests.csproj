@@ -2,11 +2,13 @@
 
     <PropertyGroup>
         <IsPackable>false</IsPackable>
+        <TargetFrameworks>net8.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Alba" Version="7.4.0" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.2" />
+        <PackageReference Include="Npgsql" Version="8.0.2" />
         <PackageReference Include="Refit" Version="7.0.0" />
         <PackageReference Include="Refit.HttpClientFactory" Version="7.0.0" />
         <PackageReference Include="xunit" Version="2.4.2" />
@@ -32,6 +34,10 @@
 
     <ItemGroup>
       <Compile Remove="Bugs\Bug_748_using_side_effect_in_tuple.cs" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2" />
     </ItemGroup>
 
 </Project>
