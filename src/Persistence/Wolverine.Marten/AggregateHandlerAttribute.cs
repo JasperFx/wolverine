@@ -96,7 +96,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         DetermineEventCaptureHandling(chain, firstCall, AggregateType);
 
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
-        RelayAggregateToHandlerMethod(loader, firstCall, AggregateType);
+        RelayAggregateToHandlerMethod(loader.ReturnVariable, firstCall, AggregateType);
 
         chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
     }
@@ -140,9 +140,9 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         }
     }
 
-    internal static Variable RelayAggregateToHandlerMethod(MethodCall loader, MethodCall firstCall, Type aggregateType)
+    internal static Variable RelayAggregateToHandlerMethod(Variable eventStream, MethodCall firstCall, Type aggregateType)
     {
-        var aggregateVariable = new MemberAccessVariable(loader.ReturnVariable,
+        var aggregateVariable = new MemberAccessVariable(eventStream,
             typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty("Aggregate"));
 
         if (firstCall.HandlerType == aggregateType)

@@ -74,18 +74,11 @@ public class AggregateAttribute : HttpChainParameterAttribute
 
         var sessionCreator = MethodCall.For<OutboxedSessionFactory>(x => x.OpenSession(null!));
         chain.Middleware.Add(sessionCreator);
-        
-        var loader = generateLoadAggregateCode(chain);
 
-        var method = typeof(AggregateAttribute)
-            .GetMethod(nameof(ValidateAggregateExists), BindingFlags.Public | BindingFlags.Static)
-            .MakeGenericMethod(AggregateType);
-
-        var assertExists = new MethodCall(typeof(AggregateAttribute), method);
-        chain.Middleware.Add(assertExists);
-        
-        chain.Middleware.Add(new MaybeEndWithResultFrame(assertExists.ReturnVariable));
-        
+        chain.Middleware.Add(new EventStoreFrame());
+        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<Frame>(this, AggregateType!);
+        chain.Middleware.Add(loader);
+ 
         // Use the active document session as an IQuerySession instead of creating a new one
         chain.Method.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
         
@@ -93,7 +86,7 @@ public class AggregateAttribute : HttpChainParameterAttribute
         
         AggregateHandlerAttribute.ValidateMethodSignatureForEmittedEvents(chain, chain.Method, chain);
         
-        var aggregate = AggregateHandlerAttribute.RelayAggregateToHandlerMethod(loader, chain.Method, AggregateType);
+        var aggregate = AggregateHandlerAttribute.RelayAggregateToHandlerMethod(loader.Creates.Single(), chain.Method, AggregateType);
         
         chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
 
@@ -120,16 +113,6 @@ public class AggregateAttribute : HttpChainParameterAttribute
 
         return null;
     }
-    
-    private MethodCall generateLoadAggregateCode(IChain chain)
-    {
-        chain.Middleware.Add(new EventStoreFrame());
-        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<MethodCall>(this, AggregateType!);
-        
-        
-        chain.Middleware.Add(loader);
-        return loader;
-    }
 
     internal Type AggregateType { get; set; }
 
@@ -152,10 +135,43 @@ public class AggregateAttribute : HttpChainParameterAttribute
         {
             return v3;
         }
-
+    
         return null;
     }
-    
-}
 
-// TODO -- this should absolutely be in JasperFx.CodeGeneration
+    public static async Task<(IEventStream<T>, IResult)> FetchForExclusiveWriting<T>(Guid id, IDocumentSession session, CancellationToken cancellationToken) where T : class
+    {
+        var stream = await session.Events.FetchForExclusiveWriting<T>(id, cancellationToken);
+        return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
+    }
+
+    public static async Task<(IEventStream<T>, IResult)> FetchForWriting<T>(Guid id, IDocumentSession session, CancellationToken cancellationToken) where T : class
+    {
+        var stream = await session.Events.FetchForExclusiveWriting<T>(id, cancellationToken);
+        return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
+    }
+    
+    public static async Task<(IEventStream<T>, IResult)> FetchForWriting<T>(Guid id, long version, IDocumentSession session, CancellationToken cancellationToken) where T : class
+    {
+        var stream = await session.Events.FetchForWriting<T>(id, version, cancellationToken);
+        return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
+    }
+    
+    public static async Task<(IEventStream<T>, IResult)> FetchForExclusiveWriting<T>(string key, IDocumentSession session, CancellationToken cancellationToken) where T : class
+    {
+        var stream = await session.Events.FetchForExclusiveWriting<T>(key, cancellationToken);
+        return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
+    }
+
+    public static async Task<(IEventStream<T>, IResult)> FetchForWriting<T>(string key, IDocumentSession session, CancellationToken cancellationToken) where T : class
+    {
+        var stream = await session.Events.FetchForExclusiveWriting<T>(key, cancellationToken);
+        return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
+    }
+    
+    public static async Task<(IEventStream<T>, IResult)> FetchForWriting<T>(string key, long version, IDocumentSession session, CancellationToken cancellationToken) where T : class
+    {
+        var stream = await session.Events.FetchForWriting<T>(key, version, cancellationToken);
+        return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
+    }
+}
