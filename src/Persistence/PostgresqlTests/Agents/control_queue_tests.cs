@@ -11,7 +11,7 @@ using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.Tracking;
 
-namespace PersistenceTests.Agents;
+namespace PostgresqlTests.Agents;
 
 public class control_queue_tests : PostgresqlContext, IAsyncLifetime
 {

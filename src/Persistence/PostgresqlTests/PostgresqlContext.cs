@@ -1,6 +1,4 @@
-﻿using Xunit;
-
-namespace PersistenceTests;
+﻿namespace PostgresqlTests;
 
 [Collection("marten")]
 public abstract class PostgresqlContext

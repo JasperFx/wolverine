@@ -89,8 +89,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             _scheduleExecution = new RetryBlock<Envelope>((e, _) => _inbox.ScheduleExecutionAsync(e),
                 _logger, _settings.Cancellation);
         }
-        
-        
 
         _moveToErrors = new RetryBlock<Envelope>(
             async (envelope, _) =>
@@ -320,7 +318,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new OperationCanceledException();
         }
 
-        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings);
+        foreach (var envelope in envelopes)
+        {
+            envelope.MarkReceived(listener, now, _settings);
+        }
 
         var batchSucceeded = false;
         if (_shouldPersistBeforeProcessing)

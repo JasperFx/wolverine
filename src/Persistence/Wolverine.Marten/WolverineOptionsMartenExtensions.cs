@@ -38,16 +38,19 @@ public static class WolverineOptionsMartenExtensions
     ///     This does not have to be one of the tenant databases
     ///     Wolverine will try to use the master database from the Marten configuration when possible
     /// </param>
+    /// <param name="transportSchemaName">Optionally configure the schema name for any PostgreSQL queues</param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null,
-        string? masterDatabaseConnectionString = null, NpgsqlDataSource? masterDataSource = null)
+        string? masterDatabaseConnectionString = null, NpgsqlDataSource? masterDataSource = null, string? transportSchemaName = null)
     {
         if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
         {
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
+        
+        
         
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
@@ -71,7 +74,11 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddSingleton<IDatabaseSource, MartenMessageDatabaseDiscovery>();
 
-        expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
+        expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration
+        {
+            TransportSchemaName = transportSchemaName ?? schemaName ?? "wolverine_queues"
+        });
+        
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
         return expression;

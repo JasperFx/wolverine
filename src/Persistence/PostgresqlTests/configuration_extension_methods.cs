@@ -11,7 +11,7 @@ using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 
-namespace PersistenceTests;
+namespace PostgresqlTests;
 
 public class configuration_extension_methods : PostgresqlContext
 {

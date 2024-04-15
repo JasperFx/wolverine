@@ -15,7 +15,7 @@ using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
 
-namespace PersistenceTests.Agents;
+namespace PostgresqlTests.Agents;
 
 public class leader_election : PostgresqlContext, IAsyncLifetime
 {

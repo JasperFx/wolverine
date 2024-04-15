@@ -235,6 +235,21 @@ public class EndpointCollection : IEndpointCollection
         await agent.StartAsync().ConfigureAwait(false);
         _listeners[agent.Uri] = agent;
     }
+    
+    public async Task StartListenerAsync(Endpoint endpoint, IListener listener, CancellationToken cancellationToken)
+    {
+        if (_listeners.TryGetValue(endpoint.Uri, out var agent))
+        {
+            if (agent.Status == ListeningStatus.Accepting) return;
+            await agent.StartAsync();
+            return;
+        }
+        
+        endpoint.Compile(_runtime); 
+        agent = new ListeningAgent(endpoint, _runtime);
+        await agent.StartAsync().ConfigureAwait(false);
+        _listeners[agent.Uri] = agent;
+    }
 
     public LocalQueue? LocalQueueForMessageType(Type messageType)
     {

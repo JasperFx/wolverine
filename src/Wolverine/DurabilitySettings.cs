@@ -120,6 +120,12 @@ public class DurabilitySettings
     /// </summary>
     public TimeSpan CheckAssignmentPeriod { get; set; } = 30.Seconds();
 
+    /// <summary>
+    /// If using any kind of dynamic multi-tenancy where Wolverine should discover new
+    /// tenants, this is the polling time. Default is 5 seconds
+    /// </summary>
+    public TimeSpan TenantCheckPeriod { get; set; } = 5.Seconds();
+
 
     /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is

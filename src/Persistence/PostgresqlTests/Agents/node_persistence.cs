@@ -10,7 +10,7 @@ using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.Runtime.Agents;
 
-namespace PersistenceTests.Agents;
+namespace PostgresqlTests.Agents;
 
 public class node_persistence : PostgresqlContext, IAsyncLifetime
 {

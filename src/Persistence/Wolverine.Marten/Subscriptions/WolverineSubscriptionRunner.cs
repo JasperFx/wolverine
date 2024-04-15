@@ -1,11 +1,14 @@
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
+using Marten.Internal.Sessions;
 using Marten.Schema.Arguments;
 using Marten.Services;
 using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Subscriptions;
@@ -28,7 +31,16 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
     public override async Task<IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
         CancellationToken cancellationToken)
     {
+        var session = operations.As<DocumentSessionBase>();
+
         var context = new MessageContext(_runtime);
+
+        if (_runtime.Storage is MultiTenantedMessageDatabase)
+        {
+            // TODO -- unenthusiastic about this, add TenantId to IDocumentOperations in Marten
+            context.TenantId = session.Database.Identifier;
+        }
+        
         await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction((IDocumentSession)operations, context));
 
         await _subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);

@@ -6,7 +6,7 @@ using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 
-namespace PersistenceTests;
+namespace PostgresqlTests;
 
 public class extension_registrations : PostgresqlContext
 {

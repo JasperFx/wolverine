@@ -241,6 +241,19 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         _initialized = true;
     }
 
+    public async Task<IReadOnlyList<IMessageDatabase>> CheckForDatabasesAsync(IWolverineRuntime runtime)
+    {
+        await _databases.RefreshAsync();
+
+        var messageDatabases = databases().ToList();
+        foreach (var database in messageDatabases)
+        {
+            database.Initialize(runtime);
+        }
+
+        return messageDatabases;
+    }
+
     public bool HasDisposed { get; private set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
@@ -385,7 +398,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
     public ValueTask<IMessageDatabase> GetDatabaseAsync(string? tenantId)
     {
-        return tenantId.IsEmpty() || tenantId == TransportConstants.Default
+        return tenantId.IsEmpty() || tenantId == TransportConstants.Default || tenantId == "Master"
             ? new ValueTask<IMessageDatabase>(Master)
             : _databases.FindDatabaseAsync(tenantId);
     }

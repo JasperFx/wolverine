@@ -1,6 +1,7 @@
 using Oakton.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Transports;
 
@@ -12,6 +13,14 @@ namespace Wolverine.Transports;
 public interface ITransportConfiguresRuntime
 {
     ValueTask ConfigureAsync(IWolverineRuntime runtime);
+}
+
+/// <summary>
+/// Used for transports to register agent families
+/// </summary>
+public interface IAgentFamilySource
+{
+    IEnumerable<IAgentFamily> BuildAgentFamilySources(IWolverineRuntime runtime);
 }
 
 public interface ITransport
