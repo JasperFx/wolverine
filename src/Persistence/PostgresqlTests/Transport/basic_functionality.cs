@@ -3,7 +3,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
-using PersistenceTests;
+using NSubstitute;
 using Shouldly;
 using TestingSupport;
 using Weasel.Postgresql;
@@ -11,6 +11,8 @@ using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Postgresql.Transport;
+using Wolverine.Runtime;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
 
@@ -29,6 +31,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     private PostgresqlTransport theTransport;
     private PostgresqlQueue theQueue;
     private IMessageStore theMessageStore;
+    private WolverineRuntime theRuntime;
 
     public async Task InitializeAsync()
     {
@@ -44,11 +47,12 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
                 opts.ListenToPostgresqlQueue("one");
             }).StartAsync();
 
-        var wolverineRuntime = theHost.GetRuntime();
-        theTransport = wolverineRuntime.Options.Transports.GetOrCreate<PostgresqlTransport>();
+        theTransport = theHost.GetRuntime().Options.Transports.GetOrCreate<PostgresqlTransport>();
         theQueue = theTransport.Queues["one"];
 
-        theMessageStore = wolverineRuntime.Storage;
+        theMessageStore = theHost.GetRuntime().Storage;
+
+        theRuntime = theHost.GetRuntime();
     }
 
     public async Task DisposeAsync()
@@ -101,7 +105,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     {
         var envelope = ObjectMother.Envelope();
         envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
-        await theQueue.SendAsync(envelope, CancellationToken.None);
+        await theQueue.SendAsync(envelope);
         
         (await theQueue.CountAsync()).ShouldBe(1);
         (await theQueue.ScheduledCountAsync()).ShouldBe(0);
@@ -112,9 +116,9 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     {
         var envelope = ObjectMother.Envelope();
         envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
-        await theQueue.SendAsync(envelope, CancellationToken.None);
-        await theQueue.SendAsync(envelope, CancellationToken.None);
-        await theQueue.SendAsync(envelope, CancellationToken.None);
+        await theQueue.SendAsync(envelope);
+        await theQueue.SendAsync(envelope);
+        await theQueue.SendAsync(envelope);
         
         (await theQueue.CountAsync()).ShouldBe(1);
         (await theQueue.ScheduledCountAsync()).ShouldBe(0);
@@ -127,7 +131,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         envelope.ScheduleDelay = 1.Hours();
         envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
         envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
-        await theQueue.SendAsync(envelope, CancellationToken.None);
+        await theQueue.SendAsync(envelope);
         
         (await theQueue.CountAsync()).ShouldBe(0);
         (await theQueue.ScheduledCountAsync()).ShouldBe(1);
@@ -140,11 +144,11 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         envelope.ScheduleDelay = 1.Hours();
         envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
         envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
-        await theQueue.SendAsync(envelope, CancellationToken.None);
+        await theQueue.SendAsync(envelope);
         
         // Does not blow up
-        await theQueue.SendAsync(envelope, CancellationToken.None);
-        await theQueue.SendAsync(envelope, CancellationToken.None);
+        await theQueue.SendAsync(envelope);
+        await theQueue.SendAsync(envelope);
         
         (await theQueue.CountAsync()).ShouldBe(0);
         (await theQueue.ScheduledCountAsync()).ShouldBe(1);
@@ -157,18 +161,22 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         
         var envelope = ObjectMother.Envelope();
         envelope.DeliverBy = databaseTime.Subtract(1.Hours());
-        await theQueue.SendAsync(envelope, CancellationToken.None);
+        await theQueue.SendAsync(envelope);
         
         var envelope2 = ObjectMother.Envelope();
         envelope2.DeliverBy = databaseTime.Add(1.Hours());
-        await theQueue.SendAsync(envelope2, CancellationToken.None);
+        await theQueue.SendAsync(envelope2);
         
         var envelope3 = ObjectMother.Envelope();
         envelope3.DeliverBy = null;
-        await theQueue.SendAsync(envelope3, CancellationToken.None);
+        await theQueue.SendAsync(envelope3);
 
         (await theQueue.CountAsync()).ShouldBe(3);
-        await theQueue.DeleteExpiredAsync(CancellationToken.None);
+        
+        var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
+        await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
+        
+        await theListener.DeleteExpiredAsync(CancellationToken.None);
         (await theQueue.CountAsync()).ShouldBe(2);
     }
 
@@ -180,7 +188,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         var envelope = ObjectMother.Envelope();
         await theMessageStore.Outbox.StoreOutgoingAsync(envelope, 0);
 
-        await theQueue.MoveFromOutgoingToQueueAsync(envelope, CancellationToken.None);
+        await new PostgresqlQueueSender(theQueue).MoveFromOutgoingToQueueAsync(envelope, CancellationToken.None);
         
         (await theQueue.CountAsync()).ShouldBe(1);
 
@@ -198,7 +206,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
         await theMessageStore.Outbox.StoreOutgoingAsync(envelope, 0);
 
-        await theQueue.MoveFromOutgoingToScheduledAsync(envelope, CancellationToken.None);
+        await new PostgresqlQueueSender(theQueue).MoveFromOutgoingToScheduledAsync(envelope, CancellationToken.None);
         
         (await theQueue.ScheduledCountAsync()).ShouldBe(1);
 
@@ -216,7 +224,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         {
             var envelope = ObjectMother.Envelope();
             envelope.ScheduledTime = systemTime.Subtract(1.Days());
-            await theQueue.ScheduleMessageAsync(envelope, CancellationToken.None);
+            await new PostgresqlQueueSender(theQueue).ScheduleMessageAsync(envelope, CancellationToken.None);
         }
         
         // Push the dates back
@@ -225,13 +233,16 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         {
             var envelope = ObjectMother.Envelope();
             envelope.ScheduledTime = systemTime.Add(1.Days());
-            await theQueue.ScheduleMessageAsync(envelope, CancellationToken.None);
+            await new PostgresqlQueueSender(theQueue).ScheduleMessageAsync(envelope, CancellationToken.None);
         }
         
         (await theQueue.ScheduledCountAsync()).ShouldBe(30);
         (await theQueue.CountAsync()).ShouldBe(0);
 
-        var scheduledCount = await theQueue.MoveScheduledToReadyQueueAsync(CancellationToken.None);
+        var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
+        await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
+        
+        var scheduledCount = await theListener.MoveScheduledToReadyQueueAsync(CancellationToken.None);
         scheduledCount.ShouldBe(20);
         
         (await theQueue.ScheduledCountAsync()).ShouldBe(10);
@@ -244,13 +255,17 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         for (int i = 0; i < 10; i++)
         {
             var envelope = ObjectMother.Envelope();
-            await theQueue.SendAsync(envelope, CancellationToken.None);
+            await theQueue.SendAsync(envelope);
         }
 
-        var popped = await theQueue.TryPopAsync(5, NullLogger.Instance, CancellationToken.None);
+        var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
+        await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
+        var popped = await theListener.TryPopAsync(5, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
         
         (await theQueue.CountAsync()).ShouldBe(5);
+        
+        
     }
     
     [Fact]
@@ -259,10 +274,15 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         for (int i = 0; i < 20; i++)
         {
             var envelope = ObjectMother.Envelope();
-            await theQueue.SendAsync(envelope, CancellationToken.None);
+            await theQueue.SendAsync(envelope);
         }
+        
+        (await theQueue.CountAsync()).ShouldBe(20);
+        
+        var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
+        await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
 
-        var popped = await theQueue.TryPopDurablyAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, NullLogger.Instance, CancellationToken.None);
+        var popped = await theListener.TryPopDurablyAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
         
         (await theQueue.CountAsync()).ShouldBe(15);

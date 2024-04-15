@@ -18,7 +18,7 @@ using Wolverine.RDBMS.Polling;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 
-namespace PersistenceTests;
+namespace PostgresqlTests;
 
 public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyncLifetime
 {

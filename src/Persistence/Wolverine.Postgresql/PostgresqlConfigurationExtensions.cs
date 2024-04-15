@@ -1,10 +1,9 @@
 ﻿using JasperFx.Core;
 using Npgsql;
 using JasperFx.Core.Reflection;
-using Microsoft.Extensions.DependencyInjection;
-using Weasel.Core.Migrations;
 using Wolverine.Configuration;
 using Wolverine.Postgresql.Transport;
+using Wolverine.Runtime;
 
 
 namespace Wolverine.Postgresql;
@@ -119,8 +118,8 @@ public static class PostgresqlConfigurationExtensions
 
         return new PostgresqlPersistenceExpression(transport, options);
     }
-    
-        /// <summary>
+
+    /// <summary>
     ///     Quick access to the Postgresql Transport within this application.
     ///     This is for advanced usage
     /// </summary>
@@ -132,16 +131,16 @@ public static class PostgresqlConfigurationExtensions
 
         try
         {
-            return transports.OfType<PostgresqlTransport>().Single();
+            return transports.GetOrCreate<PostgresqlTransport>();
         }
         catch (Exception)
         {
-            throw new InvalidOperationException("The Sql Server transport is not registered in this system");
+            throw new InvalidOperationException("The PostgreSQL transport is not registered in this system");
         }
     }
 
     /// <summary>
-    /// Listen for incoming messages at the designated Sql Server queue by name
+    /// Listen for incoming messages at the designated PostgreSQL queue by name
     /// </summary>
     /// <param name="endpoints"></param>
     /// <param name="queueName"></param>
@@ -158,7 +157,7 @@ public static class PostgresqlConfigurationExtensions
     }
 
     /// <summary>
-    ///     Publish matching messages straight to a Sql Server queue using the queue name
+    ///     Publish matching messages straight to a PostgreSQL queue using the queue name
     /// </summary>
     /// <param name="publishing"></param>
     /// <param name="queueName"></param>
@@ -167,7 +166,7 @@ public static class PostgresqlConfigurationExtensions
         string queueName)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
-        var transport = transports.OfType<PostgresqlTransport>().Single();
+        var transport = transports.GetOrCreate<PostgresqlTransport>();
 
         var corrected = transport.MaybeCorrectName(queueName);
         var queue = transport.Queues[corrected];

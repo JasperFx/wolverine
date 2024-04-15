@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -43,6 +44,11 @@ public partial class NodeAgentController
         if (runtime is { Storage: IAgentFamily agentFamily, Options.Durability.DurabilityAgentEnabled: true })
         {
             _agentFamilies[agentFamily.Scheme] = agentFamily;
+        }
+
+        foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))
+        {
+            _agentFamilies[family.Scheme] = family;
         }
 
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);

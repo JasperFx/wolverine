@@ -13,7 +13,7 @@ using Wolverine.RDBMS;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 
-namespace PersistenceTests;
+namespace PostgresqlTests;
 
 public class message_store_initialization_and_configuration : PostgresqlContext, IAsyncLifetime
 {

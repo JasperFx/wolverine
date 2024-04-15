@@ -3,6 +3,7 @@ using Marten.Events;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Postgresql.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 
@@ -36,9 +37,13 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
         options.PublishWithMessageRoutingSource(EventRouter);
         
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
+
+        var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
+        transport.SchemaName = TransportSchemaName;
     }
 
     internal MartenEventRouter EventRouter { get; } = new();
+    public string TransportSchemaName { get; set; } = "wolverine_queues";
 
     EventForwardingTransform<T> IEventForwarding.SubscribeToEvent<T>()
     {

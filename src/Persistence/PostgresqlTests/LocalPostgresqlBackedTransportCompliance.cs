@@ -4,7 +4,7 @@ using TestingSupport.Compliance;
 using Wolverine;
 using Wolverine.Postgresql;
 
-namespace PersistenceTests;
+namespace PostgresqlTests;
 
 public class LocalPostgresqlBackedFixture : TransportComplianceFixture, IAsyncLifetime
 {
