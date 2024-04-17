@@ -31,14 +31,11 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
     public override async Task<IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
         CancellationToken cancellationToken)
     {
-        var session = operations.As<DocumentSessionBase>();
-
         var context = new MessageContext(_runtime);
 
         if (_runtime.Storage is MultiTenantedMessageDatabase)
         {
-            // TODO -- unenthusiastic about this, add TenantId to IDocumentOperations in Marten
-            context.TenantId = session.Database.Identifier;
+            context.TenantId = operations.Database.Identifier;
         }
         
         await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction((IDocumentSession)operations, context));
