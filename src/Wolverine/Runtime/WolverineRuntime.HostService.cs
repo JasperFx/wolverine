@@ -27,7 +27,7 @@ public partial class WolverineRuntime
             
             await ApplyAsyncExtensions();
 
-            foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>())
+            foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())
             {
                 await configuresRuntime.ConfigureAsync(this);
             }
