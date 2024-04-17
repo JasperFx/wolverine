@@ -77,7 +77,6 @@ public class DeliveryOptions
         if (DeliverBy.HasValue)
         {
             envelope.DeliverBy = DeliverBy;
-            envelope.Status = EnvelopeStatus.Scheduled;
         }
 
         if (ScheduledTime.HasValue)
