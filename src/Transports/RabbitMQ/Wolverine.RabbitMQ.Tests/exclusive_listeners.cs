@@ -28,6 +28,25 @@ public class exclusive_listeners : IAsyncLifetime
         _output = output;
     }
 
+    public static async Task documentation_sample()
+    {
+        #region sample_utilizing_ListenWithStrictOrdering
+
+        var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+        {
+            opts.UseRabbitMq().EnableWolverineControlQueues();
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "listeners");
+
+            opts.ListenToRabbitQueue("ordered")
+                
+                // This option is available on all types of Wolverine
+                // endpoints that can be configured to be a listener
+                .ListenWithStrictOrdering();
+        }).StartAsync();
+
+        #endregion
+    }
+
     [Fact]
     public async Task exclusive_listeners_are_automatically_started_in_solo_mode()
     {
