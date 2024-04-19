@@ -150,6 +150,7 @@ export default withMermaid( {
                                     ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
+                                {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'}
                             ]

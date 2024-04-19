@@ -58,7 +58,7 @@ public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IA
             opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "buffered_compliance")
                 .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
 
-            #region sample_setting_sql_server_queue_to_buffered
+            #region sample_setting_postgres_queue_to_buffered
 
             opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 
