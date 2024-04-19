@@ -207,6 +207,7 @@ export default withMermaid( {
                                 {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'}
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
+                        {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},
