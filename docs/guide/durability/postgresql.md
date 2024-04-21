@@ -63,40 +63,6 @@ use this option which *also* activates PostgreSQL backed message persistence:
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine((context, opts) =>
     {
-        var connectionString = context.Configuration.GetConnectionString("sqlserver");
-        opts.UseSqlServerPersistenceAndTransport(connectionString, "myapp")
-            
-            // Tell Wolverine to build out all necessary queue or scheduled message
-            // tables on demand as needed
-            .AutoProvision()
-            
-            // Optional that may be helpful in testing, but probably bad
-            // in production!
-            .AutoPurgeOnStartup();
-
-        // Use this extension method to create subscriber rules
-        opts.PublishAllMessages().ToSqlServerQueue("outbound");
-
-        // Use this to set up queue listeners
-        opts.ListenToSqlServerQueue("inbound")
-            
-            .CircuitBreaker(cb =>
-            {
-                // fine tune the circuit breaker
-                // policies here
-            })
-            
-            // Optionally specify how many messages to 
-            // fetch into the listener at any one time
-            .MaximumMessagesToReceive(50);
-    }).StartAsync();
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Postgresql/Transport/DocumentationSamples.cs#L12-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_using_postgres_transport-1'></a>
-```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
         var connectionString = context.Configuration.GetConnectionString("postgres");
         opts.UsePostgresqlPersistenceAndTransport(connectionString, "myapp")
             
@@ -125,18 +91,18 @@ using var host = await Host.CreateDefaultBuilder()
             .MaximumMessagesToReceive(50);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L12-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L12-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The PostgreSQL transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
 that they are utilizing the transactional inbox and outbox. The PostgreSQL queues can also be buffered:
 
-<!-- snippet: sample_setting_sql_server_queue_to_buffered -->
-<a id='snippet-sample_setting_sql_server_queue_to_buffered'></a>
+<!-- snippet: sample_setting_postgres_queue_to_buffered -->
+<a id='snippet-sample_setting_postgres_queue_to_buffered'></a>
 ```cs
-opts.ListenToSqlServerQueue("sender").BufferedInMemory();
+opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L65-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L61-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the PostgreSQL queues can be used for both sending or receiving with no integration

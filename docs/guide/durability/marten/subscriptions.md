@@ -1,4 +1,4 @@
-# Event Subscriptions
+# Event Subscriptions <Badge type="tip" text="2.2" />
 
 ::: tip
 The older [Event Forwarding](./event-forwarding) feature is a subset of subscriptions, but happens at the time of event
@@ -6,7 +6,7 @@ capture whereas the event subscriptions are processed in strict order in a backg
 subsystem. The **strong suggestion from the Wolverine team is to use one or the other approach, but not both in the same system**.
 :::
 
-New in Wolverine 2.2 is the ability to subscribe to Marten events to carry out message processing by Wolverine on
+Wolverine has the ability to extend Marten's [event subscription functionality]() to carry out message processing by Wolverine on
 the events being captured by Marten in strict order. This new functionality works through Marten's [async daemon](https://martendb.io/events/projections/async-daemon.html)
 
 There are easy recipes for processing events through Wolverine message handlers, and also for just publishing events
