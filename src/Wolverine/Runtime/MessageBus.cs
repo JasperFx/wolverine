@@ -28,6 +28,15 @@ public class MessageBus : IMessageBus
         Storage = runtime.Storage;
         CorrelationId = correlationId;
     }
+
+    private void assertNotMediatorOnly()
+    {
+        if (Runtime.Options.Durability.Mode == DurabilityMode.MediatorOnly)
+        {
+            throw new InvalidOperationException(
+                $"This operation is not allowed with Wolverine is bootstrapped in {nameof(DurabilityMode.MediatorOnly)} mode");
+        }
+    }
     
     public string? CorrelationId { get; set; }
 
@@ -133,6 +142,7 @@ public class MessageBus : IMessageBus
         }
         
         Runtime.AssertHasStarted();
+        assertNotMediatorOnly();
 
         // Cannot trust the T here. Can be "object"
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
@@ -149,6 +159,7 @@ public class MessageBus : IMessageBus
         }
         
         Runtime.AssertHasStarted();
+        assertNotMediatorOnly();
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
@@ -172,6 +183,7 @@ public class MessageBus : IMessageBus
         }
         
         Runtime.AssertHasStarted();
+        assertNotMediatorOnly();
 
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteToTopic(message, topicName, options);
         return PersistOrSendAsync(outgoing);
