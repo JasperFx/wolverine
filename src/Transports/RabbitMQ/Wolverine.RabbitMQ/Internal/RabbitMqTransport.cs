@@ -1,6 +1,8 @@
 ﻿using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -15,8 +17,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
     public const string DeadLetterQueueHeader = "x-dead-letter-exchange";
 
-    private IConnection? _listenerConnection;
-    private IConnection? _sendingConnection;
+    private ConnectionMonitor? _listenerConnection;
+    private ConnectionMonitor? _sendingConnection;
 
     public RabbitMqTransport() : base(ProtocolName, "Rabbit MQ")
     {
@@ -44,8 +46,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     internal RabbitMqChannelCallback? Callback { get; private set; }
 
-    internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
-    internal IConnection SendingConnection => _sendingConnection ??= BuildConnection();
+    internal ConnectionMonitor ListeningConnection => _listenerConnection ??= BuildConnection(ConnectionRole.Listening);
+    internal ConnectionMonitor SendingConnection => _sendingConnection ??= BuildConnection(ConnectionRole.Sending);
 
     public ConnectionFactory ConnectionFactory { get; } = new(){ClientProvidedName = "Wolverine"};
 
@@ -64,7 +66,6 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     {
         try
         {
-            _listenerConnection?.Close();
             _listenerConnection?.SafeDispose();
         }
         catch (ObjectDisposedException)
@@ -74,7 +75,6 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
         try
         {
-            _sendingConnection?.Close();
             _sendingConnection?.SafeDispose();
         }
         catch (ObjectDisposedException)
@@ -92,54 +92,22 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        var logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();
-        Callback = new RabbitMqChannelCallback(logger, runtime.DurabilitySettings.Cancellation);
+        Logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();
+        Callback = new RabbitMqChannelCallback(Logger, runtime.DurabilitySettings.Cancellation);
 
         ConnectionFactory.DispatchConsumersAsync = true;
 
         if (_listenerConnection == null && !UseSenderConnectionOnly)
         {
-            _listenerConnection = BuildConnection();
-            listenToEvents("Listener", _listenerConnection, logger);
+            _listenerConnection = BuildConnection(ConnectionRole.Listening);
         }
 
         if (_sendingConnection == null && !UseListenerConnectionOnly)
         {
-            _sendingConnection = BuildConnection();
-            listenToEvents("Sender", _sendingConnection, logger);
+            _sendingConnection = BuildConnection(ConnectionRole.Sending);
         }
 
         return ValueTask.CompletedTask;
-    }
-
-    private void listenToEvents(string connectionName, IConnection connection, ILogger logger)
-    {
-        logger.LogInformation("Opened new Rabbit MQ connection '{Name}'", connectionName);
-        
-        connection.CallbackException += (_, args) =>
-        {
-            logger.LogError(args.Exception, "Rabbit Mq connection callback exception on {Name} connection",
-                connectionName);
-        };
-
-        connection.ConnectionBlocked += (_, args) =>
-        {
-            logger.LogInformation("Rabbit Mq {Name} connection was blocked with reason {Reason}", connectionName,
-                args.Reason);
-        };
-
-        connection.ConnectionShutdown += (_, args) =>
-        {
-            logger.LogInformation(
-                "Rabbit Mq connection {Name} was shutdown with Cause {Cause}, Initiator {Initiator}, ClassId {ClassId}, MethodId {MethodId}, ReplyCode {ReplyCode}, and ReplyText {ReplyText}"
-                , connectionName, args.Cause, args.Initiator, args.ClassId, args.MethodId, args.ReplyCode,
-                args.ReplyText);
-        };
-
-        connection.ConnectionUnblocked += (_, _) =>
-        {
-            logger.LogInformation("Rabbit Mq connection {Name} was un-blocked", connection);
-        };
     }
 
     protected override IEnumerable<RabbitMqEndpoint> endpoints()
@@ -199,7 +167,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
                 IsDurable = false,
                 IsListener = true,
                 IsUsedForReplies = true,
-                ListenerCount = 5,
+                ListenerCount = 1,
                 EndpointName = ResponseEndpointName
             };
 
@@ -240,12 +208,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         }
     }
 
-    internal IConnection BuildConnection()
+    internal ConnectionMonitor BuildConnection(ConnectionRole role)
     {
-        return AmqpTcpEndpoints.Any()
-            ? ConnectionFactory.CreateConnection(AmqpTcpEndpoints)
-            : ConnectionFactory.CreateConnection();
+        return new ConnectionMonitor(this, role);
     }
+
+    public ILogger<RabbitMqTransport> Logger { get; private set; } = NullLogger<RabbitMqTransport>.Instance;
 
     public RabbitMqQueue EndpointForQueue(string queueName)
     {

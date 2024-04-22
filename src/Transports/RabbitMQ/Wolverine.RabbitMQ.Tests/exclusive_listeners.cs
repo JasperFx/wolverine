@@ -55,8 +55,8 @@ public class exclusive_listeners : IAsyncLifetime
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering();
-                opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering();
+                opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering().Named("one");
+                opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering().Named("two");
                 opts.ListenAtPort(PortFinder.GetAvailablePort()).Named("three");
             }).StartAsync();
 

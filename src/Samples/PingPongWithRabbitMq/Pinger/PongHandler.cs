@@ -12,6 +12,6 @@ public static class PongHandler
     // method. Handler methods can be static or instance methods
     public static void Handle(PongMessage message)
     {
-        AnsiConsole.Write($"[blue]Got pong #{message.Number}[/]");
+        AnsiConsole.MarkupLine($"[blue]Got pong #{message.Number}[/]");
     }
 }

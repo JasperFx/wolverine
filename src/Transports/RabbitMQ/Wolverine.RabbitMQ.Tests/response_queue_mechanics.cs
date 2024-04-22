@@ -52,9 +52,9 @@ public class response_queue_mechanics : IAsyncLifetime
     }
 
     [Fact]
-    public void the_endpoint_is_a_parallel_inline_listener()
+    public void the_endpoint_is_a_sequential_listener()
     {
-        theEndpoint.ListenerCount.ShouldBe(5);
+        theEndpoint.ListenerCount.ShouldBe(1);
         theEndpoint.Mode.ShouldBe(EndpointMode.Inline);
         theEndpoint.IsListener.ShouldBeTrue();
     }

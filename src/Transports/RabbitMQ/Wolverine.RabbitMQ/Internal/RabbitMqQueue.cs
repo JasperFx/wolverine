@@ -213,7 +213,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         }
     }
 
-    internal ValueTask InitializeAsync(IConnection connection, ILogger logger)
+    internal ValueTask InitializeAsync(IConnectionMonitor connection, ILogger logger)
     {
         // This is a reply uri owned by another node, so get out of here
         if (isSystemQueue())
@@ -307,6 +307,11 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         }
 
         return dict;
+    }
+
+    public override string ToString()
+    {
+        return $"RabbitMqQueue: {QueueName}";
     }
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)

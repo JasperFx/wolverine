@@ -221,6 +221,9 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             _logger.LogError(e, "Unable to cleanly stop the listener for {Uri}", Uri);
         }
 
+        // Important, to make the processing truly restart, you need to rebuild the receiver
+        _receiver?.SafeDispose();
+        _receiver = null;
         Listener = null;
 
         Status = ListeningStatus.TooBusy;

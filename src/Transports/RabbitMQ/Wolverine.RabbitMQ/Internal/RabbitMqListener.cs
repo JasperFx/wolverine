@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -42,14 +43,14 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
     public bool NativeDeadLetterQueueEnabled => true;
 }
 
-internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDeadLetterQueue
+internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadLetterQueue
 {
     private readonly IChannelCallback _callback;
     private readonly CancellationToken _cancellation = CancellationToken.None;
     private readonly WorkerQueueMessageConsumer? _consumer;
     private readonly ISupportDeadLetterQueue _deadLetterQueueCallback;
     private readonly IReceiver _receiver;
-    private readonly RabbitMqSender _sender;
+    private readonly Lazy<RabbitMqSender> _sender;
 
     public RabbitMqListener(IWolverineRuntime runtime,
         RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection,
@@ -58,7 +59,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         Queue = queue;
         Address = queue.Uri;
 
-        _sender = Queue.ResolveSender(runtime);
+        _sender = new Lazy<RabbitMqSender>(() => Queue.ResolveSender(runtime));
         _cancellation.Register(teardownChannel);
 
         EnsureConnected();
@@ -133,6 +134,11 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         return true;
     }
 
+    public override string ToString()
+    {
+        return $"RabbitMqListener: {Address}";
+    }
+
     public Uri Address { get; }
 
     public ValueTask CompleteAsync(Envelope envelope)
@@ -166,7 +172,11 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
     {
         _receiver.Dispose();
         base.Dispose();
-        _sender.Dispose();
+        
+        if (_sender.IsValueCreated)
+        {
+            _sender.Value.SafeDispose();
+        }
     }
 
     public ValueTask RequeueAsync(RabbitMqEnvelope envelope)
@@ -176,7 +186,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
             Channel!.BasicNack(envelope.DeliveryTag, false, false);
         }
 
-        return _sender.SendAsync(envelope);
+        return _sender.Value.SendAsync(envelope);
     }
 
     public void Complete(ulong deliveryTag)

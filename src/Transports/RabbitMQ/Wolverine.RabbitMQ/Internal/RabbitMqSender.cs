@@ -7,7 +7,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
+internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 {
     private readonly RabbitMqEndpoint _endpoint;
     private readonly string _exchangeName;
@@ -60,6 +60,11 @@ internal class RabbitMqSender : RabbitMqConnectionAgent, ISender
 
         var routingKey = _toRoutingKey(envelope);
         Channel.BasicPublish(_exchangeName, routingKey, props, envelope.Data);
+    }
+
+    public override string ToString()
+    {
+        return $"RabbitMqSender: {Destination}";
     }
 
     public Task<bool> PingAsync()

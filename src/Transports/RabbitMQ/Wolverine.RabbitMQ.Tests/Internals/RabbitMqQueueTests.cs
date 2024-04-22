@@ -15,7 +15,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals;
 public class RabbitMqQueueTests
 {
     private readonly IModel theChannel = Substitute.For<IModel>();
-    private readonly IConnection theConnection = Substitute.For<IConnection>();
+    private readonly IConnectionMonitor theConnection = Substitute.For<IConnectionMonitor>();
 
     private readonly RabbitMqTransport theTransport = new();
 
