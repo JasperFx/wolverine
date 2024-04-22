@@ -757,7 +757,7 @@ public static class PongHandler
     // method. Handler methods can be static or instance methods
     public static void Handle(PongMessage message)
     {
-        AnsiConsole.Write($"[blue]Got pong #{message.Number}[/]");
+        AnsiConsole.MarkupLine($"[blue]Got pong #{message.Number}[/]");
     }
 }
 
@@ -773,7 +773,7 @@ public static class PingHandler
         // being handled
         IMessageContext context)
     {
-        AnsiConsole.Write($"[blue]Got ping #{message.Number}[/]");
+        AnsiConsole.MarkupLine($"[blue]Got ping #{message.Number}[/]");
 
         var response = new PongMessage
         {

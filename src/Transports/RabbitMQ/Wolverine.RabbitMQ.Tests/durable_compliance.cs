@@ -24,7 +24,13 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
         {
             var listener = $"listener{RabbitTesting.Number}";
 
-            opts.Services.AddMarten(Servers.PostgresConnectionString)
+            opts.Durability.Mode = DurabilityMode.Solo;
+
+            opts.Services.AddMarten(m =>
+                {
+                    m.Connection(Servers.PostgresConnectionString);
+                    m.DisableNpgsqlLogging = true;
+                })
                 .IntegrateWithWolverine("rabbit_sender");
             
 
@@ -40,7 +46,13 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
 
         await ReceiverIs(opts =>
         {
-            opts.Services.AddMarten(Servers.PostgresConnectionString)
+            opts.Durability.Mode = DurabilityMode.Solo;
+            
+            opts.Services.AddMarten(m =>
+                {
+                    m.Connection(Servers.PostgresConnectionString);
+                    m.DisableNpgsqlLogging = true;
+                })
                 .IntegrateWithWolverine("rabbit_receiver");
 
             

@@ -1,4 +1,5 @@
-﻿using Wolverine;
+﻿using System.Diagnostics;
+using Wolverine;
 using Wolverine.Attributes;
 
 namespace TestingSupport.Compliance;
@@ -6,6 +7,11 @@ namespace TestingSupport.Compliance;
 [MessageIdentity("Message1")]
 public class Message1
 {
+    public Message1()
+    {
+        Debug.WriteLine("Built.");
+    }
+
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 

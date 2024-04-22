@@ -24,14 +24,21 @@ public class PingerService : IHostedService
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                var message = new PingMessage
+                try
                 {
-                    Number = ++count
-                };
+                    var message = new PingMessage
+                    {
+                        Number = ++count
+                    };
 
-                await _bus.SendAsync(message);
+                    await _bus.SendAsync(message);
 
-                await Task.Delay(1.Seconds(), cancellationToken);
+                    await Task.Delay(1.Seconds(), cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    return;
+                }
             }
         }, cancellationToken);
     }
