@@ -62,8 +62,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     /// <param name="heading"></param>
     public void Audit(MemberInfo member, string? heading = null)
     {
-        AuditedMembers.Add(new AuditedMember(member, heading ?? member.Name,
-            member.Name.SplitPascalCase().Replace(" ", ".").ToLowerInvariant()));
+        AuditedMembers.Add(AuditedMember.Create(member, heading));
     }
 
     private bool isConfigureMethod(MethodInfo method)
@@ -85,20 +84,9 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     protected void applyAuditAttributes(Type type)
     {
-        foreach (var property in type.GetProperties())
+        foreach (var auditedMember in AuditedMember.GetAllFromType(type))
         {
-            if (property.TryGetAttribute<AuditAttribute>(out var ratt))
-            {
-                Audit(property, ratt.Heading);
-            }
-        }
-
-        foreach (var field in type.GetFields())
-        {
-            if (field.TryGetAttribute<AuditAttribute>(out var ratt))
-            {
-                Audit(field, ratt.Heading);
-            }
+            AuditedMembers.Add(auditedMember);
         }
     }
     

@@ -8,8 +8,7 @@ using Lamar;
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Http;
-using Wolverine.Configuration;
-using Wolverine.Http.CodeGen;
+using Wolverine.Logging;
 using Wolverine.Marten;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
@@ -78,6 +77,10 @@ public class AggregateAttribute : HttpChainParameterAttribute
         chain.Middleware.Add(new EventStoreFrame());
         var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<Frame>(this, AggregateType!);
         chain.Middleware.Add(loader);
+        var auditedMembersNotAlreadyPresent = AuditedMember.GetAllFromType(AggregateType).Where(member => !chain.AuditedMembers
+            .Select(m => m.MemberName)
+            .Contains(member.MemberName)).ToList();
+        chain.Middleware.Add(new LoggerBeginScopeWithAuditForAggregateFrame(chain, container, auditedMembersNotAlreadyPresent, loader.Creates.Single()));
  
         // Use the active document session as an IQuerySession instead of creating a new one
         chain.Method.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
