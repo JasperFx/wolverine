@@ -16,7 +16,7 @@ using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
-public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChangeToken, IDescribedSystemPart,
+public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServices, IChangeToken, IDescribedSystemPart,
     IWriteToConsole
 {
     public static readonly string Context = "httpContext";
