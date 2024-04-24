@@ -21,7 +21,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
-public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
+public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailurePolicies
 {
     public static readonly string Context = "context";
     private readonly List<HandlerCall> _calls = new();

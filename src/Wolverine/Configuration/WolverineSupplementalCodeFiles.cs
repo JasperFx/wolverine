@@ -5,7 +5,7 @@ namespace Wolverine.Configuration;
 /// <summary>
 ///     This helps track code generated files from extensions to Wolverine
 /// </summary>
-public class WolverineSupplementalCodeFiles : ICodeFileCollection
+public class WolverineSupplementalCodeFiles : ICodeFileCollectionWithServices
 {
     private readonly WolverineOptions _options;
 
