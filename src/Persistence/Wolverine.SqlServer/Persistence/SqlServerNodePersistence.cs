@@ -340,8 +340,13 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     
     public Task LogRecordsAsync(params NodeRecord[] records)
     {
-        var op = new PersistNodeRecord(_settings, records);
-        return _database.EnqueueAsync(op);
+        if (records.Any())
+        {
+            var op = new PersistNodeRecord(_settings, records);
+            return _database.EnqueueAsync(op);
+        }
+
+        return Task.CompletedTask;
     }
 
     public async Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
