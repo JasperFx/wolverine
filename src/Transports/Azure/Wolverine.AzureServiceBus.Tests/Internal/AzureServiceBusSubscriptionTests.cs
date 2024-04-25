@@ -43,7 +43,7 @@ public class AzureServiceSubscriptionTests
     }
 
     [Fact]
-    public async Task initialize_with_auto_provision()
+    public async Task initialize_with_auto_provision_and_default_rule()
     {
         theTransport.AutoProvision = true;
 
@@ -52,6 +52,33 @@ public class AzureServiceSubscriptionTests
 
         await subscription.InitializeAsync(theManagementClient, NullLogger.Instance);
 
-        await theManagementClient.Received().CreateSubscriptionAsync(Arg.Is<CreateSubscriptionOptions>(x => x.TopicName == "foo" && x.SubscriptionName == "bar"));
+        await theManagementClient.Received().CreateSubscriptionAsync(
+            Arg.Is<CreateSubscriptionOptions>(x => x.TopicName == "foo" && x.SubscriptionName == "bar"),
+            Arg.Is<CreateRuleOptions>(x => x.Equals(new CreateRuleOptions())));
+    }
+
+    [Fact]
+    public async Task initialize_with_auto_provision_with_custom_rule()
+    {
+        theTransport.AutoProvision = true;
+
+        var topic = new AzureServiceBusTopic(theTransport, "foo");
+        var subscription = new AzureServiceBusSubscription(theTransport, topic, "bar")
+        {
+            RuleOptions =
+            {
+                Filter = new SqlRuleFilter("foo = 'bar'"),
+                Action = new SqlRuleAction("SET foo = 'baz'")
+            }
+        };
+
+        await subscription.InitializeAsync(theManagementClient, NullLogger.Instance);
+
+        await theManagementClient.Received().CreateSubscriptionAsync(
+            Arg.Is<CreateSubscriptionOptions>(x => x.TopicName == "foo" && x.SubscriptionName == "bar"),
+            Arg.Is<CreateRuleOptions>(x =>
+                x.Filter.Equals(new SqlRuleFilter("foo = 'bar'")) && 
+                x.Action.Equals(new SqlRuleAction("SET foo = 'baz'"))));
+
     }
 }

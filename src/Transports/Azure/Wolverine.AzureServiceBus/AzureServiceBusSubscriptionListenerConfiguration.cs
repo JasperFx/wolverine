@@ -39,6 +39,18 @@ public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfigur
         add(e => configure(e.Options));
         return this;
     }
+
+    /// <summary>
+    ///     Configure the underlying Azure Service Bus Subscription rule. This is only applicable when
+    ///     Wolverine is creating the Subscription.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusSubscriptionListenerConfiguration ConfigureSubscriptionRule(Action<CreateRuleOptions> configure)
+    {
+        add(e => configure(e.RuleOptions));
+        return this;
+    }
     
     /// <summary>
     ///     Configure the underlying Azure Service Bus Subscription. This is only applicable when

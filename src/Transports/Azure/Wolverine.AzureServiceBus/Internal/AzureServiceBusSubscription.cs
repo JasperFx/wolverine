@@ -28,9 +28,16 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         Topic = topic ?? throw new ArgumentNullException(nameof(topic));
 
         Options = new CreateSubscriptionOptions(Topic.TopicName, SubscriptionName);
+
+        // default is a simple 1=1 filter
+        // This is the same rule as the one used if you
+        // use CreateSubscriptionAsync() without specifying a rule
+        RuleOptions = new CreateRuleOptions();
     }
     
     public CreateSubscriptionOptions Options { get; }
+
+    public CreateRuleOptions RuleOptions { get; }
 
     public string SubscriptionName { get; }
 
@@ -105,12 +112,38 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
             {
                 Options.SubscriptionName = SubscriptionName;
                 Options.TopicName = Topic.TopicName;
-                await client.CreateSubscriptionAsync(Options);
+                
+                await client.CreateSubscriptionAsync(Options, RuleOptions);
+                return;
+            }
+
+            // Adjust existing rules to match configuration
+            var rules = await client.GetRulesAsync(Topic.TopicName, SubscriptionName).ToListAsync();
+            foreach (var rule in rules)
+            {
+                if (rule.Name == RuleOptions.Name)
+                {
+                    if (!Equals(rule.Filter, RuleOptions.Filter) || !Equals(rule.Action, RuleOptions.Action))
+                    {
+                        // Update the rule to match the configuration
+                        rule.Filter = RuleOptions.Filter;
+                        rule.Action = RuleOptions.Action;
+
+                        await client.UpdateRuleAsync(Topic.TopicName, SubscriptionName, rule);
+                    }
+
+                    continue;
+                }
+
+                // Unknown rule, delete it
+                await client.DeleteRuleAsync(Topic.TopicName, SubscriptionName, rule.Name);
             }
         }
         catch (Exception e)
         {
             logger.LogError(e, "Error trying to initialize subscription {Name} to topic {Topic}", SubscriptionName, Topic.TopicName);
+
+            throw;
         }
     }
 
