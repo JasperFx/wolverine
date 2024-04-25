@@ -47,5 +47,24 @@ that work, Wolverine tries to build out a queue called `wolverine.response.[Your
 requeues from subscription listening. If your Wolverine application doesn't have permissions to create queues at runtime,
 you may want to build that queue manually or forgo using "Requeue" as an error handling technique.
 
+## Topic Filters
 
+If Wolverine is provisioning the subscriptions for you, you can customize the subscription filter being created.
 
+<!-- snippet: sample_configuring_azure_service_bus_subscription_filter -->
+<a id='snippet-sample_configuring_azure_service_bus_subscription_filter'></a>
+```cs
+opts.ListenToAzureServiceBusSubscription(
+    "subscription1",
+    configureSubscriptionRule: rule =>
+    {
+        rule.Filter = new SqlRuleFilter("NOT EXISTS(user.ignore) OR user.ignore NOT LIKE 'true'");
+    })
+    .FromTopic("topic1");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L166-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_subscription_filter' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The default filter if not customized is a simple `1=1` (always true) filter.
+
+For more information regarding subscription filters, see the [Azure Service Bus documentation](https://learn.microsoft.com/en-us/azure/service-bus-messaging/topic-filters).
