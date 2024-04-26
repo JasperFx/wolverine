@@ -17,6 +17,9 @@
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <DebugType>embedded</DebugType>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <WarningsAsErrors>NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+        <NuGetAuditMode>all</NuGetAuditMode>
+        <NuGetAuditLevel>low</NuGetAuditLevel>
     </PropertyGroup>
 
     <ItemGroup>
