@@ -28,5 +28,7 @@ public class KafkaSenderProtocol : ISenderProtocol
         }
 
         await Task.WhenAll(tasks);
+
+        await callback.MarkSuccessfulAsync(batch);
     }
 }
