@@ -41,7 +41,17 @@ internal class KafkaListener : IListener, IDisposable
                 {
                     if (_qualityOfService == QualityOfService.AtMostOnce)
                     {
-                        _consumer.Commit();
+                        try
+                        {
+                            _consumer.Commit();
+                        }
+                        catch (KafkaException e)
+                        {
+                            if (!e.Message.Contains("No offset stored"))
+                            {
+                                throw;
+                            }
+                        }
                     }
 
                     try
@@ -52,7 +62,6 @@ internal class KafkaListener : IListener, IDisposable
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
                         envelope.MessageType ??= _messageTypeName;
                         
-
                         await receiver.ReceivedAsync(this, envelope);
                     }
                     catch (OperationCanceledException)
