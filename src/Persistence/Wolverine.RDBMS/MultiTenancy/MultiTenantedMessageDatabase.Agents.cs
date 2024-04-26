@@ -15,15 +15,23 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
         return uris;
     }
 
-    public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
+    public async ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
     {
+        // This is checking what's already in memory
         var database = databases().FirstOrDefault(x => x.Name.EqualsIgnoreCase(uri.Host));
         if (database == null)
         {
-            throw new ArgumentOutOfRangeException(nameof(uri), "Unknown database " + uri.Host);
+            // Try to refresh in case it was recently added
+            await _databases.RefreshAsync();
+            database = databases().FirstOrDefault(x => x.Name.EqualsIgnoreCase(uri.Host));
+
+            if (database == null)
+            {
+                throw new ArgumentOutOfRangeException(nameof(uri), "Unknown database " + uri.Host);
+            }
         }
 
-        return new ValueTask<IAgent>(new DurabilityAgent(database.Name, _runtime, database){AutoStartScheduledJobPolling = true});
+        return new DurabilityAgent(database.Name, _runtime, database){AutoStartScheduledJobPolling = true};
     }
 
     public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()

@@ -67,6 +67,8 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
                 
                 opts.Services.AddMarten(o =>
                     {
+                        o.DisableNpgsqlLogging = true;
+                        
                         // This is a new strategy for configuring tenant databases with Marten
                         // In this usage, Marten is tracking the tenant databases in a single table in the "master"
                         // database by tenant
@@ -100,7 +102,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = DurabilityAgent.AgentScheme;
-
+        
             // 1 for the master
             w.ExpectRunningAgents(_host, 1);
         }, 10.Seconds());
@@ -156,6 +158,8 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
                 
                 opts.Services.AddMarten(o =>
                     {
+                        o.DisableNpgsqlLogging = true;
+                        
                         // This is a new strategy for configuring tenant databases with Marten
                         // In this usage, Marten is tracking the tenant databases in a single table in the "master"
                         // database by tenant
