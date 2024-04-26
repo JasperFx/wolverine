@@ -113,6 +113,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         // Add Before/After methods from the current handler
         applyImpliedMiddlewareFromHandlers(_parent.Rules);
 
+        foreach (var call in Middleware.OfType<MethodCall>().ToArray())
+        {
+            parent.ApplyParameterMatching(this, call);
+        }
+
         applyMetadata();
     }
     
@@ -169,6 +174,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         _description = _fileName;
 
         _parent.ApplyParameterMatching(this);
+        
+        // Doing this prevents middleware policies
+        // from doing something stupid
+        RequestType ??= typeof(void);
     }
 
     public RoutePattern? RoutePattern { get; private set; }
@@ -425,4 +434,5 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     string IEndpointSummaryMetadata.Summary => ToString();
 
     public List<ParameterInfo> FileParameters { get; } = [];
+    public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 }

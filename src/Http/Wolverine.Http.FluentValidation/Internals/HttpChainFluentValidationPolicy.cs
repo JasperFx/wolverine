@@ -11,7 +11,10 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
 {
     public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
     {
-        foreach (var chain in chains.Where(x => x.RequestType != null)) Apply(chain, container);
+        foreach (var chain in chains.Where(x => x.HasRequestType))
+        {
+            Apply(chain, container);
+        }
     }
 
     public void Apply(HttpChain chain, IContainer container)

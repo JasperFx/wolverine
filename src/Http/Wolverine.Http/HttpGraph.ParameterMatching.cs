@@ -25,20 +25,24 @@ public partial class HttpGraph
         ApplyParameterMatching(chain, methodCall);
     }
 
-    private void ApplyParameterMatching(HttpChain chain, MethodCall methodCall)
+    internal void ApplyParameterMatching(HttpChain chain, MethodCall methodCall)
     {
         var parameters = methodCall.Method.GetParameters();
         for (var i = 0; i < parameters.Length; i++)
         {
             var parameter = parameters[i];
+            
+            // Do *not* do anything if the argument variable has already
+            // been resolved
+            if (methodCall.Arguments[i] != null) continue;
 
-            if (!TryMatchParameter(chain, parameter, i))
+            if (!TryMatchParameter(chain, methodCall, parameter, i))
             {
             }
         }
     }
 
-    internal bool TryMatchParameter(HttpChain chain, ParameterInfo parameter, int i)
+    internal bool TryMatchParameter(HttpChain chain, MethodCall methodCall, ParameterInfo parameter, int i)
     {
         foreach (var strategy in _strategies)
         {
@@ -51,7 +55,7 @@ public partial class HttpGraph
                         chain.Middleware.Add(variable.Creator);
                     }
 
-                    chain.Method.Arguments[i] = variable;
+                    methodCall.Arguments[i] = variable;
                 }
 
                 return true;
