@@ -1,5 +1,11 @@
 # Basics
 
+::: warning
+Heads up, at *this moment*, Wolverine requires the usage of the [Lamar IoC library](https://jasperfx.github.io/lamar) and will
+quietly replace your application's service provider with Lamar. This will hopefully change in Wolverine 3.0, but the limitation
+will likely be Lamar or the built in DI container.
+:::
+
 ![Wolverine Messaging Architecture](/messages.jpeg)
 
 One way or another, Wolverine is all about messages within your system or between systems. Staying inside a single Wolverine system,
