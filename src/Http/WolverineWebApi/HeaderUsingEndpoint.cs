@@ -1,4 +1,5 @@
-﻿using JasperFx.Core;
+﻿using System.Diagnostics;
+using JasperFx.Core;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
@@ -6,8 +7,19 @@ namespace WolverineWebApi;
 
 public class HeaderUsingEndpoint
 {
+    // For testing
+    public static string Day;
+    
 
     #region sample_pushing_header_values_into_endpoint_methods
+
+    // As of Wolverine 2.6, you can utilize header data in middleware
+    public static void Before([FromHeader(Name = "x-day")] string? day)
+    {
+        Debug.WriteLine($"Day header is {day}");
+        Day = day; // This is for testing
+    }
+    
 
     [WolverineGet("/headers/simple")]
     public string Get(

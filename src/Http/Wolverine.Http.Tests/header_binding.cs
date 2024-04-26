@@ -1,4 +1,6 @@
 ﻿using Alba;
+using Shouldly;
+using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
 
@@ -40,5 +42,18 @@ public class header_binding : IntegrationContext
             x.Get.Url("/headers/accepts");
             x.ContentShouldBe("text/plain");
         });
+    }
+
+    [Fact]
+    public async Task can_use_FromHeader_on_middleware()
+    {
+        await Scenario(x =>
+        {
+            x.WithRequestHeader("x-wolverine", "one");
+            x.WithRequestHeader("x-day", "Friday");
+            x.Get.Url("/headers/simple");
+        });
+        
+        HeaderUsingEndpoint.Day.ShouldBe("Friday");
     }
 }

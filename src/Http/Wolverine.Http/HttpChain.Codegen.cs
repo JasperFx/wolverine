@@ -35,12 +35,21 @@ public partial class HttpChain
 
         handleMethod.DerivedVariables.AddRange(HttpContextVariables);
 
-        var loggedType = InputType() ?? (Method.HandlerType.IsStatic() ? typeof(HttpGraph) : Method.HandlerType);
+        var loggedType = determineLogMarkerType();
 
         handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
         handleMethod.Sources.Add(new MessageBusSource());
 
         handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
+    }
+
+    private Type determineLogMarkerType()
+    {
+        if (HasRequestType) return RequestType;
+
+        if (Method.HandlerType.IsStatic()) return typeof(HttpGraph);
+
+        return Method.HandlerType;
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,

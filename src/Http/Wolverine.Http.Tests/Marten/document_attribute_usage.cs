@@ -57,7 +57,7 @@ public class document_attribute_usage : IntegrationContext
     public async Task use_explicit_path_argument()
     {
         var invoice = new Invoice();
-        using var session = Store.LightweightSession();
+        await using var session = Store.LightweightSession();
         session.Store(invoice);
         await session.SaveChangesAsync();
 
