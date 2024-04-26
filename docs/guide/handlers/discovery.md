@@ -43,7 +43,7 @@ within the [Critter Stack Discord](https://discord.gg/wBkZGpe3) group will help 
 ## Assembly Discovery
 
 ::: tip
-The handler discovery uses the `JasperFx.TypeDiscovery` library for type scanning that is shared with several other JasperFx projects. 
+The handler discovery uses the type scanning functionality into `JasperFx.Core` library for type scanning that is shared with several other JasperFx projects. 
 :::
 
 The first issue is which assemblies will Wolverine look through to find candidate handlers? By default, Wolverine is looking through what
@@ -108,7 +108,7 @@ using var host = Host.CreateDefaultBuilder()
 Wolverine does not support any kind of open generic types for message handlers and has no intentions of ever doing so.
 :::
 
-By default, Wolverine is looking for public, concrete classes that follow these rules:
+By default, Wolverine is looking for public, concrete classes that follow any of these rules:
 
 * Implements the `Wolverine.IWolverineHandler` interface
 * Is decorated with the `[Wolverine.WolverineHandler]` attribute
@@ -204,6 +204,11 @@ And also specific to sagas:
 See [Stateful Sagas](/guide/durability/sagas) for more information. 
 
 ## Disabling Conventional Discovery
+
+::: warning
+Note that disabling conventional discovery will *also* disable any customizations you may have made to the 
+conventional handler discovery
+:::
 
 You can completely turn off any automatic discovery of message handlers through type scanning by
 using this syntax in your `WolverineOptions`:

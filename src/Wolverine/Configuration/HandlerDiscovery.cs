@@ -104,7 +104,9 @@ public sealed partial class HandlerDiscovery
     }
 
     /// <summary>
-    ///     Customize the conventional filtering on the handler type discovery
+    ///  Customize the conventional filtering on the handler type discovery. This is *additive* to the
+    /// built in conventional handler discovery. Disabling conventional discovery will negate anything
+    /// done with this method
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
