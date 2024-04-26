@@ -26,7 +26,7 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Type DetermineSagaIdType(Type sagaType, IContainer container)
     {
-        return SagaChain.DetermineSagaIdMember(sagaType)?.GetMemberType() ?? typeof(object);
+        return SagaChain.DetermineSagaIdMember(sagaType, sagaType)?.GetMemberType() ?? typeof(object);
     }
 
     public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)
