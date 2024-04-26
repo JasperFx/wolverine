@@ -48,7 +48,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
-
+    
+    internal Variable? RequestBodyVariable { get; set; }
+    
     private string? _fileName;
     private readonly List<string> _httpMethods = [];
 

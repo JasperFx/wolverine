@@ -23,7 +23,10 @@ public class MiddlewarePolicy : IChainPolicy
     {
         var applications = _applications;
 
-        foreach (var chain in chains) ApplyToChain(applications, rules, chain);
+        foreach (var chain in chains)
+        {
+            ApplyToChain(applications, rules, chain);
+        }
     }
 
 

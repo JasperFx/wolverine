@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx.CodeGeneration.Frames;
 using Wolverine.Http.CodeGen;
 
 namespace Wolverine.Http;
@@ -20,7 +21,13 @@ public partial class HttpGraph
 
     internal void ApplyParameterMatching(HttpChain chain)
     {
-        var parameters = chain.Method.Method.GetParameters();
+        var methodCall = chain.Method;
+        ApplyParameterMatching(chain, methodCall);
+    }
+
+    private void ApplyParameterMatching(HttpChain chain, MethodCall methodCall)
+    {
+        var parameters = methodCall.Method.GetParameters();
         for (var i = 0; i < parameters.Length; i++)
         {
             var parameter = parameters[i];
