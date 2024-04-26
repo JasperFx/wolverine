@@ -68,15 +68,21 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             return false;
         }
 
-        if (parameter.HasAttribute<NotBodyAttribute>()) return false;
+        if (parameter.HasAttribute<NotBodyAttribute>())
+        {
+            return false;
+        }
 
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
-            variable = Usage == JsonUsage.SystemTextJson 
+            // It *could* be used twice, so let's watch out for this!
+            chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson 
                 ? new ReadJsonBody(parameter).Variable 
                 : new ReadJsonBodyWithNewtonsoft(parameter).ReturnVariable!;
+
+            variable = chain.RequestBodyVariable;
             
-            // Oh, this does NOT make me feel good
+            // Oh, this does NOT make me feel good!
             chain.RequestType = parameter.ParameterType;
             return true;
         }
