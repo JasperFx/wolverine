@@ -104,7 +104,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }, _logger,
             _settings.Cancellation);
 
-        _receivingOne = new RetryBlock<Envelope>((e, _) => receiveOneAsync(e), _logger, _settings.Cancellation);
+        _receivingOne = new RetryBlock<Envelope>((e, _) => deferOneAsync(e), _logger, _settings.Cancellation);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
@@ -144,12 +144,16 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public ValueTask DeferAsync(Envelope envelope)
     {
-        if (_latched)
+        if (_latched && !envelope.IsFromLocalDurableQueue())
         {
-            return new ValueTask(executeWithRetriesAsync(() => receiveOneAsync(envelope)));
+            return new ValueTask(executeWithRetriesAsync(() => deferOneAsync(envelope)));
         }
         
-        envelope.Attempts++;
+        // GH-826, the attempts are already incremented from the executor
+        if (!envelope.IsFromLocalDurableQueue())
+        {
+            envelope.Attempts++;
+        }
 
         Enqueue(envelope);
 
@@ -185,7 +189,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (_latched)
         {
-            await executeWithRetriesAsync(() => receiveOneAsync(envelope));
+            await executeWithRetriesAsync(() => deferOneAsync(envelope));
             return;
         }
 
@@ -258,7 +262,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         return _scheduleExecution.PostAsync(envelope);
     }
 
-    private async Task receiveOneAsync(Envelope envelope)
+    private async Task deferOneAsync(Envelope envelope)
     {
         if (_latched && envelope.Listener != null)
         {

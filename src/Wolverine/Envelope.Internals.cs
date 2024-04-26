@@ -4,6 +4,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
 
@@ -277,5 +278,10 @@ public partial class Envelope
         }
 
         return ValueTask.CompletedTask;
+    }
+
+    internal bool IsFromLocalDurableQueue()
+    {
+        return Sender is DurableLocalQueue;
     }
 }
