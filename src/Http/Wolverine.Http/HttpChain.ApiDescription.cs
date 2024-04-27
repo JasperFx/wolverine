@@ -174,7 +174,7 @@ public partial class HttpChain
 
     private void fillRequestType(ApiDescription apiDescription)
     {
-        if (RequestType != null)
+        if (HasRequestType)
         {
             var parameterDescription = new ApiParameterDescription
             {
