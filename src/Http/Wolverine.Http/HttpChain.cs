@@ -250,7 +250,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override Type? InputType()
     {
-        return RequestType;
+        return HasRequestType ? RequestType : null;
     }
 
     public override string ToString()
@@ -279,7 +279,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             .WithMetadata(new HttpMethodMetadata(_httpMethods));
             //.WithMetadata(Method.Method);
 
-        if (RequestType != null)
+        if (HasRequestType)
         {
             Metadata.Accepts(RequestType, false, "application/json");
         }
@@ -434,5 +434,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     string IEndpointSummaryMetadata.Summary => ToString();
 
     public List<ParameterInfo> FileParameters { get; } = [];
+    
+    [MemberNotNullWhen(true, nameof(RequestType))]
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 }
