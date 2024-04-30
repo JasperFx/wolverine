@@ -175,7 +175,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
 
-        await conn.CreateCommand($"update {_nodeTable} set health_check = GETDATE() where id = @id")
+        await conn.CreateCommand($"update {_nodeTable} set health_check = GETUTCDATE() where id = @id")
             .With("id", nodeId).ExecuteNonQueryAsync();
 
         await conn.CloseAsync();
