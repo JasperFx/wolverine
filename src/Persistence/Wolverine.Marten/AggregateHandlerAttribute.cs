@@ -11,6 +11,7 @@ using Marten.Events.Aggregation;
 using Marten.Schema;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Logging;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
 using Wolverine.Runtime.Handlers;
@@ -75,9 +76,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         AggregateType ??= DetermineAggregateType(chain);
         AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
         VersionMember = DetermineVersionMember(CommandType);
-
         
-
         var sessionCreator = MethodCall.For<OutboxedSessionFactory>(x => x.OpenSession(null!));
         chain.Middleware.Add(sessionCreator);
 
@@ -89,7 +88,11 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
             chain.Middleware.Add(new MissingAggregateCheckFrame(AggregateType, CommandType, AggregateIdMember,
                 loader.ReturnVariable!));
         }
-
+        var auditedMembersNotAlreadyPresent = AuditedMember.GetAllFromType(AggregateType)
+            .Where(member => !chain.AuditedMembers
+            .Select(m => m.MemberName)
+            .Contains(member.MemberName)).ToList();
+        chain.Middleware.Add(new LoggerBeginScopeWithAuditForAggregateFrame(chain, container, auditedMembersNotAlreadyPresent, loader.ReturnVariable!));
         // Use the active document session as an IQuerySession instead of creating a new one
         firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
 
