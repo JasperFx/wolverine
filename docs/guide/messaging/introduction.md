@@ -25,7 +25,7 @@ The diagram above should just say "Message Handler" as Wolverine makes no struct
 There's a couple moving parts to using Wolverine as a messaging bus. You'll need to configure connectivity to external infrastructure like
 Rabbit MQ brokers, set up listening endpoints, and create routing rules to teach Wolverine where and how to send your messages.
 
-The [TCP transport](/guide/messaging/transports/tcp) is built in, and the ["local" in memory queues](/guide/in-memory-bus) can be used like a transport, but you'll need to configure connectivity for
+The [TCP transport](/guide/messaging/transports/tcp) is built in, and the ["local" in memory queues](/guide/messaging/transports/local) can be used like a transport, but you'll need to configure connectivity for
 every other type of messaging transport adapter to external infrastructure. In all cases so far, the connectivity to external transports is done through
 an extension method on `WolverineOptions` using the `Use[ToolName]()` idiom that is now common across .NET tools.
 
