@@ -169,7 +169,7 @@ public static class PingHandler
         // being handled
         IMessageContext context)
     {
-        AnsiConsole.Write($"[blue]Got ping #{message.Number}[/]");
+        AnsiConsole.MarkupLine($"[blue]Got ping #{message.Number}[/]");
 
         var response = new PongMessage
         {

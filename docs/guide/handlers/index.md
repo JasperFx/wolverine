@@ -314,7 +314,7 @@ public static class ShipOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L31-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L32-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -378,7 +378,7 @@ public static class PingHandler
         // being handled
         IMessageContext context)
     {
-        AnsiConsole.Write($"[blue]Got ping #{message.Number}[/]");
+        AnsiConsole.MarkupLine($"[blue]Got ping #{message.Number}[/]");
 
         var response = new PongMessage
         {
