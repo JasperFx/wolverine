@@ -59,15 +59,16 @@ public class finding_service_dependencies_of_a_chain
         }
     }
 
-    public interface IService1;c interface IService2;
+    public interface IService1;
+    public interface IService2;
 
-    publ; IService3;
+    public interface IService3;
 
-    public interfac;
+    public interface IService4;
 
-    public interface IService5;c class Service5 : IService5
-   ;ublic Service5(IService4 four)
-        {
-        }
-    }
+    public interface IService5;
+
+    public class Service5(IService5 five) : IService5;
+
+
 }
