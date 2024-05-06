@@ -35,7 +35,7 @@ public static class StartProviderShiftEndpoint
         return (board, provider, WolverineContinue.Result());
     }
 
-    [WolverineBefore]
+    // Validate or ValidateAsync() is considered by Wolverine to be a "before" method
     public static IResult Validate(Provider provider, Board board)
     {
         // Check if you can proceed to add the provider to the board

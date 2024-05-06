@@ -14,7 +14,6 @@ public class ValidatedCompoundEndpoint
         return new User(cmd.UserId);
     }
     
-    [WolverineBefore]
     public static IResult Validate(User user)
     {
         if (user == null)
