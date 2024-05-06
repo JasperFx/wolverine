@@ -5,6 +5,4 @@ namespace Wolverine.Attributes;
 ///     message. This is strictly for diagnostic purposes!
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]
-public class WolverineMessageAttribute : Attribute
-{
-}
+public class WolverineMessageAttribute : Attribute;

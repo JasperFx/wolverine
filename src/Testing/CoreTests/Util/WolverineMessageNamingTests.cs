@@ -70,27 +70,18 @@ public class ConcreteMessage : IInterfaceMessage
 }
 
 [MessageIdentity(typeof(AliasedMessage))]
-public class DifferentMessage
-{
-    
-}
+public class DifferentMessage;
 
 
 [MessageIdentity("MyThing")]
-public class AliasedMessage
-{
-}
+public class AliasedMessage;
 
 [MessageIdentity("MyThing", Version = 2)]
-public class AliasedMessage2
-{
-}
+public class AliasedMessage2;
 
-public class MySpecialMessage
-{
-}
+public class MySpecialMessage;
 
-public interface IMessageInterface{}
+public interface IMessageInterface;
 
 [InteropMessage(typeof(IMessageInterface))]
-public class InteropAttributedMessage : IMessageInterface{}
+public class InteropAttributedMessage : IMessageInterface;

@@ -14,10 +14,7 @@ namespace Wolverine.RabbitMQ.Internal;
 /// Rabbit MQ IBasicProperties object. Custom implementations of this can be used
 /// to create interoperability with non-Wolverine applications through Rabbit MQ
 /// </summary>
-public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<IBasicProperties, IBasicProperties>
-{
-    
-}
+public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<IBasicProperties, IBasicProperties>;
 
 internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicProperties>, IRabbitMqEnvelopeMapper
 {

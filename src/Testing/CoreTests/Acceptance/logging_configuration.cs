@@ -22,7 +22,7 @@ public class logging_configuration : IntegrationContext
 
 #region sample_using_Wolverine_Logging_attribute
 
-public class QuietMessage{}
+public class QuietMessage;
 
 public class QuietMessageHandler
 {

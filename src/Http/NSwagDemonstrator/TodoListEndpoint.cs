@@ -6,10 +6,7 @@ namespace NSwagDemonstrator;
 
 public record CreateTodoListRequest(string Title);
 
-public class TodoList
-{
-    
-}
+public class TodoList;
 
 public record TodoListCreated(Guid ListId, string Title);
 

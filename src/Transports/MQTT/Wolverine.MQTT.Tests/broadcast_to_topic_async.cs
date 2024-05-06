@@ -82,10 +82,7 @@ public class ColorMessage
     public string Color { get; set; }
 }
 
-public class SpecialColorMessage : ColorMessage
-{
-    
-}
+public class SpecialColorMessage : ColorMessage;
 
 public static class ColorMessageHandler
 {

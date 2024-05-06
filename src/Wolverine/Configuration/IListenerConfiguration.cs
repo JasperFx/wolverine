@@ -120,6 +120,4 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     T UseForReplies();
 }
 
-public interface IListenerConfiguration : IListenerConfiguration<IListenerConfiguration>
-{
-}
+public interface IListenerConfiguration : IListenerConfiguration<IListenerConfiguration>;

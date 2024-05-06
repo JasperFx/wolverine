@@ -188,9 +188,7 @@ public interface IMovieSink
     void Listen(MovieAdded added);
 }
 
-public interface IMovieThing
-{
-}
+public interface IMovieThing;
 
 public class EpisodeWatcher : IMovieThing
 {
@@ -199,29 +197,17 @@ public class EpisodeWatcher : IMovieThing
     }
 }
 
-public abstract class MovieEvent : IMovieEvent
-{
-}
+public abstract class MovieEvent : IMovieEvent;
 
-public class MovieAdded : MovieEvent
-{
-}
+public class MovieAdded : MovieEvent;
 
-public class MovieRemoved : MovieEvent
-{
-}
+public class MovieRemoved : MovieEvent;
 
-public class EpisodeAvailable
-{
-}
+public class EpisodeAvailable;
 
-public class NewShow
-{
-}
+public class NewShow;
 
-public interface IMovieEvent
-{
-}
+public interface IMovieEvent;
 
 public class MovieWatcher
 {
@@ -230,9 +216,7 @@ public class MovieWatcher
     }
 }
 
-public class StaticClassMessage
-{
-}
+public class StaticClassMessage;
 
 public static class StaticClassHandler
 {
@@ -291,21 +275,13 @@ public class BlockbusterHandler
 
 #endregion
 
-public class Event1
-{
-}
+public class Event1;
 
-public class Event2
-{
-}
+public class Event2;
 
-public class Event3
-{
-}
+public class Event3;
 
-public class Event4
-{
-}
+public class Event4;
 
 public class EventConsumer
 {

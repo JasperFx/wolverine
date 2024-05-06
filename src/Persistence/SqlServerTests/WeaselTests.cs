@@ -1,5 +1,3 @@
 ﻿namespace SqlServerTests;
 
-public class WeaselTests
-{
-}
+public class WeaselTests;

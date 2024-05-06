@@ -538,13 +538,9 @@ public class Recorder
     public readonly List<string> Actions = new();
 }
 
-public class TracedMessage
-{
-}
+public class TracedMessage;
 
-public class OtherTracedMessage
-{
-}
+public class OtherTracedMessage;
 
 public record ExplicitMiddlewareMessage(string Name);
 

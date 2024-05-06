@@ -3,6 +3,4 @@
 namespace PersistenceTests;
 
 [Collection("marten")]
-public abstract class PostgresqlContext
-{
-}
+public abstract class PostgresqlContext;

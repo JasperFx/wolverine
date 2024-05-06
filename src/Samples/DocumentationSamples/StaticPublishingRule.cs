@@ -62,6 +62,4 @@ public static class static_publishing_rules
     }
 }
 
-public interface IEventMarker
-{    
-}
+public interface IEventMarker;

@@ -4,10 +4,7 @@ namespace Wolverine.Runtime.Agents;
 /// Marks this agent family as having a static list of agents to force
 /// Wolverine to persist the agent capabilities for agent assignment
 /// </summary>
-public interface IStaticAgentFamily : IAgentFamily
-{
-    
-}
+public interface IStaticAgentFamily : IAgentFamily;
 
 public class InvalidAgentException : Exception
 {

@@ -228,4 +228,4 @@ public class WriteFile
     }
 }
 
-public interface IFileService{}
+public interface IFileService;

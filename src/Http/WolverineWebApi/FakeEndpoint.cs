@@ -77,6 +77,4 @@ public class FakeEndpoint
     }
 }
 
-public class BigResponse
-{
-}
+public class BigResponse;

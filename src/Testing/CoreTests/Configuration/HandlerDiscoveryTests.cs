@@ -5,9 +5,9 @@ namespace CoreTests.Configuration;
 
 public class HandlerDiscoveryTests
 {
-    public class OpenGuy<T>{}
-    public interface InterfaceGuy{}
-    public abstract class AbstractGuy{}
+    public class OpenGuy<T>;
+    public interface InterfaceGuy;
+    public abstract class AbstractGuy;
 
     [Theory]
     [InlineData(typeof(InternalGuy))]
@@ -24,5 +24,5 @@ public class HandlerDiscoveryTests
     }
 }
 
-internal static class InternalGuy{}
+internal static class InternalGuy;
 

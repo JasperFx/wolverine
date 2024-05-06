@@ -1,5 +1,3 @@
 namespace WolverineWebApi;
 
-public class CustomMetadata
-{
-}
+public class CustomMetadata;

@@ -36,9 +36,7 @@ public class Bug_226_disambiguate_loggers : PostgresqlContext
         await host.InvokeMessageAndWaitAsync(new StoreSomething(id));
     }
 
-    public interface IDependencyRequiringLogger
-    {
-    }
+    public interface IDependencyRequiringLogger;
 
     public class DependencyRequiringLogger : IDependencyRequiringLogger
     {

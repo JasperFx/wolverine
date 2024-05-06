@@ -101,6 +101,4 @@ public class SubscriptionTester
     }
 }
 
-public class RandomClass
-{
-}
+public class RandomClass;

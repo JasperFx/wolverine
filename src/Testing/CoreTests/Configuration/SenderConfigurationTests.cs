@@ -128,13 +128,9 @@ public class SenderConfigurationTests
         envelope2.Headers["g"].ShouldBe("good");
     }
 
-    public abstract class BaseMessage
-    {
-    }
+    public abstract class BaseMessage;
 
-    public class ExtendedMessage : BaseMessage
-    {
-    }
+    public class ExtendedMessage : BaseMessage;
 
     public class ColorMessage
     {
@@ -142,6 +138,4 @@ public class SenderConfigurationTests
     }
 }
 
-public class OtherMessage
-{
-}
+public class OtherMessage;

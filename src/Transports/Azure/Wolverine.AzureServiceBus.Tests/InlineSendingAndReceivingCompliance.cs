@@ -43,6 +43,4 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 }
 
 [Collection("acceptance")]
-public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
-{
-}
+public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>;

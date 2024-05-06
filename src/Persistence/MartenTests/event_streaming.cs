@@ -195,14 +195,11 @@ public class TriggerHandler
 
 public record SecondMessage(Guid AggregateId, long Sequence);
 
-public class SecondEvent
-{
-    
-}
+public class SecondEvent;
 
-public class ThirdEvent{}
-public class FourthEvent{}
-public class FifthEvent{}
+public class ThirdEvent;
+public class FourthEvent;
+public class FifthEvent;
 
 public class TriggeredEvent
 {

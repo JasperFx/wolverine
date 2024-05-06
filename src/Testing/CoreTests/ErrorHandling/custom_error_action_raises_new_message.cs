@@ -162,9 +162,7 @@ public class ShipOrderHandler
     }
 }
 
-public class ShippingFailedException : Exception
-{
-}
+public class ShippingFailedException : Exception;
 
 public record ShippingFailed(int OrderId);
 

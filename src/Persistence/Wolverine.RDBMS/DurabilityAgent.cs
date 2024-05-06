@@ -12,10 +12,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-internal class ScheduledJobAgent
-{
-    
-}
+internal class ScheduledJobAgent;
 
 internal class DurabilityAgent : IAgent
 {

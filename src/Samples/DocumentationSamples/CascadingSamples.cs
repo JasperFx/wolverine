@@ -3,13 +3,9 @@ using Wolverine;
 
 namespace DocumentationSamples;
 
-public class MyMessage
-{
-}
+public class MyMessage;
 
-public class MyResponse
-{
-}
+public class MyResponse;
 
 #region sample_NoCascadingHandler
 
@@ -68,13 +64,9 @@ public class DirectionRequest
     public string Direction { get; set; }
 }
 
-public class GoNorth
-{
-}
+public class GoNorth;
 
-public class GoSouth
-{
-}
+public class GoSouth;
 
 #region sample_ConditionalResponseHandler
 
@@ -97,13 +89,9 @@ public class ConditionalResponseHandler
 
 #endregion
 
-public class GoWest
-{
-}
+public class GoWest;
 
-public class GoEast
-{
-}
+public class GoEast;
 
 #region sample_DelayedResponseHandler
 

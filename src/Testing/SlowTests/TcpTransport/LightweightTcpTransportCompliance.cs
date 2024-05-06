@@ -27,6 +27,4 @@ public class LightweightTcpFixture : TransportComplianceFixture, IAsyncLifetime
 }
 
 [Collection("compliance")]
-public class LightweightTcpTransportCompliance : TransportCompliance<LightweightTcpFixture>
-{
-}
+public class LightweightTcpTransportCompliance : TransportCompliance<LightweightTcpFixture>;

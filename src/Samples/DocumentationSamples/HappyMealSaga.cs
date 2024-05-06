@@ -20,22 +20,16 @@ public class FetchDrink
     public string DrinkName { get; set; }
 }
 
-public class FetchFries
-{
-}
+public class FetchFries;
 
 public class FetchToy
 {
     public string ToyName { get; set; }
 }
 
-public class MakeHamburger
-{
-}
+public class MakeHamburger;
 
-public class FetchChickenNuggets
-{
-}
+public class FetchChickenNuggets;
 
 public class SodaRequested
 {
@@ -246,9 +240,7 @@ public interface IOrderService
     void Close(int order);
 }
 
-public class SodaFetched
-{
-}
+public class SodaFetched;
 
 #region sample_BurgerReady
 

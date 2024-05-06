@@ -138,13 +138,9 @@ public class BootstrappingTests : IntegrationContext
     }
 
 
-    public class AppsModuleService : IModuleService
-    {
-    }
+    public class AppsModuleService : IModuleService;
 
-    public class SomeMessage
-    {
-    }
+    public class SomeMessage;
 
     public class SomeHandler
     {

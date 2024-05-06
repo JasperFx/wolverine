@@ -78,11 +78,7 @@ public class MethodInfoExtensionsTester
         }
     }
 
-    public interface IService
-    {
-    }
+    public interface IService;
 
-    public interface IService2
-    {
-    }
+    public interface IService2;
 }

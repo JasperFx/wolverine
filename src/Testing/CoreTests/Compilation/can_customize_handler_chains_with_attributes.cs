@@ -64,9 +64,7 @@ public class FakeHandler1
 
 [FakeFrame]
 [MaximumAttempts(5)]
-public class ErrorHandledMessage
-{
-}
+public class ErrorHandledMessage;
 
 [FakeFrame]
 public class FakeHandler2

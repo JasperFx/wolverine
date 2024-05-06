@@ -134,9 +134,7 @@ public class T5Handler
     }
 }
 
-public interface ISomeService
-{
-}
+public interface ISomeService;
 
 public class SomeService : ISomeService
 {

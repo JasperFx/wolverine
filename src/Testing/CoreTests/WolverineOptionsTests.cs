@@ -191,13 +191,9 @@ public class WolverineOptionsTests
             .ShouldBeSameAs(transport);
     }
 
-    public interface IFoo
-    {
-    }
+    public interface IFoo;
 
-    public class Foo : IFoo
-    {
-    }
+    public class Foo : IFoo;
 
     public class FakeTransport : ITransport
     {

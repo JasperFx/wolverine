@@ -2,6 +2,4 @@ using TestingSupport.Sagas;
 
 namespace EfCoreTests.Sagas;
 
-public class basic_mechanics_with_long : LongIdentifiedSagaComplianceSpecs<EfCoreSagaHost>
-{
-}
+public class basic_mechanics_with_long : LongIdentifiedSagaComplianceSpecs<EfCoreSagaHost>;
