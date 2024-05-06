@@ -28,6 +28,6 @@ using Wolverine.Attributes;
 
 #region sample_using_wolverine_module_to_load_extension
 
-[assembly: WolverineModule(typeof(Module1Extension))]
+[assembly: WolverineModule<Module1Extension>]
 
 #endregion
