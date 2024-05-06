@@ -16,9 +16,9 @@ internal static class TopicRouting
             return topic;
         }
 
-        topic = messageType.HasAttribute<TopicAttribute>()
-            ? messageType.GetAttribute<TopicAttribute>()!.TopicName
-            : messageType.ToMessageTypeName();
+        topic = messageType.TryGetAttribute<TopicAttribute>(out var attribute) ?
+            attribute.TopicName :
+            messageType.ToMessageTypeName();
 
         _topics = _topics.AddOrUpdate(messageType, topic);
 
