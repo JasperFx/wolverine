@@ -2,18 +2,14 @@ using Marten;
 
 namespace DocumentationSamples;
 
-public class CompoundHandlerSamples
-{
-}
+public class CompoundHandlerSamples;
 
 public class Order
 {
     public Guid Id { get; set; }
 }
 
-public record ShipOrder(Guid OrderId, Guid CustomerId)
-{
-}
+public record ShipOrder(Guid OrderId, Guid CustomerId);
 
 public class MissingOrderException : Exception
 {

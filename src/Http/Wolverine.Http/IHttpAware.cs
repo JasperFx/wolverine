@@ -106,10 +106,7 @@ public record CreationResponse([StringSyntax("Route")]string Url) : IHttpAware
 
 #endregion
 
-public record CreationResponse<T>(string Url, T Value) : CreationResponse(Url)
-{
-    
-}
+public record CreationResponse<T>(string Url, T Value) : CreationResponse(Url);
 
     
 #region sample_AcceptResponse
@@ -139,7 +136,4 @@ public record AcceptResponse(string Url) : IHttpAware
 
 #endregion
 
-public record AcceptResponse<T>(string Url, T Value) : AcceptResponse(Url)
-{
-    
-}
+public record AcceptResponse<T>(string Url, T Value) : AcceptResponse(Url);

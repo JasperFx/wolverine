@@ -130,9 +130,7 @@ internal static class FrameAssertions
     }
 }
 
-public class MiddlewareMessage : SomeBaseMessage
-{
-}
+public class MiddlewareMessage : SomeBaseMessage;
 
 public class MiddlewareMessageHandler
 {

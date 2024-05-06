@@ -65,14 +65,8 @@ public class MySagaStateGuy : Saga
     }
 }
 
-public class SagaStarter : Message3
-{
-}
+public class SagaStarter : Message3;
 
-public class SagaMessage1 : Message1
-{
-}
+public class SagaMessage1 : Message1;
 
-public class SagaMessage2 : Message2
-{
-}
+public class SagaMessage2 : Message2;

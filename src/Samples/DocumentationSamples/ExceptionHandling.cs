@@ -5,9 +5,7 @@ using Wolverine.ErrorHandling;
 
 namespace DocumentationSamples;
 
-public class ExceptionHandling
-{
-}
+public class ExceptionHandling;
 
 public static class AppWithErrorHandling
 {
@@ -90,6 +88,4 @@ public static class AppWithErrorHandling
     }
 }
 
-public class SqlException : Exception
-{
-}
+public class SqlException : Exception;

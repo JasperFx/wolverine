@@ -366,9 +366,7 @@ public class Request4
     public string Name { get; set; }
 }
 
-public class RequestWithNoHandler
-{
-}
+public class RequestWithNoHandler;
 
 public class Response1
 {

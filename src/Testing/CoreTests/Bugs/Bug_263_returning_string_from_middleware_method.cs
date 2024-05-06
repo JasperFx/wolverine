@@ -35,4 +35,4 @@ public class TupleHandler
     public static string Received { get; set; }
 }
 
-public class Context{}
+public class Context;

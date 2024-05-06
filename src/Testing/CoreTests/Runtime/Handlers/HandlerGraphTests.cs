@@ -39,10 +39,10 @@ public class HandlerGraphTests
     
 }
 
-public interface IMessageMarker{}
+public interface IMessageMarker;
 
 [InteropMessage(typeof(IMessageMarker))]
-public class MarkedMessage : IMessageMarker{}
+public class MarkedMessage : IMessageMarker;
 
 public class MarkedMessageHandler
 {

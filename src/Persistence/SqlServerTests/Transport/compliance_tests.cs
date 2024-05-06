@@ -44,10 +44,7 @@ public class SqlTransportDurableFixture : TransportComplianceFixture, IAsyncLife
 }
 
 [Collection("sqlserver")]
-public class SqlServerTransport_Durable_Compliance : TransportCompliance<SqlTransportDurableFixture>
-{
-    
-}
+public class SqlServerTransport_Durable_Compliance : TransportCompliance<SqlTransportDurableFixture>;
 
 public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLifetime
 {

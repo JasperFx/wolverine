@@ -76,10 +76,6 @@ public static class ExtensionUse
     }
 }
 
-public interface IFoo
-{
-}
+public interface IFoo;
 
-public class Foo : IFoo
-{
-}
+public class Foo : IFoo;

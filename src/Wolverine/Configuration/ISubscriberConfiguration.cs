@@ -65,6 +65,4 @@ public interface ISubscriberConfiguration<T> : IEndpointConfiguration<T> where T
     T SendInline();
 }
 
-public interface ISubscriberConfiguration : ISubscriberConfiguration<ISubscriberConfiguration>
-{
-}
+public interface ISubscriberConfiguration : ISubscriberConfiguration<ISubscriberConfiguration>;

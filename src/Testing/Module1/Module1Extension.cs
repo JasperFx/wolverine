@@ -14,10 +14,6 @@ public class Module1Extension : IWolverineExtension
     }
 }
 
-public interface IModuleService
-{
-}
+public interface IModuleService;
 
-public class ServiceFromModule : IModuleService
-{
-}
+public class ServiceFromModule : IModuleService;

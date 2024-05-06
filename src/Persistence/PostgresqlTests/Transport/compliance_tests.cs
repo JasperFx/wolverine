@@ -40,10 +40,7 @@ public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAs
 }
 
 [Collection("marten")]
-public class PostgresqlTransport_Durable_Compliance : TransportCompliance<PostgresqlTransportDurableFixture>
-{
-    
-}
+public class PostgresqlTransport_Durable_Compliance : TransportCompliance<PostgresqlTransportDurableFixture>;
 
 public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLifetime
 {

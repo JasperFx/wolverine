@@ -6,10 +6,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Kafka;
 
-public interface IKafkaEnvelopeMapper : IEnvelopeMapper<Message<string, string>, Message<string, string>>
-{
-    
-}
+public interface IKafkaEnvelopeMapper : IEnvelopeMapper<Message<string, string>, Message<string, string>>;
 
 /// <summary>
 /// Option to publish or receive raw JSON from or to Kafka topics

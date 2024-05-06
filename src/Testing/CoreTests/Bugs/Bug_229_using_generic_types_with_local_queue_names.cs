@@ -31,5 +31,5 @@ public class Result<T1, T2>
     public Guid Id { get; set; }
 }
 
-public class Something{}
-public class Error{}
+public class Something;
+public class Error;

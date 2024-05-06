@@ -45,7 +45,7 @@ internal class RequestIdPolicy : IHttpPolicy
 
 #endregion
 
-internal class MyAuthenticationMiddleware{}
+internal class MyAuthenticationMiddleware;
 
 // Leave this alone, it's used in sample code for docs
 internal class RequestIdPolicyApplication

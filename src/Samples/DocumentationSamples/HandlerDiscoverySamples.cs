@@ -50,13 +50,9 @@ public class AsyncHandler
 
 #region sample_Handlers_IMessage
 
-public interface IMyMessage
-{
-}
+public interface IMyMessage;
 
-public class MyMessageOne : IMyMessage
-{
-}
+public class MyMessageOne : IMyMessage;
 
 #endregion
 
@@ -83,15 +79,11 @@ public class SpecificMessageHandler
 
 #endregion
 
-public class MyService : IMyService
-{
-}
+public class MyService : IMyService;
 
 #region sample_injecting_services_into_handlers
 
-public interface IMyService
-{
-}
+public interface IMyService;
 
 public class ServiceUsingHandler
 {

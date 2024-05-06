@@ -9,7 +9,4 @@ public interface ISenderProtocol
 /// Marker interface that tells Wolverine that the current sender protocol for batching
 /// supports native scheduling
 /// </summary>
-public interface ISenderProtocolWithNativeScheduling : ISenderProtocol
-{
-    
-}
+public interface ISenderProtocolWithNativeScheduling : ISenderProtocol;

@@ -68,10 +68,7 @@ public class Bug_505_required_attribute_not_working
     }
 }
 
-public class Breeder
-{
-    
-}
+public class Breeder;
 
 public class AggregateRepository
 {

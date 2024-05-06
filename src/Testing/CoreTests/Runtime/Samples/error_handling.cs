@@ -187,13 +187,9 @@ public class error_handling
         #endregion
     }
 
-    public class SystemIsCompletelyUnusableException : Exception
-    {
-    }
+    public class SystemIsCompletelyUnusableException : Exception;
 
-    public class InvalidMessageYouWillNeverBeAbleToProcessException : Exception
-    {
-    }
+    public class InvalidMessageYouWillNeverBeAbleToProcessException : Exception;
 
     #region sample_exponential_backoff_with_attributes
 
@@ -258,9 +254,7 @@ public class InvoiceCreated
     public double Amount { get; set; }
 }
 
-public class InvoiceApproved
-{
-}
+public class InvoiceApproved;
 
 #region sample_configuring_error_handling_with_attributes
 
@@ -279,9 +273,7 @@ public class AttributeUsingHandler
 
 #endregion
 
-public class SqlException : Exception
-{
-}
+public class SqlException : Exception;
 
 public class FailedOnSecurity
 {

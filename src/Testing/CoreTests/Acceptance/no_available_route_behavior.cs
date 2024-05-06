@@ -20,6 +20,4 @@ public class no_available_route_behavior : IntegrationContext
     }
 }
 
-public class MessageWithNoRoutes
-{
-}
+public class MessageWithNoRoutes;

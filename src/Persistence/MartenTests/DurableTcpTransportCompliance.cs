@@ -54,6 +54,4 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
 }
 
 [Collection("marten")]
-public class DurableTcpTransportCompliance : TransportCompliance<DurableTcpTransportFixture>
-{
-}
+public class DurableTcpTransportCompliance : TransportCompliance<DurableTcpTransportFixture>;

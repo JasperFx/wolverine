@@ -47,6 +47,4 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
 }
 
 [Collection("acceptance")]
-public class InlinePulsarTransportComplianceTests : TransportCompliance<InlinePulsarTransportFixture>
-{
-}
+public class InlinePulsarTransportComplianceTests : TransportCompliance<InlinePulsarTransportFixture>;

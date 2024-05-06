@@ -28,6 +28,4 @@ public class LocalPostgresqlBackedFixture : TransportComplianceFixture, IAsyncLi
 }
 
 [Collection("marten")]
-public class LocalPostgresqlBackedTransportCompliance : TransportCompliance<LocalPostgresqlBackedFixture>
-{
-}
+public class LocalPostgresqlBackedTransportCompliance : TransportCompliance<LocalPostgresqlBackedFixture>;

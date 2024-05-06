@@ -105,21 +105,13 @@ public class StatefulResourceSmokeTests
     }
 }
 
-public class SRMessage1
-{
-}
+public class SRMessage1;
 
-public class SRMessage2
-{
-}
+public class SRMessage2;
 
-public class SRMessage3
-{
-}
+public class SRMessage3;
 
-public class SRMessage4
-{
-}
+public class SRMessage4;
 
 public class SRMessageHandlers
 {

@@ -18,13 +18,9 @@ public class can_customize_handler_chain_through_Configure_call_on_HandlerType :
     }
 }
 
-public class BaseMessage
-{
-}
+public class BaseMessage;
 
-public class SpecialMessage : BaseMessage
-{
-}
+public class SpecialMessage : BaseMessage;
 
 #region sample_customized_handler_using_Configure
 

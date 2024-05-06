@@ -88,10 +88,6 @@ public class AsyncHandler
     }
 }
 
-public class DoubleAction : IDoubleAction
-{
-}
+public class DoubleAction : IDoubleAction;
 
-public interface IDoubleAction
-{
-}
+public interface IDoubleAction;

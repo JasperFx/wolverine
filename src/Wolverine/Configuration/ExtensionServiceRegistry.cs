@@ -2,6 +2,4 @@
 
 namespace Wolverine.Configuration;
 
-internal class ExtensionServiceRegistry : ServiceRegistry
-{
-}
+internal class ExtensionServiceRegistry : ServiceRegistry;

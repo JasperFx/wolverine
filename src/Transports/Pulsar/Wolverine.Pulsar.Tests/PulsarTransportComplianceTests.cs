@@ -46,6 +46,4 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
 }
 
 [Collection("acceptance")]
-public class PulsarTransportComplianceTests : TransportCompliance<PulsarTransportFixture>
-{
-}
+public class PulsarTransportComplianceTests : TransportCompliance<PulsarTransportFixture>;

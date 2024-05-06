@@ -8,7 +8,5 @@ namespace Wolverine.Http;
 ///     HTTP request body
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue)]
-public class NotBodyAttribute : Attribute, IFromServiceMetadata
-{
-}
+public class NotBodyAttribute : Attribute, IFromServiceMetadata;
 

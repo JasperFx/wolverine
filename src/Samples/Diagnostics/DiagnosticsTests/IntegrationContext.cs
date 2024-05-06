@@ -27,9 +27,7 @@ public class AppFixture : IAsyncLifetime
 }
 
 [CollectionDefinition("integration")]
-public class IntegrationCollection : ICollectionFixture<AppFixture>
-{
-}
+public class IntegrationCollection : ICollectionFixture<AppFixture>;
 
 [Collection("integration")]
 public abstract class IntegrationContext : IAsyncLifetime

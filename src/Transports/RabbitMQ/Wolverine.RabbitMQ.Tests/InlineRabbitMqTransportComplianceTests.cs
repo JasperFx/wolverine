@@ -43,6 +43,4 @@ public class InlineRabbitMqTransportFixture : TransportComplianceFixture, IAsync
 }
 
 [Collection("acceptance")]
-public class InlineRabbitMqTransportComplianceTests : TransportCompliance<InlineRabbitMqTransportFixture>
-{
-}
+public class InlineRabbitMqTransportComplianceTests : TransportCompliance<InlineRabbitMqTransportFixture>;

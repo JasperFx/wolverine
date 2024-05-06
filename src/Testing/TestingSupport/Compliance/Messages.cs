@@ -10,9 +10,7 @@ public class NewUser
     public string UserId { get; set; }
 }
 
-public class EditUser
-{
-}
+public class EditUser;
 
 public class DeleteUser
 {
@@ -108,13 +106,9 @@ public class ReceivedTrack
     public string MessageType { get; set; }
 }
 
-public class TimeoutsMessage
-{
-}
+public class TimeoutsMessage;
 
-public class ExecutedMessage
-{
-}
+public class ExecutedMessage;
 
 public class ExecutedMessageGuy
 {

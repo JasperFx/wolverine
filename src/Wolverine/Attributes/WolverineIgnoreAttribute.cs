@@ -5,6 +5,4 @@
 ///     in message handler or http endpoint action discovery
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method | AttributeTargets.Assembly)]
-public class WolverineIgnoreAttribute : Attribute
-{
-}
+public class WolverineIgnoreAttribute : Attribute;

@@ -262,9 +262,7 @@ public class PublishingSamples
         public string Item { get; set; }
     }
 
-    public class SomeMessage
-    {
-    }
+    public class SomeMessage;
 
 
     #region sample_send_message_to_specific_destination

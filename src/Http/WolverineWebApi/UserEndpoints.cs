@@ -5,10 +5,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi;
 
-public class UserEndpoints
-{
-    
-}
+public class UserEndpoints;
 
 public record UserId(Guid Id);
 

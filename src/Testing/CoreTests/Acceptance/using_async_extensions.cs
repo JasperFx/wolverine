@@ -89,4 +89,4 @@ public class SampleAsyncExtension : IAsyncWolverineExtension
 
 #endregion
 
-public class Module1Message{}
+public class Module1Message;

@@ -47,13 +47,9 @@ public class handler_with_optional_side_effect
     }
 }
 
-public class SomeCommand
-{
-}
+public class SomeCommand;
 
-public class SomeOtherCommand
-{
-}
+public class SomeOtherCommand;
 
 public class SomeSideEffect : ISideEffect
 {

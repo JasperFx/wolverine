@@ -1,8 +1,6 @@
 namespace TeleHealth.Common;
 
-internal interface BoardStateEvent
-{
-}
+internal interface BoardStateEvent;
 
 public record BoardOpened(string Name, DateOnly Date, DateTimeOffset Opened) : BoardStateEvent;
 

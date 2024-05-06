@@ -22,14 +22,10 @@ public class Message2
 }
 
 [MessageIdentity("Message3")]
-public class Message3
-{
-}
+public class Message3;
 
 [MessageIdentity("Message4")]
-public class Message4
-{
-}
+public class Message4;
 
 [MessageIdentity("Message5")]
 public class Message5

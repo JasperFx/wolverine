@@ -147,7 +147,7 @@ public class exclusive_listeners : IAsyncLifetime
 
 }
 
-public class ExclusiveMessage {}
+public class ExclusiveMessage;
 
 public static class ExclusiveMessageHandler
 {

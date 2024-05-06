@@ -9,58 +9,34 @@ public abstract class Start<T>
     public string Name { get; set; }
 }
 
-public class GuidStart : Start<Guid>
-{
-}
+public class GuidStart : Start<Guid>;
 
-public class IntStart : Start<int>
-{
-}
+public class IntStart : Start<int>;
 
-public class LongStart : Start<long>
-{
-}
+public class LongStart : Start<long>;
 
-public class StringStart : Start<string>
-{
-}
+public class StringStart : Start<string>;
 
 public abstract class CompleteThree<T>
 {
     public T SagaId { get; set; }
 }
 
-public class GuidCompleteThree : CompleteThree<Guid>
-{
-}
+public class GuidCompleteThree : CompleteThree<Guid>;
 
-public class IntCompleteThree : CompleteThree<int>
-{
-}
+public class IntCompleteThree : CompleteThree<int>;
 
-public class LongCompleteThree : CompleteThree<long>
-{
-}
+public class LongCompleteThree : CompleteThree<long>;
 
-public class StringCompleteThree : CompleteThree<string>
-{
-}
+public class StringCompleteThree : CompleteThree<string>;
 
-public class CompleteOne
-{
-}
+public class CompleteOne;
 
-public class CompleteTwo
-{
-}
+public class CompleteTwo;
 
-public class CompleteFour
-{
-}
+public class CompleteFour;
 
-public class FinishItAll
-{
-}
+public class FinishItAll;
 
 public class WildcardStart
 {

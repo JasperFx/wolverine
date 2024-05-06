@@ -45,7 +45,7 @@ public class BuildSwagger : IHostedService
     }
 }
 
-public class Message1{}
+public class Message1;
 
 public class ResponseModel
 {

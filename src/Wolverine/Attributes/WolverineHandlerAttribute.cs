@@ -6,6 +6,4 @@ namespace Wolverine.Attributes;
 ///     vary from the built in naming conventions
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class WolverineHandlerAttribute : Attribute
-{
-}
+public class WolverineHandlerAttribute : Attribute;

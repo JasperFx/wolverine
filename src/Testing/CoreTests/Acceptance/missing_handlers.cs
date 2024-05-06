@@ -84,7 +84,5 @@ public class missing_handlers
         }
     }
 
-    public class MessageWithNoHandler
-    {
-    }
+    public class MessageWithNoHandler;
 }

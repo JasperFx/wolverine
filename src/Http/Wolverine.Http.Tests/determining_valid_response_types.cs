@@ -21,7 +21,5 @@ public class determining_valid_response_types
         HttpChain.IsValidResponseType(type).ShouldBe(canBeResponse);
     }
 
-    public class SpecialReturnType : IWolverineReturnType
-    {
-    }
+    public class SpecialReturnType : IWolverineReturnType;
 }

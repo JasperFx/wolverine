@@ -3,6 +3,4 @@
 namespace Wolverine.RabbitMQ.Tests;
 
 [Collection("rabbitmq")]
-public abstract class RabbitMQContext
-{
-}
+public abstract class RabbitMQContext;

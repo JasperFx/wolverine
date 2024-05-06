@@ -5,6 +5,4 @@ namespace Wolverine.Configuration;
 ///     kind of specific return handling meaning and should not be used
 ///     as a response
 /// </summary>
-public interface IWolverineReturnType
-{
-}
+public interface IWolverineReturnType;

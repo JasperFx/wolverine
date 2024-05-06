@@ -91,9 +91,7 @@ public class sending_messages_to_named_endpoints : IDisposable
 
 }
 
-public class TrackedMessage
-{
-}
+public class TrackedMessage;
 
 public record TriggerRoutedMessage(string EndpointName);
 

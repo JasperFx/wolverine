@@ -192,9 +192,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
     // }
 }
 
-public class LetterStarted
-{
-}
+public class LetterStarted;
 
 public class LetterAggregate
 {

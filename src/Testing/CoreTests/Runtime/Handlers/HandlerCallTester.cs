@@ -49,47 +49,24 @@ public class HandlerCallTester
         bool ReturnsValueType(Input input);
     }
 
-    public interface ISomeService
-    {
-    }
+    public interface ISomeService;c class Input;
 
-    public class Input
-    {
-    }
+    publ;ferentInput;
 
-    public class DifferentInput
-    {
-    }
+    public class Sp; Input;
 
-    public class SpecialInput : Input
-    {
-    }
+    public class Output;
 
-    public class Output
-    {
-    }
+    ;face IInput;
 
-    public interface IInput
-    {
-    }
+    public ;ss InputBase;
 
-    public abstract class InputBase
-    {
-    }
+    public cla;InputBase, IInput;
 
-    public class Input1 : InputBase, IInput
+    public class ; public class SomeHandler
     {
-    }
-
-    public class Input2
-    {
-    }
-
-    public class SomeHandler
-    {
-        public void Interface(IInput input)
-        {
-        }
+        publi;face(IInput input)
+      ;}
 
         public void BaseClass(InputBase input)
         {

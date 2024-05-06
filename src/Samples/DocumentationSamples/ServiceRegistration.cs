@@ -27,10 +27,6 @@ public static class wolverine_app_services
     }
 }
 
-public interface IThirdPartyService
-{
-}
+public interface IThirdPartyService;
 
-public class StubThirdPartyService : IThirdPartyService
-{
-}
+public class StubThirdPartyService : IThirdPartyService;

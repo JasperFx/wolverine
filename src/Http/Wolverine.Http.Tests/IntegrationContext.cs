@@ -97,11 +97,7 @@ public class AppFixture : IAsyncLifetime
 }
 
 [CollectionDefinition("integration")]
-public class IntegrationCollection : ICollectionFixture<AppFixture>
-{
-}
-
-
+public class IntegrationCollection : ICollectionFixture<AppFixture>;
 
 [Collection("integration")]
 public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
@@ -112,7 +108,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
     {
         _fixture = fixture;
     }
-    
+
     // more....
 
     public HttpGraph HttpChains => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
@@ -128,7 +124,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
             {
                 _fixture.ResetHost().GetAwaiter().GetResult();
             }
-            
+
             return _fixture.Host.Services.GetRequiredService<IDocumentStore>();
         }
     }
@@ -147,8 +143,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
     {
         return Task.CompletedTask;
     }
-
-
+    
     public async Task<IScenarioResult> Scenario(Action<Scenario> configure)
     {
         try

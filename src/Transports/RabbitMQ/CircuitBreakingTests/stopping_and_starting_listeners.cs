@@ -266,9 +266,7 @@ public static class CanCauseErrorMessageHandler
     }
 }
 
-public class PausingMessage
-{
-}
+public class PausingMessage;
 
 public class PausingMessageHandler
 {

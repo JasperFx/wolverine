@@ -283,13 +283,9 @@ public struct AnswerStruct
     public int Product { get; set; }
 }
 
-public class QuestionWithNoHandler
-{
-}
+public class QuestionWithNoHandler;
 
-public class QuestionWithNoAnswer
-{
-}
+public class QuestionWithNoAnswer;
 
 public class QuestionAndAnswerHandler
 {

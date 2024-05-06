@@ -8,13 +8,9 @@ using Wolverine.Attributes;
 
 namespace OrderExtension;
 
-public class CreateOrder
-{
-}
+public class CreateOrder;
 
-public class ShipOrder
-{
-}
+public class ShipOrder;
 
 public class OrderHandler
 {

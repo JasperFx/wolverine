@@ -22,8 +22,8 @@ namespace CoreTests.Bugs
         }
     }
     
-    public interface IIdentityService{}
-    public class IdentityService : IIdentityService{}
+    public interface IIdentityService;
+    public class IdentityService : IIdentityService;
 
     public record SayStuff(string Text);
     
