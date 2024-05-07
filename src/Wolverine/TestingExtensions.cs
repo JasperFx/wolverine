@@ -286,6 +286,9 @@ public static class TestingExtensions
         private readonly WolverineRuntime _leaderRuntime;
     
         public string AgentScheme { get; set; }
+        
+        // For multiple host agent assignments can vary, so we may need to rely on total count
+        public bool CountTotal { get; set; }
     
         public AssignmentWaiter(IHost leader)
         {
@@ -374,16 +377,20 @@ public static class TestingExtensions
             Func<Uri, bool> filter = AgentScheme.IsEmpty()
                 ? x => !x.Scheme.StartsWith("wolverine")
                 : x => x.Scheme.EqualsIgnoreCase(AgentScheme);
+                
+            var difference = 0;
             
             foreach (var pair in AgentCountByHost)
             {
                 var runtime = _runtimes[pair.Key];
     
                 var runningCount = runtime.AllRunningAgentUris().Count(x => filter(x));
-                if (pair.Value != runningCount) return false;
+                if (!CountTotal && pair.Value != runningCount) return false;
+                
+                difference += pair.Value - runningCount;
             }
-    
-            return true;
+            
+            return !CountTotal || difference == 0;
         }
     
     }
