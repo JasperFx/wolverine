@@ -16,7 +16,7 @@ public class Bug_568_do_not_freak_out_over_Refit
     [Fact]
     public async Task compile_darnit()
     {
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)

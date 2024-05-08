@@ -294,7 +294,7 @@ internal class EndpointModelMetadata : ModelMetadata
     public override string? NullDisplayText { get; }
     public override int Order { get; }
     public override string? Placeholder { get; }
-    public override ModelPropertyCollection Properties { get; } = new(Enumerable.Empty<ModelMetadata>());
+    public override ModelPropertyCollection Properties { get; } = new([]);
     public override IPropertyFilterProvider? PropertyFilterProvider { get; }
     public override Func<object, object>? PropertyGetter { get; }
     public override Action<object, object?>? PropertySetter { get; }

@@ -25,7 +25,7 @@ public class IncomingMessage
     public int OwnerId { get; set; }
     public DateTimeOffset? ExecutionTime { get; set; }
     public int Attempts { get; set; }
-    public byte[] Body { get; set; } = Array.Empty<byte>();
+    public byte[] Body { get; set; } = [];
     public string MessageType { get; set; } = string.Empty;
     public string? ReceivedAt { get; set; }
 }

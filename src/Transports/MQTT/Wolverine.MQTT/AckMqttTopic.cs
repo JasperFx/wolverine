@@ -24,7 +24,7 @@ public record AckMqttTopic() : ISendMyself, ISerializable
 
     public byte[] Write()
     {
-        return Array.Empty<byte>();
+        return [];
     }
 
     public static object Read(byte[] bytes)
@@ -48,7 +48,7 @@ public record ClearMqttTopic(string TopicName) : ISendMyself, ISerializable
 
     public byte[] Write()
     {
-        return Array.Empty<byte>();
+        return [];
     }
 
     public static object Read(byte[] bytes)

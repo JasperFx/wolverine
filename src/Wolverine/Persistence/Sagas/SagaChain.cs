@@ -47,11 +47,11 @@ public class SagaChain : HandlerChain
 
     public MemberInfo? SagaIdMember { get; set; }
 
-    public MethodCall[] ExistingCalls { get; set; } = Array.Empty<MethodCall>();
+    public MethodCall[] ExistingCalls { get; set; } = [];
 
-    public MethodCall[] StartingCalls { get; set; } = Array.Empty<MethodCall>();
+    public MethodCall[] StartingCalls { get; set; } = [];
 
-    public MethodCall[] NotFoundCalls { get; set; } = Array.Empty<MethodCall>();
+    public MethodCall[] NotFoundCalls { get; set; } = [];
 
     internal static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType)
     {

@@ -42,7 +42,7 @@ public class NServiceBusFixture : IAsyncLifetime
 
         #endregion
 
-        NServiceBus = await Program.CreateHostBuilder(Array.Empty<string>())
+        NServiceBus = await Program.CreateHostBuilder([])
             .StartAsync();
     }
 

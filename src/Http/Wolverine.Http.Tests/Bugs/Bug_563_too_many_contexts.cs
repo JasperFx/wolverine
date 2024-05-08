@@ -11,7 +11,7 @@ public class Bug_563_too_many_contexts
     [Fact]
     public async Task use_them_all()
     {
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<MyService1>();
         builder.Services.AddScoped<MyService2>();
         builder.Host.UseWolverine(opts =>

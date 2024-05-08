@@ -20,7 +20,7 @@ internal class HandlerScopingPolicy : IRegistrationPolicy, IFamilyPolicy
         if (type.IsConcrete() && matches(type))
         {
             var instance = new ConstructorInstance(type, type, ServiceLifetime.Scoped);
-            return new ServiceFamily(type, new IDecoratorPolicy[0], instance);
+            return new ServiceFamily(type, [], instance);
         }
 
         return null;
