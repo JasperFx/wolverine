@@ -181,7 +181,6 @@ public static class HostBuilderExtensions
         services.AddSingleton(s => expression(s.GetRequiredService<IWolverineRuntime>()));
     }
 
-
     /// <summary>
     ///     Syntactical sugar to execute the Wolverine command line for a configured WebHostBuilder
     /// </summary>
@@ -258,7 +257,7 @@ public static class HostBuilderExtensions
     {
         return services.AddSingleton<IWolverineExtension, T>();
     }
-    
+
     /// <summary>
     /// Add an asynchronous wolverine extension to the IoC container to apply extra configuration to your system
     /// </summary>
@@ -296,7 +295,6 @@ public static class HostBuilderExtensions
     {
         return services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>().ApplyAsyncExtensions();
     }
-
 
     /// <summary>
     ///     Disable all Wolverine messaging outside the current process. This is almost entirely

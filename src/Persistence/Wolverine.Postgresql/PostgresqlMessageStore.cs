@@ -50,7 +50,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public NpgsqlDataSource DataSource { get; }
 
-
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
         DbDataSource dataSource)
     {
@@ -110,11 +109,10 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         return counts;
     }
 
-
     public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         if (HasDisposed) return;
-        
+
         try
         {
             var builder = ToCommandBuilder();
@@ -186,7 +184,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         }
     }
 
-
     public override void Describe(TextWriter writer)
     {
         writer.WriteLine($"Persistent Envelope storage using Postgresql in schema '{SchemaName}'");
@@ -198,19 +195,18 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             .WithEnvelopeIds("ids", discards)
             .With("node", nodeId)
             .WithEnvelopeIds("rids", reassigned);
-            
+
         await cmd.ExecuteNonQueryAsync(_cancellation);
     }
 
     public override async Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
         if (HasDisposed) return;
-        
+
         await CreateCommand(_deleteOutgoingEnvelopesSql)
             .WithEnvelopeIds("ids", envelopes)
             .ExecuteNonQueryAsync(_cancellation);
     }
-
 
     protected override string determineOutgoingEnvelopeSql(DurabilitySettings settings)
     {
@@ -255,7 +251,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         IReadOnlyList<Envelope> envelopes;
 
         if (HasDisposed) return;
-        
+
         await using var conn = await DataSource.OpenConnectionAsync(cancellationToken);
         try
         {
@@ -284,7 +280,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
 
                 await tx.CommitAsync(cancellationToken);
-                
+
                 // Judging that there's very little chance of errors here
                 foreach (var envelope in envelopes)
                 {
@@ -339,7 +335,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
                 yield return queueTable;
             }
-            
+
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn("id", "SERIAL").AsPrimaryKey();
             eventTable.AddColumn<int>("node_number").NotNull();
@@ -356,7 +352,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     }
 
     private readonly List<Table> _otherTables = new();
-    
+
     public void AddTable(Table table)
     {
         _otherTables.Add(table);

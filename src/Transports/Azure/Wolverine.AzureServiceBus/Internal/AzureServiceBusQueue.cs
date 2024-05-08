@@ -29,7 +29,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
             DeadLetteringOnMessageExpiration = false
         };
     }
-    
+
     public CreateQueueOptions Options { get; }
 
     public string QueueName { get; }
@@ -90,13 +90,13 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
     {
         var cancellation = new CancellationTokenSource();
         cancellation.CancelAfter(2000);
-        
+
         var stopwatch = new Stopwatch();
         stopwatch.Start();
         while (stopwatch.ElapsedMilliseconds < 2000)
         {
             var session = await client.AcceptNextSessionAsync(QueueName, cancellationToken: cancellation.Token);
-            
+
             var messages = await session.ReceiveMessagesAsync(25, 1.Seconds(), cancellation.Token);
             foreach (var message in messages) await session.CompleteMessageAsync(message, cancellation.Token);
             while (messages.Any())
@@ -104,10 +104,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
                 messages = await session.ReceiveMessagesAsync(25, 1.Seconds(), cancellation.Token);
                 foreach (var message in messages) await session.CompleteMessageAsync(message, cancellation.Token);
             }
-
-            
         }
-
     }
 
     private async Task<bool> purgeWithoutSessions(ServiceBusClient client)
@@ -172,7 +169,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
             return new AzureServiceBusSessionListener(this, receiver, mapper,
                 runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
         }
-        
+
         if (Mode == EndpointMode.Inline)
         {
             var messageProcessor = Parent.BusClient.CreateProcessor(QueueName);
@@ -186,14 +183,14 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
             return inlineListener;
         }
-        
+
         var messageReceiver = Parent.BusClient.CreateReceiver(QueueName);
         var logger = runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>();
         var listener = new BatchedAzureServiceBusListener(this, logger, receiver, messageReceiver, mapper, requeue);
 
         return listener;
     }
-    
+
     internal ISender BuildInlineSender(IWolverineRuntime runtime)
     {
         var mapper = BuildMapper(runtime);
@@ -220,13 +217,13 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
         return new BatchedSender(this, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
     }
-    
+
     /// <summary>
     /// Name of the dead letter queue for this SQS queue where failed messages will be moved
     /// </summary>
     public string? DeadLetterQueueName { get; set; } = AzureServiceBusTransport.DeadLetterQueueName;
-    
-    
+
+
     internal void ConfigureDeadLetterQueue(Action<AzureServiceBusQueue> configure)
     {
         var dlq = Parent.Queues[DeadLetterQueueName];
@@ -245,5 +242,4 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         deadLetterSender = default;
         return false;
     }
-
 }

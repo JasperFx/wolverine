@@ -40,7 +40,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
     {
         var mapper = BuildMapper(runtime);
         var sender = Parent.BusClient.CreateSender(TopicName);
-        
+
         if (Mode == EndpointMode.Inline)
         {
             var inlineSender = new InlineAzureServiceBusSender(this, mapper, sender,
@@ -75,7 +75,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
         var task = Parent.ManagementClient.DeleteTopicAsync(TopicName);
         return new ValueTask(task);
     }
-    
+
     public CreateTopicOptions Options { get; }
 
     public override ValueTask SetupAsync(ILogger logger)

@@ -137,7 +137,7 @@ public abstract class HttpHandler
         {
             return true;
         }
-        
+
         if (headers.Accept.Any(x => x.MediaType.HasValue && (x.MediaType.Value == "application/json" || x.MediaType.Value == "*/*" || x.MediaType.Value == "text/json")))
         {
             return true;
@@ -154,7 +154,7 @@ public abstract class HttpHandler
             context.Response.StatusCode = 404;
             return Task.CompletedTask;
         }
-        
+
         return context.Response.WriteAsJsonAsync(body, _jsonOptions, context.RequestAborted);
     }
 

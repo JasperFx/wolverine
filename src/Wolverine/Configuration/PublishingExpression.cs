@@ -20,7 +20,6 @@ public class PublishingExpression : IPublishToExpression
 
     internal bool AutoAddSubscriptions { get; set; }
 
-
     /// <summary>
     ///     All matching records are to be sent to the configured subscriber
     ///     by Uri
@@ -35,7 +34,6 @@ public class PublishingExpression : IPublishToExpression
 
         return new SubscriberConfiguration(endpoint);
     }
-
 
     /// <summary>
     ///     Send all the matching messages to the designated Uri string
@@ -58,7 +56,6 @@ public class PublishingExpression : IPublishToExpression
 
         return new LocalQueueConfiguration(settings);
     }
-
 
     /// <summary>
     ///     Publish the designated message types to the named
@@ -89,7 +86,6 @@ public class PublishingExpression : IPublishToExpression
             endpoint.Subscriptions.AddRange(_subscriptions);
         }
     }
-
 
     /// <summary>
     ///     Create a publishing rule for a single message type
@@ -160,7 +156,6 @@ public class PublishingExpression : IPublishToExpression
     {
         return MessagesFromAssembly(typeof(T).Assembly);
     }
-
 
     internal void AttachSubscriptions()
     {

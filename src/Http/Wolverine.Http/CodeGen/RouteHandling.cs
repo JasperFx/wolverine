@@ -36,7 +36,6 @@ internal class ParsedRouteArgumentFrame : SyncFrame
         Variable = new Variable(variableType, parameterName, this);
     }
 
-
     public Variable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)

@@ -12,8 +12,6 @@ public class ListenerConfiguration : ListenerConfiguration<IListenerConfiguratio
     public ListenerConfiguration(Endpoint endpoint) : base(endpoint)
     {
     }
-
-
 }
 
 public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfiguration<TEndpoint>,
@@ -29,7 +27,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     {
         add(e => e.IsListener = true);
     }
-    
+
     public TSelf ListenWithStrictOrdering(string? endpointName = null)
     {
         add(e =>
@@ -46,10 +44,9 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
                 e.EndpointName = endpointName;
             }
         });
-        
+
         return this.As<TSelf>();
     }
-
 
     public TSelf TelemetryEnabled(bool isEnabled)
     {
@@ -176,7 +173,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
         return this.As<TSelf>();
     }
-    
+
     /// <summary>
     ///     Assume that any unidentified, incoming message types is the
     ///     type "T". This is primarily for interoperability with non-Wolverine

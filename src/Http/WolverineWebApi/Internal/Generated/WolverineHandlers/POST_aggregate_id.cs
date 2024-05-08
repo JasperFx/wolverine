@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -33,7 +31,6 @@ namespace Internal.Generated.WolverineHandlers
                 httpContext.Response.StatusCode = 404;
                 return;
             }
-
 
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
             var eventStream = await documentSession.Events.FetchForWriting<WolverineWebApi.Bugs.SomeAggregate>(id, httpContext.RequestAborted);
@@ -50,7 +47,6 @@ namespace Internal.Generated.WolverineHandlers
                 await WriteProblems(problemDetails1, httpContext).ConfigureAwait(false);
                 return;
             }
-
 
             // Reading the request body via JSON deserialization
             var (cmd, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Bugs.SomeCommand>(httpContext);
@@ -72,11 +68,9 @@ namespace Internal.Generated.WolverineHandlers
             // Wolverine automatically sets the status code to 204 for empty responses
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
-
     }
 
     // END: POST_aggregate_id
     
     
 }
-

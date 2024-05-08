@@ -21,4 +21,3 @@ internal class IncomingEnvelopeTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
     }
 }
-

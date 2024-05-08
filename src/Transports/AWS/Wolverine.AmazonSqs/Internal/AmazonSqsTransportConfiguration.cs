@@ -22,7 +22,6 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
         return new AmazonSqsSubscriberConfiguration(subscriberEndpoint);
     }
 
-
     /// <summary>
     ///     Add credentials for the connection to AWS SQS
     /// </summary>

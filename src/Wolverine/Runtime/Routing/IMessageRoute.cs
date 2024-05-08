@@ -9,7 +9,6 @@ public interface IMessageRoute
 {
     Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime, string? topicName);
-
 }
 
 internal class TransformedMessageRouteSource : IMessageRouteSource
@@ -18,7 +17,6 @@ internal class TransformedMessageRouteSource : IMessageRouteSource
     {
         var transformations = runtime.Options.MessageTransformations.Where(x => x.SourceType == messageType);
         return transformations.SelectMany(t => runtime.RoutingFor(t.DestinationType).Routes.Select(t.CreateRoute)).ToArray();
-
     }
 
     public bool IsAdditive => true;
@@ -42,9 +40,6 @@ internal class TransformedMessageRoute<TSource, TDestination> : IMessageRoute
         return _inner.CreateForSending(transformed!, options, localDurableQueue, runtime, topicName);
     }
 }
-
-
-
 
 public class TopicRouting<T> : IMessageRouteSource, IMessageRoute
 {

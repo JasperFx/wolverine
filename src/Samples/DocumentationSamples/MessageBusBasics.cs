@@ -20,7 +20,7 @@ public class MessageBusBasics
         // don't wait around
         await bus.SendAsync(new DebitAccount(1111, 250));
 
-        // Or instead, publish it to any interested subscribers, 
+        // Or instead, publish it to any interested subscribers,
         // but don't worry about it if there are actually any subscribers
         // This is probably best for raising event messages
         await bus.PublishAsync(new DebitAccount(1111, 300));

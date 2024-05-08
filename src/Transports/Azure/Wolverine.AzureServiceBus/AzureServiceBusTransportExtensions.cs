@@ -143,9 +143,9 @@ public static class AzureServiceBusTransportExtensions
         private readonly AzureServiceBusTransport _transport;
 
         public SubscriptionExpression(
-            string subscriptionName, 
-            Action<CreateSubscriptionOptions>? configureSubscriptions, 
-            Action<CreateRuleOptions>? configureSubscriptionRule, 
+            string subscriptionName,
+            Action<CreateSubscriptionOptions>? configureSubscriptions,
+            Action<CreateRuleOptions>? configureSubscriptionRule,
             AzureServiceBusTransport transport)
         {
             _subscriptionName = subscriptionName;
@@ -166,10 +166,10 @@ public static class AzureServiceBusTransportExtensions
 
             var topic = _transport.Topics[topicName];
             configureTopic?.Invoke(topic.Options);
-            
+
             var subscription = topic.FindOrCreateSubscription(_subscriptionName);
             subscription.IsListener = true;
-        
+
             _configureSubscriptions?.Invoke(subscription.Options);
             _configureSubscriptionRule?.Invoke(subscription.RuleOptions);
 
@@ -189,8 +189,8 @@ public static class AzureServiceBusTransportExtensions
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     public static SubscriptionExpression ListenToAzureServiceBusSubscription(
-        this WolverineOptions endpoints, 
-        string subscriptionName, 
+        this WolverineOptions endpoints,
+        string subscriptionName,
         Action<CreateSubscriptionOptions>? configureSubscriptions = null,
         Action<CreateRuleOptions>? configureSubscriptionRule = null)
     {
@@ -202,7 +202,7 @@ public static class AzureServiceBusTransportExtensions
         var transport = endpoints.AzureServiceBusTransport();
 
         return new SubscriptionExpression(
-            transport.MaybeCorrectName(subscriptionName), 
+            transport.MaybeCorrectName(subscriptionName),
             configureSubscriptions,
             configureSubscriptionRule,
             transport);
@@ -230,7 +230,7 @@ public static class AzureServiceBusTransportExtensions
 
         return new AzureServiceBusQueueSubscriberConfiguration(endpoint);
     }
-    
+
     /// <summary>
     /// Publish the designated messages to an Azure Service Bus topic
     /// </summary>
@@ -253,6 +253,4 @@ public static class AzureServiceBusTransportExtensions
 
         return new AzureServiceBusTopicSubscriberConfiguration(endpoint);
     }
-    
-    
 }

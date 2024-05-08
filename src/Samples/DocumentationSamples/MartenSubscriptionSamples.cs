@@ -25,28 +25,28 @@ public class MartenSubscriptionSamples
             {
                 opts.Services
                     .AddMarten()
-                    
-                    // Just pulling the connection information from 
+
+                    // Just pulling the connection information from
                     // the IoC container at runtime.
                     .UseNpgsqlDataSource()
-                    
+
                     // You don't absolutely have to have the Wolverine
                     // integration active here for subscriptions, but it's
                     // more than likely that you will want this anyway
                     .IntegrateWithWolverine()
-                    
+
                     // The Marten async daemon most be active
                     .AddAsyncDaemon(DaemonMode.HotCold)
-                    
+
                     // This would attempt to publish every non-archived event
                     // from Marten to Wolverine subscribers
                     .PublishEventsToWolverine("Everything")
-                    
+
                     // You wouldn't do this *and* the above option, but just to show
                     // the filtering
                     .PublishEventsToWolverine("Orders", relay =>
                     {
-                        // Filtering 
+                        // Filtering
                         relay.FilterIncomingEventsOnStreamType(typeof(Order));
 
                         // Optionally, tell Marten to only subscribe to new
@@ -75,7 +75,7 @@ public class MartenSubscriptionSamples
                         o.Projections.Errors.SkipApplyErrors = true;
                     })
 
-                    // Just pulling the connection information from 
+                    // Just pulling the connection information from
                     // the IoC container at runtime.
                     .UseNpgsqlDataSource()
 
@@ -83,10 +83,10 @@ public class MartenSubscriptionSamples
                     // integration active here for subscriptions, but it's
                     // more than likely that you will want this anyway
                     .IntegrateWithWolverine()
-                    
+
                     // The Marten async daemon most be active
                     .AddAsyncDaemon(DaemonMode.HotCold)
-                    
+
                     // Notice the allow list filtering of event types and the possibility of overriding
                     // the starting point for this subscription at runtime
                     .ProcessEventsWithWolverineHandlersInStrictOrder("Orders", o =>
@@ -109,33 +109,33 @@ public class MartenSubscriptionSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRabbitMq(); 
-                
+                opts.UseRabbitMq();
+
                 // There needs to be *some* kind of subscriber for CompanyActivations
                 // for this to work at all
                 opts.PublishMessage<CompanyActivations>()
                     .ToRabbitExchange("activations");
-                
+
                 opts.Services
                     .AddMarten()
 
-                    // Just pulling the connection information from 
+                    // Just pulling the connection information from
                     // the IoC container at runtime.
                     .UseNpgsqlDataSource()
-                    
+
                     .IntegrateWithWolverine()
-                    
+
                     // The Marten async daemon most be active
                     .AddAsyncDaemon(DaemonMode.HotCold)
 
-                                        
+
                     // Register the new subscription
                     .SubscribeToEvents(new CompanyTransferSubscription());
             }).StartAsync();
 
         #endregion
     }
-    
+
     public static async Task batched_subscription_usage_with_services()
     {
         #region sample_registering_a_batched_subscription_with_services
@@ -143,8 +143,8 @@ public class MartenSubscriptionSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRabbitMq(); 
-                
+                opts.UseRabbitMq();
+
                 // There needs to be *some* kind of subscriber for CompanyActivations
                 // for this to work at all
                 opts.PublishMessage<CompanyActivations>()
@@ -153,7 +153,7 @@ public class MartenSubscriptionSamples
                 opts.Services
                     .AddMarten()
 
-                    // Just pulling the connection information from 
+                    // Just pulling the connection information from
                     // the IoC container at runtime.
                     .UseNpgsqlDataSource()
 
@@ -161,8 +161,6 @@ public class MartenSubscriptionSamples
 
                     // The Marten async daemon most be active
                     .AddAsyncDaemon(DaemonMode.HotCold)
-
-
 
                     // Register the new subscription
                     // With this alternative you can inject services into your subscription's constructor
@@ -192,8 +190,8 @@ public static class InternalOrderCreatedHandler
     public static Task<Customer?> LoadAsync(IEvent<OrderCreated> e, IQuerySession session,
         CancellationToken cancellationToken)
         => session.LoadAsync<Customer>(e.Data.CustomerId, cancellationToken);
-    
-    
+
+
     public static OrderCreatedIntegrationEvent Handle(IEvent<OrderCreated> e, Customer customer)
     {
         return new OrderCreatedIntegrationEvent(e.Data.OrderNumber, customer.Name, e.Timestamp);
@@ -221,8 +219,8 @@ public class CompanyActivations
     public void Add(Guid companyId, string name)
     {
         Removals.Remove(companyId);
-        
-        // Fill is an extension method in JasperFx.Core that adds the 
+
+        // Fill is an extension method in JasperFx.Core that adds the
         // record to a list if the value does not already exist
         Additions.Fill(new NewCompany(companyId, name));
     }
@@ -260,7 +258,7 @@ public class CompanyTransferSubscription : BatchSubscription
                     break;
             }
         }
-        
+
         // At the end of all of this, publish a single message
         // In case you're wondering, this will opt into Wolverine's
         // transactional outbox with the same transaction as any changes

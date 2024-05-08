@@ -22,7 +22,7 @@ public interface IMartenOp : ISideEffect
 public static class MartenOps
 {
     /// <summary>
-    /// Return a side effect of storing the specified document in Marten 
+    /// Return a side effect of storing the specified document in Marten
     /// </summary>
     /// <param name="document"></param>
     /// <typeparam name="T"></typeparam>
@@ -39,7 +39,7 @@ public static class MartenOps
     }
 
     /// <summary>
-    /// Return a side effect of inserting the specified document in Marten 
+    /// Return a side effect of inserting the specified document in Marten
     /// </summary>
     /// <param name="document"></param>
     /// <typeparam name="T"></typeparam>
@@ -56,7 +56,7 @@ public static class MartenOps
     }
 
     /// <summary>
-    /// Return a side effect of updating the specified document in Marten 
+    /// Return a side effect of updating the specified document in Marten
     /// </summary>
     /// <param name="document"></param>
     /// <typeparam name="T"></typeparam>
@@ -71,9 +71,9 @@ public static class MartenOps
 
         return new UpdateDoc<T>(document);
     }
-    
+
     /// <summary>
-    /// Return a side effect of deleting the specified document in Marten 
+    /// Return a side effect of deleting the specified document in Marten
     /// </summary>
     /// <param name="document"></param>
     /// <typeparam name="T"></typeparam>
@@ -90,7 +90,7 @@ public static class MartenOps
     }
 
     /// <summary>
-    /// Return a side effect of starting a new event stream in Marten 
+    /// Return a side effect of starting a new event stream in Marten
     /// </summary>
     /// <param name="streamId"></param>
     /// <param name="events"></param>
@@ -100,7 +100,7 @@ public static class MartenOps
     {
         return new StartStream<T>(streamId, events);
     }
-    
+
     /// <summary>
     /// Return a side effect of starting a new event stream in Marten. This overload
     /// creates a sequential Guid for the new stream that can be accessed from the
@@ -114,9 +114,9 @@ public static class MartenOps
         var streamId = CombGuidIdGeneration.NewGuid();
         return new StartStream<T>(streamId, events);
     }
-    
+
     /// <summary>
-    /// Return a side effect of starting a new event stream in Marten 
+    /// Return a side effect of starting a new event stream in Marten
     /// </summary>
     /// <param name="streamKey"></param>
     /// <param name="events"></param>
@@ -126,14 +126,13 @@ public static class MartenOps
     {
         return new StartStream<T>(streamKey, events);
     }
-    
+
     /// <summary>
     /// As it says, do nothing
     /// </summary>
     /// <returns></returns>
     public static NoOp Nothing() => new NoOp();
 }
-
 
 /// <summary>
 /// Represents a "do nothing" action in cases where you do not need
@@ -151,9 +150,9 @@ public interface IStartStream : IMartenOp
 {
     string StreamKey { get; }
     Guid StreamId { get; }
-    
+
     Type AggregateType { get; }
-    
+
     IReadOnlyList<object> Events { get; }
 }
 
@@ -167,7 +166,7 @@ public class StartStream<T> : IStartStream where T : class
         StreamId = streamId;
         Events.AddRange(events);
     }
-    
+
     public StartStream(string streamKey, params object[] events)
     {
         StreamKey = streamKey;
@@ -179,7 +178,7 @@ public class StartStream<T> : IStartStream where T : class
         Events.AddRange(events);
         return this;
     }
-    
+
     public StartStream<T> With(object @event)
     {
         Events.Add(@event);
@@ -190,7 +189,7 @@ public class StartStream<T> : IStartStream where T : class
 
 
     public void Execute(IDocumentSession session)
-    {   
+    {
         if (StreamId == Guid.Empty)
         {
             if (StreamKey.IsNotEmpty())
@@ -212,8 +211,6 @@ public class StartStream<T> : IStartStream where T : class
 
     IReadOnlyList<object> IStartStream.Events => Events;
 }
-
-
 
 public class StoreDoc<T> : DocumentOp where T : notnull
 {
@@ -286,4 +283,3 @@ public abstract class DocumentOp : IMartenOp
 
     public abstract void Execute(IDocumentSession session);
 }
-

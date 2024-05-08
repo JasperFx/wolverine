@@ -55,7 +55,6 @@ public class Target
 
     public int[] NumberArray { get; set; }
 
-
     public Target[] Children { get; set; }
 
     public int? NullableNumber { get; set; }

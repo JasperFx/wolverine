@@ -62,7 +62,7 @@ public class
         add(e => e.MaximumWaitTime = time);
         return this;
     }
-    
+
     /// <summary>
     /// Completely disable all SQS dead letter queueing for just this queue
     /// </summary>
@@ -99,7 +99,7 @@ public class
 
         return this;
     }
-    
+
     /// <summary>
     /// Force this queue to require session identifiers. Use this for FIFO semantics
     /// </summary>
@@ -118,7 +118,7 @@ public class
 
         return this;
     }
-    
+
     /// <summary>
     /// Utilize custom envelope mapping for Amazon Service Bus interoperability with external non-Wolverine systems
     /// </summary>

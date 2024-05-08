@@ -31,7 +31,6 @@ public class internals_tests
         var command = new Command1();
         var failureAction = new FailureAction<Command1>();
 
-
         var ex = Should.Throw<ValidationException>(async () =>
         {
             await FluentValidationExecutor.ExecuteOne(validator, failureAction, command);
@@ -41,7 +40,6 @@ public class internals_tests
 
         ex.Errors.Count().ShouldBe(4);
     }
-
 
     [Fact]
     public void FluentValidationExecutor_execute_multiple_validators()

@@ -62,7 +62,7 @@ public static class EnvelopeSerializer
                 case EnvelopeConstants.ParentIdKey:
                     env.ParentId = value;
                     break;
-                
+
                 case EnvelopeConstants.GroupIdKey:
                     env.GroupId = value;
                     break;
@@ -94,7 +94,7 @@ public static class EnvelopeSerializer
                 case EnvelopeConstants.TenantIdKey:
                     env.TenantId = value;
                     break;
-                
+
                 case EnvelopeConstants.TopicNameKey:
                     env.TopicName = value;
                     break;
@@ -247,7 +247,6 @@ public static class EnvelopeSerializer
             writer.Write(dateString);
         }
 
-
         writer.WriteProp(ref count, EnvelopeConstants.AttemptsKey, env.Attempts);
         writer.WriteProp(ref count, EnvelopeConstants.DeliverByKey, env.DeliverBy);
 
@@ -262,7 +261,6 @@ public static class EnvelopeSerializer
             writer.Write(pair.Key);
             writer.Write(pair.Value);
         }
-
 
         return count;
     }

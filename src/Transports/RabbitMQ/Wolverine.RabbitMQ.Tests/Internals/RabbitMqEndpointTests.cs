@@ -18,7 +18,6 @@ public class RabbitMqEndpointTests
         endpoint.RoutingType.ShouldBe(RoutingMode.Static);
     }
 
-
     [Fact]
     public void override_the_prefetch_count()
     {
@@ -66,7 +65,6 @@ public class RabbitMqEndpointTests
 
         endpoint.PreFetchCount.ShouldBe((ushort)100);
     }
-
 
     [Fact]
     public void map_to_rabbit_mq_uri_with_queue()

@@ -17,7 +17,7 @@ public interface IPublishingRelay
     /// <param name="publish"></param>
     /// <typeparam name="T"></typeparam>
     void PublishEvent<T>(Func<IEvent<T>, IMessageBus, ValueTask> publish) where T : notnull;
-    
+
     /// <summary>
     /// Forward events of this type to Wolverine. This creates an allow list of event types
     /// if any specific event types are specified
@@ -31,9 +31,9 @@ public interface IPublishingRelay
     /// </summary>
     /// <param name="eventType"></param>
     void PublishEvent(Type eventType);
-    
+
     uint SubscriptionVersion { get; set; }
-    
+
     /// <summary>
     /// Should this subscription be applied to archived events? The default is false
     /// </summary>
@@ -54,7 +54,7 @@ public interface IPublishingRelay
 internal class PublishingRelay : BatchSubscription, IPublishingRelay
 {
     private ImHashMap<Type, IPublisher> _publishers = ImHashMap<Type, IPublisher>.Empty;
-    
+
     public PublishingRelay(string subscriptionName) : base(subscriptionName)
     {
     }
@@ -97,7 +97,7 @@ internal class PublishingRelay : BatchSubscription, IPublishingRelay
     {
         ValueTask PublishAsync(object e, IMessageBus bus);
     }
-    
+
     internal class LambdaPublisher<T> : IPublisher where T : notnull
     {
         private readonly Func<IEvent<T>, IMessageBus, ValueTask> _publish;

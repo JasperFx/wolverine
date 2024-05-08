@@ -35,14 +35,14 @@ public class dynamic_object_creation_smoke_tests : IAsyncLifetime
 
         // _host is an IHost
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
-        
+
         // Declare new Exchanges, Queues, and Bindings at runtime
         runtime.ModifyRabbitMqObjects(o =>
         {
             var exchange = o.DeclareExchange(exchangeName);
             exchange.BindQueue(queueName, bindingKey);
         });
-        
+
         // Unbind a queue from an exchange
         runtime.UnBindRabbitMqQueue(queueName, exchangeName, bindingKey);
 

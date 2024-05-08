@@ -146,7 +146,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                 {
                     break;
                 }
-                
+
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
@@ -160,7 +160,6 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                     _logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}. Check if system queues should be enabled for this application because this could be from the application being unable to create the system queues for Azure Service Bus",
                         _endpoint.Uri);
                 }
-
 
                 await Task.Delay(pauseTime);
             }

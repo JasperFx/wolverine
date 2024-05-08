@@ -37,8 +37,8 @@ public class Samples
                     // not identifying metadata, tell Wolverine
                     // to assume the incoming message is this type
                     .DefaultIncomingMessage<Message1>()
-                    
-                    
+
+
                     // The default is AtLeastOnce
                     .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
 
@@ -83,7 +83,7 @@ public class Samples
 
         #endregion
     }
-    
+
     public static async Task publish_to_topics()
     {
         #region sample_stream_events_to_mqtt_topics
@@ -149,11 +149,11 @@ public class Samples
                 // the message type
                 opts.PublishAllMessages()
                     .ToMqttTopics()
-                    
+
                     // Tell Wolverine to map envelopes to MQTT messages
                     // with our custom strategy
                     .UseInterop(new MyMqttEnvelopeMapper())
-                    
+
                     .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
             })
             .StartAsync();
@@ -163,9 +163,6 @@ public class Samples
 
     public static async Task publish_by_topic_rules()
     {
-
-
-
         #region sample_mqtt_topic_rules
 
         using var host = await Host.CreateDefaultBuilder()
@@ -184,10 +181,10 @@ public class Samples
                         });
                 });
 
-                // Publish any message that implements ITenantMessage to 
+                // Publish any message that implements ITenantMessage to
                 // MQTT with a topic derived from the message
                 opts.PublishMessagesToMqttTopic<ITenantMessage>(m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
-                    
+
                     // Specify or configure sending through Wolverine for all
                     // MQTT topic broadcasting
                     .QualityOfService(MqttQualityOfServiceLevel.ExactlyOnce)
@@ -218,7 +215,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     {
         // This is the only absolutely mandatory item
         outgoing.PayloadSegment = envelope.Data;
-        
+
         // Maybe enrich this more?
         outgoing.ContentType = envelope.ContentType;
     }
@@ -228,9 +225,9 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
         // These are the absolute minimums necessary for Wolverine to function
         envelope.MessageType = typeof(PaymentMade).ToMessageTypeName();
         envelope.Data = incoming.PayloadSegment.Array;
-        
+
         // Optional items
-        envelope.DeliverWithin = 5.Seconds(); // throw away the message if it 
+        envelope.DeliverWithin = 5.Seconds(); // throw away the message if it
         // is not successfully processed
         // within 5 seconds
     }

@@ -69,7 +69,7 @@ internal class DurabilityAgent : IAgent
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
-        
+
         _recoveryTimer = new Timer(_ =>
         {
             var operations = new IDatabaseOperation[]

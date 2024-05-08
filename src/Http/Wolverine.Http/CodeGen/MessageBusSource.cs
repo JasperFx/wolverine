@@ -35,7 +35,7 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
         IMessageBusVariable = new CastVariable(Variable, typeof(IMessageBus));
         creates.Add(IMessageBusVariable);
     }
-    
+
     public Variable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -45,7 +45,7 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
         {
             writer.Write($"{Variable.Usage}.{nameof(IMessageBus.TenantId)} = {_tenantId.Usage};");
         }
-        
+
         Next?.GenerateCode(method, writer);
     }
 
@@ -53,11 +53,10 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
     {
         _runtime = chain.FindVariable(typeof(IWolverineRuntime));
         yield return _runtime;
-        
+
         if (chain.TryFindVariableByName(typeof(string), PersistenceConstants.TenantIdVariableName, out _tenantId))
         {
             yield return _tenantId;
         }
     }
 }
-

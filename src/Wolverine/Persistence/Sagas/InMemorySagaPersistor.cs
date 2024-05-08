@@ -12,17 +12,14 @@ public class InMemorySagaPersistor
         return documentType.FullName + "/" + id;
     }
 
-
     public T? Load<T>(object id) where T : class
     {
         var key = ToKey(typeof(T), id);
-
 
         if (_data.TryGetValue(key, out var value))
         {
             return value as T;
         }
-
 
         return null;
     }

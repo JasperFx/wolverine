@@ -24,10 +24,10 @@ public class Bug_475_durable_outbox_sending_out_of_order
             .UseWolverine(opts =>
             {
                 opts.Services.AddSingleton(tracker);
-                
+
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
-                    
+
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
                 opts.PublishAllMessages().ToRabbitQueue(queueName).SendInline();
@@ -50,7 +50,7 @@ public class Bug_475_durable_outbox_sending_out_of_order
         };
 
         await host.TrackActivity().IncludeExternalTransports().ExecuteAndWaitAsync(publishing);
-        
+
         tracker.Encountered.ShouldHaveTheSameElementsAs(1, 2,3 ,4,5,6);
     }
 }

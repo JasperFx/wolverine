@@ -37,7 +37,7 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
     {
         return ReceiveRawJson(typeof(T));
     }
-    
+
     /// <summary>
     /// Configure this endpoint to receive messages of the message typ from
     /// JSON message bodies. This option maybe be necessary to receive

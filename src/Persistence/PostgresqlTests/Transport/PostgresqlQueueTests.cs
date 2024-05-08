@@ -7,7 +7,7 @@ namespace PostgresqlTests.Transport;
 public class PostgresqlQueueTests
 {
     private readonly PostgresqlTransport theTransport = new PostgresqlTransport();
-    
+
     [Fact]
     public void build_uri()
     {
@@ -22,7 +22,7 @@ public class PostgresqlQueueTests
         var queue = new PostgresqlQueue("one", theTransport);
         (queue is IDatabaseBackedEndpoint).ShouldBeTrue();
     }
-    
+
     [Fact]
     public void mode_can_be_durable_or_buffered()
     {

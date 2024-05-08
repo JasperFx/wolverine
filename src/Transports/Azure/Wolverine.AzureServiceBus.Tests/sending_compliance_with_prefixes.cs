@@ -20,7 +20,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
         var queueName = Guid.NewGuid().ToString();
         OutboundAddress = new Uri("asb://queue/foo." + queueName);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
@@ -56,5 +56,4 @@ public class PrefixedSendingAndReceivingCompliance : TransportCompliance<Prefixe
             .ShouldBeOfType<AzureServiceBusQueue>()
             .QueueName.ShouldStartWith("foo.");
     }
-
 }

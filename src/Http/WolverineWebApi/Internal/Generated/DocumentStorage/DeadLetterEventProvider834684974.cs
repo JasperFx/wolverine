@@ -29,7 +29,6 @@ namespace Marten.Generated.DocumentStorage
             _mapping = mapping;
         }
 
-
         public const string COMMAND_TEXT = "select http.mt_upsert_deadletterevent(?, ?, ?, ?)";
 
 
@@ -38,7 +37,6 @@ namespace Marten.Generated.DocumentStorage
             storeVersion();
         }
 
-
         public override System.Threading.Tasks.Task PostprocessAsync(System.Data.Common.DbDataReader reader, System.Collections.Generic.IList<System.Exception> exceptions, System.Threading.CancellationToken token)
         {
             storeVersion();
@@ -46,24 +44,20 @@ namespace Marten.Generated.DocumentStorage
             return System.Threading.Tasks.Task.CompletedTask;
         }
 
-
         public override Marten.Internal.Operations.OperationRole Role()
         {
             return Marten.Internal.Operations.OperationRole.Upsert;
         }
-
 
         public override string CommandText()
         {
             return COMMAND_TEXT;
         }
 
-
         public override NpgsqlTypes.NpgsqlDbType DbType()
         {
             return NpgsqlTypes.NpgsqlDbType.Uuid;
         }
-
 
         public override void ConfigureParameters(Npgsql.NpgsqlParameter[] parameters, Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session)
         {
@@ -76,7 +70,6 @@ namespace Marten.Generated.DocumentStorage
             parameters[2].Value = document.Id;
             setVersionParameter(parameters[3]);
         }
-
     }
 
     // END: UpsertDeadLetterEventOperation834684974
@@ -98,7 +91,6 @@ namespace Marten.Generated.DocumentStorage
             _mapping = mapping;
         }
 
-
         public const string COMMAND_TEXT = "select http.mt_insert_deadletterevent(?, ?, ?, ?)";
 
 
@@ -107,7 +99,6 @@ namespace Marten.Generated.DocumentStorage
             storeVersion();
         }
 
-
         public override System.Threading.Tasks.Task PostprocessAsync(System.Data.Common.DbDataReader reader, System.Collections.Generic.IList<System.Exception> exceptions, System.Threading.CancellationToken token)
         {
             storeVersion();
@@ -115,24 +106,20 @@ namespace Marten.Generated.DocumentStorage
             return System.Threading.Tasks.Task.CompletedTask;
         }
 
-
         public override Marten.Internal.Operations.OperationRole Role()
         {
             return Marten.Internal.Operations.OperationRole.Insert;
         }
-
 
         public override string CommandText()
         {
             return COMMAND_TEXT;
         }
 
-
         public override NpgsqlTypes.NpgsqlDbType DbType()
         {
             return NpgsqlTypes.NpgsqlDbType.Uuid;
         }
-
 
         public override void ConfigureParameters(Npgsql.NpgsqlParameter[] parameters, Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session)
         {
@@ -145,7 +132,6 @@ namespace Marten.Generated.DocumentStorage
             parameters[2].Value = document.Id;
             setVersionParameter(parameters[3]);
         }
-
     }
 
     // END: InsertDeadLetterEventOperation834684974
@@ -167,7 +153,6 @@ namespace Marten.Generated.DocumentStorage
             _mapping = mapping;
         }
 
-
         public const string COMMAND_TEXT = "select http.mt_update_deadletterevent(?, ?, ?, ?)";
 
 
@@ -177,31 +162,26 @@ namespace Marten.Generated.DocumentStorage
             postprocessUpdate(reader, exceptions);
         }
 
-
         public override async System.Threading.Tasks.Task PostprocessAsync(System.Data.Common.DbDataReader reader, System.Collections.Generic.IList<System.Exception> exceptions, System.Threading.CancellationToken token)
         {
             storeVersion();
             await postprocessUpdateAsync(reader, exceptions, token);
         }
 
-
         public override Marten.Internal.Operations.OperationRole Role()
         {
             return Marten.Internal.Operations.OperationRole.Update;
         }
-
 
         public override string CommandText()
         {
             return COMMAND_TEXT;
         }
 
-
         public override NpgsqlTypes.NpgsqlDbType DbType()
         {
             return NpgsqlTypes.NpgsqlDbType.Uuid;
         }
-
 
         public override void ConfigureParameters(Npgsql.NpgsqlParameter[] parameters, Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session)
         {
@@ -214,7 +194,6 @@ namespace Marten.Generated.DocumentStorage
             parameters[2].Value = document.Id;
             setVersionParameter(parameters[3]);
         }
-
     }
 
     // END: UpdateDeadLetterEventOperation834684974
@@ -232,8 +211,6 @@ namespace Marten.Generated.DocumentStorage
             _mapping = mapping;
         }
 
-
-
         public Marten.Events.Daemon.DeadLetterEvent Resolve(System.Data.Common.DbDataReader reader)
         {
 
@@ -242,7 +219,6 @@ namespace Marten.Generated.DocumentStorage
             return document;
         }
 
-
         public async System.Threading.Tasks.Task<Marten.Events.Daemon.DeadLetterEvent> ResolveAsync(System.Data.Common.DbDataReader reader, System.Threading.CancellationToken token)
         {
 
@@ -250,7 +226,6 @@ namespace Marten.Generated.DocumentStorage
             document = await _serializer.FromJsonAsync<Marten.Events.Daemon.DeadLetterEvent>(reader, 0, token).ConfigureAwait(false);
             return document;
         }
-
     }
 
     // END: QueryOnlyDeadLetterEventSelector834684974
@@ -268,8 +243,6 @@ namespace Marten.Generated.DocumentStorage
             _mapping = mapping;
         }
 
-
-
         public Marten.Events.Daemon.DeadLetterEvent Resolve(System.Data.Common.DbDataReader reader)
         {
             var id = reader.GetFieldValue<System.Guid>(0);
@@ -280,7 +253,6 @@ namespace Marten.Generated.DocumentStorage
             return document;
         }
 
-
         public async System.Threading.Tasks.Task<Marten.Events.Daemon.DeadLetterEvent> ResolveAsync(System.Data.Common.DbDataReader reader, System.Threading.CancellationToken token)
         {
             var id = await reader.GetFieldValueAsync<System.Guid>(0, token);
@@ -290,7 +262,6 @@ namespace Marten.Generated.DocumentStorage
             _session.MarkAsDocumentLoaded(id, document);
             return document;
         }
-
     }
 
     // END: LightweightDeadLetterEventSelector834684974
@@ -308,8 +279,6 @@ namespace Marten.Generated.DocumentStorage
             _mapping = mapping;
         }
 
-
-
         public Marten.Events.Daemon.DeadLetterEvent Resolve(System.Data.Common.DbDataReader reader)
         {
             var id = reader.GetFieldValue<System.Guid>(0);
@@ -322,7 +291,6 @@ namespace Marten.Generated.DocumentStorage
             return document;
         }
 
-
         public async System.Threading.Tasks.Task<Marten.Events.Daemon.DeadLetterEvent> ResolveAsync(System.Data.Common.DbDataReader reader, System.Threading.CancellationToken token)
         {
             var id = await reader.GetFieldValueAsync<System.Guid>(0, token);
@@ -334,7 +302,6 @@ namespace Marten.Generated.DocumentStorage
             _identityMap[id] = document;
             return document;
         }
-
     }
 
     // END: IdentityMapDeadLetterEventSelector834684974
@@ -352,8 +319,6 @@ namespace Marten.Generated.DocumentStorage
             _mapping = mapping;
         }
 
-
-
         public Marten.Events.Daemon.DeadLetterEvent Resolve(System.Data.Common.DbDataReader reader)
         {
             var id = reader.GetFieldValue<System.Guid>(0);
@@ -367,7 +332,6 @@ namespace Marten.Generated.DocumentStorage
             return document;
         }
 
-
         public async System.Threading.Tasks.Task<Marten.Events.Daemon.DeadLetterEvent> ResolveAsync(System.Data.Common.DbDataReader reader, System.Threading.CancellationToken token)
         {
             var id = await reader.GetFieldValueAsync<System.Guid>(0, token);
@@ -380,7 +344,6 @@ namespace Marten.Generated.DocumentStorage
             StoreTracker(_session, document);
             return document;
         }
-
     }
 
     // END: DirtyTrackingDeadLetterEventSelector834684974
@@ -396,14 +359,11 @@ namespace Marten.Generated.DocumentStorage
             _document = document;
         }
 
-
-
         public override System.Guid AssignIdentity(Marten.Events.Daemon.DeadLetterEvent document, string tenantId, Marten.Storage.IMartenDatabase database)
         {
             if (document.Id == Guid.Empty) _setter(document, Marten.Schema.Identity.CombGuidIdGeneration.NewGuid());
             return document.Id;
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation Update(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
@@ -417,7 +377,6 @@ namespace Marten.Generated.DocumentStorage
             );
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation Insert(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
 
@@ -429,7 +388,6 @@ namespace Marten.Generated.DocumentStorage
                 
             );
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation Upsert(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
@@ -443,24 +401,20 @@ namespace Marten.Generated.DocumentStorage
             );
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation Overwrite(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
             throw new System.NotSupportedException();
         }
-
 
         public override System.Guid Identity(Marten.Events.Daemon.DeadLetterEvent document)
         {
             return document.Id;
         }
 
-
         public override Marten.Linq.Selectors.ISelector BuildSelector(Marten.Internal.IMartenSession session)
         {
             return new Marten.Generated.DocumentStorage.QueryOnlyDeadLetterEventSelector834684974(session, _document);
         }
-
     }
 
     // END: QueryOnlyDeadLetterEventDocumentStorage834684974
@@ -476,14 +430,11 @@ namespace Marten.Generated.DocumentStorage
             _document = document;
         }
 
-
-
         public override System.Guid AssignIdentity(Marten.Events.Daemon.DeadLetterEvent document, string tenantId, Marten.Storage.IMartenDatabase database)
         {
             if (document.Id == Guid.Empty) _setter(document, Marten.Schema.Identity.CombGuidIdGeneration.NewGuid());
             return document.Id;
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation Update(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
@@ -497,7 +448,6 @@ namespace Marten.Generated.DocumentStorage
             );
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation Insert(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
 
@@ -509,7 +459,6 @@ namespace Marten.Generated.DocumentStorage
                 
             );
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation Upsert(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
@@ -523,24 +472,20 @@ namespace Marten.Generated.DocumentStorage
             );
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation Overwrite(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
             throw new System.NotSupportedException();
         }
-
 
         public override System.Guid Identity(Marten.Events.Daemon.DeadLetterEvent document)
         {
             return document.Id;
         }
 
-
         public override Marten.Linq.Selectors.ISelector BuildSelector(Marten.Internal.IMartenSession session)
         {
             return new Marten.Generated.DocumentStorage.LightweightDeadLetterEventSelector834684974(session, _document);
         }
-
     }
 
     // END: LightweightDeadLetterEventDocumentStorage834684974
@@ -556,14 +501,11 @@ namespace Marten.Generated.DocumentStorage
             _document = document;
         }
 
-
-
         public override System.Guid AssignIdentity(Marten.Events.Daemon.DeadLetterEvent document, string tenantId, Marten.Storage.IMartenDatabase database)
         {
             if (document.Id == Guid.Empty) _setter(document, Marten.Schema.Identity.CombGuidIdGeneration.NewGuid());
             return document.Id;
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation Update(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
@@ -577,7 +519,6 @@ namespace Marten.Generated.DocumentStorage
             );
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation Insert(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
 
@@ -589,7 +530,6 @@ namespace Marten.Generated.DocumentStorage
                 
             );
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation Upsert(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
@@ -603,24 +543,20 @@ namespace Marten.Generated.DocumentStorage
             );
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation Overwrite(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
             throw new System.NotSupportedException();
         }
-
 
         public override System.Guid Identity(Marten.Events.Daemon.DeadLetterEvent document)
         {
             return document.Id;
         }
 
-
         public override Marten.Linq.Selectors.ISelector BuildSelector(Marten.Internal.IMartenSession session)
         {
             return new Marten.Generated.DocumentStorage.IdentityMapDeadLetterEventSelector834684974(session, _document);
         }
-
     }
 
     // END: IdentityMapDeadLetterEventDocumentStorage834684974
@@ -636,14 +572,11 @@ namespace Marten.Generated.DocumentStorage
             _document = document;
         }
 
-
-
         public override System.Guid AssignIdentity(Marten.Events.Daemon.DeadLetterEvent document, string tenantId, Marten.Storage.IMartenDatabase database)
         {
             if (document.Id == Guid.Empty) _setter(document, Marten.Schema.Identity.CombGuidIdGeneration.NewGuid());
             return document.Id;
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation Update(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
@@ -657,7 +590,6 @@ namespace Marten.Generated.DocumentStorage
             );
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation Insert(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
 
@@ -669,7 +601,6 @@ namespace Marten.Generated.DocumentStorage
                 
             );
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation Upsert(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
@@ -683,24 +614,20 @@ namespace Marten.Generated.DocumentStorage
             );
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation Overwrite(Marten.Events.Daemon.DeadLetterEvent document, Marten.Internal.IMartenSession session, string tenant)
         {
             throw new System.NotSupportedException();
         }
-
 
         public override System.Guid Identity(Marten.Events.Daemon.DeadLetterEvent document)
         {
             return document.Id;
         }
 
-
         public override Marten.Linq.Selectors.ISelector BuildSelector(Marten.Internal.IMartenSession session)
         {
             return new Marten.Generated.DocumentStorage.DirtyTrackingDeadLetterEventSelector834684974(session, _document);
         }
-
     }
 
     // END: DirtyTrackingDeadLetterEventDocumentStorage834684974
@@ -715,7 +642,6 @@ namespace Marten.Generated.DocumentStorage
         {
             _storage = storage;
         }
-
 
         public const string MAIN_LOADER_SQL = "COPY http.mt_doc_deadletterevent(\"mt_dotnet_type\", \"id\", \"mt_version\", \"data\") FROM STDIN BINARY";
 
@@ -733,18 +659,15 @@ namespace Marten.Generated.DocumentStorage
             return CREATE_TEMP_TABLE_FOR_COPYING_SQL;
         }
 
-
         public override string CopyNewDocumentsFromTempTable()
         {
             return COPY_NEW_DOCUMENTS_SQL;
         }
 
-
         public override string OverwriteDuplicatesFromTempTable()
         {
             return OVERWRITE_SQL;
         }
-
 
         public override void LoadRow(Npgsql.NpgsqlBinaryImporter writer, Marten.Events.Daemon.DeadLetterEvent document, Marten.Storage.Tenant tenant, Marten.ISerializer serializer)
         {
@@ -754,7 +677,6 @@ namespace Marten.Generated.DocumentStorage
             writer.Write(serializer.ToJson(document), NpgsqlTypes.NpgsqlDbType.Jsonb);
         }
 
-
         public override async System.Threading.Tasks.Task LoadRowAsync(Npgsql.NpgsqlBinaryImporter writer, Marten.Events.Daemon.DeadLetterEvent document, Marten.Storage.Tenant tenant, Marten.ISerializer serializer, System.Threading.CancellationToken cancellation)
         {
             await writer.WriteAsync(document.GetType().FullName, NpgsqlTypes.NpgsqlDbType.Varchar, cancellation);
@@ -763,18 +685,15 @@ namespace Marten.Generated.DocumentStorage
             await writer.WriteAsync(serializer.ToJson(document), NpgsqlTypes.NpgsqlDbType.Jsonb, cancellation);
         }
 
-
         public override string MainLoaderSql()
         {
             return MAIN_LOADER_SQL;
         }
 
-
         public override string TempLoaderSql()
         {
             return TEMP_LOADER_SQL;
         }
-
     }
 
     // END: DeadLetterEventBulkLoader834684974
@@ -789,12 +708,7 @@ namespace Marten.Generated.DocumentStorage
         {
             _mapping = mapping;
         }
-
-
     }
 
     // END: DeadLetterEventProvider834684974
-    
-    
 }
-

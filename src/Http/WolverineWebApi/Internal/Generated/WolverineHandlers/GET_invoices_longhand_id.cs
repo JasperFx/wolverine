@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -38,11 +36,7 @@ namespace Internal.Generated.WolverineHandlers
 
             await result.ExecuteAsync(httpContext).ConfigureAwait(false);
         }
-
     }
 
     // END: GET_invoices_longhand_id
-    
-    
 }
-

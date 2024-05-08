@@ -159,7 +159,6 @@ public class remote_invocation : IAsyncLifetime
         response.Name.ShouldBe("Croaker");
     }
 
-
     [Fact]
     public async Task happy_path_with_explicit_uri_destination()
     {
@@ -169,7 +168,7 @@ public class remote_invocation : IAsyncLifetime
 
         Func<IMessageContext, Task> fetch = async c =>
             response = await c.EndpointFor(destination).InvokeAsync<Response1>(new Request1 { Name = "Croaker" });
-        
+
         var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver1, _receiver2)
             .Timeout(5.Seconds())
@@ -203,7 +202,6 @@ public class remote_invocation : IAsyncLifetime
         ex.Message.ShouldContain("Request failed");
         ex.Message.ShouldContain("System.Exception: You shall not pass!");
     }
-
 
     [Fact]
     public async Task timeout_with_auto_routing()
@@ -284,7 +282,7 @@ public class remote_invocation : IAsyncLifetime
                 .Timeout(5.Seconds())
                 .DoNotAssertOnExceptionsDetected()
                 // This message is rigged to fail
-                
+
                 .InvokeMessageAndWaitAsync(new Request2 { Name = "Limper" });
         });
 

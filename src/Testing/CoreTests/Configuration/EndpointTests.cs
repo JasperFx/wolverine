@@ -35,11 +35,9 @@ public class EndpointTests
     {
         var endpoint = new TestEndpoint(EndpointRole.System){IsListener = isListener, ListenerScope = scope};
         var settings = new DurabilitySettings { Mode = mode };
-        
+
         endpoint.ShouldAutoStartAsListener(settings).ShouldBe(shouldStart);
-
     }
-
 }
 
 public class TestEndpoint : Endpoint
@@ -59,7 +57,7 @@ public class TestEndpoint : Endpoint
     }
 
     public bool SupportsInlineListeners { get; set; }
-    
+
     protected override bool supportsMode(EndpointMode mode)
     {
         if (mode == EndpointMode.Inline) return SupportsInlineListeners;

@@ -10,12 +10,11 @@ public interface IMessageHandler
 
     [Obsolete("This name was misleading, use SuccessLogLevel instead")]
     LogLevel ExecutionLogLevel { get; }
-    
-    
+
     LogLevel SuccessLogLevel { get; }
 
     LogLevel ProcessingLogLevel { get; }
-    
+
     /// <summary>
     /// Is OpenTelemetry logging enabled for invoking this message type?
     /// </summary>

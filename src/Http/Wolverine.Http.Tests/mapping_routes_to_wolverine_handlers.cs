@@ -31,7 +31,6 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
             .Name.ShouldBe("two");
     }
 
-
     [Fact]
     public async Task map_delete_to_wolverine_handler()
     {
@@ -57,7 +56,6 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
         tracked.Sent.SingleMessage<CustomResponse>();
     }
 
-
     [Fact]
     public async Task map_put_with_request_response()
     {
@@ -70,7 +68,6 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
 
         tracked.Sent.SingleMessage<CustomResponse>();
     }
-
 
     [Fact]
     public async Task map_delete_with_request_response()

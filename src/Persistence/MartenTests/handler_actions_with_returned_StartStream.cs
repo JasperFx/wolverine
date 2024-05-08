@@ -54,9 +54,6 @@ public class handler_actions_with_returned_StartStream : PostgresqlContext, IAsy
         events[0].Data.ShouldBeOfType<AEvent>();
         events[1].Data.ShouldBeOfType<BEvent>();
     }
-    
-    
-
 }
 
 public class start_stream_by_string_from_return_value : PostgresqlContext, IAsyncLifetime
@@ -93,7 +90,7 @@ public class start_stream_by_string_from_return_value : PostgresqlContext, IAsyn
         await _host.StopAsync();
         _host.Dispose();
     }
-    
+
     [Fact]
     public async Task start_stream_by_string()
     {
@@ -118,7 +115,7 @@ public static class StartStreamMessageHandler
     {
         return MartenOps.StartStream<NamedDocument>(message.Id, new AEvent(), new BEvent());
     }
-    
+
     public static IStartStream Handle(StartStreamMessage2 message)
     {
         return MartenOps.StartStream<NamedDocument>(message.Id, new CEvent(), new BEvent());

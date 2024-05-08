@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             // Reading the request body via JSON deserialization
@@ -32,11 +30,9 @@ namespace Internal.Generated.WolverineHandlers
             // Writing the response body to JSON because this was the first 'return variable' in the method signature
             await WriteJsonAsync(httpContext, arithmeticResults_response);
         }
-
     }
 
     // END: POST_question
     
     
 }
-

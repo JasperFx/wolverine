@@ -65,7 +65,6 @@ public class TestMessageContextTests
             .Headers["a"].ShouldBe("1");
     }
 
-
     [Fact]
     public async Task publish_with_delivery_options()
     {
@@ -164,7 +163,7 @@ public class TestMessageContextTests
     {
         var response = new NumberResponse(11);
         theSpy.WhenInvokedMessageOf<NumberRequest>().RespondWith(response);
-        
+
         (await theContext.InvokeAsync<NumberResponse>(new NumberRequest(3, 4)))
             .ShouldBeSameAs(response);
     }
@@ -176,8 +175,8 @@ public class TestMessageContextTests
         {
             await theContext.InvokeAsync<NumberResponse>(new NumberRequest(3, 4));
         });
-            
-        ex.Message.ShouldStartWith("There is no matching expectation for the request message"); 
+
+        ex.Message.ShouldStartWith("There is no matching expectation for the request message");
     }
 
     [Fact]
@@ -187,30 +186,29 @@ public class TestMessageContextTests
         var response2 = new NumberResponse(12);
         theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 3).RespondWith(response1);
         theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 5).RespondWith(response2);
-        
+
         (await theContext.InvokeAsync<NumberResponse>(new NumberRequest(3, 4)))
             .ShouldBeSameAs(response1);
-        
+
         (await theContext.InvokeAsync<NumberResponse>(new NumberRequest(5, 4)))
             .ShouldBeSameAs(response2);
     }
-    
+
     [Fact]
     public async Task invoke_with_expected_response_and_filter_miss()
     {
         var response1 = new NumberResponse(11);
         theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 100).RespondWith(response1);
-        
+
         var ex = await Should.ThrowAsync<Exception>(async () =>
         {
             // This is a miss
             await theContext.InvokeAsync<NumberResponse>(new NumberRequest(3, 4));
         });
-            
-        ex.Message.ShouldStartWith("There is no matching expectation for the request message"); 
+
+        ex.Message.ShouldStartWith("There is no matching expectation for the request message");
     }
-    
-    
+
     [Fact]
     public async Task invoke_with_expected_response_no_filter_hit_to_endpoint_by_uri()
     {
@@ -218,12 +216,12 @@ public class TestMessageContextTests
         var response2 = new NumberResponse(12);
         var destination1 = new Uri("stub://one");
         theSpy.WhenInvokedMessageOf<NumberRequest>(destination:destination1).RespondWith(response1);
-        
+
         var destination2 = new Uri("stub://two");
         theSpy.WhenInvokedMessageOf<NumberRequest>(destination:destination2).RespondWith(response2);
 
         (await theContext.EndpointFor(destination1).InvokeAsync<NumberResponse>(new NumberRequest(4, 5))).ShouldBeSameAs(response1);
-        
+
         (await theContext.EndpointFor(destination2).InvokeAsync<NumberResponse>(new NumberRequest(4, 5))).ShouldBeSameAs(response2);
     }
 
@@ -233,14 +231,14 @@ public class TestMessageContextTests
         var response1 = new NumberResponse(11);
         var destination1 = new Uri("stub://one");
         theSpy.WhenInvokedMessageOf<NumberRequest>(destination:destination1).RespondWith(response1);
-        
+
         var ex = await Should.ThrowAsync<Exception>(async () =>
         {
             // This is a miss
             await theContext.EndpointFor(new Uri("stub://wrong")).InvokeAsync<NumberResponse>(new NumberRequest(3, 4));
         });
-            
-        ex.Message.ShouldStartWith("There is no matching expectation for the request message"); 
+
+        ex.Message.ShouldStartWith("There is no matching expectation for the request message");
     }
 
     [Fact]
@@ -249,39 +247,38 @@ public class TestMessageContextTests
         var response1 = new NumberResponse(11);
         var destination1 = new Uri("stub://one");
         theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 4,destination:destination1).RespondWith(response1);
-        
+
         (await theContext.EndpointFor(destination1).InvokeAsync<NumberResponse>(new NumberRequest(4, 5))).ShouldBeSameAs(response1);
     }
-    
+
     [Fact]
     public async Task invoke_with_expected_response_and_filter_miss_to_endpoint_by_uri()
     {
         var response1 = new NumberResponse(11);
         var destination1 = new Uri("stub://one");
         theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 4,destination:destination1).RespondWith(response1);
-        
+
         var ex = await Should.ThrowAsync<Exception>(async () =>
         {
             // This is a miss
             await theContext.EndpointFor(new Uri("stub://wrong")).InvokeAsync<NumberResponse>(new NumberRequest(4, 4));
         });
-            
-        ex.Message.ShouldStartWith("There is no matching expectation for the request message"); 
+
+        ex.Message.ShouldStartWith("There is no matching expectation for the request message");
 
     }
-    
-    
+
     [Fact]
     public async Task invoke_with_expected_response_no_filter_hit_to_endpoint_by_name()
     {
         var response1 = new NumberResponse(11);
         var response2 = new NumberResponse(12);
         theSpy.WhenInvokedMessageOf<NumberRequest>(endpointName:"one").RespondWith(response1);
-        
+
         theSpy.WhenInvokedMessageOf<NumberRequest>(endpointName:"two").RespondWith(response2);
 
         (await theContext.EndpointFor("one").InvokeAsync<NumberResponse>(new NumberRequest(4, 5))).ShouldBeSameAs(response1);
-        
+
         (await theContext.EndpointFor("two").InvokeAsync<NumberResponse>(new NumberRequest(4, 5))).ShouldBeSameAs(response2);
     }
 
@@ -290,14 +287,14 @@ public class TestMessageContextTests
     {
         var response1 = new NumberResponse(11);
         theSpy.WhenInvokedMessageOf<NumberRequest>(endpointName:"one").RespondWith(response1);
-        
+
         var ex = await Should.ThrowAsync<Exception>(async () =>
         {
             // This is a miss
             await theContext.EndpointFor("wrong").InvokeAsync<NumberResponse>(new NumberRequest(3, 4));
         });
-            
-        ex.Message.ShouldStartWith("There is no matching expectation for the request message"); 
+
+        ex.Message.ShouldStartWith("There is no matching expectation for the request message");
     }
 
     [Fact]
@@ -305,23 +302,23 @@ public class TestMessageContextTests
     {
         var response1 = new NumberResponse(11);
         theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 4,endpointName:"one").RespondWith(response1);
-        
+
         (await theContext.EndpointFor("one").InvokeAsync<NumberResponse>(new NumberRequest(4, 5))).ShouldBeSameAs(response1);
     }
-    
+
     [Fact]
     public async Task invoke_with_expected_response_and_filter_miss_to_endpoint_by_name()
     {
         var response1 = new NumberResponse(11);
         theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 4,endpointName:"one").RespondWith(response1);
-        
+
         var ex = await Should.ThrowAsync<Exception>(async () =>
         {
             // This is a miss
             await theContext.EndpointFor("wrong").InvokeAsync<NumberResponse>(new NumberRequest(4, 4));
         });
-            
-        ex.Message.ShouldStartWith("There is no matching expectation for the request message"); 
+
+        ex.Message.ShouldStartWith("There is no matching expectation for the request message");
     }
 
     public static async Task set_up_invoke_expectations()
@@ -330,14 +327,14 @@ public class TestMessageContextTests
 
         var spy = new TestMessageContext();
         var context = (IMessageContext)spy;
-        
+
         // Set up an expected response for a message
         spy.WhenInvokedMessageOf<NumberRequest>()
             .RespondWith(new NumberResponse(12));
-        
+
         // Used for:
         var response1 = await context.InvokeAsync<NumberResponse>(new NumberRequest(4, 5));
-        
+
         // Set up an expected response with a matching filter
         spy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 4)
             .RespondWith(new NumberResponse(12));
@@ -345,7 +342,7 @@ public class TestMessageContextTests
         // Set up an expected response for a message to an explicit destination Uri
         spy.WhenInvokedMessageOf<NumberRequest>(destination:new Uri("rabbitmq://queue/incoming"))
             .RespondWith(new NumberResponse(12));
-        
+
         // Used to set up:
         var response2 = await context.EndpointFor(new Uri("rabbitmq://queue/incoming"))
             .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));
@@ -353,7 +350,7 @@ public class TestMessageContextTests
         // Set up an expected response for a message to a named endpoint
         spy.WhenInvokedMessageOf<NumberRequest>(endpointName:"incoming")
             .RespondWith(new NumberResponse(12));
-        
+
         // Used to set up:
         var response3 = await context.EndpointFor("incoming")
             .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));

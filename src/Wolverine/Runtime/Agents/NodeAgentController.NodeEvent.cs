@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-public partial class NodeAgentController 
+public partial class NodeAgentController
 {
     // Do assignments one by one, agent by agent
     public async Task<AgentCommands> ApplyNodeEventAsync(NodeEvent @event)

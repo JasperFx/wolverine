@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -36,7 +34,6 @@ namespace Internal.Generated.WolverineHandlers
                 return;
             }
 
-
             // Reading the request body via JSON deserialization
             var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Samples.UpdateRequest>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
@@ -47,19 +44,15 @@ namespace Internal.Generated.WolverineHandlers
                 httpContext.Response.StatusCode = 404;
                 return;
             }
-
             
             // The actual HTTP request handler execution
             var storeDoc = WolverineWebApi.Samples.UpdateEndpoint.Put(id, request, todo);
 
             if (storeDoc != null)
             {
-                
                 // Placed by Wolverine's ISideEffect policy
                 storeDoc.Execute(documentSession);
-
             }
-
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
@@ -71,11 +64,9 @@ namespace Internal.Generated.WolverineHandlers
             // Wolverine automatically sets the status code to 204 for empty responses
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
-
     }
 
     // END: PUT_todos_id
     
     
 }
-

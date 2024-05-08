@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -36,11 +34,7 @@ namespace Internal.Generated.WolverineHandlers
 
             await Marten.AspNetCore.QueryableExtensions.WriteArray<WolverineWebApi.Marten.Invoice, System.Collections.Generic.IEnumerable<WolverineWebApi.Marten.Invoice>>(querySession, approvedInvoicedCompiledQuery, httpContext, "application/json", 200).ConfigureAwait(false);
         }
-
     }
 
     // END: GET_invoices_approved
-    
-    
 }
-

@@ -81,7 +81,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await buildAdditionalObjects();
     }
 
-
     public async Task DisposeAsync()
     {
         if (theReceiver != null)
@@ -141,7 +140,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await withContext(theSender, nested.GetInstance<IMessageContext>().As<MessageContext>(), action);
     }
 
-
     [Fact]
     public async Task<bool> CanScheduleJobDurably()
     {
@@ -161,7 +159,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
         return true;
     }
-
 
     [Fact]
     public async Task<bool> SendWithReceiverDown()

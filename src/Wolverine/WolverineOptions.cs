@@ -23,7 +23,7 @@ namespace Wolverine;
 public sealed partial class WolverineOptions
 {
     private readonly List<Action<WolverineOptions>> _lazyActions = new();
-    
+
     public WolverineOptions() : this(null)
     {
     }
@@ -60,12 +60,10 @@ public sealed partial class WolverineOptions
 
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
 
-
     /// <summary>
     ///     Configure or extend how Wolverine does the runtime (or build ahead time) code generation
     /// </summary>
     public GenerationRules CodeGeneration { get; }
-
 
     /// <summary>
     ///     Configure how & where Wolverine discovers message handler classes and message types to override or expand
@@ -176,10 +174,10 @@ public sealed partial class WolverineOptions
     {
         return Discovery.DescribeHandlerMatch(this, handlerType);
     }
-    
+
     /// <summary>
     /// Apply a change to this WolverineOptions after all other explicit configurations
-    /// are processed. Generally to avoid ordering issues 
+    /// are processed. Generally to avoid ordering issues
     /// </summary>
     /// <param name="action"></param>
     public void ConfigureLazily(Action<WolverineOptions> action)
@@ -193,7 +191,7 @@ public sealed partial class WolverineOptions
         {
             action(this);
         }
-        
+
         _lazyActions.Clear();
     }
 }

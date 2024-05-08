@@ -34,7 +34,7 @@ public class MqttListenerConfiguration : ListenerConfiguration<MqttListenerConfi
         add(e => e.QualityOfServiceLevel = serviceLevel);
         return this;
     }
-    
+
     /// <summary>
     /// Use a custom interoperability strategy to map Wolverine messages to an upstream
     /// system's protocol

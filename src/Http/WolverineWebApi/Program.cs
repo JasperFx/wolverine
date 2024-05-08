@@ -72,11 +72,10 @@ builder.Host.UseWolverine(opts =>
 
     opts.UseFluentValidation();
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
-    
+
     opts.OptimizeArtifactWorkflow();
-    
+
     opts.Policies.Add<BroadcastClientMessages>();
-    
 });
 
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
@@ -126,13 +125,13 @@ app.MapWolverineAdminApiEndpoints();
 
 #region sample_register_dead_letter_endpoints
 app.MapDeadLettersEndpoints()
-    
+
     // It's a Minimal API endpoint group,
     // so you can add whatever authorization
     // or OpenAPI metadata configuration you need
     // for just these endpoints
     //.RequireAuthorization("Admin")
-    
+
     ;
 #endregion
 
@@ -150,19 +149,19 @@ app.MapWolverineEndpoints(opts =>
         // This adds metadata for OpenAPI
         httpChain.WithMetadata(new CustomMetadata());
     });
-    
+
     // more configuration for HTTP...
-    
+
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
 
     #endregion
-    
+
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
-    
+
 #region sample_user_marten_compiled_query_policy
     opts.UseMartenCompiledQueryResultPolicy();
 #endregion
@@ -176,7 +175,7 @@ app.MapWolverineEndpoints(opts =>
     opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
 #endregion
 
-    // Publish messages coming from 
+    // Publish messages coming from
     opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1").WithTags("messages");
     opts.PublishMessage<HttpMessage2>("/publish/message2").WithTags("messages");
     opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5").WithTags("messages");

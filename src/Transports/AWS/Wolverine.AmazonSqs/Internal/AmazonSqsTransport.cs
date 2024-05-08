@@ -34,7 +34,6 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     internal IAmazonSQS? Client { get; private set; }
 
-
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }

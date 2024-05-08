@@ -11,7 +11,7 @@ public static class OutgoingMessageHandler
     public static OutgoingMessages Handle(Incoming incoming)
     {
         // You can use collection initializers for OutgoingMessages in C#
-        // as a shorthand. 
+        // as a shorthand.
         var messages = new OutgoingMessages
         {
             new Message1(),
@@ -40,14 +40,14 @@ public static class OutgoingMessageHandler
     {
         // Delay the message delivery by 10 minutes
         yield return new Message1().DelayedFor(10.Minutes());
-        
+
         // Schedule the message delivery for a certain time
         yield return new Message2().ScheduledAt(new DateTimeOffset(DateTime.Today.AddDays(2)));
-        
+
         // Customize the message delivery however you please...
         yield return new Message3()
             .WithDeliveryOptions(new DeliveryOptions().WithHeader("foo", "bar"));
-        
+
         // Send back to the original sender
         yield return Respond.ToSender(new Message4());
     }

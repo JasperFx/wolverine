@@ -13,18 +13,13 @@ namespace Internal.Generated.WolverineHandlers
             var dataHandler = new WolverineWebApi.DataHandler();
             // The actual message body
             var data = (WolverineWebApi.Data)context.Envelope.Message;
-
             
             // The actual message execution
             dataHandler.Handle(data);
 
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: DataHandler620835457
-    
-    
 }
-

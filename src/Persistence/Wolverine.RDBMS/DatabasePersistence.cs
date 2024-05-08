@@ -114,15 +114,15 @@ public static class DatabasePersistence
 
 
         return new DeadLetterEnvelope(
-            id, 
-            executionTime, 
-            envelope, 
-            messageType, 
-            receivedAt, 
-            source, 
-            exceptionType, 
-            exceptionMessage, 
-            sentAt, 
+            id,
+            executionTime,
+            envelope,
+            messageType,
+            receivedAt,
+            source,
+            exceptionType,
+            exceptionMessage,
+            sentAt,
             replayable
         );
     }

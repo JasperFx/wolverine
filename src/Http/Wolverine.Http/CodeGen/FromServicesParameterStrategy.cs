@@ -18,7 +18,6 @@ internal class FromServicesParameterStrategy : IParameterStrategy
             return true;
         }
 
-
         return false;
     }
 }

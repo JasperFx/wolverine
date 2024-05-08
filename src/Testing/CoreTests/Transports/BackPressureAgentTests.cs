@@ -48,7 +48,6 @@ public class BackPressureAgentTests
         theListeningAgent.DidNotReceive().StartAsync();
     }
 
-
     [Fact]
     public void stop_receiving_accepting_over_the_threshold()
     {
@@ -60,7 +59,6 @@ public class BackPressureAgentTests
         theListeningAgent.Received().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.DidNotReceive().StartAsync();
     }
-
 
     [Fact]
     public void do_nothing_when_too_busy_and_over_the_restart_limit()
@@ -85,7 +83,6 @@ public class BackPressureAgentTests
         theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
         theListeningAgent.Received().StartAsync();
     }
-
 
     [Fact]
     public void restart_when_too_busy_but_below_the_restart_threshold()

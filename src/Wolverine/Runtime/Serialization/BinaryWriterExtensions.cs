@@ -15,7 +15,6 @@ internal static class BinaryWriterExtensions
         count++;
     }
 
-
     public static void WriteProp(this BinaryWriter writer, ref int count, string key, int value)
     {
         if (value > 0)

@@ -40,7 +40,7 @@ public class Bootstrapping
                     // Let Wolverine create missing queues as necessary
                     .AutoProvision()
 
-                    // Optionally purge all queues on application startup. 
+                    // Optionally purge all queues on application startup.
                     // Warning though, this is potentially slow
                     .AutoPurgeOnStartup();
             }).StartAsync();
@@ -67,7 +67,7 @@ public class Bootstrapping
                     // Let Wolverine create missing queues as necessary
                     .AutoProvision()
 
-                    // Optionally purge all queues on application startup. 
+                    // Optionally purge all queues on application startup.
                     // Warning though, this is potentially slow
                     .AutoPurgeOnStartup();
             }).StartAsync();
@@ -91,13 +91,13 @@ public class Bootstrapping
                         // that you may need to configure
                     })
 
-                    // And you can also add explicit AWS credentials 
+                    // And you can also add explicit AWS credentials
                     .Credentials(new BasicAWSCredentials(config["AwsAccessKey"], config["AwsSecretKey"]))
 
                     // Let Wolverine create missing queues as necessary
                     .AutoProvision()
 
-                    // Optionally purge all queues on application startup. 
+                    // Optionally purge all queues on application startup.
                     // Warning though, this is potentially slow
                     .AutoPurgeOnStartup();
             }).StartAsync();
@@ -117,7 +117,7 @@ public class Bootstrapping
                     // Let Wolverine create missing queues as necessary
                     .AutoProvision()
 
-                    // Optionally purge all queues on application startup. 
+                    // Optionally purge all queues on application startup.
                     // Warning though, this is potentially slow
                     .AutoPurgeOnStartup();
 
@@ -148,9 +148,9 @@ public class Bootstrapping
 
                 opts.PublishMessage<Message1>()
                     .ToSqsQueue("outbound1")
-                    
+
                     // Increase the outgoing message throughput, but at the cost
-                    // of strict ordering 
+                    // of strict ordering
                     .MessageBatchMaxDegreeOfParallelism(Environment.ProcessorCount);
 
 
@@ -191,7 +191,7 @@ public class Bootstrapping
                 // No dead letter queueing
                 opts.ListenToSqsQueue("incoming")
                     .DisableDeadLetterQueueing();
-                
+
                 // Use a different dead letter queue
                 opts.ListenToSqsQueue("important")
                     .ConfigureDeadLetterQueue("important_errors", q =>
@@ -216,8 +216,8 @@ public class Bootstrapping
 
                 opts.ListenToSqsQueue("incoming").ReceiveRawJsonMessage(
                     // Specify the single message type for this queue
-                    typeof(Message1), 
-                    
+                    typeof(Message1),
+
                     // Optionally customize System.Text.Json configuration
                     o =>
                     {
@@ -239,8 +239,8 @@ public class Bootstrapping
 
                 opts.PublishAllMessages().ToSqsQueue("outgoing").SendRawJsonMessage(
                     // Specify the single message type for this queue
-                    typeof(Message1), 
-                    
+                    typeof(Message1),
+
                     // Optionally customize System.Text.Json configuration
                     o =>
                     {

@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -35,7 +33,6 @@ namespace Internal.Generated.WolverineHandlers
                 httpContext.Response.StatusCode = 404;
                 return;
             }
-
 
             var invoice = await documentSession.LoadAsync<WolverineWebApi.Marten.Invoice>(id, httpContext.RequestAborted).ConfigureAwait(false);
             
@@ -53,11 +50,7 @@ namespace Internal.Generated.WolverineHandlers
             // Writing the response body to JSON because this was the first 'return variable' in the method signature
             await WriteJsonAsync(httpContext, invoice_response);
         }
-
     }
 
     // END: GET_invoices_id
-    
-    
 }
-

@@ -26,24 +26,24 @@ public class end_to_end : IAsyncLifetime
                 opts.PublishMessage<AsbMessage1>().ToAzureServiceBusQueue("send_and_receive");
 
                 opts.ListenToAzureServiceBusQueue("fifo1")
-                    
+
                     // Require session identifiers with this queue
                     .RequireSessions()
-                    
+
                     // This controls the Wolverine handling to force it to process
                     // messages sequentially
                     .Sequential();
-                
+
                 opts.PublishMessage<AsbMessage2>()
                     .ToAzureServiceBusQueue("fifo1");
 
                 opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3");
                 opts.ListenToAzureServiceBusSubscription("asb3")
                     .FromTopic("asb3")
-                    
+
                     // Require sessions on this subscription
                     .RequireSessions(1)
-                    
+
                     .ProcessInline();
             }).StartAsync();
 
@@ -54,8 +54,7 @@ public class end_to_end : IAsyncLifetime
     {
         return _host.StopAsync();
     }
-    
-    
+
     [Fact]
     public void builds_response_and_retry_queue_by_default()
     {
@@ -64,7 +63,7 @@ public class end_to_end : IAsyncLifetime
             .Endpoints()
             .Where(x => x.Role == EndpointRole.System)
             .OfType<AzureServiceBusQueue>().ToArray();
-        
+
         endpoints.ShouldContain(x => x.QueueName.StartsWith("wolverine.response."));
         endpoints.ShouldContain(x => x.QueueName.StartsWith("wolverine.retries."));
     }
@@ -87,14 +86,14 @@ public class end_to_end : IAsyncLifetime
             }).StartAsync();
 
         #endregion
-        
+
         var transport = host.GetRuntime().Options.Transports.GetOrCreate<AzureServiceBusTransport>();
-        
+
         var endpoints = transport
             .Endpoints()
             .Where(x => x.Role == EndpointRole.System)
             .OfType<AzureServiceBusQueue>().ToArray();
-        
+
         endpoints.Any().ShouldBeFalse();
 
     }
@@ -168,12 +167,12 @@ public static class AsbMessageHandler
     {
         // nothing
     }
-    
+
     public static void Handle(AsbMessage2 message)
     {
         // nothing
     }
-    
+
     public static void Handle(AsbMessage3 message)
     {
         // nothing

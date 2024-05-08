@@ -29,7 +29,7 @@ internal class LoadAggregateFrame<T> : AsyncFrame where T : class
 
         _att = att;
     }
-    
+
     public Variable EventStream { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -40,7 +40,7 @@ internal class LoadAggregateFrame<T> : AsyncFrame where T : class
         writer.Write($"await {typeof(Results).FullNameInCode()}.{nameof(Results.NotFound)}().{nameof(IResult.ExecuteAsync)}(httpContext);");
         writer.Write("return;");
         writer.FinishBlock();
-        
+
         Next?.GenerateCode(method, writer);
     }
 
@@ -59,8 +59,5 @@ internal class LoadAggregateFrame<T> : AsyncFrame where T : class
             _version = _att.VersionVariable;
             yield return _version;
         }
-
-        
     }
-
 }

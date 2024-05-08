@@ -20,11 +20,9 @@ namespace Internal.Generated.WolverineHandlers
 
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: ItemCreatedHandler1524072513
     
     
 }
-

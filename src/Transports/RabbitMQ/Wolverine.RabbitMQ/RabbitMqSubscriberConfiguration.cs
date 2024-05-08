@@ -32,7 +32,7 @@ public class
         add(e => e.UseNServiceBusInterop());
         return this;
     }
-    
+
     /// <summary>
     /// Use a custom interoperability strategy to map Wolverine messages to an upstream
     /// system's protocol

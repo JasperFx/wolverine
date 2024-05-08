@@ -32,13 +32,12 @@ public class BootstrappingTests : IntegrationContext
         var container = (IContainer)Host.Services;
         container.Model.For<WolverineSupplementalCodeFiles>()
             .Default.Lifetime.ShouldBe(ServiceLifetime.Singleton);
-        
+
         container.GetAllInstances<ICodeFileCollection>()
             .OfType<WolverineSupplementalCodeFiles>()
             .Any()
             .ShouldBeTrue();
     }
-
 
     [Fact]
     public void can_apply_a_wrapper_to_all_chains()
@@ -117,7 +116,6 @@ public class BootstrappingTests : IntegrationContext
         Host.Get(serviceType)
             .ShouldNotBeNull();
     }
-    
 
     [Fact]
     public void handler_graph_already_has_the_scheduled_send_handler()
@@ -136,7 +134,6 @@ public class BootstrappingTests : IntegrationContext
 
         public IMessageContext Context { get; }
     }
-
 
     public class AppsModuleService : IModuleService;
 

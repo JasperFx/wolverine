@@ -36,7 +36,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         return thePersistence.Admin.ClearAllAsync();
     }
 
-
     [Fact]
     public async Task delete_a_single_outgoing_envelope()
     {
@@ -312,7 +311,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         counts.Outgoing.ShouldBe(3);
     }
 
-
     [Fact]
     public async Task increment_the_attempt_count_of_incoming_envelope()
     {
@@ -355,7 +353,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, ex);
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
-        
+
 
         var stored = await thePersistence.DeadLetters.DeadLetterEnvelopeByIdAsync(report2.Id);
 
@@ -444,7 +442,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
     }
 
-
     [Fact]
     public async Task query_dead_letter_envelopes_with_start_id()
     {
@@ -455,7 +452,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             var envelope = ObjectMother.Envelope();
             envelope.Id = Guid.Parse($"00000000-0000-0000-0000-00000000000{i}");
             envelope.Status = EnvelopeStatus.Incoming;
-            
+
 
             list.Add(envelope);
         }
@@ -486,7 +483,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         result.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
         result.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
     }
-
 
     [Fact]
     public async Task query_dead_letter_envelopes_with_from_and_until()
@@ -560,8 +556,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
 
         stored.DeadLetterEnvelopes.Count.ShouldBe(2);
     }
-
-
 
     [Fact]
     public async Task move_to_dead_letter_storage()
@@ -656,7 +650,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
         envelope.ScheduledTime = DateTimeOffset.Now;
-        
+
         await thePersistence.Inbox.StoreIncomingAsync(envelope);
         await thePersistence.Inbox.ScheduleExecutionAsync(envelope);
 
@@ -665,7 +659,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             NullLogger.Instance,
             durabilitySettings,
             default);
-        
+
         var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
 
         stored.OwnerId.ShouldBe(durabilitySettings.AssignedNodeNumber);
@@ -754,7 +748,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         stored.Each(x => x.OwnerId.ShouldBe(111));
     }
 
-
     [Fact]
     public async Task load_incoming_counts()
     {
@@ -768,7 +761,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         {
             var envelope = ObjectMother.Envelope();
             envelope.Destination = TransportConstants.DurableLocalUri;
-            
+
             list.Add(envelope);
 
             if (random.Next(0, 10) > 6)
@@ -807,7 +800,7 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
         var counts1 = await settings.LoadPageOfGloballyOwnedIncomingAsync(localOne, 1000);
         var counts2 = await settings.LoadPageOfGloballyOwnedIncomingAsync(localTwo, 1000);
 
-        
+
         counts1.Count.ShouldBe(list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localOne));
@@ -816,7 +809,6 @@ public class SqlServerMessageStoreTests : SqlServerBackedListenerContext, IDispo
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localTwo));
     }
-
 
     [Fact]
     public async Task fetch_incoming_by_owner_and_address()

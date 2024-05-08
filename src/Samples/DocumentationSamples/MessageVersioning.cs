@@ -128,7 +128,6 @@ namespace DocumentationSamples
         #endregion
     }
 
-
     public class MyCustomWriter : IMessageSerializer
     {
         public Type DotNetType { get; }

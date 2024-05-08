@@ -12,7 +12,7 @@ public class Bug_263_returning_string_from_middleware_method
             .UseWolverine().StartAsync();
 
         await host.InvokeAsync(new Bug263("Tom"));
-        
+
         TupleHandler.Received.ShouldBe("Tom:1");
     }
 }

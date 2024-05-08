@@ -61,7 +61,6 @@ public static class WireProtocol
         }
     }
 
-
     public static async Task ReceiveAsync(IListener listener, ILogger logger, Stream stream, IReceiver callback)
     {
         Envelope[]? messages;

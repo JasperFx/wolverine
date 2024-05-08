@@ -12,7 +12,7 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
     private ImHashMap<string, IPostgresqlQueueSender> _byDatabase = ImHashMap<string, IPostgresqlQueueSender>.Empty;
     private readonly SemaphoreSlim _lock = new(1);
     private readonly CancellationTokenSource _cancellation = new();
-    
+
     public MultiTenantedQueueSender(PostgresqlQueue queue, MultiTenantedMessageDatabase databases)
     {
         _queue = queue;
@@ -68,7 +68,7 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
                 sender = new PostgresqlQueueSender(_queue, (NpgsqlDataSource)database.DataSource, database.Name);
                 _byDatabase = _byDatabase.AddOrUpdate(database.Name, sender);
             }
-            
+
             _byDatabase = _byDatabase.AddOrUpdate(envelope.TenantId, sender);
         }
         finally

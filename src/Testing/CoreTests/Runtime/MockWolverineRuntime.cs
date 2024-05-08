@@ -92,7 +92,6 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
 
     public void AssertHasStarted()
     {
-
     }
 
     public IAgentRuntime Agents { get; } = Substitute.For<IAgentRuntime>();
@@ -143,7 +142,6 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
         return new MessageContext(this);
     }
 
-
     public void AddListener(Endpoint endpoint, IListener agent)
     {
     }
@@ -157,7 +155,6 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     {
         throw new NotImplementedException();
     }
-
 
     public void Dispose()
     {

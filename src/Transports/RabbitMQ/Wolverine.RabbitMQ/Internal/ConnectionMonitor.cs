@@ -23,17 +23,17 @@ internal class ConnectionMonitor : IDisposable, IConnectionMonitor
     private readonly ILogger<RabbitMqTransport> _logger;
     private readonly List<RabbitMqChannelAgent> _agents = new();
     private IConnection? _connection;
-    
+
     public ConnectionMonitor(RabbitMqTransport transport, ConnectionRole role)
     {
         _transport = transport;
         Role = role;
         _logger = transport.Logger;
-        
+
         _connection = transport.AmqpTcpEndpoints.Any()
             ? transport.ConnectionFactory.CreateConnection(transport.AmqpTcpEndpoints)
             : transport.ConnectionFactory.CreateConnection();
-        
+
         _connection.ConnectionShutdown += connectionOnConnectionShutdown;
         _connection.ConnectionUnblocked += connectionOnConnectionUnblocked;
         _connection.ConnectionBlocked += connectionOnConnectionBlocked;
@@ -43,12 +43,12 @@ internal class ConnectionMonitor : IDisposable, IConnectionMonitor
     public IModel CreateModel()
     {
         if (_connection == null) throw new InvalidOperationException("The connection is not initialized");
-        
+
         return _connection!.CreateModel();
     }
 
     public ConnectionRole Role { get; }
-    
+
     public void Dispose()
     {
         try
@@ -58,7 +58,7 @@ internal class ConnectionMonitor : IDisposable, IConnectionMonitor
         catch (ObjectDisposedException)
         {
         }
-        
+
         _connection?.SafeDispose();
     }
 
@@ -66,7 +66,7 @@ internal class ConnectionMonitor : IDisposable, IConnectionMonitor
     {
         _agents.Add(agent);
     }
-    
+
     private void connectionOnCallbackException(object? sender, CallbackExceptionEventArgs e)
     {
         if (e.Exception != null)

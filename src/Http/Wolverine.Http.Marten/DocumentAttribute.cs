@@ -30,7 +30,7 @@ public class DocumentAttribute : HttpChainParameterAttribute
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
     {
         chain.Metadata.Produces(404);
-        
+
         var store = container.GetInstance<IDocumentStore>();
         var documentType = parameter.ParameterType;
         var mapping = store.Options.FindOrResolveDocumentType(documentType);
@@ -43,12 +43,12 @@ public class DocumentAttribute : HttpChainParameterAttribute
 
         var load = new MethodCall(typeof(IDocumentSession), loader.MakeGenericMethod(documentType));
         load.Arguments[0] = argument;
-        
+
         chain.Middleware.Add(load);
 
         return load.ReturnVariable;
     }
-    
+
     public Variable? FindRouteVariable(Type idType, Type documentType, HttpChain chain)
     {
         if (RouteArgumentName.IsNotEmpty())
@@ -63,7 +63,7 @@ public class DocumentAttribute : HttpChainParameterAttribute
         {
             return v2;
         }
-        
+
         if (chain.FindRouteVariable(idType, "id", out var v3))
         {
             return v3;

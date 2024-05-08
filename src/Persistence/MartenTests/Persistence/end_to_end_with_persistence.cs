@@ -76,7 +76,6 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
         theReceiver?.Dispose();
     }
 
-
     [Fact]
     public async Task delete_all_persisted_envelopes()
     {
@@ -121,7 +120,6 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
                 Thread.Sleep(500);
                 item2 = session.Load<ItemCreated>(item.Id);
             }
-
 
             item2.Name.ShouldBe("Shoe");
         }

@@ -82,7 +82,6 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
         foreach (var host in _receivers.Values) host.Dispose();
     }
 
-
     public async Task InitializeAsync()
     {
         using var sender = await Host.CreateDefaultBuilder()
@@ -97,7 +96,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
         await sender.ResetResourceState();
 
         await _storage.ClearMessageRecords((IContainer)sender.Services);
-        
+
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -129,7 +128,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
         {
             bus.TenantId = "tenant3";
         }
-        
+
         var task = Task.Factory.StartNew(async () =>
         {
             _output.WriteLine($"Starting to continuously send messages from node {name} in batches of {batchSize}");
@@ -160,7 +159,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
         {
             bus.TenantId = "tenant3";
         }
-        
+
         while (number > 0)
         {
             if (number > 100)

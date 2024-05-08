@@ -20,7 +20,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         var number = Guid.NewGuid().ToString();
 
         OutboundAddress = new Uri("sqs://receiver-" + number);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAmazonSqsTransportLocally()

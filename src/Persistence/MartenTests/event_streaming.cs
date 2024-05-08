@@ -65,7 +65,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
 
                     x.ToPort(receiverPort).UseDurableOutbox();
                 });
-                
+
                 opts.DisableConventionalDiscovery().IncludeType<TriggerHandler>();
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.ServiceName = "sender";
@@ -81,7 +81,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
                     {
                         opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
                     });
-                
+
                 services.AddResourceSetupOnStartup();
             }).StartAsync();
 
@@ -92,7 +92,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
     {
         await theReceiver.StopAsync();
         await theSender.StopAsync();
-        
+
         theReceiver.Dispose();
         theSender.Dispose();
     }
@@ -112,7 +112,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
 
         runtime.RoutingFor(typeof(IEvent<FifthEvent>)).Routes.Single().ShouldBeOfType<MessageRoute>()
             .IsLocal.ShouldBeTrue();
-        
+
         var routes = runtime.RoutingFor(typeof(FakeEvent<FifthEvent>)).Routes;
         routes.Single().ShouldBeOfType<MessageRoute>().MessageType.ShouldBe(typeof(IEvent<FifthEvent>));
     }
@@ -127,12 +127,12 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         var triggered = results.Received.SingleMessage<TriggeredEvent>();
         triggered.ShouldNotBeNull();
         triggered.Id.ShouldBe(command.Id);
-        
+
         results.Received.SingleMessage<SecondMessage>()
             .Sequence.ShouldBeGreaterThan(0);
 
         results.Executed.SingleMessage<ThirdEvent>().ShouldNotBeNull();
-        
+
         // Can also use IEvent<T> as your handler type!!!
         results.Executed.SingleMessage<IEvent<FifthEvent>>().ShouldNotBeNull();
     }
@@ -148,7 +148,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
                 services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine().EventForwardingToWolverine(opts =>
                     {
-                        opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => 
+                        opts.SubscribeToEvent<SecondEvent>().TransformedTo(e =>
                             new SecondMessage(e.StreamId, e.Sequence));
                     });
             }).StartAsync();
@@ -158,7 +158,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         {
             session.Events.Append(aggregateId, new SecondEvent());
         }, 100_000);
-        
+
         using var store = host.Services.GetRequiredService<IDocumentStore>();
         await using var session = store.LightweightSession();
         var events = await session.Events.FetchStreamAsync(aggregateId);
@@ -168,7 +168,6 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
     }
     #endregion
 }
-
 
 public class TriggerCommand
 {
@@ -189,7 +188,6 @@ public class TriggerHandler
 
     public void Handle(IEvent<FifthEvent> e)
     {
-        
     }
 }
 
@@ -224,7 +222,6 @@ public class TriggerEventHandler
     }
     #endregion
 }
-
 
 public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogger
 {
@@ -315,7 +312,7 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
             foreach (var p in command.Parameters.OfType<NpgsqlParameter>())
                 _output.WriteLine($"  {p.ParameterName}: {p.Value}");
         }
-        
+
         _output.WriteLine(ex.ToString());
     }
 

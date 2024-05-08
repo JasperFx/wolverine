@@ -25,7 +25,7 @@ public class DatabaseBatcher : IAsyncDisposable
         _runtime = runtime;
 
         _internalCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        
+
         _executingBlock = new ActionBlock<IDatabaseOperation[]>(processOperationsAsync,
             new ExecutionDataflowBlockOptions
             {
@@ -40,7 +40,6 @@ public class DatabaseBatcher : IAsyncDisposable
 
         _executor = new Lazy<IExecutor>(() => runtime.As<IExecutorFactory>().BuildFor(typeof(DatabaseOperationBatch)));
     }
-
 
     public ValueTask DisposeAsync()
     {
@@ -62,7 +61,7 @@ public class DatabaseBatcher : IAsyncDisposable
     private async Task processOperationsAsync(IDatabaseOperation[] operations)
     {
         if (_internalCancellation.Token.IsCancellationRequested) return;
-        
+
         try
         {
             await _executor.Value.InvokeAsync(new DatabaseOperationBatch(_database, operations),
@@ -71,7 +70,7 @@ public class DatabaseBatcher : IAsyncDisposable
         catch (Exception e)
         {
             if (_internalCancellation.Token.IsCancellationRequested) return;
-            
+
             _logger.LogError(e, "Error running database operations {Operations} against message database {Database}",
                 operations.Select(x => x.Description).Join(", "), _database);
         }
@@ -80,7 +79,7 @@ public class DatabaseBatcher : IAsyncDisposable
     public async Task DrainAsync()
     {
         _internalCancellation.Cancel();
-        
+
         _batchingBlock.Complete();
         await _batchingBlock.Completion;
 

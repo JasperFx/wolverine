@@ -106,7 +106,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public void Initialize(IWolverineRuntime runtime)
     {
-
     }
 
     public bool HasDisposed { get; set; }
@@ -211,7 +210,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     {
         throw new NotSupportedException();
     }
-
 
     public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
     {

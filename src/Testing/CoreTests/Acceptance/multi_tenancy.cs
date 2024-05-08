@@ -35,7 +35,7 @@ public class multi_tenancy : IAsyncLifetime
         {
             await c.InvokeForTenantAsync("foo", new TenantedMessage1(id));
         });
-        
+
         tracked.Executed.SingleEnvelope<TenantedMessage1>().TenantId.ShouldBe("foo");
         tracked.Executed.SingleEnvelope<TenantedMessage2>().TenantId.ShouldBe("foo");
         tracked.Executed.SingleEnvelope<TenantedMessage3>().TenantId.ShouldBe("foo");
@@ -65,7 +65,6 @@ public class TenantedMessageTracker
     public readonly Dictionary<Guid, string> TrackedOne = new();
     public readonly Dictionary<Guid, string> TrackedTwo = new();
     public readonly Dictionary<Guid, string> TrackedThree = new();
-    
 }
 
 public record TenantedMessage1(Guid Id);

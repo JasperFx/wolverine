@@ -28,7 +28,7 @@ public class DatabaseBatchCommandException : Exception
         {
             Debug.WriteLine("Stop");
         }
-        
+
         message += command.CommandText;
         foreach (DbParameter parameter in command.Parameters)
             message += $"\n{parameter.ParameterName}: {parameter.Value}";
@@ -52,7 +52,7 @@ internal class DatabaseOperationBatch : IAgentCommand
         CancellationToken cancellationToken)
     {
         if (_operations.Length == 0) return AgentCommands.Empty;
-        
+
         var builder = _database.ToCommandBuilder();
         foreach (var operation in _operations) operation.ConfigureCommand(builder);
 

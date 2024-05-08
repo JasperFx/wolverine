@@ -82,7 +82,6 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         return typeof(TChain).CanBeCastTo(parameters.Single().ParameterType);
     }
 
-
     protected void applyAuditAttributes(Type type)
     {
         foreach (var property in type.GetProperties())
@@ -101,7 +100,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             }
         }
     }
-    
+
     protected void applyAttributesAndConfigureMethods(GenerationRules rules, IContainer container)
     {
         var handlers = HandlerCalls();
@@ -130,7 +129,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     private IEnumerable<Type> serviceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes)
     {
         var calls = Middleware.OfType<MethodCall>().Concat(HandlerCalls());
-        
+
         foreach (var call in calls)
         {
             yield return call.HandlerType;

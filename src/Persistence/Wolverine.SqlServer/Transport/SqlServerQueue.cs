@@ -36,12 +36,12 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         Mode = EndpointMode.Durable;
         Name = name;
         EndpointName = name;
-        
+
         QueueTable = new QueueTable(Parent.Settings, _queueTableName);
         ScheduledTable = new ScheduledMessageTable(Parent.Settings, _scheduledTableName);
-        
+
         _writeDirectlyToQueueTableSql = $@"insert into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (@id, @body, @type, @expires)";
-        
+
         _writeDirectlyToTheScheduledTable = $@"
 merge {ScheduledTable.Identifier} as target
 using (values (@id, @body, @type, @expires, @time)) as source ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, {DatabaseConstants.ExecutionTime})
@@ -58,7 +58,7 @@ FROM
 WHERE {DatabaseConstants.Id} = @id;
 DELETE FROM {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
 ";
-        
+
         _moveFromOutgoingToScheduledSql = $@"
 INSERT into {ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil}) 
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, @time, {DatabaseConstants.DeliverBy} 
@@ -67,7 +67,7 @@ FROM
 WHERE {DatabaseConstants.Id} = @id;
 DELETE FROM {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
 ";
-        
+
         _moveScheduledToReadyQueueSql = $@"
 select id, body, message_type, keep_until into #temp_move_{Name}
 FROM {ScheduledTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
@@ -79,9 +79,9 @@ INSERT INTO {QueueTable.Identifier}
  SELECT id, body, message_type, keep_until FROM #temp_move_{Name};
 select count(*) from #temp_move_{Name}
 ";
-        
+
         _deleteExpiredSql = $"delete from {QueueTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET();delete from {ScheduledTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET()";
-        
+
         _tryPopMessagesDirectlySql = $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
 IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
@@ -97,7 +97,7 @@ OUTPUT
 
 IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
 IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
-        
+
         _tryPopMessagesToInboxSql = $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
 IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
@@ -146,7 +146,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
     {
         return new SqlServerQueueSender(this);
     }
-    
+
     public override async ValueTask InitializeAsync(ILogger logger)
     {
         if (_hasInitialized)
@@ -201,7 +201,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         {
             var queueDelta = await QueueTable!.FindDeltaAsync(conn);
             if (queueDelta.HasChanges()) return false;
-        
+
             var scheduledDelta = await ScheduledTable!.FindDeltaAsync(conn);
 
             return !scheduledDelta.HasChanges();
@@ -219,7 +219,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
 
         await QueueTable!.Drop(conn);
         await ScheduledTable!.Drop(conn);
-        
+
         await conn.CloseAsync();
     }
 
@@ -230,7 +230,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
 
         await QueueTable!.ApplyChangesAsync(conn);
         await ScheduledTable!.ApplyChangesAsync(conn);
-        
+
         await conn.CloseAsync();
     }
 
@@ -290,8 +290,8 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
             .With("expires", envelope.DeliverBy)
             .With("time", envelope.ScheduledTime)
             .ExecuteOnce(cancellationToken);
-        
-        
+
+
         var tx = conn.BeginTransactionAsync(cancellationToken);
         await scheduleMessageAsync(envelope, cancellationToken, conn);
         await conn.CloseAsync();
@@ -308,7 +308,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
             var count = await conn.CreateCommand(_moveFromOutgoingToQueueSql)
                 .With("id", envelope.Id)
                 .ExecuteNonQueryAsync(cancellationToken);
-            
+
             if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
         }
         catch (SqlException e)
@@ -320,12 +320,12 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
 
         await conn.CloseAsync();
     }
-    
+
     public async Task MoveFromOutgoingToScheduledAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         if (!envelope.ScheduledTime.HasValue)
             throw new InvalidOperationException("This envelope has no scheduled time");
-        
+
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
 
         await conn.OpenAsync(cancellationToken);
@@ -335,7 +335,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
                 .With("id", envelope.Id)
                 .With("time", envelope.ScheduledTime!.Value)
                 .ExecuteNonQueryAsync(cancellationToken);
-            
+
             if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
         }
         catch (SqlException e)
@@ -346,7 +346,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
                         $"delete * from {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
                     .With("id", envelope.Id)
                     .ExecuteNonQueryAsync(cancellationToken);
-                
+
                 return;
             }
             throw;
@@ -362,7 +362,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         await conn.OpenAsync(cancellationToken);
         var count = (int)await conn.CreateCommand(_moveScheduledToReadyQueueSql)
             .ExecuteScalarAsync(cancellationToken);
-        
+
         await conn.CloseAsync();
 
         return count;
@@ -374,7 +374,6 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         await conn.CreateCommand(_deleteExpiredSql)
             .ExecuteOnce(cancellationToken);
     }
-
 
     public async Task<int> CountAsync()
     {
@@ -414,7 +413,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
             }, cancellation: cancellationToken);
 
     }
-    
+
     public async Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
         ILogger logger, CancellationToken cancellationToken)
     {
@@ -439,7 +438,6 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
                 }
             }, cancellation: cancellationToken);
     }
-    
 }
     
 

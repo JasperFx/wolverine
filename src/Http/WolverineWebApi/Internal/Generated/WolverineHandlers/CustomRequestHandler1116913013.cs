@@ -12,21 +12,14 @@ namespace Internal.Generated.WolverineHandlers
         {
             // The actual message body
             var customRequest = (WolverineWebApi.CustomRequest)context.Envelope.Message;
-
             
             // The actual message execution
             var outgoing1 = WolverineWebApi.MessageHandler.Handle(customRequest);
-
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
-
         }
-
     }
 
     // END: CustomRequestHandler1116913013
-    
-    
 }
-

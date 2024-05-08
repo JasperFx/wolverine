@@ -20,8 +20,6 @@ namespace Internal.Generated.WolverineHandlers
             _loggerForMessage = loggerForMessage;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var stopwatchMiddleware = new WolverineWebApi.StopwatchMiddleware();
@@ -34,11 +32,9 @@ namespace Internal.Generated.WolverineHandlers
             stopwatchMiddleware.Finally(((Microsoft.Extensions.Logging.ILogger)_loggerForMessage), httpContext);
             await WriteString(httpContext, result_of_Get);
         }
-
     }
 
     // END: GET_timed
     
     
 }
-

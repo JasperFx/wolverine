@@ -19,8 +19,6 @@ public class Bug_267_throw_descriptive_message_on_multiple_variables
                 opts.DisableConventionalDiscovery().IncludeType<Bug267Handler>();
             }).StartAsync();
 
-        
-        
         await Should.ThrowAsync<InvalidWolverineMiddlewareException>(async () =>
         {
             await host.InvokeMessageAndWaitAsync(new Bug267("boom"));
@@ -40,6 +38,5 @@ public class Bug267Handler
 
     public void Handle(Bug267 command, string text, int number)
     {
-        
     }
 }

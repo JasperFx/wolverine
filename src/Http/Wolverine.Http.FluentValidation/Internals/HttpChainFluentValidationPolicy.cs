@@ -22,7 +22,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
         var validatorInterface = typeof(IValidator<>).MakeGenericType(chain.RequestType!);
 
         var registered = container.Model.For(validatorInterface);
-        
+
         if (registered.Instances.Count() == 1)
         {
             chain.Metadata.ProducesProblem(400);

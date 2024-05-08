@@ -54,7 +54,7 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// <param name="endpointName">Wolverine requires a unique endpoint name for this usage. Most endpoints will supply one automatically, usually based on a queue or topic name, but some endpoint types may require an explicit name</param>
     /// <returns></returns>
     T ListenWithStrictOrdering(string? endpointName = null);
-    
+
     /// <summary>
     ///     Specify the maximum number of threads that this worker queue
     ///     can use at one time

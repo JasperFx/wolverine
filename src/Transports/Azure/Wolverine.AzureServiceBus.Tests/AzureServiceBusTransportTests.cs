@@ -45,7 +45,6 @@ public class AzureServiceBusTransportTests
         transport.SystemQueuesEnabled.ShouldBeTrue();
     }
 
-    
     [Fact]
     public void return_all_endpoints_gets_dead_letter_queue_too()
     {

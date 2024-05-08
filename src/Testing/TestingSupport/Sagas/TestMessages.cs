@@ -57,7 +57,6 @@ public class BasicWorkflow<TStart, TCompleteThree, TId> : Saga
 
     public string Name { get; set; }
 
-
     public void Start(TStart starting)
     {
         Id = starting.Id;
@@ -79,7 +78,6 @@ public class BasicWorkflow<TStart, TCompleteThree, TId> : Saga
     {
         FourCompleted = true;
     }
-
 
     public void Handle(TCompleteThree three)
     {

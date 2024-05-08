@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var serviceEndpoints = new WolverineWebApi.ServiceEndpoints();
@@ -36,7 +34,6 @@ namespace Internal.Generated.WolverineHandlers
                 httpContext.Response.StatusCode = 404;
                 return;
             }
-
 
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
             
@@ -54,11 +51,7 @@ namespace Internal.Generated.WolverineHandlers
             // Writing the response body to JSON because this was the first 'return variable' in the method signature
             await WriteJsonAsync(httpContext, data_response);
         }
-
     }
 
     // END: GET_data_id
-    
-    
 }
-

@@ -33,7 +33,6 @@ public class EfCoreCompilationScenarios
         host.Dispose();
     }
 
-
     [Fact]
     public async Task ef_context_is_singleton_and_options_are_singleton()
     {

@@ -107,9 +107,9 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         }
 
         _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
-        
+
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
-        _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies); 
+        _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies);
 
         var policies = _options.Policies.OfType<IChainPolicy>();
         foreach (var policy in policies) policy.Apply(_chains, Rules, Container);

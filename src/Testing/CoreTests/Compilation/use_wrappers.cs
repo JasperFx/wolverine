@@ -32,7 +32,6 @@ public class use_wrappers : CompilationContext
         theTracking.CalledSaveChanges.ShouldBeTrue();
     }
 
-
     [Fact]
     public async Task wrapper_executes()
     {

@@ -21,7 +21,7 @@ public class StopRemoteAgentTests : IAsyncLifetime
     {
         return Task.CompletedTask;
     }
-    
+
     [Fact]
     public async Task should_stop_the_currently_running_agent()
     {

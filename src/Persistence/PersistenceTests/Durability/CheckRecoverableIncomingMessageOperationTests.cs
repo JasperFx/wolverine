@@ -48,7 +48,6 @@ public class CheckRecoverableIncomingMessageOperationTests
             .ShouldBe(0);
     }
 
-
     [Theory]
     [InlineData("When only limited by batch size", 0, 5000, theRecoveryBatchSize)]
     [InlineData("Limited by number on server", 0, 8, 8)]
@@ -63,6 +62,4 @@ public class CheckRecoverableIncomingMessageOperationTests
         theAction.DeterminePageSize(theAgent, new IncomingCount(TransportConstants.LocalUri, serverCount), theSettings)
             .ShouldBe(expected);
     }
-
-
 }

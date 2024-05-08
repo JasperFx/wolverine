@@ -45,10 +45,10 @@ public class broadcast_to_topic_rules : IAsyncLifetime
                 opts.ListenToKafkaTopic("purple");
 
                 opts.ServiceName = "receiver";
-                
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
-        
+
     }
 
     [Fact]
@@ -60,11 +60,11 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<RedMessage>(_receiver)
             .PublishMessageAndWaitAsync(new RedMessage("one"));
-        
+
         session.Received.SingleEnvelope<RedMessage>()
             .Destination.ShouldBe(new Uri("kafka://topic/red"));
     }
-    
+
     [Fact]
     public async Task route_by_derived_topics_2()
     {
@@ -74,7 +74,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<GreenMessage>(_receiver)
             .PublishMessageAndWaitAsync(new GreenMessage("one"));
-        
+
         session.Received.SingleEnvelope<GreenMessage>()
             .Destination.ShouldBe(new Uri("kafka://topic/green"));
     }

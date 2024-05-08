@@ -149,14 +149,12 @@ public partial class Envelope
     /// </summary>
     public int Attempts { get; set; }
 
-
     public DateTimeOffset SentAt { get; internal set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     ///     The name of the service that sent this envelope
     /// </summary>
     public string? Source { get; internal set; }
-
 
     /// <summary>
     ///     Message type alias for the contents of this Envelope
@@ -237,7 +235,7 @@ public partial class Envelope
     /// Used internally to understand where an envelope is in persisted state
     /// </summary>
     public bool WasPersistedInOutbox { get; set; }
-    
+
     /// <summary>
     /// Application defined message group identifier. Part of AMQP 1.0 spec as the "group-id" property. Session identifier
     /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue
@@ -273,7 +271,6 @@ public partial class Envelope
         return this;
     }
 
-
     public override string ToString()
     {
         var text = $"Envelope #{Id}";
@@ -298,10 +295,8 @@ public partial class Envelope
             text += $" to {Destination}";
         }
 
-
         return text;
     }
-
 
     protected bool Equals(Envelope other)
     {
@@ -352,7 +347,6 @@ public partial class Envelope
     {
         return DeliverBy.HasValue && DeliverBy <= DateTimeOffset.Now;
     }
-
 
     internal string GetMessageTypeName()
     {

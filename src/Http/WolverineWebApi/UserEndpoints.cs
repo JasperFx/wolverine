@@ -42,7 +42,7 @@ public class TrainerDelete
         {
             return Results.Problem(userDelete.Errors.ToString());
         }
-        
+
         return userDelete.Succeeded ? Results.NoContent() : Results.Problem("Unable to delete trainer", statusCode:400);
     }
 }

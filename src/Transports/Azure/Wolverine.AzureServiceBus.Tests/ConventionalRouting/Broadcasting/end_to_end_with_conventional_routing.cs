@@ -38,7 +38,7 @@ public class end_to_end_with_conventional_routing : IDisposable
                 .AutoPurgeOnStartup();
 
             #endregion
-            
+
             opts.ServiceName = "Receiver";
         });
     }

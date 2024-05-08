@@ -90,7 +90,6 @@ namespace DocumentationSamples
         #endregion
     }
 
-
     namespace One
     {
         #region sample_ExampleHandlerByInstance
