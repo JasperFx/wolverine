@@ -233,7 +233,6 @@ public class MyErrorCausingHandler
             .Requeue();
     }
 
-
     public void Handle(InvoiceCreated created)
     {
         // handle the invoice created message

@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             WolverineWebApi.Direction direction = default;
@@ -29,11 +27,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_UsingEnumQuerystring);
         }
-
     }
 
     // END: GET_querystring_enum
     
     
 }
-

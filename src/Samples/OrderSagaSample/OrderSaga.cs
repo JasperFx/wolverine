@@ -28,7 +28,7 @@ public class Order : Saga
     public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
     {
         logger.LogInformation("Got a new order with id {Id}", order.OrderId);
-    
+
         // creating a timeout message for the saga
         return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
     }

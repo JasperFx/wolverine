@@ -24,17 +24,17 @@ public static class PostgresqlConfigurationExtensions
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
-        
+
         options.Include<PostgresqlBackedPersistence>(o =>
         {
             o.Settings.ConnectionString = connectionString;
             o.Settings.SchemaName = schemaName ?? "public";
             o.Settings.DataSource = NpgsqlDataSource.Create(connectionString);
-            
+
             o.Settings.ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode();
         });
     }
-    
+
     /// <summary>
     ///     Register Postgresql backed message persistence to a known connection string
     /// </summary>
@@ -49,16 +49,16 @@ public static class PostgresqlConfigurationExtensions
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
-        
+
         options.Include<PostgresqlBackedPersistence>(o =>
         {
             o.Settings.SchemaName = schemaName ?? "public";
             o.Settings.DataSource = dataSource;
-            
+
             o.Settings.ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode();
         });
     }
-    
+
     /// <summary>
     /// Register PostgreSQL backed message persistence *and* the PostgreSQL messaging transport
     /// </summary>
@@ -85,12 +85,12 @@ public static class PostgresqlConfigurationExtensions
         else
         {
             schema = "dbo";
-                
+
         }
 
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         options.Include(extension);
-        
+
         options.Include<PostgresqlBackedPersistence>(x =>
         {
             x.Settings.ConnectionString = connectionString;
@@ -102,7 +102,7 @@ public static class PostgresqlConfigurationExtensions
             else
             {
                 schema = "dbo";
-                
+
             }
 
             x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
@@ -113,7 +113,7 @@ public static class PostgresqlConfigurationExtensions
         {
             transport.SchemaName = schema;
         }
-        
+
         options.Transports.Add(transport);
 
         return new PostgresqlPersistenceExpression(transport, options);
@@ -177,5 +177,4 @@ public static class PostgresqlConfigurationExtensions
 
         return new PostgresqlSubscriberConfiguration(queue);
     }
-    
 }

@@ -83,7 +83,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
     public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing)
     {
-        
+
         _mapOutgoing.Value(envelope, outgoing);
         writeOutgoingHeader(outgoing, TransportConstants.ProtocolVersion, "1.0"); // fancier later
     }
@@ -197,7 +197,6 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             list.Add(invoke);
         }
 
-
         var block = Expression.Block(list);
 
         var lambda = Expression.Lambda<Action<Envelope, TIncoming>>(block, envelope, incoming);
@@ -281,14 +280,12 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             list.Add(invoke);
         }
 
-
         var block = Expression.Block(list);
 
         var lambda = Expression.Lambda<Action<Envelope, TOutgoing>>(block, envelope, outgoing);
 
         return lambda.CompileFast();
     }
-
 
     protected void writeOutgoingOtherHeaders(TOutgoing outgoing, Envelope envelope)
     {

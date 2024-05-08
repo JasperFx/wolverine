@@ -14,8 +14,8 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 {
     internal static Uri ToUri(string name, string? databaseName)
     {
-        return databaseName.IsEmpty() 
-            ? new Uri($"{PostgresqlTransport.ProtocolName}://{name}") 
+        return databaseName.IsEmpty()
+            ? new Uri($"{PostgresqlTransport.ProtocolName}://{name}")
             : new Uri($"{PostgresqlTransport.ProtocolName}://{name}/{databaseName}");
     }
 
@@ -68,7 +68,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await mtListener.StartAsync();
             return mtListener;
         }
-        
+
         var listener = new PostgresqlQueueListener(this, runtime, receiver, DataSource, null);
         await listener.StartAsync();
         return listener;
@@ -91,7 +91,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         buildSenderIfMissing();
         return _sender!;
     }
-    
+
     public override async ValueTask InitializeAsync(ILogger logger)
     {
         if (_hasInitialized)
@@ -182,9 +182,9 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
                     returnValue = false;
                     return;
                 }
-        
+
                 var scheduledDelta = await ScheduledTable!.FindDeltaAsync(conn);
-        
+
                 returnValue = returnValue && !scheduledDelta.HasChanges();
             }
             finally
@@ -204,7 +204,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             await QueueTable!.DropAsync(conn);
             await ScheduledTable!.DropAsync(conn);
-        
+
             await conn.CloseAsync();
         });
     }
@@ -214,15 +214,14 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         await forEveryDatabase(async source =>
         {
             await using var conn = await source.OpenConnectionAsync();
-        
+
             await QueueTable!.ApplyChangesAsync(conn);
             await ScheduledTable!.ApplyChangesAsync(conn);
-        
+
             await conn.CloseAsync();
         });
     }
 
-    
     public async Task<long> CountAsync()
     {
         var count = 0L;

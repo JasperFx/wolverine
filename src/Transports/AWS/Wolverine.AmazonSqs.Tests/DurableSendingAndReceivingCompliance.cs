@@ -14,7 +14,7 @@ namespace Wolverine.AmazonSqs.Tests;
 public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public static int Number = 0;
-    
+
     public DurableComplianceFixture() : base(new Uri("sqs://receiver"), 120)
     {
     }
@@ -24,7 +24,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
         var number = ++Number;
 
         OutboundAddress = new Uri("sqs://receiver-" + number);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAmazonSqsTransportLocally()
@@ -38,7 +38,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "sender";
             }).IntegrateWithWolverine("sender");
-            
+
             opts.Services.AddResourceSetupOnStartup();
 
             opts.ListenToSqsQueue("sender-" + number);
@@ -57,7 +57,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine("receiver");
-            
+
             opts.Services.AddResourceSetupOnStartup();
 
             opts.ListenToSqsQueue("receiver-" + number);

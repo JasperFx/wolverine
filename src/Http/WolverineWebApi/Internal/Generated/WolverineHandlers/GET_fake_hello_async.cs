@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var fakeEndpoint = new WolverineWebApi.FakeEndpoint();
@@ -28,11 +26,7 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_SayHelloAsync);
         }
-
     }
 
     // END: GET_fake_hello_async
-    
-    
 }
-

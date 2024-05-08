@@ -64,7 +64,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
         });
     }
 
-
     [Fact]
     public async Task exceptions_will_be_thrown_to_caller()
     {
@@ -78,7 +77,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
 
         await Should.ThrowAsync<DivideByZeroException>(() => Publisher.InvokeAsync(message));
     }
-
 
     [Fact]
     public async Task will_process_inline()
@@ -117,7 +115,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
         m2.Id.ShouldBe(message.Id);
     }
 
-
     #region sample_using_global_request_and_reply
 
     internal async ValueTask using_global_request_and_reply(IMessageContext messaging)
@@ -137,7 +134,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
         answer.Sum.ShouldBe(7);
         answer.Product.ShouldBe(12);
     }
-
 
     [Fact]
     public async Task invoke_expecting_a_response_with_struct()
@@ -193,7 +189,7 @@ public class ForceAsyncEnumMessagesHandler
         await Task.Delay(50.Milliseconds());
 
         yield return new Message1();
-        
+
         await Task.Delay(50.Milliseconds());
 
         yield return new Message1();
@@ -240,7 +236,6 @@ public class WorkConsumer
 
         return [new Message1 { Id = message.Id }, new Message2 { Id = message.Id }];
     }
-
 
     public void Handle(Message2 message)
     {

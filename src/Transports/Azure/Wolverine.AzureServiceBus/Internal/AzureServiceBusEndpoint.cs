@@ -56,11 +56,10 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
         return true;
     }
 
-
     internal IAzureServiceBusEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
     {
         if (Mapper != null) return Mapper;
-        
+
         var mapper = new AzureServiceBusEnvelopeMapper(this, runtime);
 
         // Important for interoperability
@@ -73,8 +72,8 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
     }
 
     public abstract Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken);
-    
-    
+
+
     /// <summary>
     /// If specified, applies a custom envelope mapper to this endp[oint
     /// </summary>

@@ -37,7 +37,7 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
         configure(_transport.ProducerConfig);
         return this;
     }
-    
+
     /// <summary>
     /// Configure the Kafka message consumers within the Wolverine transport
     /// </summary>

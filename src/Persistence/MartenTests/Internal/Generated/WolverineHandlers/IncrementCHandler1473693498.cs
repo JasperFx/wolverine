@@ -14,8 +14,6 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             var letterAggregateHandler = new MartenTests.LetterAggregateHandler();
@@ -34,11 +32,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
-
     }
 
     // END: IncrementCHandler1473693498
     
     
 }
-

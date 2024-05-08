@@ -16,7 +16,6 @@ internal class DeleteExpiredMessages : IDatabaseOperation, IDoNotReturnData
         _utcNow = utcNow;
     }
 
-
     public string Description => "Delete expired control queue messages";
     public void ConfigureCommand(DbCommandBuilder builder)
     {

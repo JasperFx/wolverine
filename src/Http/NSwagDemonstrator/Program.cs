@@ -24,11 +24,11 @@ builder.Host.UseWolverine(opts =>
 {
     opts.Durability.Mode = DurabilityMode.Solo;
     opts.Durability.DurabilityAgentEnabled = false;
-    
+
     // This middleware will apply to the HTTP
     // endpoints as well
     opts.Policies.AutoApplyTransactions();
-    
+
     // Setting up the outbox on all locally handled
     // background tasks
     opts.Policies.UseDurableLocalQueues();

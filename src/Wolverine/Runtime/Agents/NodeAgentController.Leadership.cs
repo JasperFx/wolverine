@@ -18,7 +18,7 @@ public partial class NodeAgentController
         var assigned = await _persistence.MarkNodeAsLeaderAsync(currentLeaderId, _tracker.Self!.Id);
 
         var commands = new AgentCommands();
-        
+
         if (assigned.HasValue)
         {
             if (assigned == _tracker.Self.Id)
@@ -66,7 +66,7 @@ public partial class NodeAgentController
 
         _logger.LogInformation("Node {NodeNumber} was unable to assume leadership, and no leader was found",
             _tracker.Self.AssignedNodeId);
-        
+
         // Try it again
         commands.Add(new TryAssumeLeadership());
         return commands;

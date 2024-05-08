@@ -38,7 +38,7 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
                 {
                     opts
                         .UseAmazonSqsTransportLocally();
-                    
+
                     opts.Policies.DisableConventionalLocalRouting();
                     opts.PublishAllMessages().ToSqsQueue(theQueueName).SendRawJsonMessage().BufferedInMemory();
                 }).StartAsync();
@@ -68,10 +68,10 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
                 .AlsoTrack(_host)
                 .WaitForMessageToBeReceivedAt<MyNativeJsonMessage>(_host)
                 .PublishMessageAndWaitAsync(new MyNativeJsonMessage { Id = id });
-            
+
             session.Received.SingleMessage<MyNativeJsonMessage>().Id.ShouldBe(id);
         }
-        
+
         [Fact]
         public async Task send_native_json_message()
         {

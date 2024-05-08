@@ -45,7 +45,7 @@ public class WolverineMessageNamingTests
     public void use_interface_from_interop_message_naming()
     {
         WolverineMessageNaming.AddMessageInterfaceAssembly(typeof(IInterfaceMessage).Assembly);
-        
+
         typeof(ConcreteMessage).ToMessageTypeName().ShouldBe(typeof(IInterfaceMessage).ToMessageTypeName());
     }
 

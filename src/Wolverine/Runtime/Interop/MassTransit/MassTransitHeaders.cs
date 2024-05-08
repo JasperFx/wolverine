@@ -162,12 +162,10 @@ internal static class MassTransitHeaders
         public const string OperatingSystemVersion = "MT-Host-OperatingSystemVersion";
     }
 
-
     public static class Request
     {
         public const string Accept = "MT-Request-AcceptType";
     }
-
 
     public static class Quartz
     {

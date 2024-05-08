@@ -66,5 +66,4 @@ internal class TransactionalFrame : Frame
 
         Next?.GenerateCode(method, writer);
     }
-
 }

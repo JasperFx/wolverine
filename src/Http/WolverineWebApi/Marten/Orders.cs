@@ -109,7 +109,7 @@ public static class MarkItemEndpoint
     [WolverinePost("/orders/ship"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
-    // instead of as the HTTP response body because of the presence of 
+    // instead of as the HTTP response body because of the presence of
     // the [EmptyResponse] attribute
     public static OrderShipped Ship(ShipOrder command, Order order)
     {
@@ -123,13 +123,13 @@ public static class MarkItemEndpoint
     [WolverinePost("/orders/{orderId}/ship2"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
-    // instead of as the HTTP response body because of the presence of 
+    // instead of as the HTTP response body because of the presence of
     // the [EmptyResponse] attribute
     public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
     {
-        if (order.HasShipped) 
+        if (order.HasShipped)
             throw new InvalidOperationException("This has already shipped!");
-        
+
         return new OrderShipped();
     }
 
@@ -140,7 +140,7 @@ public static class MarkItemEndpoint
     [WolverinePost("/orders/{orderId}/ship3"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
-    // instead of as the HTTP response body because of the presence of 
+    // instead of as the HTTP response body because of the presence of
     // the [EmptyResponse] attribute
     public static OrderShipped Ship3([Aggregate] Order order)
     {
@@ -148,11 +148,11 @@ public static class MarkItemEndpoint
     }
 
     #endregion
-    
+
     [WolverinePost("/orders/{orderId}/ship4"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
-    // instead of as the HTTP response body because of the presence of 
+    // instead of as the HTTP response body because of the presence of
     // the [EmptyResponse] attribute
     public static OrderShipped Ship4([Aggregate] Order order)
     {
@@ -182,15 +182,15 @@ public static class MarkItemEndpoint
             startStream
         );
     }
-    
+
     [Transactional]
     [WolverinePost("/orders/create3")]
     public static (CreationResponse, IStartStream) StartOrder3(StartOrder command)
     {
         var items = command.Items.Select(x => new Item { Name = x }).ToArray();
-    
+
         var startStream = MartenOps.StartStream<Order>(new OrderCreated(items));
-    
+
         return (
             new CreationResponse($"/orders/{startStream.StreamId}"),
             startStream
@@ -204,7 +204,7 @@ public static class MarkItemEndpoint
     public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
     {
         var events = new Events();
-        
+
         if (order.Items.TryGetValue(command.ItemName, out var item))
         {
             item.Ready = true;
@@ -228,7 +228,7 @@ public static class MarkItemEndpoint
     }
 
     #endregion
-    
+
     [Transactional] // This can be omitted if you use auto-transactions
     [WolverinePost("/orders/create4")]
     public static (OrderStatus, IStartStream) StartOrder4(StartOrderWithId command)
@@ -244,7 +244,7 @@ public static class MarkItemEndpoint
             startStream
         );
     }
-    
+
     [AggregateHandler]
     [WolverinePost("/orders/{id}/confirm")]
     public static (AcceptResponse, Events) Confirm(ConfirmOrder command, Order order)

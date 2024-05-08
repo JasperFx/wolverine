@@ -20,8 +20,6 @@ namespace Internal.Generated.WolverineHandlers
             _loggerForMessage = loggerForMessage;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             // Reading the request body via JSON deserialization
@@ -33,11 +31,9 @@ namespace Internal.Generated.WolverineHandlers
 
             httpContext.Response.StatusCode = result_of_PostStatusCode;
         }
-
     }
 
     // END: POST_status
     
     
 }
-

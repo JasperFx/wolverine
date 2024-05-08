@@ -19,7 +19,7 @@ internal class PostgresqlQueueSender : IPostgresqlQueueSender
 {
     private readonly PostgresqlQueue _queue;
     private readonly NpgsqlDataSource _dataSource;
-    
+
     private readonly string _moveFromOutgoingToQueueSql;
     private readonly string _moveFromOutgoingToScheduledSql;
     private readonly string _writeDirectlyToQueueTableSql;
@@ -48,7 +48,7 @@ FROM
 WHERE {DatabaseConstants.Id} = :id;
 DELETE FROM {_schemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id;
 ";
-        
+
         _moveFromOutgoingToScheduledSql = $@"
 INSERT into {queue.ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil}) 
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, :time, {DatabaseConstants.DeliverBy} 
@@ -57,7 +57,7 @@ FROM
 WHERE {DatabaseConstants.Id} = :id;
 DELETE FROM {_schemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id;
 ";
-        
+
         _writeDirectlyToQueueTableSql =
             $@"insert into {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (:id, :body, :type, :expires)";
 
@@ -68,7 +68,7 @@ ON CONFLICT ({DatabaseConstants.Id})
 DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} = :type, {DatabaseConstants.KeepUntil} = :expires, {DatabaseConstants.ExecutionTime} = :time;
 ".Trim();
 
-        
+
     }
 
     public bool SupportsNativeScheduledSend => true;
@@ -86,7 +86,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
             return false;
         }
     }
-    
+
     public async Task ScheduleMessageAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
@@ -140,9 +140,8 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
         {
             await SendAsync(envelope, CancellationToken.None);
         }
-
     }
-    
+
     public async Task MoveFromOutgoingToQueueAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
@@ -166,12 +165,12 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
             await conn.CloseAsync();
         }
     }
-    
+
     public async Task MoveFromOutgoingToScheduledAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         if (!envelope.ScheduledTime.HasValue)
             throw new InvalidOperationException("This envelope has no scheduled time");
-        
+
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
 
         try
@@ -180,7 +179,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
                 .With("id", envelope.Id)
                 .With("time", envelope.ScheduledTime!.Value)
                 .ExecuteNonQueryAsync(cancellationToken);
-            
+
             if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
         }
         catch (NpgsqlException e)
@@ -191,7 +190,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
                         $"delete * from {_schemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
                     .With("id", envelope.Id)
                     .ExecuteNonQueryAsync(cancellationToken);
-                
+
                 return;
             }
             throw;
@@ -201,7 +200,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
             await conn.CloseAsync();
         }
     }
-    
+
     public async Task SendAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
@@ -235,7 +234,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
             await conn.CloseAsync();
         }
     }
-    
+
     private async Task scheduleMessageAsync(Envelope envelope, CancellationToken cancellationToken, NpgsqlConnection conn)
     {
         await conn.CreateCommand(_writeDirectlyToTheScheduledTable)

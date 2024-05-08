@@ -56,7 +56,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         applyAuditAttributes(messageType);
     }
 
-
     private HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
     {
         Handlers.Add(call);
@@ -83,7 +82,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         get => SuccessLogLevel;
         set => SuccessLogLevel = value;
     }
-    
+
     /// <summary>
     ///     At what level should Wolverine log messages of this type about messages succeeding? The default
     ///     is Information
@@ -167,7 +166,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             handleMethod.AsyncMode = AsyncMode.AsyncTask;
         }
-        
+
         handleMethod.DerivedVariables.Add(new ContextVariable(typeof(IMessageContext)));
         handleMethod.DerivedVariables.Add(new ContextVariable(typeof(IMessageBus)));
 
@@ -191,10 +190,10 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             return false;
         }
-        
+
         var container = services!.As<IContainer>();
         applyCustomizations(rules, container);
-        
+
         Handler = (MessageHandler)container.QuickBuild(_handlerType);
         Handler.Chain = this;
 

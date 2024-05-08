@@ -121,7 +121,6 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
         return _batching.SendAsync(ex);
     }
 
-
     public bool ShouldStopProcessing()
     {
         var failures = _generations.Sum(x => x.Failures);
@@ -179,7 +178,6 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
     {
         _generations.Clear();
     }
-
 
     internal class Generation
     {

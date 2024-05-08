@@ -19,11 +19,9 @@ namespace Internal.Generated.WolverineHandlers
 
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: HttpMessage4Handler102738066
     
     
 }
-

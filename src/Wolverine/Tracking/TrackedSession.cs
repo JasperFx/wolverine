@@ -43,7 +43,6 @@ internal class TrackedSession : ITrackedSession
 
     public bool AlwaysTrackExternalTransports { get; set; }
 
-
     public TrackingStatus Status
     {
         get => _status;
@@ -279,7 +278,7 @@ internal class TrackedSession : ITrackedSession
             cleanUp();
             throw;
         }
-        
+
         // This is for race conditions if the activity manages to finish really fast
         if (IsCompleted())
         {
@@ -377,7 +376,7 @@ internal class TrackedSession : ITrackedSession
     public bool IsCompleted()
     {
         if (!_executionComplete) return false;
-        
+
         if (_conditions.Any(x => x.IsCompleted()))
         {
             return true;

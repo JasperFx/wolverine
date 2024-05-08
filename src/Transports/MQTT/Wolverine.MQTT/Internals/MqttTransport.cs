@@ -24,12 +24,11 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         if (uri == null) return string.Empty;
         return uri.LocalPath.Trim('/');
     }
-    
+
     public MqttTransport() : base("mqtt", "MQTT Transport")
     {
         Topics.OnMissing = topicName => new MqttTopic(topicName, this, EndpointRole.Application);
     }
-
 
     protected override IEnumerable<MqttTopic> endpoints()
     {
@@ -54,11 +53,11 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         var topics = Topics[MqttTopic.WolverineTopicsName];
         topics.RoutingType = RoutingMode.ByTopic;
         topics.OutgoingRules.Add(new TopicRoutingRule()); // this will make any messages use the auto resolved topic name
-        
+
         _logger = runtime.LoggerFactory.CreateLogger<MqttTransport>();
 
         var mqttFactory = new MqttFactory();
-            
+
         var logger = new MqttNetLogger(runtime.LoggerFactory.CreateLogger<MqttClient>());
         Client = mqttFactory.CreateManagedMqttClient(logger);
 
@@ -75,7 +74,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     private void startSubscribing()
     {
         if (_subscribed) return;
-        
+
         Client.ApplicationMessageReceivedAsync += receiveAsync;
         _subscribed = true;
     }
@@ -135,7 +134,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     }
 
     private int _senderIndex = 0;
-    
+
     internal MqttTopic NewTopicSender()
     {
         var topicName = MqttTopic.WolverineTopicsName + (++_senderIndex);

@@ -30,7 +30,6 @@ public class TcpEndpoint : Endpoint
 
     public int Port { get; }
 
-
     protected override bool supportsMode(EndpointMode mode)
     {
         return mode != EndpointMode.Inline;

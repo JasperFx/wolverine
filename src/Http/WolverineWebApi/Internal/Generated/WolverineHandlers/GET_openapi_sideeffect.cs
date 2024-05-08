@@ -17,11 +17,8 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            
             // The actual HTTP request handler execution
             var simpleSideEffect = WolverineWebApi.OpenApiEndpoints.SideEffect();
 
@@ -37,11 +34,7 @@ namespace Internal.Generated.WolverineHandlers
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: GET_openapi_sideeffect
-    
-    
 }
-

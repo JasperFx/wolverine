@@ -27,7 +27,7 @@ public class broadcast_to_topic_async : IAsyncLifetime
         {
             Logger = new XUnitLogger( _output, "MQTT")
         };
-        
+
         await Broker.StartAsync();
 
         _sender = await Host.CreateDefaultBuilder()
@@ -43,7 +43,7 @@ public class broadcast_to_topic_async : IAsyncLifetime
                 opts.UseMqttWithLocalBroker(port);
                 opts.ListenToMqttTopic("incoming/one").RetainMessages();
             }).StartAsync();
-        
+
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public static class ColorMessageHandler
     {
         Debug.WriteLine("Got " + message.Color);
     }
-    
+
     public static void Handle(SpecialColorMessage message)
     {
         Debug.WriteLine("Got " + message.Color);

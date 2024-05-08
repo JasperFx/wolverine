@@ -34,7 +34,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
                 })
                 .UseLightweightSessions()
                 .IntegrateWithWolverine();
-            
+
             opts.Services.AddResourceSetupOnStartup();
 
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
@@ -68,7 +68,6 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
         var aggregate = await LoadAggregate();
         assertions(aggregate);
     }
-
 
     [Fact]
     public async Task sync_one_event()

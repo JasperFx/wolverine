@@ -45,7 +45,7 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
                 {
                     opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "sqlserver");
                 }
-                
+
                 opts.PublishMessage<SRMessage1>()
                     .ToSqlServerQueue("sr" + starting++);
 

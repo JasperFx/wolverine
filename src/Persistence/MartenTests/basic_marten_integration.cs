@@ -42,7 +42,6 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
         theHost.Dispose();
     }
 
-
     [Fact]
     public void basic_registrations()
     {
@@ -106,9 +105,9 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
     {
         var runtime = theHost.Get<IWolverineRuntime>();
         var factory = theHost.Get<OutboxedSessionFactory>();
-        var messageContext = new MessageContext(runtime);    
+        var messageContext = new MessageContext(runtime);
         using var session = factory.QuerySession(messageContext);
-        
+
         session.As<QuerySession>().TenantId.ShouldBe(Tenancy.DefaultTenantId);
     }
 
@@ -119,9 +118,9 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
         var factory = theHost.Get<OutboxedSessionFactory>();
         var messageContext = new MessageContext(runtime);
         messageContext.TenantId = "tenant1";
-        
+
         using var session = factory.QuerySession(messageContext);
-        
+
         session.As<QuerySession>().TenantId.ShouldBe("tenant1");
     }
 
@@ -130,12 +129,12 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
     {
         var runtime = theHost.Get<IWolverineRuntime>();
         var factory = theHost.Get<OutboxedSessionFactory>();
-        var messageContext = new MessageContext(runtime);    
+        var messageContext = new MessageContext(runtime);
         using var session = factory.OpenSession(messageContext);
-        
+
         session.As<QuerySession>().TenantId.ShouldBe(Tenancy.DefaultTenantId);
     }
-    
+
     [Fact]
     public void build_document_session_for_non_default_tenant()
     {
@@ -143,9 +142,9 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
         var factory = theHost.Get<OutboxedSessionFactory>();
         var messageContext = new MessageContext(runtime);
         messageContext.TenantId = "tenant1";
-        
+
         using var session = factory.OpenSession(messageContext);
-        
+
         session.As<QuerySession>().TenantId.ShouldBe("tenant1");
     }
 }

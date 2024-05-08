@@ -21,12 +21,12 @@ namespace CoreTests.Bugs
             await host.InvokeMessageAndWaitAsync(new SayStuff("Hi"));
         }
     }
-    
+
     public interface IIdentityService;
     public class IdentityService : IIdentityService;
 
     public record SayStuff(string Text);
-    
+
     public class SayStuffHandler
     {
         public void Handle(SayStuff stuff, IIdentityService service) => Debug.WriteLine(stuff.Text);

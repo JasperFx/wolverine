@@ -9,7 +9,7 @@ public class AssignAgentTests : IAsyncLifetime
     private AgentCommands theCascadingMessages;
     private readonly AssignAgent theCommand = new(new Uri("blue://one"), Guid.NewGuid());
     private readonly MockWolverineRuntime theRuntime = new();
-    
+
     public async Task InitializeAsync()
     {
         theCascadingMessages = await theCommand.ExecuteAsync(theRuntime, CancellationToken.None);

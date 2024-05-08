@@ -98,7 +98,7 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
 
         return this;
     }
-    
+
     /// <summary>
     /// Utilize custom envelope mapping for SQS interoperability with external non-Wolverine systems
     /// </summary>

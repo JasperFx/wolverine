@@ -167,7 +167,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             await messaging.SaveChangesAndFlushMessagesAsync();
         }
 
-
         var persisted = await Host.Services.GetRequiredService<IMessageStore>()
             .Admin.AllOutgoingAsync();
 
@@ -214,7 +213,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
             await messaging.SaveChangesAndFlushMessagesAsync();
         }
-
 
         var persisted = await Host.Services.GetRequiredService<IMessageStore>()
             .Admin.AllOutgoingAsync();
@@ -314,7 +312,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         }
     }
 
-
     [Fact]
     public async Task use_generic_outbox_raw()
     {
@@ -376,7 +373,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
     }
-
 
     [Fact]
     public async Task persist_an_incoming_envelope_raw()

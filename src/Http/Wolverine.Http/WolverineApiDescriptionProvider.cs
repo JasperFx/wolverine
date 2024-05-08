@@ -40,8 +40,6 @@ internal class WolverineApiDescriptionProvider : IApiDescriptionProvider
         }
     }
 
-
-
     public void OnProvidersExecuted(ApiDescriptionProviderContext context)
     {
     }

@@ -18,11 +18,9 @@ namespace Internal.Generated.WolverineHandlers
             messageHandler.Handle(message2);
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: Message2Handler700775183
     
     
 }
-

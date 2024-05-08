@@ -24,14 +24,12 @@ builder.Services.AddMarten(m =>
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant2;Username=postgres;password=postgres", "tenant2");
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant3;Username=postgres;password=postgres", "tenant3");
         });
-        
+
         m.DatabaseSchemaName = "mttodo";
     })
     .IntegrateWithWolverine(masterDatabaseConnectionString:connectionString);
 
 #endregion
-
-
 
 #region sample_add_resource_setup_on_startup
 
@@ -47,7 +45,7 @@ builder.Host.UseWolverine(opts =>
     // This middleware will apply to the HTTP
     // endpoints as well
     opts.Policies.AutoApplyTransactions();
-    
+
     // Setting up the outbox on all locally handled
     // background tasks
     opts.Policies.UseDurableLocalQueues();
@@ -75,9 +73,9 @@ app.MapWolverineEndpoints(opts =>
 {
     // Letting Wolverine HTTP automatically detect the tenant id!
     opts.TenantId.IsRouteArgumentNamed("tenant");
-    
+
     // Assert that the tenant id was successfully detected,
-    // or pull the rip cord on the request and return a 
+    // or pull the rip cord on the request and return a
     // 400 w/ ProblemDetails
     opts.TenantId.AssertExists();
 });

@@ -30,11 +30,10 @@ public class MultiTenancyContext : IClassFixture<MultiTenancyFixture>
     public WolverineRuntime Runtime { get; }
 }
 
-
 public class MultiTenancyFixture : IAsyncLifetime
 {
     public IHost? Host { get; private set; }
-    
+
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
@@ -61,12 +60,11 @@ public class MultiTenancyFixture : IAsyncLifetime
         await InitializeAsync();
     }
 
-
     public async Task InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
-        
+
         var tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant1");
         var tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant2");
         var tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant3");
@@ -84,11 +82,11 @@ public class MultiTenancyFixture : IAsyncLifetime
                         tenancy.AddSingleTenantDatabase(tenant2ConnectionString, "tenant2");
                         tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
                     });
-                    
+
                 }).IntegrateWithWolverine(schemaName:"control", masterDatabaseConnectionString:Servers.PostgresConnectionString);
 
                 opts.Policies.AutoApplyTransactions();
-                
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

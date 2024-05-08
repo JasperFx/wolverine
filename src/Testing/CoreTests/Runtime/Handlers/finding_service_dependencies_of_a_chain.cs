@@ -69,6 +69,4 @@ public class finding_service_dependencies_of_a_chain
     public interface IService5;
 
     public class Service5(IService5 five) : IService5;
-
-
 }

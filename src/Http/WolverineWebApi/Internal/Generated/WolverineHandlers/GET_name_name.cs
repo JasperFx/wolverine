@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var name = (string)httpContext.GetRouteValue("name");
@@ -29,11 +27,7 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_SimpleStringRouteArgument);
         }
-
     }
 
     // END: GET_name_name
-    
-    
 }
-

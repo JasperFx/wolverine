@@ -22,13 +22,13 @@ public class ack_smoke_tests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
-        
+
 
         Broker = new LocalMqttBroker(port)
         {
             Logger = new XUnitLogger( _output, "MQTT")
         };
-        
+
         await Broker.StartAsync();
 
         _sender = await Host.CreateDefaultBuilder()
@@ -39,7 +39,7 @@ public class ack_smoke_tests : IAsyncLifetime
                     .ConfigureSenders(x => x.RetainMessages());
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.Policies.DisableConventionalLocalRouting();
-                
+
             }).StartAsync();
 
         _receiver = await Host.CreateDefaultBuilder()
@@ -58,7 +58,7 @@ public class ack_smoke_tests : IAsyncLifetime
 
         await Task.Delay(2.Seconds());
     }
-    
+
     [Fact]
     public async Task send_ack_message()
     {

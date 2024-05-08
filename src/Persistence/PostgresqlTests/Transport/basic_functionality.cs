@@ -39,7 +39,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         await conn.OpenAsync();
         await conn.DropSchemaAsync("transports");
         await conn.CloseAsync();
-        
+
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -70,7 +70,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         var names = await conn.ExistingTablesAsync(schemas: ["transports"]);
 
         await conn.CloseAsync();
-        
+
         names.Any(x => x.QualifiedName == "transports.wolverine_queue_one").ShouldBeTrue();
         names.Any(x => x.QualifiedName == "transports.wolverine_queue_one_scheduled").ShouldBeTrue();
     }
@@ -99,18 +99,18 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         await theQueue.TeardownAsync(NullLogger.Instance);
         await theQueue.SetupAsync(NullLogger.Instance);
     }
-    
+
     [Fact]
     public async Task send_not_scheduled_smoke_test()
     {
         var envelope = ObjectMother.Envelope();
         envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
         await theQueue.SendAsync(envelope);
-        
+
         (await theQueue.CountAsync()).ShouldBe(1);
         (await theQueue.ScheduledCountAsync()).ShouldBe(0);
     }
-    
+
     [Fact]
     public async Task send_not_scheduled_is_idempotent_smoke_test()
     {
@@ -119,7 +119,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         await theQueue.SendAsync(envelope);
         await theQueue.SendAsync(envelope);
         await theQueue.SendAsync(envelope);
-        
+
         (await theQueue.CountAsync()).ShouldBe(1);
         (await theQueue.ScheduledCountAsync()).ShouldBe(0);
     }
@@ -132,7 +132,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
         envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
         await theQueue.SendAsync(envelope);
-        
+
         (await theQueue.CountAsync()).ShouldBe(0);
         (await theQueue.ScheduledCountAsync()).ShouldBe(1);
     }
@@ -145,11 +145,11 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
         envelope.DeliverBy = DateTimeOffset.UtcNow.AddHours(1);
         await theQueue.SendAsync(envelope);
-        
+
         // Does not blow up
         await theQueue.SendAsync(envelope);
         await theQueue.SendAsync(envelope);
-        
+
         (await theQueue.CountAsync()).ShouldBe(0);
         (await theQueue.ScheduledCountAsync()).ShouldBe(1);
     }
@@ -158,24 +158,24 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     public async Task delete_expired_smoke_test()
     {
         var databaseTime = await theTransport.SystemTimeAsync();
-        
+
         var envelope = ObjectMother.Envelope();
         envelope.DeliverBy = databaseTime.Subtract(1.Hours());
         await theQueue.SendAsync(envelope);
-        
+
         var envelope2 = ObjectMother.Envelope();
         envelope2.DeliverBy = databaseTime.Add(1.Hours());
         await theQueue.SendAsync(envelope2);
-        
+
         var envelope3 = ObjectMother.Envelope();
         envelope3.DeliverBy = null;
         await theQueue.SendAsync(envelope3);
 
         (await theQueue.CountAsync()).ShouldBe(3);
-        
+
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
-        
+
         await theListener.DeleteExpiredAsync(CancellationToken.None);
         (await theQueue.CountAsync()).ShouldBe(2);
     }
@@ -184,30 +184,30 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     public async Task move_from_outgoing_to_queue_async()
     {
         (await theQueue.CountAsync()).ShouldBe(0);
-        
+
         var envelope = ObjectMother.Envelope();
         await theMessageStore.Outbox.StoreOutgoingAsync(envelope, 0);
 
         await new PostgresqlQueueSender(theQueue).MoveFromOutgoingToQueueAsync(envelope, CancellationToken.None);
-        
+
         (await theQueue.CountAsync()).ShouldBe(1);
 
         var stats = await theMessageStore.Admin.FetchCountsAsync();
         stats.Outgoing.ShouldBe(0);
     }
-    
+
     [Fact]
     public async Task move_from_outgoing_to_scheduled_async()
     {
         (await theQueue.CountAsync()).ShouldBe(0);
-        
+
         var envelope = ObjectMother.Envelope();
         envelope.ScheduleDelay = 1.Hours();
         envelope.IsScheduledForLater(DateTimeOffset.UtcNow).ShouldBeTrue();
         await theMessageStore.Outbox.StoreOutgoingAsync(envelope, 0);
 
         await new PostgresqlQueueSender(theQueue).MoveFromOutgoingToScheduledAsync(envelope, CancellationToken.None);
-        
+
         (await theQueue.ScheduledCountAsync()).ShouldBe(1);
 
         var stats = await theMessageStore.Admin.FetchCountsAsync();
@@ -218,7 +218,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     public async Task move_from_scheduled_to_queue()
     {
         var systemTime = await theTransport.SystemTimeAsync();
-        
+
         // Should be moved
         for (int i = 0; i < 20; i++)
         {
@@ -226,7 +226,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
             envelope.ScheduledTime = systemTime.Subtract(1.Days());
             await new PostgresqlQueueSender(theQueue).ScheduleMessageAsync(envelope, CancellationToken.None);
         }
-        
+
         // Push the dates back
 
         for (int i = 0; i < 10; i++)
@@ -235,16 +235,16 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
             envelope.ScheduledTime = systemTime.Add(1.Days());
             await new PostgresqlQueueSender(theQueue).ScheduleMessageAsync(envelope, CancellationToken.None);
         }
-        
+
         (await theQueue.ScheduledCountAsync()).ShouldBe(30);
         (await theQueue.CountAsync()).ShouldBe(0);
 
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
-        
+
         var scheduledCount = await theListener.MoveScheduledToReadyQueueAsync(CancellationToken.None);
         scheduledCount.ShouldBe(20);
-        
+
         (await theQueue.ScheduledCountAsync()).ShouldBe(10);
         (await theQueue.CountAsync()).ShouldBe(20);
     }
@@ -262,12 +262,12 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
         var popped = await theListener.TryPopAsync(5, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
-        
+
         (await theQueue.CountAsync()).ShouldBe(5);
-        
-        
+
+
     }
-    
+
     [Fact]
     public async Task move_to_incoming()
     {
@@ -276,21 +276,19 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
             var envelope = ObjectMother.Envelope();
             await theQueue.SendAsync(envelope);
         }
-        
+
         (await theQueue.CountAsync()).ShouldBe(20);
-        
+
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new PostgresqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
 
         var popped = await theListener.TryPopDurablyAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
-        
+
         (await theQueue.CountAsync()).ShouldBe(15);
 
         var incoming = await theMessageStore.Admin.AllIncomingAsync();
         incoming.Count.ShouldBe(5);
         incoming.All(x => x.OwnerId == 21).ShouldBeTrue();
-        
     }
-    
 }

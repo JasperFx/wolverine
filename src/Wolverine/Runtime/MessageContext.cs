@@ -320,7 +320,6 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         return PersistOrSendAsync(envelope);
     }
 
-
     public async Task EnqueueCascadingAsync(object? message)
     {
         if (Envelope?.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
@@ -358,7 +357,6 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
             return;
         }
-
 
         await PublishAsync(message);
     }

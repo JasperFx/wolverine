@@ -11,4 +11,3 @@ public interface ISerializable
     static abstract object Read(byte[] bytes);
 #pragma warning restore CA2252
 }
-

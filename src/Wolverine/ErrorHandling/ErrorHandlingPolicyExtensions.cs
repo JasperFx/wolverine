@@ -52,7 +52,6 @@ public static class ErrorHandlingPolicyExtensions
         return new PolicyExpression(policies.Failures, match);
     }
 
-
     /// <summary>
     ///     Specifies the type of exception that this policy can handle with additional filters on this exception type.
     /// </summary>

@@ -64,7 +64,6 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
         _default.Dispose();
     }
 
-
     protected void with(Action<WolverineOptions> configuration)
     {
         Host = WolverineHost.For(opts =>

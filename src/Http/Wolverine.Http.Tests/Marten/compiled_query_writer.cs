@@ -43,7 +43,7 @@ public class compiled_query_writer : IntegrationContext
         approvedInvoiceList.ShouldNotBeNull();
         approvedInvoiceList.Count.ShouldBe(approvedInvoices);
     }
-    
+
     [Fact]
     public async Task endpoint_returning_compiled_primitive_query_should_return_query_result()
     {
@@ -87,7 +87,6 @@ public class compiled_query_writer : IntegrationContext
     //     id.ShouldNotBe(Guid.Empty);
 
 
-    
     // [Fact]
     // public async Task endpoint_returning_compiled_primitive_query_should_return_query_result_for_string()
     // {

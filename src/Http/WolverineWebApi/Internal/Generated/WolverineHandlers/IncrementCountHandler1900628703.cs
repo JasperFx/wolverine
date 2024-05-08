@@ -14,8 +14,6 @@ namespace Internal.Generated.WolverineHandlers
             _broadcaster = broadcaster;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // The actual message body
@@ -27,11 +25,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await _broadcaster.Post(outgoing1).ConfigureAwait(false);
         }
-
     }
 
     // END: IncrementCountHandler1900628703
     
     
 }
-

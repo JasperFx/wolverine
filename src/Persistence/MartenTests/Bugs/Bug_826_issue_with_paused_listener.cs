@@ -23,14 +23,14 @@ public class Bug_826_issue_with_paused_listener
         await conn.DropSchemaAsync("bug826");
         await conn.CloseAsync();
     }
-    
+
     [Fact]
     public async Task can_resume_listening()
     {
         await dropSchema();
-        
+
         var builder = Host.CreateDefaultBuilder();
-        
+
         builder.UseWolverine(options =>
         {
             options.LocalQueueFor<ThisMeansTrouble>().Sequential();
@@ -42,7 +42,7 @@ public class Bug_826_issue_with_paused_listener
             options.Policies.AutoApplyTransactions();
             options.Policies.UseDurableLocalQueues();
             options.Policies.UseDurableOutboxOnAllSendingEndpoints();
-            
+
             options.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -67,7 +67,7 @@ public record ThisMeansTrouble();
 public class UnreliableHandler
 {
     public static bool HasFailed = false;
-    
+
     public static void Handle(ThisMeansTrouble message, ILogger logger, Envelope envelope)
     {
         logger.LogWarning("Handler called");

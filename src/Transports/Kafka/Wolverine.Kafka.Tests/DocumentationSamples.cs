@@ -13,43 +13,43 @@ public class DocumentationSamples
             .UseWolverine(opts =>
             {
                 opts.UseKafka("localhost:29092")
-                    
+
                     // See https://github.com/confluentinc/confluent-kafka-dotnet for the exact options here
                     .ConfigureClient(client =>
                     {
                         // configure both producers and consumers
-                        
+
                     })
-                    
+
                     .ConfigureConsumers(consumer =>
                     {
                         // configure only consumers
                     })
-                    
+
                     .ConfigureProducers(producer =>
                     {
                         // configure only producers
                     });
- 
+
                 // Just publish all messages to Kafka topics
                 // based on the message type (or message attributes)
                 // This will get fancier in the near future
                 opts.PublishAllMessages().ToKafkaTopics();
-         
+
                 // Or explicitly make subscription rules
                 opts.PublishMessage<ColorMessage>()
                     .ToKafkaTopic("colors");
-         
+
                 // Listen to topics
                 opts.ListenToKafkaTopic("red")
                     .ProcessInline();
- 
+
                 opts.ListenToKafkaTopic("green")
                     .BufferedInMemory();
-         
- 
+
+
                 // This will direct Wolverine to try to ensure that all
-                // referenced Kafka topics exist at application start up 
+                // referenced Kafka topics exist at application start up
                 // time
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();

@@ -91,7 +91,6 @@ public class PublishingSamples
         #endregion
     }
 
-
     #region sample_IServiceBus.Invoke
 
     public Task Invoke(IMessageContext bus)
@@ -106,8 +105,6 @@ public class PublishingSamples
 
         return bus.InvokeAsync(@event);
     }
-    
-    
 
     #endregion
 
@@ -120,7 +117,7 @@ public class PublishingSamples
             return new Answer { Value = 42 };
         }
     }
-    
+
     #endregion
 
     #region sample_invoke_with_response
@@ -131,8 +128,6 @@ public class PublishingSamples
     }
 
     #endregion
-
-
 
     #region sample_IServiceBus.Enqueue
 
@@ -280,7 +275,6 @@ public class PublishingSamples
         await bus.EndpointFor(new Uri("tcp://server1:2222")).SendAsync(@event);
     }
 
-
     public class ValidateInvoiceIsNotLate
     {
         public Guid InvoiceId { get; set; }
@@ -303,7 +297,7 @@ public class PublishingSamples
     public class ImageSaga : Saga
     {
         public Guid Id { get; set; }
-        
+
         public string CustomerId { get; set; }
 
         public Task Handle(ImageGenerated generated)
@@ -311,30 +305,29 @@ public class PublishingSamples
             // look up the customer, figure out how to send the
             // image to their client.
             throw new NotImplementedException("Not done yet:)");
-            
+
             MarkCompleted();
         }
     }
-    
+
     public static class GenerateImageHandler
     {
         // Using Wolverine's compound handlers to remove all the asynchronous
         // junk from the main Handle() method
         public static Task<Customer> LoadAsync(
-            ImageRequest request, 
+            ImageRequest request,
             IDocumentSession session,
             CancellationToken cancellationToken)
         {
             return session.LoadAsync<Customer>(request.CustomerId, cancellationToken);
         }
-        
-        
+
         public static (RoutedToEndpointMessage<GenerateImage>, ImageSaga) Handle(
-            ImageRequest request, 
+            ImageRequest request,
             Customer customer)
         {
 
-            // I'm starting a new saga to track the state of the 
+            // I'm starting a new saga to track the state of the
             // image when we get the callback from the downstream
             // image generation service
             var imageSaga = new ImageSaga
@@ -346,7 +339,7 @@ public class PublishingSamples
 
             var outgoing = new GenerateImage(request.Prompt, imageSaga.Id);
             var destination = customer.PremiumMembership ? "premium-processing" : "basic-processing";
-            
+
             return (outgoing.ToEndpoint(destination), imageSaga);
         }
     }
@@ -362,11 +355,11 @@ public class PublishingSamples
         };
 
         var (command, image) = GenerateImageHandler.Handle(request, customer);
-        
+
         command.EndpointName.ShouldBe("premium-processing");
         command.Message.Prompt.ShouldBe(request.Prompt);
         command.Message.ImageId.ShouldBe(image.Id);
-        
+
         image.CustomerId.ShouldBe(request.CustomerId);
     }
 }

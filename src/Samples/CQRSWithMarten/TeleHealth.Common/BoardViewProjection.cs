@@ -23,7 +23,6 @@ public class BoardViewProjection : ExperimentalMultiStreamProjection<BoardView, 
         return ValueTask.CompletedTask;
     }
 
-
     // Using event metadata
     public BoardView Create(IEvent<BoardOpened> opened)
     {

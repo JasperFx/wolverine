@@ -22,7 +22,6 @@ public class ProblemDetailsUsageEndpoint
         return WolverineContinue.NoProblems;
     }
 
-
     [WolverinePost("/problems")]
     public static string Post(NumberMessage message)
     {

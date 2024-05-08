@@ -22,7 +22,6 @@ public class overriding_delivery_options_when_sending : SendingContext
         envelope.Headers["special"].ShouldBe("true");
     }
 
-
     [Fact]
     public void deliver_by_mechanics()
     {
@@ -31,7 +30,6 @@ public class overriding_delivery_options_when_sending : SendingContext
 
         envelope.DeliverBy.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
     }
-
 
     [Fact]
     public async Task honor_customization_attributes_on_message_type()
@@ -132,8 +130,6 @@ public class overriding_delivery_options_when_sending : SendingContext
 
     /* TODO
 
-
-
      6. SchedulePublishAsync(message, time) with optional DeliveryOptions
      7> SchedulePublishAsync(message, delay) with optional DeliveryOptions
      8. DeliveryOptions on SendAsync w/ endpoint config
@@ -142,11 +138,6 @@ public class overriding_delivery_options_when_sending : SendingContext
      12. SendAsync(uri, message) with optional DeliveryOptions w/ endpoint config
      13. SchedulePublishAsync(message, time) with optional DeliveryOptions w/ endpoint config
      14. SchedulePublishAsync(message, delay) with optional DeliveryOptions w/ endpoint config
-
-
-
-
-
 
      */
 }

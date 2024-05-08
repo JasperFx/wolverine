@@ -37,7 +37,7 @@ public class PostgresqlPersistenceExpression : BrokerExpression<PostgresqlTransp
 
             e.Mode = EndpointMode.BufferedInMemory;
         });
-        
+
         _options.Policies.Add(policy);
         return this;
     }

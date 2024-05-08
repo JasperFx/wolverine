@@ -18,7 +18,7 @@ internal interface INodeStateTracker
 
     WolverineNode? FindOwnerOfAgent(Uri agentUri);
     void Remove(WolverineNode node);
-    IEnumerable<Uri> AllAgents();   
+    IEnumerable<Uri> AllAgents();
     void RegisterAgents(IReadOnlyList<Uri> agents);
     IEnumerable<WolverineNode> AllNodes();
 }

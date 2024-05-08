@@ -44,7 +44,7 @@ public class Bug_310_saga_handler_that_returns_another_saga : PostgresqlContext,
         // Should *not* be sending any messages. Should be handling the Saga2 return value as a new
         // Saga
         tracked.Sent.MessagesOf<Saga2>().Any().ShouldBeFalse();
-        
+
         using var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
 
         var saga1 = await session.LoadAsync<Saga1>(id);
@@ -62,7 +62,7 @@ public record StartSaga1(Guid Id);
 public class Saga1 : Wolverine.Saga
 {
     public Guid Id { get; set; }
-    
+
     public bool One { get; set; }
     public bool Two { get; set; }
     public bool Three { get; set; }
@@ -83,7 +83,7 @@ public class Saga1 : Wolverine.Saga
 public class Saga2 : Wolverine.Saga
 {
     public Guid Id { get; set; }
-    
+
     public bool One { get; set; }
     public bool Two { get; set; }
     public bool Three { get; set; }

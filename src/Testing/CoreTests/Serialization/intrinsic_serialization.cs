@@ -17,7 +17,7 @@ public class intrinsic_serialization
         var message = new SerializedMessage { Name = "Sarah Jarosz" };
         var bytes = serializer.WriteMessage(message);
         var message2 = serializer.ReadFromData(bytes).ShouldBeOfType<SerializedMessage>();
-        
+
         message2.ShouldBeEquivalentTo(message);
     }
 }
@@ -27,7 +27,7 @@ public class intrinsic_serialization
 public class SerializedMessage : ISerializable
 {
     public string Name { get; set; } = "Bob Schneider";
-    
+
     public byte[] Write()
     {
         return Encoding.Default.GetBytes(Name);

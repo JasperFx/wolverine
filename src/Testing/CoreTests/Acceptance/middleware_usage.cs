@@ -34,9 +34,9 @@ public class middleware_usage
         await host.TrackActivity().DoNotAssertOnExceptionsDetected().PublishMessageAndWaitAsync(message);
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
-        
+
         await host.StopAsync();
-        
+
         return recorder.Actions;
     }
 
@@ -156,7 +156,6 @@ public class middleware_usage
         );
     }
 
-
     [Fact]
     public async Task apply_by_message_type_middleware_positive2()
     {
@@ -172,7 +171,6 @@ public class middleware_usage
             "After number 5"
         );
     }
-
 
     [Fact]
     public async Task apply_by_message_type_middleware_negative_match()
@@ -206,7 +204,6 @@ public class middleware_usage
         );
     }
 
-
     [Fact]
     public async Task conditional_filter_stop_sync()
     {
@@ -236,7 +233,6 @@ public class middleware_usage
         );
     }
 
-
     [Fact]
     public async Task conditional_filter_stop_async()
     {
@@ -255,30 +251,30 @@ public class middleware_usage
     public async Task using_try_finally_with_one_middleware_happy_path()
     {
         // SimpleBeforeAfterFinally
-        
+
         var list = await invokeMessage(new RunsScoredMessage { Number = 20, Batter = "George Brett" },
             handlers => { handlers.AddMiddleware(typeof(SimpleBeforeAfterFinally)); });
 
         list.ShouldHaveTheSameElementsAs(
-            "SimpleBeforeAfterFinally.Before", 
-            "RunsScoredMessage: George Brett", 
-            "SimpleBeforeAfterFinally.After", 
-            "SimpleBeforeAfterFinally.Finally", 
+            "SimpleBeforeAfterFinally.Before",
+            "RunsScoredMessage: George Brett",
+            "SimpleBeforeAfterFinally.After",
+            "SimpleBeforeAfterFinally.Finally",
             "SimpleBeforeAfterFinally.FinallyAsync");
     }
-    
+
     [Fact]
     public async Task using_try_finally_with_one_middleware_sad_path()
     {
         // SimpleBeforeAfterFinally
-        
+
         var list = await invokeMessage(new RunsScoredMessage { Number = 200, Batter = "George Brett" },
             handlers => { handlers.AddMiddleware(typeof(SimpleBeforeAfterFinally)); });
 
         list.ShouldHaveTheSameElementsAs(
-            "SimpleBeforeAfterFinally.Before", 
-            "RunsScoredMessage: George Brett", 
-            "SimpleBeforeAfterFinally.Finally", 
+            "SimpleBeforeAfterFinally.Before",
+            "RunsScoredMessage: George Brett",
+            "SimpleBeforeAfterFinally.Finally",
             "SimpleBeforeAfterFinally.FinallyAsync");
     }
 
@@ -287,9 +283,9 @@ public class middleware_usage
     {
         var list = await invokeMessage(new RunsScoredMessage { Number = 5, Batter = "Willie Mays" },
             handlers => handlers.AddMiddleware<BeforeProducesUsedInAfter>());
-        
+
         list.ShouldHaveTheSameElementsAs(
-            "RunsScoredMessage: Willie Mays", 
+            "RunsScoredMessage: Willie Mays",
             "Got activity with name = Created from Middleware");
     }
 
@@ -297,7 +293,7 @@ public class middleware_usage
     public async Task explicitly_added_middleware_by_attribute()
     {
         var list = await invokeMessage(new ExplicitMiddlewareMessage("Steve Balboni"), _ => { });
-        
+
         list.ShouldHaveTheSameElementsAs(
             "Created SimpleBeforeAndAfter",
         "SimpleBeforeAndAfter.Before",
@@ -314,16 +310,16 @@ public class middleware_usage
     {
         var list = await invokeMessage(new RunsScoredMessage { Number = 5, Batter = "Willie Wilson" },
             x => x.AddMiddleware<FinallyOnlyMiddleware>());
-        
+
         list.Last().ShouldBe("Called Finally");
     }
-    
+
     [Fact]
     public async Task using_finally_only_middleware_sad_path()
     {
         var list = await invokeMessage(new RunsScoredMessage { Number = 200, Batter = "Willie Wilson" },
             x => x.AddMiddleware<FinallyOnlyMiddleware>());
-        
+
         list.Last().ShouldBe("Called Finally");
     }
 
@@ -331,14 +327,14 @@ public class middleware_usage
     public async Task use_attributes_to_explicitly_opt_into_implied_middleware()
     {
         var list = await invokeMessage(new JumpBall("Go!"), _ => { });
-        
+
         list.ShouldHaveTheSameElementsAs(
             "line up",
             "Jump Ball",
             "Back on Defense"
             );
     }
-    
+
     [Fact]
     public async Task use_implied_middleware_that_is_inner_type()
     {
@@ -346,7 +342,7 @@ public class middleware_usage
         {
             x.AddMiddleware<MiddlewareWrapper.FootballMiddleware>();
         });
-        
+
         list.ShouldHaveTheSameElementsAs(
             "Line up",
             "Snap Ball",
@@ -417,7 +413,6 @@ public class DisposableSpecialMiddleware : IDisposable
         return _thing;
     }
 
-
     public ValueTask After(DisposableThing thing)
     {
         _thing.ShouldBeSameAs(thing);
@@ -461,9 +456,9 @@ public class SimpleBeforeAfterFinally
     {
         Recorder = recorder;
     }
-    
+
     public Recorder Recorder { get; }
-    
+
     public Task BeforeAsync()
     {
         Recorder.Actions.Add("SimpleBeforeAfterFinally.Before");
@@ -480,7 +475,7 @@ public class SimpleBeforeAfterFinally
     {
         Recorder.Actions.Add("SimpleBeforeAfterFinally.Finally");
     }
-    
+
     public void FinallyAsync()
     {
         Recorder.Actions.Add("SimpleBeforeAfterFinally.FinallyAsync");
@@ -664,18 +659,14 @@ public class BasketballHandler
     {
         recorder.Actions.Add("Back on Defense");
     }
-
 }
 
 public class FootballHandler
 {
-
     public static void Handle(SnapBall command, Recorder recorder)
     {
         recorder.Actions.Add("Snap Ball");
     }
-
-
 }
 
 public class MiddlewareWrapper
@@ -693,6 +684,5 @@ public class MiddlewareWrapper
         {
             recorder.Actions.Add("Score touchdown");
         }
-
     }
 }

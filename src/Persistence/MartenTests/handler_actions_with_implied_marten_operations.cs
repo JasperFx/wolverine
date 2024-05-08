@@ -50,7 +50,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         var doc = await session.LoadAsync<NamedDocument>("Aubrey");
         doc.ShouldNotBeNull();
     }
-    
+
     [Fact]
     public async Task insert_document()
     {
@@ -62,45 +62,41 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
 
         await Should.ThrowAsync<DocumentAlreadyExistsException>(() =>
             _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("Declan")));
-        
+
 
     }
-    
+
     [Fact]
     public async Task update_document_happy_path()
     {
         await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("Max"));
         await _host.InvokeMessageAndWaitAsync(new UpdateMartenDocument("Max", 10));
 
-        
+
         using var session = _store.LightweightSession();
         var doc = await session.LoadAsync<NamedDocument>("Max");
         doc.Number.ShouldBe(10);
-        
+
 
     }
-    
+
     [Fact]
     public async Task update_document_sad_path()
     {
         await Should.ThrowAsync<NonExistentDocumentException>(() =>
             _host.InvokeMessageAndWaitAsync(new UpdateMartenDocument("Max", 10)));
     }
-    
+
     [Fact]
     public async Task delete_document()
     {
         await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("Max"));
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocument("Max"));
 
-        
         using var session = _store.LightweightSession();
         var doc = await session.LoadAsync<NamedDocument>("Max");
         doc.ShouldBeNull();
-        
     }
-    
-    
 }
 
 public record CreateMartenDocument(string Name);
@@ -138,11 +134,11 @@ public static class MartenCommandHandler
     {
         return MartenOps.Update(new NamedDocument{Id = command.Name, Number = command.Number});
     }
-    
+
     public static async Task<DocumentOp> Handle(DeleteMartenDocument command, IDocumentSession session)
     {
         var doc = await session.LoadAsync<NamedDocument>(command.Name);
-        
+
         return MartenOps.Delete(doc);
     }
 
@@ -151,8 +147,6 @@ public static class MartenCommandHandler
         // Nothing yet
     }
 }
-
-
 
 public class NamedDocument
 {

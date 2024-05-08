@@ -87,7 +87,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
         return counts;
     }
-    
+
     /// <summary>
     ///     The value of the 'database_principal' parameter in calls to APPLOCK_TEST
     /// </summary>
@@ -96,7 +96,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         if (HasDisposed) return;
-        
+
         var table = new DataTable();
         table.Columns.Add(new DataColumn("ID", typeof(Guid)));
         table.Rows.Add(envelope.Id);
@@ -114,7 +114,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         var cmd = builder.Compile();
         await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
         cmd.Connection = conn;
-        
+
         try
         {
             await cmd.ExecuteNonQueryAsync(_cancellation);
@@ -138,7 +138,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             table.Rows.Add(id);
         }
-        
+
         var command = CreateCommand($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay where id in (select ID from @IDLIST)");
         command.With("replay", true);
         var list = command.AddNamedParameter("IDLIST", table).As<SqlParameter>();
@@ -156,7 +156,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             table.Rows.Add(id);
         }
-        
+
         var command = CreateCommand($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id in (select ID from @IDLIST)");
         var list = command.AddNamedParameter("IDLIST", table).As<SqlParameter>();
         list.SqlDbType = SqlDbType.Structured;
@@ -189,7 +189,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     public override Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
         if (HasDisposed) return Task.CompletedTask;
-        
+
         return CallFunction("uspDeleteOutgoingEnvelopes")
             .WithIdList(this, envelopes).ExecuteNonQueryAsync(_cancellation);
     }
@@ -211,13 +211,12 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         var cmd = CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership");
         cmd.CommandType = CommandType.StoredProcedure;
-        
+
         return cmd
             .WithIdList(this, incoming)
             .With("owner", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
     }
-
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
@@ -232,7 +231,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
     {
         if (HasDisposed) return;
-        
+
         IReadOnlyList<Envelope> envelopes;
 
         await using var conn = new SqlConnection(_settings.ConnectionString);
@@ -250,7 +249,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
                 envelopes = await cmd.FetchListAsync(reader =>
                     DatabasePersistence.ReadIncomingAsync(reader, cancellationToken), cancellation: cancellationToken);
-                
+
                 if (!envelopes.Any())
                 {
                     await tx.RollbackAsync(cancellationToken);
@@ -259,14 +258,14 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
                 var reassign = conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);
                 reassign.CommandType = CommandType.StoredProcedure;
-        
+
                 await reassign
                     .WithIdList(this, envelopes)
                     .With("owner", durabilitySettings.AssignedNodeNumber)
                     .ExecuteNonQueryAsync(_cancellation);
 
                 await tx.CommitAsync(cancellationToken);
-                
+
                 // Judging that there's very little chance of errors here
                 foreach (var envelope in envelopes)
                 {
@@ -280,10 +279,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             await conn.CloseAsync();
         }
-
-
     }
-
 
     public override IEnumerable<ISchemaObject> AllObjects()
     {
@@ -297,7 +293,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         yield return new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", this);
         yield return new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", this);
 
-        
+
         if (_settings.IsMaster)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
@@ -317,7 +313,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             assignmentTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
 
             yield return assignmentTable;
-            
+
             if (_settings.CommandQueuesEnabled)
             {
                 var queueTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.ControlQueueTableName));
@@ -330,8 +326,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
                 yield return queueTable;
             }
-            
-                    
+
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn<int>("id").AutoNumber().AsPrimaryKey();
             eventTable.AddColumn<int>("node_number").NotNull();

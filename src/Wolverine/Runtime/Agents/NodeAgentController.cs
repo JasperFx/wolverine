@@ -19,7 +19,7 @@ public partial class NodeAgentController
     private readonly INodeStateTracker _tracker;
 
     private ImHashMap<Uri, IAgent> _agents = ImHashMap<Uri, IAgent>.Empty;
-    
+
     // May be valuable later
     private DateTimeOffset? _lastAssignmentCheck;
 
@@ -56,7 +56,6 @@ public partial class NodeAgentController
     }
 
     public bool HasStartedInSoloMode { get; private set; }
-
 
     internal void AddHandlers(WolverineRuntime runtime)
     {
@@ -219,7 +218,6 @@ public partial class NodeAgentController
         }
     }
 
-
     public Uri[] AllRunningAgentUris()
     {
         return _agents.Enumerate().Select(x => x.Key).ToArray();
@@ -235,7 +233,6 @@ public partial class NodeAgentController
 
         _agents = ImHashMap<Uri, IAgent>.Empty;
     }
-
 }
 
 public class AgentStartingException : Exception

@@ -38,7 +38,7 @@ public class exclusive_listeners : IAsyncLifetime
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "listeners");
 
             opts.ListenToRabbitQueue("ordered")
-                
+
                 // This option is available on all types of Wolverine
                 // endpoints that can be configured to be a listener
                 .ListenWithStrictOrdering();
@@ -65,7 +65,7 @@ public class exclusive_listeners : IAsyncLifetime
             .OrderBy(x => x)
             .ShouldHaveTheSameElementsAs("one", "three", "two");
     }
-    
+
     public async Task InitializeAsync()
     {
         await dropSchema();
@@ -78,13 +78,13 @@ public class exclusive_listeners : IAsyncLifetime
         _hosts.Reverse();
         foreach (var host in _hosts) await host.StopAsync();
     }
-    
+
     private async Task<IHost> startHostAsync()
     {
         var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.Durability.HealthCheckPollingTime = 1.Seconds();
-                
+
             opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
             opts.UseRabbitMq().EnableWolverineControlQueues();
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "listeners");
@@ -95,7 +95,7 @@ public class exclusive_listeners : IAsyncLifetime
             opts.ListenToRabbitQueue("three").ListenWithStrictOrdering();
 
             opts.PublishMessage<ExclusiveMessage>().ToRabbitQueue("one");
-            
+
             opts.Services.AddResourceSetupOnStartup();
         }).StartAsync();
 
@@ -105,7 +105,7 @@ public class exclusive_listeners : IAsyncLifetime
 
         return host;
     }
-    
+
     private async Task shutdownHostAsync(IHost host)
     {
         host.GetRuntime().Agents.DisableHealthChecks();
@@ -141,10 +141,6 @@ public class exclusive_listeners : IAsyncLifetime
 
         session.Received.SingleMessage<ExclusiveMessage>().ShouldNotBeNull();
     }
-    
-    
-
-
 }
 
 public class ExclusiveMessage;
@@ -153,6 +149,5 @@ public static class ExclusiveMessageHandler
 {
     public static void Handle(ExclusiveMessage message)
     {
-        
     }
 }

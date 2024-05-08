@@ -68,7 +68,7 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
                     bindings = $"To queue(s) {exchange.Bindings().Select(x => x.Queue.QueueName).Join(", ")}";
                 }
             }
-            
+
             table.AddRow(exchange.Name, exchange.ExchangeType.ToString(), exchange.AutoDelete.ToString(), exchange.IsDurable.ToString(), arguments,
                 bindings);
         }

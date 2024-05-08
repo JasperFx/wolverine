@@ -24,9 +24,9 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine()
                     .UseLightweightSessions();
-                
+
                 opts.Policies.AutoApplyTransactions();
-                
+
             }).StartAsync();
 
         #endregion
@@ -47,13 +47,13 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
     public async Task execute_with_tenancy()
     {
         var id = Guid.NewGuid();
-        
+
         await _host.ExecuteAndWaitAsync(c =>
             c.InvokeForTenantAsync("one", new CreateTenantDocument(id, "Andor")));
-        
+
         await _host.ExecuteAndWaitAsync(c =>
             c.InvokeForTenantAsync("two", new CreateTenantDocument(id, "Tear")));
-        
+
         await _host.ExecuteAndWaitAsync(c =>
             c.InvokeForTenantAsync("three", new CreateTenantDocument(id, "Illian")));
 
@@ -65,14 +65,14 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
             var document = await session.LoadAsync<TenantedDocument>(id);
             document.Location.ShouldBe("Andor");
         }
-        
+
         // Check the second tenant
         using (var session = store.LightweightSession("two"))
         {
             var document = await session.LoadAsync<TenantedDocument>(id);
             document.Location.ShouldBe("Tear");
         }
-        
+
         // Check the third tenant
         using (var session = store.LightweightSession("three"))
         {

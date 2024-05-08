@@ -49,7 +49,6 @@ internal static class WolverineTracing
         return StartEnvelopeActivity("process", envelope);
     }
 
-
     public static Activity? StartEnvelopeActivity(string spanName, Envelope envelope,
         ActivityKind kind = ActivityKind.Internal)
     {

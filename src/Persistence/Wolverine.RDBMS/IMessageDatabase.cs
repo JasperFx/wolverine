@@ -17,7 +17,7 @@ public interface IMessageDatabase : IMessageStore
 
     string SchemaName { get; set; }
     DatabaseSettings Settings { get; }
-    
+
     DbDataSource DataSource { get; }
 
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
@@ -32,7 +32,7 @@ public interface IMessageDatabase : IMessageStore
     Task<PersistedCounts> FetchCountsAsync();
 
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
-    
+
     DbCommandBuilder ToCommandBuilder();
 
     Task EnqueueAsync(IDatabaseOperation operation);

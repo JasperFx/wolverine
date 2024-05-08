@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _validator = validator;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             // Reading the request body via JSON deserialization
@@ -40,19 +38,13 @@ namespace Internal.Generated.WolverineHandlers
                 await result1.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             var result_of_Post = Wolverine.Http.Tests.DifferentAssembly.Validation.Validated2Endpoint.Post(customer);
 
             await WriteString(httpContext, result_of_Post);
         }
-
     }
 
     // END: POST_validate2_customer
-    
-    
 }
-

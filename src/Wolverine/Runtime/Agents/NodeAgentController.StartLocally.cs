@@ -6,12 +6,12 @@ namespace Wolverine.Runtime.Agents;
 public partial class NodeAgentController
 {
     private Task _soloCheckingTask;
-    
+
     public async Task StartSoloModeAsync()
     {
         await _runtime.Storage.Nodes.ClearAllAsync(_cancellation.Token);
         await _runtime.Storage.Admin.ReleaseAllOwnershipAsync();
-        
+
         var current = WolverineNode.For(_runtime.Options);
 
         _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId = 1;

@@ -43,7 +43,6 @@ public class StatefulResourceSmokeTests
         result.ShouldBe(0);
     }
 
-
     [Fact]
     public async Task statistics()
     {

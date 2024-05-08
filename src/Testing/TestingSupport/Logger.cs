@@ -12,7 +12,6 @@ public class OutputLoggerProvider : ILoggerProvider
         _output = output;
     }
 
-
     public void Dispose()
     {
     }

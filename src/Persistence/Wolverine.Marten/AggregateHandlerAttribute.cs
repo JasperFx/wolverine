@@ -71,12 +71,10 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         if (CommandType == null)
             throw new InvalidOperationException(
                 $"Cannot apply Marten aggregate handler workflow to chain {chain} because it has no input type");
-        
+
         AggregateType ??= DetermineAggregateType(chain);
         AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
         VersionMember = DetermineVersionMember(CommandType);
-
-        
 
         var sessionCreator = MethodCall.For<OutboxedSessionFactory>(x => x.OpenSession(null!));
         chain.Middleware.Add(sessionCreator);
@@ -115,12 +113,11 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
             return;
         }
 
-        
         var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ??
                              firstCall.Creates.FirstOrDefault(x =>
                                  x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
                                  !x.VariableType.CanBeCastTo<IWolverineReturnType>());
-        
+
         if (eventsVariable != null)
         {
             eventsVariable.UseReturnAction(
@@ -130,8 +127,6 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
             return;
         }
 
-
-        
         // If there's no return value of Events or IEnumerable<object>, and there's also no parameter of IEventStream<Aggregate>,
         // then assume that the default behavior of each return value is to be an event
         if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
@@ -177,8 +172,8 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
     {
         chain.Middleware.Add(new EventStoreFrame());
         var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<MethodCall>(this, AggregateType!);
-        
-        
+
+
         chain.Middleware.Add(loader);
         return loader;
     }
@@ -257,7 +252,7 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var variableName = (typeof(T).Name + "Event").ToCamelCase();
-        
+
         writer.WriteComment(Description);
         writer.Write($"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
         Next?.GenerateCode(method, writer);
@@ -287,7 +282,7 @@ internal class EventCaptureActionSource : IReturnVariableActionSource
 
     public IReturnVariableAction Build(IChain chain, Variable variable)
     {
-        
+
         return new ActionSource(_aggregateType, variable);
     }
 

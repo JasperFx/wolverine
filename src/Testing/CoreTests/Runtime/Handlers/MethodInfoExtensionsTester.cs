@@ -42,7 +42,6 @@ public class MethodInfoExtensionsTester
         methodFor(x => x.Go5()).MessageType().ShouldBeNull();
     }
 
-
     [Fact]
     public void use_first_arg_if_it_is_concrete()
     {
@@ -71,7 +70,6 @@ public class MethodInfoExtensionsTester
         public void Go5()
         {
         }
-
 
         public void Go7(Message4 thing, IService service)
         {

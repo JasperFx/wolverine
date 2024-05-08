@@ -36,7 +36,6 @@ public class local_integration_specs : IntegrationContext
         });
     }
 
-
     [Fact]
     public async Task send_a_message_and_get_the_response()
     {
@@ -96,15 +95,15 @@ public class local_integration_specs : IntegrationContext
         {
             opts.LocalQueueFor<Message1>().MaximumParallelMessages(6, ProcessingOrder.UnOrdered);
         });
-        
+
         var runtime = Host.GetRuntime();
         var queue = runtime.Options.LocalRouting.FindQueueForMessageType(typeof(Message1));
         queue
             .ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(6);
-        
+
         queue.ExecutionOptions.EnsureOrdered.ShouldBeFalse();
     }
-    
+
     [Fact]
     public void individual_configuration_by_queue_2()
     {
@@ -112,12 +111,12 @@ public class local_integration_specs : IntegrationContext
         {
             opts.LocalQueueFor<Message1>().MaximumParallelMessages(6, ProcessingOrder.StrictOrdered);
         });
-        
+
         var runtime = Host.GetRuntime();
         var queue = runtime.Options.LocalRouting.FindQueueForMessageType(typeof(Message1));
         queue
             .ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(6);
-        
+
         queue.ExecutionOptions.EnsureOrdered.ShouldBeTrue();
     }
 }

@@ -19,7 +19,7 @@ public class LocalMqttBroker : IAsyncDisposable, IMqttNetLogger
         // Use the builder classes where possible.
         _mqttServerOptions = new MqttServerOptionsBuilder()
             .WithDefaultEndpoint().Build();
-        
+
 
     }
 
@@ -54,7 +54,7 @@ public class LocalMqttBroker : IAsyncDisposable, IMqttNetLogger
         {
             await StopAsync();
         }
-        
+
         _mqttServer.Dispose();
     }
 
@@ -67,15 +67,15 @@ public class LocalMqttBroker : IAsyncDisposable, IMqttNetLogger
             case MqttNetLogLevel.Error:
                 Logger.LogError(exception, message, parameters);
                 break;
-            
+
             case MqttNetLogLevel.Info:
                 Logger.LogInformation(message, parameters);
                 break;
-            
+
             case MqttNetLogLevel.Verbose:
                 Logger.LogDebug(message, parameters);
                 break;
-            
+
             case MqttNetLogLevel.Warning:
                 Logger.LogWarning(message, parameters);
                 break;

@@ -34,7 +34,6 @@ public class configuring_middleware
         assertions(chain);
     }
 
-
     [Fact]
     public async Task simple_before_and_after_with_instance_methods()
     {

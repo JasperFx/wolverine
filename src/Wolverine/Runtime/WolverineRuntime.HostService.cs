@@ -24,7 +24,7 @@ public partial class WolverineRuntime
                 Options.ApplicationAssembly!.GetName());
 
             logCodeGenerationConfiguration();
-            
+
             await ApplyAsyncExtensions();
 
             foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())
@@ -34,7 +34,7 @@ public partial class WolverineRuntime
 
             // Build up the message handlers
             Handlers.Compile(Options, _container);
-            
+
             if (Options.AutoBuildMessageStorageOnStartup && Storage is not NullMessageStore)
             {
                 await Storage.Admin.MigrateAsync();
@@ -43,9 +43,9 @@ public partial class WolverineRuntime
             // Has to be done before initializing the storage
             Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
             Storage.Initialize(this);
-            
+
             _agentCancellation = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
-            
+
             // This MUST be done before the messaging transports are started up
             _hasStarted = true; // Have to do this before you can use MessageBus
             await startAgentsAsync();
@@ -67,15 +67,15 @@ public partial class WolverineRuntime
                     await startMessagingTransportsAsync();
                     startInMemoryScheduledJobs();
                     break;
-                
+
                 case DurabilityMode.Serverless:
                     Options.Transports.RemoveLocal();
                     Options.Policies.DisableConventionalLocalRouting();
                     Options.Policies.Add(new ServerlessEndpointsMustBeInlinePolicy());
-                    
+
                     await startMessagingTransportsAsync();
                     break;
-                
+
                 case DurabilityMode.MediatorOnly:
                     break;
             }
@@ -89,12 +89,11 @@ public partial class WolverineRuntime
         }
     }
 
-
     private bool _hasAppliedAsyncExtensions = false;
     internal async Task ApplyAsyncExtensions()
     {
         if (_hasAppliedAsyncExtensions) return;
-        
+
         var asyncExtensions = _container.GetAllInstances<IAsyncWolverineExtension>();
         foreach (var extension in asyncExtensions)
         {
@@ -103,7 +102,7 @@ public partial class WolverineRuntime
 
         _hasAppliedAsyncExtensions = true;
     }
-    
+
     public void WarnIfAnyAsyncExtensions()
     {
         if (!_hasAppliedAsyncExtensions && _container.Model.HasRegistrationFor(typeof(IAsyncWolverineExtension)))
@@ -137,14 +136,13 @@ public partial class WolverineRuntime
         }
     }
 
-
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         if (_hasStopped)
         {
             return;
         }
-        
+
         _agentCancellation.Cancel();
 
         _hasStopped = true;
@@ -217,7 +215,7 @@ public partial class WolverineRuntime
                 // There are a couple other places where senders might be getting
                 // started before this point, so latch to avoid double creations
                 if (_endpoints.HasSender(endpoint.Uri)) continue;
-                
+
                 var agent = endpoint.StartSending(this, replyUri);
                 _endpoints.StoreSendingAgent(agent);
             }

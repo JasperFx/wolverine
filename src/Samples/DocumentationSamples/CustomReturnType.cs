@@ -32,7 +32,7 @@ internal class WriteFilePolicy : IChainPolicy
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
         var method = ReflectionHelper.GetMethod<WriteFile>(x => x.WriteAsync());
-        
+
         // Check out every message and/or http handler:
         foreach (var chain in chains)
         {

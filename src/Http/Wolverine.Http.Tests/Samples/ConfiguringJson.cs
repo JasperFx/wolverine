@@ -12,7 +12,7 @@ public class ConfiguringJson
         var builder = WebApplication.CreateBuilder();
 
         builder.Host.UseWolverine();
-        
+
         builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
         {
             // Do whatever you want here to customize the JSON
@@ -21,7 +21,7 @@ public class ConfiguringJson
         });
 
         var app = builder.Build();
-        
+
         app.MapWolverineEndpoints();
 
         return await app.RunOaktonCommands(args);

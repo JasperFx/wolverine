@@ -20,7 +20,7 @@ public class can_compile_a_handler_chain_for_an_inner_type : IntegrationContext
     public void does_not_blow_up()
     {
         _output.WriteLine(Host.Services.GetRequiredService<IWolverineRuntime>().Options.DescribeHandlerMatch(typeof(ThingWithInner.InnerHandler)));
-        
+
         var chain = Handlers.ChainFor<Message1>();
         var call = chain.Handlers.First(x => x.HandlerType == typeof(ThingWithInner.InnerHandler));
         call.ShouldNotBeNull();

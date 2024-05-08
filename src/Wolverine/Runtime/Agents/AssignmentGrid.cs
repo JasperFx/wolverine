@@ -60,7 +60,7 @@ public class AssignmentGrid
 
         return node;
     }
-    
+
     public Node WithNode(int assignedId, Guid id)
     {
         var node = new Node(this, assignedId, id, new List<Uri>());
@@ -127,7 +127,7 @@ public class AssignmentGrid
 
         return AgentFor(uri);
     }
-    
+
     /// <summary>
     ///     Attempts to redistribute agents for a given agent type evenly
     ///     across the known, executing nodes with minimal disruption
@@ -190,7 +190,6 @@ public class AssignmentGrid
             }
         }
 
-
         var nodesWithCapacity = _nodes.Where(x => !x.IsLeader && x.ForScheme(scheme).Count() < maximum);
         var nodeQueue = new Queue<Node>(nodesWithCapacity.ToArray());
 
@@ -248,15 +247,15 @@ public class AssignmentGrid
             }
         }
 
-        // In the missing, we're going to put the agents up top that can be supported in fewer places 
+        // In the missing, we're going to put the agents up top that can be supported in fewer places
         var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count()).ToList();
         foreach (var agent in missing)
         {
             // First try to find a node that has less than the minimum number of nodes
             var candidate = agent
                 .CandidateNodes
-                .FirstOrDefault(x => x.ForScheme(scheme).Count() < minimum) 
-                            
+                .FirstOrDefault(x => x.ForScheme(scheme).Count() < minimum)
+
                             // Or fall back to the least loaded down node
                             ?? agent.CandidateNodes.MinBy(x => x.ForScheme(scheme).Count());
 
@@ -331,7 +330,6 @@ public class AssignmentGrid
 
         return dict;
     }
-
 
     public void RunOnLeader(Uri agentUri)
     {
@@ -428,7 +426,6 @@ public class AssignmentGrid
             return $"{nameof(Uri)}: {Uri}";
         }
     }
-
 
     public class Node
     {

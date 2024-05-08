@@ -19,11 +19,9 @@ namespace Internal.Generated.WolverineHandlers
 
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: TelegramUpdatedHandler96651444
     
     
 }
-

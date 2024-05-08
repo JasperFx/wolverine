@@ -19,8 +19,7 @@ public class correlation_id_from_request_through_to_message_context : Integratio
             x.Get.Url("/correlation");
             x.WithRequestHeader(RequestIdMiddleware.CorrelationIdHeaderKey, id);
         });
-        
+
         body.ReadAsText().ShouldBe(id);
     }
-
 }

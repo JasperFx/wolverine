@@ -37,4 +37,3 @@ public class SecondHandler
         logger.LogInformation("Doing the second: {Name}", message.Name);
     }
 }
-

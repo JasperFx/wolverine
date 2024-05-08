@@ -14,7 +14,6 @@ public class TrackedSessionConfiguration
         _session = session;
     }
 
-
     /// <summary>
     ///     Override the default timeout threshold to wait for all
     ///     activity to finish
@@ -113,7 +112,6 @@ public class TrackedSessionConfiguration
         return _session;
     }
 
-
     /// <summary>
     ///     Invoke a message inline from the current Wolverine application
     ///     and wait for all cascading activity to complete
@@ -173,7 +171,6 @@ public class TrackedSessionConfiguration
         return ExecuteAndWaitAsync(c => c.PublishAsync(message, options));
     }
 
-
     /// <summary>
     ///     Execute a request with expected reply
     /// </summary>
@@ -210,7 +207,6 @@ public class TrackedSessionConfiguration
 
         return (session, response);
     }
-
 
     /// <summary>
     ///     Execute a send and wait operation

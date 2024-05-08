@@ -77,7 +77,6 @@ public class HappyMealSaga3 : Wolverine.Saga
         return DrinkReady && ToyReady && SideReady && MainReady;
     }
 
-
     // This is a little bit cute, but the HappyMealOrderState type
     // is known to be the saga state document, so it'll be treated as
     // the state document, while the object[] will be treated as
@@ -122,7 +121,6 @@ public class HappyMealSaga3 : Wolverine.Saga
             MarkCompleted();
         }
     }
-
 
     public void Handle(
         BurgerReady burgerReady

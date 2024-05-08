@@ -21,13 +21,13 @@ public class listen_with_topic_wildcards : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
-        
+
 
         Broker = new LocalMqttBroker(port)
         {
             Logger = new XUnitLogger( _output, "MQTT")
         };
-        
+
         await Broker.StartAsync();
 
         _sender = await Host.CreateDefaultBuilder()
@@ -48,7 +48,7 @@ public class listen_with_topic_wildcards : IAsyncLifetime
 
         #endregion
     }
-    
+
     [Fact]
     public async Task broadcast()
     {

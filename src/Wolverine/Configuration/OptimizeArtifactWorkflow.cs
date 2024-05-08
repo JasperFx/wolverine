@@ -18,7 +18,7 @@ internal class OptimizeArtifactWorkflow : IWolverineExtension
     public void Configure(WolverineOptions options)
     {
         var environment = _serviceProvider.GetRequiredService<IHostEnvironment>();
-        
+
         if (environment.IsEnvironment(_developmentEnvironment))
         {
             options.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;

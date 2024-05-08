@@ -24,7 +24,7 @@ public class FailureSlot
     {
         _sources.Add(source);
     }
-    
+
     public void InsertSourceAtTop(IContinuationSource source)
     {
         _sources.Insert(0, source);
@@ -41,6 +41,4 @@ public class FailureSlot
     {
         return _sources.Select(x => x.Description).Join(", then ");
     }
-
-
 }
