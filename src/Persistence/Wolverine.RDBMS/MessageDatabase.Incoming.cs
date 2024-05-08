@@ -9,7 +9,7 @@ namespace Wolverine.RDBMS;
 public abstract partial class MessageDatabase<T>
 {
     private readonly string _deleteIncomingEnvelopeById;
-    private readonly string _incrementIncominEnvelopeAttempts;
+    private readonly string _incrementIncomingEnvelopeAttempts;
 
     public abstract Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     public abstract Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
@@ -38,7 +38,7 @@ public abstract partial class MessageDatabase<T>
     public Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
         if (HasDisposed) return Task.CompletedTask;
-        return CreateCommand(_incrementIncominEnvelopeAttempts)
+        return CreateCommand(_incrementIncomingEnvelopeAttempts)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
             .ExecuteNonQueryAsync(_cancellation);
