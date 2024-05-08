@@ -21,7 +21,7 @@ public class internals_tests
 
         ex.Message.ShouldBe("Validation failure on: Wolverine.FluentValidation.Tests.Command1");
 
-        ex.Errors.Count().ShouldBe(result.Errors.Count());
+        ex.Errors.Count().ShouldBe(result.Errors.Count);
     }
 
     [Fact]
