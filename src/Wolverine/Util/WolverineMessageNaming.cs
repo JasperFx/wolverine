@@ -78,7 +78,7 @@ internal class FullTypeNaming : IMessageTypeNaming
             parts.Insert(0, messageType.DeclaringType!.Name);
         }
 
-        messageTypeName = string.Join("_", parts).Replace(",", "_");
+        messageTypeName = string.Join("_", parts).Replace(',', '_');
         return true;
     }
 }
