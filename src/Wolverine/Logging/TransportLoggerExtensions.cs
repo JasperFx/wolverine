@@ -84,7 +84,7 @@ internal static class TransportLoggerExtensions
 
     public static void IncomingBatchReceived(this ILogger logger, Uri address, IReadOnlyList<Envelope> envelopes)
     {
-        _incomingBatchReceived(logger, envelopes.Count(), address, null);
+        _incomingBatchReceived(logger, envelopes.Count, address, null);
     }
 
     public static void IncomingReceived(this ILogger logger, Envelope envelope, Uri address)
