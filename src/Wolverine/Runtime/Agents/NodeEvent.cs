@@ -81,10 +81,7 @@ public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEven
                 break;
 
             case NodeEventType.LeadershipAssumed:
-                if (tracker.Leader != null)
-                {
-                    tracker.Leader.ActiveAgents.Remove(NodeAgentController.LeaderUri);
-                }
+                tracker.Leader?.ActiveAgents.Remove(NodeAgentController.LeaderUri);
 
                 tracker.Nodes[Node.Id] = Node;
                 tracker.Leader = Node;

@@ -106,10 +106,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
         if (_healthCheckLoop == null) return;
 
-        if (NodeController != null)
-        {
-            NodeController.CancelHeartbeatChecking();
-        }
+        NodeController?.CancelHeartbeatChecking();
     }
 
     public Task<AgentCommands> VerifyAssignmentsAsync()
@@ -223,10 +220,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private async Task teardownAgentsAsync()
     {
-        if (_healthCheckLoop != null)
-        {
-            _healthCheckLoop.SafeDispose();
-        }
+        _healthCheckLoop?.SafeDispose();
 
         if (NodeController != null)
         {
@@ -242,11 +236,7 @@ public partial class WolverineRuntime : IAgentRuntime
     internal async Task DisableAgentsAsync(DateTimeOffset lastHeartbeatTime)
     {
         _agentsAreDisabled = true;
-
-        if (_healthCheckLoop != null)
-        {
-            _healthCheckLoop.SafeDispose();
-        }
+        _healthCheckLoop?.SafeDispose();
 
         if (NodeController != null)
         {

@@ -108,10 +108,7 @@ public class AuditedHandler
         logger.Log(LogLevel.Information, "Starting to process DebitAccount ({Id}) with AccountId {AccountId}", envelope.Id, message.Amount);
 
         var activity = Activity.Current;
-        if (activity != null)
-        {
-            activity.SetTag(nameof(DebitAccount.AccountId), message.AccountId);
-        }
+        activity?.SetTag(nameof(DebitAccount.AccountId), message.AccountId);
     }
 }
 
