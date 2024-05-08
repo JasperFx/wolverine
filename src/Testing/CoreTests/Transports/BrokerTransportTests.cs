@@ -48,7 +48,7 @@ public class FakeTransport : BrokerTransport<FakeEndpoint>
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace("#", ".");
+        return identifier.Replace('#', '.');
     }
 
     protected override IEnumerable<FakeEndpoint> endpoints()

@@ -54,7 +54,7 @@ internal class Grid<T>
             column.WriteLine(writer, item);
         }
 
-        writer.WriteLine("|");
+        writer.WriteLine('|');
     }
 
     private void writeHeaderRow(StringWriter writer)
@@ -64,8 +64,7 @@ internal class Grid<T>
             column.WriteHeader(writer);
         }
 
-        writer.Write("|");
-        writer.WriteLine();
+        writer.WriteLine('|');
     }
 
     private static void writeSolidLine(StringWriter writer, int totalWidth)

@@ -63,7 +63,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     public void Audit(MemberInfo member, string? heading = null)
     {
         AuditedMembers.Add(new AuditedMember(member, heading ?? member.Name,
-            member.Name.SplitPascalCase().Replace(" ", ".").ToLowerInvariant()));
+            member.Name.SplitPascalCase().Replace(' ', '.').ToLowerInvariant()));
     }
 
     private bool isConfigureMethod(MethodInfo method)
