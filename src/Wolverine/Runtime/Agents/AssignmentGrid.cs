@@ -246,16 +246,15 @@ public class AssignmentGrid
                 agent.Detach();
             }
         }
-
-        // In the missing, we're going to put the agents up top that can be supported in fewer places
-        var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count()).ToList();
+        
+        // In the missing, we're going to put the agents up top that can be supported in fewer places 
+        var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count).ToList();
         foreach (var agent in missing)
         {
             // First try to find a node that has less than the minimum number of nodes
             var candidate = agent
                 .CandidateNodes
-                .FirstOrDefault(x => x.ForScheme(scheme).Count() < minimum)
-
+                .FirstOrDefault(x => x.ForScheme(scheme).Count() < minimum) 
                             // Or fall back to the least loaded down node
                             ?? agent.CandidateNodes.MinBy(x => x.ForScheme(scheme).Count());
 
