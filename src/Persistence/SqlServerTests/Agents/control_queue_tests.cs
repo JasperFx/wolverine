@@ -80,9 +80,9 @@ public class control_queue_tests : SqlServerContext, IAsyncLifetime
             .Timeout(10.Seconds())
             .ExecuteAndWaitAsync(m => m.EndpointFor(_receiverUri).SendAsync(new Command(10)));
 
-        tracked.Sent.RecordsInOrder().Where(x => x.Envelope.Message.GetType() == typeof(Command)).Single().ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message?.GetType() == typeof(Command)).ServiceName
             .ShouldBe("Sender");
-        tracked.Received.RecordsInOrder().Where(x => x.Envelope.Message.GetType() == typeof(Command)).Single()
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message?.GetType() == typeof(Command))
             .ServiceName
             .ShouldBe("Receiver");
     }
@@ -98,14 +98,14 @@ public class control_queue_tests : SqlServerContext, IAsyncLifetime
         result.Number.ShouldBe(13);
 
 
-        tracked.Sent.RecordsInOrder().Where(x => x.Envelope.Message.GetType() == typeof(Query)).Single().ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(Query)).ServiceName
             .ShouldBe("Sender");
-        tracked.Received.RecordsInOrder().Where(x => x.Envelope.Message.GetType() == typeof(Query)).Single().ServiceName
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(Query)).ServiceName
             .ShouldBe("Receiver");
 
-        tracked.Sent.RecordsInOrder().Where(x => x.Envelope.Message.GetType() == typeof(Result)).Single().ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(Result)).ServiceName
             .ShouldBe("Receiver");
-        tracked.Received.RecordsInOrder().Where(x => x.Envelope.Message.GetType() == typeof(Result)).Single()
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(Result))
             .ServiceName
             .ShouldBe("Sender");
     }
