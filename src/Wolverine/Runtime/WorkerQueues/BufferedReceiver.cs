@@ -194,10 +194,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             d.SafeDispose();
         }
 
-        if (_moveToErrors != null)
-        {
-            _moveToErrors.Dispose();
-        }
+        _moveToErrors?.Dispose();
     }
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)

@@ -26,10 +26,7 @@ public record AgentStopped(Uri AgentUri) : IWolverineEvent
     public void ModifyState(WolverineTracker tracker)
     {
         var node = tracker.FindOwnerOfAgent(AgentUri);
-        if (node != null)
-        {
-            node.ActiveAgents.Remove(AgentUri);
-        }
+        node?.ActiveAgents.Remove(AgentUri);
 
         tracker.Agents.TryRemove(AgentUri, out var value);
     }

@@ -25,10 +25,9 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
     public bool TryApply(HttpChain chain)
     {
         var result = chain.Method.Creates.FirstOrDefault();
-        if (result is null) return false;
 
         // Are we dealing with a compiled query or not?
-        var compiledQueryClosure = result.VariableType.FindInterfaceThatCloses(typeof(ICompiledQuery<,>));
+        var compiledQueryClosure = result?.VariableType.FindInterfaceThatCloses(typeof(ICompiledQuery<,>));
         if (compiledQueryClosure is null) return false;
 
         var arguments = compiledQueryClosure.GetGenericArguments();
