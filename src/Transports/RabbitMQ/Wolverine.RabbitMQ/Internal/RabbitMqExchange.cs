@@ -12,7 +12,7 @@ namespace Wolverine.RabbitMQ.Internal;
 
 public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 {
-    private readonly List<RabbitMqBinding> _bindings = new();
+    private readonly List<RabbitMqBinding> _bindings = [];
     private readonly RabbitMqTransport _parent;
 
     private bool _initialized;

@@ -24,7 +24,7 @@ public class OutgoingMessage
     public int OwnerId { get; set; }
     public string Destination { get; set; } = "destination";
     public DateTimeOffset? DeliverBy { get; set; }
-    public byte[] Body { get; set; } = Array.Empty<byte>();
+    public byte[] Body { get; set; } = [];
     public int Attempts { get; set; }
     public string MessageType { get; set; } = string.Empty;
 }

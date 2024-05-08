@@ -9,7 +9,7 @@ public record CheckAgentHealth : IAgentCommand, ISerializable
 
     public byte[] Write()
     {
-        return Array.Empty<byte>();
+        return [];
     }
 
     public static object Read(byte[] bytes)

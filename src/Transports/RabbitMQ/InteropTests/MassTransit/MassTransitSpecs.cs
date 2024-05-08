@@ -48,7 +48,7 @@ public class MassTransitFixture : IAsyncLifetime
 
         #endregion
 
-        MassTransit = await Program.CreateHostBuilder(Array.Empty<string>())
+        MassTransit = await Program.CreateHostBuilder([])
             .StartAsync();
     }
 

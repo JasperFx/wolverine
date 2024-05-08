@@ -12,7 +12,7 @@ public class Bug_463_codegen_with_IQuerySession
     [Fact]
     public async Task can_compile_without_issue()
     {
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)

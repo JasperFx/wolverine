@@ -22,8 +22,7 @@ namespace Wolverine;
 /// </summary>
 public sealed partial class WolverineOptions
 {
-    private readonly List<Action<WolverineOptions>> _lazyActions = new();
-
+    private readonly List<Action<WolverineOptions>> _lazyActions = [];
     public WolverineOptions() : this(null)
     {
     }
@@ -101,7 +100,7 @@ public sealed partial class WolverineOptions
     ///     methods or Lamar's registry DSL syntax . This usage will have access to the application's
     ///     full ServiceCollection *at the time of this call*
     /// </summary>
-    public ServiceRegistry Services { get; } = new();
+    public ServiceRegistry Services { get; } = [];
 
     internal HandlerGraph HandlerGraph { get; } = new();
 

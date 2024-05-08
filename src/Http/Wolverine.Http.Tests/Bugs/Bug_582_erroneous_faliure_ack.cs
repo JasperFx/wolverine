@@ -13,7 +13,7 @@ public class Bug_582_erroneous_faliure_ack
     [Fact]
     public async Task do_not_send_failure_ack()
     {
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)

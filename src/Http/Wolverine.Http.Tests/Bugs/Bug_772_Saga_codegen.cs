@@ -20,7 +20,7 @@ public class Bug_772_Saga_codegen
     public async Task can_compile_without_issue()
     {
         // Arrange -- and sorry, it's a bit of "Arrange" to get an IHost
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
 
         builder.Services
             .AddMarten(options =>
