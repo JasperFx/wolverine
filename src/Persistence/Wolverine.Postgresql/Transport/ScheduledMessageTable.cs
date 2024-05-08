@@ -19,7 +19,7 @@ internal class ScheduledMessageTable : Table
         // Definitely want to index the execution time. Far more reads than writes. We think. 
         Indexes.Add(new IndexDefinition($"idx_{tableName}_execution_time")
         {
-            Columns = new[]{DatabaseConstants.ExecutionTime}
+            Columns = [DatabaseConstants.ExecutionTime]
         });
     }
 }

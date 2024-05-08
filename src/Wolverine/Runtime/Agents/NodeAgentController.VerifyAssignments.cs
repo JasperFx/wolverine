@@ -14,7 +14,7 @@ public record VerifyAssignments : IAgentCommand, ISerializable
     
     public byte[] Write()
     {
-        return Array.Empty<byte>();
+        return [];
     }
 
     public static object Read(byte[] bytes)
@@ -68,7 +68,7 @@ internal class QueryAgents : IAgentCommand, ISerializable
 
     public byte[] Write()
     {
-        return Array.Empty<byte>();
+        return [];
     }
 
     public static object Read(byte[] bytes)

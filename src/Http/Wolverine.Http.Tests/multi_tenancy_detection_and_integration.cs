@@ -39,7 +39,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
     // Wolverine configuration and the desired behavior
     protected async Task configure(Action<WolverineHttpOptions> configure)
     {
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 
         // Haven't gotten around to it yet, but there'll be some end to

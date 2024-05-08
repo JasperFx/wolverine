@@ -15,7 +15,7 @@ public class EmptyMessageRouter<T> : MessageRouterBase<T>
 
     public override Envelope[] RouteForPublish(T message, DeliveryOptions? options)
     {
-        return Array.Empty<Envelope>();
+        return [];
     }
 
     public override IMessageRoute FindSingleRouteForSending()

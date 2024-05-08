@@ -74,7 +74,7 @@ internal class MartenEventRouter : IMessageRouteSource
                 return runtime.RoutingFor(wrappedType).Routes;
             }
             
-            MessageRoute[] innerRoutes = Array.Empty<MessageRoute>();
+            MessageRoute[] innerRoutes = [];
             if (messageType.IsConcrete())
             {
                 var inner = runtime.RoutingFor(wrappedType);

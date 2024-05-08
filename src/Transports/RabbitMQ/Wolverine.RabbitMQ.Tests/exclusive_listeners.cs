@@ -19,7 +19,7 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class exclusive_listeners : IAsyncLifetime
 {
-    private readonly List<IHost> _hosts = new();
+    private readonly List<IHost> _hosts = [];
     private readonly ITestOutputHelper _output;
     private IHost _originalHost;
 

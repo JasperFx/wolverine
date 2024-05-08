@@ -316,7 +316,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         return tryReadIncomingHeader(incoming, key, out var value)
             ? value!.Split(',')
-            : Array.Empty<string>();
+            : [];
     }
 
     protected int readInt(TIncoming incoming, string key)
