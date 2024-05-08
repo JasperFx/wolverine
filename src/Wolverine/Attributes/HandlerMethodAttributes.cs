@@ -5,18 +5,14 @@ namespace Wolverine.Attributes;
 ///     that should be called before the actual handler
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
-public class WolverineBeforeAttribute : Attribute
-{
-}
+public class WolverineBeforeAttribute : Attribute;
 
 /// <summary>
 ///     Marks a method on middleware types or handler types as a method
 ///     that should be called after the actual handler
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
-public class WolverineAfterAttribute : Attribute
-{
-}
+public class WolverineAfterAttribute : Attribute;
 
 /// <summary>
 ///     Marks a method on middleware types or handler types as a method
@@ -24,6 +20,4 @@ public class WolverineAfterAttribute : Attribute
 ///     a try/finally block around the message handlers
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
-public class WolverineFinallyAttribute : Attribute
-{
-}
+public class WolverineFinallyAttribute : Attribute;

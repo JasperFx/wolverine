@@ -7,15 +7,10 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Kafka.Tests;
 
-
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-
-    
-
     public BufferedComplianceFixture() : base(new Uri("kafka://topic/receiver"), 120)
     {
-
     }
 
     public async Task InitializeAsync()
@@ -32,7 +27,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
             opts.ListenToKafkaTopic(senderTopic);
 
             opts.PublishAllMessages().ToKafkaTopic(receiverTopic).BufferedInMemory();
-            
+
             opts.Services.AddResourceSetupOnStartup();
         });
 
@@ -41,7 +36,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
             opts.UseKafka("localhost:29092");
 
             opts.ListenToKafkaTopic(receiverTopic).Named("receiver").BufferedInMemory();
-            
+
             opts.Services.AddResourceSetupOnStartup();
         });
     }
@@ -53,20 +48,14 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 }
 
 [Collection("acceptance")]
-public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
-{
-
-}
-
+public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>;
 
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-
     public static int Number = 0;
 
     public InlineComplianceFixture() : base(new Uri("kafka://topic/receiver"), 120)
     {
-
     }
 
     public async Task InitializeAsync()
@@ -92,7 +81,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
             opts.UseKafka("localhost:29092").AutoProvision();
 
             opts.ListenToKafkaTopic(receiverTopic).Named("receiver").ProcessInline();
-            
+
             opts.Services.AddResourceSetupOnStartup();
         });
     }
@@ -104,7 +93,4 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 }
 
 [Collection("acceptance")]
-public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
-{
-
-}
+public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>;
