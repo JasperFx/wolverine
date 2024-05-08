@@ -146,10 +146,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     {
         _requeueBlock.Dispose();
         _cancellation.Cancel();
-        if (_deadLetterBlock != null)
-        {
-            _deadLetterBlock.Dispose();
-        }
+        _deadLetterBlock?.Dispose();
 
         _task.SafeDispose();
         return ValueTask.CompletedTask;

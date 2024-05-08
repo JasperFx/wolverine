@@ -259,10 +259,7 @@ public class AssignmentGrid
                             // Or fall back to the least loaded down node
                             ?? agent.CandidateNodes.MinBy(x => x.ForScheme(scheme).Count());
 
-            if (candidate != null)
-            {
-                candidate.Assign(agent);
-            }
+            candidate?.Assign(agent);
         }
     }
 
@@ -334,10 +331,7 @@ public class AssignmentGrid
     public void RunOnLeader(Uri agentUri)
     {
         var node = _nodes.FirstOrDefault(x => x.IsLeader);
-        if (node != null)
-        {
-            node.Assign(agentUri);
-        }
+        node?.Assign(agentUri);
     }
 
     public class Agent
