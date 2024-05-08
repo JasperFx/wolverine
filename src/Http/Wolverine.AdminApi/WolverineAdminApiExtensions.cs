@@ -34,10 +34,8 @@ public static class WolverineAdminApiExtensions
             };
 
             document.Head.Add("link").Attr("rel", "stylesheet").Attr("href", "https://unpkg.com/mvp.css");
-            
-            // <link rel="stylesheet" href="https://unpkg.com/mvp.css"> 
 
-            
+            // <link rel="stylesheet" href="https://unpkg.com/mvp.css">
 
             var div = document.Body.Add("div").Style("margin", "50px");
 
@@ -61,7 +59,7 @@ public static class WolverineAdminApiExtensions
     {
         var counts = await runtime.Storage.Admin.FetchCountsAsync();
         var hasMultiples = counts.Tenants.Count != 0;
-        
+
         var table = new TableTag();
         table.AddHeaderRow(row =>
         {
@@ -127,8 +125,7 @@ public static class WolverineAdminApiExtensions
                 {
                     idText += " (leader)";
                 }
-                
-                
+
                 row.Cell(idText).Style("textAlign", "right");
                 row.Cell(node.Started.ToString("u"));
                 row.Cell(node.LastHealthCheck.ToString("u"));
@@ -143,6 +140,4 @@ public static class WolverineAdminApiExtensions
 
         return table;
     }
-    
-    
 }

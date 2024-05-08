@@ -25,8 +25,6 @@ namespace Internal.Generated.WolverineHandlers
             _validator_of_CreateUser615774722 = validator_of_CreateUser615774722;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var validatorList = new System.Collections.Generic.List<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>>{_validator_of_CreateUser615774722, _validator_of_CreateUser1922432273};
@@ -40,19 +38,13 @@ namespace Internal.Generated.WolverineHandlers
                 await result1.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             var result_of_Post = WolverineWebApi.Validation.ValidatedEndpoint.Post(user);
 
             await WriteString(httpContext, result_of_Post);
         }
-
     }
 
     // END: POST_validate_user
-    
-    
 }
-

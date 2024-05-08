@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             string name = httpContext.Request.Query["name"].FirstOrDefault();
@@ -28,11 +26,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_UsingEnumQuerystring);
         }
-
     }
 
     // END: GET_querystring_explicit
     
     
 }
-

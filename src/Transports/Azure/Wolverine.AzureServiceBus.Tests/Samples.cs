@@ -18,15 +18,15 @@ public class Samples
             .UseWolverine(opts =>
             {
                 opts.UseAzureServiceBus("some connection string")
-                    
+
                     // If this is part of your configuration, Wolverine will try to create
                     // any missing topics or subscriptions in the configuration at application
                     // start up time
                     .AutoProvision();
-                
+
                 // Publish to a topic
                 opts.PublishMessage<Message1>().ToAzureServiceBusTopic("topic1")
-                    
+
                     // Option to configure how the topic would be configured if
                     // built by Wolverine
                     .ConfigureTopic(topic =>
@@ -67,7 +67,7 @@ public class Samples
 
         #endregion
     }
-    
+
     public static async Task configure_auto_provision()
     {
         #region sample_auto_provision_with_azure_service_bus
@@ -76,7 +76,7 @@ public class Samples
             .UseWolverine(opts =>
             {
                 opts.UseAzureServiceBus("some connection string")
-                    
+
                     // Wolverine will build missing queues, topics, and subscriptions
                     // as necessary at runtime
                     .AutoProvision();
@@ -84,7 +84,7 @@ public class Samples
 
         #endregion
     }
-    
+
     public static async Task configure_auto_purge()
     {
         #region sample_auto_purge_with_azure_service_bus
@@ -118,8 +118,6 @@ public class Samples
     }
 }
 
-
-
 #region sample_custom_azure_service_bus_mapper
 
 public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
@@ -136,7 +134,7 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
     public void MapIncomingToEnvelope(Envelope envelope, ServiceBusReceivedMessage incoming)
     {
         envelope.Data = incoming.Body.ToArray();
-        
+
         // You will have to help Wolverine out by either telling Wolverine
         // what the message type is, or by reading the actual message object,
         // or by telling Wolverine separately what the default message type

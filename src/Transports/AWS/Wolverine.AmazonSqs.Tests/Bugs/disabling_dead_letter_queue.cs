@@ -32,11 +32,11 @@ public class disabling_dead_letter_queue
         // This is fugly
         var transport = host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>()
             .Options.Transports.GetOrCreate<AmazonSqsTransport>();
-        
+
         transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName)
             .ShouldBeFalse();
     }
-    
+
     [Fact]
     public async Task do_not_use_default_dlq_when_all_listener_dlqs_are_configured()
     {
@@ -55,7 +55,7 @@ public class disabling_dead_letter_queue
 
         var transport = host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>()
             .Options.Transports.GetOrCreate<AmazonSqsTransport>();
-        
+
         transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName)
             .ShouldBeFalse();
     }
@@ -74,10 +74,10 @@ public class disabling_dead_letter_queue
                 options.ListenToSqsQueue("product-created")
                     .ConfigureDeadLetterQueue("product-created-error");
             }).StartAsync();
-        
+
         var transport = host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>()
             .Options.Transports.GetOrCreate<AmazonSqsTransport>();
-        
+
         transport.Queues.Contains(AmazonSqsTransport.DeadLetterQueueName)
             .ShouldBeFalse();
     }

@@ -30,7 +30,7 @@ public class AmazonSqsTransportTests
         two.IsListener = true;
 
         var endpoints = transport.Endpoints().OfType<AmazonSqsQueue>().ToArray();
-        
+
         endpoints.ShouldContain(x => x.QueueName == AmazonSqsTransport.DeadLetterQueueName);
         endpoints.ShouldContain(x => x.QueueName == "two-dead-letter-queue");
         endpoints.ShouldContain(x => x.QueueName == "one");

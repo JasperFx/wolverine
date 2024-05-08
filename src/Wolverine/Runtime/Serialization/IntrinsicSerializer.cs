@@ -47,7 +47,6 @@ public class IntrinsicSerializer : IMessageSerializer
     }
 }
 
-
 internal class IntrinsicSerializer<T> : IMessageSerializer where T : ISerializable
 {
     public string ContentType => IntrinsicSerializer.MimeType;

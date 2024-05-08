@@ -37,7 +37,7 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
             .RebuildAsync();
 
         await new SqlServerMessageStore(
-                
+
                     new DatabaseSettings(){ ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
                 new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
             .RebuildAsync();
@@ -58,7 +58,7 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
                     opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, ReceiverSchemaName);
 
                     opts.ListenForMessagesFrom(_listener).UseDurableInbox();
-                    
+
                     opts.Services.AddResourceSetupOnStartup();
                 })
                 .Start();
@@ -125,7 +125,7 @@ create table receiver.trace_doc
 );
 
 ").ExecuteNonQueryAsync();
-        
+
         await conn.CloseAsync();
     }
 
@@ -276,7 +276,7 @@ public class TraceHandler
             .With("id", traceDoc.Id)
             .With("name", traceDoc.Name)
             .ExecuteNonQueryAsync();
-        
+
         await conn.CloseAsync();
     }
 }

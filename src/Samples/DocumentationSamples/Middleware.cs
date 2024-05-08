@@ -140,7 +140,7 @@ public static class UsingStopwatchMiddleware
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                // Apply our new middleware to message handlers, but optionally 
+                // Apply our new middleware to message handlers, but optionally
                 // filter it to only messages from a certain namespace
                 opts.Policies
                     .AddMiddleware<StopwatchMiddleware>(chain =>
@@ -168,7 +168,6 @@ public class StopwatchFrame : SyncFrame
         // just in case someone else wants that
         _stopwatch = new Variable(typeof(Stopwatch), "stopwatch", this);
     }
-
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {

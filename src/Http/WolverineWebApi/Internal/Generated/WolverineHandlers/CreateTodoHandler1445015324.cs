@@ -14,41 +14,29 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             // The actual message body
             var createTodo = (WolverineWebApi.Samples.CreateTodo)context.Envelope.Message;
-
             
             // The actual message execution
             (var outgoing1, var outgoing2) = WolverineWebApi.Samples.CreateTodoHandler.Handle(createTodo, documentSession);
-
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
-
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing2).ConfigureAwait(false);
-
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
 
-            
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
             await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
-
         }
-
     }
 
     // END: CreateTodoHandler1445015324
-    
-    
 }
-

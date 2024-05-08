@@ -27,7 +27,7 @@ public class AzureServiceBusEnvelope : Envelope
         return Args?.CompleteMessageAsync(AzureMessage, token) ?? ServiceBusReceiver?.CompleteMessageAsync(AzureMessage, token) ??
             SessionReceiver?.CompleteMessageAsync(AzureMessage, token) ?? Task.CompletedTask;
     }
-    
+
     public Task DeferAsync(CancellationToken token)
     {
         return Args?.DeferMessageAsync(AzureMessage, cancellationToken: token) ?? ServiceBusReceiver?.DeferMessageAsync(AzureMessage, cancellationToken: token) ??
@@ -36,8 +36,8 @@ public class AzureServiceBusEnvelope : Envelope
 
     public Task DeadLetterAsync(CancellationToken token, string? deadLetterReason = null, string? deadLetterErrorDescription = null)
     {
-        return Args?.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription:deadLetterErrorDescription) 
-               ?? ServiceBusReceiver?.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription:deadLetterErrorDescription) 
+        return Args?.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription:deadLetterErrorDescription)
+               ?? ServiceBusReceiver?.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription:deadLetterErrorDescription)
                ?? SessionReceiver?.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription:deadLetterErrorDescription) ?? Task.CompletedTask;
     }
 
@@ -46,7 +46,7 @@ public class AzureServiceBusEnvelope : Envelope
     private ServiceBusReceivedMessage AzureMessage { get; }
     private ServiceBusSessionReceiver? SessionReceiver { get; }
     private ServiceBusReceiver? ServiceBusReceiver { get; }
-    
+
     public Exception? Exception { get; set; }
     public bool IsCompleted { get; set; }
     public ServiceBusReceiver? Receiver { get; set; }

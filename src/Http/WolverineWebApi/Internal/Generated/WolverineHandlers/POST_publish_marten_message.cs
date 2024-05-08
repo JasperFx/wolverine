@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var serviceEndpoints = new WolverineWebApi.ServiceEndpoints();
@@ -50,11 +48,9 @@ namespace Internal.Generated.WolverineHandlers
             // Wolverine automatically sets the status code to 204 for empty responses
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
-
     }
 
     // END: POST_publish_marten_message
     
     
 }
-

@@ -15,7 +15,7 @@ public class MqttTransportExpression
         _transport = transport;
         _options = options;
     }
-    
+
     /// <summary>
     ///     Apply a policy to all listening endpoints
     /// </summary>

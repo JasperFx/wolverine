@@ -14,8 +14,6 @@ namespace Internal.Generated.WolverineHandlers
             _dbContextOptions = dbContextOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             await using var itemsDbContext = new ItemService.ItemsDbContext(_dbContextOptions);
@@ -41,11 +39,9 @@ namespace Internal.Generated.WolverineHandlers
             // If we have separate context for outbox and application, then we need to manually commit the transaction
             if (envelopeTransaction is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) { await rawTx.CommitAsync(); }
         }
-
     }
 
     // END: CreateItemCommandHandler1452615242
     
     
 }
-

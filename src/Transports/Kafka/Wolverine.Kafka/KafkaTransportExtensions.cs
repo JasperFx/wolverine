@@ -36,7 +36,7 @@ public static class KafkaTransportExtensions
 
         return new KafkaTransportExpression(transport, options);
     }
-    
+
     /// <summary>
     /// Make additive configuration to the Kafka integration for this application
     /// </summary>
@@ -49,7 +49,6 @@ public static class KafkaTransportExtensions
 
         return new KafkaTransportExpression(transport, options);
     }
-
 
     /// <summary>
     ///     Listen for incoming messages at the designated Kafka topic name
@@ -82,13 +81,13 @@ public static class KafkaTransportExtensions
         var transport = transports.GetOrCreate<KafkaTransport>();
 
         var topic = transport.Topics[topicName];
-        
+
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(topic.Uri);
 
         return new KafkaSubscriberConfiguration(topic);
     }
-    
+
     /// <summary>
     /// Publish messages to Kafka topics based on Wolverine's rules for deriving topic
     /// names from a message type
@@ -102,7 +101,7 @@ public static class KafkaTransportExtensions
         var transport = transports.GetOrCreate<KafkaTransport>();
 
         var topic = transport.Topics[KafkaTopic.WolverineTopicsName];
-        
+
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(topic.Uri);
 

@@ -23,7 +23,7 @@ public class DatabaseSchemaCreator : IHostedService
         var connectionString = _configuration.GetConnectionString("SqlServer");
         await using var conn = new SqlConnection(connectionString);
         await conn.OpenAsync(cancellationToken);
-        
+
         await items.ApplyChangesAsync(conn, cancellationToken);
     }
 

@@ -75,7 +75,7 @@ public interface IMessageBus
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
-    
+
     ///     Execute the message handling for this message *right now* against the specified tenant id and wait for the completion.
     ///     If the message is handled locally, this delegates immediately
     ///     If the message is handled remotely, the message is sent and the method waits for the response

@@ -12,22 +12,22 @@ public enum DurabilityMode
     /// messages will start functioning immediately
     /// </summary>
     Solo,
-    
+
     /// <summary>
     /// Normal mode that assumes that Wolverine is running on multiple load balanced nodes
     /// with messaging active
     /// </summary>
     Balanced,
-    
+
     /// <summary>
     /// Disables all message persistence to optimize Wolverine for usage within serverless functions
     /// like AWS Lambda or Azure Functions. Requires that all endpoints be inline
     /// </summary>
     Serverless,
-    
+
     /// <summary>
     /// Optimizes Wolverine for usage as strictly a mediator tool. This completely disables all node
-    /// persistence including the inbox and outbox 
+    /// persistence including the inbox and outbox
     /// </summary>
     MediatorOnly
 }
@@ -90,12 +90,12 @@ public class DurabilitySettings
 
     public CancellationToken Cancellation => _cancellation.Token;
 
-    
+
     /// <summary>
     /// Time span before the first health check is executed
     /// </summary>
     public TimeSpan FirstHealthCheckExecution { get; set; } = 3.Seconds();
-    
+
     /// <summary>
     /// Polling time between health checks
     /// </summary>

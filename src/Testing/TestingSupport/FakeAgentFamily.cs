@@ -34,7 +34,7 @@ public class FakeAgentFamily : IStaticAgentFamily
     ];
 
     public LightweightCache<Uri, FakeAgent> Agents { get; } = new(x => new FakeAgent(x));
-    
+
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
         assignments.DistributeEvenly(Scheme);

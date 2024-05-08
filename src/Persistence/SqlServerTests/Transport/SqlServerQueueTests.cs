@@ -13,7 +13,7 @@ public class SqlServerQueueTests
         ConnectionString = Servers.SqlServerConnectionString,
         SchemaName = "transport"
     });
-    
+
     [Fact]
     public void build_uri()
     {
@@ -28,7 +28,7 @@ public class SqlServerQueueTests
         var queue = new SqlServerQueue("one", theTransport);
         (queue is IDatabaseBackedEndpoint).ShouldBeTrue();
     }
-    
+
     [Fact]
     public void mode_can_be_durable_or_buffered()
     {

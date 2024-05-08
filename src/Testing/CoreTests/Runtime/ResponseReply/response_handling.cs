@@ -73,7 +73,6 @@ public class response_handling : IDisposable
         _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }
 
-
     [Fact]
     public async Task timeout_failure()
     {

@@ -30,7 +30,6 @@ public class serialization_configuration
             ?.DefaultSerializer.ShouldBeOfType<MessagePackMessageSerializer>();
     }
 
-
     [Fact]
     public async Task can_override_the_serialization_on_just_one_endpoint()
     {

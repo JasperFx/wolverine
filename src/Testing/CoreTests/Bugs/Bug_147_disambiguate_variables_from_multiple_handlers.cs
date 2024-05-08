@@ -33,7 +33,7 @@ public class StartingMessageHandler
     {
         logger.LogDebug("Got the end for {Name}", message.Name);
     }
-    
+
     public EndingMessage Handle(StartingMessage message)
     {
         return new EndingMessage(message.Name);

@@ -42,7 +42,6 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
         set => _mapper = value ?? throw new ArgumentNullException(nameof(value));
     }
 
-
     public string QueueName { get; }
 
     // Set by the AmazonSqsTransport parent
@@ -298,7 +297,6 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
         request.MaxNumberOfMessages = MaxNumberOfMessages;
         request.VisibilityTimeout = VisibilityTimeout;
     }
-
 
     public async Task TeardownAsync(IAmazonSQS client, CancellationToken token)
     {

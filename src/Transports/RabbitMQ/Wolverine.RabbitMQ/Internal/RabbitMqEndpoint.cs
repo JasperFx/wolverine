@@ -30,7 +30,7 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IDis
     public abstract ValueTask SetupAsync(ILogger logger);
 
     internal abstract string RoutingKey();
-    
+
     /// <summary>
     /// When set, overrides the built in envelope mapping with a custom
     /// implementation
@@ -55,7 +55,7 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IDis
     }
 
     private RabbitMqSender? _sender;
-    
+
     internal RabbitMqSender ResolveSender(IWolverineRuntime runtime)
     {
         _sender ??= new RabbitMqSender(this, _parent, RoutingType, runtime);
@@ -70,7 +70,7 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IDis
     internal IRabbitMqEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
     {
         if (EnvelopeMapper != null) return EnvelopeMapper;
-        
+
         var mapper = new RabbitMqEnvelopeMapper(this, runtime);
         _customizeMapping?.Invoke(mapper);
         if (MessageType != null)

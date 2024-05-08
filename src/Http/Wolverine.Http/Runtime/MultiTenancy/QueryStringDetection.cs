@@ -13,8 +13,8 @@ internal class QueryStringDetection : ITenantDetection
 
     public ValueTask<string?> DetectTenant(HttpContext httpContext)
     {
-        return httpContext.Request.Query.TryGetValue(_key, out var value) 
-            ? ValueTask.FromResult<string?>(value) 
+        return httpContext.Request.Query.TryGetValue(_key, out var value)
+            ? ValueTask.FromResult<string?>(value)
             : ValueTask.FromResult<string?>(null);
     }
 

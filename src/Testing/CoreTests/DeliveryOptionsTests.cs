@@ -31,10 +31,10 @@ public class DeliveryOptionsTests
         };
 
         var envelope = new Envelope();
-        
+
         options.Override(envelope);
-        
-        
+
+
         envelope.ScheduleDelay.ShouldBe(5.Minutes());
         envelope.ScheduledTime.ShouldNotBeNull();
 
@@ -51,9 +51,9 @@ public class DeliveryOptionsTests
         };
 
         var envelope = new Envelope();
-        
+
         options.Override(envelope);
-        
+
         envelope.TenantId.ShouldBe("tenant4");
     }
 
@@ -66,9 +66,9 @@ public class DeliveryOptionsTests
         };
 
         var envelope = new Envelope();
-        
+
         options.Override(envelope);
-        
+
         envelope.GroupId.ShouldBe("group1");
     }
 
@@ -79,11 +79,11 @@ public class DeliveryOptionsTests
         {
             DeduplicationId = "foo"
         };
-        
+
         var envelope = new Envelope();
-        
+
         options.Override(envelope);
-        
+
         envelope.DeduplicationId.ShouldBe("foo");
     }
 
@@ -115,7 +115,6 @@ public class DeliveryOptionsTests
 
         envelope.AckRequested.ShouldBeTrue();
     }
-
 
     [Fact]
     public void do_not_override_scheduled_time_if_not_explicit()

@@ -34,7 +34,7 @@ public class StatefulResourceSmokeTests
 
                 opts.PublishMessage<SRMessage3>()
                     .ToAzureServiceBusQueue("sr" + starting++);
-                
+
                 opts.ListenToAzureServiceBusSubscription("subscription1").FromTopic("topic1");
 
                 opts.PublishMessage<SRMessage4>().ToAzureServiceBusTopic("sr" + starting++);
@@ -48,7 +48,6 @@ public class StatefulResourceSmokeTests
             .RunOaktonCommands(["resources", "setup"]);
         result.ShouldBe(0);
     }
-
 
     [Fact]
     public async Task statistics()

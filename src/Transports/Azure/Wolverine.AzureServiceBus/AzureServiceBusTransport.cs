@@ -71,7 +71,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
         if (!SystemQueuesEnabled) return;
-        
+
         var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
 
         var queue = Queues[queueName];
@@ -121,7 +121,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         {
             Queues.FillDefault(dlqName!);
         }
-        
+
         foreach (var queue in Queues) yield return queue;
 
         foreach (var topic in Topics) yield return topic;

@@ -10,7 +10,7 @@ public class MessageRecord
             TypeName = message.GetType().Name
         };
     }
-    
+
     public Guid Id { get; set; }
     public string TypeName { get; set; }
 }

@@ -38,7 +38,6 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
         }
     }
 
-
     protected override async Task withContext(IHost sender, MessageContext context,
         Func<MessageContext, ValueTask> action)
     {

@@ -9,7 +9,6 @@ public interface ITrackedSession
     /// </summary>
     TrackingStatus Status { get; }
 
-
     /// <summary>
     ///     Records of all messages received during the tracked session
     /// </summary>

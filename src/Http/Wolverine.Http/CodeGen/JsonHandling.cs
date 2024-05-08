@@ -17,7 +17,7 @@ internal class ReadJsonBody : AsyncFrame
         {
             parameterName = Variable.DefaultArgName(parameter.ParameterType);
         }
-        
+
         Variable = new Variable(parameter.ParameterType, parameterName, this);
     }
 
@@ -42,7 +42,7 @@ internal class ReadJsonBodyWithNewtonsoft : MethodCall
         return typeof(NewtonsoftHttpSerialization).GetMethod(nameof(NewtonsoftHttpSerialization.ReadFromJsonAsync))
             .MakeGenericMethod(parameterType);
     }
-    
+
     public ReadJsonBodyWithNewtonsoft(ParameterInfo parameter) : base(typeof(NewtonsoftHttpSerialization), findMethodForType(parameter.ParameterType))
     {
         var parameterName = parameter.Name!;
@@ -50,7 +50,7 @@ internal class ReadJsonBodyWithNewtonsoft : MethodCall
         {
             parameterName = Variable.DefaultArgName(parameter.ParameterType);
         }
-        
+
         ReturnVariable!.OverrideName(parameterName);
 
         CommentText = "Reading the request body with JSON deserialization";
@@ -76,12 +76,12 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
             // It *could* be used twice, so let's watch out for this!
-            chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson 
-                ? new ReadJsonBody(parameter).Variable 
+            chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
+                ? new ReadJsonBody(parameter).Variable
                 : new ReadJsonBodyWithNewtonsoft(parameter).ReturnVariable!;
 
             variable = chain.RequestBodyVariable;
-            
+
             // Oh, this does NOT make me feel good!
             chain.RequestType = parameter.ParameterType;
             return true;

@@ -28,12 +28,12 @@ public static class SqlServerConfigurationExtensions
         else
         {
             schema = "dbo";
-                
+
         }
 
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         options.Include(extension);
-        
+
         options.Include<SqlServerBackedPersistence>(x =>
         {
             x.Settings.ConnectionString = connectionString;
@@ -45,7 +45,7 @@ public static class SqlServerConfigurationExtensions
             else
             {
                 schema = "dbo";
-                
+
             }
 
             x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
@@ -73,14 +73,14 @@ public static class SqlServerConfigurationExtensions
         else
         {
             schema = "dbo";
-                
+
         }
 
         options.Services.AddTransient<IDatabase, SqlServerTransportDatabase>();
 
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         options.Include(extension);
-        
+
         options.Include<SqlServerBackedPersistence>(x =>
         {
             x.Settings.ConnectionString = connectionString;
@@ -92,7 +92,7 @@ public static class SqlServerConfigurationExtensions
             else
             {
                 schema = "dbo";
-                
+
             }
 
             x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
@@ -103,7 +103,7 @@ public static class SqlServerConfigurationExtensions
 
         return new SqlServerPersistenceExpression(transport, options);
     }
-    
+
     /// <summary>
     ///     Quick access to the Rabbit MQ Transport within this application.
     ///     This is for advanced usage
@@ -162,5 +162,4 @@ public static class SqlServerConfigurationExtensions
 
         return new SqlServerSubscriberConfiguration(queue);
     }
-    
 }

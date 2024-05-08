@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var traceEndpoint = new WolverineWebApi.TraceEndpoint();
@@ -28,11 +26,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_Hey);
         }
-
     }
 
     // END: GET_trace
     
     
 }
-

@@ -14,7 +14,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     {
         var queueName = Guid.NewGuid().ToString();
         OutboundAddress = new Uri("asb://queue/" + queueName);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAzureServiceBusTesting()

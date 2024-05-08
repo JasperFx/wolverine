@@ -14,8 +14,6 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // Building the Marten session
@@ -47,11 +45,9 @@ namespace Internal.Generated.WolverineHandlers
             await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
 
         }
-
     }
 
     // END: StartReservationHandler1747369353
     
     
 }
-

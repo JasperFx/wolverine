@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var authenticatedEndpoint = new WolverineWebApi.AuthenticatedEndpoint();
@@ -33,19 +31,13 @@ namespace Internal.Generated.WolverineHandlers
                 await result1.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             var result_of_Get = authenticatedEndpoint.Get(request);
 
             await WriteString(httpContext, result_of_Get);
         }
-
     }
 
     // END: POST_authenticated
-    
-    
 }
-

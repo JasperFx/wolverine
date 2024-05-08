@@ -8,7 +8,7 @@ using Wolverine.Postgresql;
 
 namespace EfCoreTests;
 
-public class Bug_661_postgresql_with_ef_core 
+public class Bug_661_postgresql_with_ef_core
 {
 #if NET8_0_OR_GREATER
     [Fact]
@@ -21,9 +21,6 @@ public class Bug_661_postgresql_with_ef_core
                 opts.Services.AddResourceSetupOnStartup();
                 opts.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(Servers.PostgresConnectionString));
             }).StartAsync();
-
-
-        
     }
 #endif
 }

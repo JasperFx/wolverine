@@ -30,7 +30,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     }
 
     internal bool HasDeclared { get; private set; }
-    
+
     /// <summary>
     ///     The number of unacknowledged messages that can be processed concurrently
     /// </summary>

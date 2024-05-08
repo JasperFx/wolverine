@@ -25,19 +25,19 @@ builder.Services.AddMarten(opts =>
 builder.Host.UseWolverine(opts =>
 {
     opts.Policies.OnAnyException().RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
-    
+
     opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
-    
+
     opts.Policies.DisableConventionalLocalRouting();
     opts.UseRabbitMq().AutoProvision();
-    
+
     opts.Policies.UseDurableInboxOnAllListeners();
     opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
     opts.ListenToRabbitQueue("chaos2");
     opts.PublishAllMessages().ToRabbitQueue("chaos2");
-    
-    
+
+
     opts.Policies.AutoApplyTransactions();
 });
 
@@ -82,7 +82,7 @@ public record MessageBatch(int BatchSize, int Milliseconds)
         {
             var timer = new Stopwatch();
             timer.Start();
-            
+
             while (timer.ElapsedMilliseconds < Milliseconds)
             {
                 await bus.PublishAsync(new SendMessages(BatchSize));

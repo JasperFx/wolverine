@@ -34,7 +34,6 @@ public class LocalTransportTests
             .EndpointName.ShouldBe("foo");
     }
 
-
     [Fact]
     public void case_insensitive_queue_find()
     {
@@ -44,7 +43,6 @@ public class LocalTransportTests
             .ShouldBeSameAs(transport.QueueFor("one"));
     }
 
-
     [Fact]
     public void queue_at_extension()
     {
@@ -52,7 +50,6 @@ public class LocalTransportTests
 
         LocalTransport.QueueName(uri).ShouldBe("one");
     }
-
 
     [Fact]
     public void queue_at_other_queue()
@@ -67,7 +64,6 @@ public class LocalTransportTests
     {
         LocalTransport.QueueName("tcp://localhost:2222".ToUri()).ShouldBe(TransportConstants.Default);
     }
-
 
     [Fact]
     public void use_the_last_segment_if_it_exists()

@@ -29,7 +29,7 @@ internal class MqttListener : IListener
         Address = topic.Uri;
 
         TopicName = topic.TopicName;
-        
+
         _complete = new RetryBlock<MqttEnvelope>(async (e, _) =>
         {
             await e.Args.AcknowledgeAsync(_cancellation.Token);
@@ -62,7 +62,7 @@ internal class MqttListener : IListener
         {
             return new ValueTask(_complete.PostAsync(e));
         }
-        
+
         return ValueTask.CompletedTask;
     }
 
@@ -72,7 +72,7 @@ internal class MqttListener : IListener
         {
             return new ValueTask(_defer.PostAsync(e));
         }
-        
+
         return ValueTask.CompletedTask;
     }
 
@@ -81,7 +81,7 @@ internal class MqttListener : IListener
         _cancellation.Cancel();
         _complete.SafeDispose();
         _defer.SafeDispose();
-        
+
         return ValueTask.CompletedTask;
     }
 
@@ -89,7 +89,7 @@ internal class MqttListener : IListener
     {
         // Wolverine should handle this regardless
         args.AutoAcknowledge = false;
-        
+
         var envelope = new MqttEnvelope(_topic, args);
 
         try

@@ -98,7 +98,6 @@ internal class DurableSendingAgent : SendingAgent
         _queued = all.Take(Endpoint.MaximumEnvelopeRetryStorage).ToList();
     }
 
-
     protected override async Task afterRestartingAsync(ISender sender)
     {
         var expired = _queued.Where(x => x.IsExpired()).ToArray();

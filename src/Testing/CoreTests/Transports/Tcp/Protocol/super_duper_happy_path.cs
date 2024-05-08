@@ -13,7 +13,6 @@ public class super_duper_happy_path : ProtocolContext
         allTheMessagesWereReceived();
     }
 
-
     [Fact]
     public async Task should_call_through_succeeded()
     {

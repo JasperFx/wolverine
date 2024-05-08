@@ -462,7 +462,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
         return null;
     }
-    
+
     /// <summary>
     /// Add extra configuration to every actively used tenant database
     /// </summary>

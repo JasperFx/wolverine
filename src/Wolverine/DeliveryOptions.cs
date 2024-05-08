@@ -124,8 +124,8 @@ public class DeliveryOptions
         if (GroupId.IsNotEmpty())
         {
             envelope.GroupId = GroupId;
-        }        
-        
+        }
+
         if (DeduplicationId.IsNotEmpty())
         {
             envelope.DeduplicationId = DeduplicationId;

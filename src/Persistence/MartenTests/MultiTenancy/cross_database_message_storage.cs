@@ -49,7 +49,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var envelopes = await Databases.Master.Admin.AllIncomingAsync();
         envelopes.ShouldContain(x => x.Id == envelope.Id);
     }
-    
+
     [Fact]
     public async Task mark_as_handled_with_no_tenant()
     {
@@ -65,7 +65,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.Status.ShouldBe(EnvelopeStatus.Handled);
     }
-    
+
     [Fact]
     public async Task schedule_with_no_tenant()
     {
@@ -79,7 +79,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var envelopes = await Databases.Master.Admin.AllIncomingAsync();
         envelopes.ShouldContain(x => x.Id == envelope.Id);
     }
-    
+
     [Fact]
     public async Task store_incoming_with_a_tenant()
     {
@@ -93,7 +93,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var envelopes = await database1.Admin.AllIncomingAsync();
         envelopes.ShouldContain(x => x.Id == envelope.Id);
     }
-    
+
     [Fact]
     public async Task mark_incoming_as_handled_with_a_tenant()
     {
@@ -109,7 +109,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.Status.ShouldBe(EnvelopeStatus.Handled);
     }
-        
+
     [Fact]
     public async Task schedule_with_a_tenant()
     {
@@ -124,7 +124,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var envelopes = await database1.Admin.AllIncomingAsync();
         envelopes.ShouldContain(x => x.Id == envelope.Id);
     }
-    
+
     [Fact]
     public async Task store_outgoing_with_no_tenant()
     {
@@ -138,7 +138,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.OwnerId.ShouldBe(5);
     }
-    
+
     [Fact]
     public async Task store_outgoing_with_a_tenant()
     {
@@ -166,12 +166,12 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         envelope.Attempts = 4;
         await Databases.Inbox.IncrementIncomingEnvelopeAttemptsAsync(envelope);
-        
+
         var envelopes = await Databases.Master.Admin.AllIncomingAsync();
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.Attempts.ShouldBe(4);
     }
-    
+
     [Fact]
     public async Task increment_incoming_envelope_with_a_tenant()
     {
@@ -186,8 +186,8 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Inbox.IncrementIncomingEnvelopeAttemptsAsync(envelope);
 
         var database = await Databases.GetDatabaseAsync("tenant1");
-        
-        
+
+
         var envelopes = await database.Admin.AllIncomingAsync();
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.Attempts.ShouldBe(4);
@@ -205,12 +205,12 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Inbox.StoreIncomingAsync(envelopes);
 
         var loaded = await Databases.Master.Admin.AllIncomingAsync();
-        
+
         loaded.Select(x => x.Id).OrderBy(x => x)
             .ShouldHaveTheSameElementsAs(envelopes.Select(x => x.Id).OrderBy(x => x));
-            
+
     }
-    
+
     [Fact]
     public async Task store_many_envelopes_all_with_all_specific_tenant()
     {
@@ -224,10 +224,10 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         var database = await Databases.GetDatabaseAsync("tenant3");
         var loaded = await database.Admin.AllIncomingAsync();
-        
+
         loaded.Select(x => x.Id).OrderBy(x => x)
             .ShouldHaveTheSameElementsAs(envelopes.Select(x => x.Id).OrderBy(x => x));
-            
+
     }
 
     [Fact]
@@ -254,11 +254,11 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var database1 = await Databases.GetDatabaseAsync("tenant1");
         var count1 = (await database1.Admin.AllIncomingAsync()).Count;
         count1.ShouldBe(envelopes.Count(x => x.TenantId == "tenant1"));
-        
+
         var database2 = await Databases.GetDatabaseAsync("tenant2");
         var count2 = (await database2.Admin.AllIncomingAsync()).Count;
         count2.ShouldBe(envelopes.Count(x => x.TenantId == "tenant2"));
-        
+
         var database3 = await Databases.GetDatabaseAsync("tenant3");
         var count3 = (await database3.Admin.AllIncomingAsync()).Count;
         count3.ShouldBe(envelopes.Count(x => x.TenantId == "tenant3"));
@@ -328,7 +328,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
 
         var envelopes = await Databases.Admin.AllOutgoingAsync();
-        
+
         envelopes.Count.ShouldBe(19);
 
     }
@@ -389,7 +389,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Inbox.StoreIncomingAsync(envelopes);
 
         var counts = await Databases.Admin.FetchCountsAsync();
-        
+
         counts.Incoming.ShouldBe(envelopes.Count);
         counts.Outgoing.ShouldBe(19);
     }
@@ -399,13 +399,13 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
     {
         await Databases.Admin.ReleaseAllOwnershipAsync();
     }
-    
+
     [Fact]
     public async Task rebuild_smoke()
     {
         await Databases.Admin.RebuildAsync();
     }
-    
+
     [Fact]
     public async Task clear_all_spans_all_databases()
     {
@@ -464,7 +464,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Admin.ClearAllAsync();
 
         var counts = await Databases.Admin.FetchCountsAsync();
-        
+
         counts.Incoming.ShouldBe(0);
         counts.Outgoing.ShouldBe(0);
     }
@@ -476,7 +476,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         await Databases.Inbox.ReleaseIncomingAsync(4, TransportConstants.LocalUri);
     }
-    
+
     [Fact]
     public async Task delete_outgoing_with_no_tenant()
     {
@@ -491,7 +491,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.ShouldBeNull();
     }
-    
+
     [Fact]
     public async Task delete_outgoing_with_a_tenant()
     {
@@ -545,17 +545,17 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var from1 = envelopes.Where(x => x.TenantId == "tenant1").ToArray();
 
         (await Databases.Master.FetchCountsAsync()).Outgoing.ShouldBeGreaterThan(0);
-        
+
         await Databases.Outbox.DeleteOutgoingAsync(fromDefault);
-        
+
         (await Databases.Master.FetchCountsAsync()).Outgoing.ShouldBe(0);
 
         var database1 = await Databases.GetDatabaseAsync("tenant1");
-        
+
         (await database1.FetchCountsAsync()).Outgoing.ShouldBeGreaterThan(0);
-        
+
         await database1.Outbox.DeleteOutgoingAsync(from1);
-        
+
         (await database1.FetchCountsAsync()).Outgoing.ShouldBe(0);
     }
 
@@ -600,9 +600,9 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Outbox.DeleteOutgoingAsync([fromMaster, from1, from2, from3]);
 
         var all = await Databases.Admin.AllOutgoingAsync();
-        
+
         all.Count.ShouldBe(envelopes.Count - 4);
-        
+
         all.ShouldNotContain(x => x.Id == fromMaster.Id);
         all.ShouldNotContain(x => x.Id == from1.Id);
         all.ShouldNotContain(x => x.Id == from2.Id);
@@ -638,7 +638,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         envelopes.Add(envelopeFor(null));
 
         await Databases.Inbox.StoreIncomingAsync(envelopes);
-        
+
         var fromMaster = envelopes.FirstOrDefault(x => x.TenantId.IsEmpty());
         var from1 = envelopes.FirstOrDefault(x => x.TenantId == "tenant1");
         var from2 = envelopes.FirstOrDefault(x => x.TenantId == "tenant2");
@@ -659,7 +659,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         (await db2.DeadLetters.DeadLetterEnvelopeByIdAsync(from2.Id)).ShouldNotBeNull();
         (await db3.DeadLetters.DeadLetterEnvelopeByIdAsync(from3.Id)).ShouldNotBeNull();
     }
-    
+
     [Fact]
     public async Task load_dead_letter_envelopes_across_databases()
     {
@@ -689,7 +689,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         envelopes.Add(envelopeFor(null));
 
         await Databases.Inbox.StoreIncomingAsync(envelopes);
-        
+
         var fromMaster = envelopes.FirstOrDefault(x => x.TenantId.IsEmpty());
         var from1 = envelopes.FirstOrDefault(x => x.TenantId == "tenant1");
         var from2 = envelopes.FirstOrDefault(x => x.TenantId == "tenant2");
@@ -706,7 +706,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         (await Databases.DeadLetterEnvelopeByIdAsync(from2.Id)).ShouldNotBeNull();
         (await Databases.DeadLetterEnvelopeByIdAsync(from3.Id)).ShouldNotBeNull();
     }
-    
+
     [Fact]
     public async Task MoveToDeadLetterStorageAsync_smoke_test()
     {
@@ -741,7 +741,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Inbox.MoveToDeadLetterStorageAsync(envelopes[5], new NotSupportedException());
         await Databases.Inbox.MoveToDeadLetterStorageAsync(envelopes[6], new NotSupportedException());
         await Databases.Inbox.MoveToDeadLetterStorageAsync(envelopes[12], new NotSupportedException());
-        
+
         await Databases.Inbox.MoveToDeadLetterStorageAsync(envelopes[2], new NotImplementedException());
         await Databases.Inbox.MoveToDeadLetterStorageAsync(envelopes[3], new NotImplementedException());
         await Databases.Inbox.MoveToDeadLetterStorageAsync(envelopes[7], new NotImplementedException());
@@ -789,7 +789,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Databases.Outbox.DiscardAndReassignOutgoingAsync(discards, reassigns, 13);
 
         var outgoing = await Databases.Admin.AllOutgoingAsync();
-        
+
         outgoing.Count.ShouldBe(envelopes.Count - discards.Length);
 
         foreach (var discard in discards)

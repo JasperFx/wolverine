@@ -38,7 +38,7 @@ public class receive_raw_json_as_inline : IAsyncLifetime
             {
                 opts
                     .UseAmazonSqsTransportLocally();
-                    
+
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishAllMessages().ToSqsQueue(theQueueName).SendRawJsonMessage().SendInline();
             }).StartAsync();
@@ -68,10 +68,10 @@ public class receive_raw_json_as_inline : IAsyncLifetime
             .AlsoTrack(_host)
             .WaitForMessageToBeReceivedAt<MyNativeJsonMessage>(_host)
             .PublishMessageAndWaitAsync(new MyNativeJsonMessage { Id = id });
-            
+
         session.Received.SingleMessage<MyNativeJsonMessage>().Id.ShouldBe(id);
     }
-        
+
     [Fact]
     public async Task send_native_json_message()
     {

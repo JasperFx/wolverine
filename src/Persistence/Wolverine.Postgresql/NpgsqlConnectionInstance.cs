@@ -27,7 +27,6 @@ internal class NpgsqlConnectionInstance : Instance
         return false;
     }
 
-
     public override Func<Scope, object> ToResolver(Scope topScope)
     {
         return _ => new NpgsqlConnection(topScope.GetInstance<DatabaseSettings>().ConnectionString);

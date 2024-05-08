@@ -17,7 +17,7 @@ public class using_async_extensions
     {
         var featureManager = Substitute.For<IFeatureManager>();
         featureManager.IsEnabledAsync("Module1").Returns(true);
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -34,7 +34,7 @@ public class using_async_extensions
         queue.ShouldNotBeNull();
         queue.ExecutionOptions.EnsureOrdered.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task apply_async_extension_with_feature_flag_negative()
     {

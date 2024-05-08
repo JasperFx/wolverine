@@ -35,7 +35,7 @@ public class CreateItemController : ControllerBase
         // to the persistent outbox
         // in the correct order
         await outbox.SaveChangesAndFlushMessagesAsync();
-    }  
+    }
 
     #endregion
 
@@ -61,7 +61,7 @@ public class CreateItemController : ControllerBase
         // Gotta attach the DbContext to the outbox
         // BEFORE sending any messages
         outbox.Enroll(dbContext);
-        
+
         // Publish a message to take action on the new item
         // in a background thread
         await outbox.PublishAsync(new ItemCreated
@@ -73,7 +73,7 @@ public class CreateItemController : ControllerBase
         // to the persistent outbox
         // in the correct order
         await outbox.SaveChangesAndFlushMessagesAsync();
-    }   
+    }
 
     #endregion
 }

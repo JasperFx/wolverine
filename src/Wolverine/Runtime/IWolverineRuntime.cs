@@ -27,7 +27,6 @@ public interface IWolverineRuntime
     Meter Meter { get; }
     ILoggerFactory LoggerFactory { get; }
 
-
     IAgentRuntime Agents { get; }
 
     /// <summary>
@@ -89,7 +88,7 @@ public interface IAgentRuntime
     Task<AgentCommands> ApplyNodeEvent(NodeEvent nodeEvent);
     Task<AgentCommands> VerifyAssignmentsAsync();
     Task<AgentCommands> DoHealthChecksAsync();
-    
+
     /// <summary>
     /// ONLY FOR TESTING! Disables all health check monitoring and heart beats
     /// </summary>

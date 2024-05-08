@@ -12,7 +12,6 @@ internal class StubChannelCallback : IChannelCallback
         _envelope = envelope;
     }
 
-
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public bool Completed { get; set; }
 

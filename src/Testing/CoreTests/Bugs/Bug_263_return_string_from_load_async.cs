@@ -13,7 +13,7 @@ public class Bug_263_return_string_from_load_async
             .UseWolverine().StartAsync();
 
         await host.InvokeMessageAndWaitAsync(new StringUsingCommand("one"));
-        
+
         StringUsingCommandHandler.Recorded.ShouldBe("one:FromLoad");
     }
 }

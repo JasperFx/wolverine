@@ -27,8 +27,6 @@ public interface IListeningAgent : IListenerCircuit
     ValueTask StopAndDrainAsync();
 
     ValueTask MarkAsTooBusyAndStopReceivingAsync();
-    
-    
 }
 
 internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
@@ -272,7 +270,6 @@ internal class Restarter : IDisposable
                 await parent.StartAsync();
             }, TaskScheduler.Default);
     }
-
 
     public void Dispose()
     {

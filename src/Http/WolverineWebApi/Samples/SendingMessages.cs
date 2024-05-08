@@ -15,7 +15,7 @@ public class SendingMessages
         builder.Host.UseWolverine();
 
         var app = builder.Build();
-        
+
         app.MapWolverineEndpoints(opts =>
         {
             opts.SendMessage<CreateOrder>("/orders/create", chain =>
@@ -27,7 +27,7 @@ public class SendingMessages
             });
             opts.SendMessage<ShipOrder>(HttpMethod.Put, "/orders/ship");
         });
-        
+
         // and the rest of your application configuration and bootstrapping
 
         #endregion

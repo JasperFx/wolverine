@@ -14,11 +14,11 @@ public class InvoicesEndpoint
 
 {
     [WolverineGet("/invoices/longhand/id")]
-    [ProducesResponseType(404)] 
+    [ProducesResponseType(404)]
     [ProducesResponseType(200, Type = typeof(Invoice))]
     public static async Task<IResult> GetInvoice(
-        Guid id, 
-        IQuerySession session, 
+        Guid id,
+        IQuerySession session,
         CancellationToken cancellationToken)
     {
         var invoice = await session.LoadAsync<Invoice>(id, cancellationToken);
@@ -66,26 +66,26 @@ public class InvoicesEndpoint
     public static ApprovedInvoicedCompiledQuery GetApproved()
     {
         return new ApprovedInvoicedCompiledQuery();
-    } 
+    }
     #endregion
-    
+
     [WolverineGet("/invoices/compiled/{id}")]
     public static ByIdCompiled GetCompiled(Guid id)
     {
         return new ByIdCompiled(id);
-    } 
-    
+    }
+
     [WolverineGet("/invoices/compiled/count")]
     public static CompiledCountQuery GetCompiledCount()
     {
         return new CompiledCountQuery();
-    } 
-    
+    }
+
     [WolverineGet("/invoices/compiled/string/{id}")]
     public static CompiledStringQuery GetCompiledString(Guid id)
     {
         return new CompiledStringQuery(id);
-    } 
+    }
 }
 
 public class Invoice
@@ -115,7 +115,7 @@ public class ByIdCompiled : ICompiledQuery<Invoice, Invoice?>
     {
         Id = id;
     }
-    
+
     public Expression<Func<IMartenQueryable<Invoice>, Invoice?>> QueryIs()
     {
         return q => q.FirstOrDefault(x => x.Id == Id);

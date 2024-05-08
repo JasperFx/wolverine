@@ -24,7 +24,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     {
         ConnectionFactory.AutomaticRecoveryEnabled = true;
         ConnectionFactory.DispatchConsumersAsync = true;
-        
+
         Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
         Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
 
@@ -89,7 +89,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
             queue.SafeDispose();
         }
     }
-    
+
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         Logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();

@@ -33,7 +33,7 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
 
         if (transport.Databases == null)
             throw new InvalidOperationException("This system is not using multi-tenancy by database");
-        
+
         var queue = transport.Queues[_queue];
 
         var database = (PostgresqlMessageStore)await transport.Databases.GetDatabaseAsync(_databaseName);

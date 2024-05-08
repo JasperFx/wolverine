@@ -171,11 +171,11 @@ public class send_by_topics : IDisposable
             .SendMessageAndWaitAsync(routed);
 
         var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
-        
+
         record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }
-    
+
     [Fact]
     public async Task publish_by_user_message_topic_logic_and_delay()
     {
@@ -190,8 +190,7 @@ public class send_by_topics : IDisposable
             .SendMessageAndWaitAsync(routed, new DeliveryOptions{ScheduleDelay = 3.Seconds()});
 
         var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
-        
-        record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
+         record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }
 }
@@ -210,12 +209,12 @@ public class send_by_topics_durable : IDisposable
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                
+
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine("sender");
-                
+
                 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
-                
+
                 opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
                 opts.PublishAllMessages().ToRabbitTopics("wolverine.topics", exchange =>
                 {
@@ -355,11 +354,11 @@ public class send_by_topics_durable : IDisposable
             .SendMessageAndWaitAsync(routed);
 
         var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
-        
+
         record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }
-    
+
     [Fact]
     public async Task publish_by_user_message_topic_logic_and_delay()
     {
@@ -374,7 +373,7 @@ public class send_by_topics_durable : IDisposable
             .SendMessageAndWaitAsync(routed, new DeliveryOptions{ScheduleDelay = 3.Seconds()});
 
         var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
-        
+
         record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }

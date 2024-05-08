@@ -17,7 +17,7 @@ public class FailureAcknowledgementTests
         var bytes = ack.Write();
 
         var ack2 = (FailureAcknowledgement)FailureAcknowledgement.Read(bytes);
-        
+
         ack2.Message.ShouldBe(ack.Message);
         ack2.RequestId.ShouldBe(ack.RequestId);
 

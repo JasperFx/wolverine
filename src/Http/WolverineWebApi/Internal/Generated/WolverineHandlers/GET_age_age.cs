@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             if (!int.TryParse((string)httpContext.GetRouteValue("age"), out var age))
@@ -27,7 +25,6 @@ namespace Internal.Generated.WolverineHandlers
                 return;
             }
 
-
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
             
             // The actual HTTP request handler execution
@@ -35,11 +32,7 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_IntRouteArgument);
         }
-
     }
 
     // END: GET_age_age
-    
-    
 }
-

@@ -108,7 +108,6 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
     {
     }
 
-
     public void Start(IHandlerPipeline pipeline, IMessageTracker logger)
     {
         _pipeline = pipeline;

@@ -14,11 +14,9 @@ namespace Internal.Generated.WolverineHandlers
             var pongMessage = (TestingSupport.Compliance.PongMessage)context.Envelope.Message;
             return pongHandler.Handle(pongMessage);
         }
-
     }
 
     // END: PongMessageHandler1540302571
     
     
 }
-

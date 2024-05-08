@@ -52,7 +52,7 @@ public class TestMessageContext : IMessageContext
     ///     current message
     /// </summary>
     public IReadOnlyList<object> ResponsesToSender => _responses;
-    
+
     /// <summary>
     /// Configure request/reply return values
     /// </summary>
@@ -100,7 +100,7 @@ public class TestMessageContext : IMessageContext
     {
         bool TryMatch<TResponse>(object message, Uri? destination, string? endpointName, out TResponse response);
     }
-    
+
     internal class ExpectedResponse<T> : IExpectedResponse
     {
         private readonly Func<T, bool> _match;
@@ -118,7 +118,7 @@ public class TestMessageContext : IMessageContext
 
         public bool TryMatch<TResponse>(object message, Uri? destination, string? endpointName, out TResponse response)
         {
-            if (message is T t && _match(t) && _response is TResponse r) 
+            if (message is T t && _match(t) && _response is TResponse r)
             {
                 // Guard on destination match
                 if (destination != null && _destination != null && destination != _destination)
@@ -126,14 +126,14 @@ public class TestMessageContext : IMessageContext
                     response = default!;
                     return false;
                 }
-                
+
                 // Guard on possible endpoint match
                 if (endpointName.IsNotEmpty() && _endpointName.IsNotEmpty() && endpointName != _endpointName)
                 {
                     response = default!;
                     return false;
                 }
-                
+
                 response = r;
                 return true;
             }
@@ -150,7 +150,7 @@ public class TestMessageContext : IMessageContext
         {
             TenantId = tenantId
         };
-        
+
         _invoked.Add(envelope);
 
         var response = findResponse<T>(message);
@@ -194,7 +194,7 @@ public class TestMessageContext : IMessageContext
         {
 
         };
-        
+
         _invoked.Add(envelope);
 
         var response = findResponse<T>(message);
@@ -306,9 +306,9 @@ public class TestMessageContext : IMessageContext
                 EndpointName = _endpointName,
                 Destination = _destination
             };
-            
+
             _parent._invoked.Add(envelope);
-            
+
             var response = _parent.findResponse<T>(message, _destination, _endpointName);
             return Task.FromResult(response);
         }

@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -62,20 +60,13 @@ namespace Internal.Generated.WolverineHandlers
                 await WriteJsonAsync(httpContext, creationResponse_response);
             }
 
-
             catch(Marten.Exceptions.ExistingStreamIdCollisionException e)
             {
                 await WolverineWebApi.Marten.StreamCollisionExceptionPolicy.RespondWithProblemDetails(e, httpContext);
                 return;
             }
-
-
         }
-
     }
 
     // END: POST_orders_create3
-    
-    
 }
-

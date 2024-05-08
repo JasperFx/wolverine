@@ -67,8 +67,8 @@ internal class DatabaseControlListener : IListener
     {
 #if NET8_0_OR_GREATER
         await _cancellation.CancelAsync();
-        
-        
+
+
 #else
         _cancellation.Cancel();
 #endif
@@ -81,8 +81,8 @@ internal class DatabaseControlListener : IListener
     {
 #if NET8_0_OR_GREATER
         await _cancellation.CancelAsync();
-        
-        
+
+
         #else
         _cancellation.Cancel();
 #endif
@@ -92,11 +92,11 @@ internal class DatabaseControlListener : IListener
             _receivingLoop.Dispose();
         }
     }
-    
+
     private Task deleteEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         if (_transport.Database.HasDisposed) return Task.CompletedTask;
-        
+
         return _transport.Database.DataSource.CreateCommand($"delete from {_transport.TableName} where id = @id")
             .With("id", envelope.Id)
             .ExecuteNonQueryAsync(cancellationToken);

@@ -33,7 +33,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.Durability.DurabilityAgentEnabled = false;
-            
+
             opts.Services.AddMarten(Servers.PostgresConnectionString);
             opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
                 x.UseSqlServer(Servers.SqlServerConnectionString));

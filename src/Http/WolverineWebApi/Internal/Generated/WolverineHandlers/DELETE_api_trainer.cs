@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var trainerDelete = new WolverineWebApi.TrainerDelete();
@@ -35,22 +33,16 @@ namespace Internal.Generated.WolverineHandlers
             
             // The actual HTTP request handler execution
             var result = await trainerDelete.Delete(userId, documentSession, httpContext.RequestAborted).ConfigureAwait(false);
-
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
-
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
             await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
 
             await result.ExecuteAsync(httpContext).ConfigureAwait(false);
         }
-
     }
 
     // END: DELETE_api_trainer
-    
-    
 }
-

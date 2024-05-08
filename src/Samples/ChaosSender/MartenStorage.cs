@@ -21,7 +21,6 @@ public interface IMessageStorageStrategy
     Task<long> FindOutstandingMessageCount(IContainer container, CancellationToken cancellation);
 }
 
-
 public class MartenStorageStrategy : IMessageStorageStrategy
 {
     public override string ToString()
@@ -35,14 +34,14 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         {
             m.Connection(Servers.PostgresConnectionString);
             m.DatabaseSchemaName = "chaos";
-            
+
             m.RegisterDocumentType<MessageRecord>();
 
             m.AutoCreateSchemaObjects = AutoCreate.None;
         }).IntegrateWithWolverine("chaos_receiver");
 
         opts.Services.AddResourceSetupOnStartup();
-        
+
         opts.Policies.AutoApplyTransactions();
 
         opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
@@ -57,16 +56,16 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         {
             m.Connection(Servers.PostgresConnectionString);
             m.DatabaseSchemaName = "chaos";
-            
+
             m.RegisterDocumentType<MessageRecord>();
-            
+
             m.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
         }).IntegrateWithWolverine("chaos_sender");
-        
+
         opts.Services.AddResourceSetupOnStartup();
-                
+
         opts.Policies.AutoApplyTransactions();
-        
+
         opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
     }
 
@@ -80,7 +79,7 @@ public class MartenStorageStrategy : IMessageStorageStrategy
     {
         var store = container.GetInstance<IDocumentStore>();
         await using var session = store.LightweightSession();
-        
+
         return await session.Query<MessageRecord>().CountAsync(cancellation);
     }
 }

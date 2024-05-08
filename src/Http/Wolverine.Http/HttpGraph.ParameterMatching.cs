@@ -31,7 +31,7 @@ public partial class HttpGraph
         for (var i = 0; i < parameters.Length; i++)
         {
             var parameter = parameters[i];
-            
+
             // Do *not* do anything if the argument variable has already
             // been resolved
             if (methodCall.Arguments[i] != null) continue;

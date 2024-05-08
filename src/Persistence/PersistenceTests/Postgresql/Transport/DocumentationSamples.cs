@@ -16,11 +16,11 @@ public class DocumentationSamples
             {
                 var connectionString = context.Configuration.GetConnectionString("sqlserver");
                 opts.UseSqlServerPersistenceAndTransport(connectionString, "myapp")
-                    
+
                     // Tell Wolverine to build out all necessary queue or scheduled message
                     // tables on demand as needed
                     .AutoProvision()
-                    
+
                     // Optional that may be helpful in testing, but probably bad
                     // in production!
                     .AutoPurgeOnStartup();
@@ -31,14 +31,14 @@ public class DocumentationSamples
 
                 // Use this to set up queue listeners
                 opts.ListenToSqlServerQueue("inbound")
-                    
+
                     .CircuitBreaker(cb =>
                     {
                         // fine tune the circuit breaker
                         // policies here
                     })
-                    
-                    // Optionally specify how many messages to 
+
+                    // Optionally specify how many messages to
                     // fetch into the listener at any one time
                     .MaximumMessagesToReceive(50);
             }).StartAsync();

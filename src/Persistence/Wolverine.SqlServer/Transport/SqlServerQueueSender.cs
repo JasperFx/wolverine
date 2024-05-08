@@ -44,6 +44,5 @@ internal class SqlServerQueueSender : ISender
         {
             await _queue.SendAsync(envelope, CancellationToken.None);
         }
-
     }
 }

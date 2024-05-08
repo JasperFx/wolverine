@@ -43,8 +43,7 @@ public class routing_precedence
         bus.PreviewSubscriptions(new BlueMessage())
             .Any().ShouldBeFalse();
     }
-    
-    
+
     [Fact]
     public async Task respect_local_queue()
     {
@@ -54,11 +53,11 @@ public class routing_precedence
         var bus = host.Services.GetRequiredService<IMessageBus>();
         bus.PreviewSubscriptions(new GreenMessage())
             .Single().Destination.ShouldBe(new Uri("local://seagreen"));
-        
+
         bus.PreviewSubscriptions(new DarkGreenMessage())
             .Single().Destination.ShouldBe(new Uri("local://seagreen"));
     }
-        
+
     [Fact]
     public async Task explicit_routing_to_local_wins()
     {
@@ -88,12 +87,12 @@ public class routing_precedence
     }
 
     #endregion
-    
+
     [Fact]
     public async Task explicit_routing_to_elsewhere_wins()
     {
         var port = PortFinder.GetAvailablePort();
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -159,12 +158,11 @@ public class routing_precedence
 
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         var local = collection.FindInvoker(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
-        
+
         collection.FindInvoker(typeof(BlueMessage))
             .ShouldBeSameAs(local);
     }
-    
-    
+
     [Fact]
     public async Task favor_local_invoker_if_local_exists()
     {
@@ -177,11 +175,11 @@ public class routing_precedence
 
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         var local = collection.FindInvoker(typeof(BlueMessage)).ShouldBeOfType<Wolverine.Runtime.Handlers.Executor>();
-        
+
         collection.FindInvoker(typeof(BlueMessage))
             .ShouldBeSameAs(local);
     }
-    
+
     [Fact]
     public async Task use_messageroute_if_cannot_handle_and_subscriber_exists()
     {
@@ -194,7 +192,7 @@ public class routing_precedence
 
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         var remote = collection.FindInvoker(typeof(RedMessage)).ShouldBeOfType<MessageRoute>();
-        
+
         collection.FindInvoker(typeof(RedMessage))
             .ShouldBeSameAs(remote);
     }
@@ -207,7 +205,7 @@ public class routing_precedence
             {
 
             }).StartAsync();
-        
+
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         collection.FindInvoker(typeof(RedMessage))
             .ShouldBeOfType<NoHandlerExecutor>();
@@ -234,7 +232,7 @@ public record DarkGreenMessage;
 public class FakeRoutingConvention : IMessageRoutingConvention
 {
     public Dictionary<Type, int> Senders { get; } = new();
-    
+
 
     public void DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
@@ -242,7 +240,7 @@ public class FakeRoutingConvention : IMessageRoutingConvention
         {
             return;
         }
-        
+
         // Nothing
     }
 
@@ -252,7 +250,7 @@ public class FakeRoutingConvention : IMessageRoutingConvention
         {
             yield break;
         }
-        
+
         if (Senders.TryGetValue(messageType, out var port))
         {
             var endpoint = runtime.Endpoints.GetOrBuildSendingAgent(new Uri("tcp://localhost:" + port)).Endpoint;
@@ -261,15 +259,15 @@ public class FakeRoutingConvention : IMessageRoutingConvention
     }
 
     private bool _onlyApplyToOutboundMessages;
-    
+
     public void OnlyApplyToOutboundMessages()
     {
         _onlyApplyToInboundMessages = false;
         _onlyApplyToOutboundMessages = true;
     }
-    
+
     private bool _onlyApplyToInboundMessages;
-    
+
     public void OnlyApplyToInboundMessages()
     {
         _onlyApplyToOutboundMessages = false;

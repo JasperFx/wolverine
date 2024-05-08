@@ -19,7 +19,7 @@ public class agent_command_serialization
         var command = new StartAgents([new Uri("fake://one"), new Uri("fake://two"), new Uri("fake://three")]);
 
         var other = roundTrip(command);
-        
+
         other.AgentUris.ShouldBe(command.AgentUris);
     }
 }

@@ -51,7 +51,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
         var logger = new NullLogger<PostgresqlMessageStore>();
         await new PostgresqlMessageStore(new DatabaseSettings()
-                    { ConnectionString = Servers.PostgresConnectionString, SchemaName = ReceiverSchemaName }, advanced, NpgsqlDataSource.Create(Servers.PostgresConnectionString), 
+                    { ConnectionString = Servers.PostgresConnectionString, SchemaName = ReceiverSchemaName }, advanced, NpgsqlDataSource.Create(Servers.PostgresConnectionString),
                 logger)
             .RebuildAsync();
 

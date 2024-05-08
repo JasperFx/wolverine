@@ -20,7 +20,6 @@ public class BoardView
 
     public Guid Id { get; set; }
 
-
     // Marten will helpfully help us out here
     // by setting the last Event sequence encountered
     public int Version { get; set; }

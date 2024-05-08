@@ -13,7 +13,6 @@ internal class EnvelopeHistory
 
     public Guid EnvelopeId { get; }
 
-
     public object? Message
     {
         get
@@ -38,7 +37,6 @@ internal class EnvelopeHistory
             record.IsComplete = true;
         }
     }
-
 
     /// <summary>
     ///     Tracks activity for coordinating the testing of a single Wolverine
@@ -99,7 +97,7 @@ internal class EnvelopeHistory
                 record.IsComplete = true;
 
                 break;
-            
+
             case MessageEventType.Requeued:
                 // Do nothing, just informative
                 break;
@@ -176,12 +174,10 @@ internal class EnvelopeHistory
         }
     }
 
-
     public bool IsComplete()
     {
         return _records.ToArray().All(x => x.IsComplete);
     }
-
 
     public bool Has(MessageEventType eventType)
     {

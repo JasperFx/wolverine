@@ -41,7 +41,7 @@ public class send_and_receive : IAsyncLifetime
         session.Received.SingleMessage<SqsMessage>()
             .Name.ShouldBe(message.Name);
     }
-    
+
     [Fact]
     public async Task send_and_receive_many_messages()
     {

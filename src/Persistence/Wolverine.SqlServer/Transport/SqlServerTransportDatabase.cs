@@ -18,7 +18,7 @@ public class SqlServerTransportDatabase : DatabaseBase<SqlConnection>
         var transport = runtime.Options.SqlServerTransport();
         return new SqlConnection(transport.Settings.ConnectionString);
     }
-    
+
     public SqlServerTransportDatabase(IWolverineRuntime runtime) : base(new MigrationLogger(runtime.LoggerFactory.CreateLogger<SqlServerTransportDatabase>()), AutoCreate.CreateOrUpdate, new SqlServerMigrator(), "Sql Server Messaging Transport", () => BuildConnection(runtime))
     {
         _transport = runtime.Options.SqlServerTransport();

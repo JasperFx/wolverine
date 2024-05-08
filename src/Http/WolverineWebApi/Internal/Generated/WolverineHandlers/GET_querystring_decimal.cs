@@ -20,8 +20,6 @@ namespace Internal.Generated.WolverineHandlers
             _recorder = recorder;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             System.Decimal amount = default;
@@ -33,11 +31,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_UseQueryStringParsing);
         }
-
     }
 
     // END: GET_querystring_decimal
     
     
 }
-

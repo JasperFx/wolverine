@@ -161,7 +161,6 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         assertTheCircuitBreakerNeverTripped();
     }
 
-
     [Fact]
     public async Task the_circuit_breaker_should_trip_and_restart()
     {

@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var collection = new System.Collections.Generic.List<int>();
@@ -28,20 +26,16 @@ namespace Internal.Generated.WolverineHandlers
                 {
                     collection.Add(collectionValueParsed);
                 }
-
             }
-
             
             // The actual HTTP request handler execution
             var result_of_UsingIntCollection = WolverineWebApi.QuerystringCollectionEndpoints.UsingIntCollection(collection);
 
             await WriteString(httpContext, result_of_UsingIntCollection);
         }
-
     }
 
     // END: GET_querystring_collection_int
     
     
 }
-

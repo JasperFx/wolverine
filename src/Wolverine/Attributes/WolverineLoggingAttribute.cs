@@ -5,7 +5,7 @@ using Wolverine.Runtime.Handlers;
 namespace Wolverine.Attributes;
 
 /// <summary>
-/// Override Wolverine logging levels 
+/// Override Wolverine logging levels
 /// </summary>
 public class WolverineLoggingAttribute : ModifyHandlerChainAttribute
 {

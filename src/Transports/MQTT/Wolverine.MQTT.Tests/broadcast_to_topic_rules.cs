@@ -22,13 +22,13 @@ public class broadcast_to_topic_rules : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
-        
+
 
         Broker = new LocalMqttBroker(port)
         {
             Logger = new XUnitLogger( _output, "MQTT")
         };
-        
+
         await Broker.StartAsync();
 
         _sender = await Host.CreateDefaultBuilder()
@@ -53,7 +53,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
 
                 opts.ServiceName = "receiver";
             }).StartAsync();
-        
+
     }
 
     [Fact]
@@ -64,11 +64,11 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<RedMessage>(_receiver)
             .PublishMessageAndWaitAsync(new RedMessage("one"));
-        
+
         session.Received.SingleEnvelope<RedMessage>()
             .Destination.ShouldBe(new Uri("mqtt://topic/red"));
     }
-    
+
     [Fact]
     public async Task route_by_derived_topics_2()
     {
@@ -77,7 +77,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<GreenMessage>(_receiver)
             .PublishMessageAndWaitAsync(new GreenMessage("one"));
-        
+
         session.Received.SingleEnvelope<GreenMessage>()
             .Destination.ShouldBe(new Uri("mqtt://topic/green"));
     }

@@ -13,7 +13,6 @@ public interface IDbContextOutbox<T> : IMessageBus where T : DbContext
     /// </summary>
     T DbContext { get; }
 
-
     /// <summary>
     ///     Saves outstanding changes in the DbContext and flushes outbox messages to the
     ///     sending agents

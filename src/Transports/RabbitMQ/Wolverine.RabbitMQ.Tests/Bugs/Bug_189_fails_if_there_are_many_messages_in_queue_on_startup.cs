@@ -12,9 +12,9 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
     public async Task be_able_to_start_up_with_large_number_of_messages_waiting_on_you()
     {
         var queueName = RabbitTesting.NextQueueName();
-        var sender = 
-            
-            
+        var sender =
+
+
         await Host.CreateDefaultBuilder()
 
             #region sample_usage_of_send_inline
@@ -25,18 +25,18 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
                 opts
                     .PublishAllMessages()
                     .ToRabbitQueue(queueName)
-                    
+
                     // This option is important inside of Serverless functions
                     .SendInline();
             })
 
             #endregion
-            
-            
+
+
             .StartAsync();
 
         var bus = sender.Services.GetRequiredService<IMessageBus>();
-        
+
         for (int i = 0; i < 1000; i++)
         {
             await bus.PublishAsync(new Bug189(Guid.NewGuid()));
@@ -50,14 +50,13 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq();
-                
+
                 // TODO -- take in the parallel listener count within ProcessInline()? Just sugar, but still?
                 opts.ListenToRabbitQueue(queueName).ProcessInline().ListenerCount(5);
             }).StartAsync();
 
         await waiter;
     }
-
 
     public record Bug189(Guid Id);
 
@@ -83,7 +82,7 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
                     rabbit.OverrideDeliveryTag(1);
                 }
             }
-            
+
             _count++;
 
             if (_count >= _expected)

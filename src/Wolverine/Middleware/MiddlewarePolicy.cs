@@ -29,7 +29,6 @@ public class MiddlewarePolicy : IChainPolicy
         }
     }
 
-
     public static void AssertMethodDoesNotHaveDuplicateReturnValues(MethodCall call)
     {
         if (call.Method.ReturnType.IsValueType)
@@ -63,7 +62,6 @@ public class MiddlewarePolicy : IChainPolicy
 
         chain.Postprocessors.AddRange(afters);
     }
-
 
     public Application AddType(Type middlewareType, Func<IChain, bool>? filter = null)
     {
@@ -125,7 +123,6 @@ public class MiddlewarePolicy : IChainPolicy
 
         public Type MiddlewareType { get; }
         public Func<IChain, bool> Filter { get; }
-
 
         public bool MatchByMessageType { get; set; }
 
@@ -217,7 +214,6 @@ public class MiddlewarePolicy : IChainPolicy
             }
         }
 
-
         private IEnumerable<Frame> buildFinals(IChain chain)
         {
             foreach (var final in _finals)
@@ -278,10 +274,9 @@ public class MiddlewarePolicy : IChainPolicy
     }
 }
 
-
 /// <summary>
 /// Wraps a single frame just inside of a dedicated try/finally block, with the
-/// "finallys" executed in the finally{} block. 
+/// "finallys" executed in the finally{} block.
 /// </summary>
 public class TryFinallyWrapperFrame : Frame
 {
@@ -300,12 +295,12 @@ public class TryFinallyWrapperFrame : Frame
     {
         _inner.GenerateCode(method, writer);
         writer.Write("BLOCK:try");
-        
+
         Next?.GenerateCode(method, writer);
-        
+
         writer.FinishBlock();
         writer.Write("BLOCK:finally");
-        
+
         if (_finallys.Length > 1)
         {
             for (var i = 1; i < _finallys.Length; i++)
@@ -313,9 +308,9 @@ public class TryFinallyWrapperFrame : Frame
                 _finallys[i - 1].Next = _finallys[i];
             }
         }
-        
+
         _finallys[0].GenerateCode(method, writer);
-        
+
         writer.FinishBlock();
     }
 

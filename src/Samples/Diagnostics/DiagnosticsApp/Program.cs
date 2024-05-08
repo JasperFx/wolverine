@@ -42,7 +42,7 @@ builder.Host.UseWolverine(opts =>
     #endregion
 
     opts.ServiceName = "DescriptiveName";
-    
+
     opts.UseRabbitMq().AutoProvision()
         .UseConventionalRouting(c =>
         {

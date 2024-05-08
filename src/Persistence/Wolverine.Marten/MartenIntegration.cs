@@ -12,7 +12,7 @@ namespace Wolverine.Marten;
 internal class MartenIntegration : IWolverineExtension, IEventForwarding
 {
     private readonly List<Action<WolverineOptions>> _actions = [];
-    
+
     /// <summary>
     ///     This directs the Marten integration to try to publish events out of the enrolled outbox
     ///     for a Marten session on SaveChangesAsync()
@@ -35,7 +35,7 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
         });
 
         options.PublishWithMessageRoutingSource(EventRouter);
-        
+
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
 
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
@@ -73,14 +73,14 @@ internal class MartenEventRouter : IMessageRouteSource
             {
                 return runtime.RoutingFor(wrappedType).Routes;
             }
-            
+
             MessageRoute[] innerRoutes = Array.Empty<MessageRoute>();
             if (messageType.IsConcrete())
             {
                 var inner = runtime.RoutingFor(wrappedType);
                 innerRoutes = inner.Routes.OfType<MessageRoute>().ToArray();
             }
-            
+
             // First look for explicit transformations
             var transformers = Transformers.Where(x => x.SourceType == wrappedType);
             var transformed = transformers.SelectMany(x =>
@@ -109,7 +109,7 @@ internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T
     }
 }
 
-public interface IEventForwarding   
+public interface IEventForwarding
 {
     /// <summary>
     /// Subscribe to an event, but with a transformation. The transformed message will be

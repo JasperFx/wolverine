@@ -14,7 +14,7 @@ public class Bug_559_erroneous_failure_ack : IntegrationContext
     {
         var id = Guid.NewGuid();
         var expected = await Publisher.InvokeAsync<Guid>(new Bug559Request(id));
-        
+
         expected.ShouldBe(id);
     }
 }

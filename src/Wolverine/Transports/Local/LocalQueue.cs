@@ -44,7 +44,7 @@ public class LocalQueue : Endpoint
         Compile(runtime);
 
         Agent = BuildAgent(runtime);
-        
+
         return Agent;
     }
 
@@ -60,7 +60,6 @@ public class LocalQueue : Endpoint
             _ => throw new InvalidOperationException()
         };
     }
-
 
     public override string ToString()
     {

@@ -20,7 +20,7 @@ public class using_side_effect_as_return_values
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<TriggerSideEffects>();
-        
+
         // Adds the dependency from the methods
         chain.ServiceDependencies((IContainer)host.Services, Type.EmptyTypes).ShouldContain(typeof(Recorder));
 
@@ -28,7 +28,7 @@ public class using_side_effect_as_return_values
 
 
         await host.InvokeMessageAndWaitAsync(new TriggerSideEffects());
-        
+
         recorder.Actions.ShouldContain("WriteOne");
         recorder.Actions.ShouldContain("WriteTwo");
     }
@@ -61,4 +61,3 @@ public class WriteTwo : ISideEffect
         return Task.CompletedTask;
     }
 }
-

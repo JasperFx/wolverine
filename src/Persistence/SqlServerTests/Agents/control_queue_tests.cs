@@ -36,7 +36,7 @@ public class control_queue_tests : SqlServerContext, IAsyncLifetime
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
-        
+
         await conn.DropSchemaAsync("sqlcontrol");
         await conn.CloseAsync();
 

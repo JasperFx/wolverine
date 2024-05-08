@@ -30,7 +30,7 @@ public class todo_endpoint_specs : IntegrationContext
         changes.IsComplete.ShouldBeTrue();
         changes.Name.ShouldBe("Second");
     }
-    
+
     [Fact]
     public async Task bug_466_codegen_error()
     {

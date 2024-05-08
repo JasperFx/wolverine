@@ -58,13 +58,11 @@ public class Samples
                 // *A* way to configure Rabbit MQ using their Uri schema
                 // documented here: https://www.rabbitmq.com/uri-spec.html
                 opts.UseRabbitMq(new Uri("amqp://localhost"))
-                    
+
                     // Stop Wolverine from trying to create a reply queue
                     // for this node if your process does not have permission to
                     // do so against your Rabbit MQ broker
                     .DisableSystemRequestReplyQueueDeclaration();
-
-                
 
                 // Set up a listener for a queue, but also
                 // fine-tune the queue characteristics if Wolverine
@@ -96,7 +94,7 @@ public class Samples
 
         #endregion
     }
-    
+
     public static async Task use_listener_connection_only()
     {
         #region sample_only_use_listener_connection_with_rabbitmq
@@ -124,7 +122,7 @@ public class Samples
 
         #endregion
     }
-    
+
     public static async Task use_sender_connection_only()
     {
         #region sample_only_use_sending_connection_with_rabbitmq
@@ -277,7 +275,7 @@ public class Samples
                 .DeclareExchange("my-module")
                 .DeclareQueue("my-queue");
 
-                
+
         }
     }
 
@@ -296,7 +294,6 @@ public class Samples
 
         #endregion
     }
-
 
     public static async Task autopurge_one_queue()
     {
@@ -383,7 +380,7 @@ public class Samples
                     {
                         l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors"));
                     });
-                    
+
 
                 // Use a different dead letter queue for this specific queue
                 opts.ListenToRabbitQueue("incoming")
@@ -393,7 +390,7 @@ public class Samples
 
         #endregion
     }
-    
+
     public static async Task customize_dead_letter_queueing_to_interop()
     {
         #region sample_overriding_rabbit_mq_dead_letter_queue_interop_friendly
@@ -410,7 +407,7 @@ public class Samples
                     {
                         l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors", DeadLetterQueueMode.InteropFriendly));
                     });
-                    
+
 
                 // Use a different dead letter queue for this specific queue
                 opts.ListenToRabbitQueue("incoming")
@@ -420,7 +417,7 @@ public class Samples
 
         #endregion
     }
-    
+
     public static async Task disable_dead_letter_queueing_to_wolverine()
     {
         #region sample_disable_rabbit_mq_dead_letter_queue
@@ -438,7 +435,7 @@ public class Samples
                         // Really does the same thing as the first usage
                         l.DisableDeadLetterQueueing();
                     });
-                    
+
 
                 // Disable the dead letter queue for this specific queue
                 opts.ListenToRabbitQueue("incoming").DisableDeadLetterQueueing();
@@ -483,7 +480,7 @@ public class Samples
                 opts.ListenToRabbitQueue("emails")
                     // Apply your custom interoperability strategy here
                     .UseInterop(new SpecialMapper())
-                    
+
                     // You may still want to define the default incoming
                     // message as the message type name may not be sent
                     // by the upstream system
@@ -492,8 +489,7 @@ public class Samples
 
         #endregion
     }
-    
-    
+
     public static async Task publish_by_topic_rules()
     {
         #region sample_rabbit_topic_rules
@@ -503,10 +499,10 @@ public class Samples
             {
                 opts.UseRabbitMq();
 
-                // Publish any message that implements ITenantMessage to 
+                // Publish any message that implements ITenantMessage to
                 // a Rabbit MQ "Topic" exchange named "tenant.messages"
                 opts.PublishMessagesToRabbitMqExchange<ITenantMessage>("tenant.messages",m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
-                    
+
                     // Specify or configure sending through Wolverine for all
                     // messages through this Exchange
                     .BufferedInMemory();

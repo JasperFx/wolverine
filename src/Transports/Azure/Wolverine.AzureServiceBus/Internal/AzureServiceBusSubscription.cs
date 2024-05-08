@@ -34,7 +34,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         // use CreateSubscriptionAsync() without specifying a rule
         RuleOptions = new CreateRuleOptions();
     }
-    
+
     public CreateSubscriptionOptions Options { get; }
 
     public CreateRuleOptions RuleOptions { get; }
@@ -53,29 +53,29 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
     {
         var requeue = Parent.RetryQueue != null ? Parent.RetryQueue.BuildInlineSender(runtime) : Topic.BuildInlineSender(runtime);
         var mapper = BuildMapper(runtime);
-        
+
         if (Options.RequiresSession)
         {
             return new AzureServiceBusSessionListener(this, receiver, mapper,
                 runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
         }
-        
+
         if (Mode == EndpointMode.Inline)
         {
             var messageProcessor = Parent.BusClient.CreateProcessor(Topic.TopicName, SubscriptionName);
             var inlineListener = new InlineAzureServiceBusListener(this,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver, mapper,  requeue
             );
-        
+
             await inlineListener.StartAsync();
-        
+
             return inlineListener;
         }
-        
+
         var messageReceiver = Parent.BusClient.CreateReceiver(Topic.TopicName, SubscriptionName);
-        
+
         var listener = new BatchedAzureServiceBusListener(this, runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper, requeue);
-        
+
         return listener;
     }
 
@@ -112,7 +112,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
             {
                 Options.SubscriptionName = SubscriptionName;
                 Options.TopicName = Topic.TopicName;
-                
+
                 await client.CreateSubscriptionAsync(Options, RuleOptions);
                 return;
             }
@@ -180,7 +180,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         {
             { "TopicName", Topic.TopicName },
             { "SubscriptionName", SubscriptionName },
-            
+
             { nameof(SubscriptionProperties.Status), props.Value.Status.ToString() },
         };
     }
