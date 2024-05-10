@@ -53,7 +53,7 @@ public class header_binding : IntegrationContext
             x.WithRequestHeader("x-day", "Friday");
             x.Get.Url("/headers/simple");
         });
-        
+
         HeaderUsingEndpoint.Day.ShouldBe("Friday");
     }
 }

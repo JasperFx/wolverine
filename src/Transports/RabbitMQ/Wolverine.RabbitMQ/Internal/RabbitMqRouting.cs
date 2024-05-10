@@ -14,7 +14,7 @@ public class RabbitMqRouting : RabbitMqEndpoint
     {
         return new Uri($"{exchange.Uri}/routing/{routingKey}");
     }
-    
+
     public RabbitMqRouting(RabbitMqExchange exchange, string routingKey, RabbitMqTransport parent) : base(ToUri(exchange, routingKey), EndpointRole.Application, parent)
     {
         _exchange = exchange;

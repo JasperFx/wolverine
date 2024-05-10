@@ -4,8 +4,6 @@ using Wolverine.Http;
 
 namespace TodoWebService;
 
-
-
 #region sample_Todo
 
 public class Todo
@@ -30,7 +28,7 @@ public static class TodoEndpoints
     #region sample_get_to_json
 
     [WolverineGet("/todoitems")]
-    public static Task<IReadOnlyList<Todo>> Get(IQuerySession session) 
+    public static Task<IReadOnlyList<Todo>> Get(IQuerySession session)
         => session.Query<Todo>().ToListAsync();
 
     #endregion
@@ -44,7 +42,7 @@ public static class TodoEndpoints
     // Wolverine can infer the 200/404 status codes for you here
     // so there's no code noise just to satisfy OpenAPI tooling
     [WolverineGet("/todoitems/{id}")]
-    public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation) 
+    public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation)
         => session.LoadAsync<Todo>(id, cancellation);
 
     #endregion
@@ -59,17 +57,16 @@ public static class TodoEndpoints
 
         // Going to raise an event within out system to be processed later
         await bus.PublishAsync(new TodoCreated(todo.Id));
-        
+
         return Results.Created($"/todoitems/{todo.Id}", todo);
     }
 
     #endregion
 
     [WolverineDelete("/todoitems")]
-    public static void Delete(DeleteTodo command, IDocumentSession session) 
+    public static void Delete(DeleteTodo command, IDocumentSession session)
         => session.Delete<Todo>(command.Id);
 }
-
 
 public static class TodoCreatedHandler
 {
@@ -78,7 +75,7 @@ public static class TodoCreatedHandler
     public static void Handle(TodoCreated created, ILogger logger)
     {
         logger.LogInformation("Got a new TodoCreated event for " + created.Id);
-    }    
+    }
 }
 
 #region sample_UpdateTodoEndpoint
@@ -88,8 +85,8 @@ public static class UpdateTodoEndpoint
     public static async Task<(Todo? todo, IResult result)> LoadAsync(UpdateTodo command, IDocumentSession session)
     {
         var todo = await session.LoadAsync<Todo>(command.Id);
-        return todo != null 
-            ? (todo, new WolverineContinue()) 
+        return todo != null
+            ? (todo, new WolverineContinue())
             : (todo, Results.NotFound());
     }
 

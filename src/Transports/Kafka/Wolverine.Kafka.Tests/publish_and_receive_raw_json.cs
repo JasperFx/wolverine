@@ -10,7 +10,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
 {
     private IHost _sender;
     private IHost _receiver;
-    
+
     public async Task InitializeAsync()
     {
 
@@ -31,10 +31,10 @@ public class publish_and_receive_raw_json : IAsyncLifetime
                 opts.UseKafka("localhost:29092").AutoProvision();
                 opts.ListenToKafkaTopic("json")
                     .ReceiveRawJson<ColorMessage>();
-                
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
-        
+
     }
 
     [Fact]
@@ -44,15 +44,14 @@ public class publish_and_receive_raw_json : IAsyncLifetime
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("yellow"));
-        
+
         session.Received.SingleMessage<ColorMessage>()
             .Color.ShouldBe("yellow");
     }
-    
+
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
         await _receiver.StopAsync();
     }
-
 }

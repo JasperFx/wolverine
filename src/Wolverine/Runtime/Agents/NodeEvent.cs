@@ -89,7 +89,7 @@ public record NodeEvent(WolverineNode Node, NodeEventType Type) : IWolverineEven
                 break;
         }
     }
-    
+
     public byte[] Write()
     {
         return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(this));

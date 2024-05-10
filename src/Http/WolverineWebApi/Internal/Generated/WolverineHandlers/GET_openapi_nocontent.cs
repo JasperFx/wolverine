@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var openApiEndpoints = new WolverineWebApi.OpenApiEndpoints();
@@ -28,11 +26,7 @@ namespace Internal.Generated.WolverineHandlers
 
             return noContent.ExecuteAsync(httpContext);
         }
-
     }
 
     // END: GET_openapi_nocontent
-    
-    
 }
-

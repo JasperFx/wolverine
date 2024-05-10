@@ -51,7 +51,6 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
         return ValueTask.CompletedTask;
     }
 
-
     Task ISenderCallback.MarkTimedOutAsync(OutgoingMessageBatch outgoing)
     {
         _logger.OutgoingBatchFailed(outgoing);
@@ -269,9 +268,7 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
         }
     }
 
-
     public abstract Task EnqueueForRetryAsync(OutgoingMessageBatch batch);
-
 
     public Task MarkSuccessAsync()
     {

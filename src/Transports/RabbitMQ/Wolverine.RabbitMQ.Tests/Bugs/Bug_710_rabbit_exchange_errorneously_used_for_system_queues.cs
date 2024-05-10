@@ -34,7 +34,7 @@ public class Bug_710_rabbit_exchange_errorneously_used_for_system_queues : Rabbi
             }).StartAsync();
 
         var options = host.Services.GetRequiredService<IWolverineRuntime>().Options;
-        
+
         options.Transports.NodeControlEndpoint.Uri.Scheme.ShouldBe("dbcontrol");
     }
 }

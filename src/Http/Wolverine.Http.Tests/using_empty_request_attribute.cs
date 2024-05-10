@@ -22,6 +22,3 @@ public class using_empty_request_attribute : IntegrationContext
         });
     }
 }
-
-
-

@@ -17,7 +17,6 @@ public class IntBasicWorkflow : BasicWorkflow<IntStart, IntCompleteThree, int>
         Name = start.Name;
     }
 
-
     public void Handles(IntDoThree message)
     {
         ThreeCompleted = true;

@@ -8,18 +8,18 @@ public enum DeadLetterQueueMode
     /// Opt into using Rabbit MQ's native dead letter queue approach. This is the default and recommended
     /// </summary>
     Native,
-    
+
     /// <summary>
     /// When interoperating with some other messaging tools that do not support Rabbit MQ's dead letter queueing functionality
     /// or do so differently than Wolverine, it may be necessary to use this option to enable Wolverine to move messages
     /// to the dead letter queue in a programmatic way that will not interfere with other messaging tools
     /// </summary>
     InteropFriendly,
-    
+
     /// <summary>
     /// Completely ignore Rabbit MQ native dead letter queueing in favor of Wolverine persistent dead letter queueing
     /// </summary>
-    WolverineStorage    
+    WolverineStorage
 }
 
 public class DeadLetterQueue
@@ -59,7 +59,7 @@ public class DeadLetterQueue
         set => _bindingName = value;
     }
 
-    public Action<RabbitMqQueue>? ConfigureQueue { get; set; } 
+    public Action<RabbitMqQueue>? ConfigureQueue { get; set; }
 
     public Action<RabbitMqExchange>? ConfigureExchange { get; set; }
 

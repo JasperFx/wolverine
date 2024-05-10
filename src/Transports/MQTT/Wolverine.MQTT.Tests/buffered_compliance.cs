@@ -13,12 +13,10 @@ namespace Wolverine.MQTT.Tests;
 
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-
     public static int Number = 0;
 
     public BufferedComplianceFixture() : base(new Uri("mqtt://topic/receiver"), 120)
     {
-
     }
 
     public async Task InitializeAsync()
@@ -28,12 +26,12 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         var number = ++Number;
         var receiverTopic = "receiver-" + number;
         var senderTopic = "sender-" + number;
-        
+
         Broker = new LocalMqttBroker(port)
         {
-            
+
         };
-        
+
         await Broker.StartAsync();
 
         OutboundAddress = new Uri("mqtt://topic/" + receiverTopic);
@@ -74,12 +72,9 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
         var options = theSender.Services.GetRequiredService<IWolverineRuntime>().Options;
         var transport = options.Transports
             .GetOrCreate<MqttTransport>();
-        
+
         transport.ResponseTopic.ShouldBe("wolverine/response/" + options.Durability.AssignedNodeNumber);
-        
+
         transport.ReplyEndpoint().ShouldBeOfType<MqttTopic>().TopicName.ShouldBe(transport.ResponseTopic);
     }
-
 }
-
-

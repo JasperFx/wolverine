@@ -28,10 +28,10 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
         theOptions.ListenToRabbitQueue(QueueName).DeadLetterQueueing(new DeadLetterQueue(QueueName + "_DLQ", DeadLetterQueueMode.InteropFriendly));
 
         theOptions.LocalRoutingConventionDisabled = true;
-        
+
         deadLetterQueueName = QueueName + "_DLQ";
     }
-    
+
         public async Task afterBootstrapping()
     {
         _host = await Host.CreateDefaultBuilder()
@@ -49,7 +49,7 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
     {
         // Try to eliminate queues to keep them from accumulating
         _host.TeardownResources();
-        
+
         _host?.Dispose();
     }
 
@@ -58,7 +58,7 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
     {
         await afterBootstrapping();
 
-        
+
         theTransport.Exchanges.Contains(deadLetterQueueName).ShouldBeTrue();
         theTransport.Queues.Contains(deadLetterQueueName).ShouldBeTrue();
 
@@ -72,11 +72,10 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
         await afterBootstrapping();
 
         var queue = theTransport.Queues[QueueName];
-        
-        queue.Arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
-        
-    }
 
+        queue.Arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
+
+    }
 
     [Fact]
     public async Task move_failed_messages_to_the_dlq()
@@ -87,7 +86,7 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
 
         var initialQueue = theTransport.Queues[QueueName];
         var deadLetterQueue = theTransport.Queues[deadLetterQueueName];
-        
+
         initialQueue.QueuedCount().ShouldBe(0);
 
         var attempts = 0;
@@ -100,8 +99,6 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
             await Task.Delay(250.Milliseconds());
         }
 
-
         throw new Exception("Never got a message in the dead letter queue");
     }
-
 }

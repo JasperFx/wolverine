@@ -46,7 +46,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
     {
         // Try to eliminate queues to keep them from accumulating
         _host.TeardownResources();
-        
+
         _host?.Dispose();
     }
 
@@ -54,7 +54,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
     public async Task should_have_the_dead_letter_objects_by_default()
     {
         await afterBootstrapping();
-        
+
         theTransport.Exchanges.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeTrue();
         theTransport.Queues.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeTrue();
 
@@ -68,7 +68,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
         await afterBootstrapping();
 
         var queue = theTransport.Queues[QueueName];
-        
+
         queue.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(RabbitMqTransport.DeadLetterQueueName);
     }
 
@@ -81,16 +81,16 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
             {
                 opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueing();
                 opts.ListenToRabbitQueue(queueName);
-                
-                
+
+
             }).StartAsync();
 
 
         var transport = host.Services.GetRequiredService<IWolverineRuntime>().Options.RabbitMqTransport();
-        
+
         transport.Exchanges.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
         transport.Queues.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
-        
+
         transport.Queues[QueueName].Arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
     }
 
@@ -98,12 +98,12 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
     public async Task customize_dead_letter_queueing()
     {
         theOptions.UseRabbitMq().CustomizeDeadLetterQueueing(new DeadLetterQueue("dlq"){ExchangeName = "dlq"});
-        
+
         await afterBootstrapping();
-        
+
         theTransport.Exchanges.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
         theTransport.Queues.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
-        
+
         theTransport.Exchanges.Contains("dlq").ShouldBeTrue();
         theTransport.Queues.Contains("dlq").ShouldBeTrue();
     }
@@ -117,7 +117,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
 
         var initialQueue = theTransport.Queues[QueueName];
         var deadLetterQueue = theTransport.Queues[RabbitMqTransport.DeadLetterQueueName];
-        
+
         initialQueue.QueuedCount().ShouldBe(0);
 
         var attempts = 0;
@@ -130,7 +130,6 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
             await Task.Delay(250.Milliseconds());
         }
 
-
         throw new Exception("Never got a message in the dead letter queue");
     }
 
@@ -139,14 +138,14 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
     {
         var deadLetterQueueName = QueueName + "_dlq";
         theOptions.ListenToRabbitQueue(QueueName).DeadLetterQueueing(new DeadLetterQueue(deadLetterQueueName));
-        
+
         await afterBootstrapping();
 
         await _host.TrackActivity().DoNotAssertOnExceptionsDetected().PublishMessageAndWaitAsync(new AlwaysErrors());
 
         var initialQueue = theTransport.Queues[QueueName];
         var deadLetterQueue = theTransport.Queues[deadLetterQueueName];
-        
+
         initialQueue.QueuedCount().ShouldBe(0);
 
         var attempts = 0;

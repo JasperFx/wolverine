@@ -136,7 +136,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _deferBlock.Dispose();
     }
 
-
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return new ValueTask(_markAsHandled.PostAsync(envelope));
@@ -148,7 +147,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             return new ValueTask(executeWithRetriesAsync(() => deferOneAsync(envelope)));
         }
-        
+
         // GH-826, the attempts are already incremented from the executor
         if (!envelope.IsFromLocalDurableQueue())
         {
@@ -217,7 +216,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         _latched = true;
         _receiver.Complete();
-        
+
         // Latching is the best you can do here, otherwise it can hang
         //await _receiver.Completion;
 
@@ -230,10 +229,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         await _completeBlock.DrainAsync();
         await _deferBlock.DrainAsync();
 
-
         await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
     }
-
 
     public void Dispose()
     {
@@ -357,7 +354,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 await _completeBlock.PostAsync(message);
             }
         }
-
 
         _logger.IncomingBatchReceived(Uri, envelopes);
     }

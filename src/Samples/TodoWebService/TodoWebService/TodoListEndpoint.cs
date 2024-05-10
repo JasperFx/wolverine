@@ -24,7 +24,7 @@ public static class TodoListEndpoint
         var listId = CombGuidIdGeneration.NewGuid();
         var result = new TodoListCreated(listId, request.Title);
         var startStream = MartenOps.StartStream<TodoList>(listId, result);
-       
+
         return (new TodoCreationResponse(listId), startStream);
     }
 }

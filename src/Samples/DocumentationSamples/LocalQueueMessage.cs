@@ -24,7 +24,7 @@ public static class LocalQueueConfiguration
                 // routing that would take precedence over other conventional
                 // routing
                 opts.Policies.DisableConventionalLocalRouting();
-                
+
                 // Other routing conventions. Rabbit MQ? SQS?
             }).StartAsync();
 

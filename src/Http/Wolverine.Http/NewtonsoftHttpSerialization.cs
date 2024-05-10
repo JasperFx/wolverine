@@ -29,8 +29,7 @@ public class NewtonsoftHttpSerialization
     }
 
     public JsonSerializerSettings Settings { get; set; }
-    
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public async Task WriteJsonAsync(HttpContext context, object? body)
     {
@@ -39,7 +38,7 @@ public class NewtonsoftHttpSerialization
             context.Response.StatusCode = 404;
             return;
         }
-        
+
         var response = context.Response;
 
         var responseStream = response.Body;
@@ -54,7 +53,7 @@ public class NewtonsoftHttpSerialization
         };
 
         context.Response.ContentType = "application/json";
-        
+
         _serializer.Serialize(jsonWriter, body);
         await jsonWriter.FlushAsync();
     }

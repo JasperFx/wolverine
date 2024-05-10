@@ -40,7 +40,6 @@ public abstract class HttpChainParameterAttribute : Attribute
         IContainer container);
 }
 
-
 /// <summary>
 ///     Base class that marks a method as a Wolverine.Http route handler
 /// </summary>
@@ -65,7 +64,7 @@ public abstract class WolverineHttpMethodAttribute : Attribute
     ///     Name for the route in ASP.Net Core
     /// </summary>
     public string? Name { get; set; }
-    
+
     /// <summary>
     /// Overrides the OperationId property on HttpChain
     /// Can be used to seed OpenAPI documentation with
@@ -116,8 +115,6 @@ public class WolverineGetAttribute : WolverineHttpMethodAttribute
     public WolverineGetAttribute([StringSyntax("Route")]string template) : base("GET", template)
     {
     }
-
-
 }
 
 /// <summary>

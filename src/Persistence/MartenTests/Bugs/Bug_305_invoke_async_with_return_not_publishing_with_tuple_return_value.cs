@@ -22,9 +22,9 @@ public class Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_v
             }).StartAsync();
 
         var (tracked, created) = await host.InvokeMessageAndWaitAsync<ItemCreated>(new CreateItemCommand { Name = "Trevor" });
-        
+
         created.Name.ShouldBe("Trevor");
-        
+
         tracked.Sent.SingleMessage<ItemCreated>().Name.ShouldBe("Trevor");
         tracked.Sent.SingleMessage<SecondItemCreated>().Name.ShouldBe("Trevor");
     }
@@ -44,7 +44,7 @@ public class CreateItemCommandHandler
             Id = Guid.NewGuid(),
             Name = command.Name
         };
-        
+
         session.Store(item);
 
         return (new ItemCreated(item.Id, item.Name), new SecondItemCreated(item.Id, item.Name));

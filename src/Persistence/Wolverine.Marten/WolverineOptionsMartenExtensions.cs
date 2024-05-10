@@ -49,9 +49,7 @@ public static class WolverineOptionsMartenExtensions
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
-        
-        
-        
+
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
         expression.Services.AddSingleton<IMessageStore>(s =>
@@ -78,7 +76,7 @@ public static class WolverineOptionsMartenExtensions
         {
             TransportSchemaName = transportSchemaName ?? schemaName ?? "wolverine_queues"
         });
-        
+
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
         return expression;
@@ -90,7 +88,7 @@ public static class WolverineOptionsMartenExtensions
         if (store.Tenancy is ITenancyWithMasterDatabase m) return m.TenantDatabase.DataSource;
 
         if (masterSettings.DataSource != null) return (NpgsqlDataSource)masterSettings.DataSource;
-        
+
         if (masterSettings.ConnectionString.IsNotEmpty()) return NpgsqlDataSource.Create(masterSettings.ConnectionString);
 
         var source = container.GetService<NpgsqlDataSource>();
@@ -123,7 +121,7 @@ public static class WolverineOptionsMartenExtensions
 
 
         var source = new MartenMessageDatabaseSource(schemaName, store, runtime);
-        
+
         master.Initialize(runtime);
 
         return new MultiTenantedMessageDatabase(master, runtime, source);
@@ -143,7 +141,6 @@ public static class WolverineOptionsMartenExtensions
 
         return new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger);
     }
-
 
     internal static MartenIntegration? FindMartenIntegration(this IServiceCollection services)
     {
@@ -173,7 +170,7 @@ public static class WolverineOptionsMartenExtensions
 
         return expression;
     }
-    
+
     /// <summary>
     ///     Enable publishing of events to Wolverine message routing when captured in Marten sessions that are enrolled in a
     ///     Wolverine outbox. This requires usage of Marten transactional middleware within Wolverine, and makes no guarantees
@@ -214,10 +211,10 @@ public static class WolverineOptionsMartenExtensions
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
             opts.Projections.Subscribe(new WolverineSubscriptionRunner(subscription, runtime));
         });
-        
+
         return expression;
     }
-    
+
     /// <summary>
     /// Register a custom subscription that will process a batch of Marten events at a time with
     /// a user defined action
@@ -252,7 +249,7 @@ public static class WolverineOptionsMartenExtensions
 
         return expression;
     }
-    
+
     /// <summary>
     /// Create a subscription for Marten events to be processed in strict order by Wolverine
     /// </summary>
@@ -266,22 +263,22 @@ public static class WolverineOptionsMartenExtensions
         string subscriptionName, Action<ISubscriptionOptions>? configure = null)
     {
         if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
-        
+
         expression.Services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
             var invoker = new InlineInvoker(subscriptionName, runtime);
             var subscription = new WolverineSubscriptionRunner(invoker, runtime);
-            
+
             configure?.Invoke(subscription);
-            
+
             opts.Projections.Subscribe(subscription);
         });
-        
+
         return expression;
     }
-    
+
     /// <summary>
     /// Relay events captured by Marten to Wolverine message publishing
     /// </summary>
@@ -295,19 +292,19 @@ public static class WolverineOptionsMartenExtensions
         string subscriptionName, Action<IPublishingRelay>? configure = null)
     {
         if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
-        
+
         expression.Services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
             var relay = new PublishingRelay(subscriptionName);
             configure?.Invoke(relay);
-            
+
             var subscription = new WolverineSubscriptionRunner(relay, runtime);
-            
+
             opts.Projections.Subscribe(subscription);
         });
-        
+
         return expression;
     }
 }

@@ -36,9 +36,9 @@ public class endpoint_policy_configuration : IDisposable
             {
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
-                
+
                 opts.Services.AddResourceSetupOnStartup();
-                
+
                 configure(opts);
             }).StartAsync();
 
@@ -65,10 +65,10 @@ public class endpoint_policy_configuration : IDisposable
 
         options.Transports.AllEndpoints().OfType<TcpEndpoint>()
             .Each(x => x.Mode.ShouldBe(EndpointMode.BufferedInMemory));
-        
-        
+
+
     }
-    
+
     [Fact]
     public async Task make_all_local_queues_durable_does_not_impact_system_queues()
     {
@@ -86,7 +86,7 @@ public class endpoint_policy_configuration : IDisposable
             .Each(x => x.Mode.ShouldBe(EndpointMode.Durable));
 
         var queues = options.Transports.AllEndpoints().OfType<LocalQueue>().ToDictionary(x => x.EndpointName);
-        
+
         queues[TransportConstants.Agents].Mode.ShouldBe(EndpointMode.BufferedInMemory);
         queues[TransportConstants.Durable].Mode.ShouldBe(EndpointMode.Durable);
 
@@ -272,7 +272,6 @@ public class endpoint_policy_configuration : IDisposable
             .ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
     }
 
-
     [Fact]
     public async Task discover_local_endpoints_with_custom_name_pattern()
     {
@@ -312,7 +311,7 @@ public class endpoint_policy_configuration : IDisposable
         {
             opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
         });
-        
+
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>()
             .ShouldBeOfType<WolverineRuntime>();
 
@@ -329,7 +328,7 @@ public class endpoint_policy_configuration : IDisposable
         {
             opts.Policies.MessageSuccessLogLevel(LogLevel.None);
         });
-        
+
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>()
             .ShouldBeOfType<WolverineRuntime>();
 

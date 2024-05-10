@@ -118,7 +118,6 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return ChainFor(typeof(T));
     }
 
-
     public IMessageHandler? HandlerFor(Type messageType)
     {
         if (_handlers.TryFind(messageType, out var handler))
@@ -307,7 +306,6 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         return new HandlerChain(group, this);
     }
-
 
     internal void AddForwarders(Forwarders forwarders)
     {

@@ -15,7 +15,7 @@ namespace Wolverine.MQTT;
 public class MqttTopic : Endpoint, ISender
 {
     public const string WolverineTopicsName = "wolverine/topics";
-    
+
     public string TopicName { get; }
     private CancellationToken _cancellation;
 
@@ -46,11 +46,11 @@ public class MqttTopic : Endpoint, ISender
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         _cancellation = runtime.Cancellation;
-        
+
         MessageTypeName = MessageType?.ToMessageTypeName();
 
         var logger = runtime.LoggerFactory.CreateLogger<MqttListener>();
-        
+
         var listener = new MqttListener(Parent, logger, this, receiver);
         await Parent.SubscribeToTopicAsync(TopicName, listener, this);
 
@@ -83,7 +83,7 @@ public class MqttTopic : Endpoint, ISender
     {
         var appMessage = new MqttApplicationMessage();
         EnvelopeMapper.MapEnvelopeToOutgoing(envelope, appMessage);
-        
+
         var message = new ManagedMqttApplicationMessage
         {
             ApplicationMessage = appMessage,
@@ -98,12 +98,8 @@ public class MqttTopic : Endpoint, ISender
         var message = BuildMessage(envelope);
         return new ValueTask(Parent.Client.EnqueueAsync(message));
     }
-    
+
     public MqttQualityOfServiceLevel QualityOfServiceLevel { get; set; } = MqttQualityOfServiceLevel.AtLeastOnce;
 
     public bool Retain { get; set; } = false;
-
-
-
-
 }

@@ -20,8 +20,6 @@ namespace Internal.Generated.WolverineHandlers
             _recorder = recorder;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var serviceEndpoints = new WolverineWebApi.ServiceEndpoints();
@@ -32,11 +30,7 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_GetMessage);
         }
-
     }
 
     // END: GET_message_message
-    
-    
 }
-

@@ -17,7 +17,7 @@ internal class MartenAggregateHandlerStrategy : IHandlerPolicy
             {
                 continue;
             }
-            
+
             if (chain.Handlers.SelectMany(x => x.Creates).Any(x => x.VariableType.CanBeCastTo<IStartStream>())) continue;
 
             new AggregateHandlerAttribute(ConcurrencyStyle.Optimistic).Modify(chain, rules, container);

@@ -28,7 +28,7 @@ public class inbox_outbox_usage : IAsyncLifetime
                 opts.PublishMessage<SqlServerPong>().ToSqlServerQueue("pong");
                 opts.ListenToSqlServerQueue("pong");
                 opts.ListenToSqlServerQueue("ping");
-                
+
                 opts.Policies.DisableConventionalLocalRouting();
             }).StartAsync();
     }
@@ -37,7 +37,7 @@ public class inbox_outbox_usage : IAsyncLifetime
     public async Task cascaded_response_with_outbox()
     {
         var tracked = await _host.TrackActivity().WaitForMessageToBeReceivedAt<SqlServerPong>(_host).InvokeMessageAndWaitAsync(new SqlServerPing("first"));
-        
+
         tracked.FindSingleTrackedMessageOfType<SqlServerPong>()
             .Name.ShouldBe("first");
     }
@@ -49,7 +49,7 @@ public class inbox_outbox_usage : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<SqlServerPong>(_host)
             .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(bus => bus.ScheduleAsync(new SqlServerPong("scheduled"), 3.Seconds()));
-        
+
         tracked.FindSingleTrackedMessageOfType<SqlServerPong>()
             .Name.ShouldBe("scheduled");
     }
@@ -61,7 +61,6 @@ public class inbox_outbox_usage : IAsyncLifetime
     }
 }
 
-
 public record SqlServerPing(string Name);
 public record SqlServerPong(string Name);
 
@@ -70,7 +69,7 @@ public static class PingPongHandler
     [Transactional]
     public static SqlServerPong Handle(SqlServerPing ping, SqlConnection connection)
     {
-        
+
         return new SqlServerPong(ping.Name);
     }
 

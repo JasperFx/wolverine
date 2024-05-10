@@ -20,9 +20,9 @@ public class ExpectProducesAttribute : OpenApiExpectationAttribute
     public override void Validate(OpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
     {
         op.Responses.Keys.ShouldContain(StatusCode.ToString());
-        
+
         op.Responses.TryGetValue(StatusCode.ToString(), out var response).ShouldBeTrue();
-        
+
         response.Content.Keys.ShouldContain(ContentType);
 
     }

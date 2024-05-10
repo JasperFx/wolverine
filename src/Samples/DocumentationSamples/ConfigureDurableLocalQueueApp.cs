@@ -22,7 +22,6 @@ internal static class DurableScheduleMessagesSample
         #endregion
     }
 
-
     public static async Task ConfigureDefaultQueue()
     {
         #region sample_ConfigureDefaultQueue

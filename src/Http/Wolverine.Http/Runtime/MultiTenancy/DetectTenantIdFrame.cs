@@ -37,7 +37,7 @@ internal class DetectTenantIdFrame : AsyncFrame
         {
             writer.WriteComment($"{i + 1}. {_options.Strategies[i]}");
         }
-        
+
         writer.Write($"var {TenantId.Usage} = await {nameof(HttpHandler.TryDetectTenantId)}({_httpContext.Usage});");
 
         if (_options.ShouldAssertTenantIdExists(_chain))
@@ -47,7 +47,7 @@ internal class DetectTenantIdFrame : AsyncFrame
             writer.Write("return;");
             writer.FinishBlock();
         }
-        
+
         Next?.GenerateCode(method, writer);
     }
 }

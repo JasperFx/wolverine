@@ -82,7 +82,6 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         ScheduledMessageHandler.Reset();
     }
 
-
     protected virtual async Task initializeStorage(IHost sender, IHost receiver)
     {
         await theSender.ResetResourceState();
@@ -202,9 +201,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         counts.Scheduled.ShouldBe(1, $"counts.Scheduled = {counts.Scheduled}, should be 1");
     }
 
-
     protected abstract IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender);
-
 
     [Fact]
     public async Task<bool> send_scheduled_message()
@@ -259,7 +256,6 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
         return true;
     }
-
 
     [Fact]
     public async Task<bool> can_send_durably_with_receiver_down()

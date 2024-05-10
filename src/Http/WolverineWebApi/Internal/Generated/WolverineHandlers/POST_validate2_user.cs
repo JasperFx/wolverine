@@ -25,8 +25,6 @@ namespace Internal.Generated.WolverineHandlers
             _problemDetailSource = problemDetailSource;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var validatorList = new System.Collections.Generic.List<FluentValidation.IValidator<Wolverine.Http.Tests.DifferentAssembly.Validation.CreateUser2>>{_validator_of_CreateUser21719830924, _validator_of_CreateUser2816090777};
@@ -40,19 +38,13 @@ namespace Internal.Generated.WolverineHandlers
                 await result1.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             var result_of_Post = Wolverine.Http.Tests.DifferentAssembly.Validation.Validated2Endpoint.Post(user);
 
             await WriteString(httpContext, result_of_Post);
         }
-
     }
 
     // END: POST_validate2_user
-    
-    
 }
-

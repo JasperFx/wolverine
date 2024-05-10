@@ -50,7 +50,6 @@ public class When_starting_an_order : PostgresqlContext, IAsyncLifetime
         _order = await session.LoadAsync<Order>(orderId);
     }
 
-
     public async Task DisposeAsync()
     {
         await _host.StopAsync();

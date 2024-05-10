@@ -19,13 +19,12 @@ public class HeaderValueVariable : Variable
     public string Name { get; }
 }
 
-
 public class FromHeaderStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable)
     {
         var att = parameter.GetCustomAttributes().OfType<IFromHeaderMetadata>().FirstOrDefault();
-        
+
         if (att != null)
         {
             variable = chain.GetOrCreateHeaderVariable(att, parameter);

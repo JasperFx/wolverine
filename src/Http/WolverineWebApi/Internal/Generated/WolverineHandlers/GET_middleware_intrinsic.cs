@@ -20,8 +20,6 @@ namespace Internal.Generated.WolverineHandlers
             _recorder = recorder;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var beforeAndAfterEndpoint = new WolverineWebApi.BeforeAndAfterEndpoint();
@@ -33,11 +31,7 @@ namespace Internal.Generated.WolverineHandlers
             WolverineWebApi.BeforeAndAfterEndpoint.After(_recorder);
             await WriteString(httpContext, result_of_GetRequest);
         }
-
     }
 
     // END: GET_middleware_intrinsic
-    
-    
 }
-

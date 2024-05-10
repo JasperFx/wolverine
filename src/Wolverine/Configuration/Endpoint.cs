@@ -67,10 +67,10 @@ public enum ListenerScope
     /// competing consumers load balancing
     /// </summary>
     CompetingConsumers,
-    
+
     /// <summary>
     /// If this endpoint is a listener, it should only be active on a single node.
-    /// This is mostly appropriate for 
+    /// This is mostly appropriate for
     /// </summary>
     Exclusive
 }
@@ -102,7 +102,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
-    /// If a listener, what is the scope of the 
+    /// If a listener, what is the scope of the
     /// </summary>
     public ListenerScope ListenerScope { get; set; } = ListenerScope.CompetingConsumers;
 
@@ -135,10 +135,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// number of messages that will be received or sent in one batch
     /// </summary>
     public int MessageBatchSize { get; set; } = 100;
-    
+
     /// <summary>
     /// For endpoints that send messages in batches, this governs the maximum number
-    /// of concurrent outgoing batches 
+    /// of concurrent outgoing batches
     /// </summary>
     public int MessageBatchMaxDegreeOfParallelism { get; set; } = 1;
 
@@ -161,7 +161,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         }
     }
 
-
     public RoutingMode RoutingType { get; set; } = RoutingMode.Static;
 
 
@@ -180,7 +179,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             _defaultSerializer = value;
         }
     }
-
 
     /// <summary>
     ///     Descriptive Name for this listener. Optional.
@@ -268,7 +266,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             }
         }
 
-
         return dict;
     }
 
@@ -314,12 +311,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return Subscriptions.Any(x => x.Matches(messageType));
     }
 
-
     protected virtual bool supportsMode(EndpointMode mode)
     {
         return true;
     }
-
 
     public virtual bool AutoStartSendingAgent()
     {
@@ -387,7 +382,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return Mode != EndpointMode.Inline;
     }
 
-
     /// <summary>
     ///     One time initialization of this endpoint
     /// </summary>
@@ -435,10 +429,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         {
             case DurabilityMode.Solo:
                 return true;
-            
+
             case DurabilityMode.Balanced:
                 return ListenerScope == ListenerScope.CompetingConsumers;
-            
+
             case DurabilityMode.MediatorOnly:
             case DurabilityMode.Serverless:
                 return false;

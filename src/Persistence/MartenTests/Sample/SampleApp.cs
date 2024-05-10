@@ -36,7 +36,6 @@ public class MessageInvocationTests : PostgresqlContext, IDisposable
         theHost?.Dispose();
     }
 
-
     [Fact]
     public async Task using_ExecuteAndWaitSync()
     {
@@ -51,7 +50,6 @@ public class MessageInvocationTests : PostgresqlContext, IDisposable
         theHost.Get<UserNames>()
             .Names.Single().ShouldBe("Tom");
     }
-
 
     [Fact]
     public async Task using_InvokeMessageAndWait()

@@ -208,7 +208,6 @@ public class CommandHandler
     {
     }
 
-
     public void Handle(Command4 command)
     {
     }

@@ -15,7 +15,7 @@ public class ConfiguredMessageExtensionsTests
         var delay = 5.Minutes();
         var inner = new Message1();
         var configured = inner.DelayedFor(delay);
-        
+
         configured.Options.ScheduleDelay.ShouldBe(delay);
         configured.Message.ShouldBe(inner);
     }
@@ -37,7 +37,7 @@ public class ConfiguredMessageExtensionsTests
     {
         var inner = new Message1();
         var message = inner.ToEndpoint("foo", new DeliveryOptions{DeliverWithin = 5.Seconds()});
-        
+
         message.Message.ShouldBe(inner);
         message.EndpointName.ShouldBe("foo");
         message.DeliveryOptions.DeliverBy.HasValue.ShouldBeTrue();
@@ -49,7 +49,7 @@ public class ConfiguredMessageExtensionsTests
         var inner = new Message1();
         var destination = new Uri("rabbitmq://queue/foo");
         var message = inner.ToDestination(destination, new DeliveryOptions{DeliverWithin = 5.Seconds()});
-        
+
         message.Message.ShouldBe(inner);
         message.Destination.ShouldBe(destination);
         message.DeliveryOptions.DeliverBy.HasValue.ShouldBeTrue();
@@ -68,6 +68,4 @@ public class ConfiguredMessageExtensionsTests
 
         await bus.Received().BroadcastToTopicAsync("blue", inner);
     }
-    
-    
 }

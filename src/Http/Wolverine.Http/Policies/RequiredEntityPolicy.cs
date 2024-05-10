@@ -55,9 +55,9 @@ internal class SetStatusCodeAndReturnFrame : SyncFrame
         {
             writer.Write("return;");
         }
-        
+
         writer.FinishBlock();
-        
+
         Next?.GenerateCode(method, writer);
     }
 
@@ -65,7 +65,7 @@ internal class SetStatusCodeAndReturnFrame : SyncFrame
     {
         _entity = chain.FindVariable(_entityType);
         yield return _entity;
-        
+
         _httpResponse = chain.FindVariable(typeof(HttpResponse));
         yield return _httpResponse;
     }

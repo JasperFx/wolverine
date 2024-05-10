@@ -12,7 +12,7 @@ public class SqlServerListenerConfiguration : ListenerConfiguration<SqlServerLis
     public SqlServerListenerConfiguration(Func<SqlServerQueue> source) : base(source)
     {
     }
-    
+
     /// <summary>
     ///     The maximum number of messages to receive in a single batch when listening
     ///     in either buffered or durable modes. The default is 20.
@@ -22,7 +22,7 @@ public class SqlServerListenerConfiguration : ListenerConfiguration<SqlServerLis
         add(e => e.MaximumMessagesToReceive = maximum);
         return this;
     }
-    
+
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>

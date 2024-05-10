@@ -31,14 +31,14 @@ internal class AzureServiceBusSessionListener : IListener
 
         var listenerCount = _endpoint.ListenerCount;
         if (listenerCount == 0) listenerCount = 1;
-        
+
         for (int i = 0; i < listenerCount; i++)
         {
             var task = Task.Run(listenForMessages, _cancellation.Token);
             _tasks.Add(task);
         }
     }
-    
+
     private async Task listenForMessages()
     {
         var failedCount = 0;
@@ -88,7 +88,6 @@ internal class AzureServiceBusSessionListener : IListener
                         _endpoint.Uri);
                 }
 
-
                 await Task.Delay(pauseTime);
             }
         }
@@ -111,7 +110,7 @@ internal class AzureServiceBusSessionListener : IListener
         {
             task.SafeDispose();
         }
-        
+
         return ValueTask.CompletedTask;
     }
 
@@ -124,7 +123,6 @@ internal class AzureServiceBusSessionListener : IListener
     }
 }
 
-
 internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
 {
     private readonly ServiceBusSessionReceiver _sessionReceiver;
@@ -133,7 +131,7 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
     private readonly IEnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage> _mapper;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cancellation = new();
-    
+
     private readonly RetryBlock<AzureServiceBusEnvelope> _complete;
     private readonly RetryBlock<AzureServiceBusEnvelope> _defer;
     private readonly RetryBlock<AzureServiceBusEnvelope> _deadLetter;
@@ -158,7 +156,7 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
 
             await requeue.SendAsync(envelope);
         }, logger, _cancellation.Token);
-        
+
         _deadLetter =
             new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.DeadLetterAsync(_cancellation.Token, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
                 _cancellation.Token);
@@ -209,7 +207,7 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
 
         return messages.Count;
     }
-    
+
     private async Task tryMoveToDeadLetterQueue(ServiceBusReceivedMessage message)
     {
         try

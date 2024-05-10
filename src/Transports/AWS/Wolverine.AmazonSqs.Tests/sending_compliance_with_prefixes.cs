@@ -10,7 +10,7 @@ namespace Wolverine.AmazonSqs.Tests;
 public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public static int Number = 0;
-    
+
     public PrefixedComplianceFixture() : base(new Uri("sqs://foo-buffered-receiver"), 120)
     {
     }
@@ -19,7 +19,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
         var number = ++Number;
         OutboundAddress = new Uri("sqs://foo-prefix-receiver-" + number);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAmazonSqsTransportLocally()

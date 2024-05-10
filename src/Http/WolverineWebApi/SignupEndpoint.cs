@@ -7,7 +7,7 @@ namespace WolverineWebApi;
 
 public class SignupEndpoint
 {
-    // The first couple attributes are ASP.Net Core 
+    // The first couple attributes are ASP.Net Core
     // attributes that add OpenAPI metadata to this endpoint
     [Tags("Users")]
     [ProducesResponseType(204)]

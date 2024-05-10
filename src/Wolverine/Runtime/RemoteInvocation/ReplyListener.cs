@@ -47,7 +47,6 @@ internal class ReplyListener<T> : IReplyListener
         Parent.Unregister(this);
     }
 
-
     public void Dispose()
     {
         _cancellation?.Dispose();
@@ -65,7 +64,6 @@ internal class ReplyListener<T> : IReplyListener
             _completion?.TrySetException(new TimeoutException(
                 $"Timed out waiting for expected response {typeof(T).FullNameInCode()} for original message {RequestId} of type {RequestType} with a configured timeout of {_timeout.TotalMilliseconds} milliseconds"));
         }
-
 
         Parent.Unregister(this);
 

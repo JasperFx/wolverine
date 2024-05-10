@@ -14,8 +14,6 @@ namespace Internal.Generated.WolverineHandlers
             _rootContainer = rootContainer;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             await using var nestedContainer = (Lamar.IContainer)_rootContainer.GetNestedContainer();
@@ -49,11 +47,9 @@ namespace Internal.Generated.WolverineHandlers
             // If we have separate context for outbox and application, then we need to manually commit the transaction
             if (envelopeTransaction is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) { await rawTx.CommitAsync(); }
         }
-
     }
 
     // END: CreateItemWithDbContextNotIntegratedWithOutboxCommandHandler300308296
     
     
 }
-

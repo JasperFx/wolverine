@@ -74,10 +74,10 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
                 opts.Services.AddMarten(o =>
                     {
                         o.DatabaseSchemaName = "color_sender";
-                        
+
                         o.Schema.For<ColorUpdates>().DatabaseSchemaName("colors");
                         o.DisableNpgsqlLogging = true;
-                        
+
                         // This is a new strategy for configuring tenant databases with Marten
                         // In this usage, Marten is tracking the tenant databases in a single table in the "master"
                         // database by tenant
@@ -105,7 +105,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         {
             host.GetRuntime().Agents.DisableHealthChecks();
         }
-        
+
         _receivers.Reverse();
         foreach (var host in _receivers.ToArray())
         {
@@ -115,7 +115,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         await _sender.StopAsync();
         _sender.Dispose();
     }
-    
+
     private async Task shutdownHostAsync(IHost host)
     {
         host.GetRuntime().Agents.DisableHealthChecks();
@@ -123,7 +123,6 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         host.Dispose();
         _receivers.Remove(host);
     }
-
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
@@ -153,7 +152,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
                 opts.Services.AddMarten(o =>
                     {
                         o.DisableNpgsqlLogging = true;
-                        
+
                         o.DatabaseSchemaName = "colors";
 
                         // This is a new strategy for configuring tenant databases with Marten
@@ -197,11 +196,11 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
             foreach (var color in colors)
             {
                 if (color.IsComplete()) continue;
-                
+
                 color.PublishSome(session);
             }
         }
-        
+
         await session.SaveChangesAsync();
     }
 
@@ -217,7 +216,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         await receiver1.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = StickyPostgresqlQueueListenerAgentFamily.StickyListenerSchema;
-            
+
             w.ExpectRunningAgents(receiver1, 1);
             w.ExpectRunningAgents(receiver2, 1);
             w.ExpectRunningAgents(receiver3, 1);
@@ -230,14 +229,14 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         var data3 = new ColorData("tenant3", ["purple", "blue", "green", "yellow"]);
         var data4 = new ColorData("tenant4", ["pink", "orange", "green", "red"]);
 
-        ColorData[] all = [data1, data2, data3, data4]; 
+        ColorData[] all = [data1, data2, data3, data4];
 
 
         await Task.WhenAll(all.Select(x => x.PublishNumbers(theSenderStore)).ToArray());
 
         var receiverStore = receiver1.Services.GetRequiredService<IDocumentStore>();
-        
-        Func<Task<bool>> tryMatch = async () => 
+
+        Func<Task<bool>> tryMatch = async () =>
         {
             foreach (var data in all)
             {
@@ -272,7 +271,7 @@ public class ColorData
 
     public string TenantId { get; set; }
     public List<ColorSum> Data { get; } = new();
-    
+
     public Task PublishNumbers(IDocumentStore store)
     {
         return Task.Factory.StartNew(async () =>
@@ -284,14 +283,14 @@ public class ColorData
                 foreach (var color in Data)
                 {
                     if (color.IsComplete()) continue;
-                
+
                     color.PublishSome(session);
                 }
             }
-        
+
             await session.SaveChangesAsync();
         });
-        
+
 
     }
 
@@ -327,11 +326,11 @@ public class ColorSum
 
         return sum;
     }
-    
+
     [Identity] public string Color { get; set; }
 
     public List<int> Numbers { get; set; } = new();
-    
+
     public bool HasBeenMatched { get; set; }
 
     protected bool Equals(ColorSum other)
@@ -396,7 +395,7 @@ public static class UpdateColorCountsHandler
             doc ??= new ColorSum { Color = pair.Key };
 
             doc.Numbers.AddRange(pair.Value);
-            
+
             session.Store(doc);
         }
     }
@@ -415,7 +414,7 @@ public class ColorUpdates
         {
             Updates[color] = new List<int>();
         }
-        
+
         Updates[color].Add(number);
     }
 }
@@ -431,14 +430,14 @@ public class ColorsSubscription : BatchSubscription
     {
         var events = page.Events.Select(x => x.Data).OfType<ColorsUpdated>().ToArray();
         var updates = new ColorUpdates();
-        
-        foreach (var e in events)    
+
+        foreach (var e in events)
         {
             updates.AddNumber(e.Color, e.Number);
         }
-        
+
         operations.Store(updates);
-        
+
         // Claim Check message
         await bus.PublishAsync(new UpdateColorCounts(updates.Id));
     }

@@ -21,7 +21,7 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
         _responseType = responseType;
         _successStatusCode = successStatusCode;
     }
-    
+
     public bool TryApply(HttpChain chain)
     {
         var result = chain.Method.Creates.FirstOrDefault();
@@ -31,7 +31,7 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
         if (compiledQueryClosure is null) return false;
 
         var arguments = compiledQueryClosure.GetGenericArguments();
-        
+
         // If we're dealing with a primitive return type we need to write its string representation directly
         if (arguments[1].IsPrimitive || arguments[1] == typeof(string) || arguments[1] == typeof(decimal))
         {

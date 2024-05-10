@@ -54,7 +54,6 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
         chainFor<MovieAdded>().ShouldHaveHandler<NetflixHandler>(x => x.Consume(new MovieAdded()));
     }
 
-
     [Fact]
     public void ignore_class_marked_as_NotHandler()
     {
@@ -81,11 +80,11 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     public void find_handlers_from_wolverine_module_extensions()
     {
         _output.WriteLine(Host.Services.GetRequiredService<IWolverineRuntime>().Options.DescribeHandlerMatch(typeof(OrderHandler)));
-        
+
         chainFor<CreateOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new CreateOrder()));
         chainFor<ShipOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new ShipOrder()));
     }
-    
+
     [WolverineHandler]
     public static class AttributeWorker
     {
@@ -118,7 +117,6 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
         chainFor<MarkedMessage>().ShouldHaveHandler<MarkedWorker>(x => x.Handle(null));
     }
 }
-
 
 public class customized_finding : IntegrationContext
 {
@@ -158,7 +156,7 @@ public class customized_finding : IntegrationContext
                            // it's a handler
         public void DoWork(DifferentNameMessage message)
         {
-            
+
         }
     }
 
@@ -289,4 +287,3 @@ public class EventConsumer
     {
     }
 }
-

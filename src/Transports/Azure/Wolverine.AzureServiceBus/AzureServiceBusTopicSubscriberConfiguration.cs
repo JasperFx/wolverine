@@ -23,7 +23,7 @@ public class AzureServiceBusTopicSubscriberConfiguration : SubscriberConfigurati
         add(e => configure(e.Options));
         return this;
     }
-    
+
     /// <summary>
     /// Utilize custom envelope mapping for Amazon Service Bus interoperability with external non-Wolverine systems
     /// </summary>

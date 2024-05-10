@@ -19,7 +19,7 @@ public record CustomResponse(string Name);
 public static class MessageHandler
 {
     public static CustomResponse Handle(CustomRequest request) => new CustomResponse(request.Name);
-    
+
     public static void Handle(HttpMessage1 message) => Debug.WriteLine("Got message 1");
     public static void Handle(HttpMessage2 message) => Debug.WriteLine("Got message 2");
     public static void Handle(HttpMessage3 message) => Debug.WriteLine("Got message 3");
@@ -34,7 +34,7 @@ public record SpawnInput(string Name);
 public static class MessageSpawnerEndpoint
 {
     #region sample_publishing_cascading_messages_from_Http_endpoint_with_IMessageBus
-    
+
     // This would have an empty response and a 204 status code
     [WolverinePost("/spawn3")]
     public static async ValueTask SendViaMessageBus(IMessageBus bus)
@@ -44,7 +44,7 @@ public static class MessageSpawnerEndpoint
     }
 
     #endregion
-    
+
     #region sample_publishing_cascading_messages_from_Http_endpoint
 
     // This would have an empty response and a 204 status code

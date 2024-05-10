@@ -45,6 +45,4 @@ public class InlineAzureServiceBusSender : ISender
         _mapper.MapEnvelopeToOutgoing(envelope, message);
         await _sender.SendMessageAsync(message, _cancellationToken);
     }
-    
-    
 }

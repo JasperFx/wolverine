@@ -21,12 +21,12 @@ public class disabling_external_transports_does_not_try_to_connect_to_rabbit
                 // This could never, ever work
                 opts.UseRabbitMq(x => x.HostName = Guid.NewGuid().ToString());
                 opts.PublishMessage<SayName>().ToRabbitQueue("name");
-                
+
                 opts.StubAllExternalTransports();
             }).StartAsync();
 
         var session = await host.SendMessageAndWaitAsync(new SayName("Jennifer Coolidge"));
-        
+
         session.Sent.SingleEnvelope<SayName>()
             .Destination.ShouldBe(new Uri("rabbitmq://queue/name"));
     }

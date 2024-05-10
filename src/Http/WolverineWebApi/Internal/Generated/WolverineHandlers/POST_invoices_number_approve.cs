@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             if (!System.Guid.TryParse((string)httpContext.GetRouteValue("number"), out var number))
@@ -32,7 +30,6 @@ namespace Internal.Generated.WolverineHandlers
                 httpContext.Response.StatusCode = 404;
                 return;
             }
-
 
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
@@ -44,16 +41,12 @@ namespace Internal.Generated.WolverineHandlers
 
             if (martenOp != null)
             {
-                
                 // Placed by Wolverine's ISideEffect policy
                 martenOp.Execute(documentSession);
-
             }
-
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
-
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
             await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
@@ -61,11 +54,9 @@ namespace Internal.Generated.WolverineHandlers
             // Wolverine automatically sets the status code to 204 for empty responses
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
         }
-
     }
 
     // END: POST_invoices_number_approve
     
     
 }
-

@@ -86,7 +86,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
         {
             endpoint.Compile(runtime);
         }
-        
+
         _deleteBlock = new RetryBlock<List<Envelope>>(deleteEnvelopesAsync,
             runtime.LoggerFactory.CreateLogger<DatabaseControlTransport>(), runtime.Options.Durability.Cancellation);
         return ValueTask.CompletedTask;
@@ -111,7 +111,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
     private async Task deleteEnvelopesAsync(List<Envelope> envelopes, CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested || Database.HasDisposed) return;
-        
+
         await using var conn = await Database.DataSource.OpenConnectionAsync(cancellationToken);
 
         try

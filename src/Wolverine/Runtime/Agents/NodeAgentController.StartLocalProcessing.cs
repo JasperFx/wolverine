@@ -16,7 +16,7 @@ public partial class NodeAgentController
 
         current.AssignedNodeId = await _persistence.PersistAsync(current, _cancellation.Token);
         await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
-        
+
         _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId;
 
         _logger.LogInformation("Starting agents for Node {NodeId} with assigned node id {Id}",
@@ -31,7 +31,7 @@ public partial class NodeAgentController
             foreach (var other in others)
             {
                 var active = _tracker.Add(other);
-                
+
                 commands.Add(new RemoteNodeEvent(current, NodeEventType.Started, active));
             }
 
@@ -43,7 +43,7 @@ public partial class NodeAgentController
                 _logger.LogInformation(
                     "Found no elected leader on node startup, requesting node {NodeId} to be the new leader",
                     leaderCandidate.AssignedNodeId);
-                
+
                 commands.Add(new TryAssumeLeadership { CurrentLeaderId = null, CandidateId = leaderCandidate.Id});
             }
         }

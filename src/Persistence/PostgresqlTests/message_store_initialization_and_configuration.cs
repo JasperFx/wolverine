@@ -57,7 +57,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
 
         var tables = await conn.ExistingTablesAsync(schemas: ["registry"]);
         await conn.CloseAsync();
-        
+
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeTableName);
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeAssignmentsTableName);
         tables.ShouldContain(x => x.Name == DatabaseConstants.ControlQueueTableName);
@@ -70,7 +70,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
 
         var expectedUri = $"dbcontrol://{runtime.Options.UniqueNodeId}".ToUri();
         runtime.Options.Transports.NodeControlEndpoint!.Uri.ShouldBe(expectedUri);
-        
+
         runtime.Options.Transports.OfType<DatabaseControlTransport>().Single()
             .Database.ShouldBeOfType<PostgresqlMessageStore>()
             .Settings.SchemaName.ShouldBe("registry");
@@ -83,7 +83,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
         var nodes = await runtime.Storage.Nodes.LoadAllNodesAsync(CancellationToken.None);
 
         var current = nodes.Single();
-        
+
         current.Id.ShouldBe(runtime.Options.UniqueNodeId);
         current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint.Uri);
 
@@ -105,11 +105,9 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
 
         var store = new PostgresqlMessageStore(settings, new DurabilitySettings(), NpgsqlDataSource.Create(Servers.PostgresConnectionString),
             NullLogger<PostgresqlMessageStore>.Instance);
-        
+
         // Should delete itself at the end
         var nodes = await store.Nodes.LoadAllNodesAsync(CancellationToken.None);
         nodes.Any().ShouldBeFalse();
-
     }
-    
 }

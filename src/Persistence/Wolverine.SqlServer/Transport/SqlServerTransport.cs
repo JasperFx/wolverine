@@ -49,7 +49,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
         Storage = storage ?? throw new InvalidOperationException(
             "The Sql Server Transport can only be used if the message persistence is also Sql Server backed");
-        
+
         Settings = storage.Settings;
 
         // This is de facto a little environment test
@@ -67,7 +67,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
         yield return new PropertyColumn("Name");
         yield return new PropertyColumn("Count", Justify.Right);
         yield return new PropertyColumn("Scheduled", Justify.Right);
-        
+
     }
 
     public async Task<DateTimeOffset> SystemTimeAsync()
@@ -77,5 +77,4 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
         return (DateTimeOffset)await conn.CreateCommand("select SYSDATETIMEOFFSET()").ExecuteScalarAsync();
     }
-
 }

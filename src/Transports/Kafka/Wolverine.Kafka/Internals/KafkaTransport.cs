@@ -32,7 +32,6 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         return Topics[topicName];
     }
 
-
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
         ConsumerConfig.GroupId ??= runtime.Options.ServiceName;

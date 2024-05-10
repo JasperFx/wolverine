@@ -3,14 +3,14 @@ namespace Wolverine.Tracking;
 internal class Grid<T>
 {
     private readonly List<Column<T>> _columns = new();
-    
+
     public void AddColumn(string header, Func<T, string> source, bool rightJustified = false)
     {
         var column = new Column<T>(header, source)
         {
             RightJustified = rightJustified
         };
-        
+
         _columns.Add(column);
     }
 
@@ -29,7 +29,7 @@ internal class Grid<T>
         foreach (var item in items)
         {
             writeBodyRow(writer, item);
-        }        
+        }
 
         writeSolidLine(writer, totalWidth);
 
@@ -54,7 +54,7 @@ internal class Grid<T>
             column.WriteLine(writer, item);
         }
 
-        writer.WriteLine("|");
+        writer.WriteLine('|');
     }
 
     private void writeHeaderRow(StringWriter writer)
@@ -64,8 +64,7 @@ internal class Grid<T>
             column.WriteHeader(writer);
         }
 
-        writer.Write("|");
-        writer.WriteLine();
+        writer.WriteLine('|');
     }
 
     private static void writeSolidLine(StringWriter writer, int totalWidth)
@@ -85,7 +84,7 @@ internal class Column<T>
         _source = source;
         Header = header;
     }
-    
+
     public bool RightJustified { get; set; }
 
     public void DetermineWidth(IEnumerable<T> items)
@@ -103,7 +102,7 @@ internal class Column<T>
         writer.Write(Header);
         writer.Write("".PadRight(_width - Header.Length - 1));
     }
-    
+
     public void WriteLine(TextWriter writer, T item)
     {
         var value = _source(item) ?? string.Empty;

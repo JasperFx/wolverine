@@ -17,21 +17,14 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            
             // The actual HTTP request handler execution
             var result_of_GetNow = WolverineWebApi.CustomParameterEndpoint.GetNow(System.DateTimeOffset.UtcNow);
 
             await WriteString(httpContext, result_of_GetNow);
         }
-
     }
 
     // END: GET_now
-    
-    
 }
-

@@ -44,7 +44,7 @@ builder.Host.UseWolverine(opts =>
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
-    
+
     // Enrolling all local queues into the
     // durable inbox/outbox processing
     opts.Policies.UseDurableLocalQueues();

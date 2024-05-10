@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -37,11 +35,7 @@ namespace Internal.Generated.WolverineHandlers
             var result_of_QueryAsync = await documentSession.QueryAsync<WolverineWebApi.Marten.Invoice, int>(compiledCountQuery, httpContext.RequestAborted).ConfigureAwait(false);
             await Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_QueryAsync.ToString()).ConfigureAwait(false);
         }
-
     }
 
     // END: GET_invoices_compiled_count
-    
-    
 }
-

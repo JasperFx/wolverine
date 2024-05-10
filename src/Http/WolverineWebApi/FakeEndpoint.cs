@@ -57,7 +57,6 @@ public class FakeEndpoint
         return Task.FromResult(new BigResponse());
     }
 
-
     [WolverineGet("/response3")]
     public ValueTask<BigResponse> GetResponseAsync2()
     {

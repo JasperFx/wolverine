@@ -45,7 +45,7 @@ internal class Executor : IExecutor
     private readonly IMessageTracker _tracker;
 
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler,
-        FailureRuleCollection rules, TimeSpan timeout) 
+        FailureRuleCollection rules, TimeSpan timeout)
         : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler, runtime.MessageTracking, rules, timeout)
     {
     }
@@ -69,7 +69,7 @@ internal class Executor : IExecutor
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
         _messageTypeName = handler.MessageType.ToMessageTypeName();
-        
+
         _executionStarted = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionStartedEventId,
             "{CorrelationId}: Started processing {Name}#{Id}");
 
@@ -143,7 +143,7 @@ internal class Executor : IExecutor
         {
             TenantId = tenantId ?? bus.TenantId
         };
-        
+
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         return InvokeInlineAsync(envelope, cancellation);
     }
@@ -166,7 +166,7 @@ internal class Executor : IExecutor
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
                 envelope.Destination!.ToString(), null);
-            
+
             _tracker.ExecutionFinished(envelope);
 
             return MessageSucceededContinuation.Instance;
@@ -185,7 +185,7 @@ internal class Executor : IExecutor
         }
         finally
         {
-            
+
             _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }

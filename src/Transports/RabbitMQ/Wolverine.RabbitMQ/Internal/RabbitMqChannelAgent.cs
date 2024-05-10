@@ -67,9 +67,9 @@ internal abstract class RabbitMqChannelAgent : IDisposable
         {
             Logger.LogError(args.Exception, "Callback error in Rabbit Mq agent");
         };
-        
+
         Channel.ModelShutdown += ChannelOnModelShutdown;
-        
+
         Logger.LogInformation("Opened a new channel for Wolverine endpoint {Endpoint}", this);
     }
 

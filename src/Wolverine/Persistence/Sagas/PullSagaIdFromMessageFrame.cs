@@ -63,7 +63,6 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
             }
         }
 
-
         Next?.GenerateCode(method, writer);
     }
 

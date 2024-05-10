@@ -16,7 +16,7 @@ public class AmazonSqsQueueTests
         new AmazonSqsQueue("foo", new AmazonSqsTransport())
             .DeadLetterQueueName.ShouldBe(AmazonSqsTransport.DeadLetterQueueName);
     }
-    
+
     [Fact]
     public void default_mode_is_buffered()
     {

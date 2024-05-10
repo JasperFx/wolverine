@@ -61,7 +61,7 @@ internal class KafkaListener : IListener, IDisposable
 
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
                         envelope.MessageType ??= _messageTypeName;
-                        
+
                         await receiver.ReceivedAsync(this, envelope);
                     }
                     catch (OperationCanceledException)

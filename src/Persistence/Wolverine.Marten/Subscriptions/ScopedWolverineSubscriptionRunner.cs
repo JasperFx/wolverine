@@ -16,7 +16,7 @@ internal class ScopedWolverineSubscriptionRunner<T> : SubscriptionBase where T :
     {
         _services = services;
         _runtime = runtime;
-        
+
         using var scope = services.CreateScope();
         var subscription = scope.ServiceProvider.GetRequiredService<T>();
         SubscriptionName = subscription.SubscriptionName;
@@ -34,7 +34,7 @@ internal class ScopedWolverineSubscriptionRunner<T> : SubscriptionBase where T :
         using var scope = _services.CreateScope();
         var subscription = scope.ServiceProvider.GetRequiredService<T>();
         await subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
-        
+
         return new ScopedWolverineCallbackForCascadingMessages(scope, context);
     }
 }

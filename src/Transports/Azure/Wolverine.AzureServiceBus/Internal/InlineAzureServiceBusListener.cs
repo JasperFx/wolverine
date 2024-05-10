@@ -46,14 +46,14 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
                 await e.CompleteAsync(_cancellation.Token);
                 e.IsCompleted = true;
             }
-        
+
             await _requeue.SendAsync(envelope);
         }, logger, _cancellation.Token);
 
         _deadLetter =
             new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.DeadLetterAsync(_cancellation.Token, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
                 _cancellation.Token);
-        
+
         _processor.ProcessMessageAsync += processMessageAsync;
         _processor.ProcessErrorAsync += processErrorAsync;
     }
@@ -108,7 +108,6 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
                 _endpoint.Uri);
         }
     }
-    
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
@@ -153,7 +152,7 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
     }
 
     public Uri Address => _endpoint.Uri;
-    
+
     public async ValueTask StopAsync()
     {
         await _processor.StopProcessingAsync();

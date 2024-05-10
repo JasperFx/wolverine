@@ -33,7 +33,7 @@ public class OpenApiEndpoints
     {
         return new Reservation();
     }
-    
+
     [ExpectMatch(OperationType.Get, "/expect/getresult")]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     [ProducesResponseType(typeof(string), 200)]
@@ -53,18 +53,18 @@ public class OpenApiEndpoints
     [ExpectMatch(OperationType.Get, "/expect/nocontent")]
     [WolverineGet("/openapi/nocontent")]
     public NoContent Empty() => TypedResults.NoContent();
-    
+
     [ExpectMatch(OperationType.Get, "/expect/nocontent")]
     [WolverineGet("/openapi/sideeffect")]
     public static SimpleSideEffect SideEffect() => new SimpleSideEffect();
-    
+
     [ExpectMatch(OperationType.Post, "/expect/nocontent")]
     [WolverinePost("/openapi/empty"), EmptyResponse]
     public HttpMessage1 PostCommand()
     {
         return new HttpMessage1("foo");
     }
-    
+
     public static void BuildComparisonRoutes(WebApplication app)
     {
         app.MapGet("/expect/nocontent", () => TypedResults.NoContent());
@@ -83,4 +83,3 @@ public class SimpleSideEffect : ISideEffect
         Debug.WriteLine("All good");
     }
 }
-

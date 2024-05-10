@@ -11,14 +11,12 @@ public class TrackedSessionTester : IDisposable
     private readonly Envelope theEnvelope = ObjectMother.Envelope();
     private readonly TrackedSession theSession;
 
-
     public TrackedSessionTester()
     {
         _host = WolverineHost.Basic();
 
         theSession = new TrackedSession(_host);
     }
-
 
     public void Dispose()
     {
@@ -31,13 +29,10 @@ public class TrackedSessionTester : IDisposable
         var guid = Guid.NewGuid();
         theSession.Record(MessageEventType.ExecutionStarted, theEnvelope, "", guid);
         theSession.Record(MessageEventType.ExecutionFinished, theEnvelope, "", guid, new DivideByZeroException());
-        
 
         await Should.ThrowAsync<AggregateException>(async () =>
         {
             await theSession.TrackAsync();
-
         });
     }
-
 }

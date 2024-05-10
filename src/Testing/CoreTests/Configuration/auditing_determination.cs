@@ -21,13 +21,13 @@ public class auditing_determination : IntegrationContext
     public void finds_audit_members_from_attributes()
     {
         var chain = chainFor<AuditedMessage>();
-        
+
         chain.AuditedMembers.Single(x => x.Member.Name == nameof(AuditedMessage.Name))
             .MemberName.ShouldBe(nameof(AuditedMessage.Name));
-        
+
         chain.AuditedMembers.Single(x => x.Member.Name == nameof(AuditedMessage.Name))
             .OpenTelemetryName.ShouldBe("name");
-        
+
         chain.AuditedMembers.Single(x => x.Member.Name == nameof(AuditedMessage.AccountId))
             .OpenTelemetryName.ShouldBe("account.id");
     }
@@ -49,12 +49,12 @@ public class auditing_determination : IntegrationContext
         {
             opts.Policies.LogMessageStarting(LogLevel.Information);
         });
-        
+
         var chain = chainFor<AuditedMessage>();
         var lines = chain.SourceCode.ReadLines();
 
         var expected = "Log(Microsoft.Extensions.Logging.LogLevel.Information, \"Starting to process CoreTests.Configuration.AuditedMessage ({Id}) with Name: {Name}, AccountIdentifier: {AccountId}\", context.Envelope.Id, auditedMessage.Name, auditedMessage.AccountId)";
-        
+
         lines.Any(x => x.Contains(expected)).ShouldBeTrue();
     }
 
@@ -65,7 +65,7 @@ public class auditing_determination : IntegrationContext
         {
             opts.Policies.LogMessageStarting(LogLevel.Information);
         });
-        
+
         await Host.InvokeMessageAndWaitAsync(new AuditedMessage());
     }
 
@@ -81,7 +81,7 @@ public class auditing_determination : IntegrationContext
 
             #endregion
         });
-        
+
         var chain = chainFor<DebitAccount>();
         chain.AuditedMembers.Single().Member.Name.ShouldBe(nameof(IAccountMessage.AccountId));
     }
@@ -106,7 +106,7 @@ public class AuditedHandler
     public void Handle(DebitAccount message, ILogger logger, Envelope envelope)
     {
         logger.Log(LogLevel.Information, "Starting to process DebitAccount ({Id}) with AccountId {AccountId}", envelope.Id, message.Amount);
-        
+
         var activity = Activity.Current;
         activity?.SetTag(nameof(DebitAccount.AccountId), message.AccountId);
     }

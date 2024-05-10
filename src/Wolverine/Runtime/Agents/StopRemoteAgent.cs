@@ -45,7 +45,7 @@ internal record StopRemoteAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISer
     {
         return $"{nameof(AgentUri)}: {AgentUri}, {nameof(NodeId)}: {NodeId}";
     }
-    
+
     public byte[] Write()
     {
         return NodeId.ToByteArray().Concat(Encoding.UTF8.GetBytes(AgentUri.ToString())).ToArray();

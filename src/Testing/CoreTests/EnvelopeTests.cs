@@ -46,13 +46,11 @@ public class EnvelopeTests
         envelope.Data.ShouldNotBeNull();
     }
 
-
     [Fact]
     public void execution_time_is_null_by_default()
     {
         new Envelope().ScheduledTime.ShouldBeNull();
     }
-
 
     [Fact]
     public void for_response_copies_the_saga_id_from_the_parent()
@@ -63,7 +61,6 @@ public class EnvelopeTests
         var response = parent.CreateForResponse(new Message2());
         response.SagaId.ShouldBe(parent.SagaId);
     }
-
 
     [Fact]
     public void has_a_correlation_id_by_default()
@@ -146,7 +143,6 @@ public class EnvelopeTests
         child.ConversationId.ShouldBe(parent.Id);
     }
 
-
     [Fact]
     public void mark_received_when_not_delayed_execution()
     {
@@ -180,7 +176,6 @@ public class EnvelopeTests
 
         envelope.Destination.ShouldBe(uri);
     }
-
 
     [Fact]
     public void mark_received_when_expired_execution()
@@ -238,7 +233,7 @@ public class EnvelopeTests
         await transaction.Received().PersistOutgoingAsync(envelope);
         envelope.OwnerId.ShouldBe(33333);
     }
-    
+
     [Fact]
     public async Task should_persist_when_sender_is_durable_and_it_is_scheduled()
     {
@@ -275,7 +270,7 @@ public class EnvelopeTests
         envelope.Destination = new Uri("tcp://localhost:100"); // just to make it be not remote
 
         await envelope.PersistAsync(transaction);
-        
+
 
         await transaction.Received().PersistOutgoingAsync(envelope);
         envelope.OwnerId.ShouldBe(TransportConstants.AnyNode);
@@ -355,7 +350,7 @@ public class EnvelopeTests
         {
             ScheduleDelay = 1.Days()
         };
-        
+
         envelope.ScheduledTime.Value.Date.ShouldBe(DateTime.Today.AddDays(1));
         envelope.ScheduleDelay.ShouldBe(1.Days());
     }
@@ -367,11 +362,11 @@ public class EnvelopeTests
         {
             DeliverWithin = 1.Days()
         };
-        
+
         envelope.DeliverBy.Value.Date.ShouldBe(DateTime.Today.AddDays(1));
         envelope.DeliverWithin.ShouldBe(1.Days());
     }
-    
+
     [Fact]
     public void prepare_for_persistence_when_scheduled_in_the_future()
     {
@@ -411,7 +406,7 @@ public class EnvelopeTests
         var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
         dict[MetricsConstants.MessageTypeKey].ShouldBe(typeof(Message1).ToMessageTypeName());
         dict[MetricsConstants.MessageDestinationKey].ShouldBe(envelope.Destination);
-        
+
         dict.Count.ShouldBe(2);
     }
 
@@ -420,7 +415,7 @@ public class EnvelopeTests
     {
         var envelope = new Envelope
         {
-            Destination = new Uri("local://one"), 
+            Destination = new Uri("local://one"),
             Message = new Message1(),
             TenantId = "tenant1"
         };
@@ -433,7 +428,7 @@ public class EnvelopeTests
     {
         var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1()};
         envelope.SetMetricsTag("org.unit", "foo");
-        
+
         var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
         dict["org.unit"].ShouldBe("foo");
     }
@@ -443,7 +438,7 @@ public class EnvelopeTests
     {
         var envelope = new Envelope
         {
-            Destination = new Uri("local://one"), 
+            Destination = new Uri("local://one"),
             Message = new Message1(),
             TenantId = "tenant1"
         };
@@ -510,7 +505,5 @@ public class EnvelopeTests
         {
             theScheduledEnvelope.ContentType.ShouldBe(TransportConstants.SerializedEnvelope);
         }
-        
-        
     }
 }

@@ -51,7 +51,6 @@ public sealed partial class WolverineOptions
         return DefaultSerializer;
     }
 
-
     /// <summary>
     ///     Use Newtonsoft.Json as the default JSON serialization with optional configuration
     /// </summary>

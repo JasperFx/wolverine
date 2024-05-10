@@ -25,8 +25,8 @@ public class end_to_end
         var tracked = await host.InvokeMessageAndWaitAsync(new CreateItemCommand { Name = name });
         tracked.FindSingleTrackedMessageOfType<ItemCreated>()
             .ShouldNotBeNull();
-        
-        
+
+
         using var nested = host.Services.As<IContainer>().GetNestedContainer();
         var context = nested.GetInstance<ItemsDbContext>();
 
@@ -50,7 +50,7 @@ public class end_to_end
 
         tracked.FindSingleTrackedMessageOfType<ItemCreated>()
             .ShouldNotBeNull();
-        
+
         using var nested = host.Services.As<IContainer>().GetNestedContainer();
         var context = nested.GetInstance<ItemsDbContext>();
 
@@ -75,7 +75,7 @@ public class end_to_end
 
         tracked.FindSingleTrackedMessageOfType<ItemCreated>()
             .ShouldNotBeNull();
-        
+
         using var nested = host.Services.As<IContainer>().GetNestedContainer();
         var context = nested.GetInstance<ItemsDbContext>();
 

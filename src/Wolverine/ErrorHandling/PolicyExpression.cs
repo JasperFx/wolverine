@@ -64,7 +64,6 @@ public interface IAdditionalActions
     /// <param name="source"></param>
     /// <returns></returns>
     IAdditionalActions And(IContinuationSource source);
-    
 }
 
 internal class FailureActions : IAdditionalActions, IFailureActions
@@ -410,7 +409,6 @@ public class PolicyExpression : IFailureActions
         return this;
     }
 
-
     /// <summary>
     ///     Specifies an additional type of exception that this policy can handle.
     /// </summary>
@@ -435,7 +433,6 @@ public class PolicyExpression : IFailureActions
         _match = _match.Or(new UserSupplied(exceptionPredicate, description));
         return this;
     }
-
 
     /// <summary>
     ///     Specifies an additional type of exception that this policy can handle with additional filters on this exception

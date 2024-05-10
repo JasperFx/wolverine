@@ -13,7 +13,7 @@ public class EventWrapperForwarderTests
         var forwarder = new EventWrapperForwarder();
         forwarder.TryFindHandledType(messageType, out var actual)
             .ShouldBeTrue();
-        
+
         actual.ShouldBe(typeof(IEvent<SecondEvent>));
     }
 

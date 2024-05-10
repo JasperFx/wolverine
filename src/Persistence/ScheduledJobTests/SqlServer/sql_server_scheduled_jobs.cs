@@ -126,7 +126,6 @@ public class ScheduledMessageCatcher
         _receiver = receiver;
     }
 
-
     public void Consume(ScheduledMessage message)
     {
         if (!_receiver.Source.Task.IsCompleted)

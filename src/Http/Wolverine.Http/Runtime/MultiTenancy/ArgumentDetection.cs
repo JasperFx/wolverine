@@ -15,8 +15,8 @@ internal class ArgumentDetection : ITenantDetection
 
     public ValueTask<string?> DetectTenant(HttpContext httpContext)
     {
-        return httpContext.Request.RouteValues.TryGetValue(_argumentName, out var value) 
-            ? new ValueTask<string?>(value?.ToString()) 
+        return httpContext.Request.RouteValues.TryGetValue(_argumentName, out var value)
+            ? new ValueTask<string?>(value?.ToString())
             : ValueTask.FromResult<string?>(null);
     }
 

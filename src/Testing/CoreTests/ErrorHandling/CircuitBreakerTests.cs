@@ -143,7 +143,6 @@ public class CircuitBreakerTests
         generation.Total.ShouldBe(10);
     }
 
-
     [Fact]
     public async Task first_totals_update_with_failures_but_not_met_threshold()
     {

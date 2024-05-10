@@ -84,7 +84,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     {
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
         chain.Tags.Add(UsingEfCoreTransaction, true);
-        
+
         var dbType = DetermineDbContextType(chain, container);
 
         chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
@@ -243,7 +243,6 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 writer.Write(
                     $"if ({_envelopeTransaction.Usage} is Wolverine.EntityFrameworkCore.Internals.RawDatabaseEnvelopeTransaction rawTx) {{ await rawTx.CommitAsync(); }}");
             }
-
 
             Next?.GenerateCode(method, writer);
         }

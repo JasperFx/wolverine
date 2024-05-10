@@ -36,7 +36,7 @@ public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisp
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             }).Start();
-        
+
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 

@@ -21,4 +21,3 @@ public class WriteJsonFrame : AsyncFrame
         Next?.GenerateCode(method, writer);
     }
 }
-

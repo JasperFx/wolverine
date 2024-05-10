@@ -16,8 +16,8 @@ public static class MartenTestingExtensions
     /// <remarks>
     /// This method provides an extension for IHost that initializes a new document session within the
     /// given host's service scope, applies the provided actions to the session, and ensures all changes are saved.
-    /// After saving, it explicitly flushes any outgoing messages to guarantee that all message side-effects 
-    /// are completed before the task completes. This method should be used in testing environments where 
+    /// After saving, it explicitly flushes any outgoing messages to guarantee that all message side-effects
+    /// are completed before the task completes. This method should be used in testing environments where
     /// immediate consistency of the session and the outgoing message pipeline is required.
     /// </remarks>
     /// <example>
@@ -40,7 +40,7 @@ public static class MartenTestingExtensions
             var session = factory.OpenSession(context);
             action(session);
             await session.SaveChangesAsync();
-            
+
             // Shouldn't be necessary, but real life says do it anyway
             await context.As<MessageContext>().FlushOutgoingMessagesAsync();
         }, timeoutInMilliseconds);

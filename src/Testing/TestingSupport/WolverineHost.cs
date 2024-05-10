@@ -52,7 +52,7 @@ public static class WolverineHost
         configure(options);
         return bootstrapAsync(options);
     }
-    
+
     private static IHost bootstrap(WolverineOptions options)
     {
         return Host.CreateDefaultBuilder()

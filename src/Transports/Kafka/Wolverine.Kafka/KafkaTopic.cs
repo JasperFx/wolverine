@@ -13,7 +13,7 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 {
     // Strictly an identifier for the endpoint
     public const string WolverineTopicsName = "wolverine.topics";
-    
+
     public KafkaTransport Parent { get; }
 
     public KafkaTopic(KafkaTransport parent, string topicName, EndpointRole role) : base(new Uri("kafka://topic/" + topicName), role)
@@ -31,7 +31,7 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
     }
 
     public string TopicName { get; }
-    
+
     public IKafkaEnvelopeMapper Mapper { get; set; }
 
     public static string TopicNameForUri(Uri uri)
@@ -84,7 +84,7 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
     public async ValueTask SetupAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
-        
+
         using var client = new AdminClientBuilder(Parent.AdminClientConfig).Build();
 
         try
@@ -96,7 +96,7 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
                     Name = TopicName
                 }
             });
-            
+
             logger.LogInformation("Created Kafka topic {Topic}", TopicName);
         }
         catch (CreateTopicsException e)
@@ -113,7 +113,7 @@ public enum QualityOfService
     /// "At least once" delivery guarantee by auto-ack'ing incoming messages
     /// </summary>
     AtLeastOnce,
-    
+
     /// <summary>
     /// "At most once" delivery guarantee by trying to ack received messages before processing
     /// </summary>

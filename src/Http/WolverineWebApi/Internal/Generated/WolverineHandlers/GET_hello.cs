@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             // Just saying hello in the code! Also testing the usage of attributes to customize endpoints
@@ -28,11 +26,7 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_Speak);
         }
-
     }
 
     // END: GET_hello
-    
-    
 }
-
