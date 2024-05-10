@@ -86,7 +86,6 @@ public class DefaultPulsarProtocolTests
         });
     }
 
-
     private Envelope theEnvelope => _mapped.Value;
 
     [Fact]
@@ -180,14 +179,12 @@ public class DefaultPulsarProtocolTests
         theEnvelope.ConversationId.ShouldBe(theOriginal.ConversationId);
     }
 
-
     [Fact]
     public void parent_id()
     {
         theOriginal.ParentId = Guid.NewGuid().ToString();
         theEnvelope.ParentId.ShouldBe(theOriginal.ParentId);
     }
-
 
     [Fact]
     public void attempts()

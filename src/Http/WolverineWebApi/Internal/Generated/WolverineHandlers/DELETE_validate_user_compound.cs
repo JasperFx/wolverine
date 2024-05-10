@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _problemDetailSource = problemDetailSource;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             // Reading the request body via JSON deserialization
@@ -41,7 +39,6 @@ namespace Internal.Generated.WolverineHandlers
                 return;
             }
 
-
             var user = WolverineWebApi.Validation.ValidatedCompoundEndpoint.Load(cmd);
             var result2 = WolverineWebApi.Validation.ValidatedCompoundEndpoint.Validate(user);
             // Evaluate whether or not the execution should be stopped based on the IResult value
@@ -50,19 +47,13 @@ namespace Internal.Generated.WolverineHandlers
                 await result2.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             var result_of_Handle = WolverineWebApi.Validation.ValidatedCompoundEndpoint.Handle(cmd, user);
 
             await WriteString(httpContext, result_of_Handle);
         }
-
     }
 
     // END: DELETE_validate_user_compound
-    
-    
 }
-

@@ -11,12 +11,12 @@ public class when_configuring_StrongOrderedGuarantees_on_listener_endpoint
         SupportsInlineListeners = true,
         ListenerCount = 5
     };
-    
+
     public when_configuring_StrongOrderedGuarantees_on_listener_endpoint()
     {
         var configuration = new ListenerConfiguration(theEndpoint);
         configuration.ListenWithStrictOrdering();
-        
+
         configuration.As<IDelayedEndpointConfiguration>().Apply();
     }
 
@@ -45,6 +45,4 @@ public class when_configuring_StrongOrderedGuarantees_on_listener_endpoint
     {
         theEndpoint.ListenerCount.ShouldBe(1);
     }
-    
-    
 }

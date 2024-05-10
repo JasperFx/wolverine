@@ -37,11 +37,11 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
         {
             context.TenantId = operations.Database.Identifier;
         }
-        
+
         await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction((IDocumentSession)operations, context));
 
         await _subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
-        
+
         return new WolverineCallbackForCascadingMessages(context);
     }
 }
@@ -56,7 +56,6 @@ internal class ScopedWolverineCallbackForCascadingMessages : IChangeListener
         _scope = scope;
         _context = context;
     }
-
 
     public async Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {

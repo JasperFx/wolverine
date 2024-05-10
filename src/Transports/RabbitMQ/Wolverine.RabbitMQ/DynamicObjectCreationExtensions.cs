@@ -8,7 +8,7 @@ namespace Wolverine.RabbitMQ;
 public static class DynamicObjectCreationExtensions
 {
     /// <summary>
-    /// Runtime creation of Rabbit MQ queues, exchanges, and bindings. 
+    /// Runtime creation of Rabbit MQ queues, exchanges, and bindings.
     /// </summary>
     /// <param name="runtime"></param>
     /// <param name="creation"></param>
@@ -32,7 +32,7 @@ public static class DynamicObjectCreationExtensions
 
         objects.DeclareAll();
     }
-    
+
     /// <summary>
     /// Will un-bind a queue to an exchange
     /// </summary>
@@ -45,7 +45,7 @@ public static class DynamicObjectCreationExtensions
         using var model = transport.ListeningConnection.CreateModel();
 
         model.QueueUnbind(queueName, exchangeName, routingKey);
-        
+
         model.Close();
     }
 }
@@ -111,7 +111,7 @@ public class RabbitMqObjects
         {
             queue.Declare(model, _logger);
         }
-        
+
         model.Close();
     }
 }

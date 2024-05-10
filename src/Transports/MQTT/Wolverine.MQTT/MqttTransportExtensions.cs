@@ -35,7 +35,7 @@ public static class MqttTransportExtensions
         configure(builder);
 
         transport.Options = builder.Build();
-        
+
         return new MqttTransportExpression(transport, options);
     }
 
@@ -50,7 +50,7 @@ public static class MqttTransportExtensions
         var transport = options.MqttTransport();
 
         transport.Options = mqttOptions;
-        
+
         return new MqttTransportExpression(transport, options);
     }
 
@@ -71,7 +71,7 @@ public static class MqttTransportExtensions
             });
         });
     }
-    
+
     /// <summary>
     ///     Listen for incoming messages at the designated MQTT topic name
     /// </summary>
@@ -103,13 +103,13 @@ public static class MqttTransportExtensions
         var transport = transports.GetOrCreate<MqttTransport>();
 
         var topic = transport.Topics[topicName];
-        
+
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(topic.Uri);
 
         return new MqttSubscriberConfiguration(topic);
     }
-    
+
     /// <summary>
     /// Publish messages to MQTT topics based on Wolverine's rules for deriving topic
     /// names from a message type
@@ -123,7 +123,7 @@ public static class MqttTransportExtensions
         var transport = transports.GetOrCreate<MqttTransport>();
 
         var topic = transport.Topics[MqttTopic.WolverineTopicsName];
-        
+
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(topic.Uri);
 

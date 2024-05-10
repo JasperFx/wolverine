@@ -45,7 +45,6 @@ public class Subscription
 
     public Type? BaseType { get; init; }
 
-
     /// <summary>
     ///     Create a subscription for a specific message type
     /// </summary>
@@ -85,7 +84,6 @@ public class Subscription
             _ => !type.CanBeCastTo<IAgentCommand>()
         };
     }
-
 
     protected bool Equals(Subscription other)
     {

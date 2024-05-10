@@ -23,7 +23,7 @@ public class TopicsWithCustomRuleComplianceFixture()
                 .AutoProvision();
 
             opts.ListenToAzureServiceBusSubscription(
-                    "subscription1", 
+                    "subscription1",
                     configureSubscriptionRule: rule =>
                     {
                         rule.Filter = new SqlRuleFilter("NOT EXISTS(user.ignore) OR user.ignore NOT LIKE 'true'");
@@ -59,7 +59,7 @@ public class TopicAndSubscriptionWithCustomRuleSendingAndReceivingCompliance : T
                     new Message1(),
                     new DeliveryOptions()
                         .WithHeader("ignore", "true")));
-        
+
         var record = session.FindEnvelopesWithMessageType<Message1>(MessageEventType.MessageSucceeded).SingleOrDefault();
         record.ShouldBeNull();
     }

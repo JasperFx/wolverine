@@ -5,7 +5,7 @@ namespace ChaosTesting;
 
 public interface ITrackedMessage : Wolverine.IMessage
 {
-    Guid Id { get; } 
+    Guid Id { get; }
 }
 
 public record Tracked4(Guid Id) : ITrackedMessage;

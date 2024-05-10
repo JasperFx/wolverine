@@ -96,7 +96,7 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
             foreach (var p in command.Parameters.OfType<NpgsqlParameter>())
                 _output.WriteLine($"  {p.ParameterName}: {p.Value}");
         }
-        
+
         _output.WriteLine(ex.ToString());
     }
 

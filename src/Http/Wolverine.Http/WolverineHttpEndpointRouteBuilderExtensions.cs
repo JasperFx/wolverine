@@ -38,7 +38,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
     {
         services.Configure<JsonOptions>(configure);
     }
-    
+
     /// <summary>
     /// Use the request body of type T to immediately invoke the incoming command with Wolverine
     /// </summary>
@@ -144,7 +144,6 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
                 new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
     }
 
-
     /// <summary>
     ///     Discover and add Wolverine HTTP endpoints to your ASP.Net Core system
     /// </summary>
@@ -162,10 +161,10 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
 
         // I hate this, but can't think of any other possible way to do this
         container.Configure(x => x.AddSingleton<IApiDescriptionProvider, WolverineApiDescriptionProvider>());
-        
+
         // This let's Wolverine weave in middleware that might return ProblemDetails
         runtime.Options.CodeGeneration.AddContinuationStrategy<ProblemDetailsContinuationPolicy>();
-        
+
         // This let's Wolverine weave in middleware that might return IResult
         runtime.Options.CodeGeneration.AddContinuationStrategy<ResultContinuationPolicy>();
 
@@ -173,7 +172,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var options = container.GetInstance<WolverineHttpOptions>();
         options.TenantIdDetection.Container = container; // Hokey, but let this go
         options.Endpoints = new HttpGraph(runtime.Options, container);
-        
+
         configure?.Invoke(options);
 
         options.JsonSerializerOptions = new Lazy<JsonSerializerOptions>(() => container.TryGetInstance<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());

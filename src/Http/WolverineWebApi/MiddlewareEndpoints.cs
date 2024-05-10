@@ -37,7 +37,7 @@ public class MeasuredEndpoint
     {
         // Call this method before the normal endpoint
         chain.Middleware.Add(MethodCall.For<StopwatchMiddleware>(x => x.Before()));
-        
+
         // Call this method after the normal endpoint
         chain.Postprocessors.Add(MethodCall.For<StopwatchMiddleware>(x => x.Finally(null, null)));
     }
@@ -106,10 +106,10 @@ public class FakeAuthenticationMiddleware
 {
     public static IResult Before(IAmAuthenticated message)
     {
-        return message.Authenticated 
+        return message.Authenticated
             // This tells Wolverine to just keep going
-            ? WolverineContinue.Result() 
-            
+            ? WolverineContinue.Result()
+
             // If the IResult is not WolverineContinue, Wolverine
             // will execute the IResult and stop processing otherwise
             : Results.Unauthorized();

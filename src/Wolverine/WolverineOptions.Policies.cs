@@ -165,7 +165,7 @@ public sealed partial class WolverineOptions : IPolicies
 #pragma warning restore CS1066
     {
         filter ??= _ => true;
-        
+
         FindOrCreateMiddlewarePolicy().AddType(middlewareType, chain =>
         {
             if (chain is HandlerChain c)

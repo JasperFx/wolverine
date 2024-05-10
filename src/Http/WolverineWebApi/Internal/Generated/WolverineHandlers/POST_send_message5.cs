@@ -20,8 +20,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var sendingEndpoint = new Wolverine.Http.Runtime.SendingEndpoint<WolverineWebApi.HttpMessage5>();
@@ -36,11 +34,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_SendAsync);
         }
-
     }
 
     // END: POST_send_message5
     
     
 }
-

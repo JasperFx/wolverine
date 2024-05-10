@@ -56,7 +56,7 @@ public class SagaChain : HandlerChain
     internal static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType)
     {
         var expectedSagaIdName = $"{sagaType.Name}Id";
-        
+
         var members = messageType.GetFields().OfType<MemberInfo>().Concat(messageType.GetProperties()).ToArray();
         return members.FirstOrDefault(x => x.HasAttribute<SagaIdentityAttribute>())
                ?? members.FirstOrDefault(x => x.Name == expectedSagaIdName)
@@ -105,10 +105,10 @@ public class SagaChain : HandlerChain
         var findSagaId = SagaIdMember == null
             ? (Frame)new PullSagaIdFromEnvelopeFrame(frameProvider.DetermineSagaIdType(SagaType, container))
             : new PullSagaIdFromMessageFrame(MessageType, SagaIdMember);
-        
+
 
         var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.Single());
-        
+
         // Using this one frame to tie everything together
         var resolve = new ResolveSagaFrame(findSagaId, load);
         frames.Add(resolve);
@@ -140,7 +140,7 @@ public class SagaChain : HandlerChain
             foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
                 frames.Add(frame);
         }
-        
+
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
         frames.Add(ifNotCompleted);
     }

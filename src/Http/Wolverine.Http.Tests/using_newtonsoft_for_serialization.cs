@@ -22,7 +22,7 @@ public class using_newtonsoft_for_serialization
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
@@ -46,7 +46,7 @@ public class using_newtonsoft_for_serialization
         });
 
         var text = result.ReadAsText();
-        
+
         text.ShouldBe("{\"$type\":\"Wolverine.Http.Tests.MathResponse, Wolverine.Http.Tests\",\"Sum\":7,\"Product\":12}");
 
     }

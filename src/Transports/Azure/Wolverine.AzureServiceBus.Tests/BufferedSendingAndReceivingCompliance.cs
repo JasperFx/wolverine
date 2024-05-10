@@ -20,7 +20,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
         var queueName = Guid.NewGuid().ToString();
         OutboundAddress = new Uri("asb://queue/" + queueName);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
@@ -59,7 +59,7 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
         var transport = runtime.Options.Transports.GetOrCreate<AzureServiceBusTransport>();
         var queue = transport.Queues[AzureServiceBusTransport.DeadLetterQueueName];
         await queue.InitializeAsync(NullLogger.Instance);
-        
+
         var messageReceiver = transport.BusClient.CreateReceiver(AzureServiceBusTransport.DeadLetterQueueName);
         var queued = await messageReceiver.ReceiveMessageAsync();
         queued.ShouldNotBeNull();

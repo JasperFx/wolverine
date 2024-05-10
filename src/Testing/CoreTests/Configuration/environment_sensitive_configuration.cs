@@ -95,7 +95,7 @@ public class environment_sensitive_configuration
         options.CodeGeneration.TypeLoadMode.ShouldBe(prodTypeLoadMode);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
         options.AutoBuildMessageStorageOnStartup.ShouldBeFalse();
-    }  
+    }
 }
 
 public class RegisteredMarker

@@ -27,7 +27,7 @@ public partial class WolverineRuntime : IAgentRuntime
     public Task StartLocallyAsync(Uri agentUri)
     {
         if (Cancellation.IsCancellationRequested || _agentsAreDisabled) return Task.CompletedTask;
-        
+
         if (NodeController == null)
         {
             throw new InvalidOperationException("This WolverineRuntime does not support stateful agents");
@@ -39,7 +39,7 @@ public partial class WolverineRuntime : IAgentRuntime
     public Task StopLocallyAsync(Uri agentUri)
     {
         if (Cancellation.IsCancellationRequested || _agentsAreDisabled) return Task.CompletedTask;
-        
+
         if (NodeController == null)
         {
             throw new InvalidOperationException("This WolverineRuntime does not support stateful agents");
@@ -103,7 +103,7 @@ public partial class WolverineRuntime : IAgentRuntime
     public void DisableHealthChecks()
     {
         _agentCancellation.Cancel();
-        
+
         if (_healthCheckLoop == null) return;
 
         if (NodeController != null)
@@ -134,28 +134,26 @@ public partial class WolverineRuntime : IAgentRuntime
                 startNodeAgentController();
                 await startNodeAgentWorkflowAsync();
                 break;
-            
-            
+
+
             case DurabilityMode.Solo:
                 startDurableScheduledJobs();
                 startNodeAgentController();
                 await NodeController!.StartSoloModeAsync();
                 break;
-            
-            
+
+
             case DurabilityMode.Serverless:
             case DurabilityMode.MediatorOnly:
                 break;
         }
-
-
     }
 
     private void startDurableScheduledJobs()
     {
         DurableScheduledJobs = Storage.StartScheduledJobs(this);
     }
-    
+
     internal IAgent? DurableScheduledJobs { get; private set; }
 
     private void startNodeAgentController()
@@ -163,7 +161,7 @@ public partial class WolverineRuntime : IAgentRuntime
         INodeAgentPersistence nodePersistence = Options.Durability.Mode == DurabilityMode.Balanced
             ? Storage.Nodes
             : new NullNodeAgentPersistence();
-        
+
         NodeController = new NodeAgentController(this, Tracker, nodePersistence, _container.GetAllInstances<IAgentFamily>(),
             LoggerFactory.CreateLogger<NodeAgentController>(), _agentCancellation.Token);
 
@@ -191,7 +189,7 @@ public partial class WolverineRuntime : IAgentRuntime
         while (!Cancellation.IsCancellationRequested)
         {
             await Task.Delay(Options.Durability.HealthCheckPollingTime, Cancellation);
-            
+
             if (NodeController != null)
             {
                 try
@@ -244,7 +242,7 @@ public partial class WolverineRuntime : IAgentRuntime
     internal async Task DisableAgentsAsync(DateTimeOffset lastHeartbeatTime)
     {
         _agentsAreDisabled = true;
-        
+
         if (_healthCheckLoop != null)
         {
             _healthCheckLoop.SafeDispose();
@@ -265,7 +263,7 @@ public partial class WolverineRuntime : IAgentRuntime
         {
             return NodeController.AssumeLeadershipAsync(currentLeaderId);
         }
-        
+
         return Task.FromResult(AgentCommands.Empty);
     }
 
@@ -282,7 +280,7 @@ public partial class WolverineRuntime : IAgentRuntime
         {
             return NodeController.StartLocalAgentProcessingAsync(Options);
         }
-        
+
         return Task.FromResult(AgentCommands.Empty);
     }
 }

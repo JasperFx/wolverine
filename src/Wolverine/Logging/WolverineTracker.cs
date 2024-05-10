@@ -85,7 +85,7 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
     public void Remove(WolverineNode node)
     {
         Publish(new NodeEvent(node, NodeEventType.Exiting));
-        
+
         foreach (var pair in Agents.ToArray())
         {
             if (pair.Value == node.Id)
@@ -109,7 +109,6 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
     {
         return Nodes.Values;
     }
-
 
     void IObserver<IWolverineEvent>.OnCompleted()
     {

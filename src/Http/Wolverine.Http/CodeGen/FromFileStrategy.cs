@@ -18,7 +18,7 @@ public class FromFileStrategy : IParameterStrategy
         if (parameter.ParameterType == typeof(IFormFile))
         {
             chain.FileParameters.Add(parameter);
-            
+
             var frame = new FromFileValue(parameter);
                 chain.Middleware.Add(frame);
                 variable = frame.Variable;
@@ -26,7 +26,7 @@ public class FromFileStrategy : IParameterStrategy
         } else if (parameter.ParameterType == typeof(IFormFileCollection))
         {
             chain.FileParameters.Add(parameter);
-            
+
             var frame = new FromFileValues(parameter);
                 chain.Middleware.Add(frame);
                 variable = frame.Variable;

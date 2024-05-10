@@ -17,7 +17,7 @@ public class Bug_463_codegen_with_IQuerySession
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
@@ -69,7 +69,7 @@ public static class RequestPasswordResetEndpoint
     {
         return "got it";
     }
-    
+
     [WolverinePut($"/request-password-reset")]
     public static async Task RequestPasswordReset(
         RequestPasswordResetRequest request,

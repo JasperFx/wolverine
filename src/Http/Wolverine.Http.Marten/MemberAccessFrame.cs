@@ -12,7 +12,7 @@ internal class MemberAccessFrame : SyncFrame
     private readonly MemberInfo _member;
     private Variable _parent;
     public Variable Variable { get; }
-    
+
     public MemberAccessFrame(Type targetType, MemberInfo member, string name)
     {
         _targetType = targetType;

@@ -8,7 +8,7 @@ public class KafkaSubscriberConfiguration : SubscriberConfiguration<KafkaSubscri
     internal KafkaSubscriberConfiguration(KafkaTopic endpoint) : base(endpoint)
     {
     }
-    
+
     /// <summary>
     /// Use a custom interoperability strategy to map Wolverine messages to an upstream
     /// system's protocol

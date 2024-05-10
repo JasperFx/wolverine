@@ -39,12 +39,12 @@ public class RoutedToEndpointMessageTests
 
         await endpoint.Received().SendAsync(inner, options);
     }
-    
+
     [Fact]
     public async Task send_to_endpoint_by_uri()
     {
         var destination = new Uri("tcp://localhost:5000");
-        
+
         var context = Substitute.For<IMessageContext>();
         var endpoint = Substitute.For<IDestinationEndpoint>();
         context.EndpointFor(destination).Returns(endpoint);

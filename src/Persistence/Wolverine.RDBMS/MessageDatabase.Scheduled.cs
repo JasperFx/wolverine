@@ -17,7 +17,6 @@ public abstract partial class MessageDatabase<T>
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-
     public Task ScheduleJobAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;

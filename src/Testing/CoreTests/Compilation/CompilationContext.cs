@@ -41,7 +41,6 @@ public abstract class CompilationContext : IDisposable
             _host = WolverineHost.For(theOptions);
         }
 
-
         return _host.Get<HandlerGraph>().HandlerFor(typeof(TMessage)).As<MessageHandler>();
     }
 

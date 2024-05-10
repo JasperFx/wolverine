@@ -49,7 +49,6 @@ internal class HttpContextElements : IParameterStrategy
             return true;
         }
 
-
         return false;
     }
 

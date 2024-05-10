@@ -22,7 +22,7 @@ internal class JsonResourceWriterPolicy : IResourceWriterPolicy
                 var frame = new MethodCall(typeof(NewtonsoftHttpSerialization),
                     nameof(NewtonsoftHttpSerialization.WriteJsonAsync));
                 frame.Arguments[1] = resourceVariable;
-                
+
                 chain.Postprocessors.Add(frame);
             }
 

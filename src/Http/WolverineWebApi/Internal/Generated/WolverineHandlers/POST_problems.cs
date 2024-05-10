@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var problemDetailsUsageEndpoint = new WolverineWebApi.ProblemDetailsUsageEndpoint();
@@ -32,19 +30,13 @@ namespace Internal.Generated.WolverineHandlers
                 await WriteProblems(problemDetails1, httpContext).ConfigureAwait(false);
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             var result_of_Post = WolverineWebApi.ProblemDetailsUsageEndpoint.Post(message);
 
             await WriteString(httpContext, result_of_Post);
         }
-
     }
 
     // END: POST_problems
-    
-    
 }
-

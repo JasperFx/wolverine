@@ -13,7 +13,7 @@ public class Bug_516_allow_for_middleware_to_overwrite_the_original_message : In
     public async Task able_to_use_the_replaced_message()
     {
         await Host.InvokeMessageAndWaitAsync(new ReplacedMessage("Original"));
-        
+
         ReplacedMessageHandler.Handled.Name.ShouldBe("Original-Replaced-Again-Tuple");
     }
 }

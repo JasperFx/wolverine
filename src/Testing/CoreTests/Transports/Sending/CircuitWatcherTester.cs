@@ -55,7 +55,6 @@ public class StubCircuit : ISenderCircuit
             throw new Exception("No!");
         }
 
-
         return Task.FromResult(true);
     }
 

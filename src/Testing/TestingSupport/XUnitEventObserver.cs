@@ -24,7 +24,6 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>
 
     public void OnCompleted()
     {
-        
     }
 
     public void OnError(Exception error)

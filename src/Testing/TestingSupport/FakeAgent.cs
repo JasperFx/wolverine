@@ -8,7 +8,7 @@ public class FakeAgent : IAgent
     {
         Uri = uri;
     }
-    
+
     public bool IsRunning { get; private set; }
 
     public Task StartAsync(CancellationToken cancellationToken)

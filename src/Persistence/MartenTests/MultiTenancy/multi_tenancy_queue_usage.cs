@@ -81,7 +81,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                 opts.Durability.Mode = DurabilityMode.Solo;
 
                 opts.ListenToPostgresqlQueue("one");
-                
+
                 opts.Services.AddMarten(o =>
                     {
                         // This is a new strategy for configuring tenant databases with Marten
@@ -94,13 +94,13 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup
                     .ApplyAllDatabaseChangesOnStartup();
-                
+
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Services.AddResourceSetupOnStartup();
             })
             .StartAsync();
-        
+
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -124,14 +124,14 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup
                     .ApplyAllDatabaseChangesOnStartup();
-                
+
                 opts.Services.AddResourceSetupOnStartup();
             })
             .StartAsync();
-        
+
         theStore = _receiver.Services.GetRequiredService<IDocumentStore>();
         await theStore.Advanced.Clean.DeleteAllDocumentsAsync();
-        
+
         theListener = (MultiTenantedQueueListener)_receiver
             .GetRuntime()
             .Endpoints
@@ -177,7 +177,6 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
         throw new TimeoutException("Did not detect the two new per tenant listeners were started up");
     }
 
-
     [Fact]
     public async Task send_message_through_tenant()
     {
@@ -186,7 +185,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
             .AlsoTrack(_receiver)
             .IncludeExternalTransports()
             .SendMessageAndWaitAsync(message, new DeliveryOptions { TenantId = "tenant3" });
-        
+
         tracked.Received.SingleEnvelope<CreateTenantDoc>()
             .Destination.ShouldBe(new Uri("postgresql://one/tenant3"));
 

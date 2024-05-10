@@ -14,8 +14,6 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // The actual message body
@@ -35,11 +33,9 @@ namespace Internal.Generated.WolverineHandlers
             await foreach (var letterAggregateEvent in outgoing1) eventStream.AppendOne(letterAggregateEvent);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
-
     }
 
     // END: RaiseLotsAsyncHandler89313884
     
     
 }
-

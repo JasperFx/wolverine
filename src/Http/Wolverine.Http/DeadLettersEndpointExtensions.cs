@@ -35,22 +35,22 @@ public class DeadLetterEnvelopeIdsRequest
 public record DeadLetterEnvelopesFoundResponse(IReadOnlyList<DeadLetterEnvelopeResponse> Messages, Guid? NextId);
 
 public record DeadLetterEnvelopeResponse(
-    Guid Id, 
-    DateTimeOffset? ExecutionTime, 
-    object? Body, 
-    string MessageType, 
-    string ReceivedAt, 
-    string Source, 
-    string ExceptionType, 
-    string ExceptionMessage, 
-    DateTimeOffset SentAt, 
+    Guid Id,
+    DateTimeOffset? ExecutionTime,
+    object? Body,
+    string MessageType,
+    string ReceivedAt,
+    string Source,
+    string ExceptionType,
+    string ExceptionMessage,
+    DateTimeOffset SentAt,
     bool Replayable);
 
 public static class DeadLettersEndpointExtensions
 {
     /// <summary>
     /// Add endpoints to manage the Wolverine database-backed deal letter queue for this
-    /// application. 
+    /// application.
     /// </summary>
     /// <param name="groupUrlPrefix">Optionally override the group Url prefix for these endpoints. The default is "/dead-letters"</param>
     public static RouteGroupBuilder MapDeadLettersEndpoints(this IEndpointRouteBuilder endpoints, string? groupUrlPrefix = "/dead-letters")
@@ -75,7 +75,7 @@ public static class DeadLettersEndpointExtensions
             var deadLetterEnvelopesFound = await deadLetters.QueryDeadLetterEnvelopesAsync(queryParameters, request.TenantId);
             return new DeadLetterEnvelopesFoundResponse(
                 [.. deadLetterEnvelopesFound.DeadLetterEnvelopes.Select(x => new DeadLetterEnvelopeResponse(
-                    x.Id, 
+                    x.Id,
                     x.ExecutionTime,
                     handlerGraph.TryFindMessageType(x.MessageType!, out var messageType) ? opts.Value.DetermineSerializer(x.Envelope).ReadFromData(messageType, x.Envelope) : null,
                     x.MessageType,
@@ -92,7 +92,7 @@ public static class DeadLettersEndpointExtensions
         deadlettersGroup.MapPost("/replay", (DeadLetterEnvelopeIdsRequest request, IMessageStore messageStore) =>
             messageStore.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(request.Ids, request.TenantId));
 
-        deadlettersGroup.MapDelete("/", ([FromBody]DeadLetterEnvelopeIdsRequest request, IMessageStore messageStore) => 
+        deadlettersGroup.MapDelete("/", ([FromBody]DeadLetterEnvelopeIdsRequest request, IMessageStore messageStore) =>
             messageStore.DeadLetters.DeleteDeadLetterEnvelopesAsync(request.Ids, request.TenantId));
 
         return deadlettersGroup;

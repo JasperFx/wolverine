@@ -11,7 +11,7 @@ namespace BankingService.Tests;
 public class AlbaTestHarness
 {
     // This was built to prove out the fix to https://github.com/JasperFx/wolverine/issues/246
-    
+
     [Fact]
     public async Task run_end_to_end_with_stub_services()
     {

@@ -101,7 +101,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         {
             await thePersistor.Outbox.StoreOutgoingAsync(envelope, 0);
         }
-        
+
         var counts = await thePersistor.Admin.FetchCountsAsync();
 
         counts.Incoming.ShouldBe(10);
@@ -159,7 +159,6 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
 
-
     [Fact]
     public async Task mark_envelope_as_handled()
     {
@@ -195,9 +194,9 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         counts.Incoming.ShouldBe(0);
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
-        
+
         // Now, let's set the keep until in the past
-        
+
     }
 
     [Fact]
@@ -341,7 +340,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         {
             var envelope = ObjectMother.Envelope();
             envelope.Destination = TransportConstants.DurableLocalUri;
-            
+
             list.Add(envelope);
 
             if (random.Next(0, 10) > 6)
@@ -380,7 +379,7 @@ public class PostgresqlMessageStoreTests : PostgresqlContext, IDisposable, IAsyn
         var counts1 = await settings.LoadPageOfGloballyOwnedIncomingAsync(localOne, 1000);
         var counts2 = await settings.LoadPageOfGloballyOwnedIncomingAsync(localTwo, 1000);
 
-        
+
         counts1.Count.ShouldBe(list.Count(x =>
             x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming &&
             x.Destination == localOne));

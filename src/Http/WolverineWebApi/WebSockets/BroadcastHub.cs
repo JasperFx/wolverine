@@ -53,7 +53,6 @@ public class Broadcaster : IDisposable
         _batching = new BatchingBlock<IClientMessage>(250, _publishing);
     }
 
-
     public void Dispose()
     {
         _hub.Dispose();
@@ -62,8 +61,8 @@ public class Broadcaster : IDisposable
 
     public Task Post(IClientMessage? message)
     {
-        return message is null or NoClientMessage 
-            ? Task.CompletedTask 
+        return message is null or NoClientMessage
+            ? Task.CompletedTask
             : _batching.SendAsync(message);
     }
 
@@ -72,7 +71,7 @@ public class Broadcaster : IDisposable
         foreach (var message in messages.Where(x => x != null))
         {
             if (message is NoClientMessage) continue;
-            
+
             await _batching.SendAsync(message);
         }
     }

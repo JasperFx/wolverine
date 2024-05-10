@@ -29,7 +29,7 @@ public record CheckAgentHealth : IAgentCommand, ISerializable
  
  */
 
-public partial class NodeAgentController 
+public partial class NodeAgentController
 {
     public async Task<AgentCommands> DoHealthChecksAsync()
     {
@@ -52,8 +52,8 @@ public partial class NodeAgentController
         var staleTime = DateTimeOffset.UtcNow.Subtract(_runtime.Options.Durability.StaleNodeTimeout);
         var staleNodes = nodes.Where(x => x.LastHealthCheck < staleTime).ToArray();
         nodes = nodes.Where(x => !staleNodes.Contains(x)).ToList();
-        
-        
+
+
         if (_tracker.Self.IsLeader())
         {
             await ejectStaleNodes(staleNodes);
@@ -88,10 +88,9 @@ public partial class NodeAgentController
             // Ask another, older node to take leadership
             return [new TryAssumeLeadership(){CandidateId = candidate.Id}];
         }
-        
+
         return AgentCommands.Empty;
     }
-
 
     private async Task ejectStaleNodes(IReadOnlyList<WolverineNode> staleNodes)
     {

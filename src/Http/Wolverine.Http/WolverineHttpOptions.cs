@@ -16,7 +16,7 @@ namespace Wolverine.Http;
 
 public enum JsonUsage
 {
-    SystemTextJson, 
+    SystemTextJson,
     NewtonsoftJson
 }
 
@@ -85,16 +85,16 @@ public class WolverineHttpOptions
         Policies.Add(new HttpAwarePolicy());
         Policies.Add(new RequestIdPolicy());
         Policies.Add(new RequiredEntityPolicy());
-        
+
         Policies.Add(TenantIdDetection);
     }
 
     internal TenantIdDetection TenantIdDetection { get; } = new();
 
     internal Lazy<JsonSerializerOptions> JsonSerializerOptions { get; set; } = new(() => new JsonSerializerOptions());
-    
+
     internal JsonSerializerSettings NewtonsoftSerializerSettings { get; set; } = new();
-    
+
     internal HttpGraph? Endpoints { get; set; }
 
     internal MiddlewarePolicy Middleware { get; } = new();
@@ -159,8 +159,7 @@ public class WolverineHttpOptions
     {
         Policies.Add(new T());
     }
-    
-    
+
     /// <summary>
     ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
     /// </summary>
@@ -169,7 +168,7 @@ public class WolverineHttpOptions
     {
         ResourceWriterPolicies.Add(new T());
     }
-    
+
     /// <summary>
     ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
     /// </summary>
@@ -252,7 +251,7 @@ public class WolverineHttpOptions
     {
         return PublishMessage<T>(HttpMethod.Post, url, customize);
     }
-    
+
     /// <summary>
     ///     From this url, forward a JSON serialized message by sending through Wolverine
     /// </summary>
@@ -279,5 +278,4 @@ public class WolverineHttpOptions
     {
         return SendMessage<T>(HttpMethod.Post, url, customize);
     }
-    
 }

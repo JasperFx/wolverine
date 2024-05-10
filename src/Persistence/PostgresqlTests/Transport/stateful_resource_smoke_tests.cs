@@ -23,7 +23,7 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
-        
+
         await conn.DropSchemaAsync("queues");
         await conn.CloseAsync();
     }

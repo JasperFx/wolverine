@@ -20,7 +20,7 @@ public class StreamCollisionExceptionPolicy : IHttpPolicy
             .SelectMany(x => x.Creates)
             .Any(x => x.VariableType.CanBeCastTo<IStartStream>());
     }
-    
+
     public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
     {
         // Find *only* the HTTP routes where the route tries to create new Marten event streams
@@ -28,7 +28,7 @@ public class StreamCollisionExceptionPolicy : IHttpPolicy
         {
             // Add the middleware on the outside
             chain.Middleware.Insert(0, new CatchStreamCollisionFrame());
-            
+
             // Alter the OpenAPI metadata to register the ProblemDetails
             // path
             chain.Metadata.ProducesProblem(400);
@@ -60,10 +60,10 @@ internal class CatchStreamCollisionFrame : AsyncFrame
     {
         writer.WriteComment("Catches any existing stream id collision exceptions");
         writer.Write("BLOCK:try");
-        
+
         // Write the inner code here
         Next?.GenerateCode(method, writer);
-        
+
         writer.FinishBlock();
         writer.Write($@"
 BLOCK:catch({typeof(ExistingStreamIdCollisionException).FullNameInCode()} e)

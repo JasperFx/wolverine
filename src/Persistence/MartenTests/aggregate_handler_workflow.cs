@@ -38,7 +38,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             }).StartAsync();
-        
+
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
@@ -47,7 +47,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         await theHost.StopAsync();
         theHost.Dispose();
     }
-    
+
     internal async Task GivenAggregate()
     {
         await using var session = theStore.LightweightSession();
@@ -56,7 +56,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
 
         theStreamId = action.Id;
     }
-    
+
     internal async Task<LetterAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
@@ -75,7 +75,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         await GivenAggregate();
 
         var tracked = await theHost.InvokeMessageAndWaitAsync(new RaiseABC(theStreamId));
-        
+
         tracked.Sent.SingleMessage<Response>().ACount.ShouldBe(1);
 
         await OnAggregate(a =>
@@ -85,7 +85,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
             a.CCount.ShouldBe(1);
         });
     }
-    
+
     [Fact]
     public async Task events_then_response_invoke_with_return()
     {
@@ -95,7 +95,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         response.ACount.ShouldBe(1);
         response.BCount.ShouldBe(1);
         response.CCount.ShouldBe(1);
-        
+
         tracked.Sent.SingleMessage<Response>().ACount.ShouldBe(1);
 
         await OnAggregate(a =>
@@ -111,7 +111,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         await GivenAggregate();
 
         var tracked = await theHost.InvokeMessageAndWaitAsync(new RaiseAABCC(theStreamId));
-        
+
         tracked.Sent.SingleMessage<Response>().ACount.ShouldBe(2);
 
         await OnAggregate(a =>
@@ -130,7 +130,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         response.ACount.ShouldBe(2);
         response.BCount.ShouldBe(1);
         response.CCount.ShouldBe(2);
-        
+
         tracked.Sent.SingleMessage<Response>().ACount.ShouldBe(2);
 
         await OnAggregate(a =>
@@ -145,12 +145,12 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
     public async Task return_mix_of_events_messages_and_response()
     {
         await GivenAggregate();
-        
+
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseBBCCC(theStreamId));
-        
+
         // Just proves that this is what comes out of the handler
         response.ACount.ShouldBe(5);
-        
+
         await OnAggregate(a =>
         {
             a.ACount.ShouldBe(0);
@@ -166,10 +166,10 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
     public async Task use_event_stream_arg_but_still_return_response()
     {
         await GivenAggregate();
-        
+
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseAAA(theStreamId));
         response.CCount.ShouldBe(11);
-        
+
         await OnAggregate(a =>
         {
             a.ACount.ShouldBe(3);
@@ -192,7 +192,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
     {
         await GivenAggregate();
         var tracked = await theHost.InvokeMessageAndWaitAsync(new RaiseLotsAsync(theStreamId));
-        
+
         await OnAggregate(a =>
         {
             a.ACount.ShouldBe(4);
@@ -216,7 +216,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
 
         var outgoing = tracked.FindSingleTrackedMessageOfType<Outgoing1>();
         outgoing.Aggregate.Id.ShouldBe(streamId);
-        
+
         using (var session = theStore.LightweightSession())
         {
             var events = await session.Events.FetchStreamAsync(streamId);
@@ -232,7 +232,7 @@ public record Event3(Guid AggregateId);
 public class Aggregate
 {
     public Guid Id { get; set; }
-    
+
     public int Count { get; set; }
 
     public void Apply(AEvent e) => Count++;
@@ -275,7 +275,6 @@ public static class ResponseHandler
     public static void Handle(Response cmd) => Debug.WriteLine("Got a response");
     public static void Handle(LetterMessage1 cmd) => Debug.WriteLine("Got a response");
     public static void Handle(LetterMessage2 cmd) => Debug.WriteLine("Got a response");
-
 }
 
 [AggregateHandler]
@@ -289,13 +288,13 @@ public static class RaiseLetterHandler
         aggregate.CCount++;
         return ([new AEvent(), new BEvent(), new CEvent()], Response.For(aggregate));
     }
-    
+
     public static (Response, Events) Handle(RaiseAABCC command, LetterAggregate aggregate)
     {
         aggregate.ACount += 2;
         aggregate.BCount++;
         aggregate.CCount += 2;
-        
+
         return (Response.For(aggregate), [new AEvent(), new AEvent(), new BEvent(), new CEvent(), new CEvent()]);
     }
 
@@ -306,15 +305,15 @@ public static class RaiseLetterHandler
 
         return (new Response { ACount = 5 }, events, messages);
     }
-    
+
     public static Response Handle(RaiseAAA command, IEventStream<LetterAggregate> stream)
     {
-        stream.AppendOne(new AEvent());    
-        stream.AppendOne(new AEvent());    
-        stream.AppendOne(new AEvent());    
+        stream.AppendOne(new AEvent());
+        stream.AppendOne(new AEvent());
+        stream.AppendOne(new AEvent());
         return new Response { CCount = 11 };
     }
-    
+
     public static DEvent Handle(RaiseOnlyD command, LetterAggregate aggregate) => new DEvent();
 
     public static async IAsyncEnumerable<object> Handle(RaiseLotsAsync command, LetterAggregate aggregate)
@@ -335,7 +334,7 @@ public static class RaiseLetterHandler
 public record RaiseLotsAsync(Guid LetterAggregateId);
 
 public record RaiseOnlyD(Guid LetterAggregateId);
-    
+
 public record RaiseABC(Guid LetterAggregateId);
 public record RaiseAAA(Guid LetterAggregateId);
 public record RaiseAABCC(Guid LetterAggregateId);
@@ -352,7 +351,7 @@ public class Response
             BCount = aggregate.BCount,
             CCount = aggregate.CCount,
             DCount = aggregate.DCount
-            
+
         };
     }
 

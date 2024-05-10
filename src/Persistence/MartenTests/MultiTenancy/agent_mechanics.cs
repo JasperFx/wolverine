@@ -26,7 +26,6 @@ public class agent_mechanics : MultiTenancyContext
             await conn.CloseAsync();
         }
 
-
         await Fixture.RestartAsync();
 
         await Fixture.Host.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());

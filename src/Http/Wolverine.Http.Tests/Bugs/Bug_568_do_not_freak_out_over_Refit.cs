@@ -21,9 +21,9 @@ public class Bug_568_do_not_freak_out_over_Refit
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
-        
+
         builder.Services.AddRefitClient<ITestHttpClient>();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
@@ -33,7 +33,7 @@ public class Bug_568_do_not_freak_out_over_Refit
         {
             app.MapWolverineEndpoints();
         });
-        
+
         await host.Scenario(x =>
         {
             x.Post.Json(new Bug568Message1("Hey")).ToUrl("/refit1");

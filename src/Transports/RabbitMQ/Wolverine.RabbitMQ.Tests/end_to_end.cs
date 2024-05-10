@@ -63,7 +63,7 @@ public class end_to_end
         publisher.Services.GetServices<IStatefulResourceSource>().SelectMany(x => x.FindResources())
             .OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeTrue();
     }
-    
+
     [Fact]
     public void rabbitmq_transport_is_NOT_exposed_as_a_resource_if_external_transports_are_stubbed()
     {
@@ -75,7 +75,7 @@ public class end_to_end
             opts.PublishAllMessages()
                 .ToRabbitQueue(queueName)
                 .UseDurableOutbox();
-            
+
             opts.StubAllExternalTransports();
 
             opts.Services.AddMarten(x =>
@@ -91,8 +91,6 @@ public class end_to_end
         publisher.Services.GetServices<IStatefulResourceSource>().SelectMany(x => x.FindResources())
             .OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeFalse();
     }
-
-
 
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_durable_transport_option()
@@ -148,8 +146,7 @@ public class end_to_end
 
         receiver.Get<ColorHistory>().Name.ShouldBe("Orange");
     }
-    
-    
+
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers()
     {
@@ -191,12 +188,12 @@ public class end_to_end
         {
             await Task.Delay(250.Milliseconds(), cancellation.Token);
         }
-        
+
         cancellation.Token.ThrowIfCancellationRequested();
 
-        
+
     }
-    
+
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_only_listener_connection()
     {
@@ -210,8 +207,8 @@ public class end_to_end
                 .SendInline();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            
-            
+
+
         });
 
 
@@ -240,13 +237,12 @@ public class end_to_end
         {
             await Task.Delay(250.Milliseconds(), cancellation.Token);
         }
-        
+
         cancellation.Token.ThrowIfCancellationRequested();
 
-        
+
     }
-    
-        
+
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_only_subscriber_connection()
     {
@@ -260,8 +256,8 @@ public class end_to_end
                 .SendInline();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            
-            
+
+
         });
 
 
@@ -290,12 +286,11 @@ public class end_to_end
         {
             await Task.Delay(250.Milliseconds(), cancellation.Token);
         }
-        
+
         cancellation.Token.ThrowIfCancellationRequested();
 
-        
-    }
 
+    }
 
     [Fact]
     public async Task reply_uri_mechanics()
@@ -357,7 +352,6 @@ public class end_to_end
         records.Any(x => x.ServiceName == "Publisher").ShouldBeTrue();
     }
 
-
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_routing_key()
     {
@@ -384,7 +378,7 @@ public class end_to_end
                 .BindExchange(exchangeName).ToQueue(queueName, "key2");
 
             opts.Services.AddSingleton<ColorHistory>();
-            
+
             opts.Services.AddResourceSetupOnStartup();
 
             opts.ListenToRabbitQueue(queueName);
@@ -405,7 +399,6 @@ public class end_to_end
             receiver.Dispose();
         }
     }
-
 
     [Fact]
     public async Task schedule_send_message_to_and_receive_through_rabbitmq_with_durable_transport_option()
@@ -468,7 +461,6 @@ public class end_to_end
             receiver.Dispose();
         }
     }
-
 
     [Fact]
     public async Task use_fan_out_exchange()
@@ -537,7 +529,6 @@ public class end_to_end
         }
     }
 
-
     [Fact]
     public async Task send_message_to_and_receive_through_rabbitmq_with_named_topic()
     {
@@ -582,8 +573,7 @@ public class end_to_end
             receiver.Dispose();
         }
     }
-    
-    
+
     [Fact]
     public async Task use_direct_exchange_with_binding_key()
     {
@@ -630,7 +620,7 @@ public class end_to_end
             opts.ListenToRabbitQueue(queueName3);
             opts.Services.AddSingleton<ColorHistory>();
         });
-        
+
         var session = await publisher
             .TrackActivity()
             .AlsoTrack(receiver1, receiver2, receiver3)

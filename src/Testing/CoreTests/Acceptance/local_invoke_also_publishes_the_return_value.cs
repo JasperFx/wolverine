@@ -5,7 +5,7 @@ using Xunit;
 
 namespace CoreTests.Acceptance;
 
-public class local_invoke_also_publishes_the_return_value 
+public class local_invoke_also_publishes_the_return_value
 {
     [Fact]
     public async Task should_also_publish_the_return_value_when_invoking_locally()
@@ -15,12 +15,12 @@ public class local_invoke_also_publishes_the_return_value
 
         var name = "Chris Jones";
         var (tracked, response) = await host.InvokeMessageAndWaitAsync<CommandInvoked>(new InvokeCommand(name));
-        
+
         response.Name.ShouldBe(name);
-        
+
         tracked.Sent.SingleMessage<CommandInvoked>()
             .Name.ShouldBe(name);
-        
+
         tracked.Sent.SingleMessage<Message1>().Id.ShouldBe(response.Id);
         tracked.Sent.SingleMessage<Message2>().Id.ShouldBe(response.Id);
     }

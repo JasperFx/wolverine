@@ -63,7 +63,6 @@ public class publish_versus_send_mechanics : IntegrationContext
             await Publisher.SendAsync(new Message3()));
     }
 
-
     [Fact]
     public async Task send_with_known_subscribers()
     {

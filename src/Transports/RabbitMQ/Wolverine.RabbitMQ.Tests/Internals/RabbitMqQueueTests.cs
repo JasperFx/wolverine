@@ -36,7 +36,6 @@ public class RabbitMqQueueTests
         queue.Arguments.Any().ShouldBeFalse();
     }
 
-
     [Fact]
     public void set_time_to_live()
     {
@@ -114,7 +113,6 @@ public class RabbitMqQueueTests
         theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
         theChannel.DidNotReceiveWithAnyArgs().QueuePurge("foo");
     }
-
 
     [Fact]
     public async Task initialize_with_no_auto_provision_but_auto_purge_on_endpoint_only()

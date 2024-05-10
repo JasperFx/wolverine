@@ -141,8 +141,6 @@ public class TupleResponseHandler
 
 #endregion
 
-
-
 #region sample_ManuallyRoutedResponseHandler
 
 public class ManuallyRoutedResponseHandler

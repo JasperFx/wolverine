@@ -26,7 +26,7 @@ public class HandlerChainTests
         var chain = HandlerChain.For<Target>(x => x.Go(null), null);
         chain.TelemetryEnabled.ShouldBeTrue();
     }
-    
+
     [Fact]
     public void create_by_method()
     {
@@ -75,6 +75,4 @@ public class HandlerChainTests
         {
         }
     }
-
-
 }

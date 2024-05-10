@@ -37,7 +37,6 @@ public class DbTransactionFrame<TTransaction, TConnection> : AsyncFrame
                 $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}(envelopeTransaction);");
         }
 
-
         Next?.GenerateCode(method, writer);
         writer.Write($"{Transaction.Usage}.{nameof(DbTransaction.Commit)}();");
 

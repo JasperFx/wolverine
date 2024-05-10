@@ -29,7 +29,6 @@ public class serialization_configuration
             ?.DefaultSerializer.ShouldBeOfType<MemoryPackMessageSerializer>();
     }
 
-
     [Fact]
     public async Task can_override_the_serialization_on_just_one_endpoint()
     {

@@ -123,7 +123,6 @@ public class serialization_and_deserialization_of_single_message
         incoming.Data.ShouldHaveTheSameElementsAs(outgoing.Data);
     }
 
-
     [Fact]
     public void deliver_by_with_value()
     {
@@ -197,7 +196,6 @@ public class serialization_and_deserialization_of_single_message
     {
         incoming.SentAt.ShouldBe(outgoing.SentAt);
     }
-
 
     [Fact]
     public void source()

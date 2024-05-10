@@ -64,9 +64,9 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
             opts.ListenToSqlServerQueue("sender").BufferedInMemory();
 
             #endregion
-            
+
             opts.Durability.Mode = DurabilityMode.Solo;
-            
+
         });
 
         await ReceiverIs(opts =>
@@ -75,7 +75,7 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
                 .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
 
             opts.ListenToSqlServerQueue("receiver").BufferedInMemory();
-            
+
             opts.Durability.Mode = DurabilityMode.Solo;
         });
     }

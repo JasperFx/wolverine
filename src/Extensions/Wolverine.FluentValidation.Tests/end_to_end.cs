@@ -18,7 +18,6 @@ public class end_to_end
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
 
-
         var command = new Command1
         {
             Name = "foo", Color = "blue", Number = 4
@@ -39,7 +38,6 @@ public class end_to_end
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
 
-
         var command = new Command1
         {
             Name = null, Color = "blue", Number = 4
@@ -58,7 +56,6 @@ public class end_to_end
 
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
-
 
         var command = new Command2
         {
@@ -80,7 +77,6 @@ public class end_to_end
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
 
-
         var command = new Command2
         {
             Name = null
@@ -99,7 +95,6 @@ public class end_to_end
 
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
-
 
         var command = new Command4
         {
@@ -121,7 +116,6 @@ public class end_to_end
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
 
-
         var command = new Command4
         {
             Email = "new@email.me"
@@ -141,7 +135,6 @@ public class end_to_end
 
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
-
 
         var command = new Command5
         {
@@ -163,7 +156,6 @@ public class end_to_end
 
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
-
 
         var command = new Command5
         {

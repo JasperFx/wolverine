@@ -19,7 +19,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
                 {
                     opts.Services.AddMarten(Servers.PostgresConnectionString)
                         .IntegrateWithWolverine();
-                    
+
                     opts.Policies.AutoApplyTransactions();
                 })
                 .StartAsync();
@@ -36,8 +36,8 @@ public class When_handling_messages_in_saga : PostgresqlContext
                 subscriptionId.ToString()
             )
         );
-        
-        
+
+
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
                 {
                     opts.Services.AddMarten(Servers.PostgresConnectionString)
                         .IntegrateWithWolverine();
-                    
+
                     opts.Policies.AutoApplyTransactions();
                 })
                 .StartAsync();
@@ -58,10 +58,10 @@ public class When_handling_messages_in_saga : PostgresqlContext
 
         var subscribed = new Subscribed("Acme, Inc", subscriptionId.ToString());
         await host.InvokeMessageAndWaitAsync(subscribed);
-        
+
         UserRegistrationSaga.NotFoundSubscribed.ShouldBe(subscribed);
     }
-    
+
     [Fact]
     public async Task should_not_throw_in_memory()
     {
@@ -108,7 +108,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
 
         var subscribed = new Subscribed("Acme, Inc", subscriptionId.ToString());
         await host.InvokeMessageAndWaitAsync(subscribed);
-        
+
         UserRegistrationSaga.NotFoundSubscribed.ShouldBe(subscribed);
     }
 }

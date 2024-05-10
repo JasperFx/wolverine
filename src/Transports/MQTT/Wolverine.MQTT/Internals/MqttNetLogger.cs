@@ -20,15 +20,15 @@ public class MqttNetLogger : IMqttNetLogger
             case MqttNetLogLevel.Error:
                 _logger.LogError(exception, message, parameters);
                 break;
-            
+
             case MqttNetLogLevel.Info:
                 _logger.LogInformation(message, parameters);
                 break;
-            
+
             case MqttNetLogLevel.Warning:
                 _logger.LogWarning(message, parameters);
                 break;
-            
+
             case MqttNetLogLevel.Verbose:
                 _logger.LogDebug(message, parameters);
                 break;

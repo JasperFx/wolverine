@@ -33,7 +33,7 @@ internal class ExclusiveListenerFamily : IStaticAgentFamily
 {
     private readonly IWolverineRuntime _runtime;
     internal const string SchemeName = "wolverine-listener";
-    
+
     private readonly WolverineOptions _options;
     private readonly Dictionary<Uri,ExclusiveListenerAgent> _agents;
 

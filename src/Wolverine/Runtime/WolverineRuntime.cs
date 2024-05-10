@@ -142,7 +142,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         if (ScheduledJobs == null)
             throw new InvalidOperationException(
                 $"This action is invalid when {nameof(WolverineOptions)}.{nameof(WolverineOptions.Durability)}.{nameof(DurabilitySettings.Mode)} = {Options.Durability.Mode}");
-        
+
         MessageTracking.Sent(envelope);
         ScheduledJobs.Enqueue(executionTime, envelope);
     }

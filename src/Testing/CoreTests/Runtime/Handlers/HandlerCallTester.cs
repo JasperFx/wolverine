@@ -28,7 +28,6 @@ public class HandlerCallTester
         handler.CouldHandleOtherMessageType(typeof(Input)).ShouldBeFalse();
     }
 
-
     [Fact]
     public void throws_chunks_if_you_try_to_use_a_method_with_no_inputs()
     {

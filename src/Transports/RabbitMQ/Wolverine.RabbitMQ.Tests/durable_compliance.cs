@@ -32,7 +32,7 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
                     m.DisableNpgsqlLogging = true;
                 })
                 .IntegrateWithWolverine("rabbit_sender");
-            
+
 
             opts.UseRabbitMq()
                 .AutoProvision()
@@ -47,7 +47,7 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
         await ReceiverIs(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            
+
             opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -55,8 +55,8 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
                 })
                 .IntegrateWithWolverine("rabbit_receiver");
 
-            
-            opts.UseRabbitMq()                
+
+            opts.UseRabbitMq()
                 .ConfigureListeners(x => x.UseDurableInbox())
                 .ConfigureSenders(x => x.UseDurableOutbox()).EnableWolverineControlQueues();;
             opts.ListenToRabbitQueue(queueName).TelemetryEnabled(false);

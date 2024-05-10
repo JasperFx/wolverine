@@ -30,7 +30,7 @@ internal class AgentCommandHandler : MessageHandler
         }
 
         var command = (IAgentCommand)context.Envelope!.Message!;
-        
+
         try
         {
             var results = await command.ExecuteAsync(_runtime, cancellation);
@@ -46,7 +46,7 @@ internal class AgentCommandHandler : MessageHandler
             {
                 await context.EnqueueCascadingAsync(results);
             }
-            
+
         }
         catch (TimeoutException)
         {

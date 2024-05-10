@@ -69,7 +69,7 @@ internal record StopRemoteAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, I
 
         return AgentCommands.Empty;
     }
-    
+
     public byte[] Write()
     {
         return NodeId.ToByteArray().Concat(Encoding.UTF8.GetBytes(AgentIds.Select(x => x.ToString()).Join(","))).ToArray();
@@ -94,12 +94,12 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
             {
                 var stopwatch = new Stopwatch();
                 stopwatch.Start();
-                
+
                 await runtime.Agents.StartLocallyAsync(agentUri);
 
                 Debug.WriteLine($"STARTED {agentUri} in {stopwatch.ElapsedMilliseconds} MILLISECONDS");
                 stopwatch.Stop();
-                
+
                 successful.Add(agentUri);
             }
             catch (Exception e)
@@ -130,7 +130,7 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
     {
         return $"Start agents {AgentUris.Select(x => x.ToString()).Join(", ")}";
     }
-    
+
     public byte[] Write()
     {
         return Encoding.UTF8.GetBytes(AgentUris.Select(x => x.ToString()).Join(","));
@@ -150,7 +150,7 @@ internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand, ISerializable
     {
         return Task.FromResult(AgentCommands.Empty);
     }
-    
+
     public byte[] Write()
     {
         return Encoding.UTF8.GetBytes(AgentUris.Select(x => x.ToString()).Join(","));

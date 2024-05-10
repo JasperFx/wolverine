@@ -48,7 +48,7 @@ public static class ShipOrderHandler
     // business logic easy to unit test
     public static IEnumerable<object> Handle(ShipOrder command, Order order, Customer customer)
     {
-        // use the command data, plus the related Order & Customer data to 
+        // use the command data, plus the related Order & Customer data to
         // "decide" what action to take next
 
         yield return new MailOvernight(order.Id);

@@ -25,7 +25,6 @@ public class can_customize_handler_chains_with_attributes
         }
     }
 
-
     [Fact]
     public void apply_attribute_on_class()
     {

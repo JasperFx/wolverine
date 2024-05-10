@@ -72,7 +72,7 @@ public class RabbitMqTransportTests
     {
         theTransport.UseSenderConnectionOnly.ShouldBeFalse();
     }
-    
+
     [Fact]
     public void use_listener_connection_only_is_false_by_default()
     {

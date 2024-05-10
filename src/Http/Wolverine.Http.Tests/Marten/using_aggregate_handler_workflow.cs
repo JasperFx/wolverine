@@ -25,9 +25,9 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         });
 
         await using var session = Store.LightweightSession();
-        
+
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
-        
+
         order.ShouldNotBeNull();
         order.Items["Socks"].Ready.ShouldBeTrue();
     }
@@ -40,7 +40,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create3");
             x.StatusCodeShouldBe(201);
         });
-        
+
         var response = result1.ReadAsJson<CreationResponse>();
         response.ShouldNotBeNull();
         var raw = response.Url.Split('/').Last();
@@ -50,11 +50,11 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         {
             x.Post.Json(new MarkItemReady(id, "Socks", 1)).ToUrl("/orders/itemready");
         });
-        
+
         await using var session = Store.LightweightSession();
-        
+
         var order = await session.Events.AggregateStreamAsync<Order>(id);
-        
+
         order.ShouldNotBeNull();
         order.Items["Socks"].Ready.ShouldBeTrue();
     }
@@ -77,13 +77,13 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         });
 
         await using var session = Store.LightweightSession();
-        
+
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
-        
+
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task use_a_return_value_as_event_using_route_id_and_command_aggregate()
     {
@@ -98,18 +98,18 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         await Scenario(x =>
         {
             x.Post.Json(new ShipOrder2("Something")).ToUrl($"/orders/{status1.OrderId}/ship2");
-            
+
             x.StatusCodeShouldBe(204);
         });
 
         await using var session = Store.LightweightSession();
-        
+
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
-        
+
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task use_a_return_value_as_event_using_route_id_and_aggregate_but_no_command()
     {
@@ -124,29 +124,29 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         await Scenario(x =>
         {
             x.Post.Url($"/orders/{status1.OrderId}/ship3");
-            
+
             x.StatusCodeShouldBe(204);
         });
 
         await using var session = Store.LightweightSession();
-        
+
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
-        
+
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task use_a_return_value_as_event_using_route_id_and_aggregate_but_no_command_expect_404()
     {
         await Scenario(x =>
         {
             x.Post.Url($"/orders/{Guid.NewGuid()}/ship3");
-            
+
             x.StatusCodeShouldBe(404);
         });
     }
-    
+
     [Fact]
     public async Task use_a_return_value_as_event_using_route_id_but_no_parameter_and_aggregate_but_no_command()
     {
@@ -161,29 +161,29 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         await Scenario(x =>
         {
             x.Post.Url($"/orders/{status1.OrderId}/ship4");
-            
+
             x.StatusCodeShouldBe(204);
         });
 
         await using var session = Store.LightweightSession();
-        
+
         var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
-        
+
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task use_stream_collision_policy()
     {
         var id = Guid.NewGuid();
-        
+
         // First time should be fine
         await Scenario(x =>
         {
             x.Post.Json(new StartOrderWithId(id, ["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create4");
         });
-        
+
         // Second time hits an exception from stream id collision
         var result2 = await Scenario(x =>
         {
@@ -197,11 +197,11 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         details.ShouldNotBeNull();
         var detailsId = details.Extensions["Id"]?.ToString();
         detailsId.ShouldNotBeEmpty();
-        
+
         Guid.Parse(detailsId).ShouldBe(id);
         details.Detail.ShouldBe($"Duplicated id '{id}'");
     }
-    
+
     [Fact]
     public async Task accept_response_returns_proper_status_and_url()
     {
@@ -216,10 +216,10 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         result = await Scenario(x =>
         {
             x.Post.Json(new ConfirmOrder(status.OrderId)).ToUrl($"/orders/{status.OrderId}/confirm");
-            
+
             x.StatusCodeShouldBe(202);
         });
-        
+
         var acceptResponse = await result.ReadAsJsonAsync<AcceptResponse>();
         acceptResponse.ShouldNotBeNull();
         acceptResponse.Url.ShouldBe($"/orders/{status.OrderId}");

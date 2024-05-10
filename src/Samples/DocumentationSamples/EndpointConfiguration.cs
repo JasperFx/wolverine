@@ -18,7 +18,7 @@ public class EndpointConfiguration
                     // Override the endpoint name easier usage and diagnostics
                     .Named("threes")
 
-                    // Configure the outgoing circuit breaker 
+                    // Configure the outgoing circuit breaker
                     // rules
                     .CircuitBreaking(cb => { cb.FailuresBeforeCircuitBreaks = 5; })
 

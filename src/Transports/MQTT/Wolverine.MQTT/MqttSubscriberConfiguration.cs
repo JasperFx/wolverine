@@ -8,7 +8,7 @@ public class MqttSubscriberConfiguration : SubscriberConfiguration<MqttSubscribe
     internal MqttSubscriberConfiguration(MqttTopic endpoint) : base(endpoint)
     {
     }
-    
+
     /// <summary>
     /// Messages should be retained by the MQTT broker even when there is not
     /// an active client
@@ -19,7 +19,7 @@ public class MqttSubscriberConfiguration : SubscriberConfiguration<MqttSubscribe
         add(e => e.Retain = true);
         return this;
     }
-    
+
     /// <summary>
     /// Override the quality of service for just this endpoint. Default is AtLeastOnce
     /// </summary>
@@ -30,7 +30,7 @@ public class MqttSubscriberConfiguration : SubscriberConfiguration<MqttSubscribe
         add(e => e.QualityOfServiceLevel = serviceLevel);
         return this;
     }
-    
+
     /// <summary>
     /// Use a custom interoperability strategy to map Wolverine messages to an upstream
     /// system's protocol

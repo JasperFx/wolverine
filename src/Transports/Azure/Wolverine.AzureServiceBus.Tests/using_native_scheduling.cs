@@ -25,13 +25,13 @@ public class using_native_scheduling
             .IncludeExternalTransports()
             .Timeout(20.Seconds())
             .ExecuteAndWaitAsync(c => c.ScheduleAsync(new AsbMessage1("later"), 3.Seconds()));
-        
+
         session.Received.SingleMessage<AsbMessage1>()
             .Name.ShouldBe("later");
 
         await host.StopAsync();
     }
-    
+
     [Fact]
     public async Task with_buffered_endpoint() // durable would have similar mechanics
     {
@@ -49,7 +49,7 @@ public class using_native_scheduling
             .IncludeExternalTransports()
             .Timeout(20.Seconds())
             .ExecuteAndWaitAsync(c => c.ScheduleAsync(new AsbMessage1("in a bit"), 3.Seconds()));
-        
+
         session.Received.SingleMessage<AsbMessage1>()
             .Name.ShouldBe("in a bit");
 

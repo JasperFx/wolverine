@@ -63,7 +63,6 @@ public abstract class BrokerExpression<TTransport, TListenerEndpoint, TSubscribe
         return this.As<TSelf>();
     }
 
-
     /// <summary>
     ///     Apply a policy to all listening endpoints
     /// </summary>

@@ -25,17 +25,17 @@ public class subscriptions_end_to_end : PostgresqlContext
         await conn.DropSchemaAsync("subscriptions");
         await conn.CloseAsync();
     }
-    
+
     [Fact]
     public async Task use_unfiltered_batch_subscription()
     {
         await dropSchema();
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                
+
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -62,7 +62,7 @@ public class subscriptions_end_to_end : PostgresqlContext
             session.Events.StartStream(Guid.NewGuid(), new DEvent(), new BEvent(), new BEvent(), new BEvent());
 
             await session.SaveChangesAsync();
-            
+
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
@@ -84,7 +84,7 @@ public class subscriptions_end_to_end : PostgresqlContext
     public async Task use_filtered_batch_subscription()
     {
         await dropSchema();
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -93,7 +93,7 @@ public class subscriptions_end_to_end : PostgresqlContext
                 var subscription = new TestBatchSubscription();
                 subscription.IncludeType<AEvent>();
                 subscription.IncludeType<BEvent>();
-                
+
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -120,7 +120,7 @@ public class subscriptions_end_to_end : PostgresqlContext
             session.Events.StartStream(Guid.NewGuid(), new DEvent(), new BEvent(), new BEvent(), new BEvent());
 
             await session.SaveChangesAsync();
-            
+
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
@@ -137,19 +137,19 @@ public class subscriptions_end_to_end : PostgresqlContext
         (await query.LoadAsync<EventTotals>("C")).ShouldBeNull();
         (await query.LoadAsync<EventTotals>("D")).ShouldBeNull();
     }
-    
+
     [Fact]
     public async Task use_inline_subscription()
     {
         TotalsHandler.Handled.Clear();
         await dropSchema();
-        
-        
+
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                
+
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -171,24 +171,24 @@ public class subscriptions_end_to_end : PostgresqlContext
         session.Events.StartStream(Guid.NewGuid(), new BEvent(), new CEvent(), new CEvent(), new BEvent());
 
         await session.SaveChangesAsync();
-            
+
         await daemon.WaitForNonStaleData(30.Seconds());
 
         TotalsHandler.Handled.ShouldBe(['a', 'b', 'd', 'd', 'a', 'a', 'a', 'a', 'b', 'c', 'c', 'b']);
     }
-    
+
     [Fact]
     public async Task use_inline_subscription_filtered()
     {
         TotalsHandler.Handled.Clear();
         await dropSchema();
-        
-        
+
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                
+
                 opts.Services.AddMarten(m =>
                     {
                         m.Connection(Servers.PostgresConnectionString);
@@ -214,17 +214,17 @@ public class subscriptions_end_to_end : PostgresqlContext
         session.Events.StartStream(Guid.NewGuid(), new BEvent(), new CEvent(), new CEvent(), new BEvent());
 
         await session.SaveChangesAsync();
-            
+
         await daemon.WaitForNonStaleData(30.Seconds());
 
         TotalsHandler.Handled.ShouldBe(['a', 'b', 'a', 'a', 'a', 'a', 'b', 'b']);
     }
-    
+
     [Fact]
     public async Task use_unfiltered_publishing_subscription()
     {
         await dropSchema();
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -256,24 +256,24 @@ public class subscriptions_end_to_end : PostgresqlContext
             session.Events.StartStream(Guid.NewGuid(), new DEvent(), new BEvent(), new BEvent(), new BEvent(), new Event1(Guid.NewGuid()));
 
             await session.SaveChangesAsync();
-            
+
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
         var tracked = await host
             .TrackActivity()
             .ExecuteAndWaitAsync(writeEvents);
-        
+
         tracked.Executed.MessagesOf<AEvent>().Count().ShouldBe(6);
         tracked.Executed.MessagesOf<BEvent>().Count().ShouldBe(7);
         tracked.Executed.MessagesOf<IEvent<DEvent>>().Count().ShouldBe(6);
     }
-    
+
         [Fact]
     public async Task use_filtered_publishing_subscription()
     {
         await dropSchema();
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -309,26 +309,26 @@ public class subscriptions_end_to_end : PostgresqlContext
             session.Events.StartStream(Guid.NewGuid(), new DEvent(), new BEvent(), new BEvent(), new BEvent(), new Event1(Guid.NewGuid()));
 
             await session.SaveChangesAsync();
-            
+
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
         var tracked = await host
             .TrackActivity()
             .ExecuteAndWaitAsync(writeEvents);
-        
+
         tracked.Executed.MessagesOf<AEvent>().Count().ShouldBe(6);
-        
+
         // Filtered out
         tracked.Executed.MessagesOf<BEvent>().Count().ShouldBe(0);
         tracked.Executed.MessagesOf<IEvent<DEvent>>().Count().ShouldBe(6);
     }
-    
+
             [Fact]
     public async Task use_transformed_publishing_subscription()
     {
         await dropSchema();
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -364,16 +364,16 @@ public class subscriptions_end_to_end : PostgresqlContext
             session.Events.StartStream(Guid.NewGuid(), new DEvent(), new BEvent(), new BEvent(), new BEvent(), new Event1(Guid.NewGuid()));
 
             await session.SaveChangesAsync();
-            
+
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
         var tracked = await host
             .TrackActivity()
             .ExecuteAndWaitAsync(writeEvents);
-        
+
         tracked.Executed.MessagesOf<AEvent>().Count().ShouldBe(6);
-        
+
         // Filtered out
         tracked.Executed.MessagesOf<BEvent>().Count().ShouldBe(0);
         tracked.Executed.MessagesOf<IEvent<DEvent>>().Count().ShouldBe(0);
@@ -386,8 +386,8 @@ public class subscriptions_end_to_end : PostgresqlContext
         TaggingService.InstanceCount = 0;
         ServiceUsingSubscription.Read.Clear();
         await dropSchema();
-        
-        
+
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -418,28 +418,28 @@ public class subscriptions_end_to_end : PostgresqlContext
         session.Events.StartStream(Guid.NewGuid(), new BEvent(), new CEvent(), new CEvent(), new BEvent());
 
         await session.SaveChangesAsync();
-            
+
         await daemon.WaitForNonStaleData(20.Seconds());
 
-        
+
         // Second round
         session.Events.StartStream(Guid.NewGuid(), new DEvent(), new DEvent(), new DEvent(), new DEvent());
         await session.SaveChangesAsync();
         // await daemon.WaitForNonStaleData(20.Seconds());
-        
+
         ServiceUsingSubscription.Read.Count().ShouldBe(1);
         ServiceUsingSubscription.Read[1].OfType<AEvent>().Count().ShouldBe(5);
         ServiceUsingSubscription.Read[1].OfType<BEvent>().Count().ShouldBe(3);
     }
-    
+
     [Fact]
     public async Task using_scoped_subscription_from_service()
     {
         TaggingService.InstanceCount = 0;
         ServiceUsingSubscription.Read.Clear();
         await dropSchema();
-        
-        
+
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -475,7 +475,7 @@ public class subscriptions_end_to_end : PostgresqlContext
 
             await session.SaveChangesAsync();
         }
-            
+
         await daemon.WaitForNonStaleData(60.Seconds());
 
         ServiceUsingSubscription.Read.Count().ShouldBeGreaterThan(1);
@@ -502,24 +502,24 @@ public class TestBatchSubscription : BatchSubscription
         {
             cache[total.Id] = total;
         }
-        
+
         foreach (var e in page.Events)
         {
             if (e.Data is AEvent)
             {
                 cache["A"].Count++;
             }
-            
+
             if (e.Data is BEvent)
             {
                 cache["B"].Count++;
             }
-            
+
             if (e.Data is CEvent)
             {
                 cache["C"].Count++;
             }
-            
+
             if (e.Data is DEvent)
             {
                 cache["D"].Count++;
@@ -558,24 +558,24 @@ public static class TotalsHandler
 
     public static void Handle(TransformedMessage message)
     {
-        
+
     }
-    
+
     public static void Handle(AEvent e)
     {
         Handled.Add('a');
     }
-    
+
     public static void Handle(BEvent e)
     {
         Handled.Add('b');
     }
-    
+
     public static void Handle(CEvent e)
     {
         Handled.Add('c');
     }
-    
+
     public static void Handle(IEvent<DEvent> e)
     {
         Handled.Add('d');
@@ -613,6 +613,3 @@ public class TaggingService
 
     public int Instance { get; set; }
 }
-
-
-

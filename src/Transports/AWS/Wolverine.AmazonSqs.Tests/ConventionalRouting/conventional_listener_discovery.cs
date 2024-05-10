@@ -21,7 +21,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
                 return null; // should not be routed
             }
 
-            return t.ToMessageTypeName().Replace(".", "-");
+            return t.ToMessageTypeName().Replace('.', '-');
         }));
 
         AssertNoRoutes<PublishedMessage>();
@@ -80,7 +80,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
                 return null; // should not be routed
             }
 
-            return t.ToMessageTypeName().Replace(".", "-");
+            return t.ToMessageTypeName().Replace('.', '-');
         }));
 
         var uri = "sqs://routed".ToUri();

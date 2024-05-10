@@ -29,5 +29,4 @@ public class NodeMessageTests
 
         await endpoint.Received().SendAsync(original);
     }
-    
 }

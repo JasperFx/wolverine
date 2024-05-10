@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -42,8 +40,6 @@ namespace Internal.Generated.WolverineHandlers
                 httpContext.Response.StatusCode = 404;
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             (var acceptResponse_response, var events) = WolverineWebApi.Marten.MarkItemEndpoint.Confirm(command, eventStream.Aggregate);
@@ -62,11 +58,9 @@ namespace Internal.Generated.WolverineHandlers
             // Writing the response body to JSON because this was the first 'return variable' in the method signature
             await WriteJsonAsync(httpContext, acceptResponse_response);
         }
-
     }
 
     // END: POST_orders_id_confirm
     
     
 }
-

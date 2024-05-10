@@ -49,7 +49,6 @@ public class WolverineActionDescriptor : ControllerActionDescriptor
     /// The raw Wolverine model of the HTTP endpoint
     /// </summary>
     public HttpChain Chain { get; }
-
 }
 
 public partial class HttpChain

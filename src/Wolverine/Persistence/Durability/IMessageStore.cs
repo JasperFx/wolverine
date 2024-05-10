@@ -34,15 +34,15 @@ public interface IMessageOutbox
 
 public record DeadLetterEnvelopesFound(IReadOnlyList<DeadLetterEnvelope> DeadLetterEnvelopes, Guid? NextId, string? TenantId);
 public record DeadLetterEnvelope(
-    Guid Id, 
-    DateTimeOffset? ExecutionTime, 
-    Envelope Envelope, 
-    string MessageType, 
-    string ReceivedAt, 
-    string Source, 
-    string ExceptionType, 
-    string ExceptionMessage, 
-    DateTimeOffset SentAt, 
+    Guid Id,
+    DateTimeOffset? ExecutionTime,
+    Envelope Envelope,
+    string MessageType,
+    string ReceivedAt,
+    string Source,
+    string ExceptionType,
+    string ExceptionMessage,
+    DateTimeOffset SentAt,
     bool Replayable
     );
 
@@ -96,7 +96,7 @@ public interface IMessageStore : IAsyncDisposable
     // /// happens when an IHost is disposed without being cleanly closed first
     // /// </summary>
     bool HasDisposed { get; }
-    
+
     IMessageInbox Inbox { get; }
 
     IMessageOutbox Outbox { get; }

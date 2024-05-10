@@ -26,4 +26,3 @@ internal class PublishIncomingEventsBeforeCommit : DocumentSessionListenerBase
         }
     }
 }
-

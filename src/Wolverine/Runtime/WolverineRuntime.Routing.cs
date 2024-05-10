@@ -14,7 +14,6 @@ public interface IMessageRouteSource
     bool IsAdditive { get; }
 }
 
-
 internal class AgentMessages : IMessageRouteSource
 {
     public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
@@ -71,8 +70,6 @@ internal class MessageRoutingConventions : IMessageRouteSource
 
     public bool IsAdditive => true;
 }
-
-
 
 public partial class WolverineRuntime
 {

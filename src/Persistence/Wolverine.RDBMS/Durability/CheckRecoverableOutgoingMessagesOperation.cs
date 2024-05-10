@@ -101,7 +101,7 @@ internal class RecoverOutgoingMessagesCommand : IAgentCommand
         _logger.LogInformation(
             "Recovered {Count} messages from outbox for destination {Destination} while discarding {ExpiredCount} expired messages",
             good.Length, _sendingAgent.Destination, expiredMessages.Length);
-        
+
         return AgentCommands.Empty;
     }
 }

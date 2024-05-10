@@ -29,7 +29,7 @@ public class TcpTransport : TransportBase<TcpEndpoint>
         {
             endpoint.Compile(runtime);
         }
-        
+
         return ValueTask.CompletedTask;
     }
 }

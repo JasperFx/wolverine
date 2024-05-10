@@ -6,7 +6,7 @@ namespace Wolverine.Runtime.Agents;
 public interface INodeAgentPersistence
 {
     Task ClearAllAsync(CancellationToken cancellationToken);
-    
+
     Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken);
     Task DeleteAsync(Guid nodeId);
     Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken);
@@ -32,4 +32,3 @@ public interface INodeAgentPersistence
 
     Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count);
 }
-

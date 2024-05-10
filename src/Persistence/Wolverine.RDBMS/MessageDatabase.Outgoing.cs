@@ -32,7 +32,7 @@ public abstract partial class MessageDatabase<T>
     public Task DeleteOutgoingAsync(Envelope envelope)
     {
         if (HasDisposed) return Task.CompletedTask;
-        
+
         return CreateCommand(
                 $"delete from {SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
             .With("id", envelope.Id)
@@ -42,7 +42,7 @@ public abstract partial class MessageDatabase<T>
     public async Task StoreOutgoingAsync(Envelope envelope, int ownerId)
     {
         if (HasDisposed) return;
-        
+
         var command = DatabasePersistence.BuildOutgoingStorageCommand(envelope, ownerId, this);
 
         await using var conn = await DataSource.OpenConnectionAsync(_cancellation);

@@ -33,7 +33,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         _assignmentTable =
             new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeAssignmentsTableName);
     }
-    
+
     public Task ClearAllAsync(CancellationToken cancellationToken)
     {
         return _dataSource.CreateCommand($"delete from {_nodeTable}")
@@ -59,7 +59,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     public Task DeleteAsync(Guid nodeId)
     {
         if (_database.HasDisposed) return Task.CompletedTask;
-        
+
         return _dataSource.CreateCommand($"delete from {_nodeTable} where id = :id")
             .With("id", nodeId)
             .ExecuteNonQueryAsync();
@@ -89,7 +89,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
             dict[nodeId].ActiveAgents.Add(agentId);
         }
-        
+
         await reader.CloseAsync();
 
         return nodes;
@@ -98,7 +98,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         if (_database.HasDisposed) return null;
-        
+
         await using var cmd = _dataSource.CreateCommand(
                 $"select {NodeColumns} from {_nodeTable} where id = :id;select {Id}, {NodeId}, {Started} from {_assignmentTable} where node_id = :id;")
             .With("id", nodeId);
@@ -122,7 +122,6 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
         return returnValue;
     }
-
 
     public async Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
     {
@@ -211,7 +210,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     public async Task<Uri?> FindLeaderControlUriAsync(Guid selfId)
     {
         if (_database.HasDisposed) return null;
-        
+
         var raw = await _dataSource
             .CreateCommand(
                 $"select uri from {_nodeTable} inner join {_assignmentTable} on {_nodeTable}.id = {_assignmentTable}.node_id where {_assignmentTable}.id = :id")
@@ -236,7 +235,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         var cmd = _dataSource
             .CreateCommand($"select id, uri from {_nodeTable} where health_check < :stale")
             .With("stale", staleTime);
-        
+
         var nodes = await cmd.FetchListAsync<WolverineNode>(async reader =>
         {
             var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
@@ -308,7 +307,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     public Task LogRecordsAsync(params NodeRecord[] records)
     {
         if (records.Length == 0) return Task.CompletedTask;
-        
+
         var op = new PersistNodeRecord(_settings, records);
         return _database.EnqueueAsync(op);
     }

@@ -11,7 +11,7 @@ public record VerifyAssignments : IAgentCommand, ISerializable
     {
         return runtime.Agents.VerifyAssignmentsAsync();
     }
-    
+
     public byte[] Write()
     {
         return [];
@@ -37,7 +37,7 @@ public partial class NodeAgentController
         var requests = _tracker.OtherNodes()
             .Select(node => _runtime.Agents.InvokeAsync<RunningAgents>(node.Id, new QueryAgents())).ToArray();
 
-        // Loop and find. 
+        // Loop and find.
         foreach (var request in requests)
         {
             var result = await request;
@@ -56,7 +56,7 @@ public partial class NodeAgentController
 
 internal class QueryAgents : IAgentCommand, ISerializable
 {
-    
+
 #pragma warning disable CS1998
     public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
@@ -83,7 +83,7 @@ internal record RunningAgents(Guid NodeId, Uri[] Agents) : IAgentCommand, ISeria
     {
         return Task.FromResult(AgentCommands.Empty);
     }
-    
+
     public byte[] Write()
     {
         return NodeId.ToByteArray().Concat(Encoding.UTF8.GetBytes(Agents.Select(x => x.ToString()).Join(","))).ToArray() ;

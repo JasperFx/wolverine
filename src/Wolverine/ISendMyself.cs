@@ -99,7 +99,7 @@ public static class ConfiguredMessageExtensions
     {
         return new DelayedMessage<T>(message, delay);
     }
-    
+
     /// <summary>
     /// Send a message directly to the named endpoint as a cascading message
     /// </summary>
@@ -144,7 +144,6 @@ public record TopicMessage<T>(T Message, string Topic, DeliveryOptions? Options)
     }
 }
 
-
 /// <summary>
 ///     Wrapper for a cascading message that has delayed delivery
 /// </summary>
@@ -184,7 +183,7 @@ public class RoutedToEndpointMessage<T> : ISendMyself
 {
     public string? EndpointName { get; set; }
     public Uri? Destination { get; set; }
-    
+
     public T Message { get; }
     public DeliveryOptions? DeliveryOptions { get; }
 

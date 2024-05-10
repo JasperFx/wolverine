@@ -20,7 +20,7 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
     {
         _inner = transport.Callback!;
         var sender = deadLetterQueue.ResolveSender(runtime);
-            
+
         _sendBlock =
             new RetryBlock<Envelope>((e, _) => sender.SendAsync(e).AsTask(), runtime.Logger, runtime.Cancellation);
     }
@@ -172,7 +172,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     {
         _receiver.Dispose();
         base.Dispose();
-        
+
         if (_sender.IsValueCreated)
         {
             _sender.Value.SafeDispose();

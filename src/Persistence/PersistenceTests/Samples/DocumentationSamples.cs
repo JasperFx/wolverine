@@ -92,7 +92,7 @@ public class DocumentationSamples
                     .UseDurableInbox();
 
                 // Make every single listener endpoint use
-                // durable message storage 
+                // durable message storage
                 opts.Policies.UseDurableInboxOnAllListeners();
             }).StartAsync();
 
@@ -156,7 +156,6 @@ public class DocumentationSamples
 
         #endregion
     }
-
 
     public static async Task<int> SetupPostgresql(string[] args)
     {
