@@ -26,7 +26,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
 
     public JsonSerializerSettings Settings { get; }
 
-    public string ContentType { get; } = EnvelopeConstants.JsonContentType;
+    public string ContentType => EnvelopeConstants.JsonContentType;
 
     public byte[] Write(Envelope envelope)
     {

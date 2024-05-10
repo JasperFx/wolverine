@@ -264,8 +264,7 @@ internal class EndpointModelMetadata : ModelMetadata
         IsBindingAllowed = true;
     }
 
-    public override IReadOnlyDictionary<object, object> AdditionalValues { get; } =
-        ImmutableDictionary<object, object>.Empty;
+    public override IReadOnlyDictionary<object, object> AdditionalValues => ImmutableDictionary<object, object>.Empty;
 
     public override string? BinderModelName { get; }
     public override Type? BinderType { get; }

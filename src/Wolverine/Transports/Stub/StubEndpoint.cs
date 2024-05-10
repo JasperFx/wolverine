@@ -102,7 +102,7 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
         return EnqueueOutgoingAsync(envelope);
     }
 
-    public bool SupportsNativeScheduledSend { get; } = true;
+    public bool SupportsNativeScheduledSend => true;
 
     public void Dispose()
     {

@@ -29,7 +29,7 @@ internal class DatabaseControlSender : ISender, IAsyncDisposable
         _retryBlock.Dispose();
     }
 
-    public bool SupportsNativeScheduledSend { get; } = false;
+    public bool SupportsNativeScheduledSend => false;
     public Uri Destination { get; }
 
     public async Task<bool> PingAsync()

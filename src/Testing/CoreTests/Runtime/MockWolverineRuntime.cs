@@ -70,7 +70,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
         throw new NotImplementedException();
     }
 
-    public CancellationToken Cancellation { get; } = default;
+    public CancellationToken Cancellation => default;
 
     public IMessageStore Storage { get; } = Substitute.For<IMessageStore>();
     public ILogger Logger { get; } = Substitute.For<ILogger>();

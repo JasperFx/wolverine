@@ -30,7 +30,7 @@ internal class RequeueContinuation : IContinuation, IContinuationSource
         await lifecycle.DeferAsync();
     }
 
-    public string Description { get; } = "Defer or Re-queue the message for later processing";
+    public string Description => "Defer or Re-queue the message for later processing";
 
     public IContinuation Build(Exception ex, Envelope envelope)
     {

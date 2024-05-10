@@ -594,7 +594,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
 public class BlueTextReader : IMessageSerializer
 {
-    public string ContentType { get; } = "text/plain";
+    public string ContentType => "text/plain";
 
     public byte[] Write(Envelope envelope)
     {
@@ -624,7 +624,7 @@ public class BlueTextReader : IMessageSerializer
 
 public class GreenTextWriter : IMessageSerializer
 {
-    public string? ContentType { get; } = "text/plain";
+    public string? ContentType => "text/plain";
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
