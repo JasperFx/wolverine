@@ -32,7 +32,6 @@ public class TestingSupportSamples
     }
 }
 
-
 public static class AccountHandler
 {
     #region sample_AccountHandler_for_testing_examples
@@ -104,7 +103,7 @@ public class AccountHandlerTests
                 delivery.ScheduleDelay.Value.ShouldNotBe(TimeSpan.Zero);
             })
             .AccountId.ShouldBe(account.Id);
-        
+
         // Assert that there are no messages of type AccountOverdrawn
         messages.ShouldHaveNoMessageOfType<AccountOverdrawn>();
     }
@@ -143,29 +142,29 @@ public class AccountHandlerTests
 
         var debitAccount = new DebitAccount(111, 300);
         var session = await host
-                
-            // Start defining a tracked session 
+
+            // Start defining a tracked session
             .TrackActivity()
-            
+
             // Override the timeout period for longer tests
             .Timeout(1.Minutes())
-            
+
             // Be careful with this one! This makes Wolverine wait on some indication
             // that messages sent externally are completed
             .IncludeExternalTransports()
-            
+
             // Make the tracked session span across an IHost for another process
             // May not be super useful to the average user, but it's been crucial
             // to test Wolverine itself
             .AlsoTrack(otherWolverineSystem)
 
-            // This is actually helpful if you are testing for error handling 
+            // This is actually helpful if you are testing for error handling
             // functionality in your system
             .DoNotAssertOnExceptionsDetected()
-            
+
             // Again, this is testing against processes, with another IHost
             .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
-            
+
             // There are many other options as well
             .InvokeMessageAndWaitAsync(debitAccount);
 
@@ -176,10 +175,7 @@ public class AccountHandlerTests
     #endregion
 }
 
-
-
-
-// The attribute directs Wolverine to send this message with 
+// The attribute directs Wolverine to send this message with
 // a "deliver within 5 seconds, or discard" directive
 [DeliverWithin(5)]
 public record AccountUpdated(long AccountId, decimal Balance);

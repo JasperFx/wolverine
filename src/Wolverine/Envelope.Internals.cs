@@ -96,7 +96,7 @@ public partial class Envelope
     internal TagList ToMetricsHeaders()
     {
         var tagList = new TagList(CollectionsMarshal.AsSpan(_metricHeaders)) { { MetricsConstants.MessageTypeKey, MessageType } };
-        
+
         if (Destination != null)
         {
             tagList.Add(MetricsConstants.MessageDestinationKey, Destination.ToString());
@@ -105,7 +105,7 @@ public partial class Envelope
         {
             tagList.Add(MetricsConstants.TenantIdKey, TenantId);
         }
-        
+
         return tagList;
     }
 

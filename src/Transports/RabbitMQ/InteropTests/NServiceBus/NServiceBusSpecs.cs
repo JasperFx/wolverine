@@ -41,7 +41,7 @@ public class NServiceBusSpecs : IClassFixture<NServiceBusFixture>
         envelope.Id.ShouldNotBe(Guid.Empty);
         envelope.ConversationId.ShouldNotBe(Guid.Empty);
     }
-    
+
     [Fact]
     public async Task nservicebus_sends_interface_to_wolverine_who_only_understands_concretes()
     {
@@ -98,7 +98,7 @@ public class NServiceBusSpecs : IClassFixture<NServiceBusFixture>
         await theFixture.Wolverine.SendAsync(new ConcreteToExternalMessage { Id = id });
 
         await waiter;
-        
+
         ToExternalInterfaceMessageConsumer.Received.Single()
             .Id.ShouldBe(id);
     }

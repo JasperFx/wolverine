@@ -276,24 +276,22 @@ public static class TestingExtensions
 //     }
 // }
 
-
-
 // Used internally by the method above
     public class AssignmentWaiter
     {
         public Dictionary<Guid, int> AgentCountByHost { get; } = new();
         private readonly Dictionary<Guid, IAgentRuntime> _runtimes = new();
         private readonly WolverineRuntime _leaderRuntime;
-    
+
         public string AgentScheme { get; set; }
-    
+
         public AssignmentWaiter(IHost leader)
         {
             var runtime = leader.GetRuntime();
             _leaderRuntime = runtime;
             _runtimes[runtime.Options.UniqueNodeId] = runtime.Agents;
         }
-    
+
         public void ExpectRunningAgents(IHost host, int runningCount)
         {
             var runtime = host.GetRuntime();
@@ -301,11 +299,11 @@ public static class TestingExtensions
             AgentCountByHost[id] = runningCount;
             _runtimes[id] = runtime.Agents;
         }
-    
+
         public Task<bool> Start(TimeSpan timeout)
         {
             if (HasReached()) return Task.FromResult(true);
-    
+
             var timeout1 = new CancellationTokenSource(timeout);
             timeout1.CancelAfter(timeout);
             return Task.Factory.StartNew(async () =>
@@ -317,33 +315,33 @@ public static class TestingExtensions
                         if (HasReached()) return true;
                         await Task.Delay(1.Seconds(), timeout1.Token);
                     }
-    
+
                     if (HasReached()) return true;
-    
+
                     var builder = await writePersistedActualsAsync();
-    
+
                     throw new TimeoutException(builder.ToString());
                 }
                 catch (TaskCanceledException)
                 {
                     if (HasReached()) return true;
-                    
+
                     var builder = await writePersistedActualsAsync();
-    
+
                     throw new TimeoutException(builder.ToString());
                 }
             }, timeout1.Token).Unwrap();
         }
-    
+
         private async Task<StringBuilder> writePersistedActualsAsync()
         {
             var nodes = await _leaderRuntime.Storage.Nodes.LoadAllNodesAsync(CancellationToken.None);
-    
+
             var builder = new StringBuilder();
             var writer = new StringWriter(builder);
-            
+
             writer.WriteLine("According to the database...");
-                
+
             foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
             {
                 writer.WriteLine($"Node {node.AssignedNodeId} is running:");
@@ -352,40 +350,38 @@ public static class TestingExtensions
                     writer.WriteLine(uri);
                 }
             }
-            
+
             writer.WriteLine();
             writer.WriteLine("According to the runtimes");
             foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
             {
                 writer.WriteLine($"Node {node.AssignedNodeId} is running:");
                 var runtime = _runtimes[node.Id];
-                
+
                 foreach (var uri in runtime.AllRunningAgentUris().OrderBy(x => x.ToString()))
                 {
                     writer.WriteLine(uri);
                 }
             }
-    
+
             return builder;
         }
-    
+
         public bool HasReached()
         {
             Func<Uri, bool> filter = AgentScheme.IsEmpty()
                 ? x => !x.Scheme.StartsWith("wolverine")
                 : x => x.Scheme.EqualsIgnoreCase(AgentScheme);
-            
+
             foreach (var pair in AgentCountByHost)
             {
                 var runtime = _runtimes[pair.Key];
-    
+
                 var runningCount = runtime.AllRunningAgentUris().Count(x => filter(x));
                 if (pair.Value != runningCount) return false;
             }
-    
+
             return true;
         }
-    
     }
 }
-

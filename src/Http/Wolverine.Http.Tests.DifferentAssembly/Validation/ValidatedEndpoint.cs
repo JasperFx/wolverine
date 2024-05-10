@@ -9,7 +9,7 @@ public class Validated2Endpoint
     {
         return "Got a new customer";
     }
-    
+
     [WolverinePost("/validate2/user")]
     public static string Post(CreateUser2 user)
     {
@@ -52,7 +52,7 @@ public record CreateUser2
             RuleFor(x => x.PostalCode).NotNull();
         }
     }
-    
+
     public class PasswordValidator : AbstractValidator<CreateUser2>
     {
         public PasswordValidator()

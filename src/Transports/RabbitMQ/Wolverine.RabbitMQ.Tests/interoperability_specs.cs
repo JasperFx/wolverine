@@ -51,7 +51,7 @@ public class interoperability_specs : RabbitMQContext, IAsyncLifetime
         {
             using var channel = transport.SendingConnection.CreateModel();
             var props = channel.CreateBasicProperties();
-            
+
             channel.BasicPublish(string.Empty, theQueueName, true, props, data);
 
             return Task.CompletedTask;
@@ -59,7 +59,7 @@ public class interoperability_specs : RabbitMQContext, IAsyncLifetime
 
         session.Received.SingleEnvelope<NumberMessage>()
             .ShouldNotBeNull();
-        
+
         session.Executed.SingleMessage<NumberMessage>()
             .Number.ShouldBe(55);
     }

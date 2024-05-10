@@ -58,7 +58,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
 
         var tables = await conn.ExistingTables("wolverine%" );
         await conn.CloseAsync();
-        
+
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeTableName);
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeAssignmentsTableName);
         tables.ShouldContain(x => x.Name == DatabaseConstants.ControlQueueTableName);
@@ -71,12 +71,12 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
 
         var expectedUri = $"dbcontrol://{runtime.Options.UniqueNodeId}".ToUri();
         runtime.Options.Transports.NodeControlEndpoint!.Uri.ShouldBe(expectedUri);
-        
+
         runtime.Options.Transports.OfType<DatabaseControlTransport>().Single()
             .Database.ShouldBeOfType<SqlServerMessageStore>()
             .Settings.SchemaName.ShouldBe("registry");
     }
-    
+
     [Fact]
     public async Task stores_the_current_node_on_startup()
     {
@@ -84,12 +84,12 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
         var nodes = await runtime.Storage.Nodes.LoadAllNodesAsync(CancellationToken.None);
 
         var current = nodes.Single();
-        
+
         current.Id.ShouldBe(runtime.Options.UniqueNodeId);
         current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint.Uri);
 
     }
-    
+
     [Fact]
     public async Task deletes_the_node_on_shutdown()
     {
@@ -106,11 +106,9 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
 
         var store = new SqlServerMessageStore(settings, new DurabilitySettings(),
             NullLogger<SqlServerMessageStore>.Instance);
-        
+
         // Should delete itself at the end
         var nodes = await store.Nodes.LoadAllNodesAsync(CancellationToken.None);
         nodes.Any().ShouldBeFalse();
-
     }
-    
 }

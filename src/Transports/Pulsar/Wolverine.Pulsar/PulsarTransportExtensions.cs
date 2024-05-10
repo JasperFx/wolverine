@@ -59,7 +59,6 @@ public static class PulsarTransportExtensions
         return new PulsarSubscriberConfiguration(endpoint);
     }
 
-
     /// <summary>
     ///     Listen to a specified Pulsar topic path of the path "persistent|non-persistent://tenant/namespace/topic"
     /// </summary>

@@ -45,7 +45,6 @@ public class ComplexMatchTests
         theMatch.Includes.Single().ShouldBeOfType<TypeMatch<BadImageFormatException>>();
     }
 
-
     [Fact]
     public void exclude_no_filter()
     {

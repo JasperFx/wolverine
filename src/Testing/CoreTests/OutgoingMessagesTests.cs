@@ -9,7 +9,7 @@ namespace CoreTests;
 public class OutgoingMessagesTests
 {
     private readonly OutgoingMessages theMessages = new OutgoingMessages();
-    
+
     [Fact]
     public void add_a_simple_message()
     {
@@ -24,27 +24,26 @@ public class OutgoingMessagesTests
     {
         var delay = 5.Minutes();
         var inner = new Message1();
-        
+
         theMessages.Delay(inner, delay);
 
         var configured = theMessages.ShouldHaveMessageOfType<DeliveryMessage<Message1>>();
         configured.Options.ScheduleDelay.ShouldBe(delay);
         configured.Message.ShouldBe(inner);
     }
-    
+
     [Fact]
     public void schedule_by_time()
     {
         var time = (DateTimeOffset)DateTime.Today;
         var inner = new Message1();
-        
+
         theMessages.Schedule(inner, time);
 
         var configured = theMessages.ShouldHaveMessageOfType<DeliveryMessage<Message1>>();
         configured.Options.ScheduledTime.ShouldBe(time);
         configured.Message.ShouldBe(inner);
     }
-
 
     [Fact]
     public async Task end_to_end()

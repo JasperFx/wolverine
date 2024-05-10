@@ -51,7 +51,7 @@ public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfigur
         add(e => configure(e.RuleOptions));
         return this;
     }
-    
+
     /// <summary>
     ///     Configure the underlying Azure Service Bus Subscription. This is only applicable when
     ///     Wolverine is creating the Subscriptions
@@ -85,7 +85,7 @@ public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfigur
         add(e => e.MaximumWaitTime = time);
         return this;
     }
-    
+
     /// <summary>
     /// Force this subscription listener to require session identifiers. Use this for FIFO semantics
     /// </summary>
@@ -104,7 +104,7 @@ public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfigur
 
         return this;
     }
-    
+
     /// <summary>
     /// Utilize custom envelope mapping for Amazon Service Bus interoperability with external non-Wolverine systems
     /// </summary>

@@ -17,7 +17,7 @@ public class end_to_end : MultiTenancyContext
     {
         var store = Fixture.Host.Services.GetRequiredService<IDocumentStore>();
         await store.Advanced.Clean.DeleteAllDocumentsAsync();
-        
+
         var tracked = await Fixture.Host.SendMessageAndWaitAsync(new CreateTenantDoc("Tom", 11),
             new DeliveryOptions { TenantId = "tenant2" });
 
@@ -32,7 +32,7 @@ public class TenantDoc
 {
     public string Id { get; set; }
     public string Name { get; set; }
-    
+
     public int Number { get; set; }
 }
 
@@ -53,8 +53,7 @@ public static class TenantDocHandler
     {
         var doc = await session.LoadAsync<TenantDoc>(command.Id);
         doc.Number = command.Number;
-        
+
         session.Store(doc);
     }
 }
-

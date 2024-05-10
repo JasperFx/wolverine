@@ -60,7 +60,7 @@ public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IA
             opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 
             #endregion
-            
+
         });
 
         await ReceiverIs(opts =>

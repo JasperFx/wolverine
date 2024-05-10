@@ -20,7 +20,6 @@ public static class VariableExtensions
         variable.Properties[ReturnActionKey] = action;
     }
 
-
     /// <summary>
     ///     Override how Wolverine will generate code to handle this value returned from a handler call
     /// </summary>

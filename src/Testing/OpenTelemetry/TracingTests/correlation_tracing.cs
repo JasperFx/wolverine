@@ -103,5 +103,4 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         atSubscriber1.ConversationId.ShouldBe(theOriginalEnvelope.Id);
         atSubscriber2.ConversationId.ShouldBe(theOriginalEnvelope.Id);
     }
-
 }

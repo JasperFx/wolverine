@@ -15,7 +15,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
-    /// Make any necessary customizations to the Rabbit MQ client's ConnectionFactory 
+    /// Make any necessary customizations to the Rabbit MQ client's ConnectionFactory
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -47,7 +47,6 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         DeclareExchange(exchangeName, configure);
         return new BindingExpression(exchangeName, this);
     }
-
 
     /// <summary>
     ///     Opt into using conventional Rabbit MQ routing based on the message types
@@ -102,7 +101,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
         return this;
     }
-    
+
     /// <summary>
     /// Disable Wolverine's automatic dead letter queue setup, so it will not override
     /// dead letter queue exchange usage per queue or try to create Rabbit Mq objects for
@@ -141,7 +140,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
         return this;
     }
-    
+
     /// <summary>
     /// Turn on sender connection only in case if you only need to send messages
     /// The listener connection won't be created in this case
@@ -246,6 +245,4 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
         return this;
     }
-
-
 }

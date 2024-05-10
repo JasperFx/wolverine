@@ -26,17 +26,15 @@ public class HandlerGraphTests
         // Making sure the graph has the handler below, or this is all invalid
         graph.TryFindMessageType(typeof(ConcreteMessage).ToMessageTypeName(), out var concreteType).ShouldBeTrue();
         concreteType.ShouldBe(typeof(ConcreteMessage));
-        
+
         var interfaceTypeName = typeof(IMessageAbstraction).ToMessageTypeName();
         graph.TryFindMessageType(interfaceTypeName, out var toBeSerializedType).ShouldBeTrue();
         toBeSerializedType.ShouldBe(typeof(ConcreteMessage));
-        
+
         // And same using the attribute
         graph.TryFindMessageType(typeof(IMessageMarker).ToMessageTypeName(), out var markedType).ShouldBeTrue();
         markedType.ShouldBe(typeof(MarkedMessage));
     }
-    
-    
 }
 
 public interface IMessageMarker;

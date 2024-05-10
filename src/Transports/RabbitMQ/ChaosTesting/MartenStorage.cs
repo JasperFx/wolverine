@@ -29,14 +29,14 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         {
             m.Connection(Servers.PostgresConnectionString);
             m.DatabaseSchemaName = "chaos";
-            
+
             m.RegisterDocumentType<MessageRecord>();
 
             m.AutoCreateSchemaObjects = AutoCreate.None;
         }).IntegrateWithWolverine("chaos_receiver");
 
         opts.Services.AddResourceSetupOnStartup();
-        
+
         opts.Policies.AutoApplyTransactions();
 
         opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
@@ -51,16 +51,16 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         {
             m.Connection(Servers.PostgresConnectionString);
             m.DatabaseSchemaName = "chaos";
-            
+
             m.RegisterDocumentType<MessageRecord>();
-            
+
             m.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
         }).IntegrateWithWolverine("chaos_sender");
-        
+
         opts.Services.AddResourceSetupOnStartup();
-                
+
         opts.Policies.AutoApplyTransactions();
-        
+
         opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
     }
 
@@ -74,7 +74,7 @@ public class MartenStorageStrategy : IMessageStorageStrategy
     {
         var store = container.GetInstance<IDocumentStore>();
         await using var session = store.LightweightSession();
-        
+
         return await session.Query<MessageRecord>().CountAsync(cancellation);
     }
 }
@@ -89,12 +89,12 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
-        
+
         tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant1");
         tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant2");
         tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant3");
     }
-    
+
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
@@ -109,12 +109,12 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
 
         return builder.ConnectionString;
     }
-    
+
     public override string ToString()
     {
         return "Marten Persistence";
     }
-    
+
     public Task ClearMessageRecords(IContainer services)
     {
         var store = services.GetInstance<IDocumentStore>();
@@ -124,7 +124,7 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
     public async Task<long> FindOutstandingMessageCount(IContainer container, CancellationToken cancellation)
     {
         var store = container.GetInstance<IDocumentStore>();
-        
+
         long count = 0;
 
         foreach (var database in await store.Storage.AllDatabases())
@@ -146,16 +146,16 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
                 tenancy.AddSingleTenantDatabase(tenant2ConnectionString, "tenant2");
                 tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
             });
-            
+
             m.DatabaseSchemaName = "chaos";
-            
+
             m.RegisterDocumentType<MessageRecord>();
 
             m.AutoCreateSchemaObjects = AutoCreate.None;
         }).IntegrateWithWolverine("chaos_receiver", masterDatabaseConnectionString: Servers.PostgresConnectionString);
 
         opts.Services.AddResourceSetupOnStartup();
-        
+
         opts.Policies.AutoApplyTransactions();
 
         opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
@@ -174,18 +174,18 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
                 tenancy.AddSingleTenantDatabase(tenant2ConnectionString, "tenant2");
                 tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
             });
-            
+
             m.DatabaseSchemaName = "chaos";
-            
+
             m.RegisterDocumentType<MessageRecord>();
-            
+
             m.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
         }).IntegrateWithWolverine("chaos_sender", masterDatabaseConnectionString: Servers.PostgresConnectionString);
-        
+
         opts.Services.AddResourceSetupOnStartup();
-                
+
         opts.Policies.AutoApplyTransactions();
-        
+
         opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
     }
 }

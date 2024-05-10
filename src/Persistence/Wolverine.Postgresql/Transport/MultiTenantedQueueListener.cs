@@ -27,7 +27,7 @@ public class MultiTenantedQueueListener : IListener
         _receiver = receiver;
 
         Address = _queue.Uri;
-        
+
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(runtime.Cancellation);
     }
 
@@ -66,7 +66,7 @@ public class MultiTenantedQueueListener : IListener
         var listener = new PostgresqlQueueListener(_queue, _runtime, _receiver, store.DataSource, store.Name);
         _listeners = _listeners.AddOrUpdate(store.Name, listener);
         await listener.StartAsync();
-        
+
         _logger.LogInformation("Started message listening for Postgresql queue {QueueName} on database {Database}", _queue.Name, store.Name);
     }
 

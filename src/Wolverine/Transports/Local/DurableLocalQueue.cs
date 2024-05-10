@@ -96,7 +96,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _receiver = null;
 
         CircuitBreaker?.Reset();
-        
+
         _runtime.Tracker.Publish(
             new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
 
@@ -216,7 +216,6 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             _receiver!.Enqueue(envelope);
         }
     }
-
 
     private void writeMessageData(Envelope envelope)
     {

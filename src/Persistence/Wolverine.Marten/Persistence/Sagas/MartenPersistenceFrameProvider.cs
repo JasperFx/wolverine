@@ -40,7 +40,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
                 var methodCall = MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
                 methodCall.CommentText = "Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536";
-                
+
                 chain.Postprocessors.Add(methodCall);
             }
         }
@@ -55,7 +55,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
         if (chain.ReturnVariablesOfType<IMartenOp>().Any()) return true;
 
-        return 
+        return
                chain.ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession)}).Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
     }
 

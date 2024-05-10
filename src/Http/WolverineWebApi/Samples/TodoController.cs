@@ -15,14 +15,14 @@ public class TodoController : ControllerBase
     [HttpPost("/todoitems")]
     [ProducesResponseType(201, Type = typeof(Todo))]
     public async Task<ActionResult> Post(
-        [FromBody] CreateTodo command, 
+        [FromBody] CreateTodo command,
         [FromServices] IMessageBus bus)
     {
         // Delegate to Wolverine and capture the response
         // returned from the handler
         var todo = await bus.InvokeAsync<Todo>(command);
         return Created($"/todoitems/{todo.Id}", todo);
-    }    
+    }
 }
 
 #endregion
@@ -43,7 +43,6 @@ public static class MinimalApiSample
         #endregion
     }
 
-    
     public static void MapToWolverine2(WebApplication app)
     {
         #region sample_map_route_to_wolverine_handler
@@ -63,14 +62,14 @@ public class CreateTodoHandler
     public static (Todo, TodoCreated) Handle(CreateTodo command, IDocumentSession session)
     {
         var todo = new Todo { Name = command.Name };
-        
+
         // Just telling Marten that there's a new entity to persist,
         // but I'm assuming that the transactional middleware in Wolverine is
         // handling the asynchronous persistence outside of this handler
         session.Store(todo);
 
         return (todo, new TodoCreated(todo.Id));
-    }   
+    }
 }
 
 #endregion
@@ -83,7 +82,7 @@ public record TodoCreated(int Id);
 
 // Introducing this special type just for the http response
 // gives us back the 201 status code
-public record TodoCreationResponse(int Id) 
+public record TodoCreationResponse(int Id)
     : CreationResponse("/todoitems/" + Id);
 
 // The "Endpoint" suffix is meaningful, but you could use
@@ -95,7 +94,7 @@ public static class TodoCreationEndpoint
     public static (TodoCreationResponse, TodoCreated) Post(CreateTodo command, IDocumentSession session)
     {
         var todo = new Todo { Name = command.Name };
-        
+
         // Just telling Marten that there's a new entity to persist,
         // but I'm assuming that the transactional middleware in Wolverine is
         // handling the asynchronous persistence outside of this handler
@@ -105,7 +104,7 @@ public static class TodoCreationEndpoint
         // assumed to be the Http response, and any subsequent values are
         // handled independently
         return (
-            new TodoCreationResponse(todo.Id), 
+            new TodoCreationResponse(todo.Id),
             new TodoCreated(todo.Id)
         );
     }
@@ -127,18 +126,18 @@ public record UpdateRequest(string Name, bool IsComplete);
 public static class UpdateEndpoint
 {
     // Find required Todo entity for the route handler below
-    public static Task<Todo?> LoadAsync(int id, IDocumentSession session) 
+    public static Task<Todo?> LoadAsync(int id, IDocumentSession session)
         => session.LoadAsync<Todo>(id);
-    
+
     [WolverinePut("/todos/{id:int}")]
     public static StoreDoc<Todo> Put(
         // Route argument
         int id,
-        
+
         // The request body
         UpdateRequest request,
-        
-        // Entity loaded by the method above, 
+
+        // Entity loaded by the method above,
         // but note the [Required] attribute
         [Required] Todo? todo)
     {
@@ -156,12 +155,11 @@ public static class Update2Endpoint
     public static async Task<(Todo? todo, IResult response)> LoadAsync(int id, UpdateRequest command, IDocumentSession session)
     {
         var todo = await session.LoadAsync<Todo>(id);
-        return todo != null 
-            ? (todo, response: new WolverineContinue()) 
+        return todo != null
+            ? (todo, response: new WolverineContinue())
             : (todo, response: Results.NotFound());
     }
-    
-    
+
     [Tags("Todos")]
     [WolverinePut("/todos2/{id}")]
     public static Todo Put(int id, UpdateRequest request, Todo todo, IDocumentSession session)

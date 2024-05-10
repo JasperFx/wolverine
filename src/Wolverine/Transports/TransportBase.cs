@@ -27,7 +27,7 @@ public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : En
         {
             endpoint.Compile(runtime);
         }
-        
+
         // Nothing
         return ValueTask.CompletedTask;
     }

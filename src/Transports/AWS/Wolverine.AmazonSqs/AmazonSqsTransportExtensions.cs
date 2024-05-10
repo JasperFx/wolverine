@@ -45,7 +45,6 @@ public static class AmazonSqsTransportExtensions
         return new AmazonSqsTransportConfiguration(transport, options);
     }
 
-
     /// <summary>
     ///     Sets up a connection to a locally running Amazon SQS LocalStack
     ///     broker for development or testing purposes

@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _logger = logger;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // Building the Marten session
@@ -64,11 +62,9 @@ namespace Internal.Generated.WolverineHandlers
             }
 
         }
-
     }
 
     // END: ReservationTimeoutHandler457905910
     
     
 }
-

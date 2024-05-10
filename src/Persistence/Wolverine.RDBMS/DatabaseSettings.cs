@@ -6,7 +6,7 @@ namespace Wolverine.RDBMS;
 public class DatabaseSettings
 {
     public DbDataSource? DataSource { get; set; }
-    
+
     public string? ConnectionString { get; set; }
     public string? SchemaName { get; set; }
 
@@ -19,6 +19,6 @@ public class DatabaseSettings
     ///     Is this database exposing command queues?
     /// </summary>
     public bool CommandQueuesEnabled { get; set; } = true;
-    
+
     public int ScheduledJobLockId { get; set; } = 20000;
 }

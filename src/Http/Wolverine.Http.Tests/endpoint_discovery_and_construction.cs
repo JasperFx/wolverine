@@ -41,7 +41,7 @@ public class endpoint_discovery_and_construction : IntegrationContext
     [Fact]
     public async Task find_endpoint_classes_that_have_the_attribute_but_not_the_naming_convention()
     {
-        // The point here is to find endpoint methods where it uses the attribute, but not the endpoint 
+        // The point here is to find endpoint methods where it uses the attribute, but not the endpoint
         // nomenclature
         var response = await Scenario(x => x.Get.Url("/discovered"));
         response.ReadAsText().ShouldBe("You found me!");

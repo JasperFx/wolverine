@@ -15,8 +15,8 @@ internal class ScheduledMessageTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.ExecutionTime).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
         AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("SYSDATETIMEOFFSET()");
-        
-        // Definitely want to index the execution time. Far more reads than writes. We think. 
+
+        // Definitely want to index the execution time. Far more reads than writes. We think.
         Indexes.Add(new IndexDefinition($"idx_{tableName}_execution_time")
         {
             Columns = [DatabaseConstants.ExecutionTime]

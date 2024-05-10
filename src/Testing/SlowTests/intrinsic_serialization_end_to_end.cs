@@ -15,7 +15,7 @@ public class intrinsic_serialization_end_to_end
     public async Task send_message_between_nodes()
     {
         var port = PortFinder.GetAvailablePort();
-        
+
         var sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -31,7 +31,7 @@ public class intrinsic_serialization_end_to_end
         var tracked = await sender.TrackActivity()
             .AlsoTrack(receiver)
             .SendMessageAndWaitAsync(new SerializedMessage { Name = "Travis Kelce" });
-        
+
         tracked.Received.SingleMessage<SerializedMessage>()
             .Name.ShouldBe("Travis Kelce");
     }
@@ -48,7 +48,7 @@ public static class SerializedMessageHandler
 public class SerializedMessage : ISerializable
 {
     public string Name { get; set; } = "Bob Schneider";
-    
+
     public byte[] Write()
     {
         return Encoding.Default.GetBytes(Name);

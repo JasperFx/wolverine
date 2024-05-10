@@ -77,7 +77,7 @@ public static class EndpointBuilderExtensions
         return builder;
     }
 }
-    
+
 #region sample_CreationResponse
 
 /// <summary>
@@ -108,7 +108,7 @@ public record CreationResponse([StringSyntax("Route")]string Url) : IHttpAware
 
 public record CreationResponse<T>(string Url, T Value) : CreationResponse(Url);
 
-    
+
 #region sample_AcceptResponse
 
 /// <summary>

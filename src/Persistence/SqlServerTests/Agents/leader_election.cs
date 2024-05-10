@@ -32,7 +32,6 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
 
     public void OnCompleted()
     {
-        
     }
 
     public void OnError(Exception error)
@@ -59,9 +58,9 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
             {
                 opts.Durability.CheckAssignmentPeriod = 1.Seconds();
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
-                
+
                 opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
-                
+
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "registry");
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
@@ -69,7 +68,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
             }).StartAsync();
 
         new XUnitEventObserver(host, _output);
-        
+
         _hosts.Add(host);
 
         return host;
@@ -103,7 +102,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
 
             }
         }
-        
+
         _hosts.Reverse();
         foreach (var host in _hosts.ToArray())
         {
@@ -118,7 +117,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         await tracker.WaitUntilAssumesLeadershipAsync(10.Seconds());
         tracker.IsLeader().ShouldBeTrue();
     }
-    
+
     /***** NEW TESTS START HERE **********************************************/
 
     private bool allAgentsAreRunning(WolverineTracker tracker)
@@ -126,7 +125,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         var agents = new FakeAgentFamily().AllAgentUris();
         return agents.All(tracker.AgentIsRunning);
     }
-    
+
     [Fact]
     public async Task the_original_node_knows_about_all_the_possible_agents()
     {
@@ -146,9 +145,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
             w.ExpectRunningAgents(host2, 6);
         }, 10.Seconds());
     }
-    
-    
-    
+
     /***** NEW TESTS END HERE **********************************************/
 
     [Fact]
@@ -156,9 +153,9 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
     {
         var tracker = _originalHost.GetRuntime().Tracker;
         await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
-        
+
         var waiter = _originalHost.GetRuntime().Tracker.WaitForNodeEvent(NodeEventType.Started, 10.Seconds());
-        
+
         var host2 = await startHostAsync();
 
         var @event = await waiter;
@@ -167,12 +164,12 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         @event.Node.Id.ShouldBe(runtime2.Options.UniqueNodeId);
 
         _originalHost.GetRuntime().Tracker.Nodes.ContainsKey(runtime2.Options.UniqueNodeId).ShouldBeTrue();
-        
+
         // Should not take over leadership
         runtime2.Tracker.IsLeader().ShouldBeFalse();
         _originalHost.GetRuntime().Tracker.IsLeader().ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task send_node_event_for_exiting_node()
     {
@@ -184,18 +181,18 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
             w.ExpectRunningAgents(_originalHost, 6);
             w.ExpectRunningAgents(host2, 6);
         }, 10.Seconds());
-        
+
         var waiter = _originalHost.GetRuntime().Tracker.WaitForNodeEvent(NodeEventType.Exiting, 10.Seconds());
         var host2Id = host2.GetRuntime().Options.UniqueNodeId;
 
         await shutdownHostAsync(host2);
 
         var @event = await waiter;
-        
+
         @event.Node.Id.ShouldBe(host2Id);
-        
+
         _originalHost.GetRuntime().Tracker.Nodes.Count.ShouldBe(1);
-        
+
         _originalHost.GetRuntime().Tracker.Nodes.ContainsKey(host2Id).ShouldBeFalse();
     }
 
@@ -204,11 +201,11 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
     {
         var tracker = _originalHost.GetRuntime().Tracker;
         await tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
-        
+
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();
         var host4 = await startHostAsync();
-        
+
         // This is just to eliminate some errors in test output
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {
@@ -220,7 +217,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
 
         await _originalHost.StopAsync();
         _originalHost.Dispose();
-        
+
         await host2.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
 
         await host2.StopAsync();
@@ -228,7 +225,6 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
 
         await host3.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
     }
-    
 
     [Fact]
     public async Task spin_up_several_nodes_take_away_original_node()
@@ -259,7 +255,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
             w.ExpectRunningAgents(host4, 4);
         }, 30.Seconds());
     }
-    
+
     [Fact]
     public async Task spin_up_several_nodes_take_away_non_leader_node()
     {
@@ -279,7 +275,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
             w.ExpectRunningAgents(host4, 4);
         }, 30.Seconds());
     }
-    
+
     [Fact]
     public async Task verify_assignments_can_make_corrections()
     {
@@ -307,7 +303,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
 
         // This should eventually turn back on the missing agents from node4
         await _originalHost.InvokeMessageAndWaitAsync(new VerifyAssignments());
-        
+
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(_originalHost, 3);
@@ -341,7 +337,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         await runtime4.DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
 
         await _originalHost.InvokeMessageAndWaitAsync(new CheckAgentHealth());
-        
+
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(_originalHost, 4);
@@ -349,8 +345,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
             w.ExpectRunningAgents(host3, 4);
         }, 30.Seconds());
     }
-    
-    
+
     [Fact]
     public async Task take_over_leader_ship_if_leader_becomes_stale()
     {
@@ -371,12 +366,12 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
         }, 30.Seconds());
 
         await _originalHost.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
-        
+
         var runtime2 = host2.GetRuntime();
         await host2.InvokeMessageAndWaitAsync(new CheckAgentHealth());
         await runtime2.Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
 
-        
+
         await host2.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(host2, 4);
@@ -384,8 +379,7 @@ public class leader_election : IAsyncLifetime, IObserver<IWolverineEvent>
             w.ExpectRunningAgents(host4, 4);
         }, 30.Seconds());
     }
-    
-    
+
     [Fact]
     public async Task persist_and_load_node_records()
     {

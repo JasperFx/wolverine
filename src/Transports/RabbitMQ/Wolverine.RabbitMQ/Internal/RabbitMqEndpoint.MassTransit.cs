@@ -51,7 +51,7 @@ public abstract partial class RabbitMqEndpoint : IMassTransitInteropEndpoint
 
         return null;
     }
-    
+
     public void UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
         var serializer = new MassTransitJsonSerializer(this);

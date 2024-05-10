@@ -20,7 +20,7 @@ public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
     public void ConfigureCommand(DbCommandBuilder builder)
     {
         if (!_events.Any()) throw new InvalidOperationException("PersistNodeRecord should not be used for zero events");
-        
+
         foreach (var @event in _events)
         {
             builder.Append("insert into ");

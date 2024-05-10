@@ -31,7 +31,6 @@ internal static class ExtensionLoader
             return _extensions!.Where(x => names.Contains(x.GetName().Name)).ToArray();
         }
 
-
         _extensions = _extensions.TopologicalSort(FindDependencies, false).ToArray();
 
         return _extensions;

@@ -33,5 +33,4 @@ public interface IPublishToExpression
     ///     local queue
     /// </summary>
     LocalQueueConfiguration Locally();
-
 }

@@ -12,7 +12,7 @@ public abstract class BatchSubscription : IWolverineSubscription, IEventFilterab
 {
     private readonly List<Type> _eventTypes = new();
     private Type? _streamType;
-    
+
     protected BatchSubscription(string subscriptionName)
     {
         SubscriptionName = subscriptionName;
@@ -28,7 +28,7 @@ public abstract class BatchSubscription : IWolverineSubscription, IEventFilterab
         {
             filterable.IncludeType(eventType);
         }
-        
+
         if (_streamType != null) filterable.FilterIncomingEventsOnStreamType(_streamType);
 
         filterable.IncludeArchivedEvents = IncludeArchivedEvents;

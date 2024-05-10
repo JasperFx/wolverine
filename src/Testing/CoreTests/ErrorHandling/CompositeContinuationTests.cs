@@ -25,7 +25,7 @@ public class CompositeContinuationTests
         var now = DateTimeOffset.UtcNow;
 
         var activity = new Activity("process");
-        
+
         await continuation.ExecuteAsync(lifecycle, runtime, now, activity);
 
         await inner1.Received().ExecuteAsync(lifecycle, runtime, now, activity);

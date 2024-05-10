@@ -25,11 +25,7 @@ namespace Internal.Generated.WolverineHandlers
 
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: BadMessageHandler2100878584
-    
-    
 }
-

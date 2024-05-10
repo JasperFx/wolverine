@@ -15,10 +15,10 @@ public class WolverineNodeTests
         options.Transports.NodeControlEndpoint = new FakeEndpoint("fake://one".ToUri(), EndpointRole.System);
 
         var node = WolverineNode.For(options);
-        
+
         node.Id.ShouldBe(options.UniqueNodeId);
         node.ControlUri.ShouldBe(options.Transports.NodeControlEndpoint.Uri);
-        
+
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class WolverineNodeTests
     {
         var node = new WolverineNode();
         node.IsLeader().ShouldBeFalse();
-        
+
         node.ActiveAgents.Add(NodeAgentController.LeaderUri);
         node.IsLeader().ShouldBeTrue();
     }

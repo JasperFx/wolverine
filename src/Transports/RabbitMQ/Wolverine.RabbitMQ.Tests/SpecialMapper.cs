@@ -15,7 +15,7 @@ public class SpecialMapper : IRabbitMqEnvelopeMapper
         outgoing.CorrelationId = envelope.CorrelationId;
         outgoing.MessageId = envelope.Id.ToString();
         outgoing.ContentType = "application/json";
-        
+
         if (envelope.DeliverBy.HasValue)
         {
             var ttl = Convert.ToInt32(envelope.DeliverBy.Value.Subtract(DateTimeOffset.Now).TotalMilliseconds);

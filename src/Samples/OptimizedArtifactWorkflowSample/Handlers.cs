@@ -35,7 +35,7 @@ public class TrackedMessageHandler
     {
         Console.WriteLine("Hey, the Configure() method was called");
     }
-    
+
     public void Handle(TrackedMessage message)
     {
         AnsiConsole.MarkupLine($"[green]Got message {message.Number}[/]");

@@ -52,7 +52,6 @@ public abstract class ProtocolContext : IDisposable
         _listener.Dispose();
     }
 
-
     private Envelope outgoingMessage()
     {
         return new Envelope
@@ -104,7 +103,6 @@ public class StubReceiverCallback : IReceiver
     {
         return ValueTask.CompletedTask;
     }
-
 
     public void Dispose()
     {

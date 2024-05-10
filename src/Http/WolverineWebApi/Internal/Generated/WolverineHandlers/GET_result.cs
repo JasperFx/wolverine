@@ -17,21 +17,14 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            
             // The actual HTTP request handler execution
             var result = WolverineWebApi.ResultEndpoints.GetResult();
 
             return result.ExecuteAsync(httpContext);
         }
-
     }
 
     // END: GET_result
-    
-    
 }
-

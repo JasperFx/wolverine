@@ -29,7 +29,7 @@ public class posting_json : IntegrationContext
     }
 
     #endregion
-    
+
     [Fact]
     public async Task post_json_happy_path_with_star_slash_star()
     {

@@ -10,13 +10,13 @@ namespace Wolverine.RabbitMQ.Tests.Internals;
 public class ConnectionStringParserTests
 {
     private readonly ConnectionFactory theFactory = new();
-    
+
     [Fact]
     public void parse_host_happy_path()
     {
         ConnectionStringParser.Apply("host=foo", theFactory);
         theFactory.HostName.ShouldBe("foo");
-        
+
         ConnectionStringParser.Apply("Host=bar", theFactory);
         theFactory.HostName.ShouldBe("bar");
     }
@@ -60,5 +60,4 @@ public class ConnectionStringParserTests
         ConnectionStringParser.Apply("virtualhost=weird", theFactory);
         theFactory.VirtualHost.ShouldBe("weird");
     }
-
 }

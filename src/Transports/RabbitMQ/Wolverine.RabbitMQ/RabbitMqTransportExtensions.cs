@@ -21,7 +21,7 @@ public static class RabbitMqTransportExtensions
 
         return transports.GetOrCreate<RabbitMqTransport>();
     }
-    
+
     /// <summary>
     /// Publish messages that are of type T or could be cast to type T to a Rabbit MQ
     /// topic exchange using the supplied function to determine the topic for the message
@@ -37,7 +37,7 @@ public static class RabbitMqTransportExtensions
         var exchange = transport.Exchanges[exchangeName];
         exchange.ExchangeType = ExchangeType.Topic;
         exchange.RoutingType = RoutingMode.ByTopic;
-        
+
         var routing = new TopicRouting<T>(topicSource, exchange);
         options.PublishWithMessageRoutingSource(routing);
 
@@ -227,7 +227,6 @@ public static class RabbitMqTransportExtensions
         return new RabbitMqSubscriberConfiguration(endpoint);
     }
 
-
     /// <summary>
     ///     Publish matching messages to Rabbit MQ to the designated topic exchange, with
     ///     the topic name derived from the message type name or an explicit override
@@ -267,5 +266,4 @@ public static class RabbitMqTransportExtensions
         var expression = new RabbitMqTransportExpression(transport, options);
         return expression;
     }
-    
 }

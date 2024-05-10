@@ -21,7 +21,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
     private string tenant2ConnectionString;
     private string tenant3ConnectionString;
     private string tenant4ConnectionString;
-    
+
     public async Task InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
@@ -42,10 +42,10 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                
+
                 // This is too extreme for real usage, but helps tests to run faster
                 opts.Durability.NodeReassignmentPollingTime = 1.Seconds();
-                
+
                 opts.Services.AddMarten(o =>
                     {
                         // This is a new strategy for configuring tenant databases with Marten
@@ -66,7 +66,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
         await tenancy.ClearAllDatabaseRecordsAsync();
     }
-    
+
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
@@ -87,7 +87,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
         await _host.StopAsync();
         _host.Dispose();
     }
-    
+
     [Fact]
     public async Task add_databases_in_solo_mode_and_see_durability_agents_start()
     {
@@ -98,8 +98,8 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
             // 1 for the master
             w.ExpectRunningAgents(_host, 1);
         }, 10.Seconds());
-        
-        
+
+
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
         await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
         await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);

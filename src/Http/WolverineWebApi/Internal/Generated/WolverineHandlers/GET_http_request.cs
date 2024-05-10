@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var httpContextEndpoints = new WolverineWebApi.HttpContextEndpoints();
@@ -30,11 +28,9 @@ namespace Internal.Generated.WolverineHandlers
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
             return System.Threading.Tasks.Task.CompletedTask;
         }
-
     }
 
     // END: GET_http_request
     
     
 }
-

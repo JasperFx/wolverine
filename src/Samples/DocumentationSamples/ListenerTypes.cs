@@ -17,17 +17,17 @@ public static class ListenerTypes
             {
                 // The Rabbit MQ transport supports all three types of listeners
                 opts.UseRabbitMq();
-                
+
                 // The durable mode requires some sort of envelope storage
                 opts.PersistMessagesWithPostgresql("some connection string");
 
                 opts.ListenToRabbitQueue("inline")
                     // Process inline, default is with one listener
                     .ProcessInline()
-                    
+
                     // But, you can use multiple, parallel listeners
                     .ListenerCount(5);
-                
+
                 opts.ListenToRabbitQueue("buffered")
                     // Buffer the messages in memory for increased throughput
                     .BufferedInMemory(new BufferingLimits(1000, 500));

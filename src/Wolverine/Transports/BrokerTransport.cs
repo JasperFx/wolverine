@@ -100,7 +100,6 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
         return endpoints();
     }
 
-
     /// <summary>
     ///     Template method hook to build dedicated response endpoints
     ///     or dead letter queue endpoints for the transport

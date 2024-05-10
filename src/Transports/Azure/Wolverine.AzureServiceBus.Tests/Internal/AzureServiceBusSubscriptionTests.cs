@@ -33,7 +33,7 @@ public class AzureServiceSubscriptionTests
     public async Task initialize_with_no_auto_provision()
     {
         theTransport.AutoProvision = false;
-       
+
         var topic = new AzureServiceBusTopic(theTransport, "foo");
         var subscription = new AzureServiceBusSubscription(theTransport, topic, "bar");
 
@@ -77,7 +77,7 @@ public class AzureServiceSubscriptionTests
         await theManagementClient.Received().CreateSubscriptionAsync(
             Arg.Is<CreateSubscriptionOptions>(x => x.TopicName == "foo" && x.SubscriptionName == "bar"),
             Arg.Is<CreateRuleOptions>(x =>
-                x.Filter.Equals(new SqlRuleFilter("foo = 'bar'")) && 
+                x.Filter.Equals(new SqlRuleFilter("foo = 'bar'")) &&
                 x.Action.Equals(new SqlRuleAction("SET foo = 'baz'"))));
 
     }

@@ -13,7 +13,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 {
     public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
 
-    public const string Separator = "-";
+    public const char Separator = '-';
 
     public AmazonSqsTransport() : base("sqs", "Amazon SQS")
     {
@@ -34,7 +34,6 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     internal IAmazonSQS? Client { get; private set; }
 
-
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }
@@ -50,13 +49,13 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
             var prefix = identifier[..suffixIndex];
             var suffix = identifier[suffixIndex..];
 
-            prefix = prefix.Replace(".", Separator);
+            prefix = prefix.Replace('.', Separator);
 
             return prefix + suffix;
         }
 
         // ".fifo" suffix not found
-        return identifier.Replace(".", Separator);
+        return identifier.Replace('.', Separator);
     }
 
     public override string SanitizeIdentifier(string identifier)

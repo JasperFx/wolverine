@@ -7,8 +7,7 @@ public class using_querystring_parameters : IntegrationContext
     public using_querystring_parameters(AppFixture fixture) : base(fixture)
     {
     }
-    
-    
+
     [Fact]
     public async Task use_parsed_querystring_hit()
     {
@@ -20,7 +19,7 @@ public class using_querystring_parameters : IntegrationContext
 
         body.ReadAsText().ShouldBe("Age is 8");
     }
-    
+
     [Fact]
     public async Task use_parsed_enum_querystring_hit()
     {
@@ -43,7 +42,7 @@ public class using_querystring_parameters : IntegrationContext
 
         body.ReadAsText().ShouldBe("north");
     }
-    
+
     [Fact]
     public async Task use_explicitly_mapped_querystring_miss()
     {
@@ -54,8 +53,7 @@ public class using_querystring_parameters : IntegrationContext
 
         body.ReadAsText().ShouldBeEmpty();
     }
-    
-        
+
     [Fact]
     public async Task use_parsed_enum_querystring_hit_2()
     {

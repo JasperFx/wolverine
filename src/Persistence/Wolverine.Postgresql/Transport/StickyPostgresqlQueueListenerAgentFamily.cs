@@ -24,7 +24,7 @@ public class StickyPostgresqlQueueListenerAgentFamily : IAgentFamily
             throw new ArgumentOutOfRangeException(nameof(runtime),
                 $"The message storage is not {nameof(MultiTenantedMessageDatabase)}");
         }
-        
+
         var transport = _runtime.Options.Transports.GetOrCreate<PostgresqlTransport>();
         _queues = transport.Queues.Where(x => x.IsListener && x.ListenerScope == ListenerScope.Exclusive).ToArray();
     }

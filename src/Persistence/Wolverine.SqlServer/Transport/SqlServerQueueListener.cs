@@ -49,7 +49,7 @@ internal class SqlServerQueueListener : IListener
     public ValueTask StopAsync()
     {
         _cancellation.Cancel();
-        
+
         return ValueTask.CompletedTask;
     }
 
@@ -58,7 +58,7 @@ internal class SqlServerQueueListener : IListener
         // Little bit of randomness to keep each node from hammering the
         // table at the exact same time
         await Task.Delay(_settings.ScheduledJobFirstExecution);
-        
+
         var failedCount = 0;
 
         while (!_cancellation.Token.IsCancellationRequested)
@@ -70,7 +70,7 @@ internal class SqlServerQueueListener : IListener
                 {
                     _logger.LogInformation("Propagated {Number} scheduled messages to Sql Server-backed queue {Queue}", count, _queue.Name);
                 }
-                
+
                 await _queue.DeleteExpiredAsync(CancellationToken.None);
 
                 failedCount = 0;
@@ -84,7 +84,7 @@ internal class SqlServerQueueListener : IListener
                 {
                     break;
                 }
-                
+
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
@@ -111,7 +111,7 @@ internal class SqlServerQueueListener : IListener
                     : await _queue.TryPopAsync(_queue.MaximumMessagesToReceive, _logger, _cancellation.Token);
 
                 failedCount = 0;
-                        
+
                 if (messages.Any())
                 {
                     await _receiver.ReceivedAsync(this, messages.ToArray());
@@ -128,7 +128,7 @@ internal class SqlServerQueueListener : IListener
                 {
                     break;
                 }
-                
+
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 

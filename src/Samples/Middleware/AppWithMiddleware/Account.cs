@@ -26,7 +26,7 @@ public static class Samples
             logger.LogInformation("Referenced account {AccountId} does not exist", command.AccountId);
             return;
         }
-        
+
         // do the real processing
     }
 
@@ -53,8 +53,8 @@ public record CreditAccount(Guid AccountId, decimal Amount) : IAccountCommand;
 public static class CreditAccountHandler
 {
     public static void Handle(
-        CreditAccount command, 
-        
+        CreditAccount command,
+
         // Wouldn't it be nice to just have Wolverine "push"
         // the right account into this method?
         Account account,
@@ -63,8 +63,8 @@ public static class CreditAccountHandler
         IDocumentSession session)
     {
         account.Balance += command.Amount;
-        
-        // Just mark this account as needing to be updated 
+
+        // Just mark this account as needing to be updated
         // in the database
         session.Store(account);
     }
@@ -83,12 +83,12 @@ public static class AccountLookupMiddleware
     // The message *has* to be first in the parameter list
     // Before or BeforeAsync tells Wolverine this method should be called before the actual action
     public static async Task<(HandlerContinuation, Account?)> LoadAsync(
-        IAccountCommand command, 
-        ILogger logger, 
-        
+        IAccountCommand command,
+        ILogger logger,
+
         // This app is using Marten for persistence
-        IDocumentSession session, 
-        
+        IDocumentSession session,
+
         CancellationToken cancellation)
     {
         var account = await session.LoadAsync<Account>(command.AccountId, cancellation);
@@ -96,7 +96,7 @@ public static class AccountLookupMiddleware
         {
             logger.LogInformation("Unable to find an account for {AccountId}, aborting the requested operation", command.AccountId);
         }
-        
+
         return (account == null ? HandlerContinuation.Stop : HandlerContinuation.Continue, account);
     }
 }
@@ -118,20 +118,20 @@ public static class DebitAccountHandler
 {
     #region sample_DebitAccountHandler_that_uses_IMessageContext
 
-    [Transactional] 
+    [Transactional]
     public static async Task Handle(
-        DebitAccount command, 
-        Account account, 
-        IDocumentSession session, 
+        DebitAccount command,
+        Account account,
+        IDocumentSession session,
         IMessageContext messaging)
     {
         account.Balance -= command.Amount;
-     
+
         // This just marks the account as changed, but
         // doesn't actually commit changes to the database
         // yet. That actually matters as I hopefully explain
         session.Store(account);
- 
+
         // Conditionally trigger other, cascading messages
         if (account.Balance > 0 && account.Balance < account.MinimumThreshold)
         {
@@ -140,12 +140,12 @@ public static class DebitAccountHandler
         else if (account.Balance < 0)
         {
             await messaging.SendAsync(new AccountOverdrawn(account.Id), new DeliveryOptions{DeliverWithin = 1.Hours()});
-         
+
             // Give the customer 10 days to deal with the overdrawn account
             await messaging.ScheduleAsync(new EnforceAccountOverdrawnDeadline(account.Id), 10.Days());
         }
-        
-        // "messaging" is a Wolverine IMessageContext or IMessageBus service 
+
+        // "messaging" is a Wolverine IMessageContext or IMessageBus service
         // Do the deliver within rule on individual messages
         await messaging.SendAsync(new AccountUpdated(account.Id, account.Balance),
             new DeliveryOptions { DeliverWithin = 5.Seconds() });
@@ -156,7 +156,7 @@ public static class DebitAccountHandler
 
 #region sample_using_deliver_within_attribute
 
-// The attribute directs Wolverine to send this message with 
+// The attribute directs Wolverine to send this message with
 // a "deliver within 5 seconds, or discard" directive
 [DeliverWithin(5)]
 public record AccountUpdated(Guid AccountId, decimal Balance);

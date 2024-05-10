@@ -30,7 +30,6 @@ public class PulsarSender : ISender, IAsyncDisposable
         return _producer.DisposeAsync();
     }
 
-
     public bool SupportsNativeScheduledSend => true;
     public Uri Destination { get; }
 

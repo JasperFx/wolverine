@@ -152,7 +152,7 @@ internal static class HandlerSamples
             {
                 // Surely plenty of other configuration for Wolverine...
 
-                // This *temporary* line of code will write out a full report about why or 
+                // This *temporary* line of code will write out a full report about why or
                 // why not Wolverine is finding this handler and its candidate handler messages
                 Console.WriteLine(opts.DescribeHandlerMatch(typeof(MyMissingMessageHandler)));
             }).StartAsync();

@@ -118,7 +118,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
             throw new NotSupportedException("Direct exchanges with more than one binding are not yet supported by Wolverine");
         }
-        
+
         return string.Empty;
     }
 
@@ -193,7 +193,6 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     {
         return _bindings;
     }
-
 }
 
 public class TopicBinding

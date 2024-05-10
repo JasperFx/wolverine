@@ -8,7 +8,7 @@ namespace Wolverine.RabbitMQ.Internal;
 internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupportDeadLetterQueue
 {
     private readonly RetryBlock<RabbitMqEnvelope> _deadLetterQueue;
-    
+
     internal RabbitMqChannelCallback(ILogger logger, CancellationToken cancellationToken)
     {
         Logger = logger;
@@ -60,12 +60,12 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         {
             return new ValueTask(Defer.PostAsync(e));
         }
-        
+
         Logger.LogDebug("Attempting to complete and nack a message to a Rabbit MQ queue, but envelope {Id} is not a RabbitMqEnvelope", envelope.Id);
 
         return ValueTask.CompletedTask;
     }
-    
+
     private Task moveToErrorQueueAsync(RabbitMqEnvelope envelope, CancellationToken token)
     {
         try
@@ -92,7 +92,7 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         {
             return _deadLetterQueue.PostAsync(e);
         }
-        
+
         Logger.LogDebug("Attempting to move a message to a Rabbit MQ dead letter queue, but envelope {Id} is not a RabbitMqEnvelope", envelope.Id);
 
         return Task.CompletedTask;

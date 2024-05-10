@@ -48,9 +48,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
-    
+
     internal Variable? RequestBodyVariable { get; set; }
-    
+
     private string? _fileName;
     private readonly List<string> _httpMethods = [];
 
@@ -61,7 +61,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<QuerystringVariable> _querystringVariables = [];
 
     public string OperationId { get; set; }
-    
 
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;
@@ -88,9 +87,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             NoContent = true;
             ResourceType = typeof(void);
         }
-        
+
         Metadata = new RouteHandlerBuilder(new[] { this });
-        
+
         if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
         {
             MapToRoute(att.HttpMethod, att.Template, att.Order);
@@ -120,7 +119,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         applyMetadata();
     }
-    
+
     private bool tryFindResourceType(MethodCall method, out Type resourceType)
     {
         resourceType = typeof(void);
@@ -135,7 +134,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             return false;
         }
-
 
         var responseBody = method.Creates.First();
 
@@ -174,7 +172,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         _description = _fileName;
 
         _parent.ApplyParameterMatching(this);
-        
+
         // Doing this prevents middleware policies
         // from doing something stupid
         RequestType ??= typeof(void);
@@ -192,7 +190,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             {
                 applyAuditAttributes(_requestType);
             }
-        } 
+        }
     }
 
     public override string Description => _description;
@@ -203,7 +201,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// Required TenancyMode for this http chain
     /// </summary>
     public TenancyMode? TenancyMode { get; set; }
-
 
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {
@@ -405,7 +402,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return false;
 
     }
-    
+
     private readonly List<HeaderValueVariable> _headerVariables = [];
 
     public HeaderValueVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, ParameterInfo parameter)
@@ -434,7 +431,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     string IEndpointSummaryMetadata.Summary => ToString();
 
     public List<ParameterInfo> FileParameters { get; } = [];
-    
+
     [MemberNotNullWhen(true, nameof(RequestType))]
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 }

@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var fakeEndpoint = new WolverineWebApi.FakeEndpoint();
@@ -27,19 +25,13 @@ namespace Internal.Generated.WolverineHandlers
                 httpContext.Response.StatusCode = 404;
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             var result_of_ReadEnumArgument = fakeEndpoint.ReadEnumArgument(direction);
 
             await WriteString(httpContext, result_of_ReadEnumArgument);
         }
-
     }
 
     // END: GET_enum_direction
-    
-    
 }
-

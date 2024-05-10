@@ -23,7 +23,7 @@ public class try_out_the_middleware
     {
         // Boo! I blame the AspNetCore team for this one though
         OaktonEnvironment.AutoStartHost = true;
-        
+
         _output = output;
     }
 
@@ -37,13 +37,13 @@ public class try_out_the_middleware
         // to do the actual bootstrapping
         await using var host = await AlbaHost.For<Program>(x =>
         {
-            // I'm overriding 
+            // I'm overriding
             x.ConfigureServices(services => services.DisableAllExternalWolverineTransports());
         });
 
         #endregion
-        
-        
+
+
         var options = host.Services.GetRequiredService<WolverineOptions>();
         options.ApplicationAssembly.ShouldBe(typeof(Account).Assembly);
     }
@@ -67,7 +67,7 @@ public class try_out_the_middleware
         await bus.InvokeAsync(new DebitAccount(account.Id, 100));
 
         var account2 = await session.LoadAsync<Account>(account.Id);
-        
+
         // Should be 1000 + 100
         account2.Balance.ShouldBe(900);
     }
@@ -106,9 +106,9 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
         MinimumThreshold = 100,
         Id = Guid.NewGuid()
     };
- 
+
     private readonly TestMessageContext theContext = new TestMessageContext();
-     
+
     // I happen to like NSubstitute for mocking or dynamic stubs
     private readonly IDocumentSession theDocumentSession = Substitute.For<IDocumentSession>();
 
@@ -117,22 +117,22 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
         var command = new DebitAccount(theAccount.Id, 1200);
         await DebitAccountHandler.Handle(command, theAccount, theDocumentSession, theContext);
     }
- 
+
     [Fact]
     public void the_account_balance_should_be_negative()
     {
         theAccount.Balance.ShouldBe(-200);
     }
- 
+
     [Fact]
     public void raises_an_account_overdrawn_message()
     {
-        // ShouldHaveMessageOfType() is an extension method in 
+        // ShouldHaveMessageOfType() is an extension method in
         // Wolverine itself to facilitate unit testing assertions like this
         theContext.Sent.ShouldHaveMessageOfType<AccountOverdrawn>()
             .AccountId.ShouldBe(theAccount.Id);
     }
- 
+
     [Fact]
     public void raises_an_overdrawn_deadline_message_in_10_days()
     {
@@ -142,7 +142,7 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
             .ShouldHaveEnvelopeForMessageType<EnforceAccountOverdrawnDeadline>()
             .ScheduleDelay.ShouldBe(10.Days());
     }
- 
+
     public Task DisposeAsync()
     {
         return Task.CompletedTask;

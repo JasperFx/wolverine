@@ -37,7 +37,7 @@ public class ConfigurationUsingExtension : IWolverineExtension
 
     public void Configure(WolverineOptions options)
     {
-        // Configure the wolverine application using 
+        // Configure the wolverine application using
         // the information from IConfiguration
     }
 }
@@ -56,20 +56,20 @@ public static class ExtensionUse
             {
                 // Including a single extension
                 opts.Include<SampleExtension>();
-                
+
                 // Or add a Wolverine extension that needs
                 // to use IoC services
                 opts.Services.AddWolverineExtension<ConfigurationUsingExtension>();
 
             })
-            
+
             .ConfigureServices(services =>
             {
                 // This is the same logical usage, just showing that it
                 // can be done directly against IServiceCollection
                 services.AddWolverineExtension<ConfigurationUsingExtension>();
             })
-            
+
             .StartAsync();
 
         #endregion

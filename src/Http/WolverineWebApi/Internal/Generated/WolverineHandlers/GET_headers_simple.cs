@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var headerUsingEndpoint = new WolverineWebApi.HeaderUsingEndpoint();
@@ -33,11 +31,7 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_Get);
         }
-
     }
 
     // END: GET_headers_simple
-    
-    
 }
-

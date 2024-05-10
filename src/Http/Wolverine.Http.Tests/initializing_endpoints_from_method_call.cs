@@ -137,7 +137,6 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
         endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
     }
 
-
     [Fact]
     public void pick_up_metadata_from_attribute_on_method()
     {

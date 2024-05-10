@@ -39,7 +39,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         else if (runtime.Storage is MultiTenantedMessageDatabase tenants)
         {
             Store = tenants.Master as PostgresqlMessageStore;
-            
+
             await tenants.ConfigureDatabaseAsync(messageStore =>
             {
                 if (messageStore is PostgresqlMessageStore s)
@@ -93,7 +93,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
             Databases = tenants;
         }
-        
+
         // This is de facto a little environment test
         await runtime.Storage.Admin.CheckConnectivityAsync(CancellationToken.None);
     }
@@ -107,7 +107,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         yield return new PropertyColumn("Name");
         yield return new PropertyColumn("Count", Justify.Right);
         yield return new PropertyColumn("Scheduled", Justify.Right);
-        
+
     }
 
     public async Task<DateTimeOffset> SystemTimeAsync()

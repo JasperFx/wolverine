@@ -20,15 +20,15 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
     private readonly IReplyTracker _replyTracker;
 
-    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies) 
+    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies)
     {
         IsLocal = endpoint is LocalQueue;
         _replyTracker = replies;
-        
+
         Sender = endpoint.Agent ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
 
         IsLocal = endpoint is LocalQueue;
-        
+
         if (messageType.CanBeCastTo(typeof(ISerializable)))
         {
             Serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
@@ -123,7 +123,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         {
             TenantId = tenantId ?? bus.TenantId
         };
-        
+
         foreach (var rule in Rules) rule.Modify(envelope);
         if (typeof(T) == typeof(Acknowledgement))
         {

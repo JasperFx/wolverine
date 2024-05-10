@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var homeEndpoint = new WolverineWebApi.HomeEndpoint();
@@ -28,11 +26,7 @@ namespace Internal.Generated.WolverineHandlers
 
             return result.ExecuteAsync(httpContext);
         }
-
     }
 
     // END: GET_
-    
-    
 }
-

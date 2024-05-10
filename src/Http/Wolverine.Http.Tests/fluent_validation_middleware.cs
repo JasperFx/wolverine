@@ -91,14 +91,14 @@ public class fluent_validation_middleware : IntegrationContext
     public async Task when_using_compound_handler_validation_is_called_before_load()
     {
         var blockUser = new BlockUser(null);
-        
+
         var results = await Scenario(x =>
         {
             x.Delete.Json(blockUser).ToUrl("/validate/user-compound");
             x.ContentTypeShouldBe("application/problem+json");
             x.StatusCodeShouldBe(400);
         });
-        
+
         var problems = results.ReadAsJson<ProblemDetails>();
     }
 }

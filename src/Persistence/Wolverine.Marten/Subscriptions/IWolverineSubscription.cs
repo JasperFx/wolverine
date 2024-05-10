@@ -6,7 +6,7 @@ using Marten.Events.Projections;
 namespace Wolverine.Marten.Subscriptions;
 
 /// <summary>
-/// Interface for plugging in custom Wolverine subscriptions to Marten event data 
+/// Interface for plugging in custom Wolverine subscriptions to Marten event data
 /// </summary>
 public interface IWolverineSubscription
 {
@@ -14,18 +14,18 @@ public interface IWolverineSubscription
     /// Identification within Marten
     /// </summary>
     public string SubscriptionName { get; }
-    
+
     /// <summary>
     /// Apply versioning if you need blue/green subscriptions for new versions to catch up from the beginning
     /// </summary>
     public uint SubscriptionVersion { get; set; }
-    
+
     /// <summary>
     /// Apply filters on event data for better runtime efficiency
     /// </summary>
     /// <param name="filterable"></param>
     void Filter(IEventFilterable filterable);
-    
+
     /// <summary>
     /// Fine tune the behavior of this subscription within Marten's "async daemon"
     /// </summary>

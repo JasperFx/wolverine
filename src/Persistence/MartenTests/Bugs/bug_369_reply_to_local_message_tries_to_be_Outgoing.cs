@@ -26,7 +26,7 @@ public class bug_369_reply_to_local_message_tries_to_be_Outgoing : PostgresqlCon
             }).StartAsync();
 
         var tracked = await host.SendMessageAndWaitAsync(new Ping());
-        
+
         tracked.Executed.SingleEnvelope<Pong>().Status.ShouldBe(EnvelopeStatus.Incoming);
     }
 }

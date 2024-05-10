@@ -6,7 +6,7 @@ namespace Wolverine;
 public sealed partial class WolverineOptions
 {
     internal readonly List<IMessageTransformation> MessageTransformations = [];
-    
+
     internal readonly List<IMessageRouteSource> InternalRouteSources =
     [
         new TransformedMessageRouteSource(),
@@ -30,7 +30,6 @@ public sealed partial class WolverineOptions
             yield return routeSource;
         }
     }
-
 
     /// <summary>
     /// Advanced usage of Wolverine to register programmatic message routing rules

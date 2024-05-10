@@ -36,10 +36,10 @@ public class broadcast_to_topic_async : IAsyncLifetime
             {
                 opts.UseKafka("localhost:29092").AutoProvision();
                 opts.ListenToKafkaTopic("incoming.one");
-                
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
-        
+
     }
 
     [Fact]
@@ -53,7 +53,6 @@ public class broadcast_to_topic_async : IAsyncLifetime
         var received = session.Received.SingleMessage<ColorMessage>();
         received.Color.ShouldBe("blue");
     }
-
 
     public async Task DisposeAsync()
     {

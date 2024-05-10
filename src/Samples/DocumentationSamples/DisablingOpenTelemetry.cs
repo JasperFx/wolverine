@@ -16,8 +16,8 @@ public class DisablingOpenTelemetry
                 opts
                     .PublishAllMessages()
                     .ToPort(2222)
-                    
-                    // Disable Open Telemetry data collection on 
+
+                    // Disable Open Telemetry data collection on
                     // all messages sent, received, or executed
                     // from this endpoint
                     .TelemetryEnabled(false);

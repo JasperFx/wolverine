@@ -16,31 +16,25 @@ namespace Marten.Generated.EventStore
             _options = options;
         }
 
-
-
         public override Marten.Internal.Operations.IStorageOperation AppendEvent(Marten.Events.EventGraph events, Marten.Internal.IMartenSession session, Marten.Events.StreamAction stream, Marten.Events.IEvent e)
         {
             return new Marten.Generated.EventStore.AppendEventOperation(stream, e);
         }
-
 
         public override Marten.Internal.Operations.IStorageOperation InsertStream(Marten.Events.StreamAction stream)
         {
             return new Marten.Generated.EventStore.GeneratedInsertStream(stream);
         }
 
-
         public override Marten.Linq.QueryHandlers.IQueryHandler<Marten.Events.StreamState> QueryForStream(Marten.Events.StreamAction stream)
         {
             return new Marten.Generated.EventStore.GeneratedStreamStateQueryHandler(stream.Id);
         }
 
-
         public override Marten.Internal.Operations.IStorageOperation UpdateStreamVersion(Marten.Events.StreamAction stream)
         {
             return new Marten.Generated.EventStore.GeneratedStreamVersionOperation(stream);
         }
-
 
         public override void ApplyReaderDataToEvent(System.Data.Common.DbDataReader reader, Marten.Events.IEvent e)
         {
@@ -75,7 +69,6 @@ namespace Marten.Generated.EventStore
             e.IsArchived = isArchived;
         }
 
-
         public override async System.Threading.Tasks.Task ApplyReaderDataToEventAsync(System.Data.Common.DbDataReader reader, Marten.Events.IEvent e, System.Threading.CancellationToken token)
         {
             if (!(await reader.IsDBNullAsync(3, token).ConfigureAwait(false)))
@@ -108,7 +101,6 @@ namespace Marten.Generated.EventStore
             var isArchived = await reader.GetFieldValueAsync<bool>(9, token).ConfigureAwait(false);
             e.IsArchived = isArchived;
         }
-
     }
 
     // END: GeneratedEventDocumentStorage
@@ -125,7 +117,6 @@ namespace Marten.Generated.EventStore
             _stream = stream;
             _e = e;
         }
-
 
         public const string SQL = "insert into http.mt_events (data, type, mt_dotnet_type, seq_id, id, stream_id, version, timestamp, tenant_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
@@ -152,7 +143,6 @@ namespace Marten.Generated.EventStore
             parameters[8].Value = Stream.TenantId != null ? (object)Stream.TenantId : System.DBNull.Value;
             parameters[8].NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text;
         }
-
     }
 
     // END: AppendEventOperation
@@ -167,7 +157,6 @@ namespace Marten.Generated.EventStore
         {
             _stream = stream;
         }
-
 
         public const string SQL = "insert into http.mt_streams (id, type, version, tenant_id) values (?, ?, ?, ?)";
 
@@ -184,7 +173,6 @@ namespace Marten.Generated.EventStore
             parameters[3].Value = Stream.TenantId != null ? (object)Stream.TenantId : System.DBNull.Value;
             parameters[3].NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text;
         }
-
     }
 
     // END: GeneratedInsertStream
@@ -200,7 +188,6 @@ namespace Marten.Generated.EventStore
             _streamId = streamId;
         }
 
-
         public const string SQL = "select id, version, type, timestamp, created as timestamp, is_archived from http.mt_streams where id = ?";
 
 
@@ -210,7 +197,6 @@ namespace Marten.Generated.EventStore
             npgsqlParameterArray[0].Value = _streamId;
             npgsqlParameterArray[0].DbType = System.Data.DbType.Guid;
         }
-
 
         public override Marten.Events.StreamState Resolve(Marten.Internal.IMartenSession session, System.Data.Common.DbDataReader reader)
         {
@@ -229,7 +215,6 @@ namespace Marten.Generated.EventStore
             return streamState;
         }
 
-
         public override async System.Threading.Tasks.Task<Marten.Events.StreamState> ResolveAsync(Marten.Internal.IMartenSession session, System.Data.Common.DbDataReader reader, System.Threading.CancellationToken token)
         {
             var streamState = new Marten.Events.StreamState();
@@ -246,7 +231,6 @@ namespace Marten.Generated.EventStore
             streamState.IsArchived = isArchived;
             return streamState;
         }
-
     }
 
     // END: GeneratedStreamStateQueryHandler
@@ -262,7 +246,6 @@ namespace Marten.Generated.EventStore
             _stream = stream;
         }
 
-
         public const string SQL = "update http.mt_streams set version = ? where id = ? and version = ?";
 
 
@@ -276,11 +259,7 @@ namespace Marten.Generated.EventStore
             parameters[2].Value = Stream.ExpectedVersionOnServer;
             parameters[2].NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Bigint;
         }
-
     }
 
     // END: GeneratedStreamVersionOperation
-    
-    
 }
-

@@ -23,8 +23,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineRuntime = wolverineRuntime;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
@@ -36,7 +34,6 @@ namespace Internal.Generated.WolverineHandlers
                 return;
             }
 
-
             // Reading the request body via JSON deserialization
             var (request, jsonContinue) = await ReadJsonAsync<WolverineWebApi.Samples.UpdateRequest>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
@@ -47,12 +44,9 @@ namespace Internal.Generated.WolverineHandlers
                 await result1.ExecuteAsync(httpContext).ConfigureAwait(false);
                 return;
             }
-
-
             
             // The actual HTTP request handler execution
             var todo_response = WolverineWebApi.Samples.Update2Endpoint.Put(id, request, todo, documentSession);
-
             
             // Commit any outstanding Marten changes
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
@@ -64,11 +58,9 @@ namespace Internal.Generated.WolverineHandlers
             // Writing the response body to JSON because this was the first 'return variable' in the method signature
             await WriteJsonAsync(httpContext, todo_response);
         }
-
     }
 
     // END: PUT_todos2_id
     
     
 }
-

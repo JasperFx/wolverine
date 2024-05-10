@@ -17,8 +17,6 @@ namespace Internal.Generated.WolverineHandlers
             _wolverineHttpOptions = wolverineHttpOptions;
         }
 
-
-
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var wildcardEndpoint = new WolverineWebApi.WildcardEndpoint();
@@ -29,11 +27,9 @@ namespace Internal.Generated.WolverineHandlers
 
             await WriteString(httpContext, result_of_Wildcard);
         }
-
     }
 
     // END: GET_wildcard_name
     
     
 }
-

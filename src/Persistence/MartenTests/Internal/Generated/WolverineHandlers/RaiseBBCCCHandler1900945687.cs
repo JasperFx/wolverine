@@ -14,8 +14,6 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
-
-
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // The actual message body
@@ -37,23 +35,18 @@ namespace Internal.Generated.WolverineHandlers
 
             if (outgoing2 != null)
             {
-                
                 // Capturing any possible events returned from the command handlers
                 eventStream.AppendMany(outgoing2);
-
             }
-
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing3).ConfigureAwait(false);
 
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
-
     }
 
     // END: RaiseBBCCCHandler1900945687
     
     
 }
-

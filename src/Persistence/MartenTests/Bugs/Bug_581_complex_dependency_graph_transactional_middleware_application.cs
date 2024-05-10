@@ -38,7 +38,7 @@ public class Bug_581_complex_dependency_graph_transactional_middleware_applicati
 
                 opts.Services.AddScoped<IUserService, UserService>();
                 opts.Services.AddScoped<IUserRepository, UserRepository>();
-                
+
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Policies.ForMessagesOfType<CreateUser2>()

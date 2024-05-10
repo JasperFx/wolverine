@@ -11,13 +11,13 @@ public class compound_handlers
     public async Task use_before_and_after_compound_handler()
     {
         var tracer = new Tracer();
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Services.AddSingleton(tracer))
             .StartAsync();
 
         await host.InvokeMessageAndWaitAsync(new AssignTask("green"));
-        
+
         tracer.Messages.ShouldContain("Load");
         tracer.Messages.ShouldContain("LoadAsync");
         tracer.Messages.ShouldContain("PostProcess");

@@ -19,14 +19,11 @@ public class MetricsSamples
 
         #endregion
     }
-    
-    
 }
 
 public record SomeMessage(string Name);
 
 public record SomeResponse(string Name);
-
 
 public static class SomeOperationHandler
 {
@@ -34,7 +31,7 @@ public static class SomeOperationHandler
 
     public static async Task publish_operation(IMessageBus bus, string tenantId, string name)
     {
-        // All outgoing messages or executed messages from this 
+        // All outgoing messages or executed messages from this
         // IMessageBus object will be tagged with the tenant id
         bus.TenantId = tenantId;
         await bus.PublishAsync(new SomeMessage(name));

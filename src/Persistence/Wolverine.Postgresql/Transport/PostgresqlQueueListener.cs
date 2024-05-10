@@ -79,10 +79,10 @@ SELECT message.{DatabaseConstants.Body} from message;
     public ValueTask StopAsync()
     {
         _cancellation.Cancel();
-        
+
         _task?.SafeDispose();
         _scheduledTask?.SafeDispose();
-        
+
         return ValueTask.CompletedTask;
     }
 
@@ -91,7 +91,7 @@ SELECT message.{DatabaseConstants.Body} from message;
         // Little bit of randomness to keep each node from hammering the
         // table at the exact same time
         await Task.Delay(_settings.ScheduledJobFirstExecution);
-        
+
         var failedCount = 0;
 
         while (!_cancellation.Token.IsCancellationRequested)
@@ -103,7 +103,7 @@ SELECT message.{DatabaseConstants.Body} from message;
                 {
                     _logger.LogInformation("Propagated {Number} scheduled messages to PostgreSQL-backed queue {Queue}", count, _queueName);
                 }
-                
+
                 await DeleteExpiredAsync(CancellationToken.None);
 
                 failedCount = 0;
@@ -117,7 +117,7 @@ SELECT message.{DatabaseConstants.Body} from message;
                 {
                     break;
                 }
-                
+
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
@@ -128,13 +128,13 @@ SELECT message.{DatabaseConstants.Body} from message;
             }
         }
     }
-    
+
     public async Task<long> MoveScheduledToReadyQueueAsync(CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
 
         long count = 0;
-        
+
         try
         {
             var builder = new BatchBuilder();
@@ -148,7 +148,7 @@ SELECT message.{DatabaseConstants.Body} from message;
 
             var batch = builder.Compile();
             batch.Connection = conn;
-            
+
             count = (long)(await batch
                 .ExecuteScalarAsync(cancellationToken));
         }
@@ -175,7 +175,7 @@ SELECT message.{DatabaseConstants.Body} from message;
                     : await TryPopAsync(_queue.MaximumMessagesToReceive, _logger, _cancellation.Token);
 
                 failedCount = 0;
-                        
+
                 if (messages.Any())
                 {
                     await _receiver.ReceivedAsync(this, messages.ToArray());
@@ -192,7 +192,7 @@ SELECT message.{DatabaseConstants.Body} from message;
                 {
                     break;
                 }
-                
+
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
@@ -203,31 +203,31 @@ SELECT message.{DatabaseConstants.Body} from message;
             }
         }
     }
-    
+
     public async Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
         ILogger logger, CancellationToken cancellationToken)
     {
         var builder = new BatchBuilder();
-       
+
         builder.Append($"delete FROM {_queueTableName} where id in (select id from {_schemaName}.{DatabaseConstants.IncomingTable})");
         builder.StartNewCommand();
         builder.Append($"create temporary table temp_pop_{_queueName} as select id, body, message_type, keep_until from {_queueTableName} ORDER BY {_queueTableName}.timestamp limit ");
         builder.AppendParameter(count);
         builder.Append(" for update skip locked");
-        
+
         builder.StartNewCommand();
         builder.Append($"delete from {_queueTableName} where id in (select id from temp_pop_{_queueName})");
         builder.StartNewCommand();
         var parameters = builder.AppendWithParameters($"INSERT INTO {_schemaName}.{DatabaseConstants.IncomingTable} (id, status, owner_id, body, message_type, received_at, keep_until) SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM temp_pop_{_queueName}");
         parameters[0].Value = settings.AssignedNodeNumber;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
-        
+
         builder.StartNewCommand();
         builder.Append($"select body from temp_pop_{_queueName}");
         var batch = builder.Compile();
-        
+
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        
+
         try
         {
             batch.Connection = conn;
@@ -287,13 +287,12 @@ SELECT message.{DatabaseConstants.Body} from message;
         {
             await conn.CloseAsync();
         }
-
     }
-    
+
     public async Task DeleteExpiredAsync(CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        
+
         try
         {
             var builder = new BatchBuilder();

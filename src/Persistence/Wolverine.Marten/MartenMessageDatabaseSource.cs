@@ -28,7 +28,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         _store = store;
         _runtime = runtime;
     }
-    
+
     public async ValueTask<IMessageDatabase> FindDatabaseAsync(string tenantId)
     {
         if (_stores.TryFind(tenantId, out var store)) return store;
@@ -46,7 +46,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
                     _stores = _stores.AddOrUpdate(tenantId, store);
                 }
             }
-            
+
             return store;
         }
 
@@ -67,18 +67,18 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
             _stores = _stores.AddOrUpdate(tenantId, store);
             _databases = _databases.AddOrUpdate(database.Identifier, store);
         }
-        
+
         foreach (var configuration in _configurations)
         {
             await configuration(store);
         }
-        
+
         if (_store.Options.As<StoreOptions>().AutoCreateSchemaObjects != AutoCreate.None)
         {
             // TODO -- add some resiliency here
             await store.Admin.MigrateAsync();
         }
-        
+
         return store;
     }
 
@@ -112,7 +112,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
             {
                 await wolverineStore.MigrateAsync();
             }
-            
+
             _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
         }
     }
@@ -130,7 +130,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         {
             await configureDatabase(database);
         }
-        
+
         _configurations.Add(configureDatabase);
     }
 }

@@ -24,7 +24,7 @@ public interface IEndpointCollection : IAsyncDisposable
     LocalQueue? LocalQueueForMessageType(Type messageType);
     IEnumerable<ISendingAgent> ActiveSendingAgents();
     ISendingAgent? AgentForLocalQueue(Uri uri);
-    
+
     /// <summary>
     /// Endpoints where the message listener should only be active on a single endpoint
     /// </summary>
@@ -165,7 +165,7 @@ public class EndpointCollection : IEndpointCollection
         {
             return agent;
         }
-        
+
         var queueName = LocalTransport.QueueName(uri);
         return AgentForLocalQueue(queueName);
     }
@@ -180,7 +180,7 @@ public class EndpointCollection : IEndpointCollection
         {
             endpoint.Compile(_runtime);
         }
-        
+
         return allEndpoints
             .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive })
             .ToList();
@@ -229,13 +229,13 @@ public class EndpointCollection : IEndpointCollection
             await agent.StartAsync();
             return;
         }
-        
-        endpoint.Compile(_runtime); 
+
+        endpoint.Compile(_runtime);
         agent = new ListeningAgent(endpoint, _runtime);
         await agent.StartAsync().ConfigureAwait(false);
         _listeners[agent.Uri] = agent;
     }
-    
+
     public async Task StartListenerAsync(Endpoint endpoint, IListener listener, CancellationToken cancellationToken)
     {
         if (_listeners.TryGetValue(endpoint.Uri, out var agent))
@@ -244,8 +244,8 @@ public class EndpointCollection : IEndpointCollection
             await agent.StartAsync();
             return;
         }
-        
-        endpoint.Compile(_runtime); 
+
+        endpoint.Compile(_runtime);
         agent = new ListeningAgent(endpoint, _runtime);
         await agent.StartAsync().ConfigureAwait(false);
         _listeners[agent.Uri] = agent;

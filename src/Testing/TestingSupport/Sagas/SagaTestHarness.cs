@@ -25,7 +25,6 @@ public class SagaTestHarness<T> : IDisposable
         _host?.Dispose();
     }
 
-
     protected void withApplication()
     {
         _host = SagaHost.BuildHost<T>();

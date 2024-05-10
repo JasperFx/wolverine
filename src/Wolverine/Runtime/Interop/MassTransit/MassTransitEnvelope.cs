@@ -58,7 +58,6 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
 
     public T? Message { get; set; }
 
-
     public DateTime? ExpirationTime { get; set; }
     public DateTime? SentTime { get; set; }
 

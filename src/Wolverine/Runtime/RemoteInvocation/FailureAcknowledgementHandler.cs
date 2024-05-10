@@ -17,7 +17,7 @@ internal class FailureAcknowledgementHandler : IMessageHandler
     public Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         var ack = context.Envelope.Message as FailureAcknowledgement;
-        _logger.LogError("Received failure acknowledgement on reply for message {Id} from service {Service} with message '{Message}'", context.Envelope.ConversationId, context.Envelope.Source ?? "Unknown", ack?.Message);   
+        _logger.LogError("Received failure acknowledgement on reply for message {Id} from service {Service} with message '{Message}'", context.Envelope.ConversationId, context.Envelope.Source ?? "Unknown", ack?.Message);
         _replies.Complete(context.Envelope!);
         return Task.CompletedTask;
     }

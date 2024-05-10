@@ -112,7 +112,7 @@ public partial class HttpChain
             {
                 result.OverrideName("result" + ++index);
             }
-            
+
             foreach (var details in frame.Creates.Where(x => x.VariableType.CanBeCastTo<ProblemDetails>()))
             {
                 details.OverrideName(details.Usage + ++index);
@@ -128,7 +128,7 @@ public partial class HttpChain
         foreach (var frame in actionsOnOtherReturnValues) yield return frame;
 
         foreach (var frame in Postprocessors) yield return frame;
-        
+
         if (!Postprocessors.OfType<MethodCall>().Any(x =>
                 x.HandlerType == typeof(MessageContext) &&
                 x.Method.Name == nameof(MessageContext.EnqueueCascadingAsync)))
@@ -146,6 +146,6 @@ public partial class HttpChain
     {
         var parts = RoutePattern.RawText.Replace("{", "").Replace("*", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
 
-        return _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace("-", "_").Replace("__", "_");
+        return _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace('-', '_').Replace("__", "_");
     }
 }

@@ -75,7 +75,7 @@ internal class CompositePredicate<T>
 
     public bool DoesNotMatchAny(T target) => this._list.Count == 0 || !this.MatchesAny(target);
 }
-    
+
 internal class CompositeFilter<T>
 {
     public CompositePredicate<T> Includes { get; set; } = new CompositePredicate<T>();

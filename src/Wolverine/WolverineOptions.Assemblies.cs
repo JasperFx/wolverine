@@ -108,7 +108,6 @@ public sealed partial class WolverineOptions
             RememberedApplicationAssembly = ApplicationAssembly = determineCallingAssembly();
         }
 
-
         if (ApplicationAssembly == null)
         {
             throw new InvalidOperationException("Unable to determine an application assembly");
@@ -116,7 +115,6 @@ public sealed partial class WolverineOptions
 
         HandlerGraph.Discovery.Assemblies.Fill(ApplicationAssembly);
     }
-
 
     internal void IncludeExtensionAssemblies(Assembly[] assemblies)
     {

@@ -42,7 +42,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         table.AddColumn<string>("name");
 
         await table.CreateAsync(conn);
-        
+
         await conn.CloseAsync();
     }
 
@@ -87,7 +87,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
             tx.Commit();
 
             await context.FlushOutgoingMessagesAsync();
-            
+
             await conn.CloseAsync();
         }
 
@@ -159,7 +159,6 @@ public class CreateItemHandler
         // to your sql server application database
         return Task.CompletedTask;
     }
-
 
     public class CreateItemCommand
     {

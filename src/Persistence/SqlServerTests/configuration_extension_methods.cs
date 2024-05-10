@@ -33,11 +33,10 @@ public class configuration_extension_methods : SqlServerContext
 
         var databases = host.Services.GetServices<IDatabase>();
         var store = databases.OfType<SqlServerMessageStore>().Single();
-        
+
         // only one, so should be master
         store.Settings.IsMaster.ShouldBeTrue();
     }
-
 
     [Fact]
     public void bootstrap_with_connection_string()

@@ -20,7 +20,7 @@ public class AzureServiceBusQueueTests
         var queue = new AzureServiceBusQueue(new AzureServiceBusTransport(), "incoming");
         queue.EndpointName.ShouldBe("incoming");
     }
-    
+
     [Fact]
     public void default_dead_letter_queue_name_is_transport_default()
     {

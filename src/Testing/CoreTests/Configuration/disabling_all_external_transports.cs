@@ -17,18 +17,18 @@ public class disabling_all_external_transports
             {
                 // do whatever you need to configure Wolverine
             })
-            
+
             // Override the Wolverine configuration to disable all
             // external transports, broker connectivity, and incoming/outgoing
             // messages to run completely locally
             .ConfigureServices(services => services.DisableAllExternalWolverineTransports())
-            
+
             .StartAsync();
 
         #endregion
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
-        
+
         options.ExternalTransportsAreStubbed.ShouldBeTrue();
     }
 }

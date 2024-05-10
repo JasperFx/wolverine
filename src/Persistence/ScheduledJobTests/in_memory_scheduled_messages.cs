@@ -59,7 +59,6 @@ public class in_memory_scheduled_messages : ILocalQueue
     {
     }
 
-
     private Task<Envelope> waitForReceipt(Envelope envelope)
     {
         var source = new TaskCompletionSource<Envelope>();
@@ -67,7 +66,6 @@ public class in_memory_scheduled_messages : ILocalQueue
 
         return source.Task;
     }
-
 
     [Fact]
     public async Task run_multiple_messages_through()
@@ -113,7 +111,6 @@ public class in_memory_scheduled_messages : ILocalQueue
         sent.ShouldContain(env3);
     }
 
-
     [Fact]
     public async Task empty_all()
     {
@@ -137,7 +134,6 @@ public class in_memory_scheduled_messages : ILocalQueue
         sent.Any().ShouldBeFalse();
     }
 
-
     [Fact]
     public void play_at_certain_time()
     {
@@ -159,4 +155,3 @@ public class in_memory_scheduled_messages : ILocalQueue
         theScheduledJobs.Count().ShouldBe(1);
     }
 }
-

@@ -14,7 +14,7 @@ namespace MultiTenantedTodoWebService.Tests;
 public class end_to_end : IAsyncLifetime
 {
     private IAlbaHost _host;
-    
+
     private async Task createDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
         var exists = await conn.DatabaseExists(databaseName);
@@ -32,11 +32,11 @@ public class end_to_end : IAsyncLifetime
         await createDatabaseIfNotExists(conn, "tenant1");
         await createDatabaseIfNotExists(conn, "tenant2");
         await createDatabaseIfNotExists(conn, "tenant3");
-        
+
         // Sorry folks, this is a hidden trap
         // I blame the AspNetCore team...
         OaktonEnvironment.AutoStartHost = true;
-        
+
         _host = await AlbaHost.For<Program>();
 
         // Wiping out any leftover data in the database
@@ -48,7 +48,6 @@ public class end_to_end : IAsyncLifetime
     {
         return _host.DisposeAsync().AsTask();
     }
-
 
     [Fact]
     public async Task create_and_load()
@@ -117,6 +116,4 @@ public class end_to_end : IAsyncLifetime
     }
 
     #endregion
-
 }
-

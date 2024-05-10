@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-public partial class NodeAgentController 
+public partial class NodeAgentController
 {
     public AssignmentGrid? LastAssignments { get; internal set; }
 
@@ -85,5 +85,4 @@ public partial class NodeAgentController
             commands.Add(stopAgents);
         }
     }
-
 }
