@@ -6,7 +6,7 @@ namespace Wolverine.RDBMS.MultiTenancy;
 
 public partial class MultiTenantedMessageDatabase : IAgentFamily
 {
-    public string Scheme { get; } = DurabilityAgent.AgentScheme;
+    public string Scheme => DurabilityAgent.AgentScheme;
 
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {

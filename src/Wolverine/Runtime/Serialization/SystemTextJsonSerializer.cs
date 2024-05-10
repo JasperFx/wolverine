@@ -15,7 +15,7 @@ internal class SystemTextJsonSerializer : IMessageSerializer
         _options = options;
     }
 
-    public string ContentType { get; } = EnvelopeConstants.JsonContentType;
+    public string ContentType => EnvelopeConstants.JsonContentType;
 
     public byte[] Write(Envelope envelope)
     {

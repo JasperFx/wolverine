@@ -45,6 +45,6 @@ internal class MessageStoreResource : IStatefulResource
         return table;
     }
 
-    public string Type { get; } = "Wolverine";
-    public string Name { get; } = "Envelope Storage";
+    public string Type => "Wolverine";
+    public string Name => "Envelope Storage";
 }

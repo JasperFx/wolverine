@@ -38,13 +38,13 @@ public class StubCircuit : ISenderCircuit
         _completed = completed;
     }
 
-    public Uri Destination { get; } = TransportConstants.LocalUri;
+    public Uri Destination => TransportConstants.LocalUri;
 
     public int QueuedCount => 0;
 
     public bool Latched { get; private set; }
 
-    public bool SupportsNativeScheduledSend { get; } = true;
+    public bool SupportsNativeScheduledSend => true;
 
     public Task<bool> TryToResumeAsync(CancellationToken cancellationToken)
     {

@@ -16,7 +16,7 @@ public class ReassignDormantNodes : IAgentCommand
         _database = database;
     }
 
-    public string Description { get; } = "Reassigning persisted messages from obsolete nodes";
+    public string Description => "Reassigning persisted messages from obsolete nodes";
 
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)

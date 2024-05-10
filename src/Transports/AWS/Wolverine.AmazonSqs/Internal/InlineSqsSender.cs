@@ -15,7 +15,7 @@ internal class InlineSqsSender : ISender
         _logger = runtime.LoggerFactory.CreateLogger<InlineSqsSender>();
     }
 
-    public bool SupportsNativeScheduledSend { get; } = false;
+    public bool SupportsNativeScheduledSend => false;
     public Uri Destination => _queue.Uri;
 
     public async Task<bool> PingAsync()
