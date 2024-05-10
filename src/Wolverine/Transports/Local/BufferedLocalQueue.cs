@@ -17,7 +17,7 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         Endpoint = endpoint;
     }
 
-    public ListeningStatus Status { get; } = ListeningStatus.Accepting;
+    public ListeningStatus Status => ListeningStatus.Accepting;
     public Endpoint Endpoint { get; }
 
     // Edge case, but this actually happened to someone
@@ -58,7 +58,7 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         return EnqueueOutgoingAsync(envelope);
     }
 
-    public bool SupportsNativeScheduledSend { get; } = true;
+    public bool SupportsNativeScheduledSend => true;
 
     internal void EnqueueDirectly(Envelope envelope)
     {

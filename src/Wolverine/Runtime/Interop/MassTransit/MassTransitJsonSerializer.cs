@@ -52,7 +52,7 @@ internal class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInter
         _inner = serializer;
     }
 
-    public string ContentType { get; } = "application/vnd.masstransit+json";
+    public string ContentType => "application/vnd.masstransit+json";
 
     public byte[] Write(Envelope envelope)
     {

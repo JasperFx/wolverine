@@ -44,7 +44,7 @@ internal class DurableSendingAgent : SendingAgent
         }, _logger, settings.Cancellation);
     }
 
-    public override bool IsDurable { get; } = true;
+    public override bool IsDurable => true;
 
     protected override async Task drainOtherAsync()
     {

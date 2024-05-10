@@ -162,7 +162,7 @@ public class serialization_configuration
 
     public class FooSerializer : IMessageSerializer
     {
-        public string? ContentType { get; } = "text/foo";
+        public string? ContentType => "text/foo";
 
         public object? ReadFromData(byte[]? data)
         {

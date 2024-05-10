@@ -34,7 +34,7 @@ internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
         return AgentCommands.Empty;
     }
 
-    public string Description { get; } = "Polling for new control messages";
+    public string Description => "Polling for new control messages";
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {
