@@ -39,7 +39,7 @@ internal class PostgresqlQueueSender : IPostgresqlQueueSender
 
         Destination = PostgresqlQueue.ToUri(queue.Name, databaseName);
 
-        _schemaName = queue.Parent.SchemaName;
+        _schemaName = queue.Parent.TransportSchemaName;
         _moveFromOutgoingToQueueSql = $@"
 INSERT into {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) 
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy} 

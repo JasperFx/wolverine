@@ -7,7 +7,7 @@ namespace Wolverine.Postgresql.Transport;
 internal class ScheduledMessageTable : Table
 {
     public ScheduledMessageTable(PostgresqlTransport settings, string tableName) : base(
-        new DbObjectName(settings.SchemaName, tableName))
+        new DbObjectName(settings.TransportSchemaName, tableName))
     {
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
