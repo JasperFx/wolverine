@@ -380,9 +380,7 @@ public class send_by_topics_durable : IDisposable
 }
 
 [Topic("color.purple")]
-public class PurpleMessage
-{
-}
+public class PurpleMessage;
 
 #region sample_using_topic_attribute
 
@@ -394,13 +392,9 @@ public class FirstMessage
 
 #endregion
 
-public class SecondMessage : FirstMessage
-{
-}
+public class SecondMessage : FirstMessage;
 
-public class ThirdMessage : FirstMessage
-{
-}
+public class ThirdMessage : FirstMessage;
 
 public class RoutedMessage
 {
@@ -408,7 +402,7 @@ public class RoutedMessage
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 
-public class TriggerTopicMessage{}
+public class TriggerTopicMessage;
 
 public class MessagesHandler
 {

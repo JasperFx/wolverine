@@ -7,7 +7,6 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Kafka.Tests;
 
-
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public BufferedComplianceFixture() : base(new Uri("kafka://topic/receiver"), 120)
@@ -49,18 +48,14 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 }
 
 [Collection("acceptance")]
-public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
-{
-}
+public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>;
 
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-
     public static int Number = 0;
 
     public InlineComplianceFixture() : base(new Uri("kafka://topic/receiver"), 120)
     {
-
     }
 
     public async Task InitializeAsync()
@@ -98,7 +93,4 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 }
 
 [Collection("acceptance")]
-public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
-{
-
-}
+public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>;
