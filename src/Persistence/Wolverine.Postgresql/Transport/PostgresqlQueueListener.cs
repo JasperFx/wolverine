@@ -44,7 +44,7 @@ internal class PostgresqlQueueListener : IListener
 
         _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
-        _schemaName = _queue.Parent.SchemaName;
+        _schemaName = _queue.Parent.MessageStorageSchemaName;
 
         _tryPopMessagesDirectlySql = $@"
 WITH message AS (

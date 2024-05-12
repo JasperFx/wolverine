@@ -39,11 +39,13 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
 
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
-        transport.SchemaName = TransportSchemaName;
+        transport.TransportSchemaName = TransportSchemaName;
+        transport.MessageStorageSchemaName = MessageStorageSchemaName;
     }
 
     internal MartenEventRouter EventRouter { get; } = new();
     public string TransportSchemaName { get; set; } = "wolverine_queues";
+    public string MessageStorageSchemaName { get; set; } = "public";
 
     EventForwardingTransform<T> IEventForwarding.SubscribeToEvent<T>()
     {

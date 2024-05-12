@@ -68,7 +68,8 @@ public static class PostgresqlConfigurationExtensions
     /// <returns></returns>
     public static PostgresqlPersistenceExpression UsePostgresqlPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
-        string? schema = null)
+        string? schema = null,
+        string? transportSchema = null)
     {
         var extension = new PostgresqlBackedPersistence
         {
@@ -109,9 +110,15 @@ public static class PostgresqlConfigurationExtensions
         });
 
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
+        
         if (schema.IsNotEmpty())
         {
-            transport.SchemaName = schema;
+            transport.TransportSchemaName = schema;
+            transport.MessageStorageSchemaName = schema;
+        }
+        if (transportSchema.IsNotEmpty())
+        {
+            transport.TransportSchemaName = transportSchema;
         }
 
         options.Transports.Add(transport);

@@ -22,7 +22,12 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
     /// <summary>
     /// Schema name for the queue and scheduled message tables
     /// </summary>
-    public string SchemaName { get; set; } = "wolverine_queues";
+    public string TransportSchemaName { get; set; } = "wolverine_queues";
+    
+    /// <summary>
+    /// Schema name for the message storage tables
+    /// </summary>
+    public string MessageStorageSchemaName { get; set; } = "public";
 
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {

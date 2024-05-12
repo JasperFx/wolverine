@@ -74,7 +74,8 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration
         {
-            TransportSchemaName = transportSchemaName ?? schemaName ?? "wolverine_queues"
+            TransportSchemaName = transportSchemaName ?? schemaName ?? "wolverine_queues",
+            MessageStorageSchemaName = schemaName ?? "public"
         });
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();

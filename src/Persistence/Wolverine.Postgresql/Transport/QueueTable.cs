@@ -7,7 +7,7 @@ namespace Wolverine.Postgresql.Transport;
 internal class QueueTable : Table
 {
     public QueueTable(PostgresqlTransport parent, string tableName) : base(
-        new DbObjectName(parent.SchemaName, tableName))
+        new DbObjectName(parent.TransportSchemaName, tableName))
     {
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
