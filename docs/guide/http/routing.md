@@ -74,6 +74,12 @@ be correctly parsed. So passing "ABC" into what is expected to be an
 integer will result in a 404 response.
 :::
 
+## Route Name
+
+You can add a name to the ASP.Net route with this property that is on all of the route definition attributes:
+
+snippet: sample_using_route_name
+
 
 
 

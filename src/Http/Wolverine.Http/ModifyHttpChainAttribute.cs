@@ -46,17 +46,16 @@ public abstract class HttpChainParameterAttribute : Attribute
 [AttributeUsage(AttributeTargets.Method)]
 public abstract class WolverineHttpMethodAttribute : Attribute
 {
-    protected WolverineHttpMethodAttribute(string httpMethod, string template, string? routeName)
+    protected WolverineHttpMethodAttribute(string httpMethod, string template)
     {
         HttpMethod = httpMethod;
         Template = template;
-        RouteName = routeName;
     }
 
     public string HttpMethod { get; }
     public string Template { get; }
     
-    public string? RouteName { get; }
+    public string? RouteName { get; set; }
 
     /// <summary>
     ///     Override the routing order of this method as necessary to disambiguate routes
@@ -115,7 +114,7 @@ public class RequiresTenantAttribute : ModifyHttpChainAttribute
 /// </summary>
 public class WolverineGetAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineGetAttribute([StringSyntax("Route")]string template, string? routeName = null) : base("GET", template, routeName)
+    public WolverineGetAttribute([StringSyntax("Route")]string template) : base("GET", template)
     {
     }
 }
@@ -125,7 +124,7 @@ public class WolverineGetAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverinePostAttribute : WolverineHttpMethodAttribute
 {
-    public WolverinePostAttribute([StringSyntax("Route")]string template, string? routeName = null) : base("POST", template, routeName)
+    public WolverinePostAttribute([StringSyntax("Route")]string template) : base("POST", template)
     {
     }
 }
@@ -135,7 +134,7 @@ public class WolverinePostAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverinePutAttribute : WolverineHttpMethodAttribute
 {
-    public WolverinePutAttribute([StringSyntax("Route")]string template, string? routeName = null) : base("PUT", template, routeName)
+    public WolverinePutAttribute([StringSyntax("Route")]string template) : base("PUT", template)
     {
     }
 }
@@ -145,7 +144,7 @@ public class WolverinePutAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverineHeadAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineHeadAttribute([StringSyntax("Route")]string template, string? routeName = null) : base("HEAD", template, routeName)
+    public WolverineHeadAttribute([StringSyntax("Route")]string template) : base("HEAD", template)
     {
     }
 }
@@ -155,7 +154,7 @@ public class WolverineHeadAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverineDeleteAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineDeleteAttribute([StringSyntax("Route")]string template, string? routeName = null) : base("DELETE", template, routeName)
+    public WolverineDeleteAttribute([StringSyntax("Route")]string template) : base("DELETE", template)
     {
     }
 }
@@ -165,7 +164,7 @@ public class WolverineDeleteAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverinePatchAttribute : WolverineHttpMethodAttribute
 {
-    public WolverinePatchAttribute([StringSyntax("Route")]string template, string? routeName = null) : base("PATCH", template, routeName)
+    public WolverinePatchAttribute([StringSyntax("Route")]string template) : base("PATCH", template)
     {
     }
 }
@@ -175,7 +174,7 @@ public class WolverinePatchAttribute : WolverineHttpMethodAttribute
 /// </summary>
 public class WolverineOptionsAttribute : WolverineHttpMethodAttribute
 {
-    public WolverineOptionsAttribute([StringSyntax("Route")]string template, string? routeName = null) : base("OPTIONS", template, routeName)
+    public WolverineOptionsAttribute([StringSyntax("Route")]string template) : base("OPTIONS", template)
     {
     }
 }
