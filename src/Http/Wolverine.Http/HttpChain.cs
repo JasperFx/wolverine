@@ -98,6 +98,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 DisplayName = att.Name;
             }
 
+            if (att.RouteName.IsNotEmpty())
+            {
+                RouteName = att.RouteName;
+            }
+
             if (att.OperationId.IsNotEmpty())
             {
                 OperationId = att.OperationId;
@@ -145,8 +150,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public MethodCall Method { get; }
 
-    public string? DisplayName { get; set; }
+    public string? RouteName { get; set; }
 
+    public string? DisplayName { get; set; }
+    
     public int Order { get; set; }
 
     public IEnumerable<string> HttpMethods => _httpMethods;
