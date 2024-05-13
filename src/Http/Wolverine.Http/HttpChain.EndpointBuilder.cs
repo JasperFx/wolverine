@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
 using Microsoft.AspNetCore.Builder;
@@ -77,6 +78,11 @@ public partial class HttpChain : IEndpointConventionBuilder
             {
                 builder.Metadata.Add(new ProducesProblemDetailsResponseTypeMetadata());
             }
+        }
+
+        if (RouteName.IsNotEmpty())
+        {
+            builder.Metadata.Add(new RouteNameMetadata(RouteName));
         }
 
         Endpoint = (RouteEndpoint?)builder.Build();
