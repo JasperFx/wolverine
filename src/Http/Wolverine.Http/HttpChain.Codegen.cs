@@ -19,28 +19,33 @@ public partial class HttpChain
 {
     internal string? SourceCode => _generatedType?.SourceCode;
 
+    private readonly object _locker = new();
+
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
-        assembly.UsingNamespaces!.Fill(typeof(RoutingHttpContextExtensions).Namespace);
-        assembly.UsingNamespaces.Fill("System.Linq");
-        assembly.UsingNamespaces.Fill("System");
+        lock (_locker)
+        {
+            assembly.UsingNamespaces!.Fill(typeof(RoutingHttpContextExtensions).Namespace);
+            assembly.UsingNamespaces.Fill("System.Linq");
+            assembly.UsingNamespaces.Fill("System");
 
-        _generatedType = assembly.AddType(_fileName!, typeof(HttpHandler));
+            _generatedType = assembly.AddType(_fileName!, typeof(HttpHandler));
 
-        assembly.ReferenceAssembly(Method.HandlerType.Assembly);
-        assembly.ReferenceAssembly(typeof(HttpContext).Assembly);
-        assembly.ReferenceAssembly(typeof(HttpChain).Assembly);
+            assembly.ReferenceAssembly(Method.HandlerType.Assembly);
+            assembly.ReferenceAssembly(typeof(HttpContext).Assembly);
+            assembly.ReferenceAssembly(typeof(HttpChain).Assembly);
 
-        var handleMethod = _generatedType.MethodFor(nameof(HttpHandler.Handle));
+            var handleMethod = _generatedType.MethodFor(nameof(HttpHandler.Handle));
 
-        handleMethod.DerivedVariables.AddRange(HttpContextVariables);
+            handleMethod.DerivedVariables.AddRange(HttpContextVariables);
 
-        var loggedType = determineLogMarkerType();
+            var loggedType = determineLogMarkerType();
 
-        handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
-        handleMethod.Sources.Add(new MessageBusSource());
+            handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
+            handleMethod.Sources.Add(new MessageBusSource());
 
-        handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
+            handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
+        }
     }
 
     private Type determineLogMarkerType()
@@ -70,8 +75,6 @@ public partial class HttpChain
         {
             return false;
         }
-
-        
 
         return true;
     }

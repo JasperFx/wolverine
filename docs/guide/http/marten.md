@@ -11,6 +11,11 @@ dotnet add package WolverineFx.Http.Marten
 
 ## Passing Marten Documents to Endpoint Parameters
 
+::: warning
+If you use "soft deletes" in Marten, just know that soft-deleted documents will still be found today by the `[Document]`
+attribute. This may be enhanced in the future to give you more control over the behavior later.
+:::
+
 Consider this very common use case, you have an HTTP endpoint that needs to work on a Marten document that will
 be loaded using the value of one of the route arguments as that document's identity. In a long hand way, that could
 look like this:
@@ -69,6 +74,11 @@ public static IMartenOp Approve([Document("number")] Invoice invoice)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L53-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_route_argument_with_document_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+You can also combine the behavior of `[Document]` and `[Required]` through a single attribute like this:
+
+snippet: sample_using_Document_required
+
+In the code above, if the `Counter` document does not exist, the route will stop and return a status code 404 for Not Found.
 
 ## Marten Aggregate Workflow 
 

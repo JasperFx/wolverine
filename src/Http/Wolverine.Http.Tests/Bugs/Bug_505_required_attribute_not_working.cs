@@ -2,7 +2,9 @@ using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Alba;
+using IntegrationTests;
 using JasperFx.Core;
+using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -30,6 +32,8 @@ public class Bug_505_required_attribute_not_working
             opts.Discovery.DisableConventionalDiscovery();
             opts.Discovery.IgnoreAssembly(typeof(OpenApiEndpoints).Assembly);
             opts.Discovery.IncludeAssembly(GetType().Assembly);
+
+            opts.Services.AddMarten(Servers.PostgresConnectionString);
         });
 
         builder.Services.AddSingleton<AggregateRepository>();
