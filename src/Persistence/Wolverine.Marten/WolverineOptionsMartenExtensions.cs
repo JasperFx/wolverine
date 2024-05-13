@@ -207,15 +207,28 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
         IWolverineSubscription subscription)
     {
-        expression.Services.ConfigureMarten((sp, opts) =>
+        expression.Services.SubscribeToEvents(subscription);
+        return expression;
+    }
+
+    /// <summary>
+    /// Register a custom subscription that will process a batch of Marten events at a time with
+    /// a user defined action
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="subscription"></param>
+    /// <returns></returns>
+    public static IServiceCollection SubscribeToEvents(this IServiceCollection services, IWolverineSubscription subscription)
+    {
+        services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
             opts.Projections.Subscribe(new WolverineSubscriptionRunner(subscription, runtime));
         });
 
-        return expression;
+        return services;
     }
-
+    
     /// <summary>
     /// Register a custom subscription that will process a batch of Marten events at a time with
     /// a user defined action
@@ -226,11 +239,27 @@ public static class WolverineOptionsMartenExtensions
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression SubscribeToEventsWithServices<T>(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, ServiceLifetime lifetime) where T : class, IWolverineSubscription
     {
+        expression.Services.SubscribeToEventsWithServices<T>(lifetime);
+
+        return expression;
+    }
+
+    /// <summary>
+    /// <param name="expression"></param>
+    /// <param name="lifetime">Service lifetime of the subscription class within the application's IoC container
+    /// </summary>
+    /// <param name="lifetime"></param>
+    /// <param name="services"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection SubscribeToEventsWithServices<T>(this IServiceCollection services, ServiceLifetime lifetime)
+        where T : class, IWolverineSubscription
+    {
         switch (lifetime)
         {
             case ServiceLifetime.Singleton:
-                expression.Services.AddSingleton<T>();
-                expression.Services.ConfigureMarten((sp, opts) =>
+                services.AddSingleton<T>();
+                services.ConfigureMarten((sp, opts) =>
                 {
                     var subscription = sp.GetRequiredService<T>();
                     var runtime = sp.GetRequiredService<IWolverineRuntime>();
@@ -239,8 +268,8 @@ public static class WolverineOptionsMartenExtensions
                 break;
 
             default:
-                expression.Services.AddScoped<T>();
-                expression.Services.ConfigureMarten((sp, opts) =>
+                services.AddScoped<T>();
+                services.ConfigureMarten((sp, opts) =>
                 {
                     var runtime = sp.GetRequiredService<IWolverineRuntime>();
                     opts.Projections.Subscribe(new ScopedWolverineSubscriptionRunner<T>(sp, runtime));
@@ -248,7 +277,7 @@ public static class WolverineOptionsMartenExtensions
                 break;
         }
 
-        return expression;
+        return services;
     }
 
     /// <summary>
@@ -263,9 +292,24 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
         string subscriptionName, Action<ISubscriptionOptions>? configure = null)
     {
-        if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
+        expression.Services.ProcessEventsWithWolverineHandlersInStrictOrder(subscriptionName, configure);
 
-        expression.Services.ConfigureMarten((sp, opts) =>
+        return expression;
+    }
+
+    /// <summary>
+    /// Create a subscription for Marten events to be processed in strict order by Wolverine
+    /// </summary>
+    /// <param name="expression"></param>
+    /// <param name="subscriptionName">Descriptive name for this event subscription for tracking with Marten</param>
+    /// <param name="configure">Fine tune the asynchronous daemon behavior of this subscription</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static IServiceCollection ProcessEventsWithWolverineHandlersInStrictOrder(this IServiceCollection services,
+        string subscriptionName, Action<ISubscriptionOptions>? configure)
+    {
+        if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
+        services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
@@ -277,7 +321,7 @@ public static class WolverineOptionsMartenExtensions
             opts.Projections.Subscribe(subscription);
         });
 
-        return expression;
+        return services;
     }
 
     /// <summary>
@@ -292,9 +336,22 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
         string subscriptionName, Action<IPublishingRelay>? configure = null)
     {
-        if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
+        expression.Services.PublishEventsToWolverine(subscriptionName, configure);
 
-        expression.Services.ConfigureMarten((sp, opts) =>
+        return expression;
+    }
+
+    /// <summary>
+    /// Relay events captured by Marten to Wolverine message publishing
+    /// </summary>
+    /// <param name="expression"></param>
+    /// <param name="subscriptionName">Descriptive name for this event subscription for tracking with Marten</param>
+    /// <param name="configure">Fine tune the asynchronous daemon behavior of this subscription</param>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static IServiceCollection PublishEventsToWolverine(this IServiceCollection services, string subscriptionName, Action<IPublishingRelay>? configure)
+    {
+        if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
+        services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
@@ -306,6 +363,6 @@ public static class WolverineOptionsMartenExtensions
             opts.Projections.Subscribe(subscription);
         });
 
-        return expression;
+        return services;
     }
 }
