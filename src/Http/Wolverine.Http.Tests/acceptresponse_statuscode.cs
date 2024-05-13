@@ -1,4 +1,6 @@
 ﻿using Alba;
+using IntegrationTests;
+using Marten;
 using Microsoft.AspNetCore.Builder;
 using Wolverine.Attributes;
 using WolverineWebApi;
@@ -17,6 +19,8 @@ namespace Wolverine.Http.Tests
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.Discovery.IgnoreAssembly(typeof(OpenApiEndpoints).Assembly);
                 opts.Discovery.IncludeAssembly(GetType().Assembly);
+
+                opts.Services.AddMarten(Servers.PostgresConnectionString);
             });
 
             await using var host = await AlbaHost.For(builder, app =>

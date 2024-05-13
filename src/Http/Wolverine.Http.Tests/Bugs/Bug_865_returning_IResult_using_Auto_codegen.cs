@@ -78,6 +78,12 @@ public class Bug_865_returning_IResult_using_Auto_codegen
             x.Post.Url($"/api/tenants/one/counters/{Guid.NewGuid()}/inc");
             x.StatusCodeShouldBe(404);
         });
+        
+        await host.Scenario(x =>
+        {
+            x.Post.Url($"/api/tenants/one/counters/{Guid.NewGuid()}/inc2");
+            x.StatusCodeShouldBe(404);
+        });
 
     }
 }
@@ -109,4 +115,15 @@ public static class CounterEndpoint
         counter = counter with { Count = counter.Count + 1 };
         return (Results.Ok(), MartenOps.Store(counter));
     }
+
+    #region sample_using_Document_required
+
+    [WolverinePost("/api/tenants/{tenant}/counters/{id}/inc2")]
+    public static IMartenOp Increment2([Document(Required = true)] Counter counter)
+    {
+        counter = counter with { Count = counter.Count + 1 };
+        return MartenOps.Store(counter);
+    }
+
+    #endregion
 }
