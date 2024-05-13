@@ -5,6 +5,7 @@ using JasperFx.Core;
 using Lamar;
 using Marten;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Http.Policies;
 
 namespace Wolverine.Http.Marten;
 
@@ -27,6 +28,12 @@ public class DocumentAttribute : HttpChainParameterAttribute
         RouteArgumentName = routeArgumentName;
     }
 
+    /// <summary>
+    /// Should the absence of this document cause the endpoint to return a 404 Not Found response?
+    /// Default -- for backward compatibility -- is true
+    /// </summary>
+    public bool Required { get; set; } = false;
+
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
     {
         chain.Metadata.Produces(404);
@@ -46,6 +53,12 @@ public class DocumentAttribute : HttpChainParameterAttribute
 
         chain.Middleware.Add(load);
 
+        if (Required)
+        {
+            var frame = new SetStatusCodeAndReturnIfEntityIsNullFrame(parameter.ParameterType);
+            chain.Middleware.Add(frame);
+        }
+        
         return load.ReturnVariable;
     }
 

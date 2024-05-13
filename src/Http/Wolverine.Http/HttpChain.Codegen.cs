@@ -62,6 +62,8 @@ public partial class HttpChain
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
+        Debug.WriteLine(_generatedType?.SourceCode);
+        
         _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName);
 
         if (_handlerType == null)
@@ -69,7 +71,7 @@ public partial class HttpChain
             return false;
         }
 
-        Debug.WriteLine(_generatedType?.SourceCode);
+        
 
         return true;
     }
