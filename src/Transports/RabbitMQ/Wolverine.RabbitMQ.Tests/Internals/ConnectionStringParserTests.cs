@@ -1,7 +1,6 @@
 using JasperFx.Core;
 using RabbitMQ.Client;
 using Shouldly;
-using TestingSupport;
 using Wolverine.RabbitMQ.Internal;
 using Xunit;
 

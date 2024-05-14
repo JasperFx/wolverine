@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using IntegrationTests;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;

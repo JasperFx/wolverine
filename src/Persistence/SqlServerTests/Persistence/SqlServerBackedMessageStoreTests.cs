@@ -6,7 +6,6 @@ using Shouldly;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine;
-using Wolverine.Attributes;
 using Wolverine.Persistence.Durability;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;

@@ -1,10 +1,8 @@
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using TestingSupport.Compliance;
 using Wolverine.Marten;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
