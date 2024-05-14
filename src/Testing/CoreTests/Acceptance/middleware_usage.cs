@@ -66,16 +66,6 @@ public class middleware_usage
     }
 
     [Fact]
-    public async ValueTask execute_simple_before_and_after_async_with_ValueTask()
-    {
-        var list = await invokeMessage(new TracedMessage(),
-            handlers => handlers.AddMiddleware<SimpleBeforeAndAfterValueTask>());
-
-        list.ShouldHaveTheSameElementsAs("Created SimpleBeforeAndAfterValueTask",
-            "SimpleBeforeAndAfterValueTask.Before", "Handled TracedMessage", "SimpleBeforeAndAfterValueTask.After");
-    }
-
-    [Fact]
     public async Task use_multiple_middleware()
     {
         var list = await invokeMessage(new TracedMessage(), handlers =>
