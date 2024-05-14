@@ -1,8 +1,6 @@
-using IntegrationTests;
 using JasperFx.Core;
 using Shouldly;
 using Wolverine.Postgresql.Transport;
-using Wolverine.RDBMS;
 
 namespace PostgresqlTests.Transport;
 

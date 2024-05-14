@@ -1,6 +1,5 @@
 using NSubstitute;
 using Shouldly;
-using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
 using Xunit;

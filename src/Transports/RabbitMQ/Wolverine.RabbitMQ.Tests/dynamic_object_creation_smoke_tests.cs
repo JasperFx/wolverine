@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
-using Wolverine.Tracking;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;

@@ -10,7 +10,6 @@ using TestingSupport;
 using Weasel.Postgresql;
 using Wolverine.Logging;
 using Wolverine.Postgresql;
-using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;

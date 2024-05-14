@@ -4,7 +4,6 @@ using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.Internals;
