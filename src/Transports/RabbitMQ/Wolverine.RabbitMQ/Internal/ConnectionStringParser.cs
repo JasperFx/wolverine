@@ -7,7 +7,7 @@ internal static class ConnectionStringParser
 {
     public static void Apply(string connectionString, ConnectionFactory factory)
     {
-        var values = connectionString.ToDelimitedArray(';').Where(x => x.IsNotEmpty());
+        var values = connectionString.TrimEnd(';').ToDelimitedArray(';');
         foreach (var value in values)
         {
             var parts = value.ToDelimitedArray('=');
