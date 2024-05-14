@@ -1,5 +1,4 @@
-﻿using JasperFx.Core;
-using Microsoft.AspNetCore.Http.Metadata;
+﻿using Microsoft.AspNetCore.Http.Metadata;
 using Shouldly;
 using WolverineWebApi;
 

@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Http;
 
