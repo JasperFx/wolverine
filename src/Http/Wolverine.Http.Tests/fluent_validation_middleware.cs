@@ -1,7 +1,5 @@
-using System.Diagnostics;
 using Alba;
 using Microsoft.AspNetCore.Mvc;
-using Shouldly;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using WolverineWebApi.Validation;
 
