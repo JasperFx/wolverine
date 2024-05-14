@@ -6,7 +6,6 @@ using Marten;
 using Marten.Exceptions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation;
