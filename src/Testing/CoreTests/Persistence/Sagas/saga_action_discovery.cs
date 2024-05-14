@@ -1,6 +1,4 @@
-﻿using System;
-using TestingSupport.Compliance;
-using Wolverine.Attributes;
+﻿using TestingSupport.Compliance;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 using Xunit.Abstractions;

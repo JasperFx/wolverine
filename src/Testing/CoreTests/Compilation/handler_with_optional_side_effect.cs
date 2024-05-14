@@ -1,7 +1,4 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using TestingSupport;
 using Wolverine.Runtime.Handlers;
 using Xunit;

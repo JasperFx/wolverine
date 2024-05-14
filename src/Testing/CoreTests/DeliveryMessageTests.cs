@@ -1,5 +1,4 @@
-﻿using CoreTests.Persistence.Sagas;
-using JasperFx.Core.Reflection;
+﻿using JasperFx.Core.Reflection;
 using NSubstitute;
 using TestingSupport.Compliance;
 using Xunit;

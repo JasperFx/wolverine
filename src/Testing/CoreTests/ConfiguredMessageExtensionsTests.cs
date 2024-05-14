@@ -1,7 +1,6 @@
 ﻿using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using NSubstitute;
-using TestingSupport;
 using TestingSupport.Compliance;
 using Xunit;
 

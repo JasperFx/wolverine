@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using CoreTests.Util;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Module1;

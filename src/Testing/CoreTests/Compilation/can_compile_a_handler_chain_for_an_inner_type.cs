@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using TestingSupport.Compliance;
 using Wolverine.Runtime;
 using Xunit;

@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using TestingSupport.Compliance;
 using Wolverine.Configuration;
@@ -7,7 +6,6 @@ using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports.Local;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Transports.Local;

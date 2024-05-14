@@ -1,4 +1,3 @@
-using System;
 using TestingSupport;
 using Wolverine.Configuration;
 using Wolverine.Transports.Tcp;

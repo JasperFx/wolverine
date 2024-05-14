@@ -1,4 +1,3 @@
-using CoreTests.Persistence.Sagas;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport.Compliance;

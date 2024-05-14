@@ -1,10 +1,5 @@
-﻿using System;
-using System.Diagnostics.Metrics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Diagnostics.Metrics;
 using JasperFx.Core;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
