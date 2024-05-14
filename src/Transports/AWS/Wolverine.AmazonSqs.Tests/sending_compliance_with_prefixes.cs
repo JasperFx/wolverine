@@ -1,4 +1,3 @@
-using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using TestingSupport.Compliance;

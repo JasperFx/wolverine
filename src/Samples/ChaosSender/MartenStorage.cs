@@ -5,8 +5,6 @@ using Marten;
 using Npgsql;
 using Oakton.Resources;
 using Weasel.Core;
-using Weasel.Postgresql;
-using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;

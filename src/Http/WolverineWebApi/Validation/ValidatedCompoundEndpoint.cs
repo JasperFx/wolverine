@@ -1,5 +1,4 @@
 using FluentValidation;
-using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace WolverineWebApi.Validation;

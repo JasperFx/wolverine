@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Marten;
 using Marten.Events.Aggregation;
 

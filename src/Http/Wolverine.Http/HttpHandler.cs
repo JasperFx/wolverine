@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Http.Headers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 

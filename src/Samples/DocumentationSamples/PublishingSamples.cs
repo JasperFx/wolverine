@@ -1,4 +1,3 @@
-using System.Drawing;
 using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
