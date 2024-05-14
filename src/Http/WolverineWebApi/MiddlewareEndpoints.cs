@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
-using Wolverine;
 using Wolverine.Http;
 
 namespace WolverineWebApi;

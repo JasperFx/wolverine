@@ -1,7 +1,5 @@
-using System;
 using JasperFx.Core;
 using Shouldly;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.Pulsar.Tests;

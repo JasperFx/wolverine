@@ -1,6 +1,4 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
+﻿using System.Buffers;
 using System.Reflection;
 using DotPulsar;
 using DotPulsar.Abstractions;
@@ -10,7 +8,6 @@ using NSubstitute;
 using Shouldly;
 using TestingSupport;
 using Wolverine.Runtime;
-using Wolverine.Util;
 using Xunit;
 using MessageMetadata = DotPulsar.MessageMetadata;
 

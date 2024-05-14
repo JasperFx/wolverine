@@ -4,7 +4,6 @@ using System.Text;
 using Lamar;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.ObjectPool;
 using Newtonsoft.Json;
 
 namespace Wolverine.Http;

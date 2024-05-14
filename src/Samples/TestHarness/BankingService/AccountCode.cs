@@ -1,5 +1,3 @@
-using JasperFx.Core;
-
 namespace BankingService;
 
 public class AccountEndpoint

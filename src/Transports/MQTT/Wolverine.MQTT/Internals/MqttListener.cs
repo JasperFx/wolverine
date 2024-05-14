@@ -1,9 +1,7 @@
 using System.Text;
-using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using MQTTnet.Client;
-using Wolverine.Configuration;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 

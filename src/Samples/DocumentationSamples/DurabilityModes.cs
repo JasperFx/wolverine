@@ -2,8 +2,6 @@ using Marten;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Postgresql;
-using Wolverine.Transports.Tcp;
 
 namespace DocumentationSamples;
 

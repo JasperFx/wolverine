@@ -1,4 +1,3 @@
-using System.Text.Json;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using Marten;

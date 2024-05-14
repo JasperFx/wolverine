@@ -1,8 +1,6 @@
-using JasperFx.Core;
 using Marten;
 using Wolverine;
 using Wolverine.Http;
-using Wolverine.Marten;
 
 namespace MultiTenantedTodoWebService;
 
