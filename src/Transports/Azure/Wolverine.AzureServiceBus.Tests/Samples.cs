@@ -3,7 +3,6 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using TestingSupport.Compliance;
-using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Util;
 
 namespace Wolverine.AzureServiceBus.Tests;

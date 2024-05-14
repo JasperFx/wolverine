@@ -1,9 +1,6 @@
-using System;
-using System.Linq;
 using JasperFx.Core;
 using Shouldly;
 using Wolverine.AzureServiceBus.Internal;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;

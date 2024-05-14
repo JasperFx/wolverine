@@ -1,9 +1,5 @@
-using Microsoft.Extensions.DependencyInjection;
 using Oakton.Resources;
-using Shouldly;
-using TestingSupport;
 using TestingSupport.Compliance;
-using Wolverine.Runtime;
 
 namespace Wolverine.Kafka.Tests;
 
