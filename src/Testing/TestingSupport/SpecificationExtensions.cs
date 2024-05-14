@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Shouldly;
 
