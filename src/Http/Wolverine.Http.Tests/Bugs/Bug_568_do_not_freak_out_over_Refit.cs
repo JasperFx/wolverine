@@ -1,12 +1,9 @@
 using Alba;
 using IntegrationTests;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Refit;
-using Shouldly;
 using Wolverine.Marten;
 
 namespace Wolverine.Http.Tests.Bugs;

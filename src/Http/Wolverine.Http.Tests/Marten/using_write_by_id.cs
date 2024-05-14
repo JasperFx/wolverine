@@ -1,8 +1,5 @@
-using Marten.AspNetCore;
-using Microsoft.AspNetCore.Http;
 using Shouldly;
 using WolverineWebApi;
-using WolverineWebApi.Marten;
 
 namespace Wolverine.Http.Tests.Marten;
 

@@ -1,13 +1,8 @@
 using System.Diagnostics;
-using System.Net;
 using JasperFx.Core.Reflection;
-using Microsoft.AspNetCore.Http.Metadata;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
 using Shouldly;
-using Swashbuckle.AspNetCore.Swagger;
-using TestingSupport;
 using WolverineWebApi;
 using WolverineWebApi.TestSupport;
 
