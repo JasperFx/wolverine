@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
@@ -50,13 +51,25 @@ public partial class HttpChain : IEndpointConventionBuilder
 
     public RouteEndpoint BuildEndpoint()
     {
-        var handler = new Lazy<HttpHandler>(() =>
+        RequestDelegate? requestDelegate = null;
+        if (_parent.Rules.TypeLoadMode == TypeLoadMode.Static)
         {
             this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
-            return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
-        });
+            var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+            requestDelegate = handler.Handle;
+        }
+        else
+        {
+            var handler = new Lazy<HttpHandler>(() =>
+            {
+                this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
+                return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+            });
 
-        var builder = new RouteEndpointBuilder(c => handler.Value.Handle(c), RoutePattern!, Order)
+            requestDelegate = c => handler.Value.Handle(c);
+        }
+
+        var builder = new RouteEndpointBuilder(requestDelegate!, RoutePattern!, Order)
         {
             DisplayName = DisplayName
         };
