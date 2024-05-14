@@ -2,8 +2,6 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
-using Wolverine.Transports;
-using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime;
 
