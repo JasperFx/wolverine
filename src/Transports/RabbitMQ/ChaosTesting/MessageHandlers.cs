@@ -1,5 +1,4 @@
 using Wolverine;
-using Wolverine.Attributes;
 
 namespace ChaosTesting;
 

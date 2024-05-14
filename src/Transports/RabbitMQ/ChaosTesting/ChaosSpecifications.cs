@@ -1,10 +1,8 @@
 ﻿using ChaosTesting.Scripts;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Shouldly;
 using Wolverine.RabbitMQ;
 using Xunit.Abstractions;
-using Xunit.Sdk;
 
 namespace ChaosTesting;
 

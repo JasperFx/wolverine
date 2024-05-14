@@ -1,6 +1,5 @@
 using IntegrationTests;
 using Marten;
-using Marten.Events.CodeGeneration;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Attributes;

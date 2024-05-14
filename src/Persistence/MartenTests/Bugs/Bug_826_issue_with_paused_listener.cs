@@ -9,7 +9,6 @@ using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
-using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Tracking;
 
 namespace MartenTests.Bugs;

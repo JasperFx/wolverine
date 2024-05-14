@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Tracking;
 
 namespace MartenTests.Bugs;

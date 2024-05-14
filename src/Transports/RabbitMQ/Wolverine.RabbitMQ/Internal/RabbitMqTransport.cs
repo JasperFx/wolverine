@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
 using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
