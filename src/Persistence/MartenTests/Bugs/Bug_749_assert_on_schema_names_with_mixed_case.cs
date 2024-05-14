@@ -1,11 +1,9 @@
 using IntegrationTests;
 using Marten;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Tracking;
 
 namespace MartenTests.Bugs;
 
