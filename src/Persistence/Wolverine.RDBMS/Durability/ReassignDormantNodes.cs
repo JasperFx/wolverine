@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Weasel.Core;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;

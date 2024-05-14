@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;

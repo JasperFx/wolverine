@@ -9,7 +9,6 @@ using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
-using CommandExtensions = Weasel.Core.CommandExtensions;
 
 namespace Wolverine.Postgresql.Transport;
 

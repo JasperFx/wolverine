@@ -9,7 +9,6 @@ using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
-using CommandExtensions = Weasel.Core.CommandExtensions;
 
 namespace Wolverine.Postgresql;
 

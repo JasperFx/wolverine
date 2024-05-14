@@ -1,5 +1,4 @@
-﻿using System.Data;
-using System.Data.Common;
+﻿using System.Data.Common;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
