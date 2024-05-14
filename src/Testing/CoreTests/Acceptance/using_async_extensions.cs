@@ -3,7 +3,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.FeatureManagement;
 using NSubstitute;
 using Wolverine.Runtime;
-using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Transports.Local;
 using Xunit;
 

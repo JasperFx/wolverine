@@ -1,8 +1,6 @@
-﻿using System;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using TestingSupport;
 using Wolverine.Runtime.Serialization;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Serialization;

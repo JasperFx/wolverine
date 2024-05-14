@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
@@ -11,7 +9,6 @@ using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
 using Wolverine.Transports.Tcp;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Configuration;

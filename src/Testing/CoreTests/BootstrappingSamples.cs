@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using CoreTests.Configuration;
 using JasperFx.CodeGeneration;
 using Lamar;

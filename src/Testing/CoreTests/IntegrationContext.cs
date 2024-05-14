@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.Runtime.Handlers;

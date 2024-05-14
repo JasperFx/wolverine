@@ -1,4 +1,3 @@
-using CoreTests.ErrorHandling;
 using Xunit;
 
 namespace CoreTests.Bugs;
