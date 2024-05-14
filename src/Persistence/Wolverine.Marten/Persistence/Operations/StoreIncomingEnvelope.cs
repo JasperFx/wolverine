@@ -1,5 +1,4 @@
 ﻿using System.Data.Common;
-using JasperFx.Core;
 using Marten.Internal;
 using Marten.Internal.Operations;
 using Marten.Services;

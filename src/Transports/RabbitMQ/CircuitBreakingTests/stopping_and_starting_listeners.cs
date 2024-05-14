@@ -13,9 +13,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Wolverine.Transports;
-using Wolverine.Transports.Local;
 using Wolverine.Transports.Tcp;
-using Wolverine.Util;
 
 namespace CircuitBreakingTests;
 

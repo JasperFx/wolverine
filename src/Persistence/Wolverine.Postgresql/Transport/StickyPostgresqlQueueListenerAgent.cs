@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 

@@ -2,7 +2,6 @@ using Alba;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using Shouldly;
 using Wolverine.Tracking;

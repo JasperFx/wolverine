@@ -1,6 +1,5 @@
 using System.Data.Common;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using JasperFx.Core;
 using JasperFx.Core.Exceptions;
 using Wolverine.Runtime;

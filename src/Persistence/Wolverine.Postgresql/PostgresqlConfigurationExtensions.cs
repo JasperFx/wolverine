@@ -3,7 +3,6 @@ using Npgsql;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Postgresql.Transport;
-using Wolverine.Runtime;
 
 
 namespace Wolverine.Postgresql;

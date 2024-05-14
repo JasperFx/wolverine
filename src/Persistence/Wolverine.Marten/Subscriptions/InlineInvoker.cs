@@ -3,7 +3,6 @@ using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
-using Marten.Exceptions;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;

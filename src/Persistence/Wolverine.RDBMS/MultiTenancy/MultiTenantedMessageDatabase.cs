@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Spectre.Console;
 using Weasel.Core.Migrations;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;

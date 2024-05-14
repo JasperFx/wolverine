@@ -5,7 +5,6 @@ using Wolverine;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
-using Wolverine.Util;
 
 namespace ScheduledJobTests;
 

@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using Npgsql;
-using Oakton.Descriptions;
 using Weasel.Core;
 using Weasel.Postgresql;
 using Wolverine.Configuration;

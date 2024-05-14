@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;

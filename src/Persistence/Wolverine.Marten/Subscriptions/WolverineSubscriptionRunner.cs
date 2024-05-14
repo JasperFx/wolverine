@@ -1,10 +1,7 @@
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
-using Marten.Internal.Sessions;
-using Marten.Schema.Arguments;
 using Marten.Services;
 using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
