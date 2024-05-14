@@ -1,4 +1,3 @@
-using System.Linq;
 using JasperFx.Core.Reflection;
 using Shouldly;
 using Wolverine.AzureServiceBus.Internal;

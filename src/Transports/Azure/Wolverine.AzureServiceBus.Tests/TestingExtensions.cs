@@ -1,4 +1,3 @@
-using System.IO;
 using JasperFx.Core;
 using Shouldly;
 

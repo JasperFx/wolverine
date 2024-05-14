@@ -1,14 +1,10 @@
 using System.Text;
 using JasperFx.Core;
 using MQTTnet;
-using MQTTnet.Client;
 using MQTTnet.Extensions.ManagedClient;
 using MQTTnet.Internal;
 using MQTTnet.Protocol;
-using NSubstitute;
 using TestingSupport;
-using Wolverine.MQTT.Internals;
-using Wolverine.Runtime;
 using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;
