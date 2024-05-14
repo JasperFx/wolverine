@@ -6,7 +6,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Alba" Version="7.4.0" />
+        <PackageReference Include="Alba" Version="7.4.1" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.2" />
         <PackageReference Include="Npgsql" Version="8.0.2" />
         <PackageReference Include="Refit" Version="7.0.0" />
