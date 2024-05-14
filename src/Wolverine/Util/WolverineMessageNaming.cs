@@ -1,5 +1,4 @@
 ﻿using System.Reflection;
-using System.Text;
 using System.Text.RegularExpressions;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;

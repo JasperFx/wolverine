@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Wolverine.Configuration;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;

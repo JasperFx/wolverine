@@ -1,5 +1,4 @@
 using JasperFx.CodeGeneration;
-using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.Logging;

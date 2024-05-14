@@ -1,4 +1,3 @@
-using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
