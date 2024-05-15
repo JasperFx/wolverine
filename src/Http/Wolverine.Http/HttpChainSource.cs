@@ -46,14 +46,14 @@ internal class HttpChainSource
 internal class CompositePredicate<T>
 {
     private readonly List<Func<T, bool>> _list = new List<Func<T, bool>>();
-    private Func<T, bool> _matchesAll = (Func<T, bool>) (_ => true);
-    private Func<T, bool> _matchesAny = (Func<T, bool>) (_ => true);
-    private Func<T, bool> _matchesNone = (Func<T, bool>) (_ => false);
+    private Func<T, bool> _matchesAll = _ => true;
+    private Func<T, bool> _matchesAny = _ => true;
+    private Func<T, bool> _matchesNone = _ => false;
 
     public void Add(Func<T, bool> filter)
     {
-        this._matchesAll = (Func<T, bool>) (x => this._list.All<Func<T, bool>>((Func<Func<T, bool>, bool>) (predicate => predicate(x))));
-        this._matchesAny = (Func<T, bool>) (x => this._list.Any<Func<T, bool>>((Func<Func<T, bool>, bool>) (predicate => predicate(x))));
+        this._matchesAll = (Func<T, bool>) (x => this._list.All(predicate => predicate(x)));
+        this._matchesAny = (Func<T, bool>) (x => this._list.Any(predicate => predicate(x)));
         this._matchesNone = (Func<T, bool>) (x => !this.MatchesAny(x));
         this._list.Add(filter);
     }
