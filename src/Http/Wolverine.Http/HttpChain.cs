@@ -389,7 +389,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             if (variableType == typeof(string))
             {
-                variable = new ReadStringRouteValue(routeOrParameterName!).Variable;
+                variable = new ReadStringRouteValue(routeOrParameterName).Variable;
                 _routeVariables.Add(variable);
                 return true;
             }

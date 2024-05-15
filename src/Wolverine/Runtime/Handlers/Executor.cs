@@ -186,7 +186,7 @@ internal class Executor : IExecutor
         finally
         {
 
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId, _messageTypeName, envelope.Id, null);
         }
     }
 

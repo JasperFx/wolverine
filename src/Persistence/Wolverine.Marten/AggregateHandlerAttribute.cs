@@ -107,7 +107,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
             asyncEnumerable.UseReturnAction(_ =>
             {
                 return typeof(ApplyEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(asyncEnumerable,
-                    aggregateType!);
+                    aggregateType);
             });
 
             return;
@@ -121,7 +121,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         if (eventsVariable != null)
         {
             eventsVariable.UseReturnAction(
-                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, aggregateType!)
+                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, aggregateType)
                     .WrapIfNotNull(v), "Append events to the Marten event stream");
 
             return;
@@ -131,7 +131,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         // then assume that the default behavior of each return value is to be an event
         if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
         {
-            chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType!);
+            chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType);
         }
     }
 

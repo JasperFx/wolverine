@@ -73,7 +73,7 @@ public class AggregateAttribute : HttpChainParameterAttribute
         chain.Middleware.Add(sessionCreator);
 
         chain.Middleware.Add(new EventStoreFrame());
-        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<Frame>(this, AggregateType!);
+        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<Frame>(this, AggregateType);
         chain.Middleware.Add(loader);
 
         // Use the active document session as an IQuerySession instead of creating a new one
