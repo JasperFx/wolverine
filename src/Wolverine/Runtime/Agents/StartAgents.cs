@@ -51,9 +51,9 @@ internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISeri
 
     public static object Read(byte[] bytes)
     {
-        var uris = Encoding.UTF8.GetString(bytes.Skip(16).ToArray()).Split(',').Select(x => new Uri(x))
+        var uris = Encoding.UTF8.GetString(bytes[16..]).Split(',').Select(x => new Uri(x))
             .ToArray();
-        return new AssignAgents(new Guid(bytes.Take(16).ToArray()), uris);
+        return new AssignAgents(new Guid(bytes[..16]), uris);
     }
 }
 
@@ -77,9 +77,9 @@ internal record StopRemoteAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, I
 
     public static object Read(byte[] bytes)
     {
-        var uris = Encoding.UTF8.GetString(bytes.Skip(16).ToArray()).Split(',').Select(x => new Uri(x))
+        var uris = Encoding.UTF8.GetString(bytes[16..]).Split(',').Select(x => new Uri(x))
             .ToArray();
-        return new StopRemoteAgents(new Guid(bytes.Take(16).ToArray()), uris);
+        return new StopRemoteAgents(new Guid(bytes[..16]), uris);
     }
 }
 

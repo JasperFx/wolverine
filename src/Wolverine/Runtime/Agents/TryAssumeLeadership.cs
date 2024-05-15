@@ -39,8 +39,8 @@ public record TryAssumeLeadership : IAgentCommand, ISerializable
 
     public static object Read(byte[] bytes)
     {
-        var leaderId = new Guid(bytes.Take(16).ToArray());
-        var candidateId = new Guid(bytes.Skip(16).ToArray());
+        var leaderId = new Guid(bytes[..16]);
+        var candidateId = new Guid(bytes[16..]);
         return new TryAssumeLeadership
         {
             CurrentLeaderId = leaderId == Guid.Empty ? null : leaderId,

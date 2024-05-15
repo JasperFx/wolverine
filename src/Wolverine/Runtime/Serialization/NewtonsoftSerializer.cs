@@ -94,7 +94,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
 
             _serializer.Serialize(jsonWriter, message);
             return stream.Position < _bufferSize
-                ? bytes.Take((int)stream.Position).ToArray()
+                ? bytes[..(int)stream.Position]
                 : stream.ToArray();
         }
 

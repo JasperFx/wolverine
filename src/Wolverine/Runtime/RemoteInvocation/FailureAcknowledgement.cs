@@ -16,8 +16,8 @@ public class FailureAcknowledgement : ISerializable
 
     public static object Read(byte[] bytes)
     {
-        var requestId = new Guid(bytes.Take(16).ToArray());
-        var message = Encoding.UTF8.GetString(bytes.Skip(16).ToArray());
+        var requestId = new Guid(bytes[..16]);
+        var message = Encoding.UTF8.GetString(bytes[16..]);
 
         return new FailureAcknowledgement
         {
