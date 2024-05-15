@@ -11,7 +11,7 @@ public static class EnvelopeCustomizationSamples
     {
         #region sample_MonitoringDataPublisher
 
-        using var host = Host.CreateDefaultBuilder()
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.PublishAllMessages()
