@@ -5,8 +5,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="OpenTelemetry" Version="1.3.0" />
-        <PackageReference Include="OpenTelemetry.Api" Version="1.3.0" />
+        <PackageReference Include="OpenTelemetry" Version="1.8.0" />
+        <PackageReference Include="OpenTelemetry.Api" Version="1.8.0" />
         <PackageReference Include="OpenTelemetry.Exporter.Jaeger" Version="1.3.0" />
         <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.0.0-rc8" />
     </ItemGroup>

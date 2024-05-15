@@ -1,4 +1,6 @@
-﻿using JasperFx.Core;
+﻿using System.Runtime.Serialization;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Util;
 
@@ -121,7 +123,15 @@ public partial class Envelope
                 throw new InvalidOperationException("No data or writer is known for this envelope");
             }
 
-            _data = Serializer.Write(this);
+            try
+            {
+                _data = Serializer.Write(this);
+            }
+            catch (Exception e)
+            {
+                throw new SerializationException(
+                    $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
+            }
 
             return _data;
         }

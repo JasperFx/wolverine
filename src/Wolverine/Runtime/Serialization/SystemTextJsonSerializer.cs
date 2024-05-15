@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Wolverine.Runtime.Serialization;
 
@@ -13,6 +14,7 @@ internal class SystemTextJsonSerializer : IMessageSerializer
     public SystemTextJsonSerializer(JsonSerializerOptions options)
     {
         _options = options;
+        _options.Converters.Add(new CustomJsonConverterForType());
     }
 
     public string ContentType => EnvelopeConstants.JsonContentType;
@@ -47,5 +49,35 @@ internal class SystemTextJsonSerializer : IMessageSerializer
             ReadCommentHandling = JsonCommentHandling.Skip,
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
+    }
+}
+
+internal class CustomJsonConverterForType : JsonConverter<Type>
+{
+    public override Type Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options
+        )
+    {
+        // Caution: Deserialization of type instances like this 
+        // is not recommended and should be avoided
+        // since it can lead to potential security issues.
+
+        // If you really want this supported (for instance if the JSON input is trusted):
+        // string assemblyQualifiedName = reader.GetString();
+        // return Type.GetType(assemblyQualifiedName);
+        throw new NotSupportedException();
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        Type value,
+        JsonSerializerOptions options
+        )
+    {
+        string assemblyQualifiedName = value.AssemblyQualifiedName;
+        // Use this with caution, since you are disclosing type information.
+        writer.WriteStringValue(assemblyQualifiedName);
     }
 }
