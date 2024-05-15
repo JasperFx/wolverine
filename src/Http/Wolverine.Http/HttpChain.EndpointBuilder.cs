@@ -66,7 +66,7 @@ public partial class HttpChain : IEndpointConventionBuilder
             requestDelegate = c => handler.Value.Handle(c);
         }
 
-        var builder = new RouteEndpointBuilder(requestDelegate!, RoutePattern!, Order)
+        var builder = new RouteEndpointBuilder(requestDelegate, RoutePattern!, Order)
         {
             DisplayName = DisplayName
         };

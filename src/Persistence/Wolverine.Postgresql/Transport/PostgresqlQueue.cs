@@ -176,14 +176,14 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var queueDelta = await QueueTable!.FindDeltaAsync(conn);
+                var queueDelta = await QueueTable.FindDeltaAsync(conn);
                 if (queueDelta.HasChanges())
                 {
                     returnValue = false;
                     return;
                 }
 
-                var scheduledDelta = await ScheduledTable!.FindDeltaAsync(conn);
+                var scheduledDelta = await ScheduledTable.FindDeltaAsync(conn);
 
                 returnValue = returnValue && !scheduledDelta.HasChanges();
             }
@@ -202,8 +202,8 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         {
             await using var conn = await source.OpenConnectionAsync();
 
-            await QueueTable!.DropAsync(conn);
-            await ScheduledTable!.DropAsync(conn);
+            await QueueTable.DropAsync(conn);
+            await ScheduledTable.DropAsync(conn);
 
             await conn.CloseAsync();
         });
@@ -215,8 +215,8 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         {
             await using var conn = await source.OpenConnectionAsync();
 
-            await QueueTable!.ApplyChangesAsync(conn);
-            await ScheduledTable!.ApplyChangesAsync(conn);
+            await QueueTable.ApplyChangesAsync(conn);
+            await ScheduledTable.ApplyChangesAsync(conn);
 
             await conn.CloseAsync();
         });

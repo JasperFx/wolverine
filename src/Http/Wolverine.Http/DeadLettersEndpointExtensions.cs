@@ -77,7 +77,7 @@ public static class DeadLettersEndpointExtensions
                 [.. deadLetterEnvelopesFound.DeadLetterEnvelopes.Select(x => new DeadLetterEnvelopeResponse(
                     x.Id,
                     x.ExecutionTime,
-                    handlerGraph.TryFindMessageType(x.MessageType!, out var messageType) ? opts.Value.DetermineSerializer(x.Envelope).ReadFromData(messageType, x.Envelope) : null,
+                    handlerGraph.TryFindMessageType(x.MessageType, out var messageType) ? opts.Value.DetermineSerializer(x.Envelope).ReadFromData(messageType, x.Envelope) : null,
                     x.MessageType,
                     x.ReceivedAt,
                     x.Source,

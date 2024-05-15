@@ -199,10 +199,10 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
 
         try
         {
-            var queueDelta = await QueueTable!.FindDeltaAsync(conn);
+            var queueDelta = await QueueTable.FindDeltaAsync(conn);
             if (queueDelta.HasChanges()) return false;
 
-            var scheduledDelta = await ScheduledTable!.FindDeltaAsync(conn);
+            var scheduledDelta = await ScheduledTable.FindDeltaAsync(conn);
 
             return !scheduledDelta.HasChanges();
         }
@@ -217,8 +217,8 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
         await conn.OpenAsync();
 
-        await QueueTable!.Drop(conn);
-        await ScheduledTable!.Drop(conn);
+        await QueueTable.Drop(conn);
+        await ScheduledTable.Drop(conn);
 
         await conn.CloseAsync();
     }
@@ -228,8 +228,8 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
         await conn.OpenAsync();
 
-        await QueueTable!.ApplyChangesAsync(conn);
-        await ScheduledTable!.ApplyChangesAsync(conn);
+        await QueueTable.ApplyChangesAsync(conn);
+        await ScheduledTable.ApplyChangesAsync(conn);
 
         await conn.CloseAsync();
     }

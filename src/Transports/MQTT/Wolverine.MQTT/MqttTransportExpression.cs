@@ -37,7 +37,7 @@ public class MqttTransportExpression
             var configuration = new MqttListenerConfiguration(e);
             configure(configuration);
 
-            configuration!.As<IDelayedEndpointConfiguration>().Apply();
+            configuration.As<IDelayedEndpointConfiguration>().Apply();
         });
 
         _options.Policies.Add(policy);
@@ -67,7 +67,7 @@ public class MqttTransportExpression
             var configuration = new MqttSubscriberConfiguration(e);
             configure(configuration);
 
-            configuration!.As<IDelayedEndpointConfiguration>().Apply();
+            configuration.As<IDelayedEndpointConfiguration>().Apply();
         });
 
         _options.Policies.Add(policy);
