@@ -162,9 +162,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     internal LocalQueue FindOrCreateQueueForMessageTypeByConvention(Type messageType)
     {
-        var queueName = messageType.HasAttribute<LocalQueueAttribute>()
-            ? messageType.GetAttribute<LocalQueueAttribute>()!.QueueName
-            : _determineName(messageType);
+        var queueName = messageType.GetAttribute<LocalQueueAttribute>()?.QueueName ?? _determineName(messageType);
 
         if (queueName.IsEmpty())
         {
