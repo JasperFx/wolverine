@@ -1,5 +1,4 @@
 using JasperFx.Core;
-using JasperFx.Core.Filters;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;

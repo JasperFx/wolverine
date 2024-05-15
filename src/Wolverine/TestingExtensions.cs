@@ -1,9 +1,7 @@
 using System.Text;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 

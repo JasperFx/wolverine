@@ -1,9 +1,7 @@
 using Marten;
 using Marten.AspNetCore;
-using Marten.Schema.Identity;
 using Microsoft.AspNetCore.Mvc;
 using TeleHealth.Common;
-using Wolverine.Attributes;
 using Wolverine.Http;
 using Wolverine.Marten;
 

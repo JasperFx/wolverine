@@ -1,4 +1,3 @@
-using Amazon.SQS.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;

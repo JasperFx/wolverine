@@ -1,13 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Logging.Debug;
 using Shouldly;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.MQTT.Internals;
 using Wolverine.Runtime;
-using Wolverine.Tracking;
-using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;
 

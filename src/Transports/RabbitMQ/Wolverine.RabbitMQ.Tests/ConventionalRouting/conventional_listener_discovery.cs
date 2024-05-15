@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Shouldly;

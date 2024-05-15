@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
-using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;

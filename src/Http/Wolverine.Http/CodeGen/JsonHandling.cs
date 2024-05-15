@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;

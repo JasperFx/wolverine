@@ -1,6 +1,3 @@
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using CoreTests.Acceptance;
 using CoreTests.Configuration;
 using Microsoft.Extensions.DependencyInjection;

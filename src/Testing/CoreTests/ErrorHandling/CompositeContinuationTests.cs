@@ -1,6 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using CoreTests.Runtime;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -13,7 +11,7 @@ namespace CoreTests.ErrorHandling;
 public class CompositeContinuationTests
 {
     [Fact]
-    public async ValueTask executes_all_continuations()
+    public async Task executes_all_continuations()
     {
         var inner1 = Substitute.For<IContinuation>();
         var inner2 = Substitute.For<IContinuation>();
@@ -33,7 +31,7 @@ public class CompositeContinuationTests
     }
 
     [Fact]
-    public async ValueTask executes_all_continuations_even_on_failures()
+    public async Task executes_all_continuations_even_on_failures()
     {
         var inner1 = Substitute.For<IContinuation>();
         var inner2 = Substitute.For<IContinuation>();

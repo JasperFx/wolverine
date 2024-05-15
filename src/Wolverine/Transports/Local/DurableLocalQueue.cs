@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;

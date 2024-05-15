@@ -3,7 +3,6 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.AspNetCore.Http;
 using Wolverine.Persistence;
-using Wolverine.Runtime;
 
 namespace Wolverine.Http.Runtime.MultiTenancy;
 

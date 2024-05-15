@@ -1,10 +1,7 @@
-using System;
-using System.Linq;
 using JasperFx.Core;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;

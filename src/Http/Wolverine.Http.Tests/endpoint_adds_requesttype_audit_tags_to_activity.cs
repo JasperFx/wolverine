@@ -1,7 +1,3 @@
-using JasperFx.CodeGeneration;
-using JasperFx.Core;
-using JasperFx.Core.Reflection;
-using Microsoft.AspNetCore.Http;
 using Shouldly;
 using WolverineWebApi;
 

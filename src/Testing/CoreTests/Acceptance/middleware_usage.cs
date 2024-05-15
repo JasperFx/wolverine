@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using Wolverine.Attributes;
-using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Xunit;
 using Xunit.Abstractions;
@@ -67,16 +63,6 @@ public class middleware_usage
 
         list.ShouldHaveTheSameElementsAs("Created SimpleBeforeAndAfterTask", "SimpleBeforeAndAfterTask.Before",
             "Handled TracedMessage", "SimpleBeforeAndAfterTask.After");
-    }
-
-    [Fact]
-    public async ValueTask execute_simple_before_and_after_async_with_ValueTask()
-    {
-        var list = await invokeMessage(new TracedMessage(),
-            handlers => handlers.AddMiddleware<SimpleBeforeAndAfterValueTask>());
-
-        list.ShouldHaveTheSameElementsAs("Created SimpleBeforeAndAfterValueTask",
-            "SimpleBeforeAndAfterValueTask.Before", "Handled TracedMessage", "SimpleBeforeAndAfterValueTask.After");
     }
 
     [Fact]

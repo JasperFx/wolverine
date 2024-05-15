@@ -1,4 +1,3 @@
-using IntegrationTests;
 using Npgsql;
 using Shouldly;
 using Weasel.Postgresql;

@@ -1,10 +1,6 @@
-﻿using System.Linq;
-using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Frames;
-using Lamar;
+﻿using Lamar;
 using Microsoft.Extensions.Logging;
 using TestingSupport.Compliance;
-using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 

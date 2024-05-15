@@ -1,7 +1,6 @@
 using JasperFx.Core;
 using RabbitMQ.Client;
 using Shouldly;
-using TestingSupport;
 using Wolverine.RabbitMQ.Internal;
 using Xunit;
 
@@ -60,4 +59,15 @@ public class ConnectionStringParserTests
         ConnectionStringParser.Apply("virtualhost=weird", theFactory);
         theFactory.VirtualHost.ShouldBe("weird");
     }
+
+    [Theory]
+    [InlineData("host=foo;port=5673;")]
+    [InlineData("host=foo;port=5673")]
+    public void trailing_semicolon_is_optional(string connectionString)
+    {
+        ConnectionStringParser.Apply(connectionString, theFactory);
+        theFactory.HostName.ShouldBe("foo");
+        theFactory.Port.ShouldBe(5673);
+    }
+
 }

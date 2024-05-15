@@ -45,6 +45,9 @@ public class subscriptions_end_to_end : PostgresqlContext
                 .SubscribeToEvents(new TestBatchSubscription());
             }).StartAsync();
 
+        var runtime = host.GetRuntime();
+        var routing = runtime.RoutingFor(typeof(IEvent<AEvent>));
+
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
         var daemon = await store.BuildProjectionDaemonAsync();
@@ -188,6 +191,9 @@ public class subscriptions_end_to_end : PostgresqlContext
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
+                
+                opts.Policies.UseDurableInboxOnAllListeners();
+                opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
                 opts.Services.AddMarten(m =>
                     {
@@ -264,7 +270,7 @@ public class subscriptions_end_to_end : PostgresqlContext
             .TrackActivity()
             .ExecuteAndWaitAsync(writeEvents);
 
-        tracked.Executed.MessagesOf<AEvent>().Count().ShouldBe(6);
+        tracked.Executed.MessagesOf<IEvent<AEvent>>().Count().ShouldBe(6);
         tracked.Executed.MessagesOf<BEvent>().Count().ShouldBe(7);
         tracked.Executed.MessagesOf<IEvent<DEvent>>().Count().ShouldBe(6);
     }
@@ -317,7 +323,7 @@ public class subscriptions_end_to_end : PostgresqlContext
             .TrackActivity()
             .ExecuteAndWaitAsync(writeEvents);
 
-        tracked.Executed.MessagesOf<AEvent>().Count().ShouldBe(6);
+        tracked.Executed.MessagesOf<IEvent<AEvent>>().Count().ShouldBe(6);
 
         // Filtered out
         tracked.Executed.MessagesOf<BEvent>().Count().ShouldBe(0);
@@ -333,9 +339,12 @@ public class subscriptions_end_to_end : PostgresqlContext
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
+                
+                opts.Policies.UseDurableLocalQueues();
 
                 opts.Services.AddMarten(m =>
                     {
+                        m.DisableNpgsqlLogging = true;
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = "subscriptions";
                     }).IntegrateWithWolverine()
@@ -372,7 +381,7 @@ public class subscriptions_end_to_end : PostgresqlContext
             .TrackActivity()
             .ExecuteAndWaitAsync(writeEvents);
 
-        tracked.Executed.MessagesOf<AEvent>().Count().ShouldBe(6);
+        tracked.Executed.MessagesOf<IEvent<AEvent>>().Count().ShouldBe(6);
 
         // Filtered out
         tracked.Executed.MessagesOf<BEvent>().Count().ShouldBe(0);
@@ -561,7 +570,7 @@ public static class TotalsHandler
 
     }
 
-    public static void Handle(AEvent e)
+    public static void Handle(IEvent<AEvent> e)
     {
         Handled.Add('a');
     }

@@ -9,7 +9,6 @@ using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Marten.Subscriptions;
-using Wolverine.Postgresql;
 using Wolverine.RabbitMQ;
 
 namespace DocumentationSamples;

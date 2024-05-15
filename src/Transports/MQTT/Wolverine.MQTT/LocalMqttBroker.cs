@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Debug;
 using MQTTnet;
 using MQTTnet.Diagnostics;

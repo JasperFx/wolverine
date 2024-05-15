@@ -1,12 +1,9 @@
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core.TypeScanning;
 using Microsoft.Extensions.DependencyInjection;
 using Module2;
 using OrderExtension;
 using TestingSupport;
 using Wolverine.Attributes;
-using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Xunit;
 using Xunit.Abstractions;

@@ -1,5 +1,4 @@
 using System.Data.Common;
-using JasperFx.Core;
 
 namespace Wolverine.RDBMS;
 

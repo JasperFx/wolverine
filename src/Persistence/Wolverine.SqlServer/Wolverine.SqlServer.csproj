@@ -14,7 +14,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Weasel.SqlServer" Version="7.2.1" />
+        <PackageReference Include="Weasel.SqlServer" Version="7.4.0" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />

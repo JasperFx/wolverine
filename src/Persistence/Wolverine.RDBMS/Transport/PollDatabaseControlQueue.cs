@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Runtime.CompilerServices;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;

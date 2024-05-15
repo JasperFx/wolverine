@@ -7,7 +7,6 @@ using Oakton.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Logging;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Xunit.Abstractions;

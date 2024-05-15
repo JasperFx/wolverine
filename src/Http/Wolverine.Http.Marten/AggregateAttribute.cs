@@ -1,4 +1,3 @@
-using System.Data;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -8,8 +7,6 @@ using Lamar;
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Http;
-using Wolverine.Configuration;
-using Wolverine.Http.CodeGen;
 using Wolverine.Marten;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;

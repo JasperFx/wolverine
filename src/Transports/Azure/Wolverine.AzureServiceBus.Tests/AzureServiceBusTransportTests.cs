@@ -1,7 +1,5 @@
-using System;
 using Shouldly;
 using Wolverine.AzureServiceBus.Internal;
-using Wolverine.Configuration;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;

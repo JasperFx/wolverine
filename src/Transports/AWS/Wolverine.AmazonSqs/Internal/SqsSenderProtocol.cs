@@ -3,7 +3,6 @@ using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
 using JasperFx.Core;
 using Wolverine.Runtime;
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 

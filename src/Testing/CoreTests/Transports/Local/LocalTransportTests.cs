@@ -1,8 +1,6 @@
-﻿using System.Linq;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Transports.Local;

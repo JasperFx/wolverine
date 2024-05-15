@@ -1,4 +1,3 @@
-using System.Linq;
 using Lamar;
 using NSubstitute;
 using TestingSupport.Compliance;

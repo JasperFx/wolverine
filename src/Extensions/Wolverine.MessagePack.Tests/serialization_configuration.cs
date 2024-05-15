@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.MessagePack.Internal;
 using Wolverine.Runtime;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.MessagePack.Tests;

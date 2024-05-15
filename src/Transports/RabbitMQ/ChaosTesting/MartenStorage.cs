@@ -4,7 +4,6 @@ using Lamar;
 using Marten;
 using Marten.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Oakton.Resources;
 using Weasel.Core;

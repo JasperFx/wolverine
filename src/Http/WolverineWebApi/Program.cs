@@ -1,5 +1,5 @@
-using System.Text.Json;
 using IntegrationTests;
+using JasperFx.CodeGeneration;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -74,7 +74,7 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
 
     opts.OptimizeArtifactWorkflow();
-
+    
     opts.Policies.Add<BroadcastClientMessages>();
 });
 

@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.MemoryPack.Internal;
 using Wolverine.Runtime;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.MemoryPack.Tests;

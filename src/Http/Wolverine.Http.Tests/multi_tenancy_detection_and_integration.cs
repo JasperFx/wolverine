@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Shouldly;
-using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Http.Tests.Bugs;
 using Wolverine.Marten;

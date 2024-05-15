@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;

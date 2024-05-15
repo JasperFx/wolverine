@@ -6,7 +6,6 @@ using NSubstitute;
 using TestingSupport;
 using Wolverine.Configuration;
 using Wolverine.Logging;
-using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Xunit;
 

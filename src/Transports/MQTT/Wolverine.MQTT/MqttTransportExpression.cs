@@ -1,5 +1,4 @@
 using JasperFx.Core.Reflection;
-using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
 using Wolverine.MQTT.Internals;
 

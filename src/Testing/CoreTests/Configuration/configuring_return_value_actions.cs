@@ -5,7 +5,6 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using TestingSupport;
-using Wolverine.Middleware;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 

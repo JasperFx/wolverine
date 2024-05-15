@@ -5,10 +5,8 @@ using Marten;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
-using Wolverine.Attributes;
 using Wolverine.FluentValidation;
 using Wolverine.Marten;
-using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 

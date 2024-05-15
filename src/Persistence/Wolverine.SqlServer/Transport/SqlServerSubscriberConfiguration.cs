@@ -1,5 +1,4 @@
 using Wolverine.Configuration;
-using Wolverine.ErrorHandling;
 
 namespace Wolverine.SqlServer.Transport;
 

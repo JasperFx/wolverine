@@ -1,15 +1,11 @@
-using System.Diagnostics;
 using Alba;
 using IntegrationTests;
 using Marten;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Marten;
-using Wolverine.Postgresql;
-using Wolverine.Runtime;
 using Wolverine.Tracking;
 
 namespace Wolverine.Http.Tests.Bugs;

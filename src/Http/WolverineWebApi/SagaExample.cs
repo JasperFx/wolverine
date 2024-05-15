@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using Wolverine;
-using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace WolverineWebApi;

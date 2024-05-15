@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;

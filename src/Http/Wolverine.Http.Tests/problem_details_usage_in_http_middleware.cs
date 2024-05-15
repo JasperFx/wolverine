@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using Wolverine.Http.Resources;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
