@@ -17,7 +17,7 @@ public partial class agent_tracking_behavior
     public agent_tracking_behavior()
     {
         theTracker = new WolverineTracker(NullLogger.Instance);
-        theNodes = (INodeStateTracker)theTracker;
+        theNodes = theTracker;
     }
 
     private WolverineNode createNode()

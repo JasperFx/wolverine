@@ -41,7 +41,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
-        var cmd = (NpgsqlCommand)_dataSource.CreateCommand(
+        var cmd = _dataSource.CreateCommand(
                 $"insert into {_nodeTable} (id, uri, capabilities, description) values (:id, :uri, :capabilities, :description) returning node_number")
             .With("id", node.Id)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
