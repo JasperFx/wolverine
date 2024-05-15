@@ -36,7 +36,7 @@ internal record ReassignAgent(Uri AgentUri, Guid OriginalNodeId, Guid ActiveNode
 
     public static object Read(byte[] bytes)
     {
-        var agentUriString = Encoding.UTF8.GetString(bytes.Skip(32).ToArray());
-        return new ReassignAgent(new Uri(agentUriString), new Guid(bytes.Take(16).ToArray()), new Guid(bytes.Skip(16).Take(16).ToArray()));
+        var agentUriString = Encoding.UTF8.GetString(bytes[32..]);
+        return new ReassignAgent(new Uri(agentUriString), new Guid(bytes[..16]), new Guid(bytes[16..][..16]));
     }
 }

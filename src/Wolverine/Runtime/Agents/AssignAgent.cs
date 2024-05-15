@@ -38,8 +38,8 @@ internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISeriali
 
     public static object Read(byte[] bytes)
     {
-        var agentUriString = Encoding.UTF8.GetString(bytes.Skip(16).ToArray());
-        return new AssignAgent(new Uri(agentUriString), new Guid(bytes.Take(16).ToArray()));
+        var agentUriString = Encoding.UTF8.GetString(bytes[16..]);
+        return new AssignAgent(new Uri(agentUriString), new Guid(bytes[..16]));
     }
 
     public virtual bool Equals(AssignAgent? other)

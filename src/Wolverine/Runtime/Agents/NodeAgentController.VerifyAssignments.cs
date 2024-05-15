@@ -89,8 +89,8 @@ internal record RunningAgents(Guid NodeId, Uri[] Agents) : IAgentCommand, ISeria
 
     public static object Read(byte[] bytes)
     {
-        var nodeId = new Guid(bytes.Take(16).ToArray());
-        var agents = Encoding.UTF8.GetString(bytes.Skip(16).ToArray()).Split(',')
+        var nodeId = new Guid(bytes[..16]);
+        var agents = Encoding.UTF8.GetString(bytes[16..]).Split(',')
             .Select(x => new Uri(x)).ToArray();
         return new RunningAgents(nodeId, agents);
     }
