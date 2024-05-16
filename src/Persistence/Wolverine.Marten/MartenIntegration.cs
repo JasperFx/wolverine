@@ -6,6 +6,7 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Wolverine.Util;
 
 namespace Wolverine.Marten;
 
@@ -80,7 +81,11 @@ internal class MartenEventRouter : IMessageRouteSource
             if (messageType.IsConcrete())
             {
                 var inner = runtime.RoutingFor(wrappedType);
-                innerRoutes = inner.Routes.OfType<MessageRoute>().ToArray();
+                innerRoutes = inner.Routes.Concat(new LocalRouting().FindRoutes(wrappedType, runtime)).OfType<MessageRoute>().ToArray();
+            }
+            else
+            {
+                innerRoutes = new LocalRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
             }
 
             // First look for explicit transformations
