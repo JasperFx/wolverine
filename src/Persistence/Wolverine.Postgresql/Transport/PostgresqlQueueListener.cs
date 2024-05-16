@@ -18,6 +18,7 @@ internal class PostgresqlQueueListener : IListener
     private readonly PostgresqlQueue _queue;
     private readonly IReceiver _receiver;
     private readonly NpgsqlDataSource _dataSource;
+    private readonly string? _databaseName;
     private readonly ILogger<PostgresqlQueueListener> _logger;
     private Task? _task;
     private readonly DurabilitySettings _settings;
@@ -36,6 +37,7 @@ internal class PostgresqlQueueListener : IListener
         _queue = queue;
         _receiver = receiver;
         _dataSource = dataSource;
+        _databaseName = databaseName;
         _logger = runtime.LoggerFactory.CreateLogger<PostgresqlQueueListener>();
         _settings = runtime.DurabilitySettings;
 
@@ -310,11 +312,14 @@ SELECT message.{DatabaseConstants.Body} from message;
         }
     }
 
-    public Task StartAsync()
+    public async Task StartAsync()
     {
+        if (_queue.Parent.AutoProvision)
+        {
+            await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
+        }
+        
         _task = Task.Run(listenForMessagesAsync, _cancellation.Token);
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);
-
-        return Task.CompletedTask;
     }
 }
