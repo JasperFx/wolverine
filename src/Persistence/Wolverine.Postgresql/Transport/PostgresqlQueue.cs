@@ -21,6 +21,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     private bool _hasInitialized;
     private IPostgresqlQueueSender? _sender;
+    private ImHashMap<string, bool> _checkedDatabases = ImHashMap<string, bool>.Empty;
 
     public PostgresqlQueue(string name, PostgresqlTransport parent, EndpointRole role = EndpointRole.Application,
         string? databaseName = null) :
@@ -120,25 +121,25 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         return _sender!.SendAsync(envelope);
     }
 
-    private async ValueTask forEveryDatabase(Func<NpgsqlDataSource, Task> action)
+    private async ValueTask forEveryDatabase(Func<NpgsqlDataSource, string, Task> action)
     {
         if (Parent?.Store?.DataSource != null)
         {
-            await action(Parent?.Store?.DataSource);
+            await action(Parent.Store.DataSource, Parent.Store.Identifier);
         }
 
         if (Parent?.Databases != null)
         {
             foreach (var database in Parent.Databases.AllDatabases().OfType<PostgresqlMessageStore>())
             {
-                await action(database.DataSource);
+                await action(database.DataSource, database.Identifier);
             }
         }
     }
 
     public ValueTask PurgeAsync(ILogger logger)
     {
-        return forEveryDatabase(async source =>
+        return forEveryDatabase(async (source, _) =>
         {
             var builder = new BatchBuilder();
             builder.Append($"delete from {QueueTable.Identifier}");
@@ -171,7 +172,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     public async ValueTask<bool> CheckAsync()
     {
         var returnValue = true;
-        await forEveryDatabase(async source =>
+        await forEveryDatabase(async (source, _) =>
         {
             await using var conn = await source.OpenConnectionAsync();
             try
@@ -198,7 +199,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
-        await forEveryDatabase(async source =>
+        await forEveryDatabase(async (source, _) =>
         {
             await using var conn = await source.OpenConnectionAsync();
 
@@ -211,21 +212,31 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     public async ValueTask SetupAsync(ILogger logger)
     {
-        await forEveryDatabase(async source =>
+        await forEveryDatabase(async (source, identifier) => {
         {
-            await using var conn = await source.OpenConnectionAsync();
+            await EnsureSchemaExists(identifier, source);
+        }});
+    }
 
+    internal async Task EnsureSchemaExists(string identifier, NpgsqlDataSource source)
+    {
+        if (_checkedDatabases.Contains(identifier)) return;
+
+        await using (var conn = await source.OpenConnectionAsync())
+        {
             await QueueTable.ApplyChangesAsync(conn);
             await ScheduledTable.ApplyChangesAsync(conn);
 
             await conn.CloseAsync();
-        });
+        }
+
+        _checkedDatabases = _checkedDatabases.AddOrUpdate(identifier, true);
     }
 
     public async Task<long> CountAsync()
     {
         var count = 0L;
-        await forEveryDatabase(async source =>
+        await forEveryDatabase(async (source, _) =>
         {
             await using var conn = await source.OpenConnectionAsync();
 
@@ -245,7 +256,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     public async Task<long> ScheduledCountAsync()
     {
         var count = 0L;
-        await forEveryDatabase(async source =>
+        await forEveryDatabase(async (source, _) =>
         {
             await using var conn = await source.OpenConnectionAsync();
             try
