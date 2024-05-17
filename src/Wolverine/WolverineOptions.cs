@@ -107,6 +107,11 @@ public sealed partial class WolverineOptions
     ///     application start
     /// </summary>
     public bool AutoBuildMessageStorageOnStartup { get; set; } = true;
+   
+    /// <summary>
+    ///     Direct Wolverine to not scan assemblies for modules that are marked by <see cref="Wolverine.Attributes.WolverineModuleAttribute"/> attribute
+    /// </summary>
+    public bool DisableAssemblyScanForModules { get; set; }
 
     internal TypeLoadMode ProductionTypeLoadMode { get; set; }
 
