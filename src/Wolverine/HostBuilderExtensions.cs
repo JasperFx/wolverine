@@ -158,7 +158,11 @@ public static class HostBuilderExtensions
 
             options.Services.InsertRange(0, services);
 
-            ExtensionLoader.ApplyExtensions(options);
+            if (!options.DisableAssemblyScanForModules)
+            {
+                ExtensionLoader.ApplyExtensions(options);
+            }
+
             if (options.ApplicationAssembly != null)
             {
                 options.HandlerGraph.Discovery.Assemblies.Fill(options.ApplicationAssembly);
@@ -303,6 +307,7 @@ public static class HostBuilderExtensions
     /// </summary>
     /// <param name="services"></param>
     /// <returns></returns>
+
     #region sample_extension_method_to_disable_external_transports
 
     public static IServiceCollection DisableAllExternalWolverineTransports(this IServiceCollection services)
