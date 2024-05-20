@@ -10,7 +10,7 @@ Let's say that we have a stateful saga type for making online reservations like 
 public class Reservation : Saga
 {
     public string? Id { get; set; }
-    
+
     // Apply the CompleteReservation to the saga
     public void Handle(BookReservation book, ILogger<Reservation> logger)
     {
@@ -31,7 +31,7 @@ public class Reservation : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L78-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L76-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To start the `Reservation` saga, you could use an HTTP endpoint method like this one:
@@ -42,12 +42,12 @@ To start the `Reservation` saga, you could use an HTTP endpoint method like this
 [WolverinePost("/reservation")]
 public static (
     // The first return value would be written out as the HTTP response body
-    ReservationBooked, 
-    
+    ReservationBooked,
+
     // Because this subclasses from Saga, Wolverine will persist this entity
     // with saga persistence
-    Reservation, 
-    
+    Reservation,
+
     // Other return values that trigger no special handling will be treated
     // as cascading messages
     ReservationTimeout) Post(StartReservation start)
@@ -55,7 +55,7 @@ public static (
     return (new ReservationBooked(start.ReservationId, DateTimeOffset.UtcNow), new Reservation { Id = start.ReservationId }, new ReservationTimeout(start.ReservationId));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L14-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_saga_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_saga_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Remember in Wolverine.HTTP that the *first* return value of an endpoint is assumed to be the response body by Wolverine, so if you are
@@ -71,12 +71,12 @@ the `Saga` type *and* force Wolverine to use the return value as a new `Saga` as
 // This directs Wolverine to disregard the Reservation return value
 // as the response body, and allow Wolverine to use the Reservation
 // return as a new saga
-[EmptyResponse] 
+[EmptyResponse]
 public static Reservation Post2(StartReservation start)
 {
     return new Reservation { Id = start.ReservationId };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L34-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_start_saga_from_http_endpoint_empty_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L33-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_start_saga_from_http_endpoint_empty_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

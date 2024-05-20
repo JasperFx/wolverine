@@ -13,7 +13,7 @@ var host = await Host.CreateDefaultBuilder()
             // Let Wolverine create missing queues as necessary
             .AutoProvision()
 
-            // Optionally purge all queues on application startup. 
+            // Optionally purge all queues on application startup.
             // Warning though, this is potentially slow
             .AutoPurgeOnStartup();
 

@@ -18,8 +18,8 @@ using var host = await Host.CreateDefaultBuilder()
 
         opts.ListenToSqsQueue("incoming").ReceiveRawJsonMessage(
             // Specify the single message type for this queue
-            typeof(Message1), 
-            
+            typeof(Message1),
+
             // Optionally customize System.Text.Json configuration
             o =>
             {
@@ -42,8 +42,8 @@ using var host = await Host.CreateDefaultBuilder()
 
         opts.PublishAllMessages().ToSqsQueue("outgoing").SendRawJsonMessage(
             // Specify the single message type for this queue
-            typeof(Message1), 
-            
+            typeof(Message1),
+
             // Optionally customize System.Text.Json configuration
             o =>
             {

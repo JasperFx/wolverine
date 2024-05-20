@@ -99,7 +99,7 @@ public async Task Post(
 {
     // This is important!
     outbox.Enroll(session);
-    
+
     // Fetch the current value of the Order aggregate
     var stream = await session
         .Events
@@ -179,7 +179,7 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L252-L279' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L251-L278' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, Wolverine is wrapping middleware around our basic command handler to
@@ -293,14 +293,14 @@ Here's an alternative to the `MarkItemReady` handler that uses `Events`:
 [AggregateHandler]
 public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
 {
-    // All contrived, let's say we need to call some 
+    // All contrived, let's say we need to call some
     // kind of service to get data so this handler has to be
     // async
     var data = await service.FindDataAsync();
 
     var messages = new OutgoingMessages();
     var events = new Events();
-    
+
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
         // Not doing this in a purist way here, but just
@@ -328,7 +328,7 @@ public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady c
     return (events, messages);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L293-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_aggregatehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L290-L330' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_aggregatehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

@@ -44,7 +44,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L163-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L162-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## PostgreSQL Messaging Transport <Badge type="tip" text="2.5" />
@@ -65,11 +65,11 @@ using var host = await Host.CreateDefaultBuilder()
     {
         var connectionString = context.Configuration.GetConnectionString("postgres");
         opts.UsePostgresqlPersistenceAndTransport(connectionString, "myapp")
-            
+
             // Tell Wolverine to build out all necessary queue or scheduled message
             // tables on demand as needed
             .AutoProvision()
-            
+
             // Optional that may be helpful in testing, but probably bad
             // in production!
             .AutoPurgeOnStartup();
@@ -79,14 +79,14 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Use this to set up queue listeners
         opts.ListenToPostgresqlQueue("inbound")
-            
+
             .CircuitBreaker(cb =>
             {
                 // fine tune the circuit breaker
                 // policies here
             })
-            
-            // Optionally specify how many messages to 
+
+            // Optionally specify how many messages to
             // fetch into the listener at any one time
             .MaximumMessagesToReceive(50);
     }).StartAsync();
@@ -102,7 +102,7 @@ that they are utilizing the transactional inbox and outbox. The PostgreSQL queue
 ```cs
 opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L61-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L58-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the PostgreSQL queues can be used for both sending or receiving with no integration

@@ -37,7 +37,7 @@ public static async Task use_message_bus(IMessageBus bus)
     // don't wait around
     await bus.SendAsync(new DebitAccount(1111, 250));
 
-    // Or instead, publish it to any interested subscribers, 
+    // Or instead, publish it to any interested subscribers,
     // but don't worry about it if there are actually any subscribers
     // This is probably best for raising event messages
     await bus.PublishAsync(new DebitAccount(1111, 300));
@@ -152,7 +152,7 @@ public ValueTask SendMessage(IMessageContext bus)
     return bus.SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L211-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L205-L222' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That by itself will send the `InvoiceCreated` message to whatever subscribers are interested in
@@ -180,7 +180,7 @@ public ValueTask PublishMessage(IMessageContext bus)
     return bus.PublishAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L231-L248' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L225-L242' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduling Message Delivery or Execution
@@ -274,14 +274,14 @@ public static IEnumerable<object> Consume(Incoming incoming)
 {
     // Delay the message delivery by 10 minutes
     yield return new Message1().DelayedFor(10.Minutes());
-    
+
     // Schedule the message delivery for a certain time
     yield return new Message2().ScheduledAt(new DateTimeOffset(DateTime.Today.AddDays(2)));
-    
+
     // Customize the message delivery however you please...
     yield return new Message3()
         .WithDeliveryOptions(new DeliveryOptions().WithHeader("foo", "bar"));
-    
+
     // Send back to the original sender
     yield return Respond.ToSender(new Message4());
 }

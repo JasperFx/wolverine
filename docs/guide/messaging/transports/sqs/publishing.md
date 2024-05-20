@@ -13,9 +13,9 @@ var host = await Host.CreateDefaultBuilder()
 
         opts.PublishMessage<Message1>()
             .ToSqsQueue("outbound1")
-            
+
             // Increase the outgoing message throughput, but at the cost
-            // of strict ordering 
+            // of strict ordering
             .MessageBatchMaxDegreeOfParallelism(Environment.ProcessorCount);
 
         opts.PublishMessage<Message2>()

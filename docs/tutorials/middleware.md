@@ -19,7 +19,7 @@ public static async Task Handle(DebitAccount command, IDocumentSession session, 
         logger.LogInformation("Referenced account {AccountId} does not exist", command.AccountId);
         return;
     }
-    
+
     // do the real processing
 }
 ```
@@ -61,8 +61,8 @@ Skipping ahead a little bit, if we had a handler for the `CreditAccount` command
 public static class CreditAccountHandler
 {
     public static void Handle(
-        CreditAccount command, 
-        
+        CreditAccount command,
+
         // Wouldn't it be nice to just have Wolverine "push"
         // the right account into this method?
         Account account,
@@ -71,8 +71,8 @@ public static class CreditAccountHandler
         IDocumentSession session)
     {
         account.Balance += command.Amount;
-        
-        // Just mark this account as needing to be updated 
+
+        // Just mark this account as needing to be updated
         // in the database
         session.Store(account);
     }
@@ -98,12 +98,12 @@ public static class AccountLookupMiddleware
     // The message *has* to be first in the parameter list
     // Before or BeforeAsync tells Wolverine this method should be called before the actual action
     public static async Task<(HandlerContinuation, Account?)> LoadAsync(
-        IAccountCommand command, 
-        ILogger logger, 
-        
+        IAccountCommand command,
+        ILogger logger,
+
         // This app is using Marten for persistence
-        IDocumentSession session, 
-        
+        IDocumentSession session,
+
         CancellationToken cancellation)
     {
         var account = await session.LoadAsync<Account>(command.AccountId, cancellation);
@@ -111,7 +111,7 @@ public static class AccountLookupMiddleware
         {
             logger.LogInformation("Unable to find an account for {AccountId}, aborting the requested operation", command.AccountId);
         }
-        
+
         return (account == null ? HandlerContinuation.Stop : HandlerContinuation.Continue, account);
     }
 }
@@ -133,11 +133,11 @@ Lastly, let's apply the newly built middleware to only the message handlers that
 ```cs
 builder.Host.UseWolverine(opts =>
 {
-    // This middleware should be applied to all handlers where the 
+    // This middleware should be applied to all handlers where the
     // command type implements the IAccountCommand interface that is the
     // "detected" message type of the middleware
     opts.Policies.ForMessagesOfType<IAccountCommand>().AddMiddleware(typeof(AccountLookupMiddleware));
-    
+
     opts.UseFluentValidation();
 
     // Explicit routing for the AccountUpdated
@@ -148,10 +148,10 @@ builder.Host.UseWolverine(opts =>
         // Throw the message away if it's not successfully
         // delivered within 10 seconds
         .DeliverWithin(10.Seconds())
-        
+
         // Not durable
         .BufferedInMemory();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Program.cs#L34-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_middleware_by_message_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Program.cs#L30-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_middleware_by_message_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

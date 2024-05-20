@@ -51,20 +51,20 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Including a single extension
         opts.Include<SampleExtension>();
-        
+
         // Or add a Wolverine extension that needs
         // to use IoC services
         opts.Services.AddWolverineExtension<ConfigurationUsingExtension>();
 
     })
-    
+
     .ConfigureServices(services =>
     {
         // This is the same logical usage, just showing that it
         // can be done directly against IServiceCollection
         services.AddWolverineExtension<ConfigurationUsingExtension>();
     })
-    
+
     .StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L52-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_including_extension' title='Start of snippet'>anchor</a></sup>
@@ -83,11 +83,11 @@ during testing:
 // to do the actual bootstrapping
 await using var host = await AlbaHost.For<Program>(x =>
 {
-    // I'm overriding 
+    // I'm overriding
     x.ConfigureServices(services => services.DisableAllExternalWolverineTransports());
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L33-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L28-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Behind the scenes, Wolverine has a small extension like this:
@@ -103,7 +103,7 @@ internal class DisableExternalTransports : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L318-L328' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L335-L345' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And that extension is just added to the application's IoC container at test bootstrapping time like this:
@@ -117,7 +117,7 @@ public static IServiceCollection DisableAllExternalWolverineTransports(this ISer
     return services;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L308-L316' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_extension_method_to_disable_external_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L325-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_extension_method_to_disable_external_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In usage, the `IWolverineExtension` objects added to the IoC container are applied *after* the inner configuration
@@ -141,7 +141,7 @@ public class ConfigurationUsingExtension : IWolverineExtension
 
     public void Configure(WolverineOptions options)
     {
-        // Configure the wolverine application using 
+        // Configure the wolverine application using
         // the information from IConfiguration
     }
 }
@@ -197,7 +197,7 @@ public class SampleAsyncExtension : IAsyncWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L66-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_async_wolverine_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L65-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_async_wolverine_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which can be added to your application with this extension method on `IServiceCollection`:
@@ -216,7 +216,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L44-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_async_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L43-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_async_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Asynchronous Extensions and Wolverine.HTTP
@@ -236,10 +236,14 @@ var app = builder.Build();
 // you will need to explicitly call this *before* MapWolverineEndpoints()
 await app.Services.ApplyAsyncWolverineExtensions();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L89-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_applyasyncwolverineextensions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L88-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_applyasyncwolverineextensions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Wolverine Plugin Modules
+
+::: warning
+This functionality will likely be eliminated in Wolverine 3.0. 
+:::
 
 ::: tip
 Use this sparingly, but it might be advantageous for adding extra instrumentation or extra middleware
@@ -255,7 +259,30 @@ with this attribute to automatically add that extension to Wolverine:
 <!-- snippet: sample_using_wolverine_module_to_load_extension -->
 <a id='snippet-sample_using_wolverine_module_to_load_extension'></a>
 ```cs
-[assembly: WolverineModule(typeof(Module1Extension))]
+[assembly: WolverineModule<Module1Extension>]
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Module1/Properties/AssemblyInfo.cs#L29-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_module_to_load_extension' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Disabling Assembly Scanning
+
+Some Wolverine users have seen rare issues with the assembly scanning cratering an application with out of memory
+exceptions in the case of an application directory being the same as the root of a Docker container. *If* you experience
+that issue, or just want a faster start up time, you can disable the automatic extension discovery using this syntax:
+
+<!-- snippet: sample_disabling_assembly_scanning -->
+<a id='snippet-sample_disabling_assembly_scanning'></a>
+```cs
+using var host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.DisableConventionalDiscovery();
+    })
+    
+    // Note that this isn't part of UseWolverine()
+    .DisableWolverineExtensionScanning()
+    
+    .StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/bootstrapping_specs.cs#L75-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_assembly_scanning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

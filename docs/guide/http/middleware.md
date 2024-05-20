@@ -28,17 +28,17 @@ public class FakeAuthenticationMiddleware
 {
     public static IResult Before(IAmAuthenticated message)
     {
-        return message.Authenticated 
+        return message.Authenticated
             // This tells Wolverine to just keep going
-            ? WolverineContinue.Result() 
-            
+            ? WolverineContinue.Result()
+
             // If the IResult is not WolverineContinue, Wolverine
             // will execute the IResult and stop processing otherwise
             : Results.Unauthorized();
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L103-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fake_authentication_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L102-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fake_authentication_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which is registered like this (or as described in [`Registering Middleware by Message Type`](/guide/handlers/middleware.html##registering-middleware-by-message-type)):
@@ -49,7 +49,7 @@ Which is registered like this (or as described in [`Registering Middleware by Me
 opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L170-L173' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L169-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point to notice there is that `IResult` is a "return value" of the middleware. In the case of an HTTP endpoint,
@@ -66,7 +66,7 @@ public static async Task<IResult> ExecuteOne<T>(IValidator<T> validator, IProble
 {
     // First, validate the incoming request of type T
     var result = await validator.ValidateAsync(message);
-        
+
     // If there are any errors, create a ProblemDetails result and return
     // that to write out the validation errors and otherwise stop processing
     if (result.Errors.Any())
@@ -109,7 +109,7 @@ public class StopwatchMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L10-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_http_stopwatch_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L9-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_http_stopwatch_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you want to apply it to a single HTTP endpoint without having to dirty your hands with an attribute. You can use that naming
@@ -131,7 +131,7 @@ from the `HttpContext` to subsequent Wolverine messages published during the req
 public static class RequestIdMiddleware
 {
     public const string CorrelationIdHeaderKey = "X-Correlation-ID";
-    
+
     // Remember that most Wolverine middleware can be done with "just" a method
     public static void Apply(HttpContext httpContext, IMessageContext messaging)
     {
@@ -216,18 +216,18 @@ public record UpdateRequest(string Name, bool IsComplete);
 public static class UpdateEndpoint
 {
     // Find required Todo entity for the route handler below
-    public static Task<Todo?> LoadAsync(int id, IDocumentSession session) 
+    public static Task<Todo?> LoadAsync(int id, IDocumentSession session)
         => session.LoadAsync<Todo>(id);
-    
+
     [WolverinePut("/todos/{id:int}")]
     public static StoreDoc<Todo> Put(
         // Route argument
         int id,
-        
+
         // The request body
         UpdateRequest request,
-        
-        // Entity loaded by the method above, 
+
+        // Entity loaded by the method above,
         // but note the [Required] attribute
         [Required] Todo? todo)
     {
@@ -238,7 +238,7 @@ public static class UpdateEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L123-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_update_with_required_entity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L121-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_update_with_required_entity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You'll notice that the `LoadAsync()` method is looking up the `Todo` entity for the route parameter, where Wolverine would

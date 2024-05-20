@@ -27,17 +27,17 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // The Rabbit MQ transport supports all three types of listeners
         opts.UseRabbitMq();
-        
+
         // The durable mode requires some sort of envelope storage
         opts.PersistMessagesWithPostgresql("some connection string");
 
         opts.ListenToRabbitQueue("inline")
             // Process inline, default is with one listener
             .ProcessInline()
-            
+
             // But, you can use multiple, parallel listeners
             .ListenerCount(5);
-        
+
         opts.ListenToRabbitQueue("buffered")
             // Buffer the messages in memory for increased throughput
             .BufferedInMemory(new BufferingLimits(1000, 500));
@@ -147,7 +147,7 @@ var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
     opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "listeners");
 
     opts.ListenToRabbitQueue("ordered")
-        
+
         // This option is available on all types of Wolverine
         // endpoints that can be configured to be a listener
         .ListenWithStrictOrdering();

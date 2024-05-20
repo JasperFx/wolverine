@@ -53,12 +53,12 @@ public static class TodoListEndpoint
         var listId = CombGuidIdGeneration.NewGuid();
         var result = new TodoListCreated(listId, request.Title);
         var startStream = MartenOps.StartStream<TodoList>(listId, result);
-       
+
         return (new TodoCreationResponse(listId), startStream);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/TodoListEndpoint.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_start_stream_side_effect' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/TodoListEndpoint.cs#L15-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_start_stream_side_effect' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The major advantage of using a Marten side effect is to help keep your Wolverine handlers or HTTP endpoints 

@@ -94,7 +94,7 @@ to the `MapWolverineEndpoints()` configuration:
 <!-- snippet: sample_use_newtonsoft_for_http_serialization -->
 <a id='snippet-sample_use_newtonsoft_for_http_serialization'></a>
 ```cs
-var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+var builder = WebApplication.CreateBuilder([]);
 builder.Services.AddScoped<IUserService, UserService>();
 
 builder.Services.AddMarten(Servers.PostgresConnectionString)

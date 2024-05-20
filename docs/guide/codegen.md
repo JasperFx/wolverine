@@ -43,8 +43,8 @@ Lastly, you have a couple options about how Wolverine handles the dynamic code g
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        // The default behavior. Dynamically generate the 
-        // types on the first usage 
+        // The default behavior. Dynamically generate the
+        // types on the first usage
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
 
         // Never generate types at runtime, but instead try to locate
@@ -53,7 +53,7 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Hybrid approach that first tries to locate the types
         // from the application assembly, but falls back to
-        // generating the code and dynamic type. Also writes the 
+        // generating the code and dynamic type. Also writes the
         // generated source code file to disk
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
     }).StartAsync();
@@ -127,7 +127,7 @@ using var host = await Host.CreateDefaultBuilder()
         if (context.HostingEnvironment.IsProduction())
         {
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
-            
+
             // You probably only ever want to do this in Production
             opts.Services.AssertAllExpectedPreBuiltTypesExistOnStartUp();
         }

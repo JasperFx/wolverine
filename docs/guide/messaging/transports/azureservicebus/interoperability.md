@@ -23,7 +23,7 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
     public void MapIncomingToEnvelope(Envelope envelope, ServiceBusReceivedMessage incoming)
     {
         envelope.Data = incoming.Body.ToArray();
-        
+
         // You will have to help Wolverine out by either telling Wolverine
         // what the message type is, or by reading the actual message object,
         // or by telling Wolverine separately what the default message type
@@ -37,7 +37,7 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L123-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_azure_service_bus_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L120-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_azure_service_bus_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To apply that mapper to specific endpoints, use this syntax on any type of Azure Service Bus endpoint:
@@ -56,5 +56,5 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureSenders(s => s.InteropWith(new CustomAzureServiceBusMapper()));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L104-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L103-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

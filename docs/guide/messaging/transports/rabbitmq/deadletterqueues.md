@@ -28,7 +28,6 @@ using var host = await Host.CreateDefaultBuilder()
             {
                 l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors"));
             });
-            
 
         // Use a different dead letter queue for this specific queue
         opts.ListenToRabbitQueue("incoming")
@@ -36,7 +35,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L372-L394' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L367-L389' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -63,7 +62,6 @@ using var host = await Host.CreateDefaultBuilder()
             {
                 l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors", DeadLetterQueueMode.InteropFriendly));
             });
-            
 
         // Use a different dead letter queue for this specific queue
         opts.ListenToRabbitQueue("incoming")
@@ -71,7 +69,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L399-L421' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue_interop_friendly' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L394-L416' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue_interop_friendly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, if you don't particularly want to have any Rabbit MQ dead letter queues and you quite like the [database backed 
@@ -93,14 +91,13 @@ using var host = await Host.CreateDefaultBuilder()
                 // Really does the same thing as the first usage
                 l.DisableDeadLetterQueueing();
             });
-            
 
         // Disable the dead letter queue for this specific queue
         opts.ListenToRabbitQueue("incoming").DisableDeadLetterQueueing();
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L426-L448' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L421-L443' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

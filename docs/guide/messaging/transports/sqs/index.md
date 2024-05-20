@@ -28,7 +28,7 @@ var host = await Host.CreateDefaultBuilder()
             // Let Wolverine create missing queues as necessary
             .AutoProvision()
 
-            // Optionally purge all queues on application startup. 
+            // Optionally purge all queues on application startup.
             // Warning though, this is potentially slow
             .AutoPurgeOnStartup();
     }).StartAsync();
@@ -55,7 +55,7 @@ var host = await Host.CreateDefaultBuilder()
             // Let Wolverine create missing queues as necessary
             .AutoProvision()
 
-            // Optionally purge all queues on application startup. 
+            // Optionally purge all queues on application startup.
             // Warning though, this is potentially slow
             .AutoPurgeOnStartup();
     }).StartAsync();
@@ -98,13 +98,13 @@ var host = await Host.CreateDefaultBuilder()
                 // that you may need to configure
             })
 
-            // And you can also add explicit AWS credentials 
+            // And you can also add explicit AWS credentials
             .Credentials(new BasicAWSCredentials(config["AwsAccessKey"], config["AwsSecretKey"]))
 
             // Let Wolverine create missing queues as necessary
             .AutoProvision()
 
-            // Optionally purge all queues on application startup. 
+            // Optionally purge all queues on application startup.
             // Warning though, this is potentially slow
             .AutoPurgeOnStartup();
     }).StartAsync();

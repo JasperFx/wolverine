@@ -54,7 +54,7 @@ builder.Host.UseWolverine(opts =>
     // This middleware will apply to the HTTP
     // endpoints as well
     opts.Policies.AutoApplyTransactions();
-    
+
     // Setting up the outbox on all locally handled
     // background tasks
     opts.Policies.UseDurableLocalQueues();
@@ -127,7 +127,7 @@ public async Task hello_world()
     result.ReadAsText().ShouldBe("Hello.");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L34-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L33-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Moving on to the actual `Todo` problem domain, let's assume we've got a class like this:
@@ -142,7 +142,7 @@ public class Todo
     public bool IsComplete { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L11-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L7-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_todo-1'></a>
 ```cs
 public class Todo
@@ -152,7 +152,7 @@ public class Todo
     public bool IsComplete { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L9-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L7-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In a sample class called [TodoEndpoints](https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs)
@@ -162,10 +162,10 @@ let's add an HTTP service endpoint for listing all the known `Todo` documents:
 <a id='snippet-sample_get_to_json'></a>
 ```cs
 [WolverineGet("/todoitems")]
-public static Task<IReadOnlyList<Todo>> Get(IQuerySession session) 
+public static Task<IReadOnlyList<Todo>> Get(IQuerySession session)
     => session.Query<Todo>().ToListAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L30-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_to_json' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L28-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_to_json' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you'd guess, this method will serialize all the known `Todo` documents from the database into the HTTP response
@@ -181,10 +181,10 @@ Consider this endpoint just to return the data for a single `Todo` document:
 // Wolverine can infer the 200/404 status codes for you here
 // so there's no code noise just to satisfy OpenAPI tooling
 [WolverineGet("/todoitems/{id}")]
-public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation) 
+public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation)
     => session.LoadAsync<Todo>(id, cancellation);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L42-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_gettodo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L40-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_gettodo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At this point it's effectively de rigueur for any web service to support [OpenAPI](https://www.openapis.org/) documentation directly
@@ -207,11 +207,11 @@ public static async Task<IResult> Create(CreateTodo command, IDocumentSession se
 
     // Going to raise an event within out system to be processed later
     await bus.PublishAsync(new TodoCreated(todo.Id));
-    
+
     return Results.Created($"/todoitems/{todo.Id}", todo);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L52-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_posting_new_todo_with_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L50-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_posting_new_todo_with_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The endpoint code above is automatically enrolled in the Marten transactional middleware by simple virtue of having a
@@ -236,8 +236,8 @@ public static class UpdateTodoEndpoint
     public static async Task<(Todo? todo, IResult result)> LoadAsync(UpdateTodo command, IDocumentSession session)
     {
         var todo = await session.LoadAsync<Todo>(command.Id);
-        return todo != null 
-            ? (todo, new WolverineContinue()) 
+        return todo != null
+            ? (todo, new WolverineContinue())
             : (todo, Results.NotFound());
     }
 
@@ -250,7 +250,7 @@ public static class UpdateTodoEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L84-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_updatetodoendpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L81-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_updatetodoendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## How it Works

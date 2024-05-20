@@ -17,7 +17,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L55-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resource_setup_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L54-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resource_setup_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also direct Wolverine to build out Azure Service Bus object on demand as needed with:
@@ -29,13 +29,13 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseAzureServiceBus("some connection string")
-            
+
             // Wolverine will build missing queues, topics, and subscriptions
             // as necessary at runtime
             .AutoProvision();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L73-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_provision_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L72-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_provision_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also opt to auto-purge all queues (there's also an option to do this queue by queue) on application
@@ -51,7 +51,7 @@ using var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L90-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_purge_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L89-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_purge_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, because Azure Service Bus is a centralized broker model and you may have to share a single
@@ -91,13 +91,13 @@ using var host = await Host.CreateDefaultBuilder()
         opts.PublishAllMessages()
             .ToAzureServiceBusQueue("outgoing")
             .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); })
-            
+
             // You may need to change the maximum number of messages
             // in message batches depending on the size of your messages
             // if you hit maximum data constraints
             .MessageBatchSize(50);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L49-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L46-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

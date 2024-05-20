@@ -7,6 +7,7 @@ public sealed partial class WolverineOptions
     private readonly IList<Type> _extensionTypes = new List<Type>();
     internal List<IWolverineExtension> AppliedExtensions { get; } = [];
 
+    
     /// <summary>
     ///     Applies the extension to this application
     /// </summary>

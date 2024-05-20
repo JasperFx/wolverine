@@ -35,21 +35,20 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.Services.AddMarten("some connection string")
 
-            // This adds quite a bit of middleware for 
+            // This adds quite a bit of middleware for
             // Marten
             .IntegrateWithWolverine();
-        
+
         // You want this maybe!
         opts.Policies.AutoApplyTransactions();
-        
-        
+
         // But wait! Optimize Wolverine for usage within Serverless
         // and turn off the heavy duty, background processes
         // for the transactional inbox/outbox
         opts.Durability.Mode = DurabilityMode.Serverless;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L14-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_serverless_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L12-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_serverless_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Pre-Generate All Types
@@ -73,7 +72,7 @@ endpoints:
     opts
         .PublishAllMessages()
         .ToRabbitQueue(queueName)
-        
+
         // This option is important inside of Serverless functions
         .SendInline();
 })
