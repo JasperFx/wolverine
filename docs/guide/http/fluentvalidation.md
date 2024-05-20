@@ -37,12 +37,12 @@ app.MapWolverineEndpoints(opts =>
         // This adds metadata for OpenAPI
         httpChain.WithMetadata(new CustomMetadata());
     });
-    
+
     // more configuration for HTTP...
-    
+
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L139-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L138-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

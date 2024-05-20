@@ -43,7 +43,7 @@ public class Order : Saga
     public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
     {
         logger.LogInformation("Got a new order with id {Id}", order.OrderId);
-    
+
         // creating a timeout message for the saga
         return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
     }
@@ -253,7 +253,7 @@ public class ToyOnTray
     [SagaIdentity] public int OrderId { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L265-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L257-L268' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Next, Wolverine looks for a member named "{saga type name}Id." In the case of our `Order`
@@ -303,7 +303,7 @@ You can also simply return one or more `Saga` type objects from a handler method
 public class Reservation : Saga
 {
     public string? Id { get; set; }
-    
+
     // Apply the CompleteReservation to the saga
     public void Handle(BookReservation book, ILogger<Reservation> logger)
     {
@@ -324,7 +324,7 @@ public class Reservation : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L78-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L76-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and the handler that would start the new saga:
@@ -336,23 +336,23 @@ public class StartReservationHandler
 {
     public static (
         // Outgoing message
-        ReservationBooked, 
-        
+        ReservationBooked,
+
         // Starts a new Saga
-        Reservation, 
-        
+        Reservation,
+
         // Additional message cascading for the new saga
         ReservationTimeout) Handle(StartReservation start)
     {
         return (
-            new ReservationBooked(start.ReservationId, DateTimeOffset.UtcNow), 
-            new Reservation { Id = start.ReservationId }, 
+            new ReservationBooked(start.ReservationId, DateTimeOffset.UtcNow),
+            new Reservation { Id = start.ReservationId },
             new ReservationTimeout(start.ReservationId)
             );
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L55-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L53-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Method Conventions

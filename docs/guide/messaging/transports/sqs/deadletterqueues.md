@@ -15,7 +15,7 @@ var host = await Host.CreateDefaultBuilder()
         // No dead letter queueing
         opts.ListenToSqsQueue("incoming")
             .DisableDeadLetterQueueing();
-        
+
         // Use a different dead letter queue
         opts.ListenToSqsQueue("important")
             .ConfigureDeadLetterQueue("important_errors", q =>

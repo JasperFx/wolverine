@@ -25,7 +25,7 @@ builder.Host.UseWolverine(opts =>
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
-    
+
     // Enrolling all local queues into the
     // durable inbox/outbox processing
     opts.Policies.UseDurableLocalQueues();
@@ -201,7 +201,7 @@ public class SampleMappedDbContext : DbContext
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/SampleDbContext.cs#L57-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/SampleDbContext.cs#L56-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -274,7 +274,7 @@ public async Task Post3(
     // Gotta attach the DbContext to the outbox
     // BEFORE sending any messages
     outbox.Enroll(dbContext);
-    
+
     // Publish a message to take action on the new item
     // in a background thread
     await outbox.PublishAsync(new ItemCreated

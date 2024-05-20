@@ -58,14 +58,14 @@ app.MapWolverineEndpoints(opts =>
         // This adds metadata for OpenAPI
         httpChain.WithMetadata(new CustomMetadata());
     });
-    
+
     // more configuration for HTTP...
-    
+
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L139-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L138-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `HttpChain` model is a configuration time structure that Wolverine.Http will use at runtime to create the full
@@ -90,14 +90,14 @@ app.MapWolverineEndpoints(opts =>
         // This adds metadata for OpenAPI
         httpChain.WithMetadata(new CustomMetadata());
     });
-    
+
     // more configuration for HTTP...
-    
+
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L139-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L138-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Resource Writer Policies
@@ -132,7 +132,7 @@ If you need special handling of a primary return type you can implement `IResour
 ```cs
 opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L175-L177' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_resource_writer_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L174-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_resource_writer_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Resource writer policies registered this way will be applied in order before all built in policies.

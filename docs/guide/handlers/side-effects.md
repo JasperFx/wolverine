@@ -45,14 +45,14 @@ public class WriteFile : ISideEffect
         Contents = contents;
     }
 
-    // Wolverine will call this method. 
+    // Wolverine will call this method.
     public Task ExecuteAsync(PathSettings settings)
     {
         if (!Directory.Exists(settings.Directory))
         {
             Directory.CreateDirectory(settings.Directory);
         }
-        
+
         return File.WriteAllTextAsync(Path, Contents);
     }
 }
@@ -68,7 +68,7 @@ And the matching message type, message handler, and a settings class for configu
 // An options class
 public class PathSettings
 {
-    public string Directory { get; set; } 
+    public string Directory { get; set; }
         = Environment.CurrentDirectory.AppendPath("files");
 }
 

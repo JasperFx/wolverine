@@ -15,7 +15,7 @@ public static ArithmeticResults PostJson(Question question)
     };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L85-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L83-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the method signature above, `Question` is the "request" type (the payload sent from the client to the server) and `Answer` is the "resource" type (what is being returned to the client).
@@ -36,7 +36,7 @@ public static Task<ArithmeticResults> PostJsonAsync(Question question)
     return Task.FromResult(results);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L99-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L97-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The resource type is still `Answer`. Likewise, if an endpoint returns `ValueTask<Answer>`, the resource type
@@ -110,7 +110,7 @@ rules above. To make that concrete, consider this sample that we wrote in the in
 ```cs
 // Introducing this special type just for the http response
 // gives us back the 201 status code
-public record TodoCreationResponse(int Id) 
+public record TodoCreationResponse(int Id)
     : CreationResponse("/todoitems/" + Id);
 
 // The "Endpoint" suffix is meaningful, but you could use
@@ -122,7 +122,7 @@ public static class TodoCreationEndpoint
     public static (TodoCreationResponse, TodoCreated) Post(CreateTodo command, IDocumentSession session)
     {
         var todo = new Todo { Name = command.Name };
-        
+
         // Just telling Marten that there's a new entity to persist,
         // but I'm assuming that the transactional middleware in Wolverine is
         // handling the asynchronous persistence outside of this handler
@@ -132,13 +132,13 @@ public static class TodoCreationEndpoint
         // assumed to be the Http response, and any subsequent values are
         // handled independently
         return (
-            new TodoCreationResponse(todo.Id), 
+            new TodoCreationResponse(todo.Id),
             new TodoCreated(todo.Id)
         );
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L82-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_endpoint_for_create_todo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L80-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_endpoint_for_create_todo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, `TodoCreationResponse` is the first item in the tuple, so Wolverine treats that as 
@@ -160,7 +160,7 @@ code. Here's an example from the tests:
 [WolverinePost("/orders/ship"), EmptyResponse]
 // The OrderShipped return value is treated as an event being posted
 // to a Marten even stream
-// instead of as the HTTP response body because of the presence of 
+// instead of as the HTTP response body because of the presence of
 // the [EmptyResponse] attribute
 public static OrderShipped Ship(ShipOrder command, Order order)
 {
@@ -321,7 +321,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L189-L194' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L188-L193' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:

@@ -18,15 +18,15 @@ Consider this sample message handler from Wolverine's [AppWithMiddleware sample 
 <!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
 <a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
 ```cs
-[Transactional] 
+[Transactional]
 public static async Task Handle(
-    DebitAccount command, 
-    Account account, 
-    IDocumentSession session, 
+    DebitAccount command,
+    Account account,
+    IDocumentSession session,
     IMessageContext messaging)
 {
     account.Balance -= command.Amount;
- 
+
     // This just marks the account as changed, but
     // doesn't actually commit changes to the database
     // yet. That actually matters as I hopefully explain
@@ -40,12 +40,12 @@ public static async Task Handle(
     else if (account.Balance < 0)
     {
         await messaging.SendAsync(new AccountOverdrawn(account.Id), new DeliveryOptions{DeliverWithin = 1.Hours()});
-     
+
         // Give the customer 10 days to deal with the overdrawn account
         await messaging.ScheduleAsync(new EnforceAccountOverdrawnDeadline(account.Id), 10.Days());
     }
-    
-    // "messaging" is a Wolverine IMessageContext or IMessageBus service 
+
+    // "messaging" is a Wolverine IMessageContext or IMessageBus service
     // Do the deliver within rule on individual messages
     await messaging.SendAsync(new AccountUpdated(account.Id, account.Balance),
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
@@ -153,7 +153,7 @@ using var host = await Host.CreateDefaultBuilder()
             .UseDurableInbox();
 
         // Make every single listener endpoint use
-        // durable message storage 
+        // durable message storage
         opts.Policies.UseDurableInboxOnAllListeners();
     }).StartAsync();
 ```
@@ -270,7 +270,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L163-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L162-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Database Schema Objects

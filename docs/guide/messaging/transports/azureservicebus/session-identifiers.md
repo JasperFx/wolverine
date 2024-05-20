@@ -25,24 +25,24 @@ _host = await Host.CreateDefaultBuilder()
         opts.PublishMessage<AsbMessage1>().ToAzureServiceBusQueue("send_and_receive");
 
         opts.ListenToAzureServiceBusQueue("fifo1")
-            
+
             // Require session identifiers with this queue
             .RequireSessions()
-            
+
             // This controls the Wolverine handling to force it to process
             // messages sequentially
             .Sequential();
-        
+
         opts.PublishMessage<AsbMessage2>()
             .ToAzureServiceBusQueue("fifo1");
 
         opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3");
         opts.ListenToAzureServiceBusSubscription("asb3")
             .FromTopic("asb3")
-            
+
             // Require sessions on this subscription
             .RequireSessions(1)
-            
+
             .ProcessInline();
     }).StartAsync();
 ```
@@ -59,7 +59,7 @@ await bus.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" 
 await bus.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });
 await bus.SendAsync(new AsbMessage3("Refactor"), new DeliveryOptions { GroupId = "2" });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L141-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L140-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

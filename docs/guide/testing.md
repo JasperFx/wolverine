@@ -51,7 +51,7 @@ public static IEnumerable<object> Handle(
     yield return new AccountUpdated(account.Id, account.Balance);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L38-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L37-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The testing extensions can be seen in action by the following test:
@@ -89,12 +89,12 @@ public void handle_a_debit_that_makes_the_account_have_a_low_balance()
             delivery.ScheduleDelay.Value.ShouldNotBe(TimeSpan.Zero);
         })
         .AccountId.ShouldBe(account.Id);
-    
+
     // Assert that there are no messages of type AccountOverdrawn
     messages.ShouldHaveNoMessageOfType<AccountOverdrawn>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L75-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L74-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The supported extension methods so far are in the [TestingExtensions](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/TestingExtensions.cs) class.
@@ -120,15 +120,15 @@ directly:
 <!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
 <a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
 ```cs
-[Transactional] 
+[Transactional]
 public static async Task Handle(
-    DebitAccount command, 
-    Account account, 
-    IDocumentSession session, 
+    DebitAccount command,
+    Account account,
+    IDocumentSession session,
     IMessageContext messaging)
 {
     account.Balance -= command.Amount;
- 
+
     // This just marks the account as changed, but
     // doesn't actually commit changes to the database
     // yet. That actually matters as I hopefully explain
@@ -142,12 +142,12 @@ public static async Task Handle(
     else if (account.Balance < 0)
     {
         await messaging.SendAsync(new AccountOverdrawn(account.Id), new DeliveryOptions{DeliverWithin = 1.Hours()});
-     
+
         // Give the customer 10 days to deal with the overdrawn account
         await messaging.ScheduleAsync(new EnforceAccountOverdrawnDeadline(account.Id), 10.Days());
     }
-    
-    // "messaging" is a Wolverine IMessageContext or IMessageBus service 
+
+    // "messaging" is a Wolverine IMessageContext or IMessageBus service
     // Do the deliver within rule on individual messages
     await messaging.SendAsync(new AccountUpdated(account.Id, account.Balance),
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
@@ -172,9 +172,9 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
         MinimumThreshold = 100,
         Id = Guid.NewGuid()
     };
- 
+
     private readonly TestMessageContext theContext = new TestMessageContext();
-     
+
     // I happen to like NSubstitute for mocking or dynamic stubs
     private readonly IDocumentSession theDocumentSession = Substitute.For<IDocumentSession>();
 
@@ -183,22 +183,22 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
         var command = new DebitAccount(theAccount.Id, 1200);
         await DebitAccountHandler.Handle(command, theAccount, theDocumentSession, theContext);
     }
- 
+
     [Fact]
     public void the_account_balance_should_be_negative()
     {
         theAccount.Balance.ShouldBe(-200);
     }
- 
+
     [Fact]
     public void raises_an_account_overdrawn_message()
     {
-        // ShouldHaveMessageOfType() is an extension method in 
+        // ShouldHaveMessageOfType() is an extension method in
         // Wolverine itself to facilitate unit testing assertions like this
         theContext.Sent.ShouldHaveMessageOfType<AccountOverdrawn>()
             .AccountId.ShouldBe(theAccount.Id);
     }
- 
+
     [Fact]
     public void raises_an_overdrawn_deadline_message_in_10_days()
     {
@@ -208,14 +208,14 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
             .ShouldHaveEnvelopeForMessageType<EnforceAccountOverdrawnDeadline>()
             .ScheduleDelay.ShouldBe(10.Days());
     }
- 
+
     public Task DisposeAsync()
     {
         return Task.CompletedTask;
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L99-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_the_account_is_overdrawn' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L94-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_the_account_is_overdrawn' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `TestMessageContext` mostly just collects an array of objects that are sent, published, or scheduled. The
@@ -258,7 +258,7 @@ spy.WhenInvokedMessageOf<NumberRequest>(endpointName:"incoming")
 var response3 = await context.EndpointFor("incoming")
     .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L329-L361' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L323-L355' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Stubbing All External Transports
@@ -311,15 +311,15 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // do whatever you need to configure Wolverine
     })
-    
+
     // Override the Wolverine configuration to disable all
     // external transports, broker connectivity, and incoming/outgoing
     // messages to run completely locally
     .ConfigureServices(services => services.DisableAllExternalWolverineTransports())
-    
+
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/disabling_all_external_transports.cs#L13-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_external_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/disabling_all_external_transports.cs#L12-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_external_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Finally, to put that in a little more context about how you might go about using it
@@ -337,11 +337,11 @@ and [WebApplicationFactory](https://learn.microsoft.com/en-us/aspnet/core/test/i
 // to do the actual bootstrapping
 await using var host = await AlbaHost.For<Program>(x =>
 {
-    // I'm overriding 
+    // I'm overriding
     x.ConfigureServices(services => services.DisableAllExternalWolverineTransports());
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L33-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L28-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the sample above, I'm bootstrapping the `IHost` for my production application with 
@@ -406,7 +406,7 @@ public async Task using_tracked_sessions()
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L117-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L116-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The tracked session mechanism utilizes Wolverine's internal instrumentation to "know" when all the outstanding
@@ -434,29 +434,29 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
 
     var debitAccount = new DebitAccount(111, 300);
     var session = await host
-            
-        // Start defining a tracked session 
+
+        // Start defining a tracked session
         .TrackActivity()
-        
+
         // Override the timeout period for longer tests
         .Timeout(1.Minutes())
-        
+
         // Be careful with this one! This makes Wolverine wait on some indication
         // that messages sent externally are completed
         .IncludeExternalTransports()
-        
+
         // Make the tracked session span across an IHost for another process
         // May not be super useful to the average user, but it's been crucial
         // to test Wolverine itself
         .AlsoTrack(otherWolverineSystem)
 
-        // This is actually helpful if you are testing for error handling 
+        // This is actually helpful if you are testing for error handling
         // functionality in your system
         .DoNotAssertOnExceptionsDetected()
-        
+
         // Again, this is testing against processes, with another IHost
         .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
-        
+
         // There are many other options as well
         .InvokeMessageAndWaitAsync(debitAccount);
 
@@ -464,6 +464,6 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L135-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L134-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

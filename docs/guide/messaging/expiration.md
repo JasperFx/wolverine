@@ -20,7 +20,7 @@ public DateTimeOffset? DeliverBy
     set => _deliverBy = value?.ToUniversalTime();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Envelope.cs#L35-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_deliver_by_property' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Envelope.cs#L37-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_deliver_by_property' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, Wolverine will:
@@ -41,13 +41,13 @@ public async Task message_expiration(IMessageBus bus)
 {
     // Disregard the message if it isn't sent and/or processed within 3 seconds from now
     await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverWithin = 3.Seconds() });
-    
+
     // Disregard the message if it isn't sent and/or processed by 3 PM today
     // but watch all the potentially harmful time zone issues in your real code that I'm ignoring here!
     await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverBy = DateTime.Today.AddHours(15)});
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L361-L373' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_expiration_by_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L356-L368' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_expiration_by_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## By Subscriber
@@ -73,15 +73,15 @@ using var host = await Host.CreateDefaultBuilder()
         // Explicitly configure a delivery expiration of 5 seconds
         // for a specific Azure Service Bus queue
         opts.PublishMessage<StatusUpdate>().ToAzureServiceBusQueue("transient")
-            
-            // If the messages are transient, it's likely that they should not be 
+
+            // If the messages are transient, it's likely that they should not be
             // durably stored, so make things lighter in your system
             .BufferedInMemory()
             .DeliverWithin(5.Seconds());
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L235-L260' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delivery_expiration_rules_per_subscriber' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L231-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delivery_expiration_rules_per_subscriber' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## By Message Type
@@ -92,7 +92,7 @@ on the message type as in this sample:
 <!-- snippet: sample_using_deliver_within_attribute -->
 <a id='snippet-sample_using_deliver_within_attribute'></a>
 ```cs
-// The attribute directs Wolverine to send this message with 
+// The attribute directs Wolverine to send this message with
 // a "deliver within 5 seconds, or discard" directive
 [DeliverWithin(5)]
 public record AccountUpdated(Guid AccountId, decimal Balance);

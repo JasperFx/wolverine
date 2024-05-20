@@ -64,7 +64,7 @@ public class CustomizedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L29-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Methods on message handler types with the signature:
@@ -86,13 +86,13 @@ below:
 <!-- snippet: sample_using_Wolverine_Logging_attribute -->
 <a id='snippet-sample_using_wolverine_logging_attribute'></a>
 ```cs
-public class QuietMessage{}
+public class QuietMessage;
 
 public class QuietMessageHandler
 {
     [WolverineLogging(
-        telemetryEnabled:false, 
-        successLogLevel: LogLevel.None, 
+        telemetryEnabled:false,
+        successLogLevel: LogLevel.None,
         executionLogLevel:LogLevel.Trace)]
     public void Handle(QuietMessage message)
     {
@@ -161,7 +161,7 @@ public class AuditedMessage
     [Audit("AccountIdentifier")] public int AccountId;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L90-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L86-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you are okay using a common message interface for common identification like "this message targets an account/organization/tenant/client"
@@ -179,7 +179,7 @@ public interface IAccountMessage
 // A possible command that uses our marker interface above
 public record DebitAccount(int AccountId, decimal Amount) : IAccountMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L118-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L111-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can specify audited members through this syntax:
@@ -190,7 +190,7 @@ You can specify audited members through this syntax:
 // opts is WolverineOptions inside of a UseWolverine() call
 opts.Policies.ForMessagesOfType<IAccountMessage>().Audit(x => x.AccountId);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L77-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_registration_of_audit_properties' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L73-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_registration_of_audit_properties' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This will extend your log entries to like this:
@@ -241,8 +241,8 @@ using var host = await Host.CreateDefaultBuilder()
         opts
             .PublishAllMessages()
             .ToPort(2222)
-            
-            // Disable Open Telemetry data collection on 
+
+            // Disable Open Telemetry data collection on
             // all messages sent, received, or executed
             // from this endpoint
             .TelemetryEnabled(false);
@@ -377,7 +377,7 @@ public static class OrganizationTaggingMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L46-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L43-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Finally, we'll add the new middleware to all message handlers where the message implements the `IOrganizationRelated` interface like so:
@@ -403,11 +403,11 @@ using var host = await Host.CreateDefaultBuilder()
 ```cs
 public static async Task publish_operation(IMessageBus bus, string tenantId, string name)
 {
-    // All outgoing messages or executed messages from this 
+    // All outgoing messages or executed messages from this
     // IMessageBus object will be tagged with the tenant id
     bus.TenantId = tenantId;
     await bus.PublishAsync(new SomeMessage(name));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L33-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tenant_id_tagging' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L30-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tenant_id_tagging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

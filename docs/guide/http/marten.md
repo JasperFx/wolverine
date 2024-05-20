@@ -25,11 +25,11 @@ look like this:
 ```cs
 {
     [WolverineGet("/invoices/longhand/id")]
-    [ProducesResponseType(404)] 
+    [ProducesResponseType(404)]
     [ProducesResponseType(200, Type = typeof(Invoice))]
     public static async Task<IResult> GetInvoice(
-        Guid id, 
-        IQuerySession session, 
+        Guid id,
+        IQuerySession session,
         CancellationToken cancellationToken)
     {
         var invoice = await session.LoadAsync<Invoice>(id, cancellationToken);
@@ -76,7 +76,18 @@ public static IMartenOp Approve([Document("number")] Invoice invoice)
 
 You can also combine the behavior of `[Document]` and `[Required]` through a single attribute like this:
 
-snippet: sample_using_Document_required
+<!-- snippet: sample_using_Document_required -->
+<a id='snippet-sample_using_document_required'></a>
+```cs
+[WolverinePost("/api/tenants/{tenant}/counters/{id}/inc2")]
+public static IMartenOp Increment2([Document(Required = true)] Counter counter)
+{
+    counter = counter with { Count = counter.Count + 1 };
+    return MartenOps.Store(counter);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Bugs/Bug_865_returning_IResult_using_Auto_codegen.cs#L118-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_required' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 In the code above, if the `Counter` document does not exist, the route will stop and return a status code 404 for Not Found.
 
@@ -98,13 +109,13 @@ use the new `[Aggregate]` attribute from Wolverine.Http.Marten on endpoint metho
 [WolverinePost("/orders/{orderId}/ship2"), EmptyResponse]
 // The OrderShipped return value is treated as an event being posted
 // to a Marten even stream
-// instead of as the HTTP response body because of the presence of 
+// instead of as the HTTP response body because of the presence of
 // the [EmptyResponse] attribute
 public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
 {
-    if (order.HasShipped) 
+    if (order.HasShipped)
         throw new InvalidOperationException("This has already shipped!");
-    
+
     return new OrderShipped();
 }
 ```
@@ -120,7 +131,7 @@ have an endpoint signature like this:
 [WolverinePost("/orders/{orderId}/ship3"), EmptyResponse]
 // The OrderShipped return value is treated as an event being posted
 // to a Marten even stream
-// instead of as the HTTP response body because of the presence of 
+// instead of as the HTTP response body because of the presence of
 // the [EmptyResponse] attribute
 public static OrderShipped Ship3([Aggregate] Order order)
 {
@@ -222,7 +233,7 @@ To append a single event to an event stream from an HTTP endpoint, you can use a
 [WolverinePost("/orders/ship"), EmptyResponse]
 // The OrderShipped return value is treated as an event being posted
 // to a Marten even stream
-// instead of as the HTTP response body because of the presence of 
+// instead of as the HTTP response body because of the presence of
 // the [EmptyResponse] attribute
 public static OrderShipped Ship(ShipOrder command, Order order)
 {
@@ -242,7 +253,7 @@ Or potentially append multiple events using the `Events` type as a return value 
 public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
 {
     var events = new Events();
-    
+
     if (order.Items.TryGetValue(command.ItemName, out var item))
     {
         item.Ready = true;
@@ -278,7 +289,7 @@ Register it in `WolverineHttpOptions` like this:
 ```cs
 opts.UseMartenCompiledQueryResultPolicy();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L166-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L165-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you now return a compiled query from an Endpoint the result will get directly streamed to the client as JSON. Short circuiting JSON deserialization.

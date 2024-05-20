@@ -21,6 +21,8 @@ namespace Wolverine;
 
 public static class HostBuilderExtensions
 {
+    internal static readonly string ExtensionScanningKey = "ExtensionScanning";
+    
     /// <summary>
     ///     Add Wolverine to an ASP.Net Core application with optional configuration to Wolverine
     /// </summary>
@@ -31,6 +33,18 @@ public static class HostBuilderExtensions
         Action<HostBuilderContext, WolverineOptions>? overrides = null)
     {
         return builder.UseWolverine(new WolverineOptions(), overrides);
+    }
+
+    /// <summary>
+    /// Use this to disable the automatic assembly scanning for Wolverine extensions
+    /// that can cause issues in specific Docker configurations
+    /// </summary>
+    /// <param name="builder"></param>
+    /// <returns></returns>
+    public static IHostBuilder DisableWolverineExtensionScanning(this IHostBuilder builder)
+    {
+        builder.Properties[ExtensionScanningKey] = "disabled";
+        return builder;
     }
 
     /// <summary>
@@ -158,7 +172,7 @@ public static class HostBuilderExtensions
 
             options.Services.InsertRange(0, services);
 
-            if (!options.DisableAssemblyScanForModules)
+            if (!context.Properties.ContainsKey(ExtensionScanningKey))
             {
                 ExtensionLoader.ApplyExtensions(options);
             }

@@ -11,15 +11,15 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseAzureServiceBus("some connection string")
-            
+
             // If this is part of your configuration, Wolverine will try to create
             // any missing topics or subscriptions in the configuration at application
             // start up time
             .AutoProvision();
-        
+
         // Publish to a topic
         opts.PublishMessage<Message1>().ToAzureServiceBusTopic("topic1")
-            
+
             // Option to configure how the topic would be configured if
             // built by Wolverine
             .ConfigureTopic(topic =>
@@ -39,7 +39,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L15-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_subscriptions_and_topics' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L14-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_subscriptions_and_topics' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To fully utilize subscription listening, be careful with using [Requeue error handling](/guide/handlers/error-handling) actions. In order to truly make
@@ -62,7 +62,7 @@ opts.ListenToAzureServiceBusSubscription(
     })
     .FromTopic("topic1");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L166-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_subscription_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L162-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_subscription_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The default filter if not customized is a simple `1=1` (always true) filter.

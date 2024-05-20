@@ -125,7 +125,7 @@ Or lastly, make up your own criteria to find and mark message types within your 
 ```cs
 opts.Discovery.CustomizeHandlerDiscovery(types => types.Includes.Implements<IDiagnosticsMessageHandler>());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L38-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L37-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that only types that are in assemblies either marked with `[assembly: WolverineModule]` or the main application assembly
@@ -179,7 +179,7 @@ opts.UseSystemTextJsonForSerialization(stj =>
     stj.UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L28-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L26-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When using Newtonsoft.Json, the default configuration is:
@@ -210,7 +210,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageVersioning.cs#L162-L173' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customizingjsonserialization' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageVersioning.cs#L161-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customizingjsonserialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### MessagePack Serialization
@@ -366,7 +366,7 @@ message type itself through Wolverine's `ISerializable` interface as shown below
 public class SerializedMessage : ISerializable
 {
     public string Name { get; set; } = "Bob Schneider";
-    
+
     public byte[] Write()
     {
         return Encoding.Default.GetBytes(Name);
@@ -381,7 +381,7 @@ public class SerializedMessage : ISerializable
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Serialization/intrinsic_serialization.cs#L25-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_intrinsic_serialization' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Serialization/intrinsic_serialization.cs#L21-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_intrinsic_serialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine will see the interface implementation of the message type, and automatically opt into using this "intrinsic" 

@@ -119,7 +119,7 @@ return await Host.CreateDefaultBuilder(args)
                 .AddSource("Wolverine");
         });
     })
-    
+
     // Executing with Oakton as the command line parser to unlock
     // quite a few utilities and diagnostics in our Wolverine application
     .RunOaktonCommands(args);

@@ -23,20 +23,19 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.Services.AddMarten("some connection string")
 
-            // This adds quite a bit of middleware for 
+            // This adds quite a bit of middleware for
             // Marten
             .IntegrateWithWolverine();
-        
+
         // You want this maybe!
         opts.Policies.AutoApplyTransactions();
-        
-        
+
         // But wait! Optimize Wolverine for usage as *only*
         // a mediator
         opts.Durability.Mode = DurabilityMode.MediatorOnly;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L40-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_mediator_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L38-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_mediator_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `MediatorOnly` mode sharply reduces the overhead of using Wolverine you don't care about or need if Wolverine is only
@@ -75,7 +74,7 @@ var connectionString = builder.Configuration.GetConnectionString("SqlServer");
 builder.Host.UseWolverine(opts =>
 {
     opts.PersistMessagesWithSqlServer(connectionString);
-    
+
     // If you're also using EF Core, you may want this as well
     opts.UseEntityFrameworkCoreTransactions();
 });

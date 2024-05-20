@@ -21,7 +21,7 @@ public static string SimpleStringRouteArgument(string name)
     return $"Name is {name}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L29-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_route_parameter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L27-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_route_parameter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the sample above, the `name` argument will be the value of the route argument
@@ -36,7 +36,7 @@ public static string IntRouteArgument(int age)
     return $"Age is {age}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L39-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L37-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The following code snippet from `WolverineFx.Http` itself shows the valid route
@@ -65,7 +65,7 @@ public static readonly Dictionary<Type, string> TypeOutputs = new()
     { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName! }
 };
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L69-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L68-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -78,7 +78,17 @@ integer will result in a 404 response.
 
 You can add a name to the ASP.Net route with this property that is on all of the route definition attributes:
 
-snippet: sample_using_route_name
+<!-- snippet: sample_using_route_name -->
+<a id='snippet-sample_using_route_name'></a>
+```cs
+[WolverinePost("/named/route", RouteName = "NamedRoute")]
+public string Post()
+{
+    return "Hello";
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/NamedRouteEndpoint.cs#L7-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_route_name' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 

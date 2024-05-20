@@ -38,12 +38,12 @@ builder.Services.AddMarten(m =>
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant2;Username=postgres;password=postgres", "tenant2");
             tenancy.AddSingleTenantDatabase("Host=localhost;Port=5433;Database=tenant3;Username=postgres;password=postgres", "tenant3");
         });
-        
+
         m.DatabaseSchemaName = "mttodo";
     })
     .IntegrateWithWolverine(masterDatabaseConnectionString:connectionString);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L13-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L12-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you'll probably want this as well to make sure the message storage is in all the databases upfront:
@@ -53,7 +53,7 @@ And you'll probably want this as well to make sure the message storage is in all
 ```cs
 builder.Services.AddResourceSetupOnStartup();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L36-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_add_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L33-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_add_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, this is the Wolverine set up:
@@ -67,13 +67,13 @@ builder.Host.UseWolverine(opts =>
     // This middleware will apply to the HTTP
     // endpoints as well
     opts.Policies.AutoApplyTransactions();
-    
+
     // Setting up the outbox on all locally handled
     // background tasks
     opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L42-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_setup_for_marten_multitenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L39-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_setup_for_marten_multitenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From there, you should be completely ready to use Marten + Wolverine with usages like this:
@@ -84,8 +84,8 @@ From there, you should be completely ready to use Marten + Wolverine with usages
 // While this is still valid....
 [WolverineDelete("/todoitems/{tenant}/longhand")]
 public static async Task Delete(
-    string tenant, 
-    DeleteTodo command, 
+    string tenant,
+    DeleteTodo command,
     IMessageBus bus)
 {
     // Invoke inline for the specified tenant
@@ -105,7 +105,7 @@ public static void Delete(
     session.Delete<Todo>(command.Id);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L82-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L78-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -157,9 +157,9 @@ _host = await Host.CreateDefaultBuilder()
         opts.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine()
             .UseLightweightSessions();
-        
+
         opts.Policies.AutoApplyTransactions();
-        
+
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L19-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_with_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
@@ -174,13 +174,13 @@ and after that, the calls to [InvokeForTenantAsync()]() "just work" as you can s
 public async Task execute_with_tenancy()
 {
     var id = Guid.NewGuid();
-    
+
     await _host.ExecuteAndWaitAsync(c =>
         c.InvokeForTenantAsync("one", new CreateTenantDocument(id, "Andor")));
-    
+
     await _host.ExecuteAndWaitAsync(c =>
         c.InvokeForTenantAsync("two", new CreateTenantDocument(id, "Tear")));
-    
+
     await _host.ExecuteAndWaitAsync(c =>
         c.InvokeForTenantAsync("three", new CreateTenantDocument(id, "Illian")));
 
@@ -192,14 +192,14 @@ public async Task execute_with_tenancy()
         var document = await session.LoadAsync<TenantedDocument>(id);
         document.Location.ShouldBe("Andor");
     }
-    
+
     // Check the second tenant
     using (var session = store.LightweightSession("two"))
     {
         var document = await session.LoadAsync<TenantedDocument>(id);
         document.Location.ShouldBe("Tear");
     }
-    
+
     // Check the third tenant
     using (var session = store.LightweightSession("three"))
     {

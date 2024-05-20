@@ -47,23 +47,22 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.Services.AddMarten("some connection string")
 
-            // This adds quite a bit of middleware for 
+            // This adds quite a bit of middleware for
             // Marten
             .IntegrateWithWolverine();
-        
+
         // You want this maybe!
         opts.Policies.AutoApplyTransactions();
 
         if (context.HostingEnvironment.IsDevelopment())
         {
-            // But wait! Optimize Wolverine for usage as 
+            // But wait! Optimize Wolverine for usage as
             // if there would never be more than one node running
             opts.Durability.Mode = DurabilityMode.Solo;
         }
-        
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L65-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L63-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Running your Wolverine application like this means that Wolverine is able to more quickly start the transactional inbox

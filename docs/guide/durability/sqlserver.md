@@ -24,7 +24,7 @@ builder.Host.UseWolverine(opts =>
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
-    
+
     // Enrolling all local queues into the
     // durable inbox/outbox processing
     opts.Policies.UseDurableLocalQueues();
@@ -52,11 +52,11 @@ using var host = await Host.CreateDefaultBuilder()
     {
         var connectionString = context.Configuration.GetConnectionString("sqlserver");
         opts.UseSqlServerPersistenceAndTransport(connectionString, "myapp")
-            
+
             // Tell Wolverine to build out all necessary queue or scheduled message
             // tables on demand as needed
             .AutoProvision()
-            
+
             // Optional that may be helpful in testing, but probably bad
             // in production!
             .AutoPurgeOnStartup();
@@ -66,14 +66,14 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Use this to set up queue listeners
         opts.ListenToSqlServerQueue("inbound")
-            
+
             .CircuitBreaker(cb =>
             {
                 // fine tune the circuit breaker
                 // policies here
             })
-            
-            // Optionally specify how many messages to 
+
+            // Optionally specify how many messages to
             // fetch into the listener at any one time
             .MaximumMessagesToReceive(50);
     }).StartAsync();
@@ -89,7 +89,7 @@ that they are utilizing the transactional inbox and outbox. The Sql Server queue
 ```cs
 opts.ListenToSqlServerQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L65-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L62-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the Sql Server queues can be used for both sending or receiving with no integration 

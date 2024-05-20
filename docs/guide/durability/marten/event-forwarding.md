@@ -96,8 +96,8 @@ builder.Host.UseWolverine(opts =>
     // to the database happen
     opts.Policies.OnException<NpgsqlException>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
-    
-    // Automatic usage of transactional middleware as 
+
+    // Automatic usage of transactional middleware as
     // Wolverine recognizes that an HTTP endpoint or message handler
     // persists data
     opts.Policies.AutoApplyTransactions();
@@ -120,7 +120,7 @@ public static Task<ITrackedSession> SaveInMartenAndWaitForOutgoingMessagesAsync(
         var session = factory.OpenSession(context);
         action(session);
         await session.SaveChangesAsync();
-        
+
         // Shouldn't be necessary, but real life says do it anyway
         await context.As<MessageContext>().FlushOutgoingMessagesAsync();
     }, timeoutInMilliseconds);
@@ -144,7 +144,7 @@ public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
             services.AddMarten(Servers.PostgresConnectionString)
                 .IntegrateWithWolverine().EventForwardingToWolverine(opts =>
                 {
-                    opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => 
+                    opts.SubscribeToEvent<SecondEvent>().TransformedTo(e =>
                         new SecondMessage(e.StreamId, e.Sequence));
                 });
         }).StartAsync();
@@ -154,7 +154,7 @@ public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
     {
         session.Events.Append(aggregateId, new SecondEvent());
     }, 100_000);
-    
+
     using var store = host.Services.GetRequiredService<IDocumentStore>();
     await using var session = store.LightweightSession();
     var events = await session.Events.FetchStreamAsync(aggregateId);
@@ -178,5 +178,5 @@ public static Task HandleAsync(SecondMessage message, IDocumentSession session)
     return session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L222-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L217-L223' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

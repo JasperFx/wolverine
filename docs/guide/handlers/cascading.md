@@ -30,7 +30,7 @@ public class NoCascadingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L14-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nocascadinghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L10-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nocascadinghandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The code above certainly works and this is consistent with most of the competing service bus tools. However, Wolverine supports the concept of _cascading messages_
@@ -47,7 +47,7 @@ public class CascadingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L35-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_cascadinghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L31-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_cascadinghandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When Wolverine executes `CascadingHandler.Consume(MyMessage)`, it "knows" that the `MyResponse` return value should be sent through the
@@ -91,7 +91,7 @@ public class ManuallyRoutedResponseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L158-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_manuallyroutedresponsehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L144-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_manuallyroutedresponsehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also add optional `DeliveryOptions` to the outgoing messages to fine tune how the message is to be published. 
@@ -114,7 +114,7 @@ The usage of this is shown below:
 public static OutgoingMessages Handle(Incoming incoming)
 {
     // You can use collection initializers for OutgoingMessages in C#
-    // as a shorthand. 
+    // as a shorthand.
     var messages = new OutgoingMessages
     {
         new Message1(),
@@ -154,14 +154,14 @@ public static IEnumerable<object> Consume(Incoming incoming)
 {
     // Delay the message delivery by 10 minutes
     yield return new Message1().DelayedFor(10.Minutes());
-    
+
     // Schedule the message delivery for a certain time
     yield return new Message2().ScheduledAt(new DateTimeOffset(DateTime.Today.AddDays(2)));
-    
+
     // Customize the message delivery however you please...
     yield return new Message3()
         .WithDeliveryOptions(new DeliveryOptions().WithHeader("foo", "bar"));
-    
+
     // Send back to the original sender
     yield return Respond.ToSender(new Message4());
 }
@@ -203,7 +203,7 @@ public class Requester
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L47-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_request/replay_with_cascading' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L43-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_request/replay_with_cascading' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and inside Receiver we have this code:
@@ -219,7 +219,7 @@ public class CascadingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L35-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_cascadinghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L31-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_cascadinghandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Assuming that `MyMessage` is configured to be sent to "Receiver," the following steps take place:
@@ -257,7 +257,7 @@ public class ConditionalResponseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L79-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionalresponsehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L71-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionalresponsehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -282,7 +282,7 @@ public class ScheduledResponseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L108-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delayedresponsehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L96-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delayedresponsehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Multiple Cascading Messages
@@ -306,7 +306,7 @@ public class MultipleResponseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L126-L140' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_multipleresponsehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L114-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_multipleresponsehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -333,7 +333,7 @@ public class MultipleResponseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L126-L140' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_multipleresponsehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L114-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_multipleresponsehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 can be rewritten with C# 7 tuples to:
@@ -351,7 +351,7 @@ public class TupleResponseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L142-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tupleresponsehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L130-L142' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tupleresponsehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The sample above still treats both `GoNorth` and the `ScheduledResponse` as cascading messages. The Wolverine team thinks that the
@@ -374,6 +374,6 @@ public object Handle(PingMessage message)
     return Respond.ToSender(pong);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/TestingSupport/Compliance/Messages.cs#L54-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_respond_to_sender' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/TestingSupport/Compliance/Messages.cs#L50-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_respond_to_sender' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

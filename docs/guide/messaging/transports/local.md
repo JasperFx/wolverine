@@ -48,7 +48,7 @@ public ValueTask EnqueueToQueue(IMessageContext bus)
     return bus.EndpointFor("highpriority").SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L154-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iservicebus.enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L148-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iservicebus.enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduling Local Execution
@@ -77,7 +77,7 @@ public async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
     await bus.ScheduleAsync(message, DateTimeOffset.Now.AddDays(30));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L192-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedule_job_locally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L186-L203' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedule_job_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -92,11 +92,9 @@ on a message type:
 <a id='snippet-sample_local_queue_routed_message'></a>
 ```cs
 [LocalQueue("important")]
-public class ImportanceMessage
-{
-}
+public class ImportanceMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L7-L14' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_routed_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L7-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_routed_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Otherwise, you can take advantage of Wolverine's message routing rules like this:
@@ -163,11 +161,11 @@ public static async Task disable_queue_routing()
             // routing that would take precedence over other conventional
             // routing
             opts.Policies.DisableConventionalLocalRouting();
-            
+
             // Other routing conventions. Rabbit MQ? SQS?
         }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L18-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_local_queue_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L16-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_local_queue_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Configuring Local Queues
@@ -274,7 +272,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.LocalQueue("four").UseDurableInbox();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L17-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_localqueuesapp' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L16-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_localqueuesapp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
