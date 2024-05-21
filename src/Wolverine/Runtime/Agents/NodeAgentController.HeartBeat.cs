@@ -53,11 +53,11 @@ public partial class NodeAgentController
         var staleNodes = nodes.Where(x => x.LastHealthCheck < staleTime).ToArray();
         nodes = nodes.Where(x => !staleNodes.Contains(x)).ToList();
 
+        // Do it no matter what
+        await ejectStaleNodes(staleNodes);
 
         if (_tracker.Self.IsLeader())
         {
-            await ejectStaleNodes(staleNodes);
-
             // TODO -- do the verification here too!
             return await EvaluateAssignmentsAsync(nodes);
         }
