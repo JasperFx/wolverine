@@ -45,6 +45,8 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
+        AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup;
+        
         var storage = runtime.Storage as SqlServerMessageStore;
 
         Storage = storage ?? throw new InvalidOperationException(

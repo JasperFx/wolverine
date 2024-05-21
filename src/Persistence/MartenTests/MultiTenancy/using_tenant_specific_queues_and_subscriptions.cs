@@ -148,6 +148,8 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
 
                 opts.ListenToPostgresqlQueue("numbers").ListenWithStrictOrdering();
 
+                opts.Transports.GetOrCreate<PostgresqlTransport>().AutoProvision = true;
+
                 opts.Services.AddMarten(o =>
                     {
                         o.DisableNpgsqlLogging = true;
