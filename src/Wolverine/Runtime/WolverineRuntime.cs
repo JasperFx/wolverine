@@ -58,6 +58,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         _container = container;
 
         Cancellation = DurabilitySettings.Cancellation;
+        _agentCancellation = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
 
         Tracker = new WolverineTracker(Logger);
 

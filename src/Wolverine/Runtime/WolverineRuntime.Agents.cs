@@ -18,7 +18,7 @@ public partial class WolverineRuntime : IAgentRuntime
     private bool _agentsAreDisabled;
     private Task? _healthCheckLoop;
 
-    private CancellationTokenSource _agentCancellation;
+    private readonly CancellationTokenSource _agentCancellation;
 
     public NodeAgentController? NodeController { get; private set; }
 
