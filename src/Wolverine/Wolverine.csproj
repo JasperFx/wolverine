@@ -5,7 +5,7 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="FastExpressionCompiler" Version="4.1.0" />
-        <PackageReference Include="Lamar.Microsoft.DependencyInjection" Version="13.0.3" />
+        <PackageReference Include="Lamar.Microsoft.DependencyInjection" Version="13.0.4" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="Oakton" Version="6.1.0" />
         <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
