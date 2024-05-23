@@ -343,4 +343,26 @@ public static class HostBuilderExtensions
     }
 
     #endregion
+    
+    /// <summary>
+    /// Override the durability mode of Wolverine to be "Solo". This is valuable in automated
+    /// testing scenarios to make application activation and teardown faster and to bypass
+    /// potential problems with leadership election when the application is being frequently
+    /// shut down from a debugger without closing cleanly. 
+    /// </summary>
+    /// <param name="services"></param>
+    /// <returns></returns>
+    public static IServiceCollection UseWolverineSoloMode(this IServiceCollection services)
+    {
+        services.AddSingleton<IWolverineExtension, UseSoloDurabilityMode>();
+        return services;
+    }
+
+    internal class UseSoloDurabilityMode : IWolverineExtension
+    {
+        public void Configure(WolverineOptions options)
+        {
+            options.Durability.Mode = DurabilityMode.Solo;
+        }
+    }
 }
