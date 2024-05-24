@@ -40,6 +40,7 @@ public static class WolverineOptionsMartenExtensions
     ///     Wolverine will try to use the master database from the Marten configuration when possible
     /// </param>
     /// <param name="transportSchemaName">Optionally configure the schema name for any PostgreSQL queues</param>
+    /// <param name="autoCreate">Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>.</param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, 
