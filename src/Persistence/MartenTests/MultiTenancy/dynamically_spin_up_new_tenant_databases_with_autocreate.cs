@@ -12,6 +12,7 @@ using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.RDBMS;
+using Wolverine.Tracking;
 
 namespace MartenTests.MultiTenancy;
 
@@ -31,9 +32,15 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
                 w.ExpectRunningAgents(host, 1);
             }, 15.Seconds());
 
+            // Dynamically add a new tenant
             var tenancy = (MasterTableTenancy)store.Options.Tenancy;
             await tenancy.AddDatabaseRecordAsync("tenant1", tenantConnectionString);
 
+            // Apply Marten migrations to the tenant database
+            var db = await tenancy.FindOrCreateDatabase("tenant1");
+            await db.ApplyAllConfiguredChangesToDatabaseAsync(AutoCreate.CreateOrUpdate);
+
+            // Wait for the agent of the new tenant to start
             await host.WaitUntilAssignmentsChangeTo(w =>
             {
                 w.AgentScheme = DurabilityAgent.AgentScheme;
@@ -41,6 +48,15 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
                 // 1 for the master, 1 for the tenant databases
                 w.ExpectRunningAgents(host, 2);
             }, 1.Minutes());
+
+            // Trigger a command for the specific tenant
+            var command = new PersistDoc(Guid.NewGuid());
+            await host.InvokeMessageAndWaitAsync(command, "tenant1");
+
+            // Assert the handling of the command
+            await using var session = store.LightweightSession("tenant1");
+            var doc = await session.LoadAsync<PersistedDoc>(command.Id);
+            doc.ShouldNotBeNull();
 
             await host.StopAsync();
         }
@@ -67,6 +83,8 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
         await conn.DropSchemaAsync("tenants");
+        // Drop Wolverine's schema in master database because we test the creation of it
+        await conn.DropSchemaAsync("wolv");
 
         var tenantConnectionString = await CreateDatabaseIfNotExists(conn, "tenant1");
 
@@ -78,6 +96,9 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
             {
                 // This is too extreme for real usage, but helps tests to run faster
                 opts.Durability.NodeReassignmentPollingTime = 1.Seconds();
+
+                opts.Policies.AutoApplyTransactions();
+                opts.Policies.UseDurableLocalQueues();
 
                 opts.Services.AddMarten(o =>
                     {
@@ -92,9 +113,12 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
 
                         // Disable auto-creation of Marten schema objects
                         o.AutoCreateSchemaObjects = AutoCreate.None;
+
+                        // Required because AutoCreate.None
+                        o.Schema.For<PersistedDoc>();
                     })
                     .IntegrateWithWolverine(
-                        "wolv",
+                        schemaName: "wolv",
                         autoCreate: wolverineAutoCreate)
 
                     // All detected changes will be applied to all
@@ -122,8 +146,13 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
         }
         else
         {
+            var original = conn.Database;
+            await conn.ChangeDatabaseAsync(databaseName);
+
             // Drop Wolverine's schema because we test the creation of it
             await conn.DropSchemaAsync("wolv");
+
+            await conn.ChangeDatabaseAsync(original);
         }
 
         builder.Database = databaseName;
