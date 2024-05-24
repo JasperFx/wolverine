@@ -16,15 +16,21 @@ namespace Wolverine.Marten;
 internal class MartenMessageDatabaseSource : IMessageDatabaseSource
 {
     private readonly string _schemaName;
+    private readonly AutoCreate _autoCreate;
     private readonly IDocumentStore _store;
     private readonly IWolverineRuntime _runtime;
     private ImHashMap<string, PostgresqlMessageStore> _stores = ImHashMap<string, PostgresqlMessageStore>.Empty;
     private ImHashMap<string, PostgresqlMessageStore> _databases = ImHashMap<string, PostgresqlMessageStore>.Empty;
     private readonly object _locker = new();
 
-    public MartenMessageDatabaseSource(string schemaName, IDocumentStore store, IWolverineRuntime runtime)
+    public MartenMessageDatabaseSource(
+        string schemaName, 
+        AutoCreate autoCreate,
+        IDocumentStore store, 
+        IWolverineRuntime runtime)
     {
         _schemaName = schemaName;
+        _autoCreate = autoCreate;
         _store = store;
         _runtime = runtime;
     }
@@ -73,11 +79,8 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
             await configuration(store);
         }
 
-        if (_store.Options.As<StoreOptions>().AutoCreateSchemaObjects != AutoCreate.None)
-        {
-            // TODO -- add some resiliency here
-            await store.Admin.MigrateAsync();
-        }
+        // TODO -- add some resiliency here
+        await store.Admin.MigrateAsync();
 
         return store;
     }
@@ -88,6 +91,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         {
             SchemaName = _schemaName,
             IsMaster = false,
+            AutoCreate = _autoCreate,
             CommandQueuesEnabled = false,
             DataSource = database.As<PostgresqlDatabase>().DataSource
         };
@@ -107,11 +111,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         foreach (var martenDatabase in martenDatabases)
         {
             var wolverineStore = createWolverineStore(martenDatabase);
-
-            if (martenDatabase.AutoCreate != AutoCreate.None)
-            {
-                await wolverineStore.MigrateAsync();
-            }
+            await wolverineStore.MigrateAsync();
 
             _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
         }
