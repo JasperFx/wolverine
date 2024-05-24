@@ -35,7 +35,7 @@ public class event_forwarding_routing_bug
         session.Executed.SingleEnvelope<IEvent<SomeEvent>>()
             .Destination.ShouldBe("local://forwarded-events/".ToUri());
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new Event<SomeEvent>(new SomeEvent()))
             .ShouldAllBe(x => x.Destination == new Uri("local://forwarded-events"));
     }
@@ -57,7 +57,7 @@ public class event_forwarding_routing_bug
             })
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new Event<SomeEvent>(new SomeEvent()))
             .ShouldAllBe(x => x.Destination == new Uri("local://forwarded-events"));
     }

@@ -5,13 +5,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
+        <ProjectReference Include="..\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Include="..\..\Servers.cs">
-        <Link>Servers.cs</Link>
-      </Compile>
+        <Compile Include="..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
     </ItemGroup>
 
     <ItemGroup>
@@ -23,7 +23,7 @@
         <!-- 	<PrivateAssets>all</PrivateAssets> -->
         <!-- 	<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets> -->
         <!-- </PackageReference> -->
-        <PackageReference Include="NSwag.AspNetCore" Version="14.0.0" />
+        <PackageReference Include="NSwag.AspNetCore" Version="14.0.0"/>
     </ItemGroup>
 
 </Project>

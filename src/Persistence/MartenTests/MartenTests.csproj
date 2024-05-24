@@ -6,12 +6,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0"/>
-        
-        <PackageReference Include="Shouldly" Version="4.2.1" />
-        <PackageReference Include="xunit" Version="2.8.0" />
+
+        <PackageReference Include="Shouldly" Version="4.2.1"/>
+        <PackageReference Include="xunit" Version="2.8.0"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -23,15 +23,41 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj" />
-        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj" />
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
+        <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj"/>
+        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
     </ItemGroup>
-    
+
     <ItemGroup>
         <Compile Include="..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>
+        <Compile Remove="Internal\Generated\WolverineHandlers\ResponseHandler2107844337.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\RaiseOnlyDHandler1609388090.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\RaiseLotsAsyncHandler89313884.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\RaiseBBCCCHandler1900945687.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\RaiseABCHandler1483138068.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\RaiseAABCCHandler1413048758.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\RaiseAAAHandler1649029811.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\Outgoing1Handler1264108911.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\LetterMessage2Handler839379855.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\LetterMessage1Handler726704086.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementManyHandler1569177634.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementManyAsyncHandler2038967698.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementMany2Handler448896552.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementDHandler1876978025.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementCHandler1473693498.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementCDHandler1083073314.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementBHandler1255189857.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementBCHandler483010622.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementB2Handler483010605.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementAHandler1658474384.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementABHandler79726094.cs" />
+        <Compile Remove="Internal\Generated\WolverineHandlers\IncrementA2Handler79726078.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Internal\Generated\WolverineHandlers\" />
     </ItemGroup>
 
 </Project>

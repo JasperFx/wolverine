@@ -1,35 +1,35 @@
 ﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
 
 public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
 {
-    public void ApplyTransactionSupport(IChain chain, IContainer container)
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
         // Nothing
     }
 
-    public bool CanApply(IChain chain, IContainer container)
+    public bool CanApply(IChain chain, IServiceContainer container)
     {
         return false;
     }
 
-    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         persistenceService = GetType();
         return true;
     }
 
-    public Type DetermineSagaIdType(Type sagaType, IContainer container)
+    public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         return SagaChain.DetermineSagaIdMember(sagaType, sagaType)?.GetMemberType() ?? typeof(object);
     }
 
-    public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)
+    public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
     {
         var method = typeof(InMemorySagaPersistor).GetMethod(nameof(InMemorySagaPersistor.Load))!
             .MakeGenericMethod(sagaType);
@@ -45,7 +45,7 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
-    public Frame DetermineInsertFrame(Variable saga, IContainer container)
+    public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
     {
         var method = typeof(InMemorySagaPersistor).GetMethod(nameof(InMemorySagaPersistor.Store))!
             .MakeGenericMethod(saga.VariableType);
@@ -60,17 +60,17 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
-    public Frame CommitUnitOfWorkFrame(Variable saga, IContainer container)
+    public Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container)
     {
         return new CommentFrame("No unit of work");
     }
 
-    public Frame DetermineUpdateFrame(Variable saga, IContainer container)
+    public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
         return DetermineInsertFrame(saga, container);
     }
 
-    public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IContainer container)
+    public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
     {
         var method = typeof(InMemorySagaPersistor).GetMethod(nameof(InMemorySagaPersistor.Delete))!
             .MakeGenericMethod(saga.VariableType);

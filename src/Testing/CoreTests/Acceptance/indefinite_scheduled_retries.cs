@@ -17,7 +17,7 @@ public class indefinite_scheduled_retires
             .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(100.Milliseconds()))
             .StartAsync();
 
-        var messageBus = host.Services.GetRequiredService<IMessageBus>();
+        var messageBus = host.MessageBus();
         await messageBus.SendAsync(new IndefiniteRetriesCommand(cts, SucceedAfterAttempts: 5));
         try
         {
@@ -35,7 +35,7 @@ public class indefinite_scheduled_retires
             .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(50.Milliseconds(), 100.Milliseconds()))
             .StartAsync();
 
-        var messageBus = host.Services.GetRequiredService<IMessageBus>();
+        var messageBus = host.MessageBus();
         await messageBus.SendAsync(new IndefiniteRetriesCommand(cts, SucceedAfterAttempts: 5));
         try
         {
@@ -54,7 +54,7 @@ public class indefinite_scheduled_retires
             .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(100.Milliseconds()))
             .StartAsync();
 
-        var messageBus = host.Services.GetRequiredService<IMessageBus>();
+        var messageBus = host.MessageBus();
         await messageBus.SendAsync(new IndefiniteRetriesCommand(cts, CancelAndFailAfterAttempts: 3));
         try
         {

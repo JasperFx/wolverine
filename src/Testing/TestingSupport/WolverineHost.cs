@@ -12,6 +12,7 @@ namespace TestingSupport;
 ///     Shortcut to bootstrap simple Wolverine applications.
 ///     Syntactical sugar over Host.CreateDefaultBuilder().UseWolverine().RunOaktonCommands(args);
 /// </summary>
+[Obsolete("This should have gone away a long time ago")]
 public static class WolverineHost
 {
     /// <summary>
@@ -21,17 +22,7 @@ public static class WolverineHost
     /// <returns></returns>
     public static IHost Basic()
     {
-        return bootstrap(new WolverineOptions());
-    }
-
-    /// <summary>
-    ///     Builds and initializes a IHost for the options
-    /// </summary>
-    /// <param name="options"></param>
-    /// <returns></returns>
-    public static IHost For(WolverineOptions options)
-    {
-        return bootstrap(options);
+        return bootstrap(_ => {});
     }
 
     /// <summary>
@@ -41,31 +32,30 @@ public static class WolverineHost
     /// <returns></returns>
     public static IHost For(Action<WolverineOptions> configure)
     {
-        var options = new WolverineOptions();
-        configure(options);
-        return bootstrap(options);
+        return bootstrap(configure);
     }
 
     public static Task<IHost> ForAsync(Action<WolverineOptions> configure)
     {
-        var options = new WolverineOptions();
-        configure(options);
-        return bootstrapAsync(options);
+        return bootstrapAsync(configure);
     }
 
-    private static IHost bootstrap(WolverineOptions options)
+    private static IHost bootstrap(Action<WolverineOptions> configure)
     {
         return Host.CreateDefaultBuilder()
-            .UseWolverine(options, (c, o) => { })
+            .UseWolverine((c, o) =>
+            {
+                configure(o);
+            })
             .UseResourceSetupOnStartup(StartupAction.ResetState)
             //.ConfigureLogging(x => x.ClearProviders())
             .Start();
     }
 
-    private static Task<IHost> bootstrapAsync(WolverineOptions options)
+    private static Task<IHost> bootstrapAsync(Action<WolverineOptions> configure)
     {
         return Host.CreateDefaultBuilder()
-            .UseWolverine(options, (c, o) => { })
+            .UseWolverine((c, o) => configure(o))
             .UseResourceSetupOnStartup(StartupAction.ResetState)
             //.ConfigureLogging(x => x.ClearProviders())
             .StartAsync();

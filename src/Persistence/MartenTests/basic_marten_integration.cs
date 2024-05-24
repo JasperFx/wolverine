@@ -1,9 +1,9 @@
 ﻿using IntegrationTests;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Marten;
 using Marten.Internal.Sessions;
 using Marten.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
@@ -45,10 +45,10 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
     [Fact]
     public void basic_registrations()
     {
-        var container = (IContainer)theHost.Services;
+        var container = theHost.Services.GetRequiredService<IServiceContainer>();
 
-        container.Model.For<IWolverineExtension>().Instances
-            .Any(x => x.ImplementationType == typeof(MartenIntegration))
+        container.RegistrationsFor<IWolverineExtension>()
+            .Any(x => x.ImplementationInstance is MartenIntegration)
             .ShouldBeTrue();
 
         container.GetInstance<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
@@ -70,11 +70,11 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
                 opts.Services.AddResourceSetupOnStartup();
             }).Start();
 
-        var container = (IContainer)host.Services;
+        var container = host.Services.GetRequiredService<IServiceContainer>();
 
 
-        container.Model.For<IWolverineExtension>().Instances
-            .Any(x => x.ImplementationType == typeof(MartenIntegration))
+        container.RegistrationsFor<IWolverineExtension>()
+            .Any(x => x.ImplementationInstance is MartenIntegration)
             .ShouldBeTrue();
 
         container.GetInstance<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
@@ -84,17 +84,15 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
     [Fact]
     public void registers_document_store_in_a_usable_way()
     {
-
         var doc = new FakeDoc { Id = Guid.NewGuid() };
 
-
-        using (var session = theHost.Get<IDocumentSession>())
+        using (var session = theHost.DocumentStore().LightweightSession())
         {
             session.Store(doc);
             session.SaveChanges();
         }
 
-        using (var query = theHost.Get<IQuerySession>())
+        using (var query = theHost.DocumentStore().QuerySession())
         {
             query.Load<FakeDoc>(doc.Id).ShouldNotBeNull();
         }

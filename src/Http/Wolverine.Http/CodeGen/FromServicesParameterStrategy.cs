@@ -1,14 +1,14 @@
 using System.Reflection;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
 internal class FromServicesParameterStrategy : IParameterStrategy
 {
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         variable = default!;
         if (parameter.HasAttribute<FromServicesAttribute>() || parameter.HasAttribute<NotBodyAttribute>())

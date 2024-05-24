@@ -50,7 +50,15 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
     {
         if (_deleteBlock != null)
         {
-            await _deleteBlock.DrainAsync();
+            try
+            {
+                await _deleteBlock.DrainAsync();
+            }
+            catch (TaskCanceledException)
+            {
+                
+            }
+            
             _deleteBlock.SafeDispose();
         }
     }

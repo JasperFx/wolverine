@@ -1,5 +1,8 @@
 using FluentValidation;
+using JasperFx.Core.IoC;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation.Internals;
 
@@ -34,7 +37,6 @@ public static class WolverineFluentValidationExtensions
             return options;
         }
 
-        options.Services.Policies.Add<ValidatorLifetimePolicy>();
         options.Services.AddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
 
         options.ConfigureLazily(o =>
@@ -45,7 +47,7 @@ public static class WolverineFluentValidationExtensions
                 {
                     foreach (var assembly in options.Assemblies) x.Assembly(assembly);
 
-                    x.ConnectImplementationsToTypesClosing(typeof(IValidator<>));
+                    x.ConnectImplementationsToTypesClosing(typeof(IValidator<>), type => type.HasConstructorsWithArguments() ? ServiceLifetime.Scoped : ServiceLifetime.Singleton);
                 });
             }
         });

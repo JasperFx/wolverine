@@ -5,11 +5,11 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Wolverine.Http.Resources;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http;
 
@@ -25,7 +25,7 @@ public interface IHttpAware : IEndpointMetadataProvider
 
 internal class HttpAwarePolicy : IHttpPolicy
 {
-    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
         var matching = chains.Where(x => x.ResourceType != null && x.ResourceType.CanBeCastTo(typeof(IHttpAware)));
         foreach (var chain in matching)

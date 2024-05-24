@@ -6,7 +6,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
@@ -191,7 +191,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             return false;
         }
 
-        var container = services!.As<IContainer>();
+        var container = services.GetRequiredService<IServiceContainer>();
         applyCustomizations(rules, container);
 
         Handler = (MessageHandler)container.QuickBuild(_handlerType);
@@ -268,7 +268,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return new HandlerChain(call, parent);
     }
 
-    internal MessageHandler CreateHandler(IContainer container)
+    internal MessageHandler CreateHandler(IServiceContainer container)
     {
         if (_handlerType == null)
         {
@@ -292,7 +292,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <param name="messageVariable"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    internal virtual List<Frame> DetermineFrames(GenerationRules rules, IContainer container, MessageVariable messageVariable)
+    internal virtual List<Frame> DetermineFrames(GenerationRules rules, IServiceContainer container,
+        MessageVariable messageVariable)
     {
         if (Handlers.Count == 0)
         {
@@ -316,13 +317,15 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             methodCall.TryReplaceVariableCreationWithAssignment(messageVariable);
         }
+        
+        
 
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
-        return Middleware.Concat(Handlers).Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
+        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(Handlers).Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
     }
 
-    protected void applyCustomizations(GenerationRules rules, IContainer container)
+    protected void applyCustomizations(GenerationRules rules, IServiceContainer container)
     {
         if (!_hasConfiguredFrames)
         {

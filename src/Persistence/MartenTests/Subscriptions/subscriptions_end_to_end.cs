@@ -466,9 +466,8 @@ public class subscriptions_end_to_end : PostgresqlContext
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-
-                // Purposely using scoped here
-                opts.Services.AddScoped<TaggingService>();
+                
+                opts.Services.AddSingleton<TaggingService>();
 
                 opts.Services.AddMarten(m =>
                     {

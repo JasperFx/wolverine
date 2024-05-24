@@ -1,5 +1,6 @@
 ﻿using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
@@ -9,6 +10,7 @@ using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
+using Wolverine.Tracking;
 using Wolverine.Transports;
 
 namespace SqlServerTests.Persistence;
@@ -41,7 +43,7 @@ public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
 
         theHost.Get<IMessageStore>().Inbox.ScheduleJobAsync(theEnvelope).Wait(3.Seconds());
 
-        var persistor = theHost.Get<SqlServerMessageStore>();
+        var persistor = theHost.GetRuntime().Storage.As<SqlServerMessageStore>();
 
         persisted = (await persistor.Admin.AllIncomingAsync())
             .FirstOrDefault(x => x.Id == theEnvelope.Id);

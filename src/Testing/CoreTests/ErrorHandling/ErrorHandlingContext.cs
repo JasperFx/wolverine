@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using TestingSupport.ErrorHandling;
 using Wolverine.Runtime.RemoteInvocation;
@@ -5,16 +6,29 @@ using Wolverine.Tracking;
 
 namespace CoreTests.ErrorHandling;
 
-public class ErrorHandlingContext
+public class ErrorHandlingContext : IDisposable
 {
     protected readonly ErrorCausingMessage theMessage = new();
 
-    protected readonly WolverineOptions theOptions = new();
     private ITrackedSession _session;
+    private IHost _host;
 
     public ErrorHandlingContext()
     {
-        theOptions.DisableConventionalDiscovery().IncludeType<ErrorCausingMessageHandler>();
+    }
+
+    protected void ConfigureOptions(Action<WolverineOptions> configure)
+    {
+        _host = Host.CreateDefaultBuilder().UseWolverine(opts =>
+        {
+            configure(opts);
+            opts.DisableConventionalDiscovery().IncludeType<ErrorCausingMessageHandler>();
+        }).Start();
+    }
+
+    public void Dispose()
+    {
+        _host.Dispose();
     }
 
     protected void throwOnAttempt<T>(int attempt) where T : Exception, new()
@@ -24,8 +38,12 @@ public class ErrorHandlingContext
 
     protected async Task<EnvelopeRecord> afterProcessingIsComplete()
     {
-        using var host = WolverineHost.For(theOptions);
-        _session = await host
+        if (_host == null)
+        {
+            ConfigureOptions(_ => {});
+        }
+        
+        _session = await _host
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);
@@ -37,8 +55,12 @@ public class ErrorHandlingContext
 
     protected async Task shouldSucceedOnAttempt(int attempt)
     {
-        using var host = WolverineHost.For(theOptions);
-        var session = await host
+        if (_host == null)
+        {
+            ConfigureOptions(_ => {});
+        }
+        
+        var session = await _host
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);
@@ -74,8 +96,12 @@ public class ErrorHandlingContext
 
     protected async Task shouldMoveToErrorQueueOnAttempt(int attempt)
     {
-        using var host = WolverineHost.For(theOptions);
-        var session = await host
+        if (_host == null)
+        {
+            ConfigureOptions(_ => {});
+        }
+        
+        var session = await _host
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);

@@ -4,7 +4,9 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Codegen;
+using Wolverine.Runtime;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
@@ -22,17 +24,19 @@ public class smoke_test_code_generation_of_endpoints_with_no_service_dependencie
     [MemberData(nameof(Methods))]
     public void compile_without_error(MethodInfo method)
     {
-        var container = new Container(x =>
-        {
-            x.For<WolverineHttpOptions>().Use<WolverineHttpOptions>();
-            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
-        });
+        var registry = new ServiceCollection();
+        registry.AddSingleton<WolverineHttpOptions>();
+        registry.AddTransient<IServiceVariableSource>(c => new ServiceCollectionServerVariableSource((ServiceContainer)c.GetRequiredService<IServiceContainer>()));
+        registry.AddSingleton<IServiceCollection>(registry);
+        registry.AddSingleton<IServiceContainer, ServiceContainer>();
+
+        var container = registry.BuildServiceProvider().GetRequiredService<IServiceContainer>();
 
         var parent = new HttpGraph(new WolverineOptions { ApplicationAssembly = GetType().Assembly }, container);
 
         var endpoint = new HttpChain(new MethodCall(typeof(FakeEndpoint), method), parent);
 
 
-        endpoint.As<ICodeFile>().InitializeSynchronously(parent.Rules, parent, parent.Container);
+        endpoint.As<ICodeFile>().InitializeSynchronously(parent.Rules, parent, parent.Container.Services);
     }
 }

@@ -1,4 +1,5 @@
-﻿using Wolverine;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Wolverine;
 
 namespace Module1;
 
@@ -10,7 +11,7 @@ public class Module1Extension : IWolverineExtension
     {
         Options = options;
 
-        options.Services.For<IModuleService>().Use<ServiceFromModule>();
+        options.Services.AddScoped<IModuleService, ServiceFromModule>();
     }
 }
 

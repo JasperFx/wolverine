@@ -134,6 +134,11 @@ public partial class HttpChain
             yield return frame;
         }
 
+        foreach (var f in _parent.Container.TryCreateConstructorFrames(new MethodCall[]{this.Method}))
+        {
+            yield return f;
+        }
+
         yield return Method;
 
         var actionsOnOtherReturnValues = (NoContent ? Method.Creates : Method.Creates.Skip(1))

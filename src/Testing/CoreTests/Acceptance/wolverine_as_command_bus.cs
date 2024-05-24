@@ -69,8 +69,7 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
         {
             FailThisManyTimes = 1
         };
-
-
+        
         await Should.ThrowAsync<DivideByZeroException>(() => Publisher.InvokeAsync(message));
     }
 

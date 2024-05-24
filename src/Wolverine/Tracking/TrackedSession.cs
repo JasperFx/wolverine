@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -265,8 +265,8 @@ internal class TrackedSession : ITrackedSession
 
         try
         {
-            await using var scope = _primaryHost.Services.As<IContainer>().GetNestedContainer();
-            var context = scope.GetInstance<IMessageContext>();
+            await using var scope = _primaryHost.Services.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<IMessageContext>();
             await Execution(context).WaitAsync(Timeout);
             _executionComplete = true;
         }

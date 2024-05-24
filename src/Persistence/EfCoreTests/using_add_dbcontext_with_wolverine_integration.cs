@@ -1,7 +1,6 @@
 using IntegrationTests;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
@@ -39,7 +38,7 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
     [Fact]
     public void is_wolverine_enabled()
     {
-        using var nested = _host.Services.As<IContainer>().GetNestedContainer();
-        nested.GetInstance<CleanDbContext>().IsWolverineEnabled().ShouldBeTrue();
+        using var nested = _host.Services.CreateScope();
+        nested.ServiceProvider.GetRequiredService<CleanDbContext>().IsWolverineEnabled().ShouldBeTrue();
     }
 }

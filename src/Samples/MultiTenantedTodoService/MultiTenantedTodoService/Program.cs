@@ -65,6 +65,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+builder.Services.AddWolverineHttp();
+
 #region sample_configuring_tenant_id_detection_for_todo_service
 
 // Let's add in Wolverine HTTP endpoints to the routing tree

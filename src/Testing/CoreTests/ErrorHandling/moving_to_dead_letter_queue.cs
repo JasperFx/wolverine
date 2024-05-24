@@ -8,12 +8,15 @@ public class moving_to_dead_letter_queue : ErrorHandlingContext
 {
     public moving_to_dead_letter_queue()
     {
-        theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+        ConfigureOptions(opts =>
         {
-            chain.OnException<DivideByZeroException>().MoveToErrorQueue();
-            chain.OnException<InvalidOperationException>().RetryTimes(3);
+            opts.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+            {
+                chain.OnException<DivideByZeroException>().MoveToErrorQueue();
+                chain.OnException<InvalidOperationException>().RetryTimes(3);
 
-            chain.Failures.MaximumAttempts = 3;
+                chain.Failures.MaximumAttempts = 3;
+            });
         });
     }
 

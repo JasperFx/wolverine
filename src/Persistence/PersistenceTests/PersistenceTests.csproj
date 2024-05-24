@@ -5,41 +5,41 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
 
-        <PackageReference Include="GitHubActionsTestLogger" Version="2.0.1" PrivateAssets="All" />
-        <PackageReference Include="xunit" Version="2.8.0" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0"/>
+
+        <PackageReference Include="GitHubActionsTestLogger" Version="2.0.1" PrivateAssets="All"/>
+        <PackageReference Include="xunit" Version="2.8.0"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
-          <PrivateAssets>all</PrivateAssets>
-          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj" />
-        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
-        <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
-        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj" />
-        <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
-        <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
+        <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj"/>
+        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
+        <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
+        <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
+        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
 
     </ItemGroup>
 
     <ItemGroup Condition="'$(targetframework)' == 'net7.0'">
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[7.0.0, 8.0.0)" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[7.0.0, 8.0.0)" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[7.0.0, 8.0.0)"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[7.0.0, 8.0.0)"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(targetframework)' == 'net8.0'">
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 
     <ItemGroup>

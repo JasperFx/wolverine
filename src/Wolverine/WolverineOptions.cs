@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
@@ -95,10 +94,10 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     ///     Register additional services to the underlying IoC container with either .NET standard IServiceCollection extension
-    ///     methods or Lamar's registry DSL syntax . This usage will have access to the application's
+    ///     methods. This usage will have access to the application's
     ///     full ServiceCollection *at the time of this call*
     /// </summary>
-    public ServiceRegistry Services { get; } = [];
+    public IServiceCollection Services { get; internal set; } = new ServiceCollection();
 
     internal HandlerGraph HandlerGraph { get; } = new();
 
@@ -135,12 +134,6 @@ public sealed partial class WolverineOptions
             ServiceName = GetType().Name.Replace("WolverineOptions", "").Replace("Registry", "")
                 .Replace("Options", "");
         }
-    }
-
-    internal void CombineServices(IServiceCollection services)
-    {
-        services.Clear();
-        services.AddRange(Services);
     }
 
     /// <summary>

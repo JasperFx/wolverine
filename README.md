@@ -12,7 +12,8 @@ the [documentation website at https://wolverinefx.net/](https://wolverinefx.net/
     <img src="https://www.jasperfx.net/logo.png" alt="JasperFx logo" width="70%">
 </div>
 
-While Wolverine is open source, [JasperFx Software offers paid support and consulting contracts](https://bit.ly/3szhwT2) for Wolverine. 
+While Wolverine is open source, [JasperFx Software offers paid support and consulting contracts](https://bit.ly/3szhwT2)
+for Wolverine.
 
 ## Help us keep working on this project 💚
 

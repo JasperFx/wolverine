@@ -1,8 +1,8 @@
 ﻿using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime;
 
 namespace Wolverine.Attributes;
 
@@ -12,7 +12,7 @@ namespace Wolverine.Attributes;
 /// </summary>
 public class TransactionalAttribute : ModifyChainAttribute
 {
-    public override void Modify(IChain chain, GenerationRules rules, IContainer container)
+    public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
         var transactionFrameProvider = rules.As<GenerationRules>().GetPersistenceProviders(chain, container);
         transactionFrameProvider.ApplyTransactionSupport(chain, container);

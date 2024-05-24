@@ -9,16 +9,20 @@ public class Fallback_from_Chain_to_Global_Error_Handling : ErrorHandlingContext
 {
     public Fallback_from_Chain_to_Global_Error_Handling()
     {
-        theOptions.Policies.OnException<DivideByZeroException>().RetryTimes(3);
-        theOptions.Policies.OnException<DataMisalignedException>().PauseThenRequeue(50.Milliseconds());
-        theOptions.Policies.OnException<DataMisalignedException>().MoveToErrorQueue();
-
-        theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+        ConfigureOptions(opts =>
         {
-            chain.OnException<DivideByZeroException>().MoveToErrorQueue();
-            chain.OnException<InvalidOperationException>().RetryTimes(3);
-            chain.Failures.MaximumAttempts = 3;
+            opts.Policies.OnException<DivideByZeroException>().RetryTimes(3);
+            opts.Policies.OnException<DataMisalignedException>().PauseThenRequeue(50.Milliseconds());
+            opts.Policies.OnException<DataMisalignedException>().MoveToErrorQueue();
+
+            opts.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+            {
+                chain.OnException<DivideByZeroException>().MoveToErrorQueue();
+                chain.OnException<InvalidOperationException>().RetryTimes(3);
+                chain.Failures.MaximumAttempts = 3;
+            });
         });
+
     }
 
     [Fact]

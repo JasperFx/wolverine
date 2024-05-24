@@ -17,10 +17,6 @@ public static class wolverine_app_services
                 // Add service registrations with the ASP.Net Core
                 // DI abstractions
                 opts.Services.AddLogging();
-
-                // or mix and match with StructureMap style
-                // registrations
-                opts.Services.For(typeof(ILogger)).Use(typeof(Logger<>));
             }).StartAsync();
 
         #endregion

@@ -5,30 +5,35 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.FeatureManagement" Version="3.2.0" />
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0" />
-        <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.6.0" />
-        <PackageReference Include="xunit" Version="2.8.0" />
+        <PackageReference Include="Microsoft.FeatureManagement" Version="3.2.0"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0"/>
+        <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.6.0"/>
+        <PackageReference Include="xunit" Version="2.8.0"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
-          <PrivateAssets>all</PrivateAssets>
-          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="GitHubActionsTestLogger" Version="2.3.2" PrivateAssets="All" />
+        <PackageReference Include="GitHubActionsTestLogger" Version="2.3.2" PrivateAssets="All"/>
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Module2\Module2.csproj" />
-        <ProjectReference Include="..\OrderExtension\OrderExtension.csproj" />
-        <ProjectReference Include="..\Module1\Module1.csproj" />
-        <ProjectReference Include="..\TestingSupport\TestingSupport.csproj" />
+        <ProjectReference Include="..\Module2\Module2.csproj"/>
+        <ProjectReference Include="..\OrderExtension\OrderExtension.csproj"/>
+        <ProjectReference Include="..\Module1\Module1.csproj"/>
+        <ProjectReference Include="..\TestingSupport\TestingSupport.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
         <Content Update="appsettings.json">
-          <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Internal\Generated\WolverineHandlers\SayStuffHandler1292291056.cs" />
+      <Compile Remove="Internal\Generated\WolverineHandlers\CSP4Handler299410023.cs" />
     </ItemGroup>
 </Project>

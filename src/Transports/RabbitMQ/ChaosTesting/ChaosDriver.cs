@@ -1,6 +1,4 @@
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,8 +16,8 @@ public interface IMessageStorageStrategy
 {
     void ConfigureReceiverPersistence(WolverineOptions options);
     void ConfigureSenderPersistence(WolverineOptions options);
-    Task ClearMessageRecords(IContainer services);
-    Task<long> FindOutstandingMessageCount(IContainer container, CancellationToken cancellation);
+    Task ClearMessageRecords(IServiceProvider services);
+    Task<long> FindOutstandingMessageCount(IServiceProvider container, CancellationToken cancellation);
 }
 
 public class TransportConfiguration
@@ -95,7 +93,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
         // as clearing out queues
         await sender.ResetResourceState();
 
-        await _storage.ClearMessageRecords((IContainer)sender.Services);
+        await _storage.ClearMessageRecords((IServiceProvider)sender.Services);
 
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -188,12 +186,12 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
 
         var receiver = _receivers.Values.FirstOrDefault();
 
-        var count = await _storage.FindOutstandingMessageCount(receiver.Services.As<IContainer>(), CancellationToken.None);
+        var count = await _storage.FindOutstandingMessageCount(receiver.Services, CancellationToken.None);
         var attempts = 0;
 
         while (attempts < 20)
         {
-            var newCount = await _storage.FindOutstandingMessageCount(receiver.Services.As<IContainer>(), CancellationToken.None);
+            var newCount = await _storage.FindOutstandingMessageCount(receiver.Services, CancellationToken.None);
             if (newCount == 0)
             {
                 _output.WriteLine("Reached zero outstanding messages!");

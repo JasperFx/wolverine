@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using TestingSupport.Compliance;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace CoreTests;
@@ -53,8 +55,8 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
 
     public IHost Host { get; private set; }
 
-    public IMessageContext Publisher => Host.Get<IMessageContext>();
-    public IMessageBus Bus => Host.Get<IMessageBus>();
+    public IMessageContext Publisher => new MessageContext(Host.GetRuntime());
+    public IMessageBus Bus => Host.MessageBus();
 
     public HandlerGraph Handlers => Host.Get<HandlerGraph>();
 
@@ -65,15 +67,7 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
 
     protected void with(Action<WolverineOptions> configuration)
     {
-        Host = WolverineHost.For(opts =>
-        {
-            configuration(opts);
-            opts.Services.Scan(scan =>
-            {
-                scan.TheCallingAssembly();
-                scan.WithDefaultConventions();
-            });
-        });
+        Host = WolverineHost.For(configuration);
     }
 
     protected HandlerChain chainFor<T>()

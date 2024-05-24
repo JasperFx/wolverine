@@ -20,7 +20,7 @@ public class Bug_42_concurrent_creation_of_command_handlers
                 opts.Policies.AddMiddleware<SimpleBeforeAndAfterAsync>();
             }).StartAsync();
 
-            var bus = host.Services.GetRequiredService<IMessageBus>();
+            var bus = host.MessageBus();
 
             var commands = Enumerable.Range(1, 100)
                 .Select(i => i % 2 == 0 ? new OtherTracedMessage() : (object)new TracedMessage());

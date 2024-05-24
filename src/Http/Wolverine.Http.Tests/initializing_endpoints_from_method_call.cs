@@ -2,37 +2,34 @@ using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Wolverine.Codegen;
+using Wolverine.Runtime;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
 
-public class initializing_endpoints_from_method_call : IntegrationContext, IDisposable
+public class initializing_endpoints_from_method_call : IntegrationContext
 {
-    private readonly Container container;
+    private readonly IServiceContainer container;
     private readonly HttpGraph parent;
 
     public initializing_endpoints_from_method_call(AppFixture fixture) : base(fixture)
     {
-        container = new Container(x =>
-        {
-            x.ForConcreteType<JsonSerializerOptions>().Configure.Singleton();
-            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Singleton();
-        });
+        var registry = new ServiceCollection();
+        registry.AddSingleton<JsonSerializerOptions>();
+        registry.AddTransient<IServiceVariableSource>(c => new ServiceCollectionServerVariableSource((ServiceContainer)c));
+        
+        container = new ServiceContainer(registry, registry.BuildServiceProvider());
 
         parent = new HttpGraph(new WolverineOptions
         {
             ApplicationAssembly = GetType().Assembly
         }, container);
-    }
-
-    public void Dispose()
-    {
-        container.Dispose();
     }
 
     [Fact]

@@ -3,7 +3,6 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
@@ -12,6 +11,7 @@ using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Resources;
+using Wolverine.Runtime;
 using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
@@ -36,7 +36,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
     private readonly List<IResourceWriterPolicy> _optionsWriterPolicies = [];
 
-    public HttpGraph(WolverineOptions options, IContainer container)
+    public HttpGraph(WolverineOptions options, IServiceContainer container)
     {
         _options = options;
         Container = container;
@@ -45,7 +45,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
     public IReadOnlyList<HttpChain> Chains => _chains;
 
-    internal IContainer Container { get; }
+    internal IServiceContainer Container { get; }
 
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);
 

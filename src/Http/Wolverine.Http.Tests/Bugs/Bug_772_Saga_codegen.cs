@@ -36,6 +36,8 @@ public class Bug_772_Saga_codegen
         });
 
         builder.Services.AddScoped<IDataService, DataService>();
+        
+        builder.Services.AddWolverineHttp();
 
         // This is using Alba, which uses WebApplicationFactory under the covers
         await using var host = await AlbaHost.For(builder, app =>

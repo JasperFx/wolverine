@@ -1,16 +1,16 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using Lamar;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace TestingSupport.Fakes;
 
 public class GenericFakeTransactionAttribute : ModifyChainAttribute
 {
-    public override void Modify(IChain chain, GenerationRules rules, IContainer container)
+    public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
         chain.Middleware.Add(new FakeTransaction());
     }

@@ -1,6 +1,6 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,52 +26,49 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
     {
         var receiverPort = PortFinder.GetAvailablePort();
         var senderPort = PortFinder.GetAvailablePort();
-
-
-        var senderRegistry = new WolverineOptions();
-        senderRegistry.Durability.Mode = DurabilityMode.Solo;
-        senderRegistry.Durability.ScheduledJobFirstExecution = 0.Seconds(); // Start immediately!
-        senderRegistry.Durability.ScheduledJobPollingTime = 1.Seconds();
-        senderRegistry.Services.ForSingletonOf<ILogger>().Use(NullLogger.Instance);
-        senderRegistry
-            .DisableConventionalDiscovery()
-            .IncludeType<CascadeReceiver>()
-            .IncludeType<ScheduledMessageHandler>();
-
-        senderRegistry.Publish(x =>
+        
+        theSender = WolverineHost.For(senderRegistry =>
         {
-            x.Message<TriggerMessage>();
-            x.Message<ItemCreated>();
-            x.Message<Question>();
-            x.Message<ScheduledMessage>();
+            senderRegistry.Durability.Mode = DurabilityMode.Solo;
+            senderRegistry.Durability.ScheduledJobFirstExecution = 0.Seconds(); // Start immediately!
+            senderRegistry.Durability.ScheduledJobPollingTime = 1.Seconds();
+            senderRegistry.Services.AddSingleton<ILogger>(NullLogger.Instance);
+            senderRegistry
+                .DisableConventionalDiscovery()
+                .IncludeType<CascadeReceiver>()
+                .IncludeType<ScheduledMessageHandler>();
 
-            x.ToPort(receiverPort).UseDurableOutbox();
+            senderRegistry.Publish(x =>
+            {
+                x.Message<TriggerMessage>();
+                x.Message<ItemCreated>();
+                x.Message<Question>();
+                x.Message<ScheduledMessage>();
+
+                x.ToPort(receiverPort).UseDurableOutbox();
+            });
+            
+            senderRegistry.ListenAtPort(senderPort).UseDurableInbox();
+
+            configureSender(senderRegistry);
         });
-
-
-        senderRegistry.ListenAtPort(senderPort).UseDurableInbox();
-
-        configureSender(senderRegistry);
-
-        theSender = WolverineHost.For(senderRegistry);
 
         await theSender.ClearAllPersistedWolverineDataAsync();
 
-        var receiverRegistry = new WolverineOptions();
-        receiverRegistry.Durability.Mode = DurabilityMode.Solo;
-        receiverRegistry.Services.ForSingletonOf<ILogger>().Use(NullLogger.Instance);
-        receiverRegistry.DisableConventionalDiscovery()
-            .IncludeType<TTriggerHandler>()
-            .IncludeType<TItemCreatedHandler>()
-            .IncludeType<QuestionHandler>()
-            .IncludeType<ScheduledMessageHandler>();
+        theReceiver = WolverineHost.For(receiverRegistry =>
+        {
+            receiverRegistry.Durability.Mode = DurabilityMode.Solo;
+            receiverRegistry.Services.AddSingleton<ILogger>(NullLogger.Instance);
+            receiverRegistry.DisableConventionalDiscovery()
+                .IncludeType<TTriggerHandler>()
+                .IncludeType<TItemCreatedHandler>()
+                .IncludeType<QuestionHandler>()
+                .IncludeType<ScheduledMessageHandler>();
 
-        receiverRegistry.ListenAtPort(receiverPort).UseDurableInbox();
+            receiverRegistry.ListenAtPort(receiverPort).UseDurableInbox();
 
-        configureReceiver(receiverRegistry);
-
-
-        theReceiver = WolverineHost.For(receiverRegistry);
+            configureReceiver(receiverRegistry);
+        });
 
         await theSender.ResetResourceState();
         await theReceiver.ResetResourceState();
@@ -133,9 +130,8 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
     private async Task send(Func<IMessageContext, ValueTask> action)
     {
-        var container = theSender.Services.As<IContainer>();
-        await using var nested = container.GetNestedContainer();
-        await withContext(theSender, nested.GetInstance<IMessageContext>().As<MessageContext>(), action);
+        using var nested = theSender.Services.CreateScope();
+        await withContext(theSender, nested.ServiceProvider.GetRequiredService<IMessageContext>().As<MessageContext>(), action);
     }
 
     [Fact]

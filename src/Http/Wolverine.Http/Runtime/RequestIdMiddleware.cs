@@ -1,9 +1,9 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.Runtime;
 
@@ -29,7 +29,7 @@ public static class RequestIdMiddleware
 
 internal class RequestIdPolicy : IHttpPolicy
 {
-    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains)
         {

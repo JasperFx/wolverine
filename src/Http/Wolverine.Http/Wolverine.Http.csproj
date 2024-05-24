@@ -6,8 +6,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
 </Project>

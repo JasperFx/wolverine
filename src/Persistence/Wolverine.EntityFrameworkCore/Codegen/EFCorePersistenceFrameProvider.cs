@@ -3,8 +3,8 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -20,18 +20,18 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     public const string UsingEfCoreTransaction = "uses_efcore_transaction";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
 
-    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         var dbContextType = TryDetermineDbContextType(entityType, container);
         persistenceService = dbContextType!;
         return dbContextType != null;
     }
 
-    public Type DetermineSagaIdType(Type sagaType, IContainer container)
+    public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         var dbContextType = DetermineDbContextType(sagaType, container);
-        using var nested = container.GetNestedContainer();
-        var context = (DbContext)nested.GetInstance(dbContextType);
+        using var nested = container.Services.CreateScope();
+        var context = (DbContext)nested.ServiceProvider.GetRequiredService(dbContextType);
         var config = context.Model.FindEntityType(sagaType);
         if (config == null)
         {
@@ -44,19 +44,19 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                    $"No known primary key for {sagaType.FullNameInCode()} in DbContext {context}");
     }
 
-    public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)
+    public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
     {
         var dbContextType = DetermineDbContextType(sagaType, container);
         return new LoadEntityFrame(dbContextType, sagaType, sagaId);
     }
 
-    public Frame DetermineInsertFrame(Variable saga, IContainer container)
+    public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
     {
         var dbContextType = DetermineDbContextType(saga.VariableType, container);
         return new DbContextOperationFrame(dbContextType, saga, nameof(DbContext.Add));
     }
 
-    public Frame CommitUnitOfWorkFrame(Variable saga, IContainer container)
+    public Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container)
     {
         var dbContextType = DetermineDbContextType(saga.VariableType, container);
         var method =
@@ -69,18 +69,18 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
-    public Frame DetermineUpdateFrame(Variable saga, IContainer container)
+    public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
         return new CommentFrame("No explicit update necessary with EF Core");
     }
 
-    public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IContainer container)
+    public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
     {
         var dbContextType = DetermineDbContextType(saga.VariableType, container);
         return new DbContextOperationFrame(dbContextType, saga, nameof(DbContext.Remove));
     }
 
-    public void ApplyTransactionSupport(IChain chain, IContainer container)
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
         chain.Tags.Add(UsingEfCoreTransaction, true);
@@ -109,7 +109,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
     }
 
-    public bool CanApply(IChain chain, IContainer container)
+    public bool CanApply(IChain chain, IServiceContainer container)
     {
         if (chain is SagaChain saga)
         {
@@ -117,23 +117,24 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             return TryDetermineDbContextType(sagaType, container) != null;
         }
 
-        return chain.ServiceDependencies(container, Type.EmptyTypes).Any(x => x.CanBeCastTo<DbContext>());
+        var serviceDependencies = chain.ServiceDependencies(container, Type.EmptyTypes).ToArray();
+        return serviceDependencies.Any(x => x.CanBeCastTo<DbContext>());
     }
 
-    internal Type? TryDetermineDbContextType(Type entityType, IContainer container)
+    internal Type? TryDetermineDbContextType(Type entityType, IServiceContainer container)
     {
         if (_dbContextTypes.TryFind(entityType, out var dbContextType))
         {
             return dbContextType;
         }
 
-        using var nested = container.GetNestedContainer();
-        var candidates = container.Model.ServiceTypes.Where(x => x.ServiceType.CanBeCastTo<DbContext>())
+        using var nested = container.Services.CreateScope();
+        var candidates = container.FindMatchingServices(type => type.CanBeCastTo<DbContext>())
             .Select(x => x.ServiceType).ToArray();
 
         foreach (var candidate in candidates)
         {
-            var dbContext = (DbContext)nested.GetInstance(candidate);
+            var dbContext = (DbContext)nested.ServiceProvider.GetService(candidate);
             try
             {
                 if (dbContext.Model.FindEntityType(entityType) != null)
@@ -144,7 +145,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             }
             catch (InvalidOperationException e)
             {
-                var logger = container.TryGetInstance<ILogger<EFCorePersistenceFrameProvider>>();
+                var logger = container.Services.GetService<ILogger<EFCorePersistenceFrameProvider>>();
                 logger?.LogError(e, "Error trying to use DbContext type {DbContextType}", candidate.FullNameInCode());
             }
         }
@@ -153,7 +154,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return null;
     }
 
-    internal Type DetermineDbContextType(Type entityType, IContainer container)
+    internal Type DetermineDbContextType(Type entityType, IServiceContainer container)
     {
         var contextType = TryDetermineDbContextType(entityType, container);
         if (contextType == null)
@@ -165,7 +166,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return contextType;
     }
 
-    public Type DetermineDbContextType(IChain chain, IContainer container)
+    public Type DetermineDbContextType(IChain chain, IServiceContainer container)
     {
         if (chain is SagaChain saga)
         {

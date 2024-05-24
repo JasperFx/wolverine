@@ -1,5 +1,4 @@
 ﻿using JasperFx.Core;
-using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
@@ -66,15 +65,16 @@ public class WolverineOptionsTests
     [Fact]
     public void sets_up_the_container_with_services()
     {
-        var registry = new WolverineOptions();
-        registry.DisableConventionalDiscovery();
-        registry.Services.For<IFoo>().Use<Foo>();
-        registry.Services.AddTransient<IFakeStore, FakeStore>();
-
-        using (var runtime = WolverineHost.For(registry))
+        using var runtime = WolverineHost.For(registry =>
         {
-            runtime.Get<IContainer>().DefaultRegistrationIs<IFoo, Foo>();
-        }
+            registry.DisableConventionalDiscovery();
+            registry.Services.AddScoped<IFoo, Foo>();
+            registry.Services.AddSingleton<TestingSupport.Fakes.Tracking>();
+            registry.Services.AddTransient<IFakeStore, FakeStore>();
+        });
+
+        var services = runtime.Get<IServiceContainer>();
+        services.DefaultFor<IFoo>().ImplementationType.ShouldBe(typeof(Foo));
     }
 
     [Fact]

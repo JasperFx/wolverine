@@ -1,8 +1,6 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,8 +9,10 @@ using Module1;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace CoreTests.Configuration;
@@ -28,9 +28,9 @@ public class bootstrapping_specs : IntegrationContext
     {
         with(_ => {});
 
-        var container = (IContainer)Host.Services;
-        container.Model.For<WolverineSupplementalCodeFiles>()
-            .Default.Lifetime.ShouldBe(ServiceLifetime.Singleton);
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
+        container.DefaultFor<WolverineSupplementalCodeFiles>()
+            .Lifetime.ShouldBe(ServiceLifetime.Singleton);
 
         container.GetAllInstances<ICodeFileCollection>()
             .OfType<WolverineSupplementalCodeFiles>()
@@ -44,15 +44,6 @@ public class bootstrapping_specs : IntegrationContext
         with(opts => opts.Policies.Add<WrapWithSimple>());
 
         chainFor<MovieAdded>().Middleware.OfType<SimpleWrapper>().Any().ShouldBeTrue();
-    }
-
-    [Fact]
-    public void can_build_i_message_context()
-    {
-        Host.Get<IMessageContext>().ShouldNotBeNull();
-
-        Host.Get<ThingThatUsesContext>()
-            .Context.ShouldNotBeNull();
     }
 
     [Fact]
@@ -78,19 +69,16 @@ public class bootstrapping_specs : IntegrationContext
             .UseWolverine(opts =>
             {
                 opts.DisableConventionalDiscovery();
-            })
-            
-            // Note that this isn't part of UseWolverine()
-            .DisableWolverineExtensionScanning()
+            }, ExtensionDiscovery.ManualOnly)
             
             .StartAsync();
 
         #endregion
 
-        var container = host.Services.As<IContainer>();
+        var container = host.Services.GetRequiredService<IServiceContainer>();
         
         // IModuleService would be registered by the Module1Extension
-        container.Model.HasRegistrationFor<IModuleService>().ShouldBeFalse();
+        container.HasRegistrationFor<IModuleService>().ShouldBeFalse();
     }
 
     [Fact]
@@ -101,19 +89,16 @@ public class bootstrapping_specs : IntegrationContext
             {
                 opts.DisableConventionalDiscovery();
 
-                opts.Services.For<IModuleService>().Use<AppsModuleService>();
+                opts.Services.AddScoped<IModuleService, AppsModuleService>();
             }).Start();
 
-        host.Services.GetRequiredService<IContainer>().DefaultRegistrationIs<IModuleService, AppsModuleService>();
+        host.Services.GetRequiredService<IServiceContainer>().DefaultFor<IModuleService>().ImplementationType.ShouldBe(typeof(AppsModuleService));
     }
 
     [Fact]
     public void handler_classes_are_scoped()
     {
-        // forcing the container to resolve the family
-        var endpoint = Host.Get<SomeHandler>();
-
-        Host.Get<IContainer>().Model.For<SomeHandler>().Default
+        Host.Get<IServiceContainer>().DefaultFor<SomeHandler>()
             .Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
@@ -136,14 +121,15 @@ public class bootstrapping_specs : IntegrationContext
     [InlineData(typeof(IMessageBus))]
     public void can_build_services(Type serviceType)
     {
-        Host.Get(serviceType)
+        using var scope = Host.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService(serviceType)
             .ShouldNotBeNull();
     }
 
     [Fact]
     public void handler_graph_already_has_the_scheduled_send_handler()
     {
-        var handlers = Host.Get<HandlerGraph>();
+        var handlers = Host.GetRuntime().Handlers;
 
         handlers.HandlerFor<Envelope>().ShouldBeOfType<ScheduledSendEnvelopeHandler>();
     }

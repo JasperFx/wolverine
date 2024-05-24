@@ -28,6 +28,8 @@ public class using_newtonsoft_for_serialization
             opts.Discovery.IncludeAssembly(GetType().Assembly);
         });
 
+        builder.Services.AddWolverineHttp();
+
         await using var host = await AlbaHost.For(builder, app =>
         {
             app.MapWolverineEndpoints(opts =>

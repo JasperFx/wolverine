@@ -1,13 +1,13 @@
 using System.Reflection;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
 internal class HttpChainParameterAttributeStrategy : IParameterStrategy
 {
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         if (parameter.TryGetAttribute<HttpChainParameterAttribute>(out var att))
         {

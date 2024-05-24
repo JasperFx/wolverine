@@ -4,12 +4,12 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace DocumentationSamples;
 
@@ -203,7 +203,7 @@ public class StopwatchFrame : SyncFrame
 
 public class StopwatchAttribute : ModifyChainAttribute
 {
-    public override void Modify(IChain chain, GenerationRules rules, IContainer container)
+    public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
         chain.Middleware.Add(new StopwatchFrame(chain));
     }

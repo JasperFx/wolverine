@@ -3,13 +3,13 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Http;
 using Wolverine.Marten;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.Marten;
 
@@ -51,7 +51,7 @@ public class AggregateAttribute : HttpChainParameterAttribute
     public ConcurrencyStyle LoadStyle { get; set; } = ConcurrencyStyle.Optimistic;
 
 
-    public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
+    public override Variable Modify(HttpChain chain, ParameterInfo parameter, IServiceContainer container)
     {
         chain.Metadata.Produces(404);
 

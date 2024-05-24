@@ -1,6 +1,6 @@
 ﻿using JasperFx.CodeGeneration;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine;
@@ -80,7 +80,7 @@ public class OutgoingMessages : List<object>, IWolverineReturnType
 
 internal class OutgoingMessagesPolicy : IChainPolicy
 {
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains)
         {

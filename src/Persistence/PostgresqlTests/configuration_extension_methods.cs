@@ -1,6 +1,4 @@
 ﻿using IntegrationTests;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -28,7 +26,7 @@ public class configuration_extension_methods : PostgresqlContext
 
 
         using var host = builder.Build();
-        host.Services.As<IContainer>().GetInstance<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
+        host.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
             .Settings.ConnectionString.ShouldBe(Servers.PostgresConnectionString);
 
 
@@ -44,7 +42,7 @@ public class configuration_extension_methods : PostgresqlContext
     {
         using var host = WolverineHost.For(x =>
             x.PersistMessagesWithPostgresql(Servers.PostgresConnectionString));
-        host.Services.As<IContainer>().GetInstance<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
+        host.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
             .Settings.ConnectionString.ShouldBe(Servers.PostgresConnectionString);
 
     }

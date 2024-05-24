@@ -1,6 +1,5 @@
 using IntegrationTests;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,20 +64,19 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     [Fact]
     public void service_registrations()
     {
-        var container = (IContainer)Host.Services;
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
 
-        container.Model.For<IDbContextOutbox>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
-        container.Model.For(typeof(IDbContextOutbox<>)).Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        container.DefaultFor<IDbContextOutbox>().Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        container.DefaultFor(typeof(IDbContextOutbox<>)).Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
     public void outbox_for_specific_db_context_raw()
     {
-        var container = (IContainer)Host.Services;
-        using var nested = container.GetNestedContainer();
+        using var nested = Host.Services.CreateScope();
 
-        var context = nested.GetInstance<SampleDbContext>();
-        var outbox = nested.GetInstance<IDbContextOutbox<SampleDbContext>>();
+        var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+        var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleDbContext>>();
 
         outbox.DbContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox<SampleDbContext>>()
@@ -89,11 +87,10 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     [Fact]
     public void outbox_for_specific_db_context_maped()
     {
-        var container = (IContainer)Host.Services;
-        using var nested = container.GetNestedContainer();
+        using var nested = Host.Services.CreateScope();
 
-        var context = nested.GetInstance<SampleMappedDbContext>();
-        var outbox = nested.GetInstance<IDbContextOutbox<SampleMappedDbContext>>();
+        var context = nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
+        var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleMappedDbContext>>();
 
         outbox.DbContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox<SampleMappedDbContext>>()
@@ -104,11 +101,10 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     [Fact]
     public void outbox_for_db_context_raw()
     {
-        var container = (IContainer)Host.Services;
-        using var nested = container.GetNestedContainer();
+        using var nested = Host.Services.CreateScope();
 
-        var context = nested.GetInstance<SampleDbContext>();
-        var outbox = nested.GetInstance<IDbContextOutbox>();
+        var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+        var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
         outbox.Enroll(context);
 
@@ -121,11 +117,11 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     [Fact]
     public void outbox_for_db_context_mapped()
     {
-        var container = (IContainer)Host.Services;
-        using var nested = container.GetNestedContainer();
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
+        using var nested = Host.Services.CreateScope();
 
-        var context = nested.GetInstance<SampleMappedDbContext>();
-        var outbox = nested.GetInstance<IDbContextOutbox>();
+        var context = nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
+        var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
         outbox.Enroll(context);
 
@@ -150,13 +146,11 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             ContentType = EnvelopeConstants.JsonContentType
         };
 
-        var container = (IContainer)Host.Services;
-
         await withItemsTable();
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var messaging = nested.GetInstance<IDbContextOutbox<SampleDbContext>>()
+            var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<SampleDbContext>>();
 
             await messaging.DbContext.Database.EnsureCreatedAsync();
@@ -197,13 +191,13 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             ContentType = EnvelopeConstants.JsonContentType
         };
 
-        var container = (IContainer)Host.Services;
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
 
         await withItemsTable();
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var messaging = nested.GetInstance<IDbContextOutbox<SampleMappedDbContext>>()
+            var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleMappedDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<SampleMappedDbContext>>();
 
             await messaging.DbContext.Database.EnsureCreatedAsync();
@@ -249,16 +243,16 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         var id = Guid.NewGuid();
 
-        var container = (IContainer)Host.Services;
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
 
         await withItemsTable();
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.GetInstance<SampleDbContext>();
-            var messaging = nested.GetInstance<IDbContextOutbox>();
+            var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+            var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
             messaging.Enroll(context);
 
@@ -271,9 +265,9 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var message = await waiter;
         message.Id.ShouldBe(id);
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.GetInstance<SampleDbContext>();
+            var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
     }
@@ -283,16 +277,16 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         var id = Guid.NewGuid();
 
-        var container = (IContainer)Host.Services;
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
 
         await withItemsTable();
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.GetInstance<SampleMappedDbContext>();
-            var messaging = nested.GetInstance<IDbContextOutbox>();
+            var context = nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
+            var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
             messaging.Enroll(context);
 
@@ -305,9 +299,9 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var message = await waiter;
         message.Id.ShouldBe(id);
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.GetInstance<SampleMappedDbContext>();
+            var context = nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
     }
@@ -317,15 +311,15 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         var id = Guid.NewGuid();
 
-        var container = (IContainer)Host.Services;
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
 
         await withItemsTable();
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var outbox = nested.GetInstance<IDbContextOutbox<SampleDbContext>>();
+            var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleDbContext>>();
 
             outbox.DbContext.Items.Add(new Item { Id = id, Name = "Bill" });
             await outbox.SendAsync(new OutboxedMessage { Id = id });
@@ -336,9 +330,9 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var message = await waiter;
         message.Id.ShouldBe(id);
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.GetInstance<SampleDbContext>();
+            var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
     }
@@ -348,15 +342,15 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         var id = Guid.NewGuid();
 
-        var container = (IContainer)Host.Services;
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
 
         await withItemsTable();
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var outbox = nested.GetInstance<IDbContextOutbox<SampleMappedDbContext>>();
+            var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleMappedDbContext>>();
 
             outbox.DbContext.Items.Add(new Item { Id = id, Name = "Bill" });
             await outbox.SendAsync(new OutboxedMessage { Id = id });
@@ -367,9 +361,9 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var message = await waiter;
         message.Id.ShouldBe(id);
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.GetInstance<SampleMappedDbContext>();
+            var context = nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
     }
@@ -391,14 +385,14 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             ContentType = EnvelopeConstants.JsonContentType
         };
 
-        var container = (IContainer)Host.Services;
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
 
         await withItemsTable();
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.GetInstance<SampleDbContext>();
-            var messaging = nested.GetInstance<IDbContextOutbox>();
+            var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+            var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
             messaging.Enroll(context);
 
@@ -437,14 +431,14 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             ContentType = EnvelopeConstants.JsonContentType
         };
 
-        var container = (IContainer)Host.Services;
+        var container = Host.Services.GetRequiredService<IServiceContainer>();
 
         await withItemsTable();
 
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.GetInstance<SampleMappedDbContext>();
-            var messaging = nested.GetInstance<IDbContextOutbox>();
+            var context = nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
+            var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
             messaging.Enroll(context);
 

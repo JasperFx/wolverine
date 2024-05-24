@@ -9,11 +9,14 @@ public class requeue_mechanics : ErrorHandlingContext
 {
     public requeue_mechanics()
     {
-        theOptions.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+        ConfigureOptions(opts =>
         {
-            chain.OnException<DivideByZeroException>()
-                .PauseThenRequeue(25.Milliseconds())
-                .Then.PauseThenRequeue(25.Milliseconds());
+            opts.HandlerGraph.ConfigureHandlerForMessage<ErrorCausingMessage>(chain =>
+            {
+                chain.OnException<DivideByZeroException>()
+                    .PauseThenRequeue(25.Milliseconds())
+                    .Then.PauseThenRequeue(25.Milliseconds());
+            });
         });
     }
 
