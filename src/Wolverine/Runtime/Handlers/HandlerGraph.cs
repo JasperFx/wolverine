@@ -61,7 +61,6 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     internal IServiceContainer Container { get; set; }
 
-
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
 
     public IEnumerable<Assembly> ExtensionAssemblies => Discovery.Assemblies;
