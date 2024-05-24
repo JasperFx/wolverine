@@ -3,13 +3,13 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.AspNetCore.Http;
 using Wolverine.Http.CodeGen;
-using IContainer = Lamar.IContainer;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.FluentValidation.Internals;
 
 internal class HttpChainFluentValidationPolicy : IHttpPolicy
 {
-    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains.Where(x => x.HasRequestType))
         {
@@ -17,13 +17,13 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
         }
     }
 
-    public void Apply(HttpChain chain, IContainer container)
+    public void Apply(HttpChain chain, IServiceContainer container)
     {
         var validatorInterface = typeof(IValidator<>).MakeGenericType(chain.RequestType!);
 
-        var registered = container.Model.For(validatorInterface);
+        var registered = container.RegistrationsFor(validatorInterface);
 
-        if (registered.Instances.Count() == 1)
+        if (registered.Count() == 1)
         {
             chain.Metadata.ProducesProblem(400);
 
@@ -39,7 +39,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
             chain.Middleware.InsertRange(0, new Frame[]{methodCall,maybeResult});
         }
-        else if (registered.Instances.Count() > 1)
+        else if (registered.Count() > 1)
         {
             chain.Metadata.ProducesProblem(400);
 

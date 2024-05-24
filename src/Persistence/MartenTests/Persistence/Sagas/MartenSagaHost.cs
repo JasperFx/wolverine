@@ -34,21 +34,21 @@ public class MartenSagaHost : ISagaHost
 
     public Task<T> LoadState<T>(Guid id) where T : class
     {
-        return _host.Services.GetRequiredService<IQuerySession>().LoadAsync<T>(id);
+        return _host.DocumentStore().QuerySession().LoadAsync<T>(id);
     }
 
     public Task<T> LoadState<T>(int id) where T : class
     {
-        return _host.Services.GetRequiredService<IQuerySession>().LoadAsync<T>(id);
+        return _host.DocumentStore().QuerySession().LoadAsync<T>(id);
     }
 
     public Task<T> LoadState<T>(long id) where T : class
     {
-        return _host.Services.GetRequiredService<IQuerySession>().LoadAsync<T>(id);
+        return _host.DocumentStore().QuerySession().LoadAsync<T>(id);
     }
 
     public Task<T> LoadState<T>(string id) where T : class
     {
-        return _host.Services.GetRequiredService<IQuerySession>().LoadAsync<T>(id);
+        return _host.DocumentStore().QuerySession().LoadAsync<T>(id);
     }
 }

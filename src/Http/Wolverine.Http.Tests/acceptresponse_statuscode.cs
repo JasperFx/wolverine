@@ -23,6 +23,8 @@ namespace Wolverine.Http.Tests
                 opts.Services.AddMarten(Servers.PostgresConnectionString);
             });
 
+            builder.Services.AddWolverineHttp();
+
             await using var host = await AlbaHost.For(builder, app =>
             {
                 app.MapWolverineEndpoints();

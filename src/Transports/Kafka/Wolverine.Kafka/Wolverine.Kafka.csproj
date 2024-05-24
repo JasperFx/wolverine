@@ -11,11 +11,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Confluent.Kafka" Version="2.3.0" />
+        <PackageReference Include="Confluent.Kafka" Version="2.3.0"/>
     </ItemGroup>
 
 </Project>

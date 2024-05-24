@@ -38,6 +38,8 @@ public class Bug_926_form_file_used_by_middleware
             opts.ApplicationAssembly = GetType().Assembly;
         });
         
+        builder.Services.AddWolverineHttp();
+        
         // This is using Alba, which uses WebApplicationFactory under the covers
         await using var host = await AlbaHost.For(builder, app =>
         {

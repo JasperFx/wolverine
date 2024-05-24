@@ -1,4 +1,5 @@
 ﻿using System.Data.Common;
+using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Weasel.Core.Migrations;
@@ -26,12 +27,9 @@ internal class SqlServerBackedPersistence : IWolverineExtension
 
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
-        options.Services.For<SqlConnection>().Use<SqlConnection>();
+        options.Services.AddScoped<SqlConnection, SqlConnection>();
 
-        options.Services.Add(new ServiceDescriptor(typeof(SqlConnection),
-            new SqlConnectionInstance(typeof(SqlConnection))));
-        options.Services.Add(new ServiceDescriptor(typeof(DbConnection),
-            new SqlConnectionInstance(typeof(DbConnection))));
+        options.CodeGeneration.Sources.Add(new SqlConnectionSource());
 
         // Don't overwrite the EF Core transaction support if it's there
         options.CodeGeneration.AddPersistenceStrategy<SqlServerPersistenceFrameProvider>();

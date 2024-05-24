@@ -2,9 +2,9 @@ using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using Lamar;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -13,7 +13,7 @@ internal record FormFileMetadata(string Name) : IFromFormMetadata;
 
 public class FromFileStrategy : IParameterStrategy
 {
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         if (parameter.ParameterType == typeof(IFormFile))
         {

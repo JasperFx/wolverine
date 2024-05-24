@@ -1,8 +1,8 @@
 using CoreTests.Configuration;
 using JasperFx.CodeGeneration;
-using Lamar;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace CoreTests;
@@ -24,7 +24,7 @@ public class BootstrappingSamples
 
 public class WrapWithSimple : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains) chain.Middleware.Add(new SimpleWrapper());
     }

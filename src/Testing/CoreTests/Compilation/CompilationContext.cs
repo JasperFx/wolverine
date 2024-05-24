@@ -9,34 +9,34 @@ namespace CoreTests.Compilation;
 
 public abstract class CompilationContext : IDisposable
 {
-    public readonly WolverineOptions theOptions = new();
-
     private IHost _host;
 
 
     protected Envelope theEnvelope;
-
-    public CompilationContext()
-    {
-        theOptions.DisableConventionalDiscovery();
-    }
 
     public void Dispose()
     {
         _host?.Dispose();
     }
 
-    protected void AllHandlersCompileSuccessfully()
+    protected void IfWolverineIsConfiguredAs(Action<WolverineOptions> configure)
     {
-        using var host = WolverineHost.For(theOptions);
+        _host = Host.CreateDefaultBuilder().UseWolverine(configure).Start();
+    }
+
+    protected void AllHandlersCompileSuccessfully(Action<WolverineOptions>? configure = null)
+    {
+        configure ??= _ => { };
+        using var host = WolverineHost.For(configure);
         host.Get<HandlerGraph>().Chains.Length.ShouldBeGreaterThan(0);
     }
 
-    public MessageHandler HandlerFor<TMessage>()
+    public MessageHandler HandlerFor<TMessage>(Action<WolverineOptions>? configure = null)
     {
         if (_host == null)
         {
-            _host = WolverineHost.For(theOptions);
+            configure ??= _ => { };
+            _host = WolverineHost.For(configure);
         }
 
         return _host.Get<HandlerGraph>().HandlerFor(typeof(TMessage)).As<MessageHandler>();

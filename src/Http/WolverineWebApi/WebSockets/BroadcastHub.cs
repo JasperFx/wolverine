@@ -3,9 +3,9 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
-using Lamar;
 using Microsoft.AspNetCore.SignalR;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Util.Dataflow;
 
@@ -33,14 +33,16 @@ public class BroadcastHub : Hub
 
 public class Broadcaster : IDisposable
 {
-    private readonly BroadcastHub _hub;
     private readonly ActionBlock<IClientMessage[]> _publishing;
     private readonly BatchingBlock<IClientMessage> _batching;
 
-    public Broadcaster(BroadcastHub hub)
+    public Broadcaster()
     {
-        _hub = hub;
-        _publishing = new ActionBlock<IClientMessage[]>(messages => _hub.SendBatchAsync(messages),
+        _publishing = new ActionBlock<IClientMessage[]>(async messages =>
+            {
+                using var hub = new BroadcastHub();
+                await hub.SendBatchAsync(messages);
+            },
             new ExecutionDataflowBlockOptions
             {
                 EnsureOrdered = true,
@@ -55,7 +57,6 @@ public class Broadcaster : IDisposable
 
     public void Dispose()
     {
-        _hub.Dispose();
         _batching.Dispose();
     }
 
@@ -79,7 +80,7 @@ public class Broadcaster : IDisposable
 
 public class BroadcastClientMessages : IChainPolicy
 {
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
         // We're going to look through all known message handler and HTTP endpoint chains
         // and see where there's any return values of IClientMessage or IEnumerable<IClientMessage>

@@ -1,8 +1,8 @@
 using JasperFx.CodeGeneration;
-using Lamar;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
+using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
@@ -16,7 +16,7 @@ public class MartenStoreAttribute : ModifyChainAttribute
         StoreType = storeType;
     }
 
-    public override void Modify(IChain chain, GenerationRules rules, IContainer container)
+    public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
         chain.Middleware.Insert(0, new AncillaryOutboxFactoryFrame(StoreType));
     }

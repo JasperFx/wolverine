@@ -1,6 +1,6 @@
 using JasperFx.CodeGeneration;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
 
@@ -44,7 +44,7 @@ public static class GenerationRulesExtensions
     ///     The currently known strategy for code generating transaction middleware
     /// </summary>
     public static IPersistenceFrameProvider GetPersistenceProviders(this GenerationRules rules, IChain chain,
-        IContainer container)
+        IServiceContainer container)
     {
         if (rules.Properties.TryGetValue(PersistenceKey, out var raw) && raw is List<IPersistenceFrameProvider> list)
         {

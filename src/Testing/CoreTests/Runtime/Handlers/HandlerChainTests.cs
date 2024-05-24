@@ -1,6 +1,6 @@
-﻿using Lamar;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TestingSupport.Compliance;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
@@ -57,7 +57,7 @@ public class HandlerChainTests
     public void ignore_message_type_as_service_dependency()
     {
         var chain = HandlerChain.For<Target>(nameof(Target.GoStatic), null);
-        chain.ServiceDependencies(Container.Empty(), new List<Type>())
+        chain.ServiceDependencies(ServiceContainer.Empty(), new List<Type>())
             .ShouldNotContain(typeof(Message2));
     }
 

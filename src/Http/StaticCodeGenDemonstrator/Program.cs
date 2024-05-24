@@ -17,6 +17,8 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddWolverineHttp();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

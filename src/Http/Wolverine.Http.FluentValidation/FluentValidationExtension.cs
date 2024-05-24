@@ -13,7 +13,6 @@ internal class FluentValidationExtension : IWolverineExtension
 {
     public void Configure(WolverineOptions options)
     {
-        options.Services.Policies.Add<ValidatorLifetimePolicy>();
         options.Services.AddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
 
         options.Services.AddSingleton(typeof(IProblemDetailSource<>), typeof(ProblemDetailSource<>));

@@ -2,8 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http;
 
@@ -37,7 +37,7 @@ public abstract class HttpChainParameterAttribute : Attribute
     /// <param name="parameter"></param>
     /// <param name="container"></param>
     public abstract Variable Modify(HttpChain chain, ParameterInfo parameter,
-        IContainer container);
+        IServiceContainer container);
 }
 
 /// <summary>

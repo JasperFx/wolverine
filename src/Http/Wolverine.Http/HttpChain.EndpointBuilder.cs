@@ -51,7 +51,7 @@ public partial class HttpChain : IEndpointConventionBuilder
         RequestDelegate? requestDelegate = null;
         if (_parent.Rules.TypeLoadMode == TypeLoadMode.Static)
         {
-            this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
+            this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
             var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);
             requestDelegate = handler.Handle;
         }
@@ -59,7 +59,7 @@ public partial class HttpChain : IEndpointConventionBuilder
         {
             var handler = new Lazy<HttpHandler>(() =>
             {
-                this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
+                this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
                 return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
             });
 

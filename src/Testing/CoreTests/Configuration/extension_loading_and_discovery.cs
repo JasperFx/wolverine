@@ -1,4 +1,3 @@
-using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
@@ -16,24 +15,27 @@ public class extension_loading_and_discovery : IntegrationContext
     [Fact]
     public void the_application_still_wins()
     {
-        var options = new WolverineOptions();
-        options.DisableConventionalDiscovery();
-        options.Include<OptionalExtension>();
-        options.Services.For<IColorService>().Use<BlueService>();
+        using var host = WolverineHost.For(options =>
+        {
+            options.DisableConventionalDiscovery();
+            options.Include<OptionalExtension>();
+            options.Services.AddScoped<IColorService, BlueService>();
+        });
 
-        using var runtime = WolverineHost.For(options);
-        runtime.Get<IColorService>()
+        using var scope = host.Services.CreateScope();
+        
+        scope.ServiceProvider.GetRequiredService<IColorService>()
             .ShouldBeOfType<BlueService>();
     }
 
     [Fact]
     public void try_find_extension_miss()
     {
-        var options = new WolverineOptions();
-        options.DisableConventionalDiscovery();
-        //options.Include<OptionalExtension>();
-
-        using var host = WolverineHost.For(options);
+        using var host = WolverineHost.For(options =>
+        {
+            options.DisableConventionalDiscovery();
+        });
+        
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         runtime.TryFindExtension<OptionalExtension>().ShouldBeNull();
     }
@@ -41,11 +43,12 @@ public class extension_loading_and_discovery : IntegrationContext
     [Fact]
     public void try_find_extension_hit()
     {
-        var options = new WolverineOptions();
-        options.DisableConventionalDiscovery();
-        options.Include<OptionalExtension>();
-
-        using var host = WolverineHost.For(options);
+        using var host = WolverineHost.For(options =>
+        {
+            options.DisableConventionalDiscovery();
+            options.Include<OptionalExtension>();
+        });
+        
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         runtime.TryFindExtension<OptionalExtension>().ShouldBeOfType<OptionalExtension>().ShouldNotBeNull();
     }
@@ -69,36 +72,34 @@ public class extension_loading_and_discovery : IntegrationContext
     [Fact]
     public void will_apply_an_extension()
     {
-        #region sample_explicitly_add_extension
-
-        var registry = new WolverineOptions();
-        registry.Include<OptionalExtension>();
-
-        #endregion
-
-        registry.DisableConventionalDiscovery();
-
-        using (var runtime = WolverineHost.For(registry))
+        using var runtime = WolverineHost.For(opts =>
         {
-            runtime.Get<IColorService>()
-                .ShouldBeOfType<RedService>();
-        }
+            #region sample_explicitly_add_extension
+            opts.Include<OptionalExtension>();
+            #endregion
+
+            opts.DisableConventionalDiscovery();
+        });
+
+        using var scope = runtime.Services.CreateScope();
+        
+        scope.ServiceProvider.GetRequiredService<IColorService>()
+            .ShouldBeOfType<RedService>();
     }
 
     [Fact]
     public void will_only_apply_extension_once()
     {
-        var registry = new WolverineOptions();
-        registry.Include<OptionalExtension>();
-        registry.Include<OptionalExtension>();
-        registry.Include<OptionalExtension>();
-        registry.Include<OptionalExtension>();
-
-        using (var host = WolverineHost.For(registry))
+        using var host = WolverineHost.For(registry =>
         {
-            host.Get<IContainer>().Model.For<IColorService>().Instances
-                .Count().ShouldBe(1);
-        }
+            registry.Include<OptionalExtension>();
+            registry.Include<OptionalExtension>();
+            registry.Include<OptionalExtension>();
+            registry.Include<OptionalExtension>();
+        });
+        
+        host.Get<IServiceContainer>().RegistrationsFor<IColorService>()
+            .Count().ShouldBe(1);
     }
 
     [Fact]
@@ -122,7 +123,7 @@ public class OptionalExtension : IWolverineExtension
 {
     public void Configure(WolverineOptions options)
     {
-        options.Services.For<IColorService>().Use<RedService>();
+        options.Services.AddScoped<IColorService, RedService>();
     }
 }
 

@@ -1,14 +1,12 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Lamar;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Newtonsoft.Json;
 
 namespace Wolverine.Http;
 
-[Singleton]
 public class NewtonsoftHttpSerialization
 {
     private readonly ArrayPool<byte> _bytePool;

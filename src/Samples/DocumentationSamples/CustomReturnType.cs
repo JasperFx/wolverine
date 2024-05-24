@@ -1,10 +1,10 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace DocumentationSamples;
@@ -29,7 +29,7 @@ internal class WriteFilePolicy : IChainPolicy
     // IChain is a Wolverine model to configure the code generation of
     // a message or HTTP handler and the core model for the application
     // of middleware
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
         var method = ReflectionHelper.GetMethod<WriteFile>(x => x.WriteAsync());
 
@@ -64,10 +64,7 @@ public static class configure_return_values
         #region sample_register_WriteFilePolicy
 
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Policies.Add<WriteFilePolicy>();
-            }).StartAsync();
+            .UseWolverine(opts => { opts.Policies.Add<WriteFilePolicy>(); }).StartAsync();
 
         #endregion
     }

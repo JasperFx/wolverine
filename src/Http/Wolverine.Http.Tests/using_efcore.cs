@@ -1,7 +1,6 @@
 using IntegrationTests;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Shouldly;
 using Weasel.Core;
@@ -30,8 +29,8 @@ public class using_efcore : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        using var nested = Host.Services.As<IContainer>().GetNestedContainer();
-        var context = nested.GetInstance<ItemsDbContext>();
+        using var nested = Host.Services.CreateScope();
+        var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
         var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync();
         item.ShouldNotBeNull();
@@ -50,8 +49,8 @@ public class using_efcore : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        using var nested = Host.Services.As<IContainer>().GetNestedContainer();
-        var context = nested.GetInstance<ItemsDbContext>();
+        using var nested = Host.Services.CreateScope();
+        var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
         var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync();
         item.ShouldNotBeNull();

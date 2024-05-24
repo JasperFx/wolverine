@@ -5,7 +5,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Attributes;
@@ -57,7 +57,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         RegisterMessageType(typeof(FailureAcknowledgement));
     }
 
-    internal IContainer? Container { get; set; }
+    internal IServiceContainer Container { get; set; }
 
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
 
@@ -168,7 +168,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                 Debug.WriteLine("Starting to compile chain " + chain.MessageType.NameInCode());
                 if (chain.Handler == null)
                 {
-                    chain.InitializeSynchronously(Rules, this, Container);
+                    chain.InitializeSynchronously(Rules, this, Container.Services);
                     handler = chain.CreateHandler(Container!);
                 }
                 else
@@ -185,7 +185,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return handler;
     }
 
-    internal void Compile(WolverineOptions options, IContainer container)
+    internal void Compile(WolverineOptions options, IServiceContainer container)
     {
         if (_hasCompiled)
         {
@@ -194,7 +194,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         _hasCompiled = true;
 
-        var logger = (ILogger)container.TryGetInstance<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
+        var logger = (ILogger)container.Services.GetService<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
 
         Rules = options.CodeGeneration;
 

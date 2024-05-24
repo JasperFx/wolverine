@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using JasperFx.Core;
-using Lamar;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -9,15 +8,17 @@ namespace Wolverine.Runtime;
 
 public class MessageBus : IMessageBus
 {
+    public static MessageBus Build(IWolverineRuntime runtime, string correlationId) =>
+        new MessageBus(runtime, correlationId);
+    
     // ReSharper disable once InconsistentNaming
     protected readonly List<Envelope> _outstanding = new();
-
-    [DefaultConstructor]
+    
     public MessageBus(IWolverineRuntime runtime) : this(runtime, Activity.Current?.RootId ?? Guid.NewGuid().ToString())
     {
     }
 
-    public MessageBus(IWolverineRuntime runtime, string? correlationId)
+    internal MessageBus(IWolverineRuntime runtime, string? correlationId)
     {
         if (runtime == null)
         {

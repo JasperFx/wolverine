@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
-        <PackageReference Include="Shouldly" Version="4.0.3" />
-        <PackageReference Include="xunit" Version="2.8.0" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0"/>
+        <PackageReference Include="Shouldly" Version="4.0.3"/>
+        <PackageReference Include="xunit" Version="2.8.0"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -15,9 +15,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-        <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
-        <ProjectReference Include="..\TestingSupport\TestingSupport.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
+        <ProjectReference Include="..\TestingSupport\TestingSupport.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -27,7 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 
 </Project>

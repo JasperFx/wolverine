@@ -1,7 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
-using Lamar;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
@@ -40,11 +40,10 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
-        var container = (IContainer)_host.Services;
-        await using (var nested = container.GetNestedContainer())
+        using (var nested = _host.Services.CreateScope())
         {
-            var outbox = nested.GetInstance<IMartenOutbox>();
-            var session = nested.GetInstance<IDocumentSession>();
+            var outbox = nested.ServiceProvider.GetRequiredService<IMartenOutbox>();
+            var session = nested.ServiceProvider.GetRequiredService<IDocumentSession>();
             outbox.Enroll(session);
 
             session.Store(new Item { Id = id });
@@ -57,7 +56,7 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
         var message = await waiter;
         message.Id.ShouldBe(id);
 
-        await using var query = container.GetInstance<IDocumentStore>()
+        await using var query = _host.Services.GetRequiredService<IDocumentStore>()
             .QuerySession();
         ;
         (await query.LoadAsync<Item>(id)).ShouldNotBeNull();

@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
-using Lamar;
+using JasperFx.Core.IoC;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -52,7 +52,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
         return endpoints.MapPost(url,
             ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!,
-                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+                MessageBus.Build(runtime, context.TraceIdentifier), context.RequestAborted));
     }
 
     /// <summary>
@@ -68,7 +68,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
         return endpoints.MapPut(url,
             ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!,
-                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+                MessageBus.Build(runtime, context.TraceIdentifier), context.RequestAborted));
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(T)));
         return endpoints.MapDelete(url,
             ([FromBody] T message, HttpContext context) => invoker.Value.InvokeAsync(message!,
-                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+                MessageBus.Build(runtime, context.TraceIdentifier), context.RequestAborted));
     }
 
     /// <summary>
@@ -103,7 +103,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
         return endpoints.MapPost(url,
             ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!,
-                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+                MessageBus.Build(runtime, context.TraceIdentifier), context.RequestAborted));
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
         return endpoints.MapPut(url,
             ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!,
-                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+                MessageBus.Build(runtime, context.TraceIdentifier), context.RequestAborted));
     }
 
     /// <summary>
@@ -141,7 +141,21 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var invoker = new Lazy<IMessageInvoker>(() => runtime.FindInvoker(typeof(TRequest)));
         return endpoints.MapDelete(url,
             ([FromBody] TRequest message, HttpContext context) => invoker.Value.InvokeAsync<TResponse>(message!,
-                new MessageBus(runtime, context.TraceIdentifier), context.RequestAborted));
+                MessageBus.Build(runtime, context.TraceIdentifier), context.RequestAborted));
+    }
+
+    /// <summary>
+    /// Add the necessary IoC service registrations for Wolverine.HTTP
+    /// </summary>
+    /// <param name="services"></param>
+    /// <returns></returns>
+    public static IServiceCollection AddWolverineHttp(this IServiceCollection services)
+    {
+        services.AddType(typeof(IApiDescriptionProvider), typeof(WolverineApiDescriptionProvider),
+            ServiceLifetime.Singleton);
+        services.AddSingleton<WolverineHttpOptions>();
+        services.AddSingleton<NewtonsoftHttpSerialization>();
+        return services;
     }
 
     /// <summary>
@@ -157,10 +171,12 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
 
         runtime.WarnIfAnyAsyncExtensions();
 
-        var container = (IContainer)endpoints.ServiceProvider;
-
-        // I hate this, but can't think of any other possible way to do this
-        container.Configure(x => x.AddSingleton<IApiDescriptionProvider, WolverineApiDescriptionProvider>());
+        var serviceProvider = endpoints.ServiceProvider;
+        var options = serviceProvider.GetService<WolverineHttpOptions>();
+        if (options == null)
+        {
+            throw new InvalidOperationException($"Required usage of IServiceCollection.{nameof(AddWolverineHttp)}() is necessary for Wolverine.HTTP to function correctly");
+        }
 
         // This let's Wolverine weave in middleware that might return ProblemDetails
         runtime.Options.CodeGeneration.AddContinuationStrategy<ProblemDetailsContinuationPolicy>();
@@ -169,18 +185,17 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         runtime.Options.CodeGeneration.AddContinuationStrategy<ResultContinuationPolicy>();
 
         // Making sure this exists
-        var options = container.GetInstance<WolverineHttpOptions>();
-        options.TenantIdDetection.Container = container; // Hokey, but let this go
-        options.Endpoints = new HttpGraph(runtime.Options, container);
+        options.TenantIdDetection.Services = serviceProvider; // Hokey, but let this go
+        options.Endpoints = new HttpGraph(runtime.Options, serviceProvider.GetRequiredService<IServiceContainer>());
 
         configure?.Invoke(options);
 
-        options.JsonSerializerOptions = new Lazy<JsonSerializerOptions>(() => container.TryGetInstance<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());
+        options.JsonSerializerOptions = new Lazy<JsonSerializerOptions>(() => serviceProvider.GetService<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());
 
         options.Endpoints.DiscoverEndpoints(options);
         runtime.AdditionalDescribedParts.Add(options.Endpoints);
 
-        container.GetInstance<WolverineSupplementalCodeFiles>().Collections.Add(options.Endpoints);
+        serviceProvider.GetRequiredService<WolverineSupplementalCodeFiles>().Collections.Add(options.Endpoints);
 
         endpoints.DataSources.Add(options.Endpoints);
     }

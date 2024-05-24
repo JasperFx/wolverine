@@ -2,13 +2,13 @@ using System.Collections;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
@@ -253,7 +253,7 @@ internal class LambdaHandlerPolicy : IHandlerPolicy
         _configure = configure;
     }
 
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains)
         {

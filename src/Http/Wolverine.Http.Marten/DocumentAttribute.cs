@@ -2,10 +2,10 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using Lamar;
 using Marten;
 using Microsoft.AspNetCore.Http;
 using Wolverine.Http.Policies;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.Marten;
 
@@ -40,7 +40,7 @@ public class DocumentAttribute : HttpChainParameterAttribute
     /// </summary>
     public bool MaybeSoftDeleted { get; set; } = true;
 
-    public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
+    public override Variable Modify(HttpChain chain, ParameterInfo parameter, IServiceContainer container)
     {
         chain.Metadata.Produces(404);
 

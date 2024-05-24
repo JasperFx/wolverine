@@ -20,24 +20,24 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="GitHubActionsTestLogger" Version="2.3.2" PrivateAssets="All" />
+        <PackageReference Include="GitHubActionsTestLogger" Version="2.3.2" PrivateAssets="All"/>
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
-        <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj" />
-        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        <ProjectReference Include="..\WolverineWebApi\WolverineWebApi.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
+        <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj"/>
+        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj"/>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <ProjectReference Include="..\WolverineWebApi\WolverineWebApi.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Remove="Bugs\Bug_748_using_side_effect_in_tuple.cs" />
+        <Compile Remove="Bugs\Bug_748_using_side_effect_in_tuple.cs"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
-      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2"/>
     </ItemGroup>
 
 </Project>

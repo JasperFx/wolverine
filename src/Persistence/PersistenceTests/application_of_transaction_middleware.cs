@@ -1,5 +1,4 @@
 using IntegrationTests;
-using Lamar;
 using Marten;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +22,7 @@ namespace PersistenceTests;
 public class application_of_transaction_middleware : IAsyncLifetime
 {
     private IHost _host;
-    private IContainer theContainer;
+    private IServiceContainer theContainer;
     private HandlerGraph theHandlers;
 
     public async Task InitializeAsync()
@@ -49,14 +48,13 @@ public class application_of_transaction_middleware : IAsyncLifetime
         theHandlers = _host.Services.GetRequiredService<IWolverineRuntime>().ShouldBeOfType<WolverineRuntime>()
             .Handlers;
 
-        theContainer = _host.Services.ShouldBeOfType<Container>();
+        theContainer = _host.Services.GetRequiredService<IServiceContainer>();
     }
 
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
-        await theContainer.DisposeAsync();
     }
 
     [Theory]

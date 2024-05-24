@@ -25,6 +25,8 @@ public class Bug_568_do_not_freak_out_over_Refit
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
         });
+        
+        builder.Services.AddWolverineHttp();
 
         await using var host = await AlbaHost.For(builder, app =>
         {

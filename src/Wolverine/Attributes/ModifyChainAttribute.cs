@@ -1,6 +1,6 @@
 using JasperFx.CodeGeneration;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Attributes;
 
@@ -11,5 +11,5 @@ namespace Wolverine.Attributes;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public abstract class ModifyChainAttribute : Attribute
 {
-    public abstract void Modify(IChain chain, GenerationRules rules, IContainer container);
+    public abstract void Modify(IChain chain, GenerationRules rules, IServiceContainer container);
 }

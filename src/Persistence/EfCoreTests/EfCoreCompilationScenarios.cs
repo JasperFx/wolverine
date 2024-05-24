@@ -1,3 +1,4 @@
+using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using TestingSupport;
 using Wolverine;
@@ -12,11 +13,13 @@ public class EfCoreCompilationScenarios
     {
         using var host = WolverineHost.For(opts =>
         {
+            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            
             // Default of both is scoped
             opts.Services.AddDbContext<SampleDbContext>();
         });
 
-        await host.Services.GetRequiredService<IMessageBus>().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
     }
 
     [Fact]
@@ -28,7 +31,7 @@ public class EfCoreCompilationScenarios
             opts.Services.AddDbContext<SampleDbContext>(optionsLifetime: ServiceLifetime.Singleton);
         });
 
-        await host.Services.GetRequiredService<IMessageBus>().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
         await host.StopAsync();
         host.Dispose();
     }
@@ -42,7 +45,7 @@ public class EfCoreCompilationScenarios
             opts.Services.AddDbContext<SampleDbContext>(ServiceLifetime.Singleton, ServiceLifetime.Singleton);
         });
 
-        await host.Services.GetRequiredService<IMessageBus>().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
     }
 }
 

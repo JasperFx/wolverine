@@ -1,6 +1,4 @@
 using IntegrationTests;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -80,8 +78,8 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
             SentAt = new DateTimeOffset(DateTime.Today.AddHours(2))
         };
 
-        using var nested = _host.Services.As<IContainer>().GetNestedContainer();
-        var context = nested.GetInstance<SampleMappedDbContext>();
+        using var nested = _host.Services.CreateScope();
+        var context = nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
 
         context.Add(new IncomingMessage(theIncomingEnvelope));
         context.Add(new OutgoingMessage(theOutgoingEnvelope));
@@ -98,21 +96,21 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
     [Fact]
     public void is_wolverine_enabled()
     {
-        using var nested = _host.Services.As<IContainer>().GetNestedContainer();
-        nested.GetInstance<SampleDbContext>().IsWolverineEnabled().ShouldBeFalse();
-        nested.GetInstance<SampleMappedDbContext>().IsWolverineEnabled().ShouldBeTrue();
+        using var nested = _host.Services.CreateScope();
+        nested.ServiceProvider.GetRequiredService<SampleDbContext>().IsWolverineEnabled().ShouldBeFalse();
+        nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>().IsWolverineEnabled().ShouldBeTrue();
     }
 
     [Fact]
     public void selectively_building_envelope_transaction()
     {
-        using var nested = _host.Services.As<IContainer>().GetNestedContainer();
+        using var nested = _host.Services.CreateScope();
         var runtime = _host.GetRuntime();
         var context = new MessageContext(runtime);
 
-        nested.GetInstance<SampleDbContext>().BuildTransaction(context)
+        nested.ServiceProvider.GetRequiredService<SampleDbContext>().BuildTransaction(context)
             .ShouldBeOfType<RawDatabaseEnvelopeTransaction>();
-        nested.GetInstance<SampleMappedDbContext>().BuildTransaction(context)
+        nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>().BuildTransaction(context)
             .ShouldBeOfType<MappedEnvelopeTransaction>();
     }
 

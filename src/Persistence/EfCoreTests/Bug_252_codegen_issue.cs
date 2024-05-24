@@ -55,7 +55,8 @@ public class Bug_252_codegen_issue
         var migration = await SchemaMigration.DetermineAsync(conn, table);
         await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
 
-        var dbContext = host.Services.GetRequiredService<AppDbContext>();
+        using var scope = host.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();
 
         await conn.CloseAsync();
@@ -92,7 +93,8 @@ public class Bug_252_codegen_issue
 
         await conn.CloseAsync();
 
-        var dbContext = host.Services.GetRequiredService<AppDbContext>();
+        using var scope = host.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();
 
         var chain = host.Services.GetRequiredService<HandlerGraph>().ChainFor<CreateOrder>();

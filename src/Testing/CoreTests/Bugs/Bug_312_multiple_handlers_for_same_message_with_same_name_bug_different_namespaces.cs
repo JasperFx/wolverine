@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CoreTests.Bugs;
-using Lamar;
+using JasperFx.CodeGeneration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Tracking;
 using Xunit;
@@ -15,7 +16,8 @@ namespace CoreTests.Bugs
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.Services.For<IIdentityService>().Use(x => new IdentityService()).Scoped();
+                    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+                    opts.Services.AddScoped<IIdentityService>(x => new IdentityService());
                 }).StartAsync();
 
             await host.InvokeMessageAndWaitAsync(new SayStuff("Hi"));

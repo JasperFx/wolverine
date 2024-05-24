@@ -1,11 +1,12 @@
 using JasperFx.CodeGeneration;
-using Lamar;
 using Marten.Schema;
 using NSubstitute;
 using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.Runtime.Handlers;
 using Shouldly;
+using Wolverine.Codegen;
+using Wolverine.Runtime;
 
 namespace MartenTests;
 
@@ -51,7 +52,7 @@ public class AggregateHandlerAttributeTests
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(Invalid1), default), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
-            new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), Container.Empty());
+            new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), ServiceContainer.Empty());
         });
     }
 
@@ -61,7 +62,7 @@ public class AggregateHandlerAttributeTests
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(Invalid2), default), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
-            new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), Container.Empty());
+            new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), ServiceContainer.Empty());
         });
     }
 

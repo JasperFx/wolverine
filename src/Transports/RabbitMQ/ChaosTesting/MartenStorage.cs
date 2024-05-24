@@ -1,6 +1,5 @@
 ﻿using IntegrationTests;
 using JasperFx.Core;
-using Lamar;
 using Marten;
 using Marten.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -63,15 +62,15 @@ public class MartenStorageStrategy : IMessageStorageStrategy
         opts.Services.AddScoped<IMessageRecordRepository, MartenMessageRecordRepository>();
     }
 
-    public Task ClearMessageRecords(IContainer services)
+    public Task ClearMessageRecords(IServiceProvider services)
     {
-        var store = services.GetInstance<IDocumentStore>();
+        var store = services.GetRequiredService<IDocumentStore>();
         return store.Advanced.Clean.DeleteAllDocumentsAsync();
     }
 
-    public async Task<long> FindOutstandingMessageCount(IContainer container, CancellationToken cancellation)
+    public async Task<long> FindOutstandingMessageCount(IServiceProvider container, CancellationToken cancellation)
     {
-        var store = container.GetInstance<IDocumentStore>();
+        var store = container.GetRequiredService<IDocumentStore>();
         await using var session = store.LightweightSession();
 
         return await session.Query<MessageRecord>().CountAsync(cancellation);
@@ -114,15 +113,15 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
         return "Marten Persistence";
     }
 
-    public Task ClearMessageRecords(IContainer services)
+    public Task ClearMessageRecords(IServiceProvider services)
     {
-        var store = services.GetInstance<IDocumentStore>();
+        var store = services.GetRequiredService<IDocumentStore>();
         return store.Advanced.Clean.DeleteAllDocumentsAsync();
     }
 
-    public async Task<long> FindOutstandingMessageCount(IContainer container, CancellationToken cancellation)
+    public async Task<long> FindOutstandingMessageCount(IServiceProvider container, CancellationToken cancellation)
     {
-        var store = container.GetInstance<IDocumentStore>();
+        var store = container.GetRequiredService<IDocumentStore>();
 
         long count = 0;
 

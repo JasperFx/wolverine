@@ -1,5 +1,5 @@
 using JasperFx.CodeGeneration;
-using Lamar;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http;
 
@@ -15,22 +15,22 @@ public interface IHttpPolicy
     /// </summary>
     /// <param name="chains"></param>
     /// <param name="rules"></param>
-    /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container);
+    /// <param name="container">The application's underlying IoC Container</param>
+    void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container);
 }
 
 #endregion
 
 internal class LambdaHttpPolicy : IHttpPolicy
 {
-    private readonly Action<HttpChain, GenerationRules, IContainer> _action;
+    private readonly Action<HttpChain, GenerationRules, IServiceContainer> _action;
 
-    public LambdaHttpPolicy(Action<HttpChain, GenerationRules, IContainer> action)
+    public LambdaHttpPolicy(Action<HttpChain, GenerationRules, IServiceContainer> action)
     {
         _action = action;
     }
 
-    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains) _action(chain, rules, container);
     }

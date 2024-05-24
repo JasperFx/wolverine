@@ -30,6 +30,7 @@ builder.Services.AddLogging();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddWolverineHttp();
 
 #region sample_register_custom_swashbuckle_filter
 
@@ -56,6 +57,7 @@ builder.Services.AddMarten(opts =>
 }).IntegrateWithWolverine();
 
 
+
 builder.Services.AddResourceSetupOnStartup();
 
 builder.Services.AddSingleton<Recorder>();
@@ -67,6 +69,8 @@ builder.Host.UseWolverine(opts =>
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
 
+    opts.Durability.Mode = DurabilityMode.Solo;
+
     opts.Policies.AutoApplyTransactions();
     opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
@@ -76,6 +80,8 @@ builder.Host.UseWolverine(opts =>
     opts.OptimizeArtifactWorkflow();
     
     opts.Policies.Add<BroadcastClientMessages>();
+
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 });
 
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>

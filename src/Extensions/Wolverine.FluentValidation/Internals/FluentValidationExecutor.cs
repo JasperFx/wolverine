@@ -17,7 +17,7 @@ public static class FluentValidationExecutor
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static async Task ExecuteMany<T>(IReadOnlyList<IValidator<T>> validators, IFailureAction<T> failureAction,
+    public static async Task ExecuteMany<T>(IEnumerable<IValidator<T>> validators, IFailureAction<T> failureAction,
         T message)
     {
         var failures = new List<ValidationFailure>();

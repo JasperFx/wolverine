@@ -37,6 +37,7 @@ builder.Host.UseWolverine(opts =>
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApiDocument();
+builder.Services.AddWolverineHttp();
 //builder.Services.AddSwaggerDocument();
 
 var app = builder.Build();

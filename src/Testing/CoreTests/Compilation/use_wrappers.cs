@@ -13,10 +13,13 @@ public class use_wrappers : CompilationContext
 
     public use_wrappers()
     {
-        theOptions.IncludeType<TransactionalHandler>();
+        IfWolverineIsConfiguredAs(opts =>
+        {
+            opts.IncludeType<TransactionalHandler>();
 
-        theOptions.Services.AddSingleton(theTracking);
-        theOptions.Services.ForSingletonOf<IFakeStore>().Use<FakeStore>();
+            opts.Services.AddSingleton(theTracking);
+            opts.Services.AddSingleton<IFakeStore, FakeStore>();
+        });
     }
 
     [Fact]
