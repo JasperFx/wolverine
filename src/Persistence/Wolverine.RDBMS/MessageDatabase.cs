@@ -28,7 +28,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     protected MessageDatabase(DatabaseSettings databaseSettings, DbDataSource dataSource, DurabilitySettings settings,
         ILogger logger, Migrator migrator, string defaultSchema) : base(new MigrationLogger(logger),
-        AutoCreate.CreateOrUpdate, migrator,
+        databaseSettings.AutoCreate, migrator,
         "WolverineEnvelopeStorage", () => (T)dataSource.CreateConnection())
     {
         _settings = databaseSettings;

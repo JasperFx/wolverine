@@ -1,4 +1,5 @@
 using System.Data.Common;
+using Weasel.Core;
 
 namespace Wolverine.RDBMS;
 
@@ -8,6 +9,7 @@ public class DatabaseSettings
 
     public string? ConnectionString { get; set; }
     public string? SchemaName { get; set; }
+    public AutoCreate AutoCreate { get; set; } = AutoCreate.CreateOrUpdate;
 
     /// <summary>
     ///     Is this database the master database for node storage and any kind of command queueing?

@@ -13,6 +13,7 @@ using JasperFx.Core;
 using Marten.Storage;
 using Marten.Subscriptions;
 using Npgsql;
+using Weasel.Core;
 using Weasel.Postgresql;
 using Wolverine.Marten.Subscriptions;
 
@@ -41,8 +42,12 @@ public static class WolverineOptionsMartenExtensions
     /// <param name="transportSchemaName">Optionally configure the schema name for any PostgreSQL queues</param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null,
-        string? masterDatabaseConnectionString = null, NpgsqlDataSource? masterDataSource = null, string? transportSchemaName = null)
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, 
+        string? schemaName = null,
+        string? masterDatabaseConnectionString = null, 
+        NpgsqlDataSource? masterDataSource = null, 
+        string? transportSchemaName = null,
+        AutoCreate? autoCreate = null)
     {
         if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
         {
@@ -64,10 +69,10 @@ public static class WolverineOptionsMartenExtensions
             // TODO -- hacky. Need a way to expose this in Marten
             if (store.Tenancy.GetType().Name == "DefaultTenancy")
             {
-                return BuildSinglePostgresqlMessageStore(schemaName, store, runtime, logger);
+                return BuildSinglePostgresqlMessageStore(schemaName, autoCreate, store, runtime, logger);
             }
 
-            return BuildMultiTenantedMessageDatabase(schemaName, masterDatabaseConnectionString, masterDataSource, store, runtime, s);
+            return BuildMultiTenantedMessageDatabase(schemaName, autoCreate, masterDatabaseConnectionString, masterDataSource, store, runtime, s);
         });
 
         expression.Services.AddSingleton<IDatabaseSource, MartenMessageDatabaseDiscovery>();
@@ -83,8 +88,11 @@ public static class WolverineOptionsMartenExtensions
         return expression;
     }
 
-    internal static NpgsqlDataSource findMasterDataSource(DocumentStore store, IWolverineRuntime runtime,
-        DatabaseSettings masterSettings, IServiceProvider container)
+    internal static NpgsqlDataSource findMasterDataSource(
+        DocumentStore store, 
+        IWolverineRuntime runtime,
+        DatabaseSettings masterSettings, 
+        IServiceProvider container)
     {
         if (store.Tenancy is ITenancyWithMasterDatabase m) return m.TenantDatabase.DataSource;
 
@@ -99,8 +107,12 @@ public static class WolverineOptionsMartenExtensions
                    "There is no configured connectivity for the required master PostgreSQL message database");
     }
 
-    internal static IMessageStore BuildMultiTenantedMessageDatabase(string schemaName,
-        string? masterDatabaseConnectionString, NpgsqlDataSource? masterDataSource, DocumentStore store,
+    internal static IMessageStore BuildMultiTenantedMessageDatabase(
+        string schemaName,
+        AutoCreate? autoCreate,
+        string? masterDatabaseConnectionString, 
+        NpgsqlDataSource? masterDataSource, 
+        DocumentStore store,
         IWolverineRuntime runtime,
         IServiceProvider serviceProvider)
     {
@@ -108,6 +120,7 @@ public static class WolverineOptionsMartenExtensions
         {
             ConnectionString = masterDatabaseConnectionString,
             SchemaName = schemaName,
+            AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
             IsMaster = true,
             CommandQueuesEnabled = true,
             DataSource = masterDataSource
@@ -121,19 +134,24 @@ public static class WolverineOptionsMartenExtensions
         };
 
 
-        var source = new MartenMessageDatabaseSource(schemaName, store, runtime);
+        var source = new MartenMessageDatabaseSource(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects, store, runtime);
 
         master.Initialize(runtime);
 
         return new MultiTenantedMessageDatabase(master, runtime, source);
     }
 
-    internal static IMessageStore BuildSinglePostgresqlMessageStore(string schemaName, DocumentStore store,
-        IWolverineRuntime runtime, ILogger<PostgresqlMessageStore> logger)
+    internal static IMessageStore BuildSinglePostgresqlMessageStore(
+        string schemaName, 
+        AutoCreate? autoCreate,
+        DocumentStore store,
+        IWolverineRuntime runtime, 
+        ILogger<PostgresqlMessageStore> logger)
     {
         var settings = new DatabaseSettings
         {
             SchemaName = schemaName,
+            AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
             IsMaster = true,
             ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
