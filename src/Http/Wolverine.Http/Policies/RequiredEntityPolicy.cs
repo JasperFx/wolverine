@@ -3,14 +3,14 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.Policies;
 
 internal class RequiredEntityPolicy : IHttpPolicy
 {
-    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains)
         {

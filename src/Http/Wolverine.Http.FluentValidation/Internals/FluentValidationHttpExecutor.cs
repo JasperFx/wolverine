@@ -30,7 +30,7 @@ public static class FluentValidationHttpExecutor
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static async Task<IResult> ExecuteMany<T>(
-        IReadOnlyList<IValidator<T>> validators,
+        IEnumerable<IValidator<T>> validators,
         IProblemDetailSource<T> source,
         T message)
     {

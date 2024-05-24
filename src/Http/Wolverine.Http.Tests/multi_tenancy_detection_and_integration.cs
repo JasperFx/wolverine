@@ -54,6 +54,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             opts.Policies.AutoApplyTransactions();
         });
 
+        builder.Services.AddWolverineHttp();
+
         // Setting up Alba stubbed authentication so that we can fake
         // out ClaimsPrincipal data on requests later
         var securityStub = new AuthenticationStub()

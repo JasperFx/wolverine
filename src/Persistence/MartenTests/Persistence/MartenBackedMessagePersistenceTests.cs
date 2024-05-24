@@ -1,7 +1,6 @@
 ﻿using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -71,14 +70,14 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
     [Fact]
     public void marten_outbox_is_registered()
     {
-        var container = (IContainer)theHost.Services;
+        var container = theHost.Services.GetRequiredService<IServiceContainer>();
 
-        container.Model.For<IMartenOutbox>().Default.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        container.DefaultFor<IMartenOutbox>().Lifetime.ShouldBe(ServiceLifetime.Scoped);
 
-        using var nested = container.GetNestedContainer();
+        using var nested = container.Services.CreateScope();
 
-        var outbox = nested.GetInstance<IMartenOutbox>();
-        var session = nested.GetInstance<IDocumentSession>();
+        var outbox = nested.ServiceProvider.GetRequiredService<IMartenOutbox>();
+        var session = nested.ServiceProvider.GetRequiredService<IDocumentSession>();
 
         outbox.Session.ShouldBeSameAs(session);
 

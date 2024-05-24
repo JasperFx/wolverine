@@ -1,5 +1,6 @@
 using JasperFx.CodeGeneration;
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.Runtime.MultiTenancy;
 
@@ -49,13 +50,13 @@ internal class TenantIdDetection : ITenantDetectionPolicies, IHttpPolicy
         Strategies.Add(new FallbackDefault(defaultTenantId));
     }
 
-    internal IContainer? Container { get; set; }
+    internal IServiceProvider? Services { get; set; }
 
     public void DetectWith<T>() where T : ITenantDetection
     {
-        if (Container == null) throw new InvalidOperationException("The Container has not been set yet");
+        if (Services == null) throw new InvalidOperationException("The Container has not been set yet");
 
-        DetectWith(Container.GetInstance<T>());
+        DetectWith(Services.GetRequiredService<IServiceContainer>().QuickBuild<T>());
     }
 
     public bool AssertTenantExists { get; set; }
@@ -69,7 +70,7 @@ internal class TenantIdDetection : ITenantDetectionPolicies, IHttpPolicy
         return chain.TenancyMode == TenancyMode.Required;
     }
 
-    void IHttpPolicy.Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    void IHttpPolicy.Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
         if (Strategies.Count == 0) return;
 

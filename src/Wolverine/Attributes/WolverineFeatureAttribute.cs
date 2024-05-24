@@ -1,4 +1,4 @@
-﻿using Lamar;
+﻿using JasperFx.Core.TypeScanning;
 
 namespace Wolverine.Attributes;
 

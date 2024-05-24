@@ -1,7 +1,6 @@
 using Alba;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using Shouldly;
 using Wolverine.Tracking;
@@ -25,9 +24,8 @@ public class end_to_end_for_dbcontext_not_integrated_with_outbox
         tracked.FindSingleTrackedMessageOfType<ItemCreatedInDbContextNotIntegratedWithOutbox>()
             .ShouldNotBeNull();
 
-
-        using var nested = host.Services.As<IContainer>().GetNestedContainer();
-        var context = nested.GetInstance<ItemsDbContext>();
+        using var nested = host.Services.CreateScope();
+        var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
         var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
         item.ShouldNotBeNull();

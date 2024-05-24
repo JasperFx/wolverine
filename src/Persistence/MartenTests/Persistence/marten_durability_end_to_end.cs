@@ -158,7 +158,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         for (var i = 0; i < count; i++)
         {
             var msg = new TraceMessage { Name = Guid.NewGuid().ToString() };
-            await runtime.Services.GetRequiredService<IMessageContext>().SendAsync(msg);
+            await runtime.MessageBus().SendAsync(msg);
         }
     }
 

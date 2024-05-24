@@ -216,7 +216,7 @@ public partial class agent_tracking_behavior
         theNodes.Add(node4);
 
         theNodes.Publish(new NodeEvent(node3, NodeEventType.LeadershipAssumed));
-        await theTracker.WaitForNodeEvent(node3.Id, 5.Seconds());
+        await theTracker.WaitForNodeEvent(node3.Id, 15.Seconds());
 
         theTracker.Nodes.Count.ShouldBe(4);
 

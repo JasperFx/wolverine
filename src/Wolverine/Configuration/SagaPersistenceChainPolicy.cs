@@ -1,16 +1,16 @@
 ﻿using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Configuration;
 
 internal class SagaPersistenceChainPolicy : IChainPolicy
 {
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
         var providers = rules.PersistenceProviders();
 
@@ -29,7 +29,7 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
         }
     }
 
-    private static bool attachSagaPersistenceFrame(IContainer container, List<IPersistenceFrameProvider> providers,
+    private static bool attachSagaPersistenceFrame(IServiceContainer container, List<IPersistenceFrameProvider> providers,
         Variable saga, IChain chain)
     {
         foreach (var provider in providers)

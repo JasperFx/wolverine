@@ -1,11 +1,11 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Marten.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 using Wolverine.Marten;
+using Wolverine.Runtime;
 
 namespace WolverineWebApi.Marten;
 
@@ -21,7 +21,7 @@ public class StreamCollisionExceptionPolicy : IHttpPolicy
             .Any(x => x.VariableType.CanBeCastTo<IStartStream>());
     }
 
-    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
         // Find *only* the HTTP routes where the route tries to create new Marten event streams
         foreach (var chain in chains.Where(shouldApply))

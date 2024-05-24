@@ -11,11 +11,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="MQTTnet.Extensions.ManagedClient" Version="4.3.1.873" />
+        <PackageReference Include="MQTTnet.Extensions.ManagedClient" Version="4.3.1.873"/>
     </ItemGroup>
 
 </Project>

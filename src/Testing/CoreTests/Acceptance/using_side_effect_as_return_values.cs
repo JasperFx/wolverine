@@ -1,6 +1,6 @@
-using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Xunit;
@@ -22,7 +22,7 @@ public class using_side_effect_as_return_values
         var chain = graph.ChainFor<TriggerSideEffects>();
 
         // Adds the dependency from the methods
-        chain.ServiceDependencies((IContainer)host.Services, Type.EmptyTypes).ShouldContain(typeof(Recorder));
+        chain.ServiceDependencies(host.Services.GetRequiredService<IServiceContainer>(), Type.EmptyTypes).ShouldContain(typeof(Recorder));
 
         var recorder = host.Services.GetRequiredService<Recorder>();
 

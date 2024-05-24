@@ -1,8 +1,8 @@
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Logging;
 
@@ -15,7 +15,7 @@ internal class AuditMembersPolicy<T> : IChainPolicy
         _members = members;
     }
 
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains.Where(x => x.InputType().CanBeCastTo<T>()))
         {

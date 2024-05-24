@@ -46,7 +46,7 @@ public class When_starting_an_order : PostgresqlContext, IAsyncLifetime
 
         await _host.InvokeMessageAndWaitAsync(new StartOrder(orderId));
 
-        using var session = _host.Services.GetRequiredService<IQuerySession>();
+        using var session = _host.DocumentStore().QuerySession();
         _order = await session.LoadAsync<Order>(orderId);
     }
 

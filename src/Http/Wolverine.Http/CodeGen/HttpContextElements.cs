@@ -3,8 +3,8 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -19,7 +19,7 @@ internal class HttpContextElements : IParameterStrategy
             .ToList();
     }
 
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         variable = default!;
 

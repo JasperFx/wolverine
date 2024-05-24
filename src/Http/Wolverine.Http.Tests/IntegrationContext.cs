@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Alba;
 using Marten;
 using Microsoft.AspNetCore.Http;

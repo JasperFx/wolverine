@@ -66,6 +66,8 @@ public class Bug_865_returning_IResult_using_Auto_codegen
     
         });
         
+        builder.Services.AddWolverineHttp();
+        
         // This is using Alba, which uses WebApplicationFactory under the covers
         await using var host = await AlbaHost.For(builder, app =>
         {

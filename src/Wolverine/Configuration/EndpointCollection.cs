@@ -60,7 +60,14 @@ public class EndpointCollection : IEndpointCollection
             var sender = kv.Value;
             if (sender is IAsyncDisposable ad)
             {
-                await ad.DisposeAsync();
+                try
+                {
+                    await ad.DisposeAsync();
+                }
+                catch (Exception)
+                {
+                    // Don't want this being thrown
+                }
             }
             else if (sender is IDisposable d)
             {

@@ -1,14 +1,14 @@
 ﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence;
 
 public interface IPersistenceFrameProvider
 {
-    void ApplyTransactionSupport(IChain chain, IContainer container);
-    bool CanApply(IChain chain, IContainer container);
+    void ApplyTransactionSupport(IChain chain, IServiceContainer container);
+    bool CanApply(IChain chain, IServiceContainer container);
 
     /// <summary>
     ///     Use for Saga creation support as returned value
@@ -17,12 +17,12 @@ public interface IPersistenceFrameProvider
     /// <param name="container"></param>
     /// <param name="persistenceService"></param>
     /// <returns></returns>
-    bool CanPersist(Type entityType, IContainer container, out Type persistenceService);
+    bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService);
 
-    Type DetermineSagaIdType(Type sagaType, IContainer container);
-    Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId);
-    Frame DetermineInsertFrame(Variable saga, IContainer container);
-    Frame CommitUnitOfWorkFrame(Variable saga, IContainer container);
-    Frame DetermineUpdateFrame(Variable saga, IContainer container);
-    Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IContainer container);
+    Type DetermineSagaIdType(Type sagaType, IServiceContainer container);
+    Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId);
+    Frame DetermineInsertFrame(Variable saga, IServiceContainer container);
+    Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container);
+    Frame DetermineUpdateFrame(Variable saga, IServiceContainer container);
+    Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container);
 }

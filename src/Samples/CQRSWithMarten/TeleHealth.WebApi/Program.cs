@@ -48,6 +48,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddWolverineHttp();
+
 #region sample_opting_into_wolverine_event_publishing
 
 builder.Services.AddMarten(opts =>

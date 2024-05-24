@@ -1,5 +1,5 @@
 using JasperFx.CodeGeneration;
-using Lamar;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Configuration;
@@ -14,8 +14,8 @@ public interface IChainPolicy : IWolverinePolicy
     /// </summary>
     /// <param name="chains"></param>
     /// <param name="rules"></param>
-    /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container);
+    /// <param name="container">The application's underlying IoC Container</param>
+    void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container);
 }
 
 internal class HandlerChainPolicy : IHandlerPolicy
@@ -27,7 +27,7 @@ internal class HandlerChainPolicy : IHandlerPolicy
         _inner = inner;
     }
 
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         _inner.Apply(chains, rules, container);
     }
@@ -45,8 +45,8 @@ public interface IHandlerPolicy : IWolverinePolicy
     /// </summary>
     /// <param name="chains"></param>
     /// <param name="rules"></param>
-    /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container);
+    /// <param name="container">The application's underlying IoC Container</param>
+    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container);
 }
 
 #endregion

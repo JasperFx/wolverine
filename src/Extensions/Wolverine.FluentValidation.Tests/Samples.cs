@@ -22,6 +22,9 @@ public class Samples
 
                 // Or if you'd prefer to deal with all the DI registrations yourself
                 opts.UseFluentValidation(RegistrationBehavior.ExplicitRegistration);
+
+                // Just a prerequisite for some of the test validators
+                opts.Services.AddSingleton<IDataService, DataService>();
             }).StartAsync();
 
         #endregion
@@ -41,6 +44,9 @@ public class Samples
 
                 // Override the service registration for IFailureAction
                 opts.Services.AddSingleton(typeof(IFailureAction<>), typeof(CustomFailureAction<>));
+                
+                // Just a prerequisite for some of the test validators
+                opts.Services.AddSingleton<IDataService, DataService>();
             }).StartAsync();
 
         #endregion

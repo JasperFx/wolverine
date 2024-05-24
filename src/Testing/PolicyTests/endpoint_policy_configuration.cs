@@ -20,12 +20,13 @@ using Wolverine.Util;
 
 namespace PolicyTests;
 
-public class endpoint_policy_configuration : IDisposable
+public class endpoint_policy_configuration : IAsyncDisposable
 {
     private IHost _host;
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        await _host.StopAsync();
         _host.Dispose();
     }
 

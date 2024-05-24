@@ -4,7 +4,6 @@ using System.Security;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
@@ -205,7 +204,7 @@ public class error_handling
 // message handlers
 public class ErrorHandlingPolicy : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         var matchingChains = chains
             .Where(x => x.MessageType.IsInNamespace("MyApp.Messages"));

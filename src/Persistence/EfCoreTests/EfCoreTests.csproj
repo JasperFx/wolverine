@@ -7,8 +7,8 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0"/>
-        <PackageReference Include="Shouldly" Version="4.2.1" />
-        <PackageReference Include="xunit" Version="2.8.0" />
+        <PackageReference Include="Shouldly" Version="4.2.1"/>
+        <PackageReference Include="xunit" Version="2.8.0"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -20,13 +20,13 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(targetframework)' == 'net7.0'">
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[7.0.0, 8.0.0)" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[7.0.0, 8.0.0)" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[7.0.0, 8.0.0)"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[7.0.0, 8.0.0)"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(targetframework)' == 'net8.0'">
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0"/>
     </ItemGroup>
 
 
@@ -34,13 +34,14 @@
         <Compile Include="..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>
+        <Compile Remove="Internal\Generated\WolverineHandlers\CreateItemHandler1945924936.cs" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
-      <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
-      <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
-      <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
+        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
+        <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
+        <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
     </ItemGroup>
 
 </Project>

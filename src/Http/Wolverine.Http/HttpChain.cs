@@ -7,17 +7,19 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
+using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
 using Wolverine.Runtime;
+using ServiceContainer = Wolverine.Runtime.ServiceContainer;
 
 namespace Wolverine.Http;
 
@@ -211,22 +213,32 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         var method = ReflectionHelper.GetMethod(expression);
         var call = new MethodCall(typeof(T), method!);
 
-        return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), new Container(x =>
-        {
-            x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
-            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Transient();
-        })));
+        var registry = new ServiceCollection();
+        registry.AddSingleton<JsonSerializerOptions>();
+        registry.AddTransient<IServiceVariableSource, ServiceCollectionServerVariableSource>();
+
+        registry.AddSingleton<IServiceContainer, ServiceContainer>();
+        registry.AddSingleton<IServiceCollection>(registry);
+
+        var serviceContainer = registry.BuildServiceProvider();
+        return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), serviceContainer.GetRequiredService<IServiceContainer>()));
     }
 
     public static HttpChain ChainFor(Type handlerType, string methodName, HttpGraph? parent = null)
     {
         var call = new MethodCall(handlerType, methodName);
 
-        return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), new Container(x =>
-        {
-            x.For<JsonSerializerOptions>().Use(new JsonSerializerOptions());
-            x.For<IServiceVariableSource>().Use(c => c.CreateServiceVariableSource()).Transient();
-        })));
+        var registry = new ServiceCollection();
+        registry.AddSingleton<JsonSerializerOptions>();
+        registry.AddTransient<IServiceVariableSource, ServiceCollectionServerVariableSource>();
+        registry.AddSingleton<IServiceContainer, ServiceContainer>();
+        registry.AddSingleton<IServiceCollection>(registry);
+
+        var provider = registry.BuildServiceProvider();
+        
+        var serviceContainer = provider.GetRequiredService<IServiceContainer>();
+        
+        return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), serviceContainer));
     }
 
     public bool HasResourceType()

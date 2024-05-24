@@ -2,7 +2,6 @@ using System.Reflection;
 using FluentValidation;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.FluentValidation.Internals;
@@ -24,13 +23,13 @@ public class configuration_specs
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
 
-        var container = (IContainer)host.Services;
+        var container = host.Services.GetRequiredService<IServiceContainer>();
 
         // No args, this needs to be a singleton
-        container.Model.For<IValidator<Command1>>().Default
+        container.DefaultFor<IValidator<Command1>>()
             .Lifetime.ShouldBe(ServiceLifetime.Singleton);
 
-        container.Model.For<IValidator<Command2>>().Default
+        container.DefaultFor<IValidator<Command2>>()
             .Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
@@ -44,10 +43,8 @@ public class configuration_specs
 
                 opts.Services.AddScoped<IDataService, DataService>();
             }).StartAsync();
-
-        var container = (IContainer)host.Services;
-
-        container.GetInstance<IFailureAction<Command1>>()
+        
+        host.Services.GetRequiredService<IFailureAction<Command1>>()
             .ShouldBeOfType<FailureAction<Command1>>();
     }
 

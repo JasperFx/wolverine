@@ -4,7 +4,6 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
@@ -13,6 +12,7 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten;
@@ -62,7 +62,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
 
     public MemberInfo? VersionMember { get; private set; }
 
-    public override void Modify(IChain chain, GenerationRules rules, IContainer container)
+    public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
         if (chain.Tags.ContainsKey(nameof(AggregateHandlerAttribute))) return;
         chain.Tags.Add(nameof(AggregateHandlerAttribute),"true");

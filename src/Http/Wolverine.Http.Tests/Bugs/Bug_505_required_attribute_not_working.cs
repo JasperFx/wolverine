@@ -32,6 +32,8 @@ public class Bug_505_required_attribute_not_working
 
             opts.Services.AddMarten(Servers.PostgresConnectionString);
         });
+        
+        builder.Services.AddWolverineHttp();
 
         builder.Services.AddSingleton<AggregateRepository>();
 

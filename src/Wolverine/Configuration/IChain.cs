@@ -2,8 +2,8 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Logging;
+using Wolverine.Runtime;
 
 namespace Wolverine.Configuration;
 
@@ -57,7 +57,7 @@ public interface IChain
     /// <param name="stopAtTypes"></param>
     /// <param name="chain"></param>
     /// <returns></returns>
-    IEnumerable<Type> ServiceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes);
+    IEnumerable<Type> ServiceDependencies(IServiceContainer container, IReadOnlyList<Type> stopAtTypes);
 
     /// <summary>
     ///     Does this chain have the designated attribute type anywhere in

@@ -1,7 +1,6 @@
 using System.Diagnostics.Metrics;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
@@ -17,7 +16,7 @@ namespace Wolverine.Runtime;
 
 public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 {
-    private readonly IContainer _container;
+    private readonly IServiceContainer _container;
     private readonly EndpointCollection _endpoints;
     private readonly LightweightCache<Type, IMessageInvoker> _invokers;
 
@@ -32,7 +31,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     private readonly Lazy<IReadOnlyList<IAncillaryMessageStore>> _ancillaryStores;
 
     public WolverineRuntime(WolverineOptions options,
-        IContainer container,
+        IServiceContainer container,
         ILoggerFactory loggers)
     {
         DurabilitySettings = options.Durability;

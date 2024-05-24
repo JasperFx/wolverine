@@ -1,6 +1,6 @@
 using System.Reflection;
 using JasperFx.CodeGeneration.Model;
-using Lamar;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -13,7 +13,7 @@ namespace Wolverine.Http.CodeGen;
 /// <param name="variable">The Variable referring to the input of this parameter</param>
 public interface IParameterStrategy
 {
-    bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable);
+    bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable);
 }
 
 #endregion

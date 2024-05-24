@@ -20,7 +20,7 @@ public class routing_precedence
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine().StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new BlueMessage())
             .Single().Destination.ShouldBe(new Uri("local://blue"));
     }
@@ -34,7 +34,7 @@ public class routing_precedence
                 opts.Policies.DisableConventionalLocalRouting();
             }).StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new BlueMessage())
             .Any().ShouldBeFalse();
     }
@@ -45,7 +45,7 @@ public class routing_precedence
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine().StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new GreenMessage())
             .Single().Destination.ShouldBe(new Uri("local://seagreen"));
 
@@ -62,7 +62,7 @@ public class routing_precedence
                 opts.PublishMessage<BlueMessage>().ToLocalQueue("purple");
             }).StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new BlueMessage())
             .Single().Destination.ShouldBe(new Uri("local://purple"));
     }
@@ -94,7 +94,7 @@ public class routing_precedence
                 opts.PublishMessage<BlueMessage>().ToPort(port);
             }).StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new BlueMessage())
             .Single().Destination.ShouldBe(new Uri("tcp://localhost:" + port));
     }
@@ -117,7 +117,7 @@ public class routing_precedence
                 opts.RouteWith(convention);
             }).StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new BlueMessage())
             .Single().Destination.ShouldBe(new Uri("local://blue"));
     }
@@ -140,7 +140,7 @@ public class routing_precedence
                 opts.RouteWith(convention);
             }).StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.PreviewSubscriptions(new RedMessage())
             .Single().Destination.ShouldBe(new Uri("tcp://localhost:" + port));
     }

@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <ItemGroup>
-        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
-        <ProjectReference Include="..\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj" />
+        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj"/>
+        <ProjectReference Include="..\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj"/>
     </ItemGroup>
 
 </Project>

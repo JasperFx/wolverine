@@ -1,6 +1,7 @@
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using TestingSupport.Compliance;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
@@ -11,15 +12,20 @@ public class finding_service_dependencies_of_a_chain
     private readonly HandlerChain
         theChain = HandlerChain.For<FakeDudeWithAction>(x => x.Handle(null, null, null), null);
 
-    private readonly IContainer theContainer = new Container(x =>
-    {
-        x.For<IService1>().Use(Substitute.For<IService1>());
-        x.For<IService2>().Use(Substitute.For<IService2>());
-        x.For<IService3>().Use(Substitute.For<IService3>());
-        x.For<IService4>().Use(Substitute.For<IService4>());
 
-        x.For<IService5>().Use<Service5>();
-    });
+    private IServiceContainer theContainer;
+
+    public finding_service_dependencies_of_a_chain()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IService1>(Substitute.For<IService1>());
+        services.AddSingleton<IService2>(Substitute.For<IService2>());
+        services.AddSingleton<IService3>(Substitute.For<IService3>());
+        services.AddSingleton<IService4>(Substitute.For<IService4>());
+
+        services.AddSingleton<IService5, Service5>();
+        theContainer = new ServiceContainer(services, services.BuildServiceProvider());
+    }
 
     [Fact]
     public void find_dependencies_in_parameter_list()

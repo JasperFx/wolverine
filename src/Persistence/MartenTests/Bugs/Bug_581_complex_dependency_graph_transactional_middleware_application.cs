@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,6 +8,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
@@ -50,11 +50,11 @@ public class Bug_581_complex_dependency_graph_transactional_middleware_applicati
 
         var martenPersistenceFrameProvider = new MartenPersistenceFrameProvider();
         martenPersistenceFrameProvider
-            .CanApply(handlers.HandlerFor<CreateUser>().As<MessageHandler>().Chain, (IContainer)host.Services).ShouldBeTrue();
+            .CanApply(handlers.HandlerFor<CreateUser>().As<MessageHandler>().Chain, host.Services.GetRequiredService<IServiceContainer>()).ShouldBeTrue();
 
         // For middleware too
         martenPersistenceFrameProvider
-            .CanApply(handlers.HandlerFor<CreateUser2>().As<MessageHandler>().Chain, (IContainer)host.Services).ShouldBeTrue();
+            .CanApply(handlers.HandlerFor<CreateUser2>().As<MessageHandler>().Chain, host.Services.GetRequiredService<IServiceContainer>()).ShouldBeTrue();
 
     }
 }

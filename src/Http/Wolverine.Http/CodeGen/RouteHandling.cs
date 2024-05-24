@@ -3,8 +3,8 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -102,7 +102,7 @@ internal class RouteParameterStrategy : IParameterStrategy
         { typeof(DateTime), "datetime" }
     };
 
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         return chain.FindRouteVariable(parameter, out variable);
     }

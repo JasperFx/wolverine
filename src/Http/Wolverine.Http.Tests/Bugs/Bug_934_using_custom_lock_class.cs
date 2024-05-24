@@ -27,6 +27,8 @@ public class Bug_934_using_custom_lock_class
             opts.ApplicationAssembly = GetType().Assembly;
         });
         
+        builder.Services.AddWolverineHttp();
+        
         // This is using Alba, which uses WebApplicationFactory under the covers
         await using var host = await AlbaHost.For(builder, app =>
         {

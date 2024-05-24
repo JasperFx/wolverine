@@ -22,49 +22,47 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
     {
         var receiverPort = PortFinder.GetAvailablePort();
         var senderPort = PortFinder.GetAvailablePort();
-
-        var senderRegistry = new WolverineOptions();
-        senderRegistry
-            .DisableConventionalDiscovery()
-            .IncludeType<CascadeReceiver>()
-            .IncludeType<ScheduledMessageHandler>();
-
-
-        senderRegistry.Publish(x =>
+        
+        theSender = WolverineHost.For(senderRegistry =>
         {
-            x.Message<TriggerMessage>();
-            x.Message<ItemCreated>();
-            x.Message<Question>();
-            x.Message<ScheduledMessage>();
+            senderRegistry
+                .DisableConventionalDiscovery()
+                .IncludeType<CascadeReceiver>()
+                .IncludeType<ScheduledMessageHandler>();
 
-            x.ToPort(receiverPort).UseDurableOutbox();
+
+            senderRegistry.Publish(x =>
+            {
+                x.Message<TriggerMessage>();
+                x.Message<ItemCreated>();
+                x.Message<Question>();
+                x.Message<ScheduledMessage>();
+
+                x.ToPort(receiverPort).UseDurableOutbox();
+            });
+            
+            senderRegistry.ListenAtPort(senderPort).UseDurableInbox();
+
+            configureSender(senderRegistry);
         });
-
-
-        senderRegistry.ListenAtPort(senderPort).UseDurableInbox();
-
-        configureSender(senderRegistry);
-
-        theSender = WolverineHost.For(senderRegistry);
+        
         await theSender.ResetResourceState();
 
+        theReceiver = WolverineHost.For(receiverRegistry =>
+        {
+            receiverRegistry.DisableConventionalDiscovery()
+                .IncludeType<TTriggerHandler>()
+                .IncludeType<TItemCreatedHandler>()
+                .IncludeType<QuestionHandler>()
+                .IncludeType<ScheduledMessageHandler>();
 
-        var receiverRegistry = new WolverineOptions();
-        receiverRegistry.DisableConventionalDiscovery()
-            .IncludeType<TTriggerHandler>()
-            .IncludeType<TItemCreatedHandler>()
-            .IncludeType<QuestionHandler>()
-            .IncludeType<ScheduledMessageHandler>();
+            receiverRegistry.ListenAtPort(receiverPort).UseDurableInbox();
 
-        receiverRegistry.ListenAtPort(receiverPort).UseDurableInbox();
-
-        configureReceiver(receiverRegistry);
-
-
-        theReceiver = WolverineHost.For(receiverRegistry);
+            configureReceiver(receiverRegistry);
+        });
+        
         await theReceiver.ResetResourceState();
-
-
+        
         await initializeStorage(theSender, theReceiver);
     }
 

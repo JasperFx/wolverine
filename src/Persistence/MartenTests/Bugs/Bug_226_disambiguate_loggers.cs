@@ -1,7 +1,6 @@
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
-using Lamar;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Marten;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 
@@ -47,7 +47,7 @@ public class Bug_226_disambiguate_loggers : PostgresqlContext
 
     public class RequiringLoggerPolicy : IHandlerPolicy
     {
-        public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+        public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
         {
             foreach (var chain in chains)
             {

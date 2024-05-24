@@ -2,7 +2,6 @@ using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
@@ -64,9 +63,9 @@ public interface ITenantDetectionPolicies
     void AssertExists();
 
     /// <summary>
-    /// Register a custom tenant detection strategy. Be away though, this object
-    /// will be resolved from your application container, but will be done as a Singleton
-    /// scoping
+    /// Register a custom tenant detection strategy. Be aware though, this object
+    /// will be resolved from your application container, but will be done as with Singleton
+    /// scoping.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     void DetectWith<T>() where T : ITenantDetection;
@@ -85,7 +84,6 @@ public interface ITenantDetectionPolicies
     void DefaultIs(string defaultTenantId);
 }
 
-[Singleton]
 public class WolverineHttpOptions
 {
     public WolverineHttpOptions()

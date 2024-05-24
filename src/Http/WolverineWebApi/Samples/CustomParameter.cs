@@ -1,9 +1,9 @@
 using System.Reflection;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Http;
 using Wolverine.Http.CodeGen;
+using Wolverine.Runtime;
 
 namespace WolverineWebApi.Samples;
 
@@ -11,7 +11,7 @@ namespace WolverineWebApi.Samples;
 
 public class NowParameterStrategy : IParameterStrategy
 {
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         if (parameter.Name == "now" && parameter.ParameterType == typeof(DateTimeOffset))
         {

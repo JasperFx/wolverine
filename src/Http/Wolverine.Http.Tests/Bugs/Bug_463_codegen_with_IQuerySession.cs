@@ -23,6 +23,8 @@ public class Bug_463_codegen_with_IQuerySession
             opts.Discovery.IncludeAssembly(GetType().Assembly);
         });
 
+        builder.Services.AddWolverineHttp();
+
         await using var host = await AlbaHost.For(builder, app =>
         {
             app.MapWolverineEndpoints();

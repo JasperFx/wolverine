@@ -5,12 +5,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-      <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="HtmlTags" Version="9.0.0" />
+        <PackageReference Include="HtmlTags" Version="9.0.0"/>
     </ItemGroup>
 
 </Project>

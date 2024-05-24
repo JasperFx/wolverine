@@ -20,7 +20,7 @@ public class handler_with_optional_side_effect
     {
         using var host = WolverineHost.Basic();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         await bus.InvokeAsync(new SomeCommand());
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
@@ -34,7 +34,7 @@ public class handler_with_optional_side_effect
     {
         using var host = WolverineHost.Basic();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         await bus.InvokeAsync(new SomeOtherCommand());
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();

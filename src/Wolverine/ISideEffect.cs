@@ -3,8 +3,8 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine;
@@ -21,7 +21,7 @@ internal class SideEffectPolicy : IChainPolicy
     public const string SyncMethod = "Execute";
     public const string AsyncMethod = "ExecuteAsync";
 
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains)
         {

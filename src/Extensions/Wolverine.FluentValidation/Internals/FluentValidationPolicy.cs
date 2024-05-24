@@ -1,25 +1,25 @@
 using FluentValidation;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.FluentValidation.Internals;
 
 internal class FluentValidationPolicy : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains) Apply(chain, container);
     }
 
-    public void Apply(HandlerChain chain, IContainer container)
+    public void Apply(HandlerChain chain, IServiceContainer container)
     {
         var validatorInterface = typeof(IValidator<>).MakeGenericType(chain.MessageType);
 
-        var registered = container.Model.For(validatorInterface);
-        if (registered.Instances.Count() == 1)
+        var registered = container.RegistrationsFor(validatorInterface);
+        if (registered.Count() == 1)
         {
             var method = typeof(FluentValidationExecutor).GetMethod(nameof(FluentValidationExecutor.ExecuteOne))
                 .MakeGenericMethod(chain.MessageType);
@@ -27,7 +27,7 @@ internal class FluentValidationPolicy : IHandlerPolicy
             var methodCall = new MethodCall(typeof(FluentValidationExecutor), method);
             chain.Middleware.Add(methodCall);
         }
-        else if (registered.Instances.Count() > 1)
+        else if (registered.Count() > 1)
         {
             var method = typeof(FluentValidationExecutor).GetMethod(nameof(FluentValidationExecutor.ExecuteMany))
                 .MakeGenericMethod(chain.MessageType);

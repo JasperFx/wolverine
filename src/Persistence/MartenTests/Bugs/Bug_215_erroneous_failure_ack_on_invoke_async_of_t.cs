@@ -36,7 +36,7 @@ public class Bug_215_erroneous_failure_ack_on_invoke_async_of_t : PostgresqlCont
             await session.SaveChangesAsync();
         }
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         var response = await bus.InvokeAsync<Bug215Data>(new Lookup(data.Id));
 
         response.ShouldNotBeNull();
