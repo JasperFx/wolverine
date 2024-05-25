@@ -30,6 +30,9 @@ public sealed partial class HandlerDiscovery
         specifyHandlerDiscovery();
 
         _messageQuery.Excludes.IsStatic();
+        _messageQuery.Excludes.WithCondition(
+            $"Not implements {typeof(IMessage).FullNameInCode()} nor has attribute {typeof(WolverineMessageAttribute).FullNameInCode()}",
+            x => !x.CanBeCastTo<IMessage>() && !x.HasAttribute<WolverineMessageAttribute>());
         _messageQuery.Includes.Implements<IMessage>();
         _messageQuery.Includes.WithAttribute<WolverineMessageAttribute>();
         _messageQuery.Excludes.IsNotPublic();
