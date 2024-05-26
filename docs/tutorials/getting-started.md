@@ -215,7 +215,7 @@ Now, you'll notice that Wolverine is happy to allow you to use static methods as
 handler actions. And also notice that the `Handle()` method takes in an argument
 for `IssueRepository`. Wolverine always assumes that the first argument of an handler
 method is the message type, but other arguments are inferred to be services from the
-system's underlying IoC container. By supporting [method injection](https://betterprogramming.pub/the-3-types-of-dependency-injection-141b40d2cebc) like this, Wolverine
+system's underlying IoC container. By supporting [method injection](https://www.tatvasoft.com/outsourcing/2023/11/dependency-injection-in-csharp.html#Method) like this, Wolverine
 is able to cut down on even more of the typical cruft code forced upon you by other .NET tools.
 
 *You might be saying that this sounds like the behavior of the conventional method injection
