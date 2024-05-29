@@ -39,6 +39,15 @@ public class MessageContextTests
     }
 
     [Fact]
+    public async Task reject_side_effect_as_cascading_message()
+    {
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            await theContext.EnqueueCascadingAsync(Substitute.For<ISideEffect>());
+        });
+    }
+
+    [Fact]
     public void track_envelope_correlation()
     {
         using var activity = new Activity("DoWork");
