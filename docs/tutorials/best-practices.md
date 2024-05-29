@@ -225,3 +225,10 @@ to utilize Wolverine to create a maintainable codebase with much less complexity
 layered approach.
 
 See [Low Ceremony Vertical Slice Architecture with Wolverine](https://jeremydmiller.com/2023/07/10/low-ceremony-vertical-slice-architecture-with-wolverine/)
+
+## Graceful Shutdown of Nodes
+It's important to note that Wolverine operates in `Balanced` mode by default, which enables it to operate as a cluster of nodes.
+The node process must be gracefully shut down to prevent failures when others attempt to communicate with it. A health check process determines stale nodes, but you will see communication failures if the node isn't shut down properly before it can be detected. This underscores the importance of your role in ensuring a smooth shutdown process.
+
+If you are running Wolverine in a container, ensure that the orchestrator correctly sends a TERM signal and that there is enough time before it forcefully kills it.
+For reference, you can check [Pod termination](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination) in Kubernetes.
