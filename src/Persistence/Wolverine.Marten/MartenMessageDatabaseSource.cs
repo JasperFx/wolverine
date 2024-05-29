@@ -80,7 +80,10 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         }
 
         // TODO -- add some resiliency here
-        await store.Admin.MigrateAsync();
+        if (_autoCreate != AutoCreate.None)
+        {
+            await store.Admin.MigrateAsync();
+        }
 
         return store;
     }
@@ -111,7 +114,10 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         foreach (var martenDatabase in martenDatabases)
         {
             var wolverineStore = createWolverineStore(martenDatabase);
-            await wolverineStore.MigrateAsync();
+            if (_autoCreate != AutoCreate.None)
+            {
+                await wolverineStore.MigrateAsync();
+            }
 
             _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
         }
