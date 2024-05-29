@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using Oakton;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Transports;
@@ -322,6 +324,13 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     public async Task EnqueueCascadingAsync(object? message)
     {
+        if (message is ISideEffect)
+        {
+            throw new InvalidOperationException(
+                $"Message of type {message.GetType().FullNameInCode()} implements {typeof(ISideEffect).FullNameInCode()}, and cannot be used as a cascading message. Side effects cannot be mixed in with outgoing cascaded messages.");
+            
+        }
+        
         if (Envelope?.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
                                                Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
         {
