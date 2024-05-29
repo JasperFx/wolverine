@@ -67,12 +67,8 @@ public partial class NodeAgentController
 
     private async Task<AgentCommands> tryElectNewLeaderIfNecessary(IReadOnlyList<WolverineNode> staleNodes)
     {
-        var leaderNode = staleNodes.FirstOrDefault(x => x.Id == _tracker.Leader?.Id);
-        if (leaderNode != null)
-        {
-            await _persistence.DeleteAsync(leaderNode.Id);
-            _tracker.Remove(leaderNode);
-        }
+        // Clean out the dormant nodes first!!!
+        await ejectStaleNodes(staleNodes);
 
         // If there is no known leader, try to elect a newer one
         if (_tracker.Leader == null)
