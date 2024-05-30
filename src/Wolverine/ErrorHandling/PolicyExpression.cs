@@ -169,6 +169,26 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         return this;
     }
 
+    public IAdditionalActions ScheduleIndefiniteRetry(params TimeSpan[] delays) => ScheduleIndefiniteRetry(CancellationToken.None, delays);
+    
+    public IAdditionalActions ScheduleIndefiniteRetry(CancellationToken cancellationToken, params TimeSpan[] delays)
+    {
+        if (delays.Length == 0)
+        {
+            throw new InvalidOperationException("You must specify at least one delay time");
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        
+        for (var i = 0; i < delays.Length; i++)
+        {
+            var continuation = new ScheduledRetryContinuation(delays[i]);
+            var slot = i == delays.Length - 1 ? _rule.AddSlot(new IndefiniteScheduledRetryContinuation(continuation, _rule, cancellationToken)) : _rule.AddSlot(continuation);
+            _slots.Add(slot);
+        }
+
+        return this;
+    }
+
     public IAdditionalActions RetryOnce()
     {
         var slot = _rule.AddSlot(RetryInlineContinuation.Instance);
@@ -276,6 +296,23 @@ public interface IFailureActions
     /// <param name="delays"></param>
     /// <exception cref="InvalidOperationException"></exception>
     IAdditionalActions ScheduleRetry(params TimeSpan[] delays);
+    
+    /// <summary>
+    ///     Schedule the message for additional attempts with a delays. The last delay will be used indefinitively.
+    ///     Use this method to effect an indefinite "exponential backoff" policy
+    /// </summary>
+    /// <param name="delays"></param>
+    /// <exception cref="InvalidOperationException"></exception>
+    IAdditionalActions ScheduleIndefiniteRetry(params TimeSpan[] delays);
+    
+    /// <summary>
+    ///     Schedule the message for additional attempts with a delays. The last delay will be used indefinitively unless <param name="cancellationToken">cancellation</param> is triggered.
+    ///     Use this method to effect an indefinite "exponential backoff" policy
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <param name="delays"></param>
+    /// <exception cref="InvalidOperationException"></exception>
+    IAdditionalActions ScheduleIndefiniteRetry(CancellationToken cancellationToken, params TimeSpan[] delays);
 
     /// <summary>
     ///     Retry the message processing inline one time
@@ -356,6 +393,16 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions ScheduleRetry(params TimeSpan[] delays)
     {
         return new FailureActions(_match, _parent).ScheduleRetry(delays);
+    }
+
+    public IAdditionalActions ScheduleIndefiniteRetry(params TimeSpan[] delays)
+    {
+        return new FailureActions(_match, _parent).ScheduleIndefiniteRetry(delays);
+    }
+    
+    public IAdditionalActions ScheduleIndefiniteRetry(CancellationToken cancellationToken, params TimeSpan[] delays)
+    {
+        return new FailureActions(_match, _parent).ScheduleIndefiniteRetry(cancellationToken, delays);
     }
 
     /// <summary>

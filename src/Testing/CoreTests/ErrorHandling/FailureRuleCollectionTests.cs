@@ -259,6 +259,32 @@ public class FailureRuleCollectionTests
         theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
             .ShouldBeOfType<MoveToErrorQueue>();
     }
+    
+    [Fact]
+    public void schedule_indefinite_retries()
+    {
+        theHandlers.OnException<BadImageFormatException>().ScheduleIndefiniteRetry(1.Minutes(), 5.Minutes(), 10.Minutes());
+
+        theEnvelope.Attempts = 0;
+        theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<ScheduledRetryContinuation>().Delay.ShouldBe(1.Minutes());
+
+        theEnvelope.Attempts = 1;
+        theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<ScheduledRetryContinuation>().Delay.ShouldBe(1.Minutes());
+
+        theEnvelope.Attempts = 2;
+        theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<ScheduledRetryContinuation>().Delay.ShouldBe(5.Minutes());
+
+        theEnvelope.Attempts = 3;
+        theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<IndefiniteScheduledRetryContinuation>().Delay.ShouldBe(10.Minutes());
+
+        theEnvelope.Attempts = 4;
+        theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
+            .ShouldBeOfType<MoveToErrorQueue>();
+    }
 
     [Fact]
     public void retry_n_times()
