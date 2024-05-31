@@ -107,6 +107,15 @@ public class WolverineHttpOptions
 
         return null;
     }
+    
+    public string? TryDetectTenantIdSynchronously(HttpContext httpContext)
+    {
+        return TenantIdDetection
+            .Strategies
+            .OfType<ISynchronousTenantDetection>()
+            .Select(strategy => strategy.DetectTenantSynchronously(httpContext))
+            .FirstOrDefault(tenantId => tenantId.IsNotEmpty());
+    }
 
     internal TenantIdDetection TenantIdDetection { get; } = new();
 
