@@ -19,3 +19,8 @@ public interface ITenantDetection
 }
 
 #endregion
+
+public interface ISynchronousTenantDetection
+{
+    string? DetectTenantSynchronously(HttpContext context);
+}

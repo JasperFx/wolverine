@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.Runtime.MultiTenancy;
 
-internal class ClaimsPrincipalDetection : ITenantDetection
+internal class ClaimsPrincipalDetection : ITenantDetection, ISynchronousTenantDetection
 {
     private readonly string _claimType;
 
@@ -11,13 +11,16 @@ internal class ClaimsPrincipalDetection : ITenantDetection
         _claimType = claimType;
     }
 
-    public ValueTask<string?> DetectTenant(HttpContext httpContext)
+    public string? DetectTenantSynchronously(HttpContext context)
     {
-        var principal = httpContext.User;
+        var principal = context.User;
         var claim = principal.Claims.FirstOrDefault(x => x.Type == _claimType);
 
-        return claim == null ? ValueTask.FromResult<string?>(null) : ValueTask.FromResult<string?>(claim.Value);
+        return claim?.Value?.Trim();
     }
+
+    public ValueTask<string?> DetectTenant(HttpContext httpContext) 
+        => new(DetectTenantSynchronously(httpContext));
 
     public override string ToString()
     {

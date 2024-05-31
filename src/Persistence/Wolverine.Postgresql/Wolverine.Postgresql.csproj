@@ -15,7 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Npgsql" Version="8.0.2" />
+        <PackageReference Include="Npgsql" Version="8.0.3" />
         <PackageReference Include="Weasel.Postgresql" Version="7.4.0" />
     </ItemGroup>
 

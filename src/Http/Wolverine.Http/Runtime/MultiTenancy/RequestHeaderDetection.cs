@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.Runtime.MultiTenancy;
 
-internal class RequestHeaderDetection : ITenantDetection
+internal class RequestHeaderDetection : ITenantDetection, ISynchronousTenantDetection
 {
     private readonly string _headerName;
 
@@ -11,15 +11,18 @@ internal class RequestHeaderDetection : ITenantDetection
         _headerName = headerName;
     }
 
-    public ValueTask<string?> DetectTenant(HttpContext httpContext)
-    {
-        return httpContext.Request.Headers.TryGetValue(_headerName, out var value)
-            ? ValueTask.FromResult<string?>(value)
-            : ValueTask.FromResult<string?>(null);
-    }
+    public ValueTask<string?> DetectTenant(HttpContext httpContext) 
+        => new(DetectTenantSynchronously(httpContext));
 
     public override string ToString()
     {
         return $"Tenant Id is request header '{_headerName}'";
+    }
+
+    public string? DetectTenantSynchronously(HttpContext context)
+    {
+        return context.Request.Headers.TryGetValue(_headerName, out var value)
+            ? value.FirstOrDefault()
+            : null;
     }
 }

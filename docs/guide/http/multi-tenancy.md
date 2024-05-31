@@ -438,3 +438,15 @@ public static CreationResponse<TodoCreated> Create(
 
 See [Multi-Tenancy with Wolverine](/guide/handlers/multi-tenancy) for a little more information.
 
+
+## Tenant Id Detection for Marten Without Wolverine
+
+Okay, here's an oddball case that absolutely came up for our users. Let's say that you need to do 
+the tenant id detection for Marten directly within HTTP requests without using Wolverine otherwise
+-- like a recent Marten user needed to do with [Hot Chocolate](https://chillicream.com/docs/hotchocolate/v13) endpoints. 
+
+Using the `WolverineFx.Http.Marten` Nuget, there's a helper to replace Marten's `ISessionFactory`
+with a multi-tenanted version like this:
+
+snippet: sample_using_AddMartenTenancyDetection
+
