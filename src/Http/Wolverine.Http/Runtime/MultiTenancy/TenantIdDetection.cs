@@ -44,6 +44,11 @@ internal class TenantIdDetection : ITenantDetectionPolicies, IHttpPolicy
         Strategies.Add(detection);
     }
 
+    public void DefaultIs(string defaultTenantId)
+    {
+        Strategies.Add(new FallbackDefault(defaultTenantId));
+    }
+
     internal IContainer? Container { get; set; }
 
     public void DetectWith<T>() where T : ITenantDetection

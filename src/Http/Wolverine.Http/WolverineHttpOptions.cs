@@ -75,6 +75,12 @@ public interface ITenantDetectionPolicies
     /// </summary>
     /// <param name="detection"></param>
     void DetectWith(ITenantDetection detection);
+
+    /// <summary>
+    /// If no tenant id is detected, this value should be used for the Tenant Id
+    /// </summary>
+    /// <param name="defaultTenantId"></param>
+    void DefaultIs(string defaultTenantId);
 }
 
 [Singleton]

@@ -51,6 +51,10 @@ public static class MultiTenancy
             // Use the *first* sub domain name of the request Url
             // Note that this is very naive
             opts.TenantId.IsSubDomainName();
+            
+            // If the tenant id cannot be detected otherwise, fallback
+            // to a designated tenant id
+            opts.TenantId.DefaultIs("default_tenant");
 
         });
 
