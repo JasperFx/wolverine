@@ -14,7 +14,7 @@ public class indefinite_scheduled_retires
         IndefiniteRetriesHandler.CalledCount = 0;
         using var cts = new CancellationTokenSource(5.Seconds());
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleIndefiniteRetry(100.Milliseconds()))
+            .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(100.Milliseconds()))
             .StartAsync();
 
         var messageBus = host.Services.GetRequiredService<IMessageBus>();
@@ -32,7 +32,7 @@ public class indefinite_scheduled_retires
         IndefiniteRetriesHandler.CalledCount = 0;
         using var cts = new CancellationTokenSource(5.Seconds());
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleIndefiniteRetry(50.Milliseconds(), 100.Milliseconds()))
+            .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(50.Milliseconds(), 100.Milliseconds()))
             .StartAsync();
 
         var messageBus = host.Services.GetRequiredService<IMessageBus>();
@@ -51,7 +51,7 @@ public class indefinite_scheduled_retires
         IndefiniteRetriesHandler.CalledCount = 0;
         using var cts = new CancellationTokenSource(5.Seconds());
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleIndefiniteRetry(cts.Token, 100.Milliseconds()))
+            .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(100.Milliseconds()))
             .StartAsync();
 
         var messageBus = host.Services.GetRequiredService<IMessageBus>();

@@ -263,7 +263,7 @@ public class FailureRuleCollectionTests
     [Fact]
     public void schedule_indefinite_retries()
     {
-        theHandlers.OnException<BadImageFormatException>().ScheduleIndefiniteRetry(1.Minutes(), 5.Minutes(), 10.Minutes());
+        theHandlers.OnException<BadImageFormatException>().ScheduleRetryIndefinitely(1.Minutes(), 5.Minutes(), 10.Minutes());
 
         theEnvelope.Attempts = 0;
         theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
@@ -279,11 +279,11 @@ public class FailureRuleCollectionTests
 
         theEnvelope.Attempts = 3;
         theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
-            .ShouldBeOfType<IndefiniteScheduledRetryContinuation>().Delay.ShouldBe(10.Minutes());
+            .ShouldBeOfType<ScheduledRetryContinuation>().Delay.ShouldBe(10.Minutes());
 
         theEnvelope.Attempts = 4;
         theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
-            .ShouldBeOfType<MoveToErrorQueue>();
+            .ShouldBeOfType<ScheduledRetryContinuation>();
     }
 
     [Fact]

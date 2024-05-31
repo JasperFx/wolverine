@@ -16,6 +16,7 @@ public class FailureRule : IEnumerable<FailureSlot>
     public FailureSlot this[int attempt] => _slots[attempt - 1];
 
     public IExceptionMatch Match { get; }
+    internal IContinuationSource? InfiniteSource { get; set; }
 
     public IEnumerator<FailureSlot> GetEnumerator()
     {
@@ -37,7 +38,8 @@ public class FailureRule : IEnumerable<FailureSlot>
             }
 
             var slot = _slots.FirstOrDefault(x => x.Attempt == env.Attempts);
-            continuation = slot?.Build(ex, env) ?? new MoveToErrorQueue(ex);
+            
+            continuation = slot?.Build(ex, env) ?? InfiniteSource?.Build(ex, env) ?? new MoveToErrorQueue(ex);
             return true;
         }
 
