@@ -1,8 +1,10 @@
 using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
@@ -93,6 +95,17 @@ public class WolverineHttpOptions
         Policies.Add(new RequiredEntityPolicy());
 
         Policies.Add(TenantIdDetection);
+    }
+    
+    public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
+    {
+        foreach (var strategy in TenantIdDetection.Strategies)
+        {
+            var tenantId = await strategy.DetectTenant(httpContext);
+            if (tenantId.IsNotEmpty()) return tenantId;
+        }
+
+        return null;
     }
 
     internal TenantIdDetection TenantIdDetection { get; } = new();

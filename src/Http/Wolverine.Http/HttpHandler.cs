@@ -24,15 +24,9 @@ public abstract class HttpHandler
         _jsonOptions = wolverineHttpOptions.JsonSerializerOptions.Value;
     }
 
-    public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
+    public ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
     {
-        foreach (var strategy in _options.TenantIdDetection.Strategies)
-        {
-            var tenantId = await strategy.DetectTenant(httpContext);
-            if (tenantId.IsNotEmpty()) return tenantId;
-        }
-
-        return null;
+        return _options.TryDetectTenantId(httpContext);
     }
 
     public Task WriteTenantIdNotFound(HttpContext context)
