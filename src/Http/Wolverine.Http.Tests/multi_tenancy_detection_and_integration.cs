@@ -95,6 +95,22 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
     }
 
     [Fact]
+    public async Task fallback()
+    {
+        // Set up a new application with the desired configuration
+        await configure(opts =>
+        {
+            opts.TenantId.IsQueryStringValue("t");
+            opts.TenantId.DefaultIs("gambit");
+        });
+        
+        // Run a web request end to end in memory
+        var result = await theHost.Scenario(x => x.Get.Url("/tenant/route/chartreuse"));
+        
+        result.ReadAsText().ShouldBe("gambit");
+    }
+
+    [Fact]
     public async Task get_the_tenant_id_from_route_value()
     {
         // Set up a new application with the desired configuration
