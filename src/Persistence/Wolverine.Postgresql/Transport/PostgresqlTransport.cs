@@ -139,6 +139,11 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     IEnumerable<IAgentFamily> IAgentFamilySource.BuildAgentFamilySources(IWolverineRuntime runtime)
     {
+        if (runtime.Storage is not MultiTenantedMessageDatabase)
+        {
+            yield break;
+        }
+        
         if (Queues.Any(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive }))
             yield return new StickyPostgresqlQueueListenerAgentFamily(runtime);
     }
