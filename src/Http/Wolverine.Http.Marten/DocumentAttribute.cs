@@ -30,7 +30,7 @@ public class DocumentAttribute : HttpChainParameterAttribute
 
     /// <summary>
     /// Should the absence of this document cause the endpoint to return a 404 Not Found response?
-    /// Default -- for backward compatibility -- is true
+    /// Default -- for backward compatibility -- is false.
     /// </summary>
     public bool Required { get; set; } = false;
 
