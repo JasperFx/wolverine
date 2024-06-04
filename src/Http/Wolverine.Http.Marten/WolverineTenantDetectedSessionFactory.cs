@@ -71,22 +71,16 @@ public class WolverineTenantDetectedSessionFactory : SessionFactoryBase
 
     public override IQuerySession QuerySession()
     {
+        if (_contextAccessor.HttpContext == null) return _store.QuerySession();
+        
         var tenantId = _options.TryDetectTenantIdSynchronously(_contextAccessor.HttpContext);
-        if (tenantId.IsEmpty())
-        {
-            throw new InvalidOperationException("Unable to determine a tenant id for the current web request");
-        }
+
         return _store.QuerySession(tenantId);
     }
 
     public override SessionOptions BuildOptions()
     {
-        var tenantId = _options.TryDetectTenantIdSynchronously(_contextAccessor.HttpContext);
-        if (tenantId.IsEmpty())
-        {
-            throw new InvalidOperationException("Unable to determine a tenant id for the current web request");
-        }
-        
+        var tenantId = _contextAccessor.HttpContext == null ? null : _options.TryDetectTenantIdSynchronously(_contextAccessor.HttpContext);
         var options = new SessionOptions
         {
             TenantId = tenantId,
