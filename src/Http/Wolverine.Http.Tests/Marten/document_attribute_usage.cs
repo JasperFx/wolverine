@@ -23,6 +23,24 @@ public class document_attribute_usage : IntegrationContext
     }
 
     [Fact]
+    public async Task returns_404_when_soft_deleted()
+    {
+        var invoice = new Invoice();
+        using var session = Store.LightweightSession();
+        session.Store(invoice);
+        await session.SaveChangesAsync();
+        
+        session.Delete(invoice);
+        await session.SaveChangesAsync();
+
+        await Scenario(x =>
+        {
+            x.Get.Url("/invoices/soft-delete/" + invoice.Id);
+            x.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
     public async Task default_to_id_route()
     {
         var invoice = new Invoice();
