@@ -1,3 +1,4 @@
+using System;
 using Marten;
 using Marten.Services;
 using Microsoft.AspNetCore.Http;
@@ -55,22 +56,40 @@ public static class ServiceCollectionExtensions
 
 public class WolverineTenantDetectedSessionFactory : SessionFactoryBase
 {
+    private readonly IDocumentStore _store;
     private readonly IHttpContextAccessor _contextAccessor;
     private readonly WolverineHttpOptions _options;
     private readonly Action<HttpContext, IDocumentSession> _metadataSource;
 
     public WolverineTenantDetectedSessionFactory(IDocumentStore store, IHttpContextAccessor contextAccessor, WolverineHttpOptions options, Action<HttpContext, IDocumentSession> metadataSource) : base(store)
     {
+        _store = store;
         _contextAccessor = contextAccessor;
         _options = options;
         _metadataSource = metadataSource;
     }
 
+    public override IQuerySession QuerySession()
+    {
+        var tenantId = _options.TryDetectTenantIdSynchronously(_contextAccessor.HttpContext);
+        if (tenantId.IsEmpty())
+        {
+            throw new InvalidOperationException("Unable to determine a tenant id for the current web request");
+        }
+        return _store.QuerySession(tenantId);
+    }
+
     public override SessionOptions BuildOptions()
     {
+        var tenantId = _options.TryDetectTenantIdSynchronously(_contextAccessor.HttpContext);
+        if (tenantId.IsEmpty())
+        {
+            throw new InvalidOperationException("Unable to determine a tenant id for the current web request");
+        }
+        
         var options = new SessionOptions
         {
-            TenantId = _options.TryDetectTenantIdSynchronously(_contextAccessor.HttpContext),
+            TenantId = tenantId,
             Tracking = DocumentTracking.None
         };
 
