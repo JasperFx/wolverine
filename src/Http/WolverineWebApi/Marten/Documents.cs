@@ -62,11 +62,13 @@ public class InvoicesEndpoint
 
     #endregion
 
+    #region sample_using_Document_with_MaybeSoftDeleted
     [WolverineGet("/invoices/soft-delete/{id}")]
     public static Invoice GetSoftDeleted([Document(Required = true, MaybeSoftDeleted = false)] Invoice invoice)
     {
         return invoice;
     }
+    #endregion
 
     #region sample_compiled_query_return_endpoint
     [WolverineGet("/invoices/approved")]
