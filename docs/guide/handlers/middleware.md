@@ -129,7 +129,7 @@ Here's the conventions:
 
 | Lifecycle                                                | Method Names                |
 |----------------------------------------------------------|-----------------------------|
-| Before the Handler(s)                                    | `Before`, `BeforeAsync`, `Load`, `LoadAsync` |
+| Before the Handler(s)                                    | `Before`, `BeforeAsync`, `Load`, `LoadAsync`, `Validate`, `ValidateAsync` |
 | After the Handler(s)                                     | `After`, `AfterAsync`, `PostProcess`, `PostProcessAsync` |
 | In `finally` blocks after the Handlers & "After" methods | `Finally`, `FinallyAsync`   |
 
