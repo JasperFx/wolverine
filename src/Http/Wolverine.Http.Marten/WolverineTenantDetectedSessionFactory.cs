@@ -24,6 +24,31 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISessionFactory, WolverineTenantDetectedSessionFactory>();
         services.AddHttpContextAccessor();
 
+        services.AddSingleton<Action<HttpContext, IDocumentSession>>((_, _) => { });
+
+        return services;
+    }
+    
+    /// <summary>
+    /// Utilize Wolverine's HTTP tenant id detection with non-Wolverine endpoints. Replaces
+    /// Marten's session builder with a version that uses the specified tenant id detection
+    /// rules to build a lightweight Marten session
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configure"></param>
+    /// <param name="metadata"></param>
+    /// <returns></returns>
+    public static IServiceCollection AddMartenTenancyDetection(this IServiceCollection services, Action<ITenantDetectionPolicies> configure, Action<HttpContext, IDocumentSession> metadata)
+    {
+        var options = new WolverineHttpOptions();
+        configure(options.TenantId);
+
+        services.AddSingleton(options);
+        services.AddSingleton<ISessionFactory, WolverineTenantDetectedSessionFactory>();
+        services.AddHttpContextAccessor();
+
+        services.AddSingleton(metadata);
+
         return services;
     }
 }
@@ -32,11 +57,13 @@ public class WolverineTenantDetectedSessionFactory : SessionFactoryBase
 {
     private readonly IHttpContextAccessor _contextAccessor;
     private readonly WolverineHttpOptions _options;
+    private readonly Action<HttpContext, IDocumentSession> _metadataSource;
 
-    public WolverineTenantDetectedSessionFactory(IDocumentStore store, IHttpContextAccessor contextAccessor, WolverineHttpOptions options) : base(store)
+    public WolverineTenantDetectedSessionFactory(IDocumentStore store, IHttpContextAccessor contextAccessor, WolverineHttpOptions options, Action<HttpContext, IDocumentSession> metadataSource) : base(store)
     {
         _contextAccessor = contextAccessor;
         _options = options;
+        _metadataSource = metadataSource;
     }
 
     public override SessionOptions BuildOptions()
@@ -49,6 +76,12 @@ public class WolverineTenantDetectedSessionFactory : SessionFactoryBase
 
         return options;
     }
-    
-    
+
+    public override void ApplyMetadata(IDocumentSession documentSession)
+    {
+        if (_contextAccessor.HttpContext != null)
+        {
+            _metadataSource(_contextAccessor.HttpContext, documentSession);
+        }
+    }
 }
