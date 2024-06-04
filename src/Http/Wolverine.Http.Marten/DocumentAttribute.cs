@@ -34,6 +34,12 @@ public class DocumentAttribute : HttpChainParameterAttribute
     /// </summary>
     public bool Required { get; set; } = false;
 
+    /// <summary>
+    /// If the document is soft-deleted, whether the endpoint should receive the document (<c>true</c>) or NULL (<c>false</c>).
+    /// Set it to <c>false</c> and combine it with <see cref="Required"/> so a 404 will be returned for soft-deleted documents.
+    /// </summary>
+    public bool MaybeSoftDeleted { get; set; } = true;
+
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
     {
         chain.Metadata.Produces(404);
@@ -53,6 +59,12 @@ public class DocumentAttribute : HttpChainParameterAttribute
 
         chain.Middleware.Add(load);
 
+        if (MaybeSoftDeleted is false && mapping.Metadata.IsSoftDeleted.Enabled)
+        {
+            var frame = new SetVariableToNullIfSoftDeletedFrame(parameter.ParameterType);
+            chain.Middleware.Add(frame);
+        }
+        
         if (Required)
         {
             var frame = new SetStatusCodeAndReturnIfEntityIsNullFrame(parameter.ParameterType);

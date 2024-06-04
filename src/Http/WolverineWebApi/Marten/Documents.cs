@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Marten;
 using Marten.Linq;
+using Marten.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 using Wolverine.Http.Marten;
@@ -61,6 +62,12 @@ public class InvoicesEndpoint
 
     #endregion
 
+    [WolverineGet("/invoices/soft-delete/{id}")]
+    public static Invoice GetSoftDeleted([Document(Required = true, MaybeSoftDeleted = false)] Invoice invoice)
+    {
+        return invoice;
+    }
+
     #region sample_compiled_query_return_endpoint
     [WolverineGet("/invoices/approved")]
     public static ApprovedInvoicedCompiledQuery GetApproved()
@@ -88,11 +95,13 @@ public class InvoicesEndpoint
     }
 }
 
-public class Invoice
+public class Invoice : ISoftDeleted
 {
     public Guid Id { get; set; }
     public bool Paid { get; set; }
     public bool Approved { get; set; }
+    public bool Deleted { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 }
 
 #region sample_compiled_query_return_query
