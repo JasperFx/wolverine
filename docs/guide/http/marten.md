@@ -86,6 +86,11 @@ public static IMartenOp Increment2([Document(Required = true)] Counter counter)
 
 In the code above, if the `Counter` document does not exist, the route will stop and return a status code 404 for Not Found.
 
+:::warning
+It is recommended to use `[Document(Required = true)]` instead of the combination of `[Document][Required]`!  
+If the document is `NULL`, the former skip your `Load` / `Before` / etc. method, while the latter will still call it.
+:::
+
 However, if the document is soft-deleted your endpoint will still be executed.
 
 If you want soft-deleted documents to be treated as `NULL` for a endpoint, you can set `MaybeSoftDeleted` to `false`.  
