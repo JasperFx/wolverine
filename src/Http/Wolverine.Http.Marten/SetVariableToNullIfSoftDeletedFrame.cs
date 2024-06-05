@@ -6,7 +6,7 @@ using Marten.Storage.Metadata;
 
 namespace Wolverine.Http.Marten;
 
-internal class SetVariableToNullIfSoftDeletedFrame : SyncFrame
+internal class SetVariableToNullIfSoftDeletedFrame : AsyncFrame
 {
     private readonly Type _entityType;
     private Variable _entity;
@@ -22,18 +22,9 @@ internal class SetVariableToNullIfSoftDeletedFrame : SyncFrame
     {
         writer.WriteComment("If the document is soft deleted, set the variable to null");
 
-        if (this.IsAsync)
-        {
-            writer.Write($"var {_entityMetadata.Usage} = {_entity.Usage} != null");
-            writer.Write($"    ? await {_documentSession.Usage}.{nameof(IDocumentSession.MetadataForAsync)}({_entity.Usage}).ConfigureAwait(false)");
-            writer.Write($"    : null;");
-        }
-        else
-        {
-            writer.Write($"var {_entityMetadata.Usage} = {_entity.Usage} != null");
-            writer.Write($"    ? {_documentSession.Usage}.{nameof(IDocumentSession.MetadataFor)}({_entity.Usage})");
-            writer.Write($"    : null;");
-        }
+        writer.Write($"var {_entityMetadata.Usage} = {_entity.Usage} != null");
+        writer.Write($"    ? await {_documentSession.Usage}.{nameof(IDocumentSession.MetadataForAsync)}({_entity.Usage}).ConfigureAwait(false)");
+        writer.Write($"    : null;");
             
         writer.Write($"BLOCK:if ({_entityMetadata.Usage}?.{nameof(DocumentMetadata.Deleted)} == true)");
         writer.Write($"{_entity.Usage} = null;");
