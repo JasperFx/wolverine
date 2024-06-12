@@ -13,6 +13,17 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
+/// <summary>
+/// Built to support separate stores in Marten
+/// </summary>
+/// <typeparam name="T"></typeparam>
+internal class MartenMessageDatabaseSource<T> : MartenMessageDatabaseSource where T : IDocumentStore
+{
+    public MartenMessageDatabaseSource(string schemaName, AutoCreate autoCreate, T store, IWolverineRuntime runtime) : base(schemaName, autoCreate, store, runtime)
+    {
+    }
+}
+
 internal class MartenMessageDatabaseSource : IMessageDatabaseSource
 {
     private readonly string _schemaName;

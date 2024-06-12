@@ -70,6 +70,8 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public IMessageStore Storage { get; } = Substitute.For<IMessageStore>();
     public ILogger Logger { get; } = Substitute.For<ILogger>();
 
+    public IReadOnlyList<IAncillaryMessageStore> AncillaryStores { get;  } = new List<IAncillaryMessageStore>();
+
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {
         throw new NotSupportedException();

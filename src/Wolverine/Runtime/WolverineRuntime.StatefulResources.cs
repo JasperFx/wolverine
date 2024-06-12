@@ -1,4 +1,5 @@
 using Oakton.Resources;
+using Wolverine.Persistence.Durability;
 
 namespace Wolverine.Runtime;
 
@@ -15,6 +16,11 @@ public partial class WolverineRuntime : IStatefulResourceSource
             {
                 list.Add(resource!);
             }
+        }
+
+        foreach (var store in AncillaryStores)
+        {
+            list.Add(new MessageStoreResource(store));
         }
 
         return list;

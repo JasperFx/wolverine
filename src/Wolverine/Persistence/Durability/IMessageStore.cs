@@ -121,3 +121,10 @@ public interface IMessageStore : IAsyncDisposable
 }
 
 public record IncomingCount(Uri Destination, int Count);
+
+/// <summary>
+/// Marks a secondary message store for a Wolverine application
+/// </summary>
+public interface IAncillaryMessageStore : IMessageStore{}
+
+public interface IAncillaryMessageStore<T> : IAncillaryMessageStore;

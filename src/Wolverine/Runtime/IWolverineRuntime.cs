@@ -28,6 +28,7 @@ public interface IWolverineRuntime
     ILoggerFactory LoggerFactory { get; }
 
     IAgentRuntime Agents { get; }
+    IReadOnlyList<IAncillaryMessageStore> AncillaryStores { get; }
 
     /// <summary>
     ///     Schedule an envelope for later execution in memory

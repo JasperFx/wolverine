@@ -5,6 +5,14 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
 
+public class OutboxedSessionFactory<T> : OutboxedSessionFactory where T : IDocumentStore
+{
+    // TODO -- make this use the lightweight version
+    public OutboxedSessionFactory(ISessionFactory factory, IWolverineRuntime runtime, T store) : base(factory, runtime, store)
+    {
+    }
+}
+
 public class OutboxedSessionFactory
 {
     private readonly ISessionFactory _factory;
