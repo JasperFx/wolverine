@@ -479,4 +479,9 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     {
         return _databases.ConfigureDatabaseAsync(configureDatabase);
     }
+    
+    public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
+    {
+        return new DurabilityAgentFamily(runtime);
+    }
 }

@@ -18,12 +18,15 @@ public abstract partial class MessageDatabase<T> : IAgentFamily
 
     public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime runtime)
     {
-        if (uri != _defaultAgent)
+        if (DurabilityAgent.SimplifyUri(uri) != _defaultAgent)
         {
             throw new ArgumentOutOfRangeException(nameof(uri));
         }
 
-        var agent = new DurabilityAgent(TransportConstants.Default, runtime, this);
+        var agent = new DurabilityAgent(TransportConstants.Default, runtime, this)
+        {
+            Uri = uri
+        };
 
         return new ValueTask<IAgent>(agent);
     }

@@ -118,6 +118,8 @@ public interface IMessageStore : IAsyncDisposable
 
     Task DrainAsync();
     IAgent StartScheduledJobs(IWolverineRuntime runtime);
+
+    IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime);
 }
 
 public record IncomingCount(Uri Destination, int Count);
@@ -125,9 +127,11 @@ public record IncomingCount(Uri Destination, int Count);
 /// <summary>
 /// Marks a secondary message store for a Wolverine application
 /// </summary>
-public interface IAncillaryMessageStore : IMessageStore{}
+public interface IAncillaryMessageStore : IMessageStore
+{
+    Type MarkerType { get; }
+}
 
 public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
 {
-    Type MarkerType { get; }
 }

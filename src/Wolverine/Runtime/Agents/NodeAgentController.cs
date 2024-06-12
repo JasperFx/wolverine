@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Agents;
@@ -41,9 +42,13 @@ public partial class NodeAgentController
             _agentFamilies[ExclusiveListenerFamily.SchemeName] = new ExclusiveListenerFamily(runtime);
         }
 
-        if (runtime is { Storage: IAgentFamily agentFamily, Options.Durability.DurabilityAgentEnabled: true })
+        if (runtime.Options.Durability.DurabilityAgentEnabled)
         {
-            _agentFamilies[agentFamily.Scheme] = agentFamily;
+            var family = _runtime.Storage.BuildAgentFamily(runtime);
+            if (family != null)
+            {
+                _agentFamilies[family.Scheme] = family;
+            }
         }
 
         foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))

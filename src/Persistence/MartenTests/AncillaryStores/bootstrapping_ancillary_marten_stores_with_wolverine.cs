@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +19,8 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
+using Wolverine.Tracking;
+using Xunit.Abstractions;
 
 namespace MartenTests.AncillaryStores;
 
@@ -30,10 +34,17 @@ namespace MartenTests.AncillaryStores;
 
 public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifetime
 {
+    private readonly ITestOutputHelper _output;
     private IHost theHost;
     private string tenant1ConnectionString;
     private string tenant2ConnectionString;
     private string tenant3ConnectionString;
+    private DurabilityAgentFamily theFamily;
+
+    public bootstrapping_ancillary_marten_stores_with_wolverine(ITestOutputHelper output)
+    {
+        _output = output;
+    }
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
@@ -89,6 +100,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
+
+        theFamily = new DurabilityAgentFamily(theHost.GetRuntime());
     }
 
     private async Task dropSchemaOnDatabase(string connectionString, string schemaName)
@@ -173,8 +186,35 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
         await conn.CloseAsync();
     }
-    
-    
+
+    [Fact]
+    public async Task find_all_the_agents()
+    {
+        var agents = await theFamily.AllKnownAgentsAsync();
+        
+        agents.ShouldContain(new Uri("wolverinedb://default/"));
+        agents.ShouldContain(new Uri("wolverinedb://default/IPlayerStore"));
+        agents.ShouldContain(new Uri("wolverinedb://master/IThingStore"));
+        agents.ShouldContain(new Uri("wolverinedb://tenant3/IThingStore"));
+        agents.ShouldContain(new Uri("wolverinedb://tenant2/IThingStore"));
+        agents.ShouldContain(new Uri("wolverinedb://tenant1/IThingStore"));
+    }
+
+    [Theory]
+    [InlineData("wolverinedb://default/")]
+    [InlineData("wolverinedb://default/IPlayerStore")]
+    [InlineData("wolverinedb://master/IThingStore")]
+    [InlineData("wolverinedb://tenant1/IThingStore")]
+    [InlineData("wolverinedb://tenant2/IThingStore")]
+    [InlineData("wolverinedb://tenant3/IThingStore")]
+    public async Task build_each_agent_smoke_test(string uriString)
+    {
+        var uri = uriString.ToUri();
+        var agent = await theFamily.BuildAgentAsync(uri, theHost.GetRuntime());
+        agent.ShouldNotBeNull();
+        
+        agent.Uri.ShouldBe(uri);
+    }
 }
 
 public interface IPlayerStore : IDocumentStore;
