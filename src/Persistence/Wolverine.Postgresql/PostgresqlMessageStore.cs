@@ -1,4 +1,5 @@
 ﻿using System.Data.Common;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
@@ -7,6 +8,7 @@ using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Schema;
 using Wolverine.Postgresql.Util;
 using Wolverine.RDBMS;
@@ -16,6 +18,18 @@ using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.Postgresql;
+
+/// <summary>
+/// Built to work with separate Marten stores
+/// </summary>
+/// <typeparam name="T"></typeparam>
+internal class PostgresqlMessageStore<T> : PostgresqlMessageStore, IAncillaryMessageStore<T>
+{
+    public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource, ILogger<PostgresqlMessageStore> logger) : base(databaseSettings, settings, dataSource, logger)
+    {
+
+    }
+}
 
 internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 {

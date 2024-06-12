@@ -29,6 +29,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
     private bool _hasStopped;
 
+    private readonly Lazy<IReadOnlyList<IAncillaryMessageStore>> _ancillaryStores;
 
     public WolverineRuntime(WolverineOptions options,
         IContainer container,
@@ -86,7 +87,12 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             "Effective time between a message being sent and being completely handled in milliseconds");
 
         _invokers = new LightweightCache<Type, IMessageInvoker>(findInvoker);
+
+        _ancillaryStores =
+            new Lazy<IReadOnlyList<IAncillaryMessageStore>>(() => _container.GetAllInstances<IAncillaryMessageStore>());
     }
+
+    public IReadOnlyList<IAncillaryMessageStore> AncillaryStores => _ancillaryStores.Value;
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
 

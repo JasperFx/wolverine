@@ -14,17 +14,33 @@ internal class MartenMessageDatabaseDiscovery : IDatabaseSource
         _runtime = runtime;
     }
 
-    public ValueTask<IReadOnlyList<IDatabase>> BuildDatabases()
+    public async ValueTask<IReadOnlyList<IDatabase>> BuildDatabases()
     {
-        if (_runtime.Storage is PostgresqlMessageStore database)
-            return new ValueTask<IReadOnlyList<IDatabase>>(new List<IDatabase>{database});
+        var list = new List<IDatabase>();
 
-        if (_runtime.Storage is MultiTenantedMessageDatabase tenants)
+        if (_runtime.Storage is PostgresqlMessageStore database)
         {
-            tenants.Initialize(_runtime);
-            return new ValueTask<IReadOnlyList<IDatabase>>(tenants.AllDatabases());
+            list.Add(database);
+        }
+        else if (_runtime.Storage is MultiTenantedMessageDatabase tenants)
+        {
+            await tenants.InitializeAsync(_runtime);
+            list.AddRange(tenants.AllDatabases());
         }
 
-        return new ValueTask<IReadOnlyList<IDatabase>>(Array.Empty<IDatabase>());
+        foreach (var ancillaryStore in _runtime.AncillaryStores)
+        {
+            if (ancillaryStore is PostgresqlMessageStore db)
+            {
+                list.Add(db);
+            }
+            else if (ancillaryStore is MultiTenantedMessageDatabase tenants)
+            {
+                await tenants.InitializeAsync(_runtime);
+                list.AddRange(tenants.AllDatabases());
+            }
+        }
+
+        return list;
     }
 }

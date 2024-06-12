@@ -10,6 +10,13 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.MultiTenancy;
 
+public class MultiTenantedMessageDatabase<T> : MultiTenantedMessageDatabase, IAncillaryMessageStore<T>
+{
+    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource databases) : base(master, runtime, databases)
+    {
+    }
+}
+
 public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
 {
     private readonly IMessageDatabaseSource _databases;
