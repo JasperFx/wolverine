@@ -3,10 +3,12 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TestingSupport;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
@@ -16,6 +18,30 @@ using Wolverine.Util;
 
 namespace CoreTests.Runtime;
 
+public class NullAgentFamily : IAgentFamily
+{
+    public string Scheme => "null";
+    public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
+    {
+        return new ValueTask<IReadOnlyList<Uri>>(new List<Uri>());
+    }
+
+    public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
+    {
+        throw new NotImplementedException();
+    }
+
+    public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
+    {
+        return new ValueTask<IReadOnlyList<Uri>>(new List<Uri>());
+    }
+
+    public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
+    {
+        return ValueTask.CompletedTask;
+    }
+}
+
 public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent>
 {
     public List<IWolverineEvent> ReceivedEvents { get; } = new();
@@ -23,6 +49,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public MockWolverineRuntime()
     {
         Tracker.Subscribe(this);
+        Storage.BuildAgentFamily(this).Returns(new NullAgentFamily());
     }
 
     public IMessageTracker MessageTracking { get; } = Substitute.For<IMessageTracker>();
