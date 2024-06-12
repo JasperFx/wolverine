@@ -30,10 +30,7 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
     {
         var context = new MessageContext(_runtime);
 
-        if (_runtime.Storage is MultiTenantedMessageDatabase)
-        {
-            context.TenantId = operations.Database.Identifier;
-        }
+        context.TenantId = operations.Database.Identifier;
 
         await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction((IDocumentSession)operations, context));
 
