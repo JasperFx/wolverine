@@ -222,4 +222,9 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         return agent;
     }
+
+    public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
+    {
+        return new DurabilityAgentFamily(runtime);
+    }
 }

@@ -17,6 +17,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
+    {
+        return null;
+    }
+
     public Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         return Task.CompletedTask;

@@ -31,7 +31,11 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
             }
         }
 
-        return new DurabilityAgent(database.Name, _runtime, database){AutoStartScheduledJobPolling = true};
+        return new DurabilityAgent(database.Name, _runtime, database)
+        {
+            AutoStartScheduledJobPolling = true, 
+            Uri = uri
+        };
     }
 
     public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()

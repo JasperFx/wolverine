@@ -12,8 +12,6 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-internal class ScheduledJobAgent;
-
 internal class DurabilityAgent : IAgent
 {
     internal const string AgentScheme = "wolverinedb";
@@ -62,6 +60,16 @@ internal class DurabilityAgent : IAgent
             MaxDegreeOfParallelism = 1,
             CancellationToken = runtime.Cancellation
         });
+    }
+
+    public static Uri SimplifyUri(Uri uri)
+    {
+        return new Uri($"{DurabilityAgent.AgentScheme}://{uri.Host}");
+    }
+
+    public static Uri AddMarkerType(Uri uri, Type markerType)
+    {
+        return new Uri($"{uri}{markerType.Name}");
     }
 
     public bool AutoStartScheduledJobPolling { get; set; } = false;
@@ -125,5 +133,5 @@ internal class DurabilityAgent : IAgent
         }
     }
 
-    public Uri Uri { get; }
+    public Uri Uri { get; internal set; }
 }
