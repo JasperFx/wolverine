@@ -29,6 +29,8 @@ internal class PostgresqlMessageStore<T> : PostgresqlMessageStore, IAncillaryMes
     {
 
     }
+
+    public Type MarkerType => typeof(T);
 }
 
 internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>

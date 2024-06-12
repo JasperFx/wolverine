@@ -15,6 +15,8 @@ public class MultiTenantedMessageDatabase<T> : MultiTenantedMessageDatabase, IAn
     public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource databases) : base(master, runtime, databases)
     {
     }
+
+    public Type MarkerType => typeof(T);
 }
 
 public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
