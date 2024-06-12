@@ -5,17 +5,32 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
 
-public class OutboxedSessionFactory<T> : OutboxedSessionFactory where T : IDocumentStore
+public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory where T : IDocumentStore
 {
+    private readonly T _store;
+
     // TODO -- make this use the lightweight version
     public OutboxedSessionFactory(ISessionFactory factory, IWolverineRuntime runtime, T store) : base(factory, runtime, store)
     {
+        _store = store;
+        _factory = this;
+    }
+
+    public IQuerySession QuerySession()
+    {
+        return _store.QuerySession();
+
+    }
+
+    public IDocumentSession OpenSession()
+    {
+        return _store.LightweightSession();
     }
 }
 
 public class OutboxedSessionFactory
 {
-    private readonly ISessionFactory _factory;
+    protected ISessionFactory _factory;
     private readonly IDocumentStore _store;
     private readonly bool _shouldPublishEvents;
 
