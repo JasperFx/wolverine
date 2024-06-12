@@ -13,10 +13,6 @@ return await Host.CreateDefaultBuilder(args)
         opts
             .ListenToRabbitQueue("pongs")
 
-            // This won't be necessary by the time Wolverine goes 2.0
-            // but for now, I've got to help Wolverine out a little bit
-            .UseForReplies();
-
         // Publish messages to the pings queue
         opts.PublishMessage<PingMessage>().ToRabbitExchange("pings");
 
