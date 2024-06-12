@@ -127,4 +127,7 @@ public record IncomingCount(Uri Destination, int Count);
 /// </summary>
 public interface IAncillaryMessageStore : IMessageStore{}
 
-public interface IAncillaryMessageStore<T> : IAncillaryMessageStore;
+public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
+{
+    Type MarkerType { get; }
+}
