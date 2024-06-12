@@ -11,7 +11,7 @@ return await Host.CreateDefaultBuilder(args)
     {
         // Listen for messages coming into the pongs queue
         opts
-            .ListenToRabbitQueue("pongs")
+            .ListenToRabbitQueue("pongs");
 
         // Publish messages to the pings queue
         opts.PublishMessage<PingMessage>().ToRabbitExchange("pings");
