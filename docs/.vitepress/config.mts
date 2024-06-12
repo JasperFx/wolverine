@@ -204,7 +204,8 @@ export default withMermaid( {
                                 {text: 'Event Forwarding to Wolverine', link: '/guide/durability/marten/event-forwarding'},
                                 {text: 'Event Subscriptions', link: '/guide/durability/marten/subscriptions'},
                                 {text: 'Sagas', link: '/guide/durability/marten/sagas'},
-                                {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'}
+                                {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'},
+                                {text: 'Ancillary Marten Stores', link: '/guide/durability/marten/ancillary-stores'}
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},

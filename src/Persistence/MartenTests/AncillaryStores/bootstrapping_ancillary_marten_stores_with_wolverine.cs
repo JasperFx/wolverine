@@ -2,6 +2,7 @@ using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
+using MartenTests.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
@@ -75,6 +76,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         await dropSchemaOnDatabase(tenant2ConnectionString, "things");
         await dropSchemaOnDatabase(tenant3ConnectionString, "things");
 
+        #region sample_bootstrapping_with_ancillary_marten_stores
+
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -87,8 +90,19 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
                 {
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = "players";
-                }).IntegrateWithWolverine();
+                })
+                    .IntegrateWithWolverine()
+                    
+                    // Add a subscription
+                    .SubscribeToEvents(new ColorsSubscription())
+                    
+                    // Forward events to wolverine handlers
+                    .PublishEventsToWolverine("PlayerEvents", x =>
+                    {
+                        x.PublishEvent<ColorsUpdated>();
+                    });
                 
+                // Look at that, it even works with Marten multi-tenancy through separate databases!
                 opts.Services.AddMartenStore<IThingStore>(m =>
                 {
                     m.MultiTenantedDatabases(tenancy =>
@@ -102,6 +116,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
+
+            #endregion
 
         theFamily = new DurabilityAgentFamily(theHost.GetRuntime());
     }
@@ -234,25 +250,38 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
 public record PlayerMessage(string Id);
 
+#region sample_PlayerMessageHandler
+
+// This will use a Marten session from the
+// IPlayerStore rather than the main IDocumentStore
 [MartenStore(typeof(IPlayerStore))]
 public static class PlayerMessageHandler
 {
+    // Using a Marten side effect just like normal
     public static IMartenOp Handle(PlayerMessage message)
     {
         return MartenOps.Store(new Player{Id = message.Id});
     }
 }
 
+#endregion
+
+#region sample_separate_marten_stores
+
 public interface IPlayerStore : IDocumentStore;
+public interface IThingStore : IDocumentStore;
+
+#endregion
 
 public class Player
 {
     public string Id { get; set; }
 }
 
-public interface IThingStore : IDocumentStore;
+
 
 public class Thing
 {
     public string Id { get; set; }
 }
+
