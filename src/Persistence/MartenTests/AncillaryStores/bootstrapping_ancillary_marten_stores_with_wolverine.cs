@@ -80,6 +80,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
             {
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
 
+                opts.Policies.AutoApplyTransactions();
+                opts.Durability.Mode = DurabilityMode.Solo;
 
                 opts.Services.AddMartenStore<IPlayerStore>(m =>
                 {
@@ -214,6 +216,30 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         agent.ShouldNotBeNull();
         
         agent.Uri.ShouldBe(uri);
+    }
+
+    [Fact]
+    public async Task try_to_use_the_session_transactional_middleware_end_to_end()
+    {
+        var message = new PlayerMessage(Guid.NewGuid().ToString());
+        await theHost.InvokeMessageAndWaitAsync(message);
+
+        var store = theHost.DocumentStore<IPlayerStore>();
+        using var session = store.QuerySession();
+        var player = await session.LoadAsync<Player>(message.Id);
+
+        player.ShouldNotBeNull();
+    }
+}
+
+public record PlayerMessage(string Id);
+
+[MartenStore(typeof(IPlayerStore))]
+public static class PlayerMessageHandler
+{
+    public static IMartenOp Handle(PlayerMessage message)
+    {
+        return MartenOps.Store(new Player{Id = message.Id});
     }
 }
 
