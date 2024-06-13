@@ -50,6 +50,9 @@ public class event_forwarding_bug
         // type IEvent<ShoppingListCreated> was executed
         session.Executed.SingleMessage<IEvent<ShoppingListCreated>>()
             .ShouldNotBeNull();
+        
+        session.Executed.SingleEnvelope<IEvent<ShoppingListCreated>>()
+            .Destination.ShouldBe(new Uri("local://ieventshoppinglistcreated/"));
     }
 }
 
