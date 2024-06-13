@@ -85,7 +85,11 @@ internal class MartenEventRouter : IMessageRouteSource
             }
             else
             {
-                innerRoutes = new LocalRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
+                innerRoutes = new ExplicitRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
+                if (!innerRoutes.Any())
+                {
+                    innerRoutes = new LocalRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
+                }
             }
 
             // First look for explicit transformations

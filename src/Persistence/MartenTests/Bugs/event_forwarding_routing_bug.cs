@@ -1,4 +1,6 @@
-﻿using IntegrationTests;
+﻿using System.Diagnostics;
+using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Marten.Events;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Tracking;
 
 namespace MartenTests.Bugs;
 
@@ -27,6 +30,10 @@ public class event_forwarding_routing_bug
                     .EventForwardingToWolverine();
             })
             .StartAsync();
+
+        var session = await host.SendMessageAndWaitAsync(new Event<SomeEvent>(new SomeEvent()));
+        session.Executed.SingleEnvelope<IEvent<SomeEvent>>()
+            .Destination.ShouldBe("local://forwarded-events/".ToUri());
 
         var bus = host.Services.GetRequiredService<IMessageBus>();
         bus.PreviewSubscriptions(new Event<SomeEvent>(new SomeEvent()))
