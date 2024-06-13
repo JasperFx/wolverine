@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
@@ -17,6 +18,13 @@ namespace Wolverine.Http;
 
 public partial class HttpChain
 {
+    /// <summary>
+    /// Used to cache variables like for IFormFile or IFormFileCollection
+    /// that might be reused between middleware and handler methods, but should
+    /// not be created more than once
+    /// </summary>
+    public List<Variable> ChainVariables { get; } = new();
+    
     internal string? SourceCode => _generatedType?.SourceCode;
 
     private readonly object _locker = new();

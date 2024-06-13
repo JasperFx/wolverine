@@ -19,19 +19,40 @@ public class FromFileStrategy : IParameterStrategy
         {
             chain.FileParameters.Add(parameter);
 
+            var existing = chain.ChainVariables.FirstOrDefault(x => x.VariableType == typeof(IFormFile));
+            if (existing != null)
+            {
+                variable = existing;
+                return true;
+            }
+
             var frame = new FromFileValue(parameter);
-                chain.Middleware.Add(frame);
-                variable = frame.Variable;
+            chain.Middleware.Add(frame);
+            variable = frame.Variable;
+            chain.ChainVariables.Add(variable);
+                
             return true;
-        } else if (parameter.ParameterType == typeof(IFormFileCollection))
+        }
+
+        if (parameter.ParameterType == typeof(IFormFileCollection))
         {
             chain.FileParameters.Add(parameter);
 
+            var existing = chain.ChainVariables.FirstOrDefault(x => x.VariableType == typeof(IFormFileCollection));
+            if (existing != null)
+            {
+                variable = existing;
+                return true;
+            }
+
             var frame = new FromFileValues(parameter);
-                chain.Middleware.Add(frame);
-                variable = frame.Variable;
+            chain.Middleware.Add(frame);
+            variable = frame.Variable;
+            chain.ChainVariables.Add(variable);
+            
             return true;
         }
+
         variable = null;
         return false;
     }
