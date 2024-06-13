@@ -25,7 +25,8 @@ public abstract partial class MessageDatabase<T> : IAgentFamily
 
         var agent = new DurabilityAgent(TransportConstants.Default, runtime, this)
         {
-            Uri = uri
+            Uri = uri,
+            AutoStartScheduledJobPolling = true
         };
 
         return new ValueTask<IAgent>(agent);
