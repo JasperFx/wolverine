@@ -66,6 +66,11 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
                 return new ValueTask();
             });
         }
+        else
+        {
+            throw new InvalidOperationException(
+                $"The PostgreSQL transport is configured for usage, but the envelope storage is incompatible: {runtime.Storage}");
+        }
     }
 
     public LightweightCache<string, PostgresqlQueue> Queues { get; }
