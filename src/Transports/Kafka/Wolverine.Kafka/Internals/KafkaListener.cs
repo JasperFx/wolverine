@@ -41,7 +41,17 @@ internal class KafkaListener : IListener, IDisposable
                 {
                     if (_qualityOfService == QualityOfService.AtMostOnce)
                     {
-                        _consumer.Commit();
+                        try
+                        {
+                            _consumer.Commit();
+                        }
+                        catch (KafkaException e)
+                        {
+                            if (!e.Message.Contains("No offset stored"))
+                            {
+                                throw;
+                            }
+                        }
                     }
 
                     try
