@@ -1,4 +1,5 @@
 using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -34,6 +35,28 @@ public static class Bug748Endpoint
     public static (SomeSideEffect, OutgoingMessages) Upload(IFormFile file)
     {
         return (new SomeSideEffect(), []);
+    }
+}
+
+public static class Bug928Endpoint
+{
+    [Middleware(typeof(Bug928MiddleWare.FileLengthValidationMiddleware))]
+    [WolverinePost("/upload/middleware")]
+    public static Task HandleAsync(IFormFile file)
+    {
+        // Process file
+        return Task.CompletedTask;
+    }
+}
+
+public static class Bug928MiddleWare
+{
+    public static class FileLengthValidationMiddleware
+    {
+        public static void Before(IFormFile file)
+        {
+            // todo, return ProblemDetail if validation fails
+        }
     }
 }
 
