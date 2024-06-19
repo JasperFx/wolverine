@@ -17,14 +17,13 @@ public class FromFileStrategy : IParameterStrategy
     {
         if (parameter.ParameterType == typeof(IFormFile))
         {
-            chain.FileParameters.Add(parameter);
-
             var existing = chain.ChainVariables.FirstOrDefault(x => x.VariableType == typeof(IFormFile));
             if (existing != null)
             {
                 variable = existing;
                 return true;
             }
+            chain.FileParameters.Add(parameter);
 
             var frame = new FromFileValue(parameter);
             chain.Middleware.Add(frame);
@@ -36,14 +35,14 @@ public class FromFileStrategy : IParameterStrategy
 
         if (parameter.ParameterType == typeof(IFormFileCollection))
         {
-            chain.FileParameters.Add(parameter);
-
             var existing = chain.ChainVariables.FirstOrDefault(x => x.VariableType == typeof(IFormFileCollection));
             if (existing != null)
             {
                 variable = existing;
                 return true;
             }
+ 
+            chain.FileParameters.Add(parameter);
 
             var frame = new FromFileValues(parameter);
             chain.Middleware.Add(frame);
