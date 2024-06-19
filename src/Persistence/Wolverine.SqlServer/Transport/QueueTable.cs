@@ -6,8 +6,8 @@ namespace Wolverine.SqlServer.Transport;
 
 internal class QueueTable : Table
 {
-    public QueueTable(DatabaseSettings settings, string tableName) : base(
-        new DbObjectName(settings.SchemaName, tableName))
+    public QueueTable(SqlServerTransport transport, string tableName) : base(
+        new DbObjectName(transport.TransportSchemaName, tableName))
     {
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
         AddColumn(DatabaseConstants.Body, "varbinary(max)").NotNull();
