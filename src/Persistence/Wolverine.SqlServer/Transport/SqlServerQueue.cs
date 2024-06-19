@@ -37,8 +37,8 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         Name = name;
         EndpointName = name;
 
-        QueueTable = new QueueTable(Parent.Settings, _queueTableName);
-        ScheduledTable = new ScheduledMessageTable(Parent.Settings, _scheduledTableName);
+        QueueTable = new QueueTable(Parent, _queueTableName);
+        ScheduledTable = new ScheduledMessageTable(Parent, _scheduledTableName);
 
         _writeDirectlyToQueueTableSql = $@"insert into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (@id, @body, @type, @expires)";
 
@@ -54,18 +54,18 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
 INSERT into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) 
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy} 
 FROM
-    {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} 
+    {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} 
 WHERE {DatabaseConstants.Id} = @id;
-DELETE FROM {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
+DELETE FROM {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
 ";
 
         _moveFromOutgoingToScheduledSql = $@"
 INSERT into {ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil}) 
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, @time, {DatabaseConstants.DeliverBy} 
 FROM
-    {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} 
+    {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} 
 WHERE {DatabaseConstants.Id} = @id;
-DELETE FROM {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
+DELETE FROM {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = @id;
 ";
 
         _moveScheduledToReadyQueueSql = $@"
@@ -103,12 +103,12 @@ DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
 IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
 SET NOCOUNT ON;
 
-delete FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {Parent.Settings.SchemaName}.{DatabaseConstants.IncomingTable});
+delete FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable});
 select top(@count) id, body, message_type, keep_until into #temp_pop_{Name}
 FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
 ORDER BY {QueueTable.Identifier}.timestamp;
 delete from {QueueTable.Identifier} where id in (select id from #temp_pop_{Name});
-INSERT INTO {Parent.Settings.SchemaName}.{DatabaseConstants.IncomingTable}
+INSERT INTO {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}
 (id, status, owner_id, body, message_type, received_at, keep_until)
  SELECT id, 'Incoming', @node, body, message_type, '{Uri}', keep_until FROM #temp_pop_{Name};
 select body from #temp_pop_{Name};
@@ -283,7 +283,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
     public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
-        await conn.CreateCommand($"delete from {Parent.Settings.SchemaName}.{DatabaseConstants.IncomingTable} where id = @id;" + _writeDirectlyToTheScheduledTable)
+        await conn.CreateCommand($"delete from {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} where id = @id;" + _writeDirectlyToTheScheduledTable)
             .With("id", envelope.Id)
             .With("body", EnvelopeSerializer.Serialize(envelope))
             .With("type", envelope.MessageType)
@@ -343,7 +343,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
             if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint"))
             {
                 await conn.CreateCommand(
-                        $"delete * from {Parent.Settings.SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
+                        $"delete * from {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
                     .With("id", envelope.Id)
                     .ExecuteNonQueryAsync(cancellationToken);
 
@@ -439,6 +439,3 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
             }, cancellation: cancellationToken);
     }
 }
-    
-
-

@@ -61,7 +61,8 @@ public static class SqlServerConfigurationExtensions
     /// <returns></returns>
     public static SqlServerPersistenceExpression UseSqlServerPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
-        string? schema = null)
+        string? schema = null,
+        string? transportSchema = null)
     {
         var extension = new SqlServerBackedPersistence();
         extension.Settings.ConnectionString = connectionString;
@@ -98,7 +99,8 @@ public static class SqlServerConfigurationExtensions
             x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         });
 
-        var transport = new SqlServerTransport(extension.Settings);
+        var transport = new SqlServerTransport(extension.Settings, transportSchema);
+        
         options.Transports.Add(transport);
 
         return new SqlServerPersistenceExpression(transport, options);
