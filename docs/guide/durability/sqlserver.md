@@ -96,5 +96,15 @@ Using this option just means that the Sql Server queues can be used for both sen
 with the transactional inbox or outbox. This is a little more performant, but less safe as messages could be
 lost if held in memory when the application shuts down unexpectedly. 
 
+If you want to use Sql Server as a queueing mechanism between multiple applications, you'll need:
+
+1. To target the same Sql Server database, even if the two applications target different database schemas
+2. Be sure to configure the `transportSchema` of the Sql Server transport to be the same between the two applications
+
+Here's an example from the Wolverine tests. Note the `transportSchema` configuration:
+
+snippet: sample_sql_server_as_queue_between_two_apps
+
+
 
 
