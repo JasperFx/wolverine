@@ -19,10 +19,18 @@ public class with_multiple_hosts : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        #region sample_sql_server_as_queue_between_two_apps
+
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "sender","transport")
+                opts.UseSqlServerPersistenceAndTransport(
+                        Servers.SqlServerConnectionString, 
+                        "sender",
+                        
+                        // If using Sql Server as a queue between multiple applications,
+                        // be sure to use the same transportSchema setting
+                        transportSchema:"transport")
                     .AutoProvision()
                     .AutoPurgeOnStartup();
 
@@ -35,7 +43,10 @@ public class with_multiple_hosts : IAsyncLifetime
         _listener = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "listener","transport")
+                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, 
+                        "listener",
+                        
+                        transportSchema:"transport")
                     .AutoProvision()
                     .AutoPurgeOnStartup();
                 opts.PublishMessage<SqlServerBar>().ToSqlServerQueue("foobar");
@@ -43,6 +54,8 @@ public class with_multiple_hosts : IAsyncLifetime
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<FooBarHandler>();
             }).StartAsync();
+
+        #endregion
     }
 
     [Fact]
