@@ -126,17 +126,12 @@ public abstract class HttpHandler
     {
         var headers = new RequestHeaders(context.Request.Headers);
 
-        if (!headers.Accept.Any())
-        {
-            return true;
-        }
-
-        if (headers.Accept.Any(x => x.MediaType.HasValue && (x.MediaType.Value == "application/json" || x.MediaType.Value == "*/*" || x.MediaType.Value == "text/json")))
-        {
-            return true;
-        }
-
-        return false;
+        return headers.Accept
+            .Any(x => x.MediaType is
+            {
+                HasValue: true,
+                Value: "application/json" or "*/*" or "text/json"
+            });
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
