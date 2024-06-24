@@ -18,6 +18,7 @@ public interface IMessageDatabase : IMessageStore
     DatabaseSettings Settings { get; }
 
     DbDataSource DataSource { get; }
+    ILogger Logger { get; }
 
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);

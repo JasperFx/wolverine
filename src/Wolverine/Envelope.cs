@@ -115,12 +115,18 @@ public partial class Envelope
 
             if (_message == null)
             {
-                throw new InvalidOperationException("Cannot ensure data is present when there is no message");
+                throw new WolverineSerializationException($"Cannot ensure data is present when there is no message. The Message Type Name is '{MessageType}'");
             }
 
             if (Serializer == null)
             {
-                throw new InvalidOperationException("No data or writer is known for this envelope");
+                if (_message is ISerializable serializable)
+                {
+                    _data = serializable.Write();
+                    return _data;
+                }
+                
+                throw new WolverineSerializationException($"No data or writer is known for this envelope of message type {_message.GetType().FullNameInCode()}");
             }
 
             try
@@ -129,7 +135,7 @@ public partial class Envelope
             }
             catch (Exception e)
             {
-                throw new SerializationException(
+                throw new WolverineSerializationException(
                     $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
             }
 

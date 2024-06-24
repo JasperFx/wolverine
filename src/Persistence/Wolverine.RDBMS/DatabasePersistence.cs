@@ -1,6 +1,7 @@
 using System.Data.Common;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Serialization;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
@@ -130,11 +131,21 @@ public static class DatabasePersistence
     public static void ConfigureDeadLetterCommands(Envelope envelope, Exception? exception, DbCommandBuilder builder,
         IMessageDatabase wolverineDatabase)
     {
+        byte[] data = Array.Empty<byte>();
+        try
+        {
+            data = EnvelopeSerializer.Serialize(envelope);
+        }
+        catch (WolverineSerializationException e)
+        {
+            wolverineDatabase.Logger.LogError(e, "Error trying to serialize a dead letter envelope");
+        }
+        
         var list = new List<DbParameter>
         {
             builder.AddParameter(envelope.Id),
             builder.AddParameter(envelope.ScheduledTime),
-            builder.AddParameter(EnvelopeSerializer.Serialize(envelope)),
+            builder.AddParameter(data),
             builder.AddParameter(envelope.MessageType),
             builder.AddParameter(envelope.Destination?.ToString()),
             builder.AddParameter(envelope.Source),

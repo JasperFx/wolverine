@@ -22,7 +22,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     private readonly string _outgoingEnvelopeSql;
     protected readonly DatabaseSettings _settings;
     private readonly DbDataSource _dataSource;
-    private readonly ILogger _logger;
     private DatabaseBatcher? _batcher;
     private string _schemaName;
 
@@ -33,7 +32,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     {
         _settings = databaseSettings;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        _logger = logger;
+        Logger = logger;
         _schemaName = databaseSettings.SchemaName ?? defaultSchema;
 
         IncomingFullName = $"{SchemaName}.{DatabaseConstants.IncomingTable}";
@@ -55,6 +54,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         DataSource = dataSource;
     }
+
+    public ILogger Logger { get; }
 
     public bool HasDisposed { get; protected set; }
 
@@ -195,7 +196,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         if (impacted == 0) return;
 
-        _logger.LogInformation("Reassigned {Impacted} incoming messages from {Owner} and endpoint at {Uri} to any node in the durable inbox", impacted, ownerId, receivedAt);
+        Logger.LogInformation("Reassigned {Impacted} incoming messages from {Owner} and endpoint at {Uri} to any node in the durable inbox", impacted, ownerId, receivedAt);
     }
 
     protected abstract INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
