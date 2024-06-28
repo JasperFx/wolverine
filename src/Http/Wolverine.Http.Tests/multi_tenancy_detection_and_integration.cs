@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using Alba;
 using Alba.Security;
@@ -6,6 +7,7 @@ using Marten;
 using Marten.Metadata;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -338,6 +340,44 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         (await theHost.GetAsText("/tenant/bus/blue")).ShouldBe("blue");
         (await theHost.GetAsText("/tenant/context/orange")).ShouldBe("orange");
         (await theHost.GetAsText("/tenant/both/cornflower")).ShouldBe("cornflower");
+    }
+
+    [Fact]
+    public async Task does_tag_current_activity_with_tenant_id()
+    {
+        await configure(opts => opts.TenantId.IsRequestHeaderValue("tenant"));
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/tenant");
+
+            // Alba is helping set up the request header
+            // for me here
+            x.WithRequestHeader("tenant", "green");
+        });
+
+        var activity = result.Context.Features.Get<IHttpActivityFeature>()?.Activity;
+        activity.ShouldNotBeNull();
+        activity.Tags.ShouldContain(x => x.Key == "tenant.id" && x.Value == "green");
+    }
+
+    public class DiagnosticObserver : IObserver<KeyValuePair<string, object?>>
+    {
+        private readonly List<KeyValuePair<string, object?>> _diagnosticEvents;
+
+        public DiagnosticObserver(List<KeyValuePair<string, object?>> diagnosticEvents)
+        {
+            _diagnosticEvents = diagnosticEvents;
+        }
+
+        public void OnCompleted() { }
+
+        public void OnError(Exception error) { }
+
+        public void OnNext(KeyValuePair<string, object?> value)
+        {
+            _diagnosticEvents.Add(value);
+        }
     }
 }
 
