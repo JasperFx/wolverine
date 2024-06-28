@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using JasperFx.Core;
@@ -24,9 +25,15 @@ public abstract class HttpHandler
         _jsonOptions = wolverineHttpOptions.JsonSerializerOptions.Value;
     }
 
-    public ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
+    public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
     {
-        return _options.TryDetectTenantId(httpContext);
+        var tenantId = await _options.TryDetectTenantId(httpContext);
+        if (tenantId != null)
+        {
+            Activity.Current?.SetTag(MetricsConstants.TenantIdKey, tenantId);
+        }
+
+        return tenantId;
     }
 
     public Task WriteTenantIdNotFound(HttpContext context)
