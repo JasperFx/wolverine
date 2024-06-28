@@ -23,9 +23,9 @@ internal class RabbitMqEnvelope : Envelope
 
     public bool Acknowledged { get; private set; }
 
-    internal void Complete()
+    internal async Task CompleteAsync()
     {
-        RabbitMqListener.Complete(DeliveryTag);
+        await RabbitMqListener.CompleteAsync(DeliveryTag);
         Acknowledged = true;
     }
 

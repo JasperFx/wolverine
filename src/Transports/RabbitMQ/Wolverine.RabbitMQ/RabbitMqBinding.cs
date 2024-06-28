@@ -22,24 +22,24 @@ public class RabbitMqBinding
     public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
     public bool HasDeclared { get; private set; }
 
-    internal void Declare(IModel channel, ILogger logger)
+    internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
         if (HasDeclared)
         {
             return;
         }
 
-        _queue.Declare(channel, logger);
-        channel.QueueBind(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
+        await _queue.DeclareAsync(channel, logger);
+        await channel.QueueBindAsync(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
         logger.LogInformation("Declared a Rabbit Mq binding '{Key}' from exchange {Exchange} to {Queue}", BindingKey,
             ExchangeName, _queue.EndpointName);
 
         HasDeclared = true;
     }
 
-    public void Teardown(IModel channel)
+    public async Task TeardownAsync(IChannel channel)
     {
-        channel.QueueUnbind(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
+        await channel.QueueUnbindAsync(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
     }
 
     protected bool Equals(RabbitMqBinding other)

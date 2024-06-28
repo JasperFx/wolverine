@@ -15,7 +15,7 @@ internal class ReplyListener<T> : IReplyListener
         Parent = parent ?? throw new ArgumentNullException(nameof(parent));
         cancellationToken.Register(onCancellation);
 
-        _completion = new TaskCompletionSource<T>();
+        _completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         _cancellation = new CancellationTokenSource(timeout);
 
         _cancellation.Token.Register(onCancellation);

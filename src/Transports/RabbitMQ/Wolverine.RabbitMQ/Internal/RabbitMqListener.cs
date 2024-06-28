@@ -47,8 +47,10 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 {
     private readonly IChannelCallback _callback;
     private readonly CancellationToken _cancellation = CancellationToken.None;
-    private readonly WorkerQueueMessageConsumer? _consumer;
+    private WorkerQueueMessageConsumer? _consumer;
     private readonly ISupportDeadLetterQueue _deadLetterQueueCallback;
+    private readonly IWolverineRuntime _runtime;
+    private readonly RabbitMqTransport _transport;
     private readonly IReceiver _receiver;
     private readonly Lazy<RabbitMqSender> _sender;
 
@@ -60,48 +62,20 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         Address = queue.Uri;
 
         _sender = new Lazy<RabbitMqSender>(() => Queue.ResolveSender(runtime));
-        _cancellation.Register(teardownChannel);
-
-        EnsureConnected();
-
-        if (queue.AutoDelete || transport.AutoProvision)
+        _cancellation.Register(() =>
         {
-            queue.Declare(Channel!, Logger);
+            _ = teardownChannel();
+        });
 
-            if (queue.DeadLetterQueue != null && queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage)
-            {
-                var dlq = transport.Queues[queue.DeadLetterQueue.QueueName];
-                dlq.Declare(Channel!, Logger);
-            }
-        }
-
-        try
-        {
-            var result = Channel!.QueueDeclarePassive(queue.QueueName);
-            if (queue.Role == EndpointRole.Application)
-            {
-                Logger.LogInformation("{Count} messages in queue {QueueName} at listening start up time", result.MessageCount, queue.QueueName);
-            }
-        }
-        catch (Exception e)
-        {
-            Logger.LogError(e, "Unable to check the queued count for {QueueName}", queue.QueueName);
-        }
-
-        var mapper = queue.BuildMapper(runtime);
-
+        _runtime = runtime;
+        _transport = transport;
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
-        _consumer = new WorkerQueueMessageConsumer(Channel!, receiver, Logger, this, mapper, Address,
-            _cancellation);
 
-        Channel!.BasicQos(0, Queue.PreFetchCount, false);
-        Channel.BasicConsume(_consumer, queue.QueueName, false, transport.ConnectionFactory.ClientProvidedName);
-
-        _callback = (queue.DeadLetterQueue != null) &
-                    (queue.DeadLetterQueue?.Mode == DeadLetterQueueMode.InteropFriendly)
-            ? new RabbitMqInteropFriendlyCallback(transport, transport.Queues[queue.DeadLetterQueue!.QueueName],
-                runtime)
-            : transport.Callback!;
+        _callback = (Queue.DeadLetterQueue != null) &
+                    (Queue.DeadLetterQueue?.Mode == DeadLetterQueueMode.InteropFriendly)
+            ? new RabbitMqInteropFriendlyCallback(_transport, _transport.Queues[Queue.DeadLetterQueue!.QueueName],
+                _runtime)
+            : _transport.Callback!;
 
         _deadLetterQueueCallback = _callback.As<ISupportDeadLetterQueue>();
         // Need to disable this if using WolverineStorage
@@ -113,18 +87,64 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         Task.Run(() => _sender.Value.SendAsync(ping));
     }
 
-    public RabbitMqQueue Queue { get; }
-
-    public ValueTask StopAsync()
+    public async Task CreateAsync()
     {
-        Stop();
-        return ValueTask.CompletedTask;
+        await EnsureConnected();
+        
+        if (Queue.AutoDelete || _transport.AutoProvision)
+        {
+            await Queue.DeclareAsync(Channel!, Logger);
+
+            if (Queue.DeadLetterQueue != null && Queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage)
+            {
+                var dlq = _transport.Queues[Queue.DeadLetterQueue.QueueName];
+                await dlq.DeclareAsync(Channel!, Logger);
+            }
+        }
+
+        try
+        {
+            var result = await Channel!.QueueDeclarePassiveAsync(Queue.QueueName, _cancellation);
+            if (Queue.Role == EndpointRole.Application)
+            {
+                Logger.LogInformation("{Count} messages in queue {QueueName} at listening start up time", result.MessageCount, Queue.QueueName);
+            }
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "Unable to check the queued count for {QueueName}", Queue.QueueName);
+        }
+
+        var mapper = Queue.BuildMapper(_runtime);
+
+        _consumer = new WorkerQueueMessageConsumer(Channel!, _receiver, Logger, this, mapper, Address,
+            _cancellation);
+
+        await Channel!.BasicQosAsync(0, Queue.PreFetchCount, false, _cancellation);
+        await Channel.BasicConsumeAsync(_consumer, Queue.QueueName, false, _transport.ConnectionFactory.ClientProvidedName);
     }
 
-    public ValueTask DisposeAsync()
+    public RabbitMqQueue Queue { get; }
+
+    public async ValueTask StopAsync()
     {
-        Dispose();
-        return ValueTask.CompletedTask;
+        if (_consumer == null)
+        {
+            return;
+        }
+
+        foreach (var consumerTag in _consumer.ConsumerTags) await Channel!.BasicCancelAsync(consumerTag, noWait: true, cancellationToken: default);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        _receiver.Dispose();
+        await base.DisposeAsync();
+
+        if (_sender.IsValueCreated)
+        {
+            await _sender.Value.DisposeAsync();
+        }
     }
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)
@@ -162,39 +182,18 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public bool NativeDeadLetterQueueEnabled { get; }
 
-    public void Stop()
-    {
-        if (_consumer == null)
-        {
-            return;
-        }
-
-        foreach (var consumerTag in _consumer.ConsumerTags) Channel!.BasicCancelNoWait(consumerTag);
-    }
-
-    public override void Dispose()
-    {
-        _receiver.Dispose();
-        base.Dispose();
-
-        if (_sender.IsValueCreated)
-        {
-            _sender.Value.SafeDispose();
-        }
-    }
-
-    public ValueTask RequeueAsync(RabbitMqEnvelope envelope)
+    public async ValueTask RequeueAsync(RabbitMqEnvelope envelope)
     {
         if (!envelope.Acknowledged)
         {
-            Channel!.BasicNack(envelope.DeliveryTag, false, false);
+            await Channel.BasicNackAsync(envelope.DeliveryTag, false, false, _cancellation);
         }
 
-        return _sender.Value.SendAsync(envelope);
+        await _sender.Value.SendAsync(envelope);
     }
 
-    public void Complete(ulong deliveryTag)
+    public async Task CompleteAsync(ulong deliveryTag)
     {
-        Channel!.BasicAck(deliveryTag, true);
+        await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
     }
 }

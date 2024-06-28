@@ -7,7 +7,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IDisposable
+public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IAsyncDisposable
 {
     public const string QueueSegment = "queue";
     public const string ExchangeSegment = "exchange";
@@ -62,9 +62,10 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IDis
         return _sender;
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _sender?.Dispose();
+        if(_sender is not null)
+            await _sender.DisposeAsync();
     }
 
     internal IRabbitMqEnvelopeMapper BuildMapper(IWolverineRuntime runtime)

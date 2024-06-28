@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <Description>RabbitMQ Transport for Wolverine Messaging Systems</Description>
         <PackageId>WolverineFx.RabbitMQ</PackageId>
@@ -12,8 +12,8 @@
         <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="RabbitMQ.Client" Version="6.8.1"/>
-        <PackageReference Update="Microsoft.SourceLink.GitHub" Version="8.0.0"/>
+        <PackageReference Include="RabbitMQ.Client" Version="7.0.0-rc.3" />
+        <PackageReference Update="Microsoft.SourceLink.GitHub" Version="8.0.0" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props"/>

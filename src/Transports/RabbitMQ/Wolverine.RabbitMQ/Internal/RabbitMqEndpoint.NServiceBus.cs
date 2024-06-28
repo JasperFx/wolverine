@@ -27,7 +27,7 @@ public abstract partial class RabbitMqEndpoint
                 props.Headers["NServiceBus.ReplyToAddress"] = replyAddress.Value;
             }
 
-            void ReadReplyUri(Envelope e, IBasicProperties props)
+            void ReadReplyUri(Envelope e, ReadOnlyBasicProperties props)
             {
                 if (props.Headers.TryGetValue("NServiceBus.ReplyToAddress", out var raw))
                 {

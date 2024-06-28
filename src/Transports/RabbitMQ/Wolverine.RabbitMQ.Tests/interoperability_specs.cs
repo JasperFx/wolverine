@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Hosting;
+using RabbitMQ.Client;
 using Shouldly;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Tracking;
@@ -44,14 +45,12 @@ public class interoperability_specs : RabbitMQContext, IAsyncLifetime
 
         var session = await _host.TrackActivity()
             .WaitForMessageToBeReceivedAt<NumberMessage>(_host)
-            .ExecuteAndWaitAsync(m =>
+            .ExecuteAndWaitAsync(async Task (m) =>
         {
-            using var channel = transport.SendingConnection.CreateModel();
-            var props = channel.CreateBasicProperties();
-
-            channel.BasicPublish(string.Empty, theQueueName, true, props, data);
-
-            return Task.CompletedTask;
+            using var channel = await transport.SendingConnection.CreateChannelAsync();
+            var props = new BasicProperties();
+            
+            await channel.BasicPublishAsync(string.Empty, theQueueName, props, data, true);
         });
 
         session.Received.SingleEnvelope<NumberMessage>()

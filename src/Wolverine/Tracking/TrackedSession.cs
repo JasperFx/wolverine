@@ -31,7 +31,7 @@ internal class TrackedSession : ITrackedSession
     public TrackedSession(IHost host)
     {
         _primaryHost = host ?? throw new ArgumentNullException(nameof(host));
-        _source = new TaskCompletionSource<TrackingStatus>();
+        _source = new TaskCompletionSource<TrackingStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
         _primaryLogger = host.GetRuntime();
     }
 
@@ -326,7 +326,7 @@ internal class TrackedSession : ITrackedSession
             await Task.Delay(Timeout);
 
             Status = TrackingStatus.TimedOut;
-        }, CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default);
+        }, CancellationToken.None, TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Default);
     }
 
     public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, Guid uniqueNodeId,

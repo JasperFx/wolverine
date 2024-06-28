@@ -9,7 +9,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDisposable
+public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "rabbitmq";
     public const string ResponseEndpointName = "RabbitMqResponses";
@@ -45,8 +45,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     internal RabbitMqChannelCallback? Callback { get; private set; }
 
-    internal ConnectionMonitor ListeningConnection => _listenerConnection ??= BuildConnection(ConnectionRole.Listening);
-    internal ConnectionMonitor SendingConnection => _sendingConnection ??= BuildConnection(ConnectionRole.Sending);
+    internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("This connection has not been created yet!");
+    internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("This connection has not been created yet!");
 
     public ConnectionFactory ConnectionFactory { get; } = new(){ClientProvidedName = "Wolverine"};
 
@@ -61,11 +61,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     internal bool UseSenderConnectionOnly { get; set; }
     internal bool UseListenerConnectionOnly { get; set; }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         try
         {
-            _listenerConnection?.SafeDispose();
+            if(_listenerConnection is not null)
+                await _listenerConnection.DisposeAsync();
         }
         catch (ObjectDisposedException)
         {
@@ -74,7 +75,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
         try
         {
-            _sendingConnection?.SafeDispose();
+            if(_sendingConnection is not null)
+                await _sendingConnection.DisposeAsync();
         }
         catch (ObjectDisposedException)
         {
@@ -85,11 +87,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
         foreach (var queue in Queues)
         {
-            queue.SafeDispose();
+            await queue.DisposeAsync();
         }
     }
 
-    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
+    public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         Logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();
         Callback = new RabbitMqChannelCallback(Logger, runtime.DurabilitySettings.Cancellation);
@@ -99,14 +101,14 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         if (_listenerConnection == null && !UseSenderConnectionOnly)
         {
             _listenerConnection = BuildConnection(ConnectionRole.Listening);
+            await _listenerConnection.ConnectAsync();
         }
 
         if (_sendingConnection == null && !UseListenerConnectionOnly)
         {
             _sendingConnection = BuildConnection(ConnectionRole.Sending);
+            await _sendingConnection.ConnectAsync();
         }
-
-        return ValueTask.CompletedTask;
     }
 
     protected override IEnumerable<RabbitMqEndpoint> endpoints()
