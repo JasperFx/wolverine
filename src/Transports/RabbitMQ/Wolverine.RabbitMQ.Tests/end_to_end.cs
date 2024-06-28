@@ -181,7 +181,7 @@ public class end_to_end
         var cancellation = new CancellationTokenSource(30.Seconds());
         var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
 
-        while (!cancellation.IsCancellationRequested && queue.QueuedCount() > 0)
+        while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)
         {
             await Task.Delay(250.Milliseconds(), cancellation.Token);
         }
@@ -230,7 +230,7 @@ public class end_to_end
         var cancellation = new CancellationTokenSource(30.Seconds());
         var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
 
-        while (!cancellation.IsCancellationRequested && queue.QueuedCount() > 0)
+        while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)
         {
             await Task.Delay(250.Milliseconds(), cancellation.Token);
         }
@@ -246,7 +246,7 @@ public class end_to_end
         var queueName = RabbitTesting.NextQueueName();
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup().UseSenderConnectionOnly();
+            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
                 .ToRabbitQueue(queueName)
@@ -279,7 +279,7 @@ public class end_to_end
         var cancellation = new CancellationTokenSource(30.Seconds());
         var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
 
-        while (!cancellation.IsCancellationRequested && queue.QueuedCount() > 0)
+        while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)
         {
             await Task.Delay(250.Milliseconds(), cancellation.Token);
         }
@@ -630,11 +630,6 @@ public class end_to_end
         receiver1.Get<ColorHistory>().Name.ShouldBe("Purple");
         receiver2.Get<ColorHistory>().Name.ShouldBe("Purple");
         receiver3.Get<ColorHistory>().Name.ShouldBe("Purple");
-
-        publisher.Dispose();
-        receiver1.Dispose();
-        receiver2.Dispose();
-        receiver3.Dispose();
     }
 
     [Fact]
@@ -662,6 +657,7 @@ public class end_to_end
 
         var session = await publisher
             .TrackActivity()
+            .Timeout(30.Seconds())
             .AlsoTrack(receiver)
             .WaitForMessageToBeReceivedAt<ColorChosen>(receiver)
             .SendMessageAndWaitAsync(new ColorChosen { Name = "Purple" });

@@ -13,11 +13,12 @@ public enum ConnectionRole
 
 public interface IConnectionMonitor
 {
-    IModel CreateModel();
+    Task ConnectAsync();
+    Task<IChannel> CreateChannelAsync();
     ConnectionRole Role { get; }
 }
 
-internal class ConnectionMonitor : IDisposable, IConnectionMonitor
+internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
 {
     private readonly RabbitMqTransport _transport;
     private readonly ILogger<RabbitMqTransport> _logger;
@@ -29,31 +30,35 @@ internal class ConnectionMonitor : IDisposable, IConnectionMonitor
         _transport = transport;
         Role = role;
         _logger = transport.Logger;
-
-        _connection = transport.AmqpTcpEndpoints.Any()
-            ? transport.ConnectionFactory.CreateConnection(transport.AmqpTcpEndpoints)
-            : transport.ConnectionFactory.CreateConnection();
-
+    }
+    
+    public async Task ConnectAsync()
+    {
+        _connection = _transport.AmqpTcpEndpoints.Any()
+            ? await _transport.ConnectionFactory.CreateConnectionAsync(_transport.AmqpTcpEndpoints)
+            : await _transport.ConnectionFactory.CreateConnectionAsync();
+        
         _connection.ConnectionShutdown += connectionOnConnectionShutdown;
         _connection.ConnectionUnblocked += connectionOnConnectionUnblocked;
         _connection.ConnectionBlocked += connectionOnConnectionBlocked;
         _connection.CallbackException += connectionOnCallbackException;
     }
 
-    public IModel CreateModel()
+    public Task<IChannel> CreateChannelAsync()
     {
         if (_connection == null) throw new InvalidOperationException("The connection is not initialized");
 
-        return _connection!.CreateModel();
+        return _connection!.CreateChannelAsync();
     }
 
     public ConnectionRole Role { get; }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         try
         {
-            _connection?.Close();
+            if(_connection is not null)
+                await _connection.CloseAsync();
         }
         catch (ObjectDisposedException)
         {

@@ -86,22 +86,20 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         throw new NotSupportedException();
     }
 
-    public override ValueTask InitializeAsync(ILogger logger)
+    public override async ValueTask InitializeAsync(ILogger logger)
     {
         if (_initialized)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         if (_parent.AutoProvision)
         {
-            using var model = _parent.ListeningConnection.CreateModel();
-            Declare(model, logger);
+            using var model = await _parent.SendingConnection.CreateChannelAsync();
+            await DeclareAsync(model, logger);
         }
 
         _initialized = true;
-
-        return ValueTask.CompletedTask;
     }
 
     internal override string RoutingKey()
@@ -119,7 +117,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         return string.Empty;
     }
 
-    internal void Declare(IModel channel, ILogger logger)
+    internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
         if (DeclaredName == string.Empty)
         {
@@ -132,34 +130,34 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         }
 
         var exchangeTypeName = ExchangeType.ToString().ToLower();
-        channel.ExchangeDeclare(DeclaredName, exchangeTypeName, IsDurable, AutoDelete, Arguments);
+        await channel.ExchangeDeclareAsync(DeclaredName, exchangeTypeName, IsDurable, AutoDelete, Arguments);
         logger.LogInformation(
             "Declared Rabbit Mq exchange '{Name}', type = {Type}, IsDurable = {IsDurable}, AutoDelete={AutoDelete}",
             DeclaredName, exchangeTypeName, IsDurable, AutoDelete);
 
-        foreach (var binding in _bindings) binding.Declare(channel, logger);
+        foreach (var binding in _bindings) await binding.DeclareAsync(channel, logger);
 
         HasDeclared = true;
     }
 
-    public override ValueTask<bool> CheckAsync()
+    public override async ValueTask<bool> CheckAsync()
     {
-        using var channel = _parent.ListeningConnection.CreateModel();
+        using var channel = await _parent.SendingConnection.CreateChannelAsync();
         var exchangeName = Name.ToLower();
         try
         {
-            channel.ExchangeDeclarePassive(exchangeName);
-            return ValueTask.FromResult(true);
+            await channel.ExchangeDeclarePassiveAsync(exchangeName);
+            return true;
         }
         catch (Exception)
         {
-            return ValueTask.FromResult(false);
+            return false;
         }
     }
 
-    public override ValueTask TeardownAsync(ILogger logger)
+    public override async ValueTask TeardownAsync(ILogger logger)
     {
-        using var channel = _parent.ListeningConnection.CreateModel();
+        using var channel = await _parent.SendingConnection.CreateChannelAsync();
         if (DeclaredName == string.Empty)
         {
         }
@@ -169,21 +167,17 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             {
                 logger.LogInformation("Removing binding {Key} from exchange {Exchange} to queue {Queue}",
                     binding.BindingKey, binding.ExchangeName, binding.Queue);
-                binding.Teardown(channel);
+                await binding.TeardownAsync(channel);
             }
 
-            channel.ExchangeDelete(DeclaredName);
+            await channel.ExchangeDeleteAsync(DeclaredName);
         }
-
-        return ValueTask.CompletedTask;
     }
 
-    public override ValueTask SetupAsync(ILogger logger)
+    public override async ValueTask SetupAsync(ILogger logger)
     {
-        using var channel = _parent.ListeningConnection.CreateModel();
-        Declare(channel, logger);
-
-        return ValueTask.CompletedTask;
+        using var channel = await _parent.SendingConnection.CreateChannelAsync();
+        await DeclareAsync(channel, logger);
     }
 
     public IEnumerable<RabbitMqBinding> Bindings()

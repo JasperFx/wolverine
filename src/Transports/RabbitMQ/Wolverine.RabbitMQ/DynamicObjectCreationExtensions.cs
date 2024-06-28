@@ -13,7 +13,7 @@ public static class DynamicObjectCreationExtensions
     /// <param name="runtime"></param>
     /// <param name="creation"></param>
     /// <exception cref="ArgumentNullException"></exception>
-    public static void ModifyRabbitMqObjects(this IWolverineRuntime runtime, Action<RabbitMqObjects> creation)
+    public static async Task ModifyRabbitMqObjects(this IWolverineRuntime runtime, Action<RabbitMqObjects> creation)
     {
         if (runtime == null)
         {
@@ -30,7 +30,7 @@ public static class DynamicObjectCreationExtensions
 
         creation(objects);
 
-        objects.DeclareAll();
+        await objects.DeclareAllAsync();
     }
 
     /// <summary>
@@ -39,14 +39,14 @@ public static class DynamicObjectCreationExtensions
     /// <param name="queueName"></param>
     /// <param name="exchangeName"></param>
     /// <param name="routingKey">Binding key name</param>
-    public static void UnBindRabbitMqQueue(this IWolverineRuntime runtime, string queueName, string exchangeName, string routingKey)
+    public static async Task UnBindRabbitMqQueue(this IWolverineRuntime runtime, string queueName, string exchangeName, string routingKey)
     {
         var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
-        using var model = transport.ListeningConnection.CreateModel();
+        using var model = await transport.ListeningConnection.CreateChannelAsync();
 
-        model.QueueUnbind(queueName, exchangeName, routingKey);
+        await model.QueueUnbindAsync(queueName, exchangeName, routingKey);
 
-        model.Close();
+        await model.CloseAsync();
     }
 }
 
@@ -93,25 +93,25 @@ public class RabbitMqObjects
         return queue;
     }
 
-    internal void DeclareAll()
+    internal async Task DeclareAllAsync()
     {
-        using var model = _transport.ListeningConnection.CreateModel();
+        using var model = await _transport.ListeningConnection.CreateChannelAsync();
 
         foreach (var exchange in _exchanges)
         {
-            exchange.Declare(model, _logger);
+            await exchange.DeclareAsync(model, _logger);
 
             foreach (var binding in exchange.Bindings())
             {
-                binding.Declare(model, _logger);
+                await binding.DeclareAsync(model, _logger);
             }
         }
 
         foreach (var queue in _queues)
         {
-            queue.Declare(model, _logger);
+            await queue.DeclareAsync(model, _logger);
         }
 
-        model.Close();
+        await model.CloseAsync();
     }
 }

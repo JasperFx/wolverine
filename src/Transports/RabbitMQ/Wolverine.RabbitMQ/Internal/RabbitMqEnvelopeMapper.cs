@@ -12,9 +12,9 @@ namespace Wolverine.RabbitMQ.Internal;
 /// Rabbit MQ IBasicProperties object. Custom implementations of this can be used
 /// to create interoperability with non-Wolverine applications through Rabbit MQ
 /// </summary>
-public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<IBasicProperties, IBasicProperties>;
+public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<ReadOnlyBasicProperties, IBasicProperties>;
 
-internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicProperties>, IRabbitMqEnvelopeMapper
+internal class RabbitMqEnvelopeMapper : EnvelopeMapper<ReadOnlyBasicProperties, IBasicProperties>, IRabbitMqEnvelopeMapper
 {
     public RabbitMqEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {
@@ -23,7 +23,7 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
         MapProperty(x => x.ContentType!, (e, p) => e.ContentType = p.ContentType,
             (e, p) => p.ContentType = e.ContentType);
 
-        Action<Envelope, IBasicProperties> readId = (e, props) =>
+        Action<Envelope, ReadOnlyBasicProperties> readId = (e, props) =>
         {
             if (Guid.TryParse(props.MessageId, out var id))
             {
@@ -58,7 +58,7 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
     }
 
     // TODO -- this needs to be open for customizations. See the NServiceBus interop
-    protected override bool tryReadIncomingHeader(IBasicProperties incoming, string key, out string? value)
+    protected override bool tryReadIncomingHeader(ReadOnlyBasicProperties incoming, string key, out string? value)
     {
         if (incoming.Headers == null)
         {
@@ -76,7 +76,7 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
         return false;
     }
 
-    protected override void writeIncomingHeaders(IBasicProperties incoming, Envelope envelope)
+    protected override void writeIncomingHeaders(ReadOnlyBasicProperties incoming, Envelope envelope)
     {
         if (incoming.Headers == null) return;
         foreach (var pair in incoming.Headers)

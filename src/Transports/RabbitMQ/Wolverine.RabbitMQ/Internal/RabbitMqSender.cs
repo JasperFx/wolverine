@@ -52,14 +52,16 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
             throw new InvalidOperationException($"The RabbitMQ agent for {Destination} is disconnected");
         }
 
-        var props = Channel.CreateBasicProperties();
-        props.Persistent = _isDurable;
-        props.Headers = new Dictionary<string, object>();
+        var props = new BasicProperties
+        {
+            Persistent = _isDurable,
+            Headers = new Dictionary<string, object?>()
+        };
 
         _mapper.MapEnvelopeToOutgoing(envelope, props);
 
         var routingKey = _toRoutingKey(envelope);
-        Channel.BasicPublish(_exchangeName, routingKey, props, envelope.Data);
+        await Channel.BasicPublishAsync(_exchangeName, routingKey, props, envelope.Data);
     }
 
     public override string ToString()
@@ -67,24 +69,34 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         return $"RabbitMqSender: {Destination}";
     }
 
-    public Task<bool> PingAsync()
+    private readonly SemaphoreSlim _locker = new(1, 1);
+
+    public async Task<bool> PingAsync()
     {
-        lock (Locker)
+        await _locker.WaitAsync();
+
+        try
         {
             if (State == AgentState.Connected)
             {
-                return Task.FromResult(true);
+                return true;
             }
 
-            startNewChannel();
+            await startNewChannel();
 
             if (Channel!.IsOpen)
             {
-                return Task.FromResult(true);
+                return true;
             }
 
-            teardownChannel();
-            return Task.FromResult(false);
+            await teardownChannel();
+            return false;
         }
+        finally
+        {
+            _locker.Release();
+        }
+      
+
     }
 }
