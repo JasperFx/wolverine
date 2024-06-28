@@ -127,7 +127,6 @@ public partial class WolverineRuntime : IAgentRuntime
             case DurabilityMode.Balanced:
                 startDurableScheduledJobs();
                 startNodeAgentController();
-                await startNodeAgentWorkflowAsync();
                 break;
 
 
