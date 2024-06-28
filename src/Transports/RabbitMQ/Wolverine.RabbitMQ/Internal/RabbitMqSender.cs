@@ -32,7 +32,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
 
-        EnsureConnected();
+        _ = EnsureConnected();
     }
 
     public bool SupportsNativeScheduledSend => false;
@@ -68,12 +68,10 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
     {
         return $"RabbitMqSender: {Destination}";
     }
-
-    private readonly SemaphoreSlim _locker = new(1, 1);
-
+    
     public async Task<bool> PingAsync()
     {
-        await _locker.WaitAsync();
+        await Locker.WaitAsync();
 
         try
         {
@@ -94,7 +92,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         }
         finally
         {
-            _locker.Release();
+            Locker.Release();
         }
       
 
