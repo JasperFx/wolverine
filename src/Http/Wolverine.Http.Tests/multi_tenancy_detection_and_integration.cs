@@ -360,25 +360,6 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         activity.ShouldNotBeNull();
         activity.Tags.ShouldContain(x => x.Key == "tenant.id" && x.Value == "green");
     }
-
-    public class DiagnosticObserver : IObserver<KeyValuePair<string, object?>>
-    {
-        private readonly List<KeyValuePair<string, object?>> _diagnosticEvents;
-
-        public DiagnosticObserver(List<KeyValuePair<string, object?>> diagnosticEvents)
-        {
-            _diagnosticEvents = diagnosticEvents;
-        }
-
-        public void OnCompleted() { }
-
-        public void OnError(Exception error) { }
-
-        public void OnNext(KeyValuePair<string, object?> value)
-        {
-            _diagnosticEvents.Add(value);
-        }
-    }
 }
 
 public static class TenantedEndpoints
