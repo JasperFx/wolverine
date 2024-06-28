@@ -118,12 +118,12 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
         var initialQueue = theTransport.Queues[QueueName];
         var deadLetterQueue = theTransport.Queues[RabbitMqTransport.DeadLetterQueueName];
 
-        initialQueue.QueuedCount().ShouldBe(0);
+        (await initialQueue.QueuedCountAsync()).ShouldBe(0);
 
         var attempts = 0;
         while (attempts < 5)
         {
-            var queuedCount = deadLetterQueue.QueuedCount();
+            var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
             attempts++;
@@ -146,12 +146,12 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
         var initialQueue = theTransport.Queues[QueueName];
         var deadLetterQueue = theTransport.Queues[deadLetterQueueName];
 
-        initialQueue.QueuedCount().ShouldBe(0);
+        (await initialQueue.QueuedCountAsync()).ShouldBe(0);
 
         var attempts = 0;
         while (attempts < 5)
         {
-            var queuedCount = deadLetterQueue.QueuedCount();
+            var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
             attempts++;

@@ -12,24 +12,22 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
     internal RabbitMqChannelCallback(ILogger logger, CancellationToken cancellationToken)
     {
         Logger = logger;
-        Complete = new RetryBlock<RabbitMqEnvelope>((e, _) =>
+        Complete = new RetryBlock<RabbitMqEnvelope>(async (e, _) =>
         {
             // AlreadyClosedException: Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=406, text='PRECONDITION_FAILED - unknown delivery tag 1', classId=60, methodId=80
 
             try
             {
-                e.Complete();
+                await e.CompleteAsync();
             }
             catch (AlreadyClosedException exception)
             {
                 if (exception.Message.Contains("'PRECONDITION_FAILED - unknown delivery tag'"))
                 {
                     logger.LogInformation("Encountered an unknown delivery tag, discarding the envelope");
-                    return Task.CompletedTask;
                 }
             }
-
-            return Task.CompletedTask;
+            
         }, logger, cancellationToken);
 
         Defer = new RetryBlock<RabbitMqEnvelope>((e, _) => e.DeferAsync().AsTask(), logger, cancellationToken);
@@ -66,24 +64,25 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         return ValueTask.CompletedTask;
     }
 
-    private Task moveToErrorQueueAsync(RabbitMqEnvelope envelope, CancellationToken token)
+    private async Task moveToErrorQueueAsync(RabbitMqEnvelope envelope, CancellationToken token)
     {
         try
         {
-            envelope.RabbitMqListener.Channel?.BasicNack(envelope.DeliveryTag, false, false);
+            if(envelope.RabbitMqListener.Channel is not null)
+                await envelope.RabbitMqListener.Channel.BasicNackAsync(envelope.DeliveryTag, false, false, token);
         }
         catch (AlreadyClosedException exception)
         {
             if (exception.Message.Contains("'PRECONDITION_FAILED - unknown delivery tag'"))
             {
                 Logger.LogInformation("Encountered an unknown delivery tag, discarding the envelope");
-                return Task.CompletedTask;
+                return;
             }
 
             throw;
         }
 
-        return Task.CompletedTask;
+        return;
     }
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)

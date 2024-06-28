@@ -10,7 +10,7 @@ internal sealed class ConditionalWaiter<TObservedEvent, TSpecificEvent> : IObser
     public ConditionalWaiter(Func<TSpecificEvent, bool> match, IObservable<TObservedEvent> parent, TimeSpan timeout)
     {
         _match = match;
-        _completion = new TaskCompletionSource<TSpecificEvent>();
+        _completion = new TaskCompletionSource<TSpecificEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 
         var timeout1 = new CancellationTokenSource(timeout);
