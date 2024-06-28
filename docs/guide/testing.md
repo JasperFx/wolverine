@@ -1,6 +1,6 @@
 # Test Automation Support
 
-The Wolverine absolutely believes in Test Driven Development and the importance of strong test automation strategies as a key part of sustainable development. To that end,
+The Wolverine team absolutely believes in Test Driven Development and the importance of strong test automation strategies as a key part of sustainable development. To that end,
 Wolverine's conceptual design from the very beginning (Wolverine started as "Jasper" in 2015!) has been to maximize testability by trying
 to decouple application code from framework or other infrastructure concerns.
 
