@@ -13,40 +13,39 @@ public class Samples
     {
         #region sample_using_mqtt
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // Connect to the MQTT broker
+            opts.UseMqtt(mqtt =>
             {
-                // Connect to the MQTT broker
-                opts.UseMqtt(builder =>
-                {
-                    var mqttServer = context.Configuration["mqtt_server"];
+                var mqttServer = builder.Configuration["mqtt_server"];
 
-                    builder
-                        .WithMaxPendingMessages(3)
-                        .WithClientOptions(client =>
-                        {
-                            client.WithTcpServer(mqttServer);
-                        });
-                });
+                mqtt
+                    .WithMaxPendingMessages(3)
+                    .WithClientOptions(client => { client.WithTcpServer(mqttServer); });
+            });
 
 
-                // Listen to an MQTT topic, and this could also be a wildcard
-                // pattern
-                opts.ListenToMqttTopic("app/incoming")
-                    // In the case of receiving JSON data, but
-                    // not identifying metadata, tell Wolverine
-                    // to assume the incoming message is this type
-                    .DefaultIncomingMessage<Message1>()
+            // Listen to an MQTT topic, and this could also be a wildcard
+            // pattern
+            opts.ListenToMqttTopic("app/incoming")
+                // In the case of receiving JSON data, but
+                // not identifying metadata, tell Wolverine
+                // to assume the incoming message is this type
+                .DefaultIncomingMessage<Message1>()
 
+                // The default is AtLeastOnce
+                .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
 
-                    // The default is AtLeastOnce
-                    .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
+            // Publish messages to an outbound topic
+            opts.PublishAllMessages()
+                .ToMqttTopic("app/outgoing");
+        });
 
-                // Publish messages to an outbound topic
-                opts.PublishAllMessages()
-                    .ToMqttTopic("app/outgoing");
-            })
-            .StartAsync();
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -55,31 +54,30 @@ public class Samples
     {
         #region sample_listen_for_raw_json_to_mqtt
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Connect to the MQTT broker
+            opts.UseMqtt(mqtt =>
             {
-                // Connect to the MQTT broker
-                opts.UseMqtt(builder =>
-                {
-                    var mqttServer = context.Configuration["mqtt_server"];
+                var mqttServer = builder.Configuration["mqtt_server"];
 
-                    builder
-                        .WithMaxPendingMessages(3)
-                        .WithClientOptions(client =>
-                        {
-                            client.WithTcpServer(mqttServer);
-                        });
-                });
+                mqtt
+                    .WithMaxPendingMessages(3)
+                    .WithClientOptions(client => { client.WithTcpServer(mqttServer); });
+            });
 
-                // Listen to an MQTT topic, and this could also be a wildcard
-                // pattern
-                opts.ListenToMqttTopic("app/payments/made")
-                    // In the case of receiving JSON data, but
-                    // not identifying metadata, tell Wolverine
-                    // to assume the incoming message is this type
-                    .DefaultIncomingMessage<PaymentMade>();
-            })
-            .StartAsync();
+            // Listen to an MQTT topic, and this could also be a wildcard
+            // pattern
+            opts.ListenToMqttTopic("app/payments/made")
+                // In the case of receiving JSON data, but
+                // not identifying metadata, tell Wolverine
+                // to assume the incoming message is this type
+                .DefaultIncomingMessage<PaymentMade>();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -88,29 +86,29 @@ public class Samples
     {
         #region sample_stream_events_to_mqtt_topics
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // Connect to the MQTT broker
+            opts.UseMqtt(mqtt =>
             {
-                // Connect to the MQTT broker
-                opts.UseMqtt(builder =>
-                {
-                    var mqttServer = context.Configuration["mqtt_server"];
+                var mqttServer = builder.Configuration["mqtt_server"];
 
-                    builder
-                        .WithMaxPendingMessages(3)
-                        .WithClientOptions(client =>
-                        {
-                            client.WithTcpServer(mqttServer);
-                        });
-                });
+                mqtt
+                    .WithMaxPendingMessages(3)
+                    .WithClientOptions(client => { client.WithTcpServer(mqttServer); });
+            });
 
-                // Publish messages to MQTT topics based on
-                // the message type
-                opts.PublishAllMessages()
-                    .ToMqttTopics()
-                    .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
-            })
-            .StartAsync();
+            // Publish messages to MQTT topics based on
+            // the message type
+            opts.PublishAllMessages()
+                .ToMqttTopics()
+                .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -129,34 +127,33 @@ public class Samples
     {
         #region sample_applying_custom_mqtt_envelope_mapper
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // Connect to the MQTT broker
+            opts.UseMqtt(mqtt =>
             {
-                // Connect to the MQTT broker
-                opts.UseMqtt(builder =>
-                {
-                    var mqttServer = context.Configuration["mqtt_server"];
+                var mqttServer = builder.Configuration["mqtt_server"];
 
-                    builder
-                        .WithMaxPendingMessages(3)
-                        .WithClientOptions(client =>
-                        {
-                            client.WithTcpServer(mqttServer);
-                        });
-                });
+                mqtt
+                    .WithMaxPendingMessages(3)
+                    .WithClientOptions(client => { client.WithTcpServer(mqttServer); });
+            });
 
-                // Publish messages to MQTT topics based on
-                // the message type
-                opts.PublishAllMessages()
-                    .ToMqttTopics()
+            // Publish messages to MQTT topics based on
+            // the message type
+            opts.PublishAllMessages()
+                .ToMqttTopics()
 
-                    // Tell Wolverine to map envelopes to MQTT messages
-                    // with our custom strategy
-                    .UseInterop(new MyMqttEnvelopeMapper())
+                // Tell Wolverine to map envelopes to MQTT messages
+                // with our custom strategy
+                .UseInterop(new MyMqttEnvelopeMapper())
+                .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
+        });
 
-                    .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
-            })
-            .StartAsync();
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -165,32 +162,32 @@ public class Samples
     {
         #region sample_mqtt_topic_rules
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // Connect to the MQTT broker
+            opts.UseMqtt(mqtt =>
             {
-                // Connect to the MQTT broker
-                opts.UseMqtt(builder =>
-                {
-                    var mqttServer = context.Configuration["mqtt_server"];
+                var mqttServer = builder.Configuration["mqtt_server"];
 
-                    builder
-                        .WithMaxPendingMessages(3)
-                        .WithClientOptions(client =>
-                        {
-                            client.WithTcpServer(mqttServer);
-                        });
-                });
+                mqtt
+                    .WithMaxPendingMessages(3)
+                    .WithClientOptions(client => { client.WithTcpServer(mqttServer); });
+            });
 
-                // Publish any message that implements ITenantMessage to
-                // MQTT with a topic derived from the message
-                opts.PublishMessagesToMqttTopic<ITenantMessage>(m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
+            // Publish any message that implements ITenantMessage to
+            // MQTT with a topic derived from the message
+            opts.PublishMessagesToMqttTopic<ITenantMessage>(m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
 
-                    // Specify or configure sending through Wolverine for all
-                    // MQTT topic broadcasting
-                    .QualityOfService(MqttQualityOfServiceLevel.ExactlyOnce)
-                    .BufferedInMemory();
-            })
-            .StartAsync();
+                // Specify or configure sending through Wolverine for all
+                // MQTT topic broadcasting
+                .QualityOfService(MqttQualityOfServiceLevel.ExactlyOnce)
+                .BufferedInMemory();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -239,5 +236,3 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
 }
 
 #endregion
-
-

@@ -16,17 +16,20 @@ public class TestingSupportSamples
     {
         #region sample_conditionally_disable_transports
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
-            {
-                // Other configuration...
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Other configuration...
 
-                // IF the environment is "Testing", turn off all external transports
-                if (context.HostingEnvironment.EnvironmentName.EqualsIgnoreCase("Testing"))
-                {
-                    opts.StubAllExternalTransports();
-                }
-            }).StartAsync();
+            // IF the environment is "Testing", turn off all external transports
+            if (builder.Environment.IsDevelopment())
+            {
+                opts.StubAllExternalTransports();
+            }
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }

@@ -12,21 +12,24 @@ public class SampleUsageWithAutoApplyTransactions
     {
         #region sample_bootstrapping_with_auto_apply_transactions_for_sql_server
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var connectionString = builder.Configuration.GetConnectionString("database");
+
+            opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
             {
-                var connectionString = context.Configuration.GetConnectionString("database");
+                x.UseSqlServer(connectionString);
+            });
 
-                opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
-                {
-                    x.UseSqlServer(connectionString);
-                });
+            opts.UseEntityFrameworkCoreTransactions();
 
-                opts.UseEntityFrameworkCoreTransactions();
+            // Add the auto transaction middleware attachment policy
+            opts.Policies.AutoApplyTransactions();
+        });
 
-                // Add the auto transaction middleware attachment policy
-                opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }

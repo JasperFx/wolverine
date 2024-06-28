@@ -43,10 +43,7 @@ public static class WolverineHost
     private static IHost bootstrap(Action<WolverineOptions> configure)
     {
         return Host.CreateDefaultBuilder()
-            .UseWolverine((c, o) =>
-            {
-                configure(o);
-            })
+            .UseWolverine(configure)
             .UseResourceSetupOnStartup(StartupAction.ResetState)
             //.ConfigureLogging(x => x.ClearProviders())
             .Start();
@@ -55,22 +52,9 @@ public static class WolverineHost
     private static Task<IHost> bootstrapAsync(Action<WolverineOptions> configure)
     {
         return Host.CreateDefaultBuilder()
-            .UseWolverine((c, o) => configure(o))
+            .UseWolverine(configure)
             .UseResourceSetupOnStartup(StartupAction.ResetState)
             //.ConfigureLogging(x => x.ClearProviders())
             .StartAsync();
-    }
-
-    /// <summary>
-    ///     Shortcut to create a new empty WebHostBuilder with Wolverine's default
-    ///     settings, add Wolverine with the supplied configuration, and bootstrap the application
-    ///     from the command line
-    /// </summary>
-    /// <param name="args"></param>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    public static Task<int> Run(string[] args, Action<HostBuilderContext, WolverineOptions> configure)
-    {
-        return Host.CreateDefaultBuilder().UseWolverine(configure).RunOaktonCommands(args);
     }
 }

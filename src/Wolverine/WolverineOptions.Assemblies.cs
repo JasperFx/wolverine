@@ -82,7 +82,7 @@ public sealed partial class WolverineOptions
                 continue;
             }
 
-            if (assemblyName.StartsWith("System"))
+            if (assemblyName.StartsWith("System") || assemblyName.StartsWith("Microsoft"))
             {
                 continue;
             }

@@ -11,24 +11,24 @@ public class DurabilityModes
     {
         #region sample_configuring_the_serverless_mode
 
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        opts.Services.AddMarten("some connection string")
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten("some connection string")
 
-            // This adds quite a bit of middleware for
-            // Marten
-            .IntegrateWithWolverine();
+                    // This adds quite a bit of middleware for
+                    // Marten
+                    .IntegrateWithWolverine();
 
-        // You want this maybe!
-        opts.Policies.AutoApplyTransactions();
+                // You want this maybe!
+                opts.Policies.AutoApplyTransactions();
 
 
-        // But wait! Optimize Wolverine for usage within Serverless
-        // and turn off the heavy duty, background processes
-        // for the transactional inbox/outbox
-        opts.Durability.Mode = DurabilityMode.Serverless;
-    }).StartAsync();
+                // But wait! Optimize Wolverine for usage within Serverless
+                // and turn off the heavy duty, background processes
+                // for the transactional inbox/outbox
+                opts.Durability.Mode = DurabilityMode.Serverless;
+            }).StartAsync();
 
         #endregion
     }
@@ -62,26 +62,30 @@ using var host = await Host.CreateDefaultBuilder()
     {
         #region sample_configuring_the_solo_mode
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            opts.Services.AddMarten("some connection string")
+
+                // This adds quite a bit of middleware for
+                // Marten
+                .IntegrateWithWolverine();
+
+            // You want this maybe!
+            opts.Policies.AutoApplyTransactions();
+
+
+            if (builder.Environment.IsDevelopment())
             {
-                opts.Services.AddMarten("some connection string")
+                // But wait! Optimize Wolverine for usage as
+                // if there would never be more than one node running
+                opts.Durability.Mode = DurabilityMode.Solo;
+            }
+        });
 
-                    // This adds quite a bit of middleware for
-                    // Marten
-                    .IntegrateWithWolverine();
-
-                // You want this maybe!
-                opts.Policies.AutoApplyTransactions();
-
-
-                if (context.HostingEnvironment.IsDevelopment())
-                {
-                    // But wait! Optimize Wolverine for usage as
-                    // if there would never be more than one node running
-                    opts.Durability.Mode = DurabilityMode.Solo;
-                }
-            }).StartAsync();
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
