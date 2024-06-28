@@ -60,6 +60,10 @@ public partial class WolverineRuntime
             switch (Options.Durability.Mode)
             {
                 case DurabilityMode.Balanced:
+                    await startMessagingTransportsAsync();
+                    startInMemoryScheduledJobs();
+                    await startNodeAgentWorkflowAsync();
+                    break;
                 case DurabilityMode.Solo:
                     await startMessagingTransportsAsync();
                     startInMemoryScheduledJobs();
