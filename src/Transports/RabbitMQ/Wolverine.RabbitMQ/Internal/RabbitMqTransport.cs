@@ -45,8 +45,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     internal RabbitMqChannelCallback? Callback { get; private set; }
 
-    internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("This connection has not been created yet!");
-    internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("This connection has not been created yet!");
+    internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
+    internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("The sending connection has not been created yet or is disabled!");
 
     public ConnectionFactory ConnectionFactory { get; } = new(){ClientProvidedName = "Wolverine"};
 
