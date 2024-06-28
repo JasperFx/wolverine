@@ -36,17 +36,20 @@ public class CodegenUsage
     {
         #region sample_asserting_all_pre_built_types_exist_upfront
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
             {
-                if (context.HostingEnvironment.IsProduction())
+                if (builder.Environment.IsProduction())
                 {
                     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
                     // You probably only ever want to do this in Production
                     opts.Services.AssertAllExpectedPreBuiltTypesExistOnStartUp();
                 }
-            }).StartAsync();
+            });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }

@@ -29,28 +29,30 @@ public class SampleProgram2
 {
     #region sample_UseWolverineWithInlineOptionsConfigurationAndHosting
 
-    public static IHostBuilder CreateHostBuilder()
+    public static IHost CreateHostBuilder()
     {
-        return Host.CreateDefaultBuilder()
+        var builder = Host.CreateApplicationBuilder();
+        
+        // This adds Wolverine with inline configuration
+        // of WolverineOptions
+        builder.UseWolverine(opts =>
+        {
+            // This is an example usage of the application's
+            // IConfiguration inside of Wolverine bootstrapping
+            var port = builder.Configuration.GetValue<int>("ListenerPort");
+            opts.ListenAtPort(port);
 
-            // This adds Wolverine with inline configuration
-            // of WolverineOptions
-            .UseWolverine((context, opts) =>
+            // If we're running in development mode and you don't
+            // want to worry about having all the external messaging
+            // dependencies up and running, stub them out
+            if (builder.Environment.IsDevelopment())
             {
-                // This is an example usage of the application's
-                // IConfiguration inside of Wolverine bootstrapping
-                var port = context.Configuration.GetValue<int>("ListenerPort");
-                opts.ListenAtPort(port);
+                // This will "stub" out all configured external endpoints
+                opts.StubAllExternalTransports();
+            }
+        });
 
-                // If we're running in development mode and you don't
-                // want to worry about having all the external messaging
-                // dependencies up and running, stub them out
-                if (context.HostingEnvironment.IsDevelopment())
-                {
-                    // This will "stub" out all configured external endpoints
-                    opts.StubAllExternalTransports();
-                }
-            });
+        return builder.Build();
     }
 
     #endregion

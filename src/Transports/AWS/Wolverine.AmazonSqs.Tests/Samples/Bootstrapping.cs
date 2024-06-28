@@ -52,25 +52,28 @@ public class Bootstrapping
     {
         #region sample_config_aws_sqs_connection
 
-        var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
-            {
-                var config = context.Configuration;
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var config = builder.Configuration;
 
-                opts.UseAmazonSqsTransport(sqsConfig =>
-                    {
-                        sqsConfig.ServiceURL = config["AwsUrl"];
-                        // And any other elements of the SQS AmazonSQSConfig
-                        // that you may need to configure
-                    })
+            opts.UseAmazonSqsTransport(sqsConfig =>
+                {
+                    sqsConfig.ServiceURL = config["AwsUrl"];
+                    // And any other elements of the SQS AmazonSQSConfig
+                    // that you may need to configure
+                })
 
-                    // Let Wolverine create missing queues as necessary
-                    .AutoProvision()
+                // Let Wolverine create missing queues as necessary
+                .AutoProvision()
 
-                    // Optionally purge all queues on application startup.
-                    // Warning though, this is potentially slow
-                    .AutoPurgeOnStartup();
-            }).StartAsync();
+                // Optionally purge all queues on application startup.
+                // Warning though, this is potentially slow
+                .AutoPurgeOnStartup();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -79,28 +82,31 @@ public class Bootstrapping
     {
         #region sample_setting_aws_credentials
 
-        var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
-            {
-                var config = context.Configuration;
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var config = builder.Configuration;
 
-                opts.UseAmazonSqsTransport(sqsConfig =>
-                    {
-                        sqsConfig.ServiceURL = config["AwsUrl"];
-                        // And any other elements of the SQS AmazonSQSConfig
-                        // that you may need to configure
-                    })
+            opts.UseAmazonSqsTransport(sqsConfig =>
+                {
+                    sqsConfig.ServiceURL = config["AwsUrl"];
+                    // And any other elements of the SQS AmazonSQSConfig
+                    // that you may need to configure
+                })
 
-                    // And you can also add explicit AWS credentials
-                    .Credentials(new BasicAWSCredentials(config["AwsAccessKey"], config["AwsSecretKey"]))
+                // And you can also add explicit AWS credentials
+                .Credentials(new BasicAWSCredentials(config["AwsAccessKey"], config["AwsSecretKey"]))
 
-                    // Let Wolverine create missing queues as necessary
-                    .AutoProvision()
+                // Let Wolverine create missing queues as necessary
+                .AutoProvision()
 
-                    // Optionally purge all queues on application startup.
-                    // Warning though, this is potentially slow
-                    .AutoPurgeOnStartup();
-            }).StartAsync();
+                // Optionally purge all queues on application startup.
+                // Warning though, this is potentially slow
+                .AutoPurgeOnStartup();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -122,13 +128,13 @@ public class Bootstrapping
                     .AutoPurgeOnStartup();
 
                 opts.ListenToSqsQueue("incoming", queue =>
-                {
-                    queue.Configuration.Attributes[QueueAttributeName.DelaySeconds]
-                        = "5";
+                    {
+                        queue.Configuration.Attributes[QueueAttributeName.DelaySeconds]
+                            = "5";
 
-                    queue.Configuration.Attributes[QueueAttributeName.MessageRetentionPeriod]
-                        = 4.Days().TotalSeconds.ToString();
-                })
+                        queue.Configuration.Attributes[QueueAttributeName.MessageRetentionPeriod]
+                            = 4.Days().TotalSeconds.ToString();
+                    })
                     // You can optimize the throughput by running multiple listeners
                     // in parallel
                     .ListenerCount(5);
@@ -173,7 +179,6 @@ public class Bootstrapping
             {
                 opts.UseAmazonSqsTransport()
                     .UseConventionalRouting();
-
             }).StartAsync();
 
         #endregion
@@ -219,10 +224,7 @@ public class Bootstrapping
                     typeof(Message1),
 
                     // Optionally customize System.Text.Json configuration
-                    o =>
-                    {
-                        o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-                    });
+                    o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
             }).StartAsync();
 
         #endregion
@@ -242,10 +244,7 @@ public class Bootstrapping
                     typeof(Message1),
 
                     // Optionally customize System.Text.Json configuration
-                    o =>
-                    {
-                        o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-                    });
+                    o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
             }).StartAsync();
 
         #endregion
@@ -261,11 +260,8 @@ public class Bootstrapping
             {
                 opts.UseAmazonSqsTransport()
                     .UseConventionalRouting()
-
                     .ConfigureListeners(l => l.InteropWith(new CustomSqsMapper()))
-
                     .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
-
             }).StartAsync();
 
         #endregion
@@ -287,11 +283,13 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     {
         if (envelope.TenantId.IsNotEmpty())
         {
-            yield return new KeyValuePair<string, MessageAttributeValue>("tenant-id", new MessageAttributeValue{StringValue = envelope.TenantId});
+            yield return new KeyValuePair<string, MessageAttributeValue>("tenant-id",
+                new MessageAttributeValue { StringValue = envelope.TenantId });
         }
     }
 
-    public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
+    public void ReadEnvelopeData(Envelope envelope, string messageBody,
+        IDictionary<string, MessageAttributeValue> attributes)
     {
         envelope.Data = Encoding.Default.GetBytes(messageBody);
 

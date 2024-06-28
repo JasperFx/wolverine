@@ -42,22 +42,20 @@ public static class HostBuilderExtensions
     /// <param name="builder"></param>
     /// <param name="overrides">Programmatically configure Wolverine options</param>
     /// <returns></returns>
-    [Obsolete("Make this go away")]
-    public static IHostBuilder UseWolverine(this IHostBuilder builder,
-        Action<HostBuilderContext, WolverineOptions>? overrides = null, ExtensionDiscovery discovery = ExtensionDiscovery.Automatic)
+    public static IHostBuilder UseWolverine(this IHostBuilder builder, Action<WolverineOptions>? overrides = null, ExtensionDiscovery discovery = ExtensionDiscovery.Automatic)
     {
-        return builder.UseWolverine(new WolverineOptions(), overrides, discovery);
+        return builder.ConfigureServices(services =>
+        {
+            services.AddWolverine(discovery, overrides);
+        });
     }
 
-    /// <summary>
-    ///     Add Wolverine to an ASP.Net Core application with optional configuration to Wolverine
-    /// </summary>
-    /// <param name="builder"></param>
-    /// <param name="overrides">Programmatically configure Wolverine options</param>
-    /// <returns></returns>
-    public static IHostBuilder UseWolverine(this IHostBuilder builder, Action<WolverineOptions> overrides, ExtensionDiscovery discovery = ExtensionDiscovery.Automatic)
+    internal static IHostBuilder UseWolverine(this IHostBuilder builder, WolverineOptions options)
     {
-        return builder.UseWolverine((_, r) => overrides(r), discovery);
+        return builder.ConfigureServices(services =>
+        {
+            
+        });
     }
 
     /// <summary>
@@ -79,6 +77,13 @@ public static class HostBuilderExtensions
     public static IServiceCollection AddWolverine(this IServiceCollection services, ExtensionDiscovery discovery, Action<WolverineOptions>? configure = null)
     {
         var options = new WolverineOptions();
+        return AddWolverine(services, options, discovery, configure);
+    }
+
+    internal static IServiceCollection AddWolverine(IServiceCollection services, WolverineOptions options,
+        ExtensionDiscovery discovery = ExtensionDiscovery.Automatic,
+        Action<WolverineOptions>? configure = null)
+    {
         if (services.Any(x => x.ServiceType == typeof(IWolverineRuntime)))
         {
             throw new InvalidOperationException(
@@ -191,6 +196,21 @@ public static class HostBuilderExtensions
         return services;
     }
 
+#if NET8_0_OR_GREATER
+    /// <summary>
+    /// Bootstrap Wolverine into a HostApplicationBuilder
+    /// </summary>
+    /// <param name="builder"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static IHostApplicationBuilder UseWolverine(this IHostApplicationBuilder builder,
+        Action<WolverineOptions>? configure)
+    {
+        builder.Services.AddWolverine(configure);
+
+        return builder;
+    }
+    #else
     /// <summary>
     /// Bootstrap Wolverine into a HostApplicationBuilder
     /// </summary>
@@ -204,28 +224,7 @@ public static class HostBuilderExtensions
 
         return builder;
     }
-
-    /// <summary>
-    ///     Add Wolverine to an ASP.Net Core application with a pre-built WolverineOptionsBuilder
-    /// </summary>
-    /// <param name="builder"></param>
-    /// <param name="optionsy"></param>
-    /// <returns></returns>
-    internal static IHostBuilder UseWolverine(this IHostBuilder builder, WolverineOptions options,
-        Action<HostBuilderContext, WolverineOptions>? customization = null, ExtensionDiscovery discovery = ExtensionDiscovery.Automatic)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        builder.ConfigureServices((context, services) =>
-        {
-            services.AddWolverine(discovery, o =>
-            {
-                customization?.Invoke(context, o);
-            });
-        });
-
-        return builder;
-    }
+#endif
 
     internal static void MessagingRootService<T>(this IServiceCollection services,
         Func<IWolverineRuntime, T> expression)
