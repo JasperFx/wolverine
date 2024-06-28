@@ -246,10 +246,10 @@ public class end_to_end
         var queueName = RabbitTesting.NextQueueName();
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup().UseSenderConnectionOnly();
 
             opts.PublishAllMessages()
-                .ToRabbitQueue(queueName)
+                .ToRabbitExchange(queueName)
                 .SendInline();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
@@ -260,9 +260,11 @@ public class end_to_end
 
         using var receiver = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().AutoProvision();
+            var rabbit = opts.UseRabbitMq().AutoProvision();
 
-            opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
+            // TODO is this a feature gap?
+            rabbit.BindExchange(queueName).ToQueue(queueName);
+           // opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
             opts.Services.AddSingleton<ColorHistory>();
 
 
