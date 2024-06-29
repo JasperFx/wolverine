@@ -213,6 +213,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     }
 
     public ILogger<RabbitMqTransport> Logger { get; private set; } = NullLogger<RabbitMqTransport>.Instance;
+    
+    /// <summary>
+    /// Opt into making Wolverine "auto ping" new listeners by trying to send a fake Wolverine "ping" message
+    /// This *might* assist in Wolverine auto-starting rabbit mq connections that have failed on the Rabbit MQ side
+    /// </summary>
+    public bool AutoPingListeners { get; set; } = false;
 
     public RabbitMqQueue EndpointForQueue(string queueName)
     {

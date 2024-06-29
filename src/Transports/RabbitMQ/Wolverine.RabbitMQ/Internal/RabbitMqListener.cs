@@ -108,9 +108,12 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         NativeDeadLetterQueueEnabled = queue.DeadLetterQueue != null &&
                                        queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage;
 
-        // This is trying to be a forcing function to make the channel really connect
-        var ping = Envelope.ForPing(Address);
-        Task.Run(() => _sender.Value.SendAsync(ping));
+        if (transport.AutoPingListeners)
+        {
+            // This is trying to be a forcing function to make the channel really connect
+            var ping = Envelope.ForPing(Address);
+            Task.Run(() => _sender.Value.SendAsync(ping));
+        }
     }
 
     public RabbitMqQueue Queue { get; }
