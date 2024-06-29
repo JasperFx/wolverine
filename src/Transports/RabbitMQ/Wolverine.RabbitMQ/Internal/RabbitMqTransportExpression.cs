@@ -12,6 +12,17 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
+    /// Opt into making Wolverine "auto ping" new listeners by trying to send a fake Wolverine "ping" message
+    /// This *might* assist in Wolverine auto-starting rabbit mq connections that have failed on the Rabbit MQ side
+    /// Experimental
+    /// </summary>
+    public RabbitMqTransportExpression AutoPingListeners()
+    {
+        Transport.AutoPingListeners = true;
+        return this;
+    }
+
+    /// <summary>
     /// Make any necessary customizations to the Rabbit MQ client's ConnectionFactory
     /// </summary>
     /// <param name="configure"></param>
