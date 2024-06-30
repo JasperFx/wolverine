@@ -31,7 +31,7 @@ public class RabbitMqEndpointTests
     {
         var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
         endpoint.Mode = EndpointMode.BufferedInMemory;
-        new RabbitMqListenerConfiguration(endpoint).MaximumParallelMessages(10);
+        new RabbitMqListenerConfiguration(endpoint, new RabbitMqTransport()).MaximumParallelMessages(10);
 
         var wolverineRuntime = Substitute.For<IWolverineRuntime>();
         wolverineRuntime.Options.Returns(new WolverineOptions());
@@ -46,7 +46,7 @@ public class RabbitMqEndpointTests
         var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
         endpoint.Mode = EndpointMode.Durable;
 
-        new RabbitMqListenerConfiguration(endpoint).MaximumParallelMessages(10);
+        new RabbitMqListenerConfiguration(endpoint, new RabbitMqTransport()).MaximumParallelMessages(10);
         var wolverineRuntime = Substitute.For<IWolverineRuntime>();
         wolverineRuntime.Options.Returns(new WolverineOptions());
 
@@ -60,7 +60,7 @@ public class RabbitMqEndpointTests
     {
         var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
         endpoint.Mode = EndpointMode.Inline;
-        new RabbitMqListenerConfiguration(endpoint).MaximumParallelMessages(10);
+        new RabbitMqListenerConfiguration(endpoint, new RabbitMqTransport()).MaximumParallelMessages(10);
 
         endpoint.PreFetchCount.ShouldBe((ushort)100);
     }

@@ -18,7 +18,7 @@ public class discover_with_naming_prefix : IDisposable
         _host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRabbitMq().PrefixIdentifiers("zztop").UseConventionalRouting().AutoProvision()
+                opts.UseRabbitMq().PrefixIdentifiers("zztop").UseConventionalRouting(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly)).AutoProvision()
                     .AutoPurgeOnStartup();
             }).Start();
     }

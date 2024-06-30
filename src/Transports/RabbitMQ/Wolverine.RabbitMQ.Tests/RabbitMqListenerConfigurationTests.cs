@@ -12,7 +12,7 @@ public class RabbitMqListenerConfigurationTests
     public void override_prefetch_count()
     {
         var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
-        var expression = new RabbitMqListenerConfiguration(endpoint);
+        var expression = new RabbitMqListenerConfiguration(endpoint, new RabbitMqTransport());
 
         expression.PreFetchCount(99).ShouldBeSameAs(expression);
 
@@ -28,7 +28,7 @@ public class RabbitMqListenerConfigurationTests
     public void use_specialized_mapper()
     {
         var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
-        var expression = new RabbitMqListenerConfiguration(endpoint);
+        var expression = new RabbitMqListenerConfiguration(endpoint, new RabbitMqTransport());
 
         var theMapper = new SpecialMapper();
         expression.UseInterop(theMapper);

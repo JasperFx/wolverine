@@ -10,7 +10,7 @@ public class AzureServiceBusTopicBroadcastingRoutingConvention : MessageRoutingC
 {
     private Func<Type,string>? _subscriptionNameSource;
 
-    protected override (AzureServiceBusSubscriptionListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(
+    protected override (AzureServiceBusSubscriptionListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(
         string identifier,
         AzureServiceBusTransport transport, Type messageType)
     {
@@ -31,7 +31,7 @@ public class AzureServiceBusTopicBroadcastingRoutingConvention : MessageRoutingC
         return (new AzureServiceBusSubscriptionListenerConfiguration(subscription), subscription);
     }
 
-    protected override (AzureServiceBusTopicSubscriberConfiguration, Endpoint) findOrCreateSubscriber(string identifier,
+    protected override (AzureServiceBusTopicSubscriberConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,
         AzureServiceBusTransport transport)
     {
         var topic = transport.Topics[identifier];

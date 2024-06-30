@@ -100,16 +100,16 @@ public class RabbitMqObjects
         foreach (var exchange in _exchanges)
         {
             await exchange.DeclareAsync(model, _logger);
-
-            foreach (var binding in exchange.Bindings())
-            {
-                await binding.DeclareAsync(model, _logger);
-            }
         }
 
         foreach (var queue in _queues)
         {
             await queue.DeclareAsync(model, _logger);
+            
+            foreach (var binding in queue.Bindings())
+            {
+                await binding.DeclareAsync(model, _logger);
+            }
         }
 
         await model.CloseAsync();

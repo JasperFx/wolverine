@@ -13,7 +13,11 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
 
     public when_discovering_a_listening_endpoint_with_overridden_queue_naming()
     {
-        ConfigureConventions(c => c.QueueNameForListener(t => t.ToMessageTypeName() + "2"));
+        ConfigureConventions(c =>
+        {
+            c.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly);
+            c.QueueNameForListener(t => t.ToMessageTypeName() + "2");
+        });
 
         theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
     }
