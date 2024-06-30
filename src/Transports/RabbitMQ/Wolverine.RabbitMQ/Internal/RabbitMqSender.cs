@@ -31,8 +31,6 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
         _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
-
-        _ = EnsureConnected();
     }
 
     public bool SupportsNativeScheduledSend => false;
@@ -40,6 +38,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
     public async ValueTask SendAsync(Envelope envelope)
     {
+        await EnsureConnected();
         if (Channel == null)
         {
             throw new InvalidOperationException("Channel has not been started for this sender");

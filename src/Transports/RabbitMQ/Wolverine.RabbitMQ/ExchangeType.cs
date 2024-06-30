@@ -4,5 +4,6 @@ public enum ExchangeType
 {
     Direct,
     Fanout,
-    Topic
+    Topic,
+    Headers
 }

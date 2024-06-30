@@ -28,8 +28,6 @@ public class RabbitMqBinding
         {
             return;
         }
-
-        await _queue.DeclareAsync(channel, logger);
         await channel.QueueBindAsync(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
         logger.LogInformation("Declared a Rabbit Mq binding '{Key}' from exchange {Exchange} to {Queue}", BindingKey,
             ExchangeName, _queue.EndpointName);

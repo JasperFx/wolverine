@@ -189,7 +189,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
             var dlqExchange = Exchanges[deadLetterQueue.ExchangeName];
             deadLetterQueue.ConfigureExchange?.Invoke(dlqExchange);
 
-            dlqExchange.BindQueue(deadLetterQueue.QueueName, deadLetterQueue.BindingName);
+            dlq.BindExchange(dlqExchange.Name, deadLetterQueue.BindingName);
         }
     }
 
@@ -234,7 +234,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     public IEnumerable<RabbitMqBinding> Bindings()
     {
-        return Exchanges.SelectMany(x => x.Bindings());
+        return Queues.SelectMany(x => x.Bindings());
     }
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns()

@@ -40,8 +40,7 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
 
         var table = new Table()
             .AddColumns(nameof(RabbitMqExchange.Name), "Type", nameof(RabbitMqExchange.AutoDelete),
-                nameof(RabbitMqExchange.IsDurable), nameof(RabbitMqExchange.Arguments),
-                nameof(RabbitMqExchange.Bindings));
+                nameof(RabbitMqExchange.IsDurable), nameof(RabbitMqExchange.Arguments));
 
         foreach (var exchange in Exchanges)
         {
@@ -49,25 +48,7 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
                 ? exchange.Arguments.Select(pair => $"{pair.Key} = {pair.Value}").Join(", ")
                 : "-";
 
-            var bindings = "";
-            if (exchange.Bindings().Any())
-            {
-                if (exchange.ExchangeType == ExchangeType.Topic)
-                {
-                    var groups = exchange.Bindings().GroupBy(x => x.Queue);
-                    bindings = groups.Select(group =>
-                    {
-                        return $"Topics {group.Select(x => x.BindingKey).Join(", ")} to queue {group.Key.QueueName}";
-                    }).Join(", ");
-                }
-                else
-                {
-                    bindings = $"To queue(s) {exchange.Bindings().Select(x => x.Queue.QueueName).Join(", ")}";
-                }
-            }
-
-            table.AddRow(exchange.Name, exchange.ExchangeType.ToString(), exchange.AutoDelete.ToString(), exchange.IsDurable.ToString(), arguments,
-                bindings);
+            table.AddRow(exchange.Name, exchange.ExchangeType.ToString(), exchange.AutoDelete.ToString(), exchange.IsDurable.ToString(), arguments);
         }
 
         AnsiConsole.Write(table);
@@ -81,13 +62,32 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
 
         var table = new Table();
         table.AddColumns(nameof(RabbitMqQueue.QueueName), nameof(RabbitMqQueue.AutoDelete),
-            nameof(RabbitMqQueue.IsDurable), nameof(RabbitMqQueue.IsExclusive), nameof(RabbitMqQueue.Arguments));
+            nameof(RabbitMqQueue.IsDurable), nameof(RabbitMqQueue.IsExclusive), nameof(RabbitMqQueue.Arguments), nameof(RabbitMqQueue.Bindings));
 
         foreach (var queue in Queues)
         {
             var arguments = queue.Arguments.Any()
                 ? queue.Arguments.Select(pair => $"{pair.Key} = {pair.Value}").Join(", ")
                 : "-";
+            
+            var bindings = "";
+            if (queue.Bindings().Any())
+            {
+                /*if (exchange.ExchangeType == ExchangeType.Topic)
+                {
+                    var groups = exchange.Bindings().GroupBy(x => x.Queue);
+                    bindings = groups.Select(group =>
+                    {
+                        return $"Topics {group.Select(x => x.BindingKey).Join(", ")} to queue {group.Key.QueueName}";
+                    }).Join(", ");
+                }
+                else
+                {
+                   
+                }*/
+                
+                bindings = $"To queue(s) {queue.Bindings().Select(x => x.Queue.QueueName).Join(", ")}";
+            }
 
             table.AddRow(queue.QueueName, queue.AutoDelete.ToString(), queue.IsDurable.ToString(),
                 queue.IsExclusive.ToString(), arguments);

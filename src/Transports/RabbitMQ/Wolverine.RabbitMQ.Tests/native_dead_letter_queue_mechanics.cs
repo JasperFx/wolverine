@@ -58,7 +58,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
         theTransport.Exchanges.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeTrue();
         theTransport.Queues.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeTrue();
 
-        var exchange = theTransport.Exchanges[RabbitMqTransport.DeadLetterQueueName];
+        var exchange = theTransport.Queues[RabbitMqTransport.DeadLetterQueueName];
         exchange.Bindings().Single().Queue.ShouldBeSameAs(theTransport.Queues[RabbitMqTransport.DeadLetterQueueName]);
     }
 

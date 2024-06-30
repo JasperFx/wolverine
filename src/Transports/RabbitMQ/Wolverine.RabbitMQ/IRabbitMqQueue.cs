@@ -1,3 +1,5 @@
+using Wolverine.RabbitMQ.Internal;
+
 namespace Wolverine.RabbitMQ;
 
 public interface IRabbitMqQueue
@@ -37,4 +39,16 @@ public interface IRabbitMqQueue
     /// </summary>
     /// <param name="limit"></param>
     void TimeToLive(TimeSpan limit);
+
+    RabbitMqBinding BindExchange(string exchangeName, string? bindingKey = null,
+        Dictionary<string, object>? arguments = null);
+    
+    /// <summary>
+    ///     Declare a Rabbit MQ binding with the supplied topic pattern to
+    ///     the exchange
+    /// </summary>
+    /// <param name="topicPattern"></param>
+    /// <param name="bindingName"></param>
+    /// <exception cref="NotImplementedException"></exception>
+    RabbitMqQueue.TopicBinding BindTopic(string topicPattern);
 }

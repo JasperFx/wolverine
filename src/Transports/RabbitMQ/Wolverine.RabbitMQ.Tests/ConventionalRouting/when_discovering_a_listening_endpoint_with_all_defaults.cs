@@ -13,6 +13,7 @@ public class when_discovering_a_listening_endpoint_with_all_defaults : Conventio
 
     public when_discovering_a_listening_endpoint_with_all_defaults()
     {
+        ConfigureConventions(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly));
         theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
     }
 

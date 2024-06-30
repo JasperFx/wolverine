@@ -18,7 +18,10 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
         {
             opts.UseRabbitMq()
                 .PrefixIdentifiers("shazaam")
-                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                .UseConventionalRouting(x =>
+                {
+                    x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly);
+                }).AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
@@ -27,7 +30,10 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
         {
             opts.UseRabbitMq()
                 .PrefixIdentifiers("shazaam")
-                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                .UseConventionalRouting(x =>
+                {
+                    x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly);
+                }).AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
     }

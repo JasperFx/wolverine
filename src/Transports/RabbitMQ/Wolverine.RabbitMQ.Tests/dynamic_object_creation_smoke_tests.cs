@@ -38,8 +38,9 @@ public class dynamic_object_creation_smoke_tests : IAsyncLifetime
         // Declare new Exchanges, Queues, and Bindings at runtime
         runtime.ModifyRabbitMqObjects(o =>
         {
+            var queue = o.DeclareQueue(queueName);
             var exchange = o.DeclareExchange(exchangeName);
-            exchange.BindQueue(queueName, bindingKey);
+            queue.BindExchange(exchange.ExchangeName, bindingKey);
         });
 
         // Unbind a queue from an exchange
