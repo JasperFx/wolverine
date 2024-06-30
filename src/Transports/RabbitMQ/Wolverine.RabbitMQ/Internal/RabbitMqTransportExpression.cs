@@ -42,7 +42,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
     protected override RabbitMqListenerConfiguration createListenerExpression(RabbitMqQueue listenerEndpoint)
     {
-        return new RabbitMqListenerConfiguration(listenerEndpoint);
+        return new RabbitMqListenerConfiguration(listenerEndpoint, Transport);
     }
 
     protected override RabbitMqSubscriberConfiguration createSubscriberExpression(RabbitMqEndpoint subscriberEndpoint)
@@ -78,10 +78,10 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     /// <param name="exchangeName"></param>
     /// <param name="configure"></param>
     public RabbitMqTransportExpression DeclareExchange(string exchangeName,
-        Action<IRabbitMqExchange>? configure = null)
+        Action<IRabbitMqBindableExchange>? configure = null)
     {
-        var exchange = Transport.Exchanges[exchangeName];
-        configure?.Invoke(exchange);
+        var config = new RabbitMqExchangeConfigurationExpression(exchangeName, Transport);
+        configure?.Invoke(config);
 
         return this;
     }
@@ -207,8 +207,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         /// <param name="configure">Optional configuration of the Rabbit MQ queue</param>
         public RabbitMqTransportExpression ToQueue(string queueName, Action<IRabbitMqQueue>? configure = null)
         {
-            _parent.DeclareQueue(queueName, configure);
-            ToQueue(queueName, $"{_exchangeName}_{queueName}");
+            ToQueue(queueName, $"{_exchangeName}_{queueName}", configure);
 
             return _parent;
         }
@@ -224,13 +223,11 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
             Action<IRabbitMqQueue>? configure = null, Dictionary<string, object>? arguments = null)
         {
             _parent.DeclareQueue(queueName, configure);
-
-            var binding = _parent.Transport.Exchanges[_exchangeName].BindQueue(queueName, bindingKey);
-
-            if (arguments != null)
-            {
-                foreach (var argument in arguments) binding.Arguments[argument.Key] = argument.Value;
-            }
+            var queue = _parent.Transport.Queues[queueName];
+            var exchange = _parent.Transport.Exchanges[_exchangeName];
+            if (exchange.ExchangeType is ExchangeType.Direct)
+                exchange.DirectRoutingKey = bindingKey;
+            queue.BindExchange(exchange.Name, bindingKey, arguments);
 
             return _parent;
         }

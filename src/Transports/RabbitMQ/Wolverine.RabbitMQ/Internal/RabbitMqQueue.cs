@@ -8,7 +8,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
+public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 {
     private readonly RabbitMqTransport _parent;
 
@@ -88,6 +88,12 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         }
 
         using var channel = await _parent.CreateAdminChannelAsync();
+        foreach (var binding in _bindings)
+        {
+            logger.LogInformation("Removing binding {Key} from exchange {Exchange} to queue {Queue}",
+                binding.BindingKey, binding.ExchangeName, binding.Queue);
+            await binding.TeardownAsync(channel);
+        }
         await channel.QueueDeleteAsync(QueueName, false, false, true);
     }
 
@@ -270,6 +276,14 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
             logger.LogInformation(
                 "Declared Rabbit MQ queue '{Name}' as IsDurable={IsDurable}, IsExclusive={IsExclusive}, AutoDelete={AutoDelete}",
                 EndpointName, IsDurable, IsExclusive, AutoDelete);
+            
+            if (_bindings.Count > 0)
+            {
+                foreach (var binding in _bindings)
+                {
+                    await binding.DeclareAsync(channel, logger);
+                }
+            }
         }
         catch (OperationInterruptedException e)
         {

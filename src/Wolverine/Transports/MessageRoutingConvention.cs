@@ -19,8 +19,8 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
     private Action<TListener, MessageRoutingContext> _configureListener = (_, _) => { };
     private Action<TSubscriber, MessageRoutingContext> _configureSending = (_, _) => { };
-    private Func<Type, string?> _identifierForSender = t => t.ToMessageTypeName();
-    private Func<Type, string?> _queueNameForListener = t => t.ToMessageTypeName();
+    protected Func<Type, string?> _identifierForSender = t => t.ToMessageTypeName();
+    protected Func<Type, string?> _queueNameForListener = t => t.ToMessageTypeName();
 
     void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
@@ -42,8 +42,8 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
             var corrected = transport.MaybeCorrectName(queueName);
 
-            var (configuration, endpoint) = findOrCreateListenerForIdentifier(corrected, transport, messageType);
-            endpoint.EndpointName = queueName;
+            var (configuration, endpoint) = FindOrCreateListenerForIdentifier(corrected, transport, messageType);
+            //endpoint.EndpointName = queueName;
 
             endpoint.IsListener = true;
 
@@ -52,6 +52,8 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
             _configureListener(configuration, context);
 
             configuration!.As<IDelayedEndpointConfiguration>().Apply();
+            
+            ApplyListenerRoutingDefaults(corrected, transport, messageType);
         }
     }
 
@@ -77,7 +79,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
         var corrected = transport.MaybeCorrectName(destinationName);
 
-        var (configuration, endpoint) = findOrCreateSubscriber(corrected, transport);
+        var (configuration, endpoint) = FindOrCreateSubscriber(corrected, transport);
         endpoint.EndpointName = destinationName;
 
         _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
@@ -131,10 +133,12 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         return this.As<TSelf>();
     }
 
-    protected abstract (TListener, Endpoint) findOrCreateListenerForIdentifier(string identifier,
+    protected abstract (TListener, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
         TTransport transport, Type messageType);
 
-    protected abstract (TSubscriber, Endpoint) findOrCreateSubscriber(string identifier, TTransport transport);
+    protected abstract (TSubscriber, Endpoint) FindOrCreateSubscriber(string identifier, TTransport transport);
+
+    protected virtual void ApplyListenerRoutingDefaults(string listenerIdentifier, TTransport transport, Type messageType) {}
 
     /// <summary>
     ///     Override the convention for determining the queue name for receiving incoming messages of the message type.

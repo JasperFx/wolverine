@@ -62,7 +62,7 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
         theTransport.Exchanges.Contains(deadLetterQueueName).ShouldBeTrue();
         theTransport.Queues.Contains(deadLetterQueueName).ShouldBeTrue();
 
-        var exchange = theTransport.Exchanges[deadLetterQueueName];
+        var exchange = theTransport.Queues[deadLetterQueueName];
         exchange.Bindings().Single().Queue.ShouldBeSameAs(theTransport.Queues[deadLetterQueueName]);
     }
 

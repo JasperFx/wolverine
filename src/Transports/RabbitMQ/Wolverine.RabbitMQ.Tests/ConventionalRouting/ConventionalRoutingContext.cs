@@ -8,10 +8,16 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
+public static class ConventionalRoutingTestDefaults
+{
+    public static bool RoutingMessageOnly(Type type) => type == typeof(RoutedMessage);
+}
+
+
 public abstract class ConventionalRoutingContext : IDisposable
 {
     private IHost _host;
-
+    
     internal IWolverineRuntime theRuntime
     {
         get

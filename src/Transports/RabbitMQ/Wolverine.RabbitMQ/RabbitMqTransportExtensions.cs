@@ -152,7 +152,7 @@ public static class RabbitMqTransportExtensions
 
         configure?.Invoke(queue);
 
-        return new RabbitMqListenerConfiguration(queue);
+        return new RabbitMqListenerConfiguration(queue, transport);
     }
 
     /// <summary>
@@ -219,7 +219,7 @@ public static class RabbitMqTransportExtensions
     /// <param name="configure">Optional configuration of this exchange if Wolverine is doing the initialization in Rabbit MQ</param>
     /// <returns></returns>
     public static RabbitMqSubscriberConfiguration ToRabbitExchange(this IPublishToExpression publishing,
-        string exchangeName, Action<IRabbitMqExchange>? configure = null)
+        string exchangeName, Action<IRabbitMqBindableExchange>? configure = null)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<RabbitMqTransport>();
@@ -227,7 +227,9 @@ public static class RabbitMqTransportExtensions
         var corrected = transport.MaybeCorrectName(exchangeName);
         var exchange = transport.Exchanges[corrected];
         exchange.EndpointName = exchangeName;
-        configure?.Invoke(exchange);
+
+        var config = new RabbitMqExchangeConfigurationExpression(corrected, transport);
+        configure?.Invoke(config);
 
         var endpoint = transport.EndpointForExchange(exchangeName);
 
@@ -273,13 +275,14 @@ public static class RabbitMqTransportExtensions
     /// <param name="configure">Optional configuration of this exchange if Wolverine is doing the initialization in Rabbit MQ</param>
     /// <returns></returns>
     public static RabbitMqSubscriberConfiguration ToRabbitTopics(this IPublishToExpression publishing,
-        string exchangeName, Action<IRabbitMqExchange>? configure = null)
+        string exchangeName, Action<IRabbitMqBindableExchange>? configure = null)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<RabbitMqTransport>();
 
         var exchange = transport.Exchanges[exchangeName];
-        configure?.Invoke(exchange);
+        var config = new RabbitMqExchangeConfigurationExpression(exchangeName, transport);
+        configure?.Invoke(config);
         exchange.ExchangeType = ExchangeType.Topic;
 
         var endpoint = transport.EndpointForExchange(exchangeName);
