@@ -55,6 +55,26 @@ public class configuration_model_specs
 
         exchange.HasDeclared.ShouldBeTrue();
     }
+    
+    
+    [Fact]
+    public async Task exchange_declare_headers()
+    {
+        var channel = Substitute.For<IChannel>();
+        var exchange = new RabbitMqExchange("foo", new RabbitMqTransport())
+        {
+            ExchangeType = ExchangeType.Headers,
+            AutoDelete = true,
+            IsDurable = false
+        };
+
+        await exchange.DeclareAsync(channel, NullLogger.Instance);
+
+        await channel.Received().ExchangeDeclareAsync("foo", "headers", false, true, exchange.Arguments);
+
+        exchange.HasDeclared.ShouldBeTrue();
+    }
+    
 
     [Fact]
     public async Task already_latched()

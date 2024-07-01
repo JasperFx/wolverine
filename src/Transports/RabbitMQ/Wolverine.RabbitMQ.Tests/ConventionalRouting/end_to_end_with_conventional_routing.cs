@@ -15,14 +15,14 @@ public class end_to_end_with_conventional_routing : IDisposable
     {
         _sender = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.UseRabbitMq().UseConventionalRouting(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly)).AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
 
         _receiver = WolverineHost.For(opts =>
         {
-            opts.UseRabbitMq().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.UseRabbitMq().UseConventionalRouting(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly)).AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
     }

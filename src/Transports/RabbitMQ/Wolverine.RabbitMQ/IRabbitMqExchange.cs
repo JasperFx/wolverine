@@ -22,21 +22,4 @@ public interface IRabbitMqExchange
     bool AutoDelete { get; set; }
 
     IDictionary<string, object> Arguments { get; }
-
-    /// <summary>
-    ///     Bind a named queue to this exchange with an optional binding key
-    /// </summary>
-    /// <param name="queueName"></param>
-    /// <param name="bindingKey"></param>
-    /// <returns></returns>
-    RabbitMqBinding BindQueue(string queueName, string? bindingKey = null);
-
-    /// <summary>
-    ///     Declare a Rabbit MQ binding with the supplied topic pattern to
-    ///     the queue
-    /// </summary>
-    /// <param name="topicPattern"></param>
-    /// <param name="bindingName"></param>
-    /// <exception cref="NotImplementedException"></exception>
-    TopicBinding BindTopic(string topicPattern);
 }

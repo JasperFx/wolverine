@@ -40,21 +40,23 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
 
         var table = new Table()
             .AddColumns(nameof(RabbitMqExchange.Name), "Type", nameof(RabbitMqExchange.AutoDelete),
-                nameof(RabbitMqExchange.IsDurable), nameof(RabbitMqExchange.Arguments),
-                nameof(RabbitMqExchange.Bindings));
+                nameof(RabbitMqExchange.IsDurable), nameof(RabbitMqExchange.Arguments), nameof(RabbitMqQueue.Bindings));
 
+        var queueBindings = Queues.SelectMany(x => x.Bindings()).ToArray();
+        
         foreach (var exchange in Exchanges)
         {
             var arguments = exchange.Arguments.Any()
                 ? exchange.Arguments.Select(pair => $"{pair.Key} = {pair.Value}").Join(", ")
                 : "-";
-
+            
             var bindings = "";
-            if (exchange.Bindings().Any())
+            var exchangeBindings = queueBindings.Where(x => x.ExchangeName == exchange.Name).ToArray();
+            if (exchangeBindings.Any())
             {
                 if (exchange.ExchangeType == ExchangeType.Topic)
                 {
-                    var groups = exchange.Bindings().GroupBy(x => x.Queue);
+                    var groups = exchangeBindings.GroupBy(x => x.Queue);
                     bindings = groups.Select(group =>
                     {
                         return $"Topics {group.Select(x => x.BindingKey).Join(", ")} to queue {group.Key.QueueName}";
@@ -62,7 +64,7 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
                 }
                 else
                 {
-                    bindings = $"To queue(s) {exchange.Bindings().Select(x => x.Queue.QueueName).Join(", ")}";
+                    bindings = $"To queue(s) {exchangeBindings.Select(x => x.Queue.QueueName).Join(", ")}";
                 }
             }
 
@@ -81,7 +83,7 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
 
         var table = new Table();
         table.AddColumns(nameof(RabbitMqQueue.QueueName), nameof(RabbitMqQueue.AutoDelete),
-            nameof(RabbitMqQueue.IsDurable), nameof(RabbitMqQueue.IsExclusive), nameof(RabbitMqQueue.Arguments));
+            nameof(RabbitMqQueue.IsDurable), nameof(RabbitMqQueue.IsExclusive), nameof(RabbitMqQueue.Arguments), nameof(RabbitMqQueue.Bindings));
 
         foreach (var queue in Queues)
         {
@@ -89,8 +91,15 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
                 ? queue.Arguments.Select(pair => $"{pair.Key} = {pair.Value}").Join(", ")
                 : "-";
 
+            var bindings = string.Empty;
+
+            if (queue.Bindings().Any())
+            {
+               bindings = $"From exchange(s) {queue.Bindings().Select(x => x.ExchangeName).Join(", ")}";
+            }
+
             table.AddRow(queue.QueueName, queue.AutoDelete.ToString(), queue.IsDurable.ToString(),
-                queue.IsExclusive.ToString(), arguments);
+                queue.IsExclusive.ToString(), arguments, bindings);
         }
 
         AnsiConsole.Write(table);
