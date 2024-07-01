@@ -25,11 +25,7 @@ public static class WolverineHost
         return bootstrap(_ => {});
     }
 
-    /// <summary>
-    ///     Builds and initializes a IHost for the configured WolverineOptions
-    /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
+    [Obsolete("Try to eliminate this")]
     public static IHost For(Action<WolverineOptions> configure)
     {
         return bootstrap(configure);

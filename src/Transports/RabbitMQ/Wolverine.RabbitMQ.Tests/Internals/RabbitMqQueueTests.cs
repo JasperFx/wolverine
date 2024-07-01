@@ -12,14 +12,8 @@ namespace Wolverine.RabbitMQ.Tests.Internals;
 public class RabbitMqQueueTests
 {
     private readonly IChannel theChannel = Substitute.For<IChannel>();
-    private readonly IConnectionMonitor theConnection = Substitute.For<IConnectionMonitor>();
 
     private readonly RabbitMqTransport theTransport = new();
-
-    public RabbitMqQueueTests()
-    {
-        theConnection.CreateChannelAsync().Returns(Task.FromResult(theChannel));
-    }
 
     [Fact]
     public void defaults()
@@ -105,7 +99,7 @@ public class RabbitMqQueueTests
 
         theTransport.Queues["foo"].PurgeOnStartup = false;
 
-        await queue.InitializeAsync(theConnection, NullLogger.Instance);
+        await queue.InitializeAsync(theChannel, NullLogger.Instance);
 
         await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
         await theChannel.DidNotReceiveWithAnyArgs().QueuePurgeAsync("foo");
@@ -120,7 +114,7 @@ public class RabbitMqQueueTests
         var endpoint = theTransport.Queues["foo"];
         endpoint.PurgeOnStartup = true;
 
-        await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
+        await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
         await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
         await theChannel.Received().QueuePurgeAsync("foo");
@@ -136,7 +130,7 @@ public class RabbitMqQueueTests
 
         theTransport.Queues["foo"].PurgeOnStartup = false;
 
-        await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
+        await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
         await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
         await theChannel.Received().QueuePurgeAsync("foo");
@@ -152,7 +146,7 @@ public class RabbitMqQueueTests
 
         theTransport.Queues["foo"].PurgeOnStartup = false;
 
-        await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
+        await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
         await theChannel.Received().QueueDeclareAsync("foo", true, false, false, endpoint.Arguments);
         await theChannel.Received().QueuePurgeAsync("foo");
@@ -167,7 +161,7 @@ public class RabbitMqQueueTests
         var endpoint = theTransport.Queues["foo"];
         endpoint.PurgeOnStartup = true;
 
-        await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
+        await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
         await theChannel.Received().QueueDeclareAsync("foo", true, false, false, endpoint.Arguments);
         await theChannel.Received().QueuePurgeAsync("foo");

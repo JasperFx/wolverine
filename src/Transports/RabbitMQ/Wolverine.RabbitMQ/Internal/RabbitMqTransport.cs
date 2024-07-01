@@ -242,4 +242,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         yield return new PropertyColumn("Queue Name", "name");
         yield return new PropertyColumn("Message Count", "count", Justify.Right);
     }
+
+    public Task<IChannel> CreateAdminChannelAsync()
+    {
+        if (_listenerConnection != null) return _listenerConnection.CreateChannelAsync();
+        if (_sendingConnection != null) return _sendingConnection.CreateChannelAsync();
+        throw new InvalidOperationException("Rabbit MQ Transport has not been initialized");
+    }
 }

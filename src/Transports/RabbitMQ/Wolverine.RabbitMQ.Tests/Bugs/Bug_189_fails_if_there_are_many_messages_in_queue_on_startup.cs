@@ -35,7 +35,7 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
 
             .StartAsync();
 
-        var bus = sender.Services.GetRequiredService<IMessageBus>();
+        var bus = sender.MessageBus();
 
         for (int i = 0; i < 1000; i++)
         {

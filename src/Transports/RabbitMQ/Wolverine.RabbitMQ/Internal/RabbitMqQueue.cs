@@ -69,7 +69,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 
         try
         {
-            using var channel = await _parent.ListeningConnection.CreateChannelAsync();
+            using var channel = await _parent.CreateAdminChannelAsync();
             await channel.QueueDeclarePassiveAsync(QueueName);
             return true;
         }
@@ -87,7 +87,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
             return;
         }
 
-        using var channel = await _parent.ListeningConnection.CreateChannelAsync();
+        using var channel = await _parent.CreateAdminChannelAsync();
         await channel.QueueDeleteAsync(QueueName, false, false, true);
     }
 
@@ -98,7 +98,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
             return;
         }
 
-        using var channel = await _parent.ListeningConnection.CreateChannelAsync();
+        using var channel = await _parent.CreateAdminChannelAsync();
         await DeclareAsync(channel, logger);
     }
 
@@ -109,7 +109,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
             return;
         }
 
-        using var channel = await _parent.ListeningConnection.CreateChannelAsync();
+        using var channel = await _parent.CreateAdminChannelAsync();
         try
         {
             await channel.QueuePurgeAsync(QueueName);
@@ -129,7 +129,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        using var channel = await _parent.ListeningConnection.CreateChannelAsync();
+        using var channel = await _parent.CreateAdminChannelAsync();
 
         var result = await channel.QueueDeclarePassiveAsync(QueueName);
 
@@ -184,24 +184,24 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     /// <returns></returns>
     public async Task<long> QueuedCountAsync()
     {
-        using var channel = await _parent.ListeningConnection.CreateChannelAsync();
+        using var channel = await _parent.CreateAdminChannelAsync();
 
         var result = await channel.QueueDeclarePassiveAsync(QueueName);
         return result.MessageCount;
     }
 
-    public override ValueTask InitializeAsync(ILogger logger)
+    public override async ValueTask InitializeAsync(ILogger logger)
     {
         if (_initialized)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         try
         {
-            var connection = _parent.ListeningConnection;
+            using var channel = await _parent.CreateAdminChannelAsync();
 
-            return InitializeAsync(connection, logger);
+            await InitializeAsync(channel, logger);
         }
         finally
         {
@@ -209,7 +209,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         }
     }
 
-    internal async ValueTask InitializeAsync(IConnectionMonitor connection, ILogger logger)
+    internal async ValueTask InitializeAsync(IChannel channel, ILogger logger)
     {
         // This is a reply uri owned by another node, so get out of here
         if (isSystemQueue())
@@ -219,7 +219,6 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 
         if (_parent.AutoProvision || _parent.AutoPurgeAllQueues || PurgeOnStartup)
         {
-            using var channel = await connection.CreateChannelAsync();
             if (_parent.AutoProvision)
             {
                 await DeclareAsync(channel, logger);

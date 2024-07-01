@@ -1,7 +1,9 @@
-﻿using IntegrationTests;
+﻿using System.Diagnostics;
+using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using Spectre.Console;
@@ -14,6 +16,7 @@ using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Wolverine.RabbitMQ.Tests;
 
@@ -34,6 +37,13 @@ public static class RabbitTesting
 
 public class end_to_end
 {
+    private readonly ITestOutputHelper _output;
+
+    public end_to_end(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
     [Fact]
     public void rabbitmq_transport_is_exposed_as_a_resource()
     {
@@ -195,7 +205,8 @@ public class end_to_end
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_only_listener_connection()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher =  await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
         {
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
@@ -204,21 +215,20 @@ public class end_to_end
                 .SendInline();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+            
+        }).StartAsync();
+
+        using var receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq().AutoProvision().UseListenerConnectionOnly();
+
+                opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
+                opts.Services.AddSingleton<ColorHistory>();
 
 
-        });
-
-
-        using var receiver = WolverineHost.For(opts =>
-        {
-            opts.UseRabbitMq().AutoProvision().UseListenerConnectionOnly();
-
-            opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
-            opts.Services.AddSingleton<ColorHistory>();
-
-
-            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        });
+                opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+            }).StartAsync();
 
         await receiver.ResetResourceState();
 
@@ -244,51 +254,44 @@ public class end_to_end
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_only_subscriber_connection()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        var exchangeName = "ex_" + queueName;
+        using var publisher = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup().UseSenderConnectionOnly();
 
             opts.PublishAllMessages()
-                .ToRabbitExchange(queueName)
+                .ToRabbitExchange(exchangeName)
                 .SendInline();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-
-
-        });
-
-
-        using var receiver = WolverineHost.For(opts =>
+        }).StartAsync();
+        
+        using var receiver = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             var rabbit = opts.UseRabbitMq().AutoProvision();
 
             // TODO is this a feature gap?
-            rabbit.BindExchange(queueName).ToQueue(queueName);
-           // opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
+            rabbit.BindExchange(exchangeName).ToQueue(queueName);
+            opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
             opts.Services.AddSingleton<ColorHistory>();
 
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        });
+        }).StartAsync();
 
-        await receiver.ResetResourceState();
-
-        for (int i = 0; i < 10000; i++)
+        Func<IMessageContext, Task> publishing = async c =>
         {
-            await publisher.SendAsync(new ColorChosen { Name = "blue" });
-        }
+            for (int i = 0; i < 100; i++)
+            {
+                await c.SendAsync(new ColorChosen { Name = "blue" });
+            }
+        };
 
-        var cancellation = new CancellationTokenSource(30.Seconds());
-        var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
+        var tracked = await publisher.TrackActivity().AlsoTrack(receiver).Timeout(30.Seconds())
+            .ExecuteAndWaitAsync(publishing);
 
-        while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)
-        {
-            await Task.Delay(250.Milliseconds(), cancellation.Token);
-        }
-
-        cancellation.Token.ThrowIfCancellationRequested();
-
-
+        var received = tracked.Received.MessagesOf<ColorChosen>().ToList();
+        received.Count.ShouldBe(100);
     }
 
     [Fact]
@@ -298,11 +301,13 @@ public class end_to_end
         var queueName2 = RabbitTesting.NextQueueName();
 
 
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.ServiceName = "Publisher";
 
             opts.UseRabbitMq().AutoProvision();
+            
+            opts.Policies.DisableConventionalLocalRouting();
 
             opts.PublishAllMessages()
                 .ToRabbitQueue(queueName1)
@@ -318,9 +323,9 @@ public class end_to_end
             }).IntegrateWithWolverine();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        });
+        }).StartAsync();
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.ServiceName = "Receiver";
 
@@ -337,7 +342,7 @@ public class end_to_end
             }).IntegrateWithWolverine();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        });
+        }).StartAsync();
 
         var session = await publisher
             .TrackActivity()
