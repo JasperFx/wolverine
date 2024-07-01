@@ -81,13 +81,6 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         // Need to disable this if using WolverineStorage
         NativeDeadLetterQueueEnabled = queue.DeadLetterQueue != null &&
                                        queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage;
-
-        if (transport.AutoPingListeners)
-        {
-            // This is trying to be a forcing function to make the channel really connect
-            var ping = Envelope.ForPing(Address);
-            Task.Run(() => _sender.Value.SendAsync(ping));
-        }
     }
 
     public async Task CreateAsync()
@@ -126,9 +119,12 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         await Channel!.BasicQosAsync(0, Queue.PreFetchCount, false, _cancellation);
         await Channel.BasicConsumeAsync(_consumer, Queue.QueueName, false, _transport.ConnectionFactory.ClientProvidedName);
         
-        // This is trying to be a forcing function to make the channel really connect
-        var ping = Envelope.ForPing(Address);
-        await _sender.Value.SendAsync(ping);
+        if (_transport.AutoPingListeners)
+        {
+            // This is trying to be a forcing function to make the channel really connect
+            var ping = Envelope.ForPing(Address);
+            await _sender.Value.SendAsync(ping);
+        }
     }
 
     public RabbitMqQueue Queue { get; }
