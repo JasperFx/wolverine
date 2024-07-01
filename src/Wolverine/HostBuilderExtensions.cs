@@ -50,11 +50,12 @@ public static class HostBuilderExtensions
         });
     }
 
+    // Just for testing
     internal static IHostBuilder UseWolverine(this IHostBuilder builder, WolverineOptions options)
     {
         return builder.ConfigureServices(services =>
         {
-            
+            services.AddWolverine(options);
         });
     }
 
@@ -80,7 +81,16 @@ public static class HostBuilderExtensions
         return AddWolverine(services, options, discovery, configure);
     }
 
-    internal static IServiceCollection AddWolverine(IServiceCollection services, WolverineOptions options,
+    /// <summary>
+    /// Add Wolverine services to your application with a pre-built WolverineOptions object
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="options"></param>
+    /// <param name="discovery">Specify the extension discovery mode</param>
+    /// <param name="configure">Apply specific Wolverine configuration for this application</param>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    internal static IServiceCollection AddWolverine(this IServiceCollection services, WolverineOptions options,
         ExtensionDiscovery discovery = ExtensionDiscovery.Automatic,
         Action<WolverineOptions>? configure = null)
     {

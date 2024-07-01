@@ -95,7 +95,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
         if (_parent.AutoProvision)
         {
-            using var model = await _parent.SendingConnection.CreateChannelAsync();
+            using var model = await _parent.CreateAdminChannelAsync();
             await DeclareAsync(model, logger);
         }
 
@@ -142,7 +142,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public override async ValueTask<bool> CheckAsync()
     {
-        using var channel = await _parent.SendingConnection.CreateChannelAsync();
+        using var channel = await _parent.CreateAdminChannelAsync();
         var exchangeName = Name.ToLower();
         try
         {
@@ -157,7 +157,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public override async ValueTask TeardownAsync(ILogger logger)
     {
-        using var channel = await _parent.SendingConnection.CreateChannelAsync();
+        using var channel = await _parent.CreateAdminChannelAsync();
         if (DeclaredName == string.Empty)
         {
         }
@@ -176,7 +176,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public override async ValueTask SetupAsync(ILogger logger)
     {
-        using var channel = await _parent.SendingConnection.CreateChannelAsync();
+        using var channel = await _parent.CreateAdminChannelAsync();
         await DeclareAsync(channel, logger);
     }
 

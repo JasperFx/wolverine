@@ -143,6 +143,7 @@ public partial class Envelope
     /// </summary>
     /// <param name="message"></param>
     /// <returns></returns>
+    [Obsolete("Not really used")]
     internal Envelope CreateForResponse(object message)
     {
         var child = ForSend(message);
@@ -158,6 +159,7 @@ public partial class Envelope
         return child;
     }
 
+    [Obsolete("not really used")]
     internal Envelope ForSend(object message)
     {
         return new Envelope

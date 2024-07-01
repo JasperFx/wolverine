@@ -55,7 +55,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     private readonly Lazy<RabbitMqSender> _sender;
 
     public RabbitMqListener(IWolverineRuntime runtime,
-        RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.ListeningConnection,
+        RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.UseSenderConnectionOnly ? transport.SendingConnection : transport.ListeningConnection,
         runtime.LoggerFactory.CreateLogger<RabbitMqListener>())
     {
         Queue = queue;

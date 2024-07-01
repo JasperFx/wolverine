@@ -47,7 +47,7 @@ public class interoperability_specs : RabbitMQContext, IAsyncLifetime
             .WaitForMessageToBeReceivedAt<NumberMessage>(_host)
             .ExecuteAndWaitAsync(async Task (m) =>
         {
-            using var channel = await transport.SendingConnection.CreateChannelAsync();
+            using var channel = await transport.CreateAdminChannelAsync();
             var props = new BasicProperties();
             
             await channel.BasicPublishAsync(string.Empty, theQueueName, props, data, true);
