@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Oakton;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Transports;
 using Wolverine.Util;
@@ -132,6 +133,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     public Task MoveToDeadLetterQueueAsync(Exception exception)
     {
+        // Don't bother with agent commands
+        if (Envelope?.Message is IAgentCommand) return Task.CompletedTask;
+        
         if (_channel == null || Envelope == null)
         {
             throw new InvalidOperationException("No Envelope is active for this context");
