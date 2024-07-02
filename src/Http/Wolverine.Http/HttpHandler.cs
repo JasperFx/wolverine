@@ -133,6 +133,11 @@ public abstract class HttpHandler
     {
         var headers = new RequestHeaders(context.Request.Headers);
 
+        if (!headers.Accept.Any())
+        {
+            return true;
+        }
+
         return headers.Accept
             .Any(x => x.MediaType is
             {
