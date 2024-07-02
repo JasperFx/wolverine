@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Shouldly;
@@ -195,3 +196,84 @@ public interface IAccountCommand
 {
     long AccountId { get; }
 }
+
+#region sample_send_message_on_file_change
+public record FileAdded(string FileName);
+
+public class FileAddedHandler
+{
+    public Task Handle(
+        FileAdded message
+    ) =>
+        Task.CompletedTask;
+}
+
+public class RandomFileChange
+{
+    private readonly IMessageBus _messageBus;
+
+    public RandomFileChange(
+        IMessageBus messageBus
+    ) => _messageBus = messageBus;
+
+    public async Task SimulateRandomFileChange()
+    {
+        // Delay task with a random number of milliseconds
+        // Here would be your FileSystemWatcher / IFileProvider
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(
+                new Random().Next(100, 1000)
+            )
+        );
+        var randomFileName = Path.GetRandomFileName();
+        await _messageBus.SendAsync(new FileAdded(randomFileName));
+    }
+}
+
+public class When_message_is_sent : IAsyncLifetime
+{
+    private IHost _host;
+
+    public async Task InitializeAsync()
+    {
+        var hostBuilder = Host.CreateDefaultBuilder();
+        hostBuilder.ConfigureServices(
+            services => { services.AddSingleton<RandomFileChange>(); }
+        );
+        hostBuilder.UseWolverine();
+
+        _host = await hostBuilder.StartAsync();
+    }
+
+    [Fact]
+    public async Task should_be_in_session()
+    {
+        var randomFileChange = _host.Services.GetRequiredService<RandomFileChange>();
+
+        var session = await _host
+            .TrackActivity()
+            .Timeout(2.Seconds())
+            .ExecuteAndWaitAsync(
+                (Func<IMessageContext, Task>)(
+                    async (
+                        _
+                    ) => await randomFileChange.SimulateRandomFileChange()
+                )
+            );
+
+        session
+            .Sent
+            .AllMessages()
+            .Count()
+            .ShouldBe(1);
+        
+        session
+            .Sent
+            .AllMessages()
+            .First()
+            .ShouldBeOfType<FileAdded>();
+    }
+
+    public async Task DisposeAsync() => await _host.StopAsync();
+}
+#endregion
