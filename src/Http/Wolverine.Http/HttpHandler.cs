@@ -137,7 +137,7 @@ public abstract class HttpHandler
             .Any(x => x.MediaType is
             {
                 HasValue: true,
-                Value: "application/json" or "*/*" or "text/json"
+                Value: "application/json" or "application/problem+json" or "*/*" or "text/json"
             });
     }
 
