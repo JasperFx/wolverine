@@ -233,7 +233,24 @@ using var host = await Host.CreateDefaultBuilder()
 
 Likewise, you can use MessagePack on selected endpoints like this:
 
-sample_using_messagepack_on_selected_endpoints
+<!-- snippet: sample_using_messagepack_on_selected_endpoints -->
+<a id='snippet-sample_using_messagepack_on_selected_endpoints'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Use MessagePack on a local queue
+        opts.LocalQueue("one").UseMessagePackSerialization();
+
+        // Use MessagePack on a listening endpoint
+        opts.ListenAtPort(2223).UseMessagePackSerialization();
+
+        // Use MessagePack on one subscriber
+        opts.PublishAllMessages().ToPort(2222).UseMessagePackSerialization();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MessagePack.Tests/Samples.cs#L24-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_messagepack_on_selected_endpoints' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ### MemoryPack Serialization
 
