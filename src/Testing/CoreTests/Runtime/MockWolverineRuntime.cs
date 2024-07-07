@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.Metrics;
 using JasperFx.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -179,6 +180,8 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     {
         throw new NotImplementedException();
     }
+
+    public IServiceProvider Services { get; } = new ServiceCollection().BuildServiceProvider();
 
     public void Dispose()
     {

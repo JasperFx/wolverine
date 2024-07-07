@@ -29,6 +29,7 @@ public interface IWolverineRuntime
 
     IAgentRuntime Agents { get; }
     IReadOnlyList<IAncillaryMessageStore> AncillaryStores { get; }
+    IServiceProvider Services { get; }
 
     /// <summary>
     ///     Schedule an envelope for later execution in memory
