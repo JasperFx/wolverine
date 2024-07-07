@@ -15,7 +15,7 @@ public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
 
     public exchange_queue_binding_model_setup_and_teardown_smoke_tests()
     {
-        theTransport.ConnectionFactory.HostName = "localhost";
+        theTransport.ConfigureFactory(f => f.HostName = "localhost");
 
         var expression = new RabbitMqTransportExpression(theTransport, new WolverineOptions());
 

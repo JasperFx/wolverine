@@ -53,7 +53,8 @@ public static class RabbitMqTransportExtensions
         Action<ConnectionFactory> configure)
     {
         var transport = options.RabbitMqTransport();
-        configure(transport.ConnectionFactory);
+        
+        transport.ConfigureFactory(configure);
 
         return new RabbitMqTransportExpression(transport, options);
     }
@@ -73,13 +74,15 @@ public static class RabbitMqTransportExtensions
     }
 
     /// <summary>
-    ///     Connect to Rabbit MQ on the local machine with all the default
-    ///     Rabbit MQ client options
+    /// Add a default Rabbit MQ broker connection to this application. Wolverine will first look in the IoC container
+    /// for a registered IConnectionFactory (this would apply if using Aspire), but fallback to trying to connect
+    /// to a Rabbit MQ broker locally with the default port
     /// </summary>
     /// <param name="options"></param>
     public static RabbitMqTransportExpression UseRabbitMq(this WolverineOptions options)
     {
-        return options.UseRabbitMq(_ => { });
+        var transport = options.RabbitMqTransport();
+        return new RabbitMqTransportExpression(transport, options);
     }
 
     /// <summary>

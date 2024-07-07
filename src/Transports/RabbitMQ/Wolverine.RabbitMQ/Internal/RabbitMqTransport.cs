@@ -1,4 +1,5 @@
 ﻿using JasperFx.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
@@ -21,9 +22,6 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     public RabbitMqTransport() : base(ProtocolName, "Rabbit MQ")
     {
-        ConnectionFactory.AutomaticRecoveryEnabled = true;
-        ConnectionFactory.DispatchConsumersAsync = true;
-
         Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
         Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
 
@@ -41,6 +39,13 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         });
     }
 
+    private void configureDefaults(ConnectionFactory factory)
+    {
+        factory.AutomaticRecoveryEnabled = true;
+        factory.DispatchConsumersAsync = true;
+        factory.ClientProvidedName ??= "Wolverine";
+    }
+
     public DeadLetterQueue DeadLetterQueue { get; } = new(DeadLetterQueueName);
 
     internal RabbitMqChannelCallback? Callback { get; private set; }
@@ -48,7 +53,22 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
     internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("The sending connection has not been created yet or is disabled!");
 
-    public ConnectionFactory ConnectionFactory { get; } = new(){ClientProvidedName = "Wolverine"};
+    
+    public ConnectionFactory? ConnectionFactory { get; private set; }
+
+    internal void ConfigureFactory(Action<ConnectionFactory> configure)
+    {
+        var factory = new ConnectionFactory
+        {
+            ClientProvidedName = "Wolverine"
+        };
+        
+        configure(factory);
+        
+        configureDefaults(factory);
+
+        ConnectionFactory = factory;
+    }
 
     public IList<AmqpTcpEndpoint> AmqpTcpEndpoints { get; } = new List<AmqpTcpEndpoint>();
 
@@ -96,8 +116,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         Logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();
         Callback = new RabbitMqChannelCallback(Logger, runtime.DurabilitySettings.Cancellation);
 
-        ConnectionFactory.DispatchConsumersAsync = true;
-
+        ConnectionFactory ??= runtime.Services.GetService<IConnectionFactory>() as ConnectionFactory ??
+                              new ConnectionFactory { HostName = "localhost" };
+        
+        configureDefaults(ConnectionFactory);
+        
         if (_listenerConnection == null && !UseSenderConnectionOnly)
         {
             _listenerConnection = BuildConnection(ConnectionRole.Listening);

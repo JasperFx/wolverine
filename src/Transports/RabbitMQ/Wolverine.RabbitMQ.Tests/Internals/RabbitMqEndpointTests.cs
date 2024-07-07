@@ -69,7 +69,7 @@ public class RabbitMqEndpointTests
     public void map_to_rabbit_mq_uri_with_queue()
     {
         var transport = new RabbitMqTransport();
-        transport.ConnectionFactory.HostName = "rabbitserver";
+        transport.ConfigureFactory(f => f.HostName = "rabbitserver");
 
         var endpoint = new RabbitMqQueue("foo", transport);
 
@@ -88,7 +88,7 @@ public class RabbitMqEndpointTests
     public void map_to_rabbit_mq_uri_with_exchange()
     {
         var transport = new RabbitMqTransport();
-        transport.ConnectionFactory.HostName = "rabbitserver";
+        transport.ConfigureFactory(f => f.HostName = "rabbitserver");
 
         var endpoint = new RabbitMqQueue("bar", transport);
 

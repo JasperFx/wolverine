@@ -13,6 +13,7 @@ public class RabbitMqTransportTests
     [Fact]
     public void automatic_recovery_is_try_by_default()
     {
+        theTransport.ConfigureFactory(f => {});
         theTransport.ConnectionFactory.AutomaticRecoveryEnabled.ShouldBeTrue();
     }
 
