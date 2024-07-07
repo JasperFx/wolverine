@@ -46,6 +46,22 @@ public class posting_json : IntegrationContext
         result.Product.ShouldBe(12);
         result.Sum.ShouldBe(7);
     }
+    
+    [Fact]
+    public async Task post_json_happy_path_with_no_accept()
+    {
+        // This test is using Alba to run an end to end HTTP request
+        // and interrogate the results
+        var response = await Scenario(x =>
+        {
+            x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
+        });
+
+        var result = await response.ReadAsJsonAsync<ArithmeticResults>();
+
+        result.Product.ShouldBe(12);
+        result.Sum.ShouldBe(7);
+    }
 
     [Fact]
     public async Task post_json_happy_path_with_accepts_problem_details()
