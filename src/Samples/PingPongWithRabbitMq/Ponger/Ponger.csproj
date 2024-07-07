@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
     <PropertyGroup>
-        <UserSecretsId>dotnet-Ponger-2FC9D4AA-C8CD-4460-B762-52A0BA552D8F</UserSecretsId>
+        <TargetFrameworks>net8.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>

@@ -16,14 +16,10 @@ return await Host.CreateDefaultBuilder(args)
         // Publish messages to the pings queue
         opts.PublishMessage<PingMessage>().ToRabbitExchange("pings");
 
-        // Configure Rabbit MQ connection properties programmatically
-        // against a ConnectionFactory
-        opts.UseRabbitMq(rabbit =>
-            {
-                // Using a local installation of Rabbit MQ
-                // via a running Docker image
-                rabbit.HostName = "localhost";
-            })
+        // Configure Rabbit MQ connection to the connection string
+        // named "rabbit" from IConfiguration. This is *a* way to use
+        // Wolverine + Rabbit MQ using Aspire
+        opts.UseRabbitMqUsingNamedConnection("rabbit")
             // Directs Wolverine to build any declared queues, exchanges, or
             // bindings with the Rabbit MQ broker as part of bootstrapping time
             .AutoProvision();

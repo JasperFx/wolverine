@@ -1,4 +1,7 @@
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
@@ -81,6 +84,38 @@ public static class RabbitMqTransportExtensions
     /// <param name="options"></param>
     public static RabbitMqTransportExpression UseRabbitMq(this WolverineOptions options)
     {
+        var transport = options.RabbitMqTransport();
+        return new RabbitMqTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Direct Wolverine to connect to Rabbit MQ using the named connection string from IConfiguration.
+    /// This option is useful for Aspire integration between Wolverine and Aspire
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configure">Optional extra configuration of the ConnectionFactory</param>
+    /// <returns></returns>
+    public static RabbitMqTransportExpression UseRabbitMqUsingNamedConnection(this WolverineOptions options,
+        string connectionStringName, Action<ConnectionFactory>? configure = null)
+    {
+        options.Services.AddSingleton<IConnectionFactory>(s =>
+        {
+            var configuration = s.GetRequiredService<IConfiguration>();
+            var connectionString = configuration.GetConnectionString(connectionStringName);
+            if (connectionString.IsEmpty())
+                throw new InvalidOperationException(
+                    $"The connection string named '{connectionStringName}' is missing in configuration");
+
+
+            var factory = new ConnectionFactory();
+            ConnectionStringParser.Apply(connectionString, factory);
+
+            configure?.Invoke(factory);
+
+            return factory;
+        });
+        
         var transport = options.RabbitMqTransport();
         return new RabbitMqTransportExpression(transport, options);
     }

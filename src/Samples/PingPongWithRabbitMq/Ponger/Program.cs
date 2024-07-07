@@ -10,9 +10,10 @@ return await Host.CreateDefaultBuilder(args)
         // 15 seconds
         opts.ListenToRabbitQueue("pings", queue => queue.TimeToLive(15.Seconds()));
 
-        // Configure Rabbit MQ connections and optionally declare Rabbit MQ
-        // objects through an extension method on WolverineOptions.Endpoints
-        opts.UseRabbitMq() // This is short hand to connect locally
+        // Configure Rabbit MQ connection to the connection string
+        // named "rabbit" from IConfiguration. This is *a* way to use
+        // Wolverine + Rabbit MQ using Aspire
+        opts.UseRabbitMqUsingNamedConnection("rabbit")
             .DeclareExchange("pings", exchange =>
             {
                 // Also declares the queue too
