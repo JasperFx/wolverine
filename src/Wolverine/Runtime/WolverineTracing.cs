@@ -30,7 +30,7 @@ internal static class WolverineTracing
     public const string EnvelopeRetry = "wolverine.envelope.retried";
     public const string ScheduledRetry = "wolverine.envelope.rescheduled";
 
-    internal static ActivitySource ActivitySource { get; } = new(
+    public static ActivitySource ActivitySource { get; } = new(
         "Wolverine",
         typeof(WolverineTracing).Assembly.GetName().Version!.ToString());
 

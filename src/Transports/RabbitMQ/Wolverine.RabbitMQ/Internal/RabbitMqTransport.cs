@@ -1,4 +1,5 @@
-﻿using JasperFx.Core;
+﻿using System.Diagnostics;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -132,6 +133,26 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
             _sendingConnection = BuildConnection(ConnectionRole.Sending);
             await _sendingConnection.ConnectAsync();
         }
+    }
+
+    internal async Task<IConnection> CreateConnectionAsync()
+    {
+        // TODO -- consider adding retries on this?
+        if (ConnectionFactory == null)
+            throw new InvalidOperationException("Rabbit MQ transport has not been initialized");
+        
+        using var activity = WolverineTracing.ActivitySource.StartActivity("rabbitmq connect", ActivityKind.Client);
+        
+        activity?.AddTag("server.address", ConnectionFactory.HostName);
+        activity?.AddTag("server.port", ConnectionFactory.Port);
+        activity?.AddTag("messaging.system", "rabbitmq");
+        activity?.AddTag("messaging.operation", "connect");
+        
+        var connection = AmqpTcpEndpoints.Any()
+            ? await ConnectionFactory.CreateConnectionAsync(AmqpTcpEndpoints)
+            : await ConnectionFactory.CreateConnectionAsync();
+
+        return connection;
     }
 
     protected override IEnumerable<RabbitMqEndpoint> endpoints()

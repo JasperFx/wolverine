@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Wolverine.Runtime;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -34,9 +35,7 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     
     public async Task ConnectAsync()
     {
-        _connection = _transport.AmqpTcpEndpoints.Any()
-            ? await _transport.ConnectionFactory.CreateConnectionAsync(_transport.AmqpTcpEndpoints)
-            : await _transport.ConnectionFactory.CreateConnectionAsync();
+        _connection = await _transport.CreateConnectionAsync();
         
         _connection.ConnectionShutdown += connectionOnConnectionShutdown;
         _connection.ConnectionUnblocked += connectionOnConnectionUnblocked;
@@ -58,7 +57,9 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         try
         {
             if(_connection is not null)
+            {
                 await _connection.CloseAsync();
+            }
         }
         catch (ObjectDisposedException)
         {
