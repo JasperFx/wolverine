@@ -65,11 +65,11 @@ public class When_session_is_tracked_for_published_message_without_handler : IAs
             );
 
 
-        session.Sent.AllMessages()
+        session.NoRoutes.AllMessages()
             .Count()
             .ShouldBe(1);
 
-        session.Sent.AllMessages()
+        session.NoRoutes.AllMessages()
             .First()
             .ShouldBeOfType<FileAdded>();
     }

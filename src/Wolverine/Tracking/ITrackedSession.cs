@@ -13,6 +13,11 @@ public interface ITrackedSession
     ///     Records of all messages received during the tracked session
     /// </summary>
     RecordCollection Received { get; }
+    
+    /// <summary>
+    ///    Records of all messages received during the tracked session that were not routed
+    /// </summary>
+    RecordCollection NoRoutes { get; }
 
     /// <summary>
     ///     Records of all messages sent during the tracked session. This will include messages
