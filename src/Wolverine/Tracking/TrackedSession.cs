@@ -150,6 +150,7 @@ internal class TrackedSession : ITrackedSession
 
     public RecordCollection Received => new(MessageEventType.Received, this);
     public RecordCollection Sent => new(MessageEventType.Sent, this);
+    public RecordCollection NoRoutes => new(MessageEventType.NoRoutes, this);
 
 
     public RecordCollection Executed => new(MessageEventType.ExecutionFinished, this);
