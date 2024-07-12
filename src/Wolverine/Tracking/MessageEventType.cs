@@ -1,5 +1,6 @@
 namespace Wolverine.Tracking;
 
+#region sample_record_collections
 public enum MessageEventType
 {
     Received,
@@ -13,3 +14,4 @@ public enum MessageEventType
     MovedToErrorQueue,
     Requeued
 }
+#endregion
