@@ -150,9 +150,14 @@ internal class TrackedSession : ITrackedSession
 
     public RecordCollection Received => new(MessageEventType.Received, this);
     public RecordCollection Sent => new(MessageEventType.Sent, this);
+    public RecordCollection ExecutionStarted => new(MessageEventType.ExecutionStarted, this);
+    public RecordCollection ExecutionFinished => new(MessageEventType.ExecutionFinished, this);
+    public RecordCollection MessageSucceeded => new(MessageEventType.MessageSucceeded, this);
+    public RecordCollection MessageFailed => new(MessageEventType.MessageFailed, this);
+    public RecordCollection NoHandlers => new(MessageEventType.NoHandlers, this);
     public RecordCollection NoRoutes => new(MessageEventType.NoRoutes, this);
-
-
+    public RecordCollection MovedToErrorQueue => new(MessageEventType.MovedToErrorQueue, this);
+    public RecordCollection Requeued => new(MessageEventType.Requeued, this);
     public RecordCollection Executed => new(MessageEventType.ExecutionFinished, this);
 
     public void WatchOther(IHost host)
