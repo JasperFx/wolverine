@@ -15,20 +15,56 @@ public interface ITrackedSession
     RecordCollection Received { get; }
     
     /// <summary>
-    ///    Records of all messages received during the tracked session that were not routed
-    /// </summary>
-    RecordCollection NoRoutes { get; }
-
-    /// <summary>
     ///     Records of all messages sent during the tracked session. This will include messages
     ///     published to local queues
     /// </summary>
     RecordCollection Sent { get; }
 
     /// <summary>
+    ///     Records of all messages that were executed during the tracked session
+    /// </summary>
+    RecordCollection ExecutionStarted { get; }
+
+    /// <summary>
+    ///     Records of all messages that were successfully executed during the tracked session
+    /// </summary>
+    RecordCollection ExecutionFinished { get; }
+    
+    /// <summary>
+    ///   Records of all messages that successfully completed their processing
+    /// </summary>
+    RecordCollection MessageSucceeded { get; }
+    
+    /// <summary>
+    ///     Records of all messages that failed during processing
+    /// </summary>
+    RecordCollection MessageFailed { get; }
+
+    /// <summary>
+    ///    Records of all messages which have no handlers
+    /// </summary>
+    RecordCollection NoHandlers { get; }
+    
+    /// <summary>
+    ///    Records of all messages received during the tracked session that were not routed
+    /// </summary>
+    RecordCollection NoRoutes { get; }
+
+    /// <summary>
+    ///    Records of all messages that were moved to the error queue
+    /// </summary>
+    RecordCollection MovedToErrorQueue { get; }
+    
+    /// <summary>
+    ///     Records of all messages that were requeued
+    /// </summary>
+    RecordCollection Requeued { get; }
+    
+    /// <summary>
     ///     Message processing records for messages that were executed. Note that this includes message
     ///     executions that failed and additional attempts as a separate record in the case of retries
     /// </summary>
+    [Obsolete("Use ExecutionFinished instead")]
     RecordCollection Executed { get; }
 
     /// <summary>
