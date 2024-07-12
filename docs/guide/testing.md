@@ -419,6 +419,11 @@ that is tracked.
 Note that you'll probably *mostly* *invoke* messages in these tests, but there are additional extension
 methods on `IHost` for other `IMessageBus` operations.
 
+:::info
+The Tracked Session includes only messages sent, published, or scheduled during the tracked session.
+Messages sent before the tracked session are not included in the tracked session.
+:::
+
 Finally, there are some more advanced options in tracked sessions you may find useful as 
 shown below:
 
