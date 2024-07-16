@@ -345,6 +345,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             Envelope.Response = message;
 
             if (Runtime.Options.Durability.Mode == DurabilityMode.MediatorOnly) return;
+
+            // This was done specifically for the HTTP transport's optimized 
+            // request/reply mechanism
+            if (Envelope.DoNotCascadeResponse) return;
         }
 
         switch (message)
@@ -371,7 +375,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                 return;
         }
 
-        if (Envelope != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
+        if (Envelope?.ReplyUri != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
             await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
             return;

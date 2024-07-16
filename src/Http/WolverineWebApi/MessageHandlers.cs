@@ -14,7 +14,20 @@ public record MessageThatAlwaysGoesToDeadLetter(string Name);
 public class AlwaysDeadLetterException(string message) : Exception(message);
 
 public record CustomRequest(string Name);
-public record CustomResponse(string Name);
+
+public class CustomResponse
+{
+    public CustomResponse(string name)
+    {
+        Name = name;
+    }
+
+    public CustomResponse()
+    {
+    }
+
+    public string Name { get; set; }
+}
 
 public static class MessageHandler
 {

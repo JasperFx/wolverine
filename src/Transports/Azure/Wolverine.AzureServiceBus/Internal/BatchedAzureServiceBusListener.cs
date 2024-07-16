@@ -120,7 +120,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                             _mapper.MapIncomingToEnvelope(envelope, message);
 
                             envelopes.Add(envelope);
-                        }
+                        } 
                         catch (Exception e)
                         {
                             await tryMoveToDeadLetterQueue(message);

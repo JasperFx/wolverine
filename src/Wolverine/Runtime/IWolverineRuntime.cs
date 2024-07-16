@@ -53,6 +53,7 @@ public interface IWolverineRuntime
 
     IMessageInvoker FindInvoker(Type messageType);
     void AssertHasStarted();
+    IMessageInvoker FindInvoker(string envelopeMessageType);
 }
 
 public record NodeDestination(Guid NodeId, Uri ControlUri)

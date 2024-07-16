@@ -119,6 +119,11 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     {
     }
 
+    public IMessageInvoker FindInvoker(string envelopeMessageType)
+    {
+        throw new NotImplementedException();
+    }
+
     public IAgentRuntime Agents { get; } = Substitute.For<IAgentRuntime>();
 
     public bool TryFindMessageType(string? messageTypeName, out Type messageType)

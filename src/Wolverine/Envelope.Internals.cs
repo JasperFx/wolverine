@@ -56,6 +56,14 @@ public partial class Envelope
     ///     Also used by IMessageContext.Invoke<T> to catch the response
     /// </summary>
     internal object? Response { get; set; }
+    
+    /// <summary>
+    /// Used internally only, tells Wolverine's cascading
+    /// message logic to *not* publish the designated response
+    /// message as a cascading message. Originally added for the
+    /// Http transport request/reply
+    /// </summary>
+    internal bool DoNotCascadeResponse { get; set; }
 
     /// <summary>
     ///     Status according to the message persistence
@@ -143,7 +151,6 @@ public partial class Envelope
     /// </summary>
     /// <param name="message"></param>
     /// <returns></returns>
-    [Obsolete("Not really used")]
     internal Envelope CreateForResponse(object message)
     {
         var child = ForSend(message);
@@ -154,6 +161,12 @@ public partial class Envelope
         {
             child.Destination = ReplyUri;
             child.AcceptedContentTypes = AcceptedContentTypes;
+        }
+
+        if (message is ISerializable)
+        {
+            child.Serializer = new IntrinsicSerializer();
+            child.ContentType = IntrinsicSerializer.MimeType;
         }
 
         return child;

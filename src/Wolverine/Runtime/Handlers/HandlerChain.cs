@@ -75,6 +75,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             foreach (var create in handler.Creates)
             {
                 i = DisambiguateOutgoingVariableName(create, i);
+                
+                // This was done to enable request/response through the HTTP transport
+                if (create.VariableType.IsConcrete())
+                {
+                    parent.RegisterMessageType(create.VariableType);
+                }
             }
         }
 

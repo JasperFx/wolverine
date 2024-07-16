@@ -102,7 +102,7 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
-    private bool tryDeserializeEnvelope(Envelope envelope, out IContinuation continuation)
+    public bool TryDeserializeEnvelope(Envelope envelope, out IContinuation continuation)
     {
         // Try to deserialize
         try
@@ -162,7 +162,7 @@ public class HandlerPipeline : IHandlerPipeline
 
         if (envelope.Message == null)
         {
-            if (!tryDeserializeEnvelope(envelope, out var serializationError))
+            if (!TryDeserializeEnvelope(envelope, out var serializationError))
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
                 return Task.FromResult(serializationError);

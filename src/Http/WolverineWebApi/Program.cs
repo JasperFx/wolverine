@@ -15,6 +15,7 @@ using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
 using Wolverine.Http.Marten;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
+using Wolverine.Http.Transport;
 using Wolverine.Marten;
 using WolverineWebApi;
 using WolverineWebApi.Marten;
@@ -199,6 +200,8 @@ app.MapWolverineEndpoints(opts =>
     #endregion
 });
 
+// TODO -- consider making this an option within UseWolverine????
+app.MapWolverineHttpTransportEndpoints();
 
 #region sample_optimized_mediator_usage
 

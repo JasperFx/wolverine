@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
+using Wolverine.Http.Transport;
 using Wolverine.Middleware;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -155,6 +156,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
             ServiceLifetime.Singleton);
         services.AddSingleton<WolverineHttpOptions>();
         services.AddSingleton<NewtonsoftHttpSerialization>();
+        services.AddSingleton<HttpTransportExecutor>();
         return services;
     }
 

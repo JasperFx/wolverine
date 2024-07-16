@@ -29,3 +29,5 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Pulsar.Tests")]
 [assembly: InternalsVisibleTo("MassTransitInteropTests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
+[assembly: InternalsVisibleTo("Wolverine.Http")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
