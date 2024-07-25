@@ -298,7 +298,7 @@ public partial class Envelope
 
         if (Message != null)
         {
-            text += $" ({Message.GetType().Name})";
+            text += $" ({Message.GetType().FullNameInCode()})";
         }
 
         if (Source != null)
