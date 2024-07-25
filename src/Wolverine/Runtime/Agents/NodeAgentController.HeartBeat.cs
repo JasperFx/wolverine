@@ -62,18 +62,19 @@ public partial class NodeAgentController
             return await EvaluateAssignmentsAsync(nodes);
         }
 
-        return await tryElectNewLeaderIfNecessary(staleNodes);
+        return await tryElectNewLeaderIfNecessary(nodes, staleNodes);
     }
 
-    private async Task<AgentCommands> tryElectNewLeaderIfNecessary(IReadOnlyList<WolverineNode> staleNodes)
+    private async Task<AgentCommands> tryElectNewLeaderIfNecessary(IReadOnlyList<WolverineNode> activeNodes,
+        IReadOnlyList<WolverineNode> staleNodes)
     {
-        // Clean out the dormant nodes first!!!
+        // Clean out the dormant nodes first!!! 
         await ejectStaleNodes(staleNodes);
-
+        
         // If there is no known leader, try to elect a newer one
-        if (_tracker.Leader == null)
+        if (!activeNodes.Any(x => x.IsLeader()))
         {
-            var candidate = _tracker.OtherNodes().MinBy(x => x.AssignedNodeId);
+            var candidate = activeNodes.MinBy(x => x.AssignedNodeId);
 
             if (candidate == null || candidate.AssignedNodeId > _tracker.Self.AssignedNodeId)
             {
