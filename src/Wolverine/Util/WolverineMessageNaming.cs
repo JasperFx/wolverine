@@ -115,6 +115,12 @@ public static class WolverineMessageNaming
         new FullTypeNaming()
     ];
 
+    public static void InsertFirst<T>() where T : IMessageTypeNaming, new()
+    {
+        if (_namingStrategies[0] is T) return;
+        _namingStrategies.Insert(0, new T());
+    }
+
     /// <summary>
     ///     Tag an assembly as containing message types that should be used for interoperability with
     ///     NServiceBus or MassTransit

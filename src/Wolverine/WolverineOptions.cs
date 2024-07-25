@@ -191,4 +191,9 @@ public sealed partial class WolverineOptions
 
         _lazyActions.Clear();
     }
+
+    public void MapGenericMessageType(Type interfaceType, Type closedType)
+    {
+        HandlerGraph.MappedGenericMessageTypes[interfaceType] = closedType;
+    }
 }

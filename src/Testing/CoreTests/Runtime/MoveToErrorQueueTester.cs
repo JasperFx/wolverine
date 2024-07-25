@@ -21,12 +21,27 @@ public class MoveToErrorQueueTester
     }
 
     [Fact]
-    public async Task should_send_a_failure_ack()
+    public async Task should_send_a_failure_ack_if_not_local()
     {
+        theEnvelope.Destination = new Uri("tcp://localhost:9000");
+        
         await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
 
         await theLifecycle
                 .Received()
+                .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}")
+            ;
+    }
+    
+    [Fact]
+    public async Task should_not_send_a_failure_ack_if_local()
+    {
+        theEnvelope.Destination = new Uri("local://foo");
+        
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        await theLifecycle
+                .DidNotReceive()
                 .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}")
             ;
     }

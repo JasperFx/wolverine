@@ -57,6 +57,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         RegisterMessageType(typeof(FailureAcknowledgement));
     }
 
+    public Dictionary<Type, Type> MappedGenericMessageTypes { get; } = new();
+    
     internal IContainer? Container { get; set; }
 
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
@@ -253,6 +255,16 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                         _messageTypes = _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
                     }
                 }
+            }
+        }
+
+        foreach (var pair in MappedGenericMessageTypes)
+        {
+            var matches = _messageTypes.Enumerate().Select(x => x.Value).Where(x => x.Closes(pair.Key));
+            foreach (var interfaceType in matches)
+            {
+                var closedType = pair.Value.MakeGenericType(interfaceType.GetGenericArguments());
+                RegisterMessageType(closedType);
             }
         }
     }
