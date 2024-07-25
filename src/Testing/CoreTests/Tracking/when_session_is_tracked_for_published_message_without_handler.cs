@@ -5,6 +5,8 @@ using Wolverine.Tracking;
 using Xunit;
 using Xunit.Abstractions;
 
+namespace CoreTests.Tracking;
+
 public record FileAdded(string FileName);
 
 public class RandomFileChangeForPublish
@@ -28,12 +30,12 @@ public class RandomFileChangeForPublish
 }
 
 
-public class When_session_is_tracked_for_published_message_without_handler : IAsyncLifetime
+public class when_session_is_tracked_for_published_message_without_handler : IAsyncLifetime
 {
     private readonly ITestOutputHelper _testOutputHelper;
     private IHost _host;
 
-    public When_session_is_tracked_for_published_message_without_handler(
+    public when_session_is_tracked_for_published_message_without_handler(
         ITestOutputHelper testOutputHelper
     ) => _testOutputHelper = testOutputHelper;
 
