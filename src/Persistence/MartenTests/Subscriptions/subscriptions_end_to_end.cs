@@ -330,6 +330,71 @@ public class subscriptions_end_to_end : PostgresqlContext
         tracked.Executed.MessagesOf<IEvent<DEvent>>().Count().ShouldBe(6);
     }
 
+    [Fact]
+    public async Task carry_the_tenant_id_through_on_the_subscription()
+    {
+        await dropSchema();
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                
+                opts.Policies.UseDurableLocalQueues();
+
+                opts.Services.AddMarten(m =>
+                    {
+                        m.DisableNpgsqlLogging = true;
+                        m.Connection(Servers.PostgresConnectionString);
+                        m.DatabaseSchemaName = "subscriptions";
+                        m.Policies.AllDocumentsAreMultiTenanted();
+                    }).IntegrateWithWolverine()
+                    .UseLightweightSessions()
+                    .PublishEventsToWolverine("Publish", x =>
+                    {
+                        x.PublishEvent<AEvent>();
+                        x.PublishEvent<DEvent>((e, bus) => bus.PublishAsync(new TransformedMessage('D')));
+                    });
+            }).StartAsync();
+        
+        var store = host.DocumentStore();
+
+        var daemon = await store.BuildProjectionDaemonAsync();
+
+        await daemon.StartAllAsync();
+
+        Func<IMessageContext, Task> writeEvents = async _ =>
+        {
+            await using var session = store.LightweightSession("one");
+            session.Events.StartStream(Guid.NewGuid(), new AEvent(), new AEvent());
+
+
+            await session.SaveChangesAsync();
+
+            await using var session2 = store.LightweightSession("two");
+            session2.Events.StartStream(Guid.NewGuid(), new BEvent(), new DEvent(), new DEvent());
+            await session2.SaveChangesAsync();
+
+            await daemon.WaitForNonStaleData(30.Seconds());
+        };
+
+        var tracked = await host
+            .TrackActivity()
+            .ExecuteAndWaitAsync(writeEvents);
+        
+        tracked.MessageSucceeded.RecordsInOrder().ShouldNotBeEmpty();
+
+        tracked.MessageSucceeded.Envelopes().Where(x => x.Message is IEvent<AEvent>).Each(e =>
+        {
+            e.TenantId.ShouldBe("one");
+        });
+
+        tracked.MessageSucceeded.Envelopes().Where(x => x.Message is BEvent).Each(e =>
+        {
+            e.TenantId.ShouldBe("two");
+        });
+    }
+
             [Fact]
     public async Task use_transformed_publishing_subscription()
     {
