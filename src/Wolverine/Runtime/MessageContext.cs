@@ -339,6 +339,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                                                Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
         {
             Envelope.Response = message;
+
+            if (Runtime.Options.Durability.Mode == DurabilityMode.MediatorOnly) return;
         }
 
         switch (message)
