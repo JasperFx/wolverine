@@ -184,7 +184,7 @@ In the case of exceptions from processing the event with Wolverine:
 2. If the retries are exhausted, and the Marten setting for `StoreOptions.Projections.Errors.SkipApplyErrors` is `true`,
    Wolverine will persist the event to its PostgreSQL backed dead letter queue and proceed to the next event. This setting
    is the default with Marten when the daemon is running continuously in the background, but `false` in rebuilds or replays
-3. If the retries are exchausted, and `SkipApplyErrors = false`, Wolverine will still 
+3. If the retries are exhausted, and `SkipApplyErrors = false`, Wolverine will direct Marten to pause the subscription. See the [Marten asynchronous daemon error handling](https://martendb.io/events/projections/async-daemon.html#error-handling) for more information.
 
 
 ## Custom Subscriptions
