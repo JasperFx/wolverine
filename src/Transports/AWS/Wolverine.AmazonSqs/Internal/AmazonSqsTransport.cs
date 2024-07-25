@@ -85,8 +85,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         {
             throw new ArgumentOutOfRangeException(nameof(uri));
         }
-
-        return Queues[uri.Host];
+        return Queues.Where(x => x.Uri.OriginalString == uri.OriginalString).FirstOrDefault() ?? Queues[uri.OriginalString.Split("//")[1]];
     }
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
