@@ -37,4 +37,37 @@ public class AmazonSqsTransportTests
         endpoints.ShouldContain(x => x.QueueName == "two");
         endpoints.ShouldContain(x => x.QueueName == "three");
     }
+
+    [Fact]
+    public void findEndpointByUri_should_correctly_find_by_queuename()
+    {
+        string queueNameInPascalCase = "TestQueue";
+        string queueNameLowerCase = "testqueue";
+        var transport = new AmazonSqsTransport();
+        var testQueue = transport.Queues[queueNameInPascalCase];
+        var testQueue2 = transport.Queues[queueNameLowerCase];
+
+        var result = transport.GetOrCreateEndpoint(new Uri($"sqs://{queueNameInPascalCase}"));
+        transport.Queues.Count.ShouldBe(2);
+
+        result.EndpointName.ShouldBe(queueNameInPascalCase);
+    }
+
+    [Fact]
+    public void findEndpointByUri_should_correctly_create_endpoint_if_it_doesnt_exist()
+    {
+        string queueName = "TestQueue";
+        string queueName2 = "testqueue";
+        var transport = new AmazonSqsTransport();
+        transport.Queues.Count.ShouldBe(0);
+
+        var result = transport.GetOrCreateEndpoint(new Uri($"sqs://{queueName}"));
+        transport.Queues.Count.ShouldBe(1);
+
+        result.EndpointName.ShouldBe(queueName);
+
+        var result2 = transport.GetOrCreateEndpoint(new Uri($"sqs://{queueName2}"));
+        transport.Queues.Count.ShouldBe(2);
+        result2.EndpointName.ShouldBe(queueName2);
+    }
 }
