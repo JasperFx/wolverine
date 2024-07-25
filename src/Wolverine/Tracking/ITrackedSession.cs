@@ -64,7 +64,6 @@ public interface ITrackedSession
     ///     Message processing records for messages that were executed. Note that this includes message
     ///     executions that failed and additional attempts as a separate record in the case of retries
     /// </summary>
-    [Obsolete("Use ExecutionFinished instead")]
     RecordCollection Executed { get; }
 
     /// <summary>

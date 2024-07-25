@@ -1,4 +1,5 @@
-﻿using JasperFx.Core.Reflection;
+﻿using System.Diagnostics;
+using JasperFx.Core.Reflection;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,6 +12,8 @@ using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using JasperFx.Core;
 using JasperFx.Core.IoC;
+using Marten.Events;
+using Marten.Events.Projections;
 using Marten.Storage;
 using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -20,6 +23,14 @@ using Weasel.Postgresql;
 using Wolverine.Marten.Subscriptions;
 
 namespace Wolverine.Marten;
+
+internal class MapEventTypeMessages : IWolverineExtension
+{
+    public void Configure(WolverineOptions options)
+    {
+        options.MapGenericMessageType(typeof(IEvent<>), typeof(Event<>));
+    }
+}
 
 public static class WolverineOptionsMartenExtensions
 {
@@ -57,6 +68,8 @@ public static class WolverineOptionsMartenExtensions
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
+
+        expression.Services.AddSingleton<IWolverineExtension, MapEventTypeMessages>();
 
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 

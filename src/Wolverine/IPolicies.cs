@@ -132,4 +132,12 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// </summary>
     /// <param name="rule"></param>
     void ForwardHandledTypes(IHandledTypeRule rule);
+
+    /// <summary>
+    /// Advanced usage to map an open type of an interface for a message to the actual closed type
+    /// Pretty well built for Marten event publishing
+    /// </summary>
+    /// <param name="interfaceType"></param>
+    /// <param name="closedType"></param>
+    void MapGenericMessageType(Type interfaceType, Type closedType);
 }

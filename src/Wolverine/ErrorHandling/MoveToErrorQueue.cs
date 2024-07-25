@@ -1,5 +1,8 @@
 ﻿using System.Diagnostics;
 using Wolverine.Runtime;
+using Wolverine.Transports;
+using Wolverine.Transports.Local;
+using Wolverine.Util;
 
 namespace Wolverine.ErrorHandling;
 
@@ -26,8 +29,16 @@ internal class MoveToErrorQueue : IContinuation
         IWolverineRuntime runtime,
         DateTimeOffset now, Activity? activity)
     {
-        await lifecycle.SendFailureAcknowledgementAsync(
-            $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{_exception}");
+        if (lifecycle.Envelope.Destination.Scheme != TransportConstants.Local)
+        {
+            await lifecycle.SendFailureAcknowledgementAsync(
+                $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{_exception}");
+        }
+
+        if (lifecycle.Envelope.Message != null)
+        {
+            lifecycle.Envelope.MessageType = lifecycle.Envelope.Message.GetType().ToMessageTypeName();
+        }
 
         await lifecycle.MoveToDeadLetterQueueAsync(_exception);
 

@@ -57,7 +57,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
-        
+
         expression.Services.AddSingleton<IAncillaryMessageStore>(s =>
         {
             var store = s.GetRequiredService<T>().As<DocumentStore>();
