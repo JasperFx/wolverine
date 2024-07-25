@@ -271,6 +271,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             try
             {
+                envelope.OwnerId = _settings.AssignedNodeNumber;
                 await _inbox.StoreIncomingAsync(envelope);
             }
             catch (DuplicateIncomingEnvelopeException e)
