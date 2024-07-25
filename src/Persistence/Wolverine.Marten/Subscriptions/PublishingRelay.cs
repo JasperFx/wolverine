@@ -4,6 +4,7 @@ using Marten;
 using Marten.Events;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
+using Marten.Storage;
 
 namespace Wolverine.Marten.Subscriptions;
 
@@ -88,7 +89,15 @@ internal class PublishingRelay : BatchSubscription, IPublishingRelay
             }
             else
             {
-                await bus.PublishAsync(e);
+                if (e.TenantId != Tenancy.DefaultTenantId)
+                {
+                    await bus.PublishAsync(e, new DeliveryOptions{TenantId = e.TenantId});
+                }
+                else
+                {
+                    await bus.PublishAsync(e);
+                }
+                
             }
         }
     }
