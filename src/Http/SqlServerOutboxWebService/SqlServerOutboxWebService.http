@@ -1,0 +1,6 @@
+@SqlServerOutboxWebService_HostAddress = http://localhost:5138
+
+GET {{SqlServerOutboxWebService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

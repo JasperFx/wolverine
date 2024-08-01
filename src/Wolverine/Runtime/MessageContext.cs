@@ -69,6 +69,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                         Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
                     }
                 }
+                else if (ReferenceEquals(this, Transaction))
+                {
+                    await envelope.StoreAndForwardAsync();
+                }
                 else
                 {
                     await envelope.QuickSendAsync();
