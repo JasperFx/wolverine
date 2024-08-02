@@ -7,6 +7,19 @@ namespace Wolverine.Runtime.Handlers;
 
 public class HandlerCall : MethodCall
 {
+    public HandlerCall(Type handlerType, string methodName) : base(handlerType, methodName)
+    {
+        MessageType = Method.MessageType()!;
+
+        if (MessageType == null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Method),
+                $"Method {handlerType.FullName}.{Method.Name} has no message type");
+        }
+
+        CommentText = "The actual message execution";
+    }
+
     public HandlerCall(Type handlerType, MethodInfo method) : base(handlerType, method)
     {
         if (method == null)

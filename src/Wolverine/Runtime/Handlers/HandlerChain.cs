@@ -61,7 +61,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handlers.Add(call);
     }
 
-    public HandlerChain(WolverineOptions messageType, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
+    public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
     {
         Handlers.AddRange(grouping);
 
@@ -74,7 +74,69 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 i = DisambiguateOutgoingVariableName(create, i);
             }
         }
+
+        if (grouping.Count() > 1)
+        {
+            foreach (var handlerCall in grouping)
+            {
+                tryAssignStickyEndpoints(handlerCall, options);
+            }
+        }
     }
+
+    private void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    {
+        var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
+        if (endpoints.Any())
+        {
+            var chain = new HandlerChain(handlerCall, options.HandlerGraph);
+            foreach (var endpoint in endpoints)
+            {
+                chain.RegisterEndpoint(endpoint);
+            }
+
+            Handlers.Remove(handlerCall);
+            
+            _byEndpoint.Add(chain);
+        }
+    }
+
+    private IEnumerable<Endpoint> findStickyEndpoints(HandlerCall call, WolverineOptions options)
+    {
+        if (call.HandlerType.TryGetAttribute<StickyHandlerAttribute>(out var att))
+        {
+            foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
+            {
+                yield return endpoint;
+            }
+        }
+        
+        if (call.Method.TryGetAttribute<StickyHandlerAttribute>(out att))
+        {
+            foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
+            {
+                yield return endpoint;
+            }
+        }
+
+        foreach (var endpoint in options.FindEndpointsWithHandlerType(call.HandlerType))
+        {
+            yield return endpoint;
+        }
+    }
+
+    private readonly List<HandlerChain> _byEndpoint = [];
+
+    public IReadOnlyList<HandlerChain> ByEndpoint => _byEndpoint;
+
+    private readonly List<Endpoint> _endpoints = [];
+
+    /// <summary>
+    /// In the case of "sticky" message handlers, this helps group the handler by an endpoint
+    /// </summary>
+    public IReadOnlyList<Endpoint> Endpoints => _endpoints;
+
+    public void RegisterEndpoint(Endpoint endpoint) => _endpoints.Fill(endpoint);
 
     /// <summary>
     ///     At what level should Wolverine log messages about messages succeeding? The default
