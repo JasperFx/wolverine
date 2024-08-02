@@ -101,6 +101,7 @@ public interface IAgentRuntime
 internal interface IExecutorFactory
 {
     IExecutor BuildFor(Type messageType);
+    IExecutor BuildFor(Type messageType, Endpoint endpoint);
 }
 
 // This was for testing

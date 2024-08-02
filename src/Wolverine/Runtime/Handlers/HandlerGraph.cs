@@ -121,6 +121,12 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return ChainFor(typeof(T));
     }
 
+    public IMessageHandler? HandlerFor(Type messageType, Endpoint endpoint)
+    {
+        // TODO -- split the handler on endpoint if one exists
+        return HandlerFor(messageType);
+    }
+
     public IMessageHandler? HandlerFor(Type messageType)
     {
         if (_handlers.TryFind(messageType, out var handler))
