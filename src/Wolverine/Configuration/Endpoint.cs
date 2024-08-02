@@ -102,6 +102,11 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
+    /// In the case of using 
+    /// </summary>
+    public List<Type> StickyHandlers { get; } = new();
+
+    /// <summary>
     /// If a listener, what is the scope of the
     /// </summary>
     public ListenerScope ListenerScope { get; set; } = ListenerScope.CompetingConsumers;

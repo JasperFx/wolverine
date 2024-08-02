@@ -189,4 +189,19 @@ public sealed partial class WolverineOptions
     {
         HandlerGraph.MappedGenericMessageTypes[interfaceType] = closedType;
     }
+
+    internal IEnumerable<Endpoint> FindOrCreateEndpointByName(string endpointName)
+    {
+        var existing = Transports.SelectMany(x => x.Endpoints())
+            .Where(x => x.EndpointName.EqualsIgnoreCase(endpointName)).ToArray();
+
+        if (existing.Any()) return existing;
+
+        return [Transports.GetOrCreateEndpoint(new Uri($"local://{endpointName}"))];
+    }
+
+    public IEnumerable<Endpoint> FindEndpointsWithHandlerType(Type handlerType)
+    {
+        return Transports.SelectMany(x => x.Endpoints()).Where(x => x.StickyHandlers.Contains(handlerType));
+    }
 }
