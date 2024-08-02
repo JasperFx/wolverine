@@ -23,7 +23,7 @@ public class SagaChain : HandlerChain
     public const string SagaIdVariableName = "sagaId";
     public static readonly Type[] ValidSagaIdTypes = [typeof(Guid), typeof(int), typeof(long), typeof(string)];
 
-    public SagaChain(IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : base(grouping, parent)
+    public SagaChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : base(options, grouping, parent)
     {
         try
         {
