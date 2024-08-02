@@ -225,7 +225,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             AddRange(calls);
         }
 
-        Group();
+        Group(options);
 
         foreach (var policy in handlerPolicies(options)) policy.Apply(Chains, Rules, container);
 
@@ -297,7 +297,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return _messageTypes.TryFind(messageTypeName, out messageType);
     }
 
-    public void Group()
+    public void Group(WolverineOptions options)
     {
         lock (_groupingLock)
         {
@@ -308,7 +308,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
             _calls
                 .GroupBy(x => x.MessageType)
-                .Select(buildHandlerChain)
+                .Select(x => buildHandlerChain(options, x))
                 .Each(chain => { _chains = _chains.AddOrUpdate(chain.MessageType, chain); });
 
 
@@ -329,15 +329,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return false;
     }
 
-    private HandlerChain buildHandlerChain(IGrouping<Type, HandlerCall> group)
+    private HandlerChain buildHandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> group)
     {
         // If the SagaChain handler method is a static, then it's valid to be a "Start" method
         if (group.Any(isSagaMethod))
         {
-            return new SagaChain(group, this);
+            return new SagaChain(options, group, this);
         }
 
-        return new HandlerChain(group, this);
+        return new HandlerChain(options, group, this);
     }
 
     internal void AddForwarders(Forwarders forwarders)

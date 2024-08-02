@@ -61,15 +61,19 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handlers.Add(call);
     }
 
-    public HandlerChain(IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
+    public HandlerChain(WolverineOptions messageType, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
     {
         Handlers.AddRange(grouping);
 
         var i = 0;
 
         foreach (var handler in Handlers)
-        foreach (var create in handler.Creates)
-            i = DisambiguateOutgoingVariableName(create, i);
+        {
+            foreach (var create in handler.Creates)
+            {
+                i = DisambiguateOutgoingVariableName(create, i);
+            }
+        }
     }
 
     /// <summary>
