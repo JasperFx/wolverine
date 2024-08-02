@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Tracking;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
 using Xunit;
@@ -15,6 +16,17 @@ public class sticky_message_handlers : IntegrationContext
     {
     }
 
+    [Fact]
+    public async Task send_message_is_handled_by_both_handlers_independently()
+    {
+        var stickyMessage = new StickyMessage();
+        var session = await Host.SendMessageAndWaitAsync(stickyMessage, timeoutInMilliseconds:60000);
+
+        var records = session.Executed.MessagesOf<StickyMessageResponse>().ToArray();
+        records.Length.ShouldBe(2);
+        records.ShouldContain(new StickyMessageResponse("green", stickyMessage, new Uri("local://green")));
+        records.ShouldContain(new StickyMessageResponse("blue", stickyMessage, new Uri("local://blue")));
+    }
 }
 
 public class when_building_a_handler_chain_for_sticky_handlers
@@ -96,22 +108,28 @@ public class StickyMessage{}
 [StickyHandler("blue")]
 public static class BlueStickyHandler
 {
-    public static StickyMessageResponse Handle(StickyMessage message)
+    public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
     {
-        return new StickyMessageResponse("blue", message);
+        return new StickyMessageResponse("blue", message, envelope.Destination);
     }
 }
 
 [StickyHandler("green")]
 public static class GreenStickyHandler
 {
-    public static StickyMessageResponse Handle(StickyMessage message)
+    public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
     {
-        return new StickyMessageResponse("green", message);
+        return new StickyMessageResponse("green", message, envelope.Destination);
     }
 }
 
-public class StickyMessageResponse(string Color, StickyMessage Message);
+public record StickyMessageResponse(string Color, StickyMessage Message, Uri Destination)
+{
+    public override string ToString()
+    {
+        return $"{nameof(Color)}: {Color}, {nameof(Message)}: {Message}, {nameof(Destination)}: {Destination}";
+    }
+}
 
 public class StickyMessageResponseHandler
 {

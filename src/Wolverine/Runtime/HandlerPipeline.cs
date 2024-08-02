@@ -18,6 +18,7 @@ public class HandlerPipeline : IHandlerPipeline
     private readonly HandlerGraph _graph;
 
     private readonly WolverineRuntime _runtime;
+    private readonly Endpoint _endpoint;
 
     internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory)
     {
@@ -36,6 +37,7 @@ public class HandlerPipeline : IHandlerPipeline
     {
         _graph = runtime.Handlers;
         _runtime = runtime;
+        _endpoint = endpoint;
         ExecutorFactory = executorFactory;
         _contextPool = runtime.ExecutionPool;
         _cancellation = runtime.Cancellation;

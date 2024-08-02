@@ -29,7 +29,7 @@ internal class StubTransport : TransportBase<StubEndpoint>
         foreach (var endpoint in Endpoints)
         {
             endpoint.Compile(runtime);
-            endpoint.Start(runtime.Pipeline, runtime.MessageTracking);
+            endpoint.Start(new HandlerPipeline((WolverineRuntime)runtime, (IExecutorFactory)runtime, endpoint), runtime.MessageTracking);
         }
 
         return ValueTask.CompletedTask;

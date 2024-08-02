@@ -60,7 +60,7 @@ public class local_integration_specs : IntegrationContext
         agent.CircuitBreaker.ShouldBeNull();
 
         agent
-            .Pipeline.ShouldBeSameAs(runtime.Pipeline);
+            .Pipeline.ShouldBeOfType<HandlerPipeline>().ExecutorFactory.ShouldBeSameAs(runtime);
     }
 
     [Fact]
