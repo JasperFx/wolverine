@@ -1,5 +1,6 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core.Reflection;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.Attributes;
@@ -12,16 +13,14 @@ public class can_customize_handler_chains_with_attributes
 {
     private void forMessage<T>(Action<HandlerChain> action)
     {
-        using (var runtime = WolverineHost.For(opts =>
-               {
-                   opts.DisableConventionalDiscovery();
-                   opts.IncludeType<FakeHandler1>();
-                   opts.IncludeType<FakeHandler2>();
-               }))
+        using var runtime = WolverineHost.For(opts =>
         {
-            var chain = runtime.Get<HandlerGraph>().ChainFor<T>();
-            action(chain);
-        }
+            opts.DisableConventionalDiscovery();
+            opts.IncludeType<FakeHandler1>();
+            opts.IncludeType<FakeHandler2>();
+        });
+        var chain = runtime.Get<HandlerGraph>().HandlerFor<T>().As<MessageHandler>().Chain;
+        action(chain);
     }
 
     [Fact]

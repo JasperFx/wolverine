@@ -51,7 +51,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         }
         else
         {
-            Pipeline = runtime.Pipeline;
+            Pipeline = new HandlerPipeline(runtime, runtime, endpoint);
         }
 
         _receiver = new DurableReceiver(endpoint, runtime, Pipeline);

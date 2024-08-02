@@ -1,5 +1,6 @@
 using CoreTests.Acceptance;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Middleware;
 using Wolverine.Runtime.Handlers;
@@ -26,7 +27,7 @@ public class configuring_middleware
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => { opts.Policies.AddMiddleware<T>(); }).StartAsync();
 
-        var chain = host.GetRuntime().Handlers.ChainFor<MiddlewareMessage>();
+        var chain = host.GetRuntime().Handlers.HandlerFor<MiddlewareMessage>().As<MessageHandler>().Chain;
 
         assertions(chain);
     }
@@ -71,7 +72,7 @@ public class configuring_middleware
             })
             .StartAsync();
 
-        var chain = host.GetRuntime().Handlers.ChainFor<MiddlewareMessage>();
+        var chain = host.GetRuntime().Handlers.HandlerFor<MiddlewareMessage>().As<MessageHandler>().Chain;
         chain.Middleware[1].ShouldBeOfType<ConstructorFrame>().Variable.VariableType
             .ShouldBe(typeof(MiddlewareWithMessage));
         chain.Middleware[2].ShouldBeCallWithMessageTo(typeof(MiddlewareWithMessage), "Before");

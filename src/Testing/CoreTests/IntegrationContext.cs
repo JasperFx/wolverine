@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.Runtime;
@@ -37,7 +38,7 @@ public class DefaultApp : IDisposable
 
     public HandlerChain ChainFor<T>()
     {
-        return Host.Get<HandlerGraph>().ChainFor<T>();
+        return Host.Get<HandlerGraph>().HandlerFor<T>().As<MessageHandler>().Chain;
     }
 }
 
@@ -72,6 +73,6 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
 
     protected HandlerChain chainFor<T>()
     {
-        return Handlers.ChainFor<T>();
+        return Handlers.HandlerFor<T>().As<MessageHandler>().Chain;
     }
 }

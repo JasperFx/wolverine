@@ -10,7 +10,7 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
 {
     private readonly IMessageTracker _messageLogger;
 
-    public BufferedLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime, runtime.Pipeline)
+    public BufferedLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime, new HandlerPipeline((WolverineRuntime)runtime, (IExecutorFactory)runtime, endpoint))
     {
         _messageLogger = runtime.MessageTracking;
         Destination = endpoint.Uri;

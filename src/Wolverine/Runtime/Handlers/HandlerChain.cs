@@ -12,6 +12,9 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Runtime.Routing;
+using Wolverine.Transports.Local;
+using Wolverine.Transports.Stub;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -89,6 +92,18 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
         if (endpoints.Any())
         {
+            // Need to set a publishing rule for this message type to any local
+            // queues
+            foreach (var localQueue in endpoints.OfType<LocalQueue>())
+            {
+                localQueue.Subscriptions.Add(Subscription.ForType(MessageType));
+            }
+            
+            foreach (var stub in endpoints.OfType<StubEndpoint>())
+            {
+                stub.Subscriptions.Add(Subscription.ForType(MessageType));
+            }
+            
             var chain = new HandlerChain(handlerCall, options.HandlerGraph);
             foreach (var endpoint in endpoints)
             {

@@ -21,10 +21,15 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         var chain = runtime.Handlers.ChainFor(typeof(T));
         if (chain != null)
         {
-            var handlerRules = chain.Handlers.SelectMany(x => x.Method.GetAllAttributes<ModifyEnvelopeAttribute>())
+            var handlerRules = chain.Handlers.Concat(chain.ByEndpoint.SelectMany(x => x.Handlers))
+                .SelectMany(x => x.Method.GetAllAttributes<ModifyEnvelopeAttribute>())
                 .OfType<IEnvelopeRule>();
             HandlerRules.AddRange(handlerRules);
         }
+        
+        var messageRules = typeof(T).GetAllAttributes<ModifyEnvelopeAttribute>()
+            .OfType<IEnvelopeRule>();
+        HandlerRules.AddRange(messageRules);
 
         _topicRoutes = runtime.Options.Transports.AllEndpoints().Where(x => x.RoutingType == RoutingMode.ByTopic)
             .Select(endpoint => new MessageRoute(typeof(T), endpoint, runtime.Replies)).ToArray();

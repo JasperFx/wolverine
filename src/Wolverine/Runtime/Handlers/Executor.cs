@@ -242,4 +242,14 @@ internal class Executor : IExecutor
 
         return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
     }
+    
+    public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool,
+        HandlerGraph handlerGraph, IMessageHandler handler)
+    {
+        var chain = (handler as MessageHandler)?.Chain;
+        var timeoutSpan = chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
+        var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
+
+        return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
+    }
 }

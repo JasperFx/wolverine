@@ -1,5 +1,7 @@
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
+using Wolverine.Runtime.Handlers;
 using Xunit;
 
 namespace CoreTests.Acceptance;
@@ -13,7 +15,9 @@ public class logging_configuration : IntegrationContext
     [Fact]
     public void wolverine_logging_attribute_impacts_handler_chain()
     {
-        var chain = chainFor<QuietMessage>();
+        var chain = Handlers.HandlerFor<QuietMessage>().As<MessageHandler>()
+            .Chain;
+
         chain.TelemetryEnabled.ShouldBeFalse();
         chain.SuccessLogLevel.ShouldBe(LogLevel.None);
         chain.ProcessingLogLevel.ShouldBe(LogLevel.Trace);

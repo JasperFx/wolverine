@@ -113,7 +113,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     public HandlerChain? ChainFor(Type messageType)
     {
-        return (HandlerFor(messageType) as MessageHandler)?.Chain;
+        if (_chains.TryFind(messageType, out var chain)) return chain;
+
+        return null;
     }
 
     public HandlerChain? ChainFor<T>()
@@ -123,8 +125,36 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     public IMessageHandler? HandlerFor(Type messageType, Endpoint endpoint)
     {
-        // TODO -- split the handler on endpoint if one exists
-        return HandlerFor(messageType);
+        // This is cached in the HandlerPipeline for each endpoint, so 
+        // not terribly important to cache it here
+        var chain = ChainFor(messageType);
+
+        if (chain == null)
+        {
+            // There are a couple special types where this might be cached. Like for Acknowledgement
+            if (_handlers.TryFind(messageType, out var handler)) return handler;
+            
+            // This was to handle moving Event<T> to IEvent<T>
+            var candidates = _chains.Enumerate().Where(x => messageType.CanBeCastTo(x.Key)).ToArray();
+            if (candidates.Length == 1)
+            {
+                chain = candidates[0].Value;
+            }
+        }
+        
+        if (chain == null) return null;
+
+        // If there are no sticky handlers, just use the default handler
+        // for the message type
+        if (!chain.ByEndpoint.Any()) return HandlerFor(messageType);
+
+        // See if there is a sticky handler that is specific to this endpoint
+        var sticky = chain.ByEndpoint.FirstOrDefault(x => x.Endpoints.Contains(endpoint));
+        
+        // If none, use the default
+        if (sticky == null) return HandlerFor(messageType);
+
+        return resolveHandlerFromChain(messageType, sticky, false);
     }
 
     public IMessageHandler? HandlerFor(Type messageType)
@@ -147,7 +177,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         
         if (_chains.TryFind(messageType, out var chain))
         {
-            return resolveHandlerFromChain(messageType, chain);
+            return resolveHandlerFromChain(messageType, chain, true);
         }
 
         // This was to handle moving Event<T> to IEvent<T>
@@ -155,7 +185,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         if (candidates.Length == 1)
         {
             chain = candidates[0].Value;
-            return resolveHandlerFromChain(messageType, chain);
+            return resolveHandlerFromChain(messageType, chain, true);
         }
 
         // memoize the "miss"
@@ -163,7 +193,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return null;
     }
 
-    private IMessageHandler? resolveHandlerFromChain(Type messageType, HandlerChain chain)
+    private IMessageHandler? resolveHandlerFromChain(Type messageType, HandlerChain chain, bool shouldCacheGlobally)
     {
         IMessageHandler handler;
         if (chain.Handler != null)
@@ -189,7 +219,10 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             }
         }
 
-        _handlers = _handlers.AddOrUpdate(messageType, handler);
+        if (shouldCacheGlobally)
+        {
+            _handlers = _handlers.AddOrUpdate(messageType, handler);
+        }
 
         return handler;
     }
