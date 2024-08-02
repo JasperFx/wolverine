@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
 using Xunit.Abstractions;
@@ -11,11 +12,11 @@ public record FileAdded(string FileName);
 
 public class RandomFileChangeForPublish
 {
-    private readonly IMessageBus _messageBus;
+    private readonly IWolverineRuntime _runtime;
 
     public RandomFileChangeForPublish(
-        IMessageBus messageBus
-    ) => _messageBus = messageBus;
+        IWolverineRuntime runtime
+    ) => _runtime = runtime;
 
     public async Task SimulateRandomFileChange()
     {
@@ -25,7 +26,7 @@ public class RandomFileChangeForPublish
             )
         );
         var randomFileName = Path.GetRandomFileName();
-        await _messageBus.PublishAsync(new FileAdded(randomFileName));
+        await new MessageBus(_runtime).PublishAsync(new FileAdded(randomFileName));
     }
 }
 
