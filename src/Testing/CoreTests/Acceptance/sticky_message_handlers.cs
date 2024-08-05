@@ -1,6 +1,8 @@
 using System.Collections;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Hosting;
+using TestingSupport;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
@@ -17,10 +19,37 @@ public class sticky_message_handlers : IntegrationContext
     }
 
     [Fact]
-    public async Task send_message_is_handled_by_both_handlers_independently()
+    public async Task send_message_is_handled_by_both_handlers_independently_by_attributes()
     {
         var stickyMessage = new StickyMessage();
         var session = await Host.SendMessageAndWaitAsync(stickyMessage, timeoutInMilliseconds:60000);
+
+        var records = session.Executed.MessagesOf<StickyMessageResponse>().ToArray();
+        records.Length.ShouldBe(2);
+        records.ShouldContain(new StickyMessageResponse("green", stickyMessage, new Uri("local://green")));
+        records.ShouldContain(new StickyMessageResponse("blue", stickyMessage, new Uri("local://blue")));
+    }
+}
+
+public class when_definining_sticky_handlers_by_fluent_interface
+{
+    [Fact]
+    public async Task message_should_be_handled_separately_on_different_local_queues()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Discovery.IncludeType(typeof(BlueSticky2Handler));
+                opts.Discovery.IncludeType(typeof(GreenSticky2Handler));
+                opts.Discovery.IncludeType<StickyMessageResponseHandler>();
+
+                opts.LocalQueue("blue").AddStickyHandler(typeof(BlueSticky2Handler));
+                opts.LocalQueue("green").AddStickyHandler(typeof(GreenSticky2Handler));
+            }).StartAsync();
+        
+        var stickyMessage = new StickyMessage2();
+        var session = await host.SendMessageAndWaitAsync(stickyMessage, timeoutInMilliseconds:60000);
 
         var records = session.Executed.MessagesOf<StickyMessageResponse>().ToArray();
         records.Length.ShouldBe(2);
@@ -138,3 +167,24 @@ public class StickyMessageResponseHandler
         // nothing
     }
 }
+
+
+public class StickyMessage2 : StickyMessage{}
+
+
+public static class BlueSticky2Handler
+{
+    public static StickyMessageResponse Handle(StickyMessage2 message, Envelope envelope)
+    {
+        return new StickyMessageResponse("blue", message, envelope.Destination);
+    }
+}
+
+public static class GreenSticky2Handler
+{
+    public static StickyMessageResponse Handle(StickyMessage2 message, Envelope envelope)
+    {
+        return new StickyMessageResponse("green", message, envelope.Destination);
+    }
+}
+
