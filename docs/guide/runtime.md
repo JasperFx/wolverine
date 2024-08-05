@@ -137,7 +137,7 @@ To opt into buffering, you use this syntax:
 opts.ListenToAzureServiceBusQueue("incoming")
     .BufferedInMemory(new BufferingLimits(1000, 200));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L130-L137' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_buffered_in_memory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L139-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_buffered_in_memory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, you have a local [TPL Dataflow queue](https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) between the Wolverine callers and the broker:
@@ -170,7 +170,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
 opts.PublishAllMessages().ToAzureServiceBusQueue("outgoing")
     .UseDurableOutbox();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L189-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L205-L215' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or use policies to do this in one fell swoop (which may not be what you actually want, but you could do this!):
@@ -180,7 +180,7 @@ Or use policies to do this in one fell swoop (which may not be what you actually
 ```cs
 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L140-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_all_outgoing_are_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L149-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_all_outgoing_are_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As shown below, the `Durable` endpoint option adds an extra step to the `Buffered` behavior to add database storage of the 

@@ -40,27 +40,30 @@ var host = await Host.CreateDefaultBuilder()
 <!-- snippet: sample_config_aws_sqs_connection -->
 <a id='snippet-sample_config_aws_sqs_connection'></a>
 ```cs
-var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        var config = context.Configuration;
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var config = builder.Configuration;
 
-        opts.UseAmazonSqsTransport(sqsConfig =>
-            {
-                sqsConfig.ServiceURL = config["AwsUrl"];
-                // And any other elements of the SQS AmazonSQSConfig
-                // that you may need to configure
-            })
+    opts.UseAmazonSqsTransport(sqsConfig =>
+        {
+            sqsConfig.ServiceURL = config["AwsUrl"];
+            // And any other elements of the SQS AmazonSQSConfig
+            // that you may need to configure
+        })
 
-            // Let Wolverine create missing queues as necessary
-            .AutoProvision()
+        // Let Wolverine create missing queues as necessary
+        .AutoProvision()
 
-            // Optionally purge all queues on application startup.
-            // Warning though, this is potentially slow
-            .AutoPurgeOnStartup();
-    }).StartAsync();
+        // Optionally purge all queues on application startup.
+        // Warning though, this is potentially slow
+        .AutoPurgeOnStartup();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L53-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L53-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -86,29 +89,32 @@ And lastly, if you want to explicitly supply an access and secret key for your c
 <!-- snippet: sample_setting_aws_credentials -->
 <a id='snippet-sample_setting_aws_credentials'></a>
 ```cs
-var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        var config = context.Configuration;
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var config = builder.Configuration;
 
-        opts.UseAmazonSqsTransport(sqsConfig =>
-            {
-                sqsConfig.ServiceURL = config["AwsUrl"];
-                // And any other elements of the SQS AmazonSQSConfig
-                // that you may need to configure
-            })
+    opts.UseAmazonSqsTransport(sqsConfig =>
+        {
+            sqsConfig.ServiceURL = config["AwsUrl"];
+            // And any other elements of the SQS AmazonSQSConfig
+            // that you may need to configure
+        })
 
-            // And you can also add explicit AWS credentials
-            .Credentials(new BasicAWSCredentials(config["AwsAccessKey"], config["AwsSecretKey"]))
+        // And you can also add explicit AWS credentials
+        .Credentials(new BasicAWSCredentials(config["AwsAccessKey"], config["AwsSecretKey"]))
 
-            // Let Wolverine create missing queues as necessary
-            .AutoProvision()
+        // Let Wolverine create missing queues as necessary
+        .AutoProvision()
 
-            // Optionally purge all queues on application startup.
-            // Warning though, this is potentially slow
-            .AutoPurgeOnStartup();
-    }).StartAsync();
+        // Optionally purge all queues on application startup.
+        // Warning though, this is potentially slow
+        .AutoPurgeOnStartup();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L80-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L83-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

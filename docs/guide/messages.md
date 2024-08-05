@@ -125,7 +125,7 @@ Or lastly, make up your own criteria to find and mark message types within your 
 ```cs
 opts.Discovery.CustomizeHandlerDiscovery(types => types.Includes.Implements<IDiagnosticsMessageHandler>());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L37-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L39-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that only types that are in assemblies either marked with `[assembly: WolverineModule]` or the main application assembly

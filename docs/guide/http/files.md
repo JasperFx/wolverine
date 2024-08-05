@@ -27,7 +27,7 @@ public class FileUploadEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FileUploadEndpoint.cs#L6-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_file_uploads' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FileUploadEndpoint.cs#L7-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_file_uploads' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [Upload files in ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-7.0)

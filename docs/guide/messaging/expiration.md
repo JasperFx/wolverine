@@ -44,10 +44,10 @@ public async Task message_expiration(IMessageBus bus)
 
     // Disregard the message if it isn't sent and/or processed by 3 PM today
     // but watch all the potentially harmful time zone issues in your real code that I'm ignoring here!
-    await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverBy = DateTime.Today.AddHours(15)});
+    await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverBy = DateTime.Today.AddHours(15) });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L356-L368' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_expiration_by_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L387-L399' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_expiration_by_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## By Subscriber
@@ -58,30 +58,32 @@ this sample:
 <!-- snippet: sample_delivery_expiration_rules_per_subscriber -->
 <a id='snippet-sample_delivery_expiration_rules_per_subscriber'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        // One way or another, you're probably pulling the Azure Service Bus
-        // connection string out of configuration
-        var azureServiceBusConnectionString = context
-            .Configuration
-            .GetConnectionString("azure-service-bus");
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
 
-        // Connect to the broker in the simplest possible way
-        opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-        // Explicitly configure a delivery expiration of 5 seconds
-        // for a specific Azure Service Bus queue
-        opts.PublishMessage<StatusUpdate>().ToAzureServiceBusQueue("transient")
+    // Explicitly configure a delivery expiration of 5 seconds
+    // for a specific Azure Service Bus queue
+    opts.PublishMessage<StatusUpdate>().ToAzureServiceBusQueue("transient")
 
-            // If the messages are transient, it's likely that they should not be
-            // durably stored, so make things lighter in your system
-            .BufferedInMemory()
-            .DeliverWithin(5.Seconds());
+        // If the messages are transient, it's likely that they should not be
+        // durably stored, so make things lighter in your system
+        .BufferedInMemory()
+        .DeliverWithin(5.Seconds());
+});
 
-    }).StartAsync();
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L231-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delivery_expiration_rules_per_subscriber' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L253-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delivery_expiration_rules_per_subscriber' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## By Message Type

@@ -64,6 +64,8 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddWolverineHttp();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -78,7 +80,7 @@ app.MapWolverineEndpoints();
 
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Program.cs#L1-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_wolverine_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Program.cs#L1-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_wolverine_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that the only thing in that sample that pertains to `WolverineFx.Http` itself is the call to `IEndpointRouteBuilder.MapWolverineEndpoints()`.

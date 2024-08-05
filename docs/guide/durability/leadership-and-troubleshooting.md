@@ -42,27 +42,31 @@ where the system can be optimized to run as if there's never more than one runni
 <!-- snippet: sample_configuring_the_solo_mode -->
 <a id='snippet-sample_configuring_the_solo_mode'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    opts.Services.AddMarten("some connection string")
+
+        // This adds quite a bit of middleware for
+        // Marten
+        .IntegrateWithWolverine();
+
+    // You want this maybe!
+    opts.Policies.AutoApplyTransactions();
+
+    if (builder.Environment.IsDevelopment())
     {
-        opts.Services.AddMarten("some connection string")
+        // But wait! Optimize Wolverine for usage as
+        // if there would never be more than one node running
+        opts.Durability.Mode = DurabilityMode.Solo;
+    }
+});
 
-            // This adds quite a bit of middleware for
-            // Marten
-            .IntegrateWithWolverine();
-
-        // You want this maybe!
-        opts.Policies.AutoApplyTransactions();
-
-        if (context.HostingEnvironment.IsDevelopment())
-        {
-            // But wait! Optimize Wolverine for usage as
-            // if there would never be more than one node running
-            opts.Durability.Mode = DurabilityMode.Solo;
-        }
-    }).StartAsync();
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L63-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L63-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Running your Wolverine application like this means that Wolverine is able to more quickly start the transactional inbox

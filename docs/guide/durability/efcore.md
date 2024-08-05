@@ -89,23 +89,26 @@ with the `AutoApplyTransactions()` option as shown below:
 <!-- snippet: sample_bootstrapping_with_auto_apply_transactions_for_sql_server -->
 <a id='snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("database");
+
+    opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
     {
-        var connectionString = context.Configuration.GetConnectionString("database");
+        x.UseSqlServer(connectionString);
+    });
 
-        opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
-        {
-            x.UseSqlServer(connectionString);
-        });
+    opts.UseEntityFrameworkCoreTransactions();
 
-        opts.UseEntityFrameworkCoreTransactions();
+    // Add the auto transaction middleware attachment policy
+    opts.Policies.AutoApplyTransactions();
+});
 
-        // Add the auto transaction middleware attachment policy
-        opts.Policies.AutoApplyTransactions();
-    }).StartAsync();
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L13-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this option, you will no longer need to decorate handler methods with the `[Transactional]` attribute.

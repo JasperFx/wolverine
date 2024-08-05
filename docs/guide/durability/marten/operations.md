@@ -34,7 +34,7 @@ public static IMartenOp Pay([Document] Invoice invoice)
     return MartenOps.Store(invoice);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L42-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_marten_op_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L43-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_marten_op_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There are existing Marten ops for storing, inserting, updating, and deleting a document. There's also a specific

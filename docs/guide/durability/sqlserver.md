@@ -47,38 +47,40 @@ use this option which *also* activates Sql Server backed message persistence:
 <!-- snippet: sample_using_sql_server_transport -->
 <a id='snippet-sample_using_sql_server_transport'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        var connectionString = context.Configuration.GetConnectionString("sqlserver");
-        opts.UseSqlServerPersistenceAndTransport(connectionString, "myapp")
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("sqlserver");
+    opts.UseSqlServerPersistenceAndTransport(connectionString, "myapp")
 
-            // Tell Wolverine to build out all necessary queue or scheduled message
-            // tables on demand as needed
-            .AutoProvision()
+        // Tell Wolverine to build out all necessary queue or scheduled message
+        // tables on demand as needed
+        .AutoProvision()
 
-            // Optional that may be helpful in testing, but probably bad
-            // in production!
-            .AutoPurgeOnStartup();
+        // Optional that may be helpful in testing, but probably bad
+        // in production!
+        .AutoPurgeOnStartup();
 
-        // Use this extension method to create subscriber rules
-        opts.PublishAllMessages().ToSqlServerQueue("outbound");
+    // Use this extension method to create subscriber rules
+    opts.PublishAllMessages().ToSqlServerQueue("outbound");
 
-        // Use this to set up queue listeners
-        opts.ListenToSqlServerQueue("inbound")
+    // Use this to set up queue listeners
+    opts.ListenToSqlServerQueue("inbound")
+        .CircuitBreaker(cb =>
+        {
+            // fine tune the circuit breaker
+            // policies here
+        })
 
-            .CircuitBreaker(cb =>
-            {
-                // fine tune the circuit breaker
-                // policies here
-            })
+        // Optionally specify how many messages to
+        // fetch into the listener at any one time
+        .MaximumMessagesToReceive(50);
+});
 
-            // Optionally specify how many messages to
-            // fetch into the listener at any one time
-            .MaximumMessagesToReceive(50);
-    }).StartAsync();
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/DocumentationSamples.cs#L12-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sql_server_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/DocumentationSamples.cs#L12-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sql_server_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The Sql Server transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
@@ -103,7 +105,45 @@ If you want to use Sql Server as a queueing mechanism between multiple applicati
 
 Here's an example from the Wolverine tests. Note the `transportSchema` configuration:
 
-snippet: sample_sql_server_as_queue_between_two_apps
+<!-- snippet: sample_sql_server_as_queue_between_two_apps -->
+<a id='snippet-sample_sql_server_as_queue_between_two_apps'></a>
+```cs
+_sender = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseSqlServerPersistenceAndTransport(
+                Servers.SqlServerConnectionString, 
+                "sender",
+                
+                // If using Sql Server as a queue between multiple applications,
+                // be sure to use the same transportSchema setting
+                transportSchema:"transport")
+            .AutoProvision()
+            .AutoPurgeOnStartup();
+
+        opts.PublishMessage<SqlServerFoo>().ToSqlServerQueue("foobar");
+        opts.PublishMessage<SqlServerBar>().ToSqlServerQueue("foobar");
+        opts.Policies.DisableConventionalLocalRouting();
+        opts.Discovery.DisableConventionalDiscovery();
+
+    }).StartAsync();
+_listener = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, 
+                "listener",
+                
+                transportSchema:"transport")
+            .AutoProvision()
+            .AutoPurgeOnStartup();
+        opts.PublishMessage<SqlServerBar>().ToSqlServerQueue("foobar");
+        opts.ListenToSqlServerQueue("foobar");
+        opts.Discovery.DisableConventionalDiscovery()
+            .IncludeType<FooBarHandler>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/with_multiple_hosts.cs#L22-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_as_queue_between_two_apps' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 

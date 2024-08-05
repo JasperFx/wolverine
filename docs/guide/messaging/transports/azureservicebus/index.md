@@ -15,32 +15,35 @@ method as shown below in this basic usage:
 <!-- snippet: sample_basic_connection_to_azure_service_bus -->
 <a id='snippet-sample_basic_connection_to_azure_service_bus'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        // One way or another, you're probably pulling the Azure Service Bus
-        // connection string out of configuration
-        var azureServiceBusConnectionString = context
-            .Configuration
-            .GetConnectionString("azure-service-bus");
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
 
-        // Connect to the broker in the simplest possible way
-        opts.UseAzureServiceBus(azureServiceBusConnectionString)
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString)
 
-            // Let Wolverine try to initialize any missing queues
-            // on the first usage at runtime
-            .AutoProvision()
+        // Let Wolverine try to initialize any missing queues
+        // on the first usage at runtime
+        .AutoProvision()
 
-            // Direct Wolverine to purge all queues on application startup.
-            // This is probably only helpful for testing
-            .AutoPurgeOnStartup();
+        // Direct Wolverine to purge all queues on application startup.
+        // This is probably only helpful for testing
+        .AutoPurgeOnStartup();
 
-        // Or if you need some further specification...
-        opts.UseAzureServiceBus(azureServiceBusConnectionString,
-            azure => { azure.RetryOptions.Mode = ServiceBusRetryMode.Exponential; });
-    }).StartAsync();
+    // Or if you need some further specification...
+    opts.UseAzureServiceBus(azureServiceBusConnectionString,
+        azure => { azure.RetryOptions.Mode = ServiceBusRetryMode.Exponential; });
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L14-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_connection_to_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L14-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_connection_to_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The advanced configuration for the broker is the [ServiceBusClientOptions](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusclientoptions?view=azure-dotnet) class from the Azure.Messaging.ServiceBus

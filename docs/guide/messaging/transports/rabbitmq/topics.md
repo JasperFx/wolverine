@@ -23,7 +23,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenToRabbitQueue("");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L14-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_to_rabbit_mq_topics_exchange' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L13-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_to_rabbit_mq_topics_exchange' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 While we're specifying the exchange name ("topics-exchange"), we did nothing to specify the topic
@@ -32,10 +32,10 @@ name. With this set up, when you publish a message in this application like so:
 <!-- snippet: sample_sending_topic_routed_message -->
 <a id='snippet-sample_sending_topic_routed_message'></a>
 ```cs
-var publisher = host.Services.GetRequiredService<IMessageBus>();
+var publisher = host.MessageBus();
 await publisher.SendAsync(new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L35-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_topic_routed_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L34-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_topic_routed_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You will be sending that message to the "topics-exchange" with a topic name derived from
@@ -70,7 +70,7 @@ Of course, you can always explicitly send a message to a specific topic with thi
 ```cs
 await publisher.BroadcastToTopicAsync("color.*", new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L42-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_a_specific_topic' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L41-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_a_specific_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note two things about the code above:
@@ -117,7 +117,7 @@ public interface ITenantMessage
     string TenantId { get; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L514-L521' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_itenantmessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L517-L524' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_itenantmessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's say that any message that implements that interface, we want published to the 
@@ -126,20 +126,23 @@ topic for that messages `TenantId`. We can implement that rule like so:
 <!-- snippet: sample_rabbit_topic_rules -->
 <a id='snippet-sample_rabbit_topic_rules'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        opts.UseRabbitMq();
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts.UseRabbitMq();
 
-        // Publish any message that implements ITenantMessage to
-        // a Rabbit MQ "Topic" exchange named "tenant.messages"
-        opts.PublishMessagesToRabbitMqExchange<ITenantMessage>("tenant.messages",m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
+    // Publish any message that implements ITenantMessage to
+    // a Rabbit MQ "Topic" exchange named "tenant.messages"
+    opts.PublishMessagesToRabbitMqExchange<ITenantMessage>("tenant.messages",
+            m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
 
-            // Specify or configure sending through Wolverine for all
-            // messages through this Exchange
-            .BufferedInMemory();
-    })
-    .StartAsync();
+        // Specify or configure sending through Wolverine for all
+        // messages through this Exchange
+        .BufferedInMemory();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L493-L510' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_topic_rules' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L476-L496' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_topic_rules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

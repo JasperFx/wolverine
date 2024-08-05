@@ -156,7 +156,7 @@ app.MapWolverineEndpoints(opts =>
     opts.TenantId.AssertExists();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L68-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection_for_todo_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L70-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection_for_todo_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code sample above, I'm choosing to make the "tenant" a mandatory route argument
@@ -265,7 +265,7 @@ public static string NoTenantNoProblem()
     return "hey";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L393-L402' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L415-L424' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the above usage completely disabled all tenant id detection or validation, in the case of an endpoint that *might* be 
@@ -283,7 +283,7 @@ public static string MaybeTenanted(IMessageBus bus)
     return bus.TenantId ?? "none";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L404-L413' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L426-L435' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

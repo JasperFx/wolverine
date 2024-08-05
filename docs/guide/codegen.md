@@ -121,19 +121,22 @@ to [fail fast](https://en.wikipedia.org/wiki/Fail-fast) on application startup l
 <!-- snippet: sample_asserting_all_pre_built_types_exist_upfront -->
 <a id='snippet-sample_asserting_all_pre_built_types_exist_upfront'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
     {
-        if (context.HostingEnvironment.IsProduction())
+        if (builder.Environment.IsProduction())
         {
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
             // You probably only ever want to do this in Production
             opts.Services.AssertAllExpectedPreBuiltTypesExistOnStartUp();
         }
-    }).StartAsync();
+    });
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L37-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asserting_all_pre_built_types_exist_upfront' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L37-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asserting_all_pre_built_types_exist_upfront' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that you would have to opt into using the environment checks on application startup, and maybe even force .NET
@@ -184,7 +187,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.OptimizeArtifactWorkflow();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L56-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L59-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which will use:

@@ -346,7 +346,7 @@ To attach our `StopwatchFrame` as middleware to any route or message handler, we
 ```cs
 public class StopwatchAttribute : ModifyChainAttribute
 {
-    public override void Modify(IChain chain, GenerationRules rules, IContainer container)
+    public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
         chain.Middleware.Add(new StopwatchFrame(chain));
     }
@@ -433,8 +433,8 @@ public interface IHandlerPolicy : IWolverinePolicy
     /// </summary>
     /// <param name="chains"></param>
     /// <param name="rules"></param>
-    /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container);
+    /// <param name="container">The application's underlying IoC Container</param>
+    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container);
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
@@ -447,7 +447,7 @@ Here's a simple sample that registers middleware on each handler chain:
 ```cs
 public class WrapWithSimple : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains) chain.Middleware.Add(new SimpleWrapper());
     }
