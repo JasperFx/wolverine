@@ -105,6 +105,8 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeAssembly(GetType().Assembly);
 });
 
+builder.Services.AddWolverineHttp();
+
 await using var host = await AlbaHost.For(builder, app =>
 {
     app.MapWolverineEndpoints(opts =>
@@ -115,5 +117,5 @@ await using var host = await AlbaHost.For(builder, app =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_newtonsoft_for_serialization.cs#L18-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_newtonsoft_for_http_serialization' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_newtonsoft_for_serialization.cs#L18-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_newtonsoft_for_http_serialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

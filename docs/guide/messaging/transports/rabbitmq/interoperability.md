@@ -22,21 +22,24 @@ Wolverine what the default message type is for that queue like this:
 <!-- snippet: sample_setting_default_message_type_with_rabbit -->
 <a id='snippet-sample_setting_default_message_type_with_rabbit'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        var rabbitMqConnectionString = context.Configuration.GetConnectionString("rabbit");
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var rabbitMqConnectionString = builder.Configuration.GetConnectionString("rabbit");
 
-        opts.UseRabbitMq(rabbitMqConnectionString);
+    opts.UseRabbitMq(rabbitMqConnectionString);
 
-        opts.ListenToRabbitQueue("emails")
-            // Tell Wolverine to assume that all messages
-            // received at this queue are the SendEmail
-            // message type
-            .DefaultIncomingMessage<SendEmail>();
-    }).StartAsync();
+    opts.ListenToRabbitQueue("emails")
+        // Tell Wolverine to assume that all messages
+        // received at this queue are the SendEmail
+        // message type
+        .DefaultIncomingMessage<SendEmail>();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L448-L464' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_message_type_with_rabbit' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L424-L443' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_message_type_with_rabbit' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this setting, there is **no other required headers** for Wolverine to process incoming messages. However, Wolverine will be
@@ -76,7 +79,7 @@ public class SpecialMapper : IRabbitMqEnvelopeMapper
         }
     }
 
-    public void MapIncomingToEnvelope(Envelope envelope, IBasicProperties incoming)
+    public void MapIncomingToEnvelope(Envelope envelope, ReadOnlyBasicProperties incoming)
     {
         envelope.CorrelationId = incoming.CorrelationId;
         envelope.ContentType = "application/json";
@@ -111,24 +114,28 @@ And register that special mapper like this:
 <!-- snippet: sample_registering_custom_rabbit_mq_envelope_mapper -->
 <a id='snippet-sample_registering_custom_rabbit_mq_envelope_mapper'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        var rabbitMqConnectionString = context.Configuration.GetConnectionString("rabbit");
+var builder = Host.CreateApplicationBuilder();
 
-        opts.UseRabbitMq(rabbitMqConnectionString);
+builder.UseWolverine(opts =>
+{
+    var rabbitMqConnectionString = builder.Configuration.GetConnectionString("rabbit");
 
-        opts.ListenToRabbitQueue("emails")
-            // Apply your custom interoperability strategy here
-            .UseInterop(new SpecialMapper())
+    opts.UseRabbitMq(rabbitMqConnectionString);
 
-            // You may still want to define the default incoming
-            // message as the message type name may not be sent
-            // by the upstream system
-            .DefaultIncomingMessage<SendEmail>();
-    }).StartAsync();
+    opts.ListenToRabbitQueue("emails")
+        // Apply your custom interoperability strategy here
+        .UseInterop(new SpecialMapper())
+
+        // You may still want to define the default incoming
+        // message as the message type name may not be sent
+        // by the upstream system
+        .DefaultIncomingMessage<SendEmail>();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L469-L488' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_rabbit_mq_envelope_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L448-L471' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_rabbit_mq_envelope_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

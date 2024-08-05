@@ -106,7 +106,7 @@ with a handler policy like this:
 ```cs
 public class CommandsAreTransactional : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         // Important! Create a brand new TransactionalFrame
         // for each chain

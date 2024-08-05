@@ -107,7 +107,7 @@ internal class WriteFilePolicy : IChainPolicy
     // IChain is a Wolverine model to configure the code generation of
     // a message or HTTP handler and the core model for the application
     // of middleware
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
         var method = ReflectionHelper.GetMethod<WriteFile>(x => x.WriteAsync());
 
@@ -142,11 +142,8 @@ and lastly, I'll register that policy in my Wolverine application at configurati
 <a id='snippet-sample_register_writefilepolicy'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        opts.Policies.Add<WriteFilePolicy>();
-    }).StartAsync();
+    .UseWolverine(opts => { opts.Policies.Add<WriteFilePolicy>(); }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L64-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_writefilepolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L64-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_writefilepolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

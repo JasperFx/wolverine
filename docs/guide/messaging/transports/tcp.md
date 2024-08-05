@@ -15,31 +15,33 @@ To listen for messages with the TCP transport, use the `ListenAtPort()` extensio
 <!-- snippet: sample_UseWolverineWithInlineOptionsConfigurationAndHosting -->
 <a id='snippet-sample_usewolverinewithinlineoptionsconfigurationandhosting'></a>
 ```cs
-public static IHostBuilder CreateHostBuilder()
+public static IHost CreateHostBuilder()
 {
-    return Host.CreateDefaultBuilder()
+    var builder = Host.CreateApplicationBuilder();
+    
+    // This adds Wolverine with inline configuration
+    // of WolverineOptions
+    builder.UseWolverine(opts =>
+    {
+        // This is an example usage of the application's
+        // IConfiguration inside of Wolverine bootstrapping
+        var port = builder.Configuration.GetValue<int>("ListenerPort");
+        opts.ListenAtPort(port);
 
-        // This adds Wolverine with inline configuration
-        // of WolverineOptions
-        .UseWolverine((context, opts) =>
+        // If we're running in development mode and you don't
+        // want to worry about having all the external messaging
+        // dependencies up and running, stub them out
+        if (builder.Environment.IsDevelopment())
         {
-            // This is an example usage of the application's
-            // IConfiguration inside of Wolverine bootstrapping
-            var port = context.Configuration.GetValue<int>("ListenerPort");
-            opts.ListenAtPort(port);
+            // This will "stub" out all configured external endpoints
+            opts.StubAllExternalTransports();
+        }
+    });
 
-            // If we're running in development mode and you don't
-            // want to worry about having all the external messaging
-            // dependencies up and running, stub them out
-            if (context.HostingEnvironment.IsDevelopment())
-            {
-                // This will "stub" out all configured external endpoints
-                opts.StubAllExternalTransports();
-            }
-        });
+    return builder.Build();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomWolverineOptions.cs#L30-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_usewolverinewithinlineoptionsconfigurationandhosting' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomWolverineOptions.cs#L30-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_usewolverinewithinlineoptionsconfigurationandhosting' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, to publish via TCP, use the `ToPort()` extension method to publish to another port on the same

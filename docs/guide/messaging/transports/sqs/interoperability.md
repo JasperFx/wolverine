@@ -21,13 +21,10 @@ using var host = await Host.CreateDefaultBuilder()
             typeof(Message1),
 
             // Optionally customize System.Text.Json configuration
-            o =>
-            {
-                o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            });
+            o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L210-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L215-L230' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, to send raw JSON to external systems, you have this option:
@@ -45,13 +42,10 @@ using var host = await Host.CreateDefaultBuilder()
             typeof(Message1),
 
             // Optionally customize System.Text.Json configuration
-            o =>
-            {
-                o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-            });
+            o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L233-L251' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L235-L250' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Advanced Interoperability
@@ -75,11 +69,13 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     {
         if (envelope.TenantId.IsNotEmpty())
         {
-            yield return new KeyValuePair<string, MessageAttributeValue>("tenant-id", new MessageAttributeValue{StringValue = envelope.TenantId});
+            yield return new KeyValuePair<string, MessageAttributeValue>("tenant-id",
+                new MessageAttributeValue { StringValue = envelope.TenantId });
         }
     }
 
-    public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
+    public void ReadEnvelopeData(Envelope envelope, string messageBody,
+        IDictionary<string, MessageAttributeValue> attributes)
     {
         envelope.Data = Encoding.Default.GetBytes(messageBody);
 
@@ -90,7 +86,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L275-L305' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L271-L303' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply this to any or all of your SQS endpoints with the configuration fluent interface as shown in this sample:
@@ -103,12 +99,9 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.UseAmazonSqsTransport()
             .UseConventionalRouting()
-
             .ConfigureListeners(l => l.InteropWith(new CustomSqsMapper()))
-
             .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
-
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L257-L271' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L256-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

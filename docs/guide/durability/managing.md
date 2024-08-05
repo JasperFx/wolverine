@@ -89,7 +89,7 @@ shown in this last line of a .NET 6/7 `Program` code file:
 // Opt into using Oakton for command parsing
 await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L83-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_oakton_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L85-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_oakton_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you're using the message persistence from either the `WolverineFx.SqlServer` or `WolverineFx.Postgresql`

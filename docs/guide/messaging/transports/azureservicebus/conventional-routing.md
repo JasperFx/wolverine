@@ -11,47 +11,50 @@ to be handled by the application.
 <!-- snippet: sample_conventional_routing_for_azure_service_bus -->
 <a id='snippet-sample_conventional_routing_for_azure_service_bus'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        // One way or another, you're probably pulling the Azure Service Bus
-        // connection string out of configuration
-        var azureServiceBusConnectionString = context
-            .Configuration
-            .GetConnectionString("azure-service-bus");
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
 
-        // Connect to the broker in the simplest possible way
-        opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
-            .UseConventionalRouting(convention =>
-            {
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
+        .UseConventionalRouting(convention =>
+        {
+            // Optionally override the default queue naming scheme
+            convention.QueueNameForSender(t => t.Namespace)
+
                 // Optionally override the default queue naming scheme
-                convention.QueueNameForSender(t => t.Namespace)
+                .QueueNameForListener(t => t.Namespace)
 
-                    // Optionally override the default queue naming scheme
-                    .QueueNameForListener(t => t.Namespace)
+                // Fine tune the conventionally discovered listeners
+                .ConfigureListeners((listener, builder) =>
+                {
+                    var messageType = builder.MessageType;
+                    var runtime = builder.Runtime; // Access to basically everything
 
-                    // Fine tune the conventionally discovered listeners
-                    .ConfigureListeners((listener, context) =>
-                    {
-                        var messageType = context.MessageType;
-                        var runtime = context.Runtime; // Access to basically everything
+                    // customize the new queue
+                    listener.CircuitBreaker(queue => { });
 
-                        // customize the new queue
-                        listener.CircuitBreaker(queue => { });
+                    // other options...
+                })
 
-                        // other options...
-                    })
+                // Fine tune the conventionally discovered sending endpoints
+                .ConfigureSending((subscriber, builder) =>
+                {
+                    // Similarly, use the message type and/or wolverine runtime
+                    // to customize the message sending
+                });
+        });
+});
 
-                    // Fine tune the conventionally discovered sending endpoints
-                    .ConfigureSending((subscriber, context) =>
-                    {
-                        // Similarly, use the message type and/or wolverine runtime
-                        // to customize the message sending
-                    });
-            });
-    }).StartAsync();
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L309-L351' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L339-L384' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Route to Topics and Subscriptions

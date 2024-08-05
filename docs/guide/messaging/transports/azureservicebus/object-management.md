@@ -68,36 +68,39 @@ shown below to directly control exactly how the Azure Service Bus queue will be 
 <!-- snippet: sample_configuring_azure_service_bus_queues -->
 <a id='snippet-sample_configuring_azure_service_bus_queues'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        // One way or another, you're probably pulling the Azure Service Bus
-        // connection string out of configuration
-        var azureServiceBusConnectionString = context
-            .Configuration
-            .GetConnectionString("azure-service-bus");
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
 
-        // Connect to the broker in the simplest possible way
-        opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
 
-            // Alter how a queue should be provisioned by Wolverine
-            .ConfigureQueue("outgoing", options => { options.AutoDeleteOnIdle = 5.Minutes(); });
+        // Alter how a queue should be provisioned by Wolverine
+        .ConfigureQueue("outgoing", options => { options.AutoDeleteOnIdle = 5.Minutes(); });
 
-        // Or do the same thing when creating a listener
-        opts.ListenToAzureServiceBusQueue("incoming")
-            .ConfigureQueue(options => { options.MaxDeliveryCount = 5; });
+    // Or do the same thing when creating a listener
+    opts.ListenToAzureServiceBusQueue("incoming")
+        .ConfigureQueue(options => { options.MaxDeliveryCount = 5; });
 
-        // Or as part of a subscription
-        opts.PublishAllMessages()
-            .ToAzureServiceBusQueue("outgoing")
-            .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); })
+    // Or as part of a subscription
+    opts.PublishAllMessages()
+        .ToAzureServiceBusQueue("outgoing")
+        .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); })
 
-            // You may need to change the maximum number of messages
-            // in message batches depending on the size of your messages
-            // if you hit maximum data constraints
-            .MessageBatchSize(50);
-    }).StartAsync();
+        // You may need to change the maximum number of messages
+        // in message batches depending on the size of your messages
+        // if you hit maximum data constraints
+        .MessageBatchSize(50);
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L46-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L49-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

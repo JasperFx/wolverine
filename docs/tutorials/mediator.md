@@ -84,7 +84,7 @@ builder.Services.AddDbContext<ItemsDbContext>(
     x => x.UseSqlServer(connectionString),
 
     // This is weirdly important! Using Singleton scoping
-    // of the options allows Wolverine + Lamar to significantly
+    // of the options allows Wolverine to significantly
     // optimize the runtime pipeline of the handlers that
     // use this DbContext type
     optionsLifetime: ServiceLifetime.Singleton);

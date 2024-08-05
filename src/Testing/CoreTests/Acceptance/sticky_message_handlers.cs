@@ -8,6 +8,7 @@ using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
+using Wolverine.Transports.Tcp;
 using Xunit;
 
 namespace CoreTests.Acceptance;
@@ -104,7 +105,43 @@ public class when_building_a_handler_chain_for_sticky_handlers
             .EndpointName.ShouldBe("green");
     }
 
-    
+    public static async Task explicit_listener()
+    {
+        #region sample_named_listener_endpoint
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // I'm explicitly configuring an incoming TCP
+                // endpoint named "blue"
+                opts.ListenAtPort(4000).Named("blue");
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public static async Task explicit_listeners_by_fluent_interface()
+    {
+        #region sample_sticky_handlers_by_endpoint_with_fluent_interface
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ListenAtPort(400)
+                    // This handler type should be executed at this listening
+                    // endpoint, but other handlers for the same message type
+                    // should not
+                    .AddStickyHandler(typeof(GreenStickyHandler));
+                
+                opts.ListenAtPort(5000)
+                    // Likewise, the same StickyMessage received at this
+                    // endpoint should be handled by BlueStickHandler
+                    .AddStickyHandler(typeof(BlueStickyHandler));
+
+            }).StartAsync();
+
+        #endregion
+    }
 }
 
 public class HandlerGrouping : IGrouping<Type, HandlerCall>
@@ -132,25 +169,35 @@ public class HandlerGrouping : IGrouping<Type, HandlerCall>
 
 
 
-public class StickyMessage{}
+#region sample_StickyMessage
 
-[StickyHandler("blue")]
-public static class BlueStickyHandler
-{
-    public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
-    {
-        return new StickyMessageResponse("blue", message, envelope.Destination);
-    }
-}
+public class StickyMessage;
 
-[StickyHandler("green")]
-public static class GreenStickyHandler
-{
-    public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
+    #endregion
+
+    #region sample_using_sticky_handler_attribute
+
+    [StickyHandler("blue")]
+    public static class BlueStickyHandler
     {
-        return new StickyMessageResponse("green", message, envelope.Destination);
+        public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
+        {
+            return new StickyMessageResponse("blue", message, envelope.Destination);
+        }
     }
-}
+
+    [StickyHandler("green")]
+    public static class GreenStickyHandler
+    {
+        public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
+        {
+            return new StickyMessageResponse("green", message, envelope.Destination);
+        }
+    }
+
+    #endregion
+
+
 
 public record StickyMessageResponse(string Color, StickyMessage Message, Uri Destination)
 {

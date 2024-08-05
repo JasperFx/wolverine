@@ -55,14 +55,14 @@ If Wolverine is provisioning the subscriptions for you, you can customize the su
 <a id='snippet-sample_configuring_azure_service_bus_subscription_filter'></a>
 ```cs
 opts.ListenToAzureServiceBusSubscription(
-    "subscription1",
-    configureSubscriptionRule: rule =>
-    {
-        rule.Filter = new SqlRuleFilter("NOT EXISTS(user.ignore) OR user.ignore NOT LIKE 'true'");
-    })
+        "subscription1",
+        configureSubscriptionRule: rule =>
+        {
+            rule.Filter = new SqlRuleFilter("NOT EXISTS(user.ignore) OR user.ignore NOT LIKE 'true'");
+        })
     .FromTopic("topic1");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L162-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_subscription_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L174-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_subscription_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The default filter if not customized is a simple `1=1` (always true) filter.

@@ -11,35 +11,38 @@ You can configure explicit queue listening with this syntax:
 <!-- snippet: sample_configuring_an_azure_service_bus_listener -->
 <a id='snippet-sample_configuring_an_azure_service_bus_listener'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        // One way or another, you're probably pulling the Azure Service Bus
-        // connection string out of configuration
-        var azureServiceBusConnectionString = context
-            .Configuration
-            .GetConnectionString("azure-service-bus");
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
 
-        // Connect to the broker in the simplest possible way
-        opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-        opts.ListenToAzureServiceBusQueue("incoming")
+    opts.ListenToAzureServiceBusQueue("incoming")
 
-            // Customize how many messages to retrieve at one time
-            .MaximumMessagesToReceive(100)
+        // Customize how many messages to retrieve at one time
+        .MaximumMessagesToReceive(100)
 
-            // Customize how long the listener will wait for more messages before
-            // processing a batch
-            .MaximumWaitTime(3.Seconds())
+        // Customize how long the listener will wait for more messages before
+        // processing a batch
+        .MaximumWaitTime(3.Seconds())
 
-            // Add a circuit breaker for systematic failures
-            .CircuitBreaker()
+        // Add a circuit breaker for systematic failures
+        .CircuitBreaker()
 
-            // And all the normal Wolverine options you'd expect
-            .BufferedInMemory();
-    }).StartAsync();
+        // And all the normal Wolverine options you'd expect
+        .BufferedInMemory();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L83-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_an_azure_service_bus_listener' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L89-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_an_azure_service_bus_listener' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Conventional Listener Configuration
@@ -50,24 +53,27 @@ to apply configuration to all the Azure Service Bus listeners like this:
 <!-- snippet: sample_conventional_listener_configuration_for_azure_service_bus -->
 <a id='snippet-sample_conventional_listener_configuration_for_azure_service_bus'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        // One way or another, you're probably pulling the Azure Service Bus
-        // connection string out of configuration
-        var azureServiceBusConnectionString = context
-            .Configuration
-            .GetConnectionString("azure-service-bus");
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
 
-        // Connect to the broker in the simplest possible way
-        opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
-            // Apply default configuration to all Azure Service Bus listeners
-            // This can be overridden explicitly by any configuration for specific
-            // listening endpoints
-            .ConfigureListeners(listener => { listener.UseDurableInbox(new BufferingLimits(500, 100)); });
-    }).StartAsync();
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
+        // Apply default configuration to all Azure Service Bus listeners
+        // This can be overridden explicitly by any configuration for specific
+        // listening endpoints
+        .ConfigureListeners(listener => { listener.UseDurableInbox(new BufferingLimits(500, 100)); });
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L261-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_listener_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L285-L307' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_listener_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that any of these settings would be overridden by specific configuration to
