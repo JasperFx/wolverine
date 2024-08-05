@@ -98,6 +98,14 @@ public abstract partial class MessageDatabase<T>
             .ExecuteNonQueryAsync(_cancellation);
     }
 
+    public Task ReleaseAllOwnershipAsync(int ownerId)
+    {
+        return CreateCommand(
+                $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @id;update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0 where owner_id = @id")
+            .With("id", ownerId)
+            .ExecuteNonQueryAsync(_cancellation);
+    }
+
     public async Task CheckConnectivityAsync(CancellationToken token)
     {
         await using var conn = await DataSource.OpenConnectionAsync(token);

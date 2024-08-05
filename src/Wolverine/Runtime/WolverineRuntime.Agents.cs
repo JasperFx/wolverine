@@ -46,42 +46,46 @@ public partial class WolverineRuntime : IAgentRuntime
         return NodeController.StopAgentAsync(agentUri);
     }
 
-    public async Task InvokeAsync(Guid nodeId, IAgentCommand command)
+    public async Task InvokeAsync(NodeDestination destination, IAgentCommand command)
     {
-        if (Tracker.Self!.Id == nodeId)
+        var messageBus = new MessageBus(this);
+        if (Options.UniqueNodeId == destination.NodeId)
         {
-            await new MessageBus(this).InvokeAsync(command, _agentCancellation.Token);
-        }
-        else if (Tracker.Nodes.TryGetValue(nodeId, out var node))
-        {
-            var endpoint = node.ControlUri;
-            await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync(command, _agentCancellation.Token, 60.Seconds());
+            await messageBus
+                .InvokeAsync(command, _agentCancellation.Token);
         }
         else
         {
-            throw new UnknownWolverineNodeException(nodeId);
+            await messageBus
+                .EndpointFor(destination.ControlUri)
+                .InvokeAsync(command, _agentCancellation.Token, 60.Seconds());
         }
     }
 
-    public async Task<T> InvokeAsync<T>(Guid nodeId, IAgentCommand command) where T : class
+    public async Task<T> InvokeAsync<T>(NodeDestination destination, IAgentCommand command) where T : class
     {
-        if (Tracker.Self!.Id == nodeId)
+        var messageBus = new MessageBus(this);
+        
+        if (Options.UniqueNodeId == destination.NodeId)
         {
-            return await new MessageBus(this).InvokeAsync<T>(command, _agentCancellation.Token, 30.Seconds());
+            return await messageBus.InvokeAsync<T>(command, _agentCancellation.Token, 30.Seconds());
         }
 
-        if (Tracker.Nodes.TryGetValue(nodeId, out var node))
-        {
-            var endpoint = node.ControlUri;
-            return await new MessageBus(this).EndpointFor(endpoint!).InvokeAsync<T>(command, _agentCancellation.Token, 60.Seconds());
-        }
-
-        throw new UnknownWolverineNodeException(nodeId);
+        return await messageBus
+            .EndpointFor(destination.ControlUri)
+            .InvokeAsync<T>(command, _agentCancellation.Token, 60.Seconds());
     }
 
     public Uri[] AllRunningAgentUris()
     {
-        return NodeController!.AllRunningAgentUris();
+        return  NodeController!.AllRunningAgentUris();
+    }
+
+    public bool IsLeader()
+    {
+        if (Options.Durability.Mode == DurabilityMode.Balanced && NodeController != null)
+            return NodeController.IsLeader;
+        return false;
     }
 
     public async Task KickstartHealthDetectionAsync()
@@ -105,12 +109,6 @@ public partial class WolverineRuntime : IAgentRuntime
         if (_healthCheckLoop == null) return;
 
         NodeController?.CancelHeartbeatChecking();
-    }
-
-    public Task<AgentCommands> VerifyAssignmentsAsync()
-    {
-        if (NodeController != null) return NodeController.VerifyAssignmentsAsync();
-        return Task.FromResult(AgentCommands.Empty);
     }
 
     public IAgentRuntime Agents => this;
@@ -156,7 +154,7 @@ public partial class WolverineRuntime : IAgentRuntime
             ? Storage.Nodes
             : new NullNodeAgentPersistence();
 
-        NodeController = new NodeAgentController(this, Tracker, nodePersistence, _container.GetAllInstances<IAgentFamily>(),
+        NodeController = new NodeAgentController(this, nodePersistence, _container.GetAllInstances<IAgentFamily>(),
             LoggerFactory.CreateLogger<NodeAgentController>(), _agentCancellation.Token);
 
         NodeController.AddHandlers(this);
@@ -242,23 +240,6 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         NodeController = null;
-    }
-
-    public Task<AgentCommands> AssumeLeadershipAsync(Guid? currentLeaderId)
-    {
-        if (NodeController != null)
-        {
-            return NodeController.AssumeLeadershipAsync(currentLeaderId);
-        }
-
-        return Task.FromResult(AgentCommands.Empty);
-    }
-
-    public Task<AgentCommands> ApplyNodeEvent(NodeEvent nodeEvent)
-    {
-        if (NodeController != null) return NodeController.ApplyNodeEventAsync(nodeEvent);
-
-        return Task.FromResult(AgentCommands.Empty);
     }
 
     public Task<AgentCommands> StartLocalAgentProcessingAsync()

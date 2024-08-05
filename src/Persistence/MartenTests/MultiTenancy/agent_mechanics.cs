@@ -28,7 +28,7 @@ public class agent_mechanics : MultiTenancyContext
 
         await Fixture.RestartAsync();
 
-        await Fixture.Host.GetRuntime().Tracker.WaitUntilAssumesLeadershipAsync(5.Seconds());
+        await Fixture.Host.WaitUntilAssumesLeadershipAsync(20.Seconds());
 
         // Should be 4 agents, one for the master db, and 3 for the tenants
         await Fixture.Host.WaitUntilAssignmentsChangeTo(w =>

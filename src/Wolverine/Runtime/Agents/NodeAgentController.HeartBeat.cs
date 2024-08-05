@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Wolverine.Runtime.Agents;
 
 public record CheckAgentHealth : IAgentCommand, ISerializable
@@ -18,19 +20,10 @@ public record CheckAgentHealth : IAgentCommand, ISerializable
     }
 }
 
-/* Notes
- DistributeEvenly should abort quickly if every node has either the ceiling or floor number
- No local messages should ever go through the transport
- Verify vs evaluate
- - If no dynamic, no nodes changed, do a verify
- 
- 
- 
- 
- */
-
 public partial class NodeAgentController
 {
+    public bool IsLeader { get; private set; }
+
     public async Task<AgentCommands> DoHealthChecksAsync()
     {
         if (_cancellation.IsCancellationRequested)
@@ -38,13 +31,8 @@ public partial class NodeAgentController
             return AgentCommands.Empty;
         }
 
-        if (_tracker.Self == null)
-        {
-            return AgentCommands.Empty;
-        }
-
         // write health check regardless
-        await _persistence.MarkHealthCheckAsync(_tracker.Self.Id);
+        await _persistence.MarkHealthCheckAsync(_runtime.Options.UniqueNodeId);
 
         var nodes = await _persistence.LoadAllNodesAsync(_cancellation.Token);
 
@@ -56,34 +44,33 @@ public partial class NodeAgentController
         // Do it no matter what
         await ejectStaleNodes(staleNodes);
 
-        if (_tracker.Self.IsLeader())
+        if (_persistence.HasLeadershipLock())
         {
-            // TODO -- do the verification here too!
+            IsLeader = true;
             return await EvaluateAssignmentsAsync(nodes);
         }
 
-        return await tryElectNewLeaderIfNecessary(nodes, staleNodes);
-    }
-
-    private async Task<AgentCommands> tryElectNewLeaderIfNecessary(IReadOnlyList<WolverineNode> activeNodes,
-        IReadOnlyList<WolverineNode> staleNodes)
-    {
-        // Clean out the dormant nodes first!!! 
-        await ejectStaleNodes(staleNodes);
-        
-        // If there is no known leader, try to elect a newer one
-        if (!activeNodes.Any(x => x.IsLeader()))
+        if (await _persistence.TryAttainLeadershipLockAsync(_cancellation.Token))
         {
-            var candidate = activeNodes.MinBy(x => x.AssignedNodeId);
-
-            if (candidate == null || candidate.AssignedNodeId > _tracker.Self.AssignedNodeId)
+            try
             {
-                // Try to take leadership in this node
-                return [new TryAssumeLeadership()];
+                // If this fails, release the leadership lock!
+                await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, LeaderUri,
+                    _cancellation.Token);
+            }
+            catch (Exception)
+            {
+                await _persistence.ReleaseLeadershipLockAsync();
+                throw;
             }
 
-            // Ask another, older node to take leadership
-            return [new TryAssumeLeadership(){CandidateId = candidate.Id}];
+            IsLeader = true;
+
+            _logger.LogInformation("Node {NodeNumber} successfully assumed leadership", _runtime.Options.UniqueNodeId);
+            await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options,
+                NodeRecordType.LeadershipAssumed, LeaderUri));
+
+            return await EvaluateAssignmentsAsync(nodes);
         }
 
         return AgentCommands.Empty;
@@ -94,7 +81,6 @@ public partial class NodeAgentController
         foreach (var staleNode in staleNodes)
         {
             await _persistence.DeleteAsync(staleNode.Id);
-            _tracker.Remove(staleNode);
         }
 
         if (staleNodes.Any())

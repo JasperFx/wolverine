@@ -9,10 +9,15 @@ public partial class NodeAgentController
     // Tested w/ integration tests all the way
     public async Task<AgentCommands> EvaluateAssignmentsAsync(IReadOnlyList<WolverineNode> nodes)
     {
-        var grid = AssignmentGrid.ForTracker(_tracker);
+        var grid = new AssignmentGrid();
 
         var capabilities = nodes.SelectMany(x => x.Capabilities).Distinct().ToArray();
         grid.WithAgents(capabilities);
+        
+        foreach (var node in nodes)
+        {
+            grid.WithNode(node);
+        }
 
         foreach (var controller in _agentFamilies.Values)
         {
@@ -50,8 +55,6 @@ public partial class NodeAgentController
 
         await _persistence.LogRecordsAsync(records);
 
-        _tracker.Publish(new AgentAssignmentsChanged(commands, grid));
-
         LastAssignments = grid;
         LastAssignments.EvaluationTime = DateTimeOffset.UtcNow;
 
@@ -65,7 +68,7 @@ public partial class NodeAgentController
 
     private static void batchCommands(List<IAgentCommand> commands)
     {
-        foreach (var group in commands.OfType<AssignAgent>().GroupBy(x => x.NodeId).Where(x => x.Count() > 1).ToArray())
+        foreach (var group in commands.OfType<AssignAgent>().GroupBy(x => x.Destination).Where(x => x.Count() > 1).ToArray())
         {
             var assignAgents = new AssignAgents(group.Key, group.Select(x => x.AgentUri).ToArray());
 
@@ -74,7 +77,7 @@ public partial class NodeAgentController
             commands.Add(assignAgents);
         }
 
-        foreach (var group in commands.OfType<StopRemoteAgent>().GroupBy(x => x.NodeId).Where(x => x.Count() > 1)
+        foreach (var group in commands.OfType<StopRemoteAgent>().GroupBy(x => x.Destination).Where(x => x.Count() > 1)
                      .ToArray())
         {
             var stopAgents = new StopRemoteAgents(group.Key, group.Select(x => x.AgentUri).ToArray());

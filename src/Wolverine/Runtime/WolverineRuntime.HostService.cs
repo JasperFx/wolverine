@@ -152,7 +152,24 @@ public partial class WolverineRuntime
         
         if (_persistence.IsValueCreated)
         {
-            await Storage.DrainAsync();
+            try
+            {
+                await Storage.DrainAsync();
+            }
+            catch (TaskCanceledException)
+            {
+                // This can timeout, just swallow it here
+            }
+
+            try
+            {
+                // New to 3.0, try to release any ownership on the way out. Do this *after* the drain
+                await Storage.Admin.ReleaseAllOwnershipAsync(DurabilitySettings.AssignedNodeNumber);
+            }
+            catch (ObjectDisposedException)
+            {
+                // This could happen if DisposeAsync() is called before StopAsync()
+            }
         }
 
         // This MUST be called before draining the endpoints

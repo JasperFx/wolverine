@@ -10,6 +10,8 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
+using Wolverine.Tracking;
+using Xunit.Sdk;
 
 namespace ScheduledJobTests.Postgresql;
 
@@ -55,7 +57,7 @@ public class marten_scheduled_jobs : IAsyncLifetime
 
     protected ValueTask ScheduleSendMessage(int id, int seconds)
     {
-        return theHost.Services.GetRequiredService<IMessageContext>()
+        return new Wolverine.Runtime.MessageBus(theHost.GetRuntime())
             .ScheduleAsync(new ScheduledMessage { Id = id }, seconds.Seconds());
     }
 

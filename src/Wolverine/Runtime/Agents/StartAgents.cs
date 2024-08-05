@@ -24,13 +24,13 @@ internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand, ISerializable
     }
 }
 
-internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISerializable
+internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAgentCommand
 {
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
         var startAgents = new StartAgents(AgentIds);
-        var response = await runtime.Agents.InvokeAsync<AgentsStarted>(NodeId, startAgents);
+        var response = await runtime.Agents.InvokeAsync<AgentsStarted>(Destination, startAgents);
 
         if (response == null)
         {
@@ -39,47 +39,19 @@ internal record AssignAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISeri
 
         runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeNumber}", AgentIds, runtime.Options.Durability.AssignedNodeNumber);
 
-        foreach (var uri in response.AgentUris) runtime.Tracker.Publish(new AgentStarted(NodeId, uri));
-
         return AgentCommands.Empty;
-    }
-
-    public byte[] Write()
-    {
-        return NodeId.ToByteArray().Concat(Encoding.UTF8.GetBytes(AgentIds.Select(x => x.ToString()).Join(","))).ToArray();
-    }
-
-    public static object Read(byte[] bytes)
-    {
-        var uris = Encoding.UTF8.GetString(bytes[16..]).Split(',').Select(x => new Uri(x))
-            .ToArray();
-        return new AssignAgents(new Guid(bytes[..16]), uris);
     }
 }
 
-internal record StopRemoteAgents(Guid NodeId, Uri[] AgentIds) : IAgentCommand, ISerializable
+internal record StopRemoteAgents(NodeDestination Destination, Uri[] AgentIds) : IAgentCommand
 {
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
         var startAgents = new StopAgents(AgentIds);
-        var response = await runtime.Agents.InvokeAsync<AgentsStopped>(NodeId, startAgents);
-
-        foreach (var uri in response.AgentUris) runtime.Tracker.Publish(new AgentStopped(uri));
+        await runtime.Agents.InvokeAsync<AgentsStopped>(Destination, startAgents);
 
         return AgentCommands.Empty;
-    }
-
-    public byte[] Write()
-    {
-        return NodeId.ToByteArray().Concat(Encoding.UTF8.GetBytes(AgentIds.Select(x => x.ToString()).Join(","))).ToArray();
-    }
-
-    public static object Read(byte[] bytes)
-    {
-        var uris = Encoding.UTF8.GetString(bytes[16..]).Split(',').Select(x => new Uri(x))
-            .ToArray();
-        return new StopRemoteAgents(new Guid(bytes[..16]), uris);
     }
 }
 

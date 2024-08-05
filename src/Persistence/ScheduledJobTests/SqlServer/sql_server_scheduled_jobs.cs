@@ -8,7 +8,9 @@ using ScheduledJobTests.Postgresql;
 using Shouldly;
 using Wolverine;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.SqlServer;
+using Wolverine.Tracking;
 
 namespace ScheduledJobTests.SqlServer;
 
@@ -49,13 +51,13 @@ public class sql_server_scheduled_jobs : IAsyncLifetime
 
     protected ValueTask ScheduleMessage(int id, int seconds)
     {
-        return theHost.Services.GetRequiredService<IMessageContext>()
+        return new MessageContext(theHost.GetRuntime())
             .ScheduleAsync(new ScheduledMessage { Id = id }, seconds.Seconds());
     }
 
     protected ValueTask ScheduleSendMessage(int id, int seconds)
     {
-        return theHost.Services.GetRequiredService<IMessageContext>()
+        return new MessageContext(theHost.GetRuntime())
             .ScheduleAsync(new ScheduledMessage { Id = id }, seconds.Seconds());
     }
 

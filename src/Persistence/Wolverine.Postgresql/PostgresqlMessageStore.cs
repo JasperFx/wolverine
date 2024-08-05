@@ -61,6 +61,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
                                          $";update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
 
         DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+
+        AdvisoryLock = new AdvisoryLock(dataSource, logger, Identifier);
     }
 
     public NpgsqlDataSource DataSource { get; }

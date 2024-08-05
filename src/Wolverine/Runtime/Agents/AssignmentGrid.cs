@@ -30,21 +30,6 @@ public class AssignmentGrid
     /// </summary>
     public DateTimeOffset EvaluationTime { get; internal set; }
 
-    internal static AssignmentGrid ForTracker(INodeStateTracker tracker)
-    {
-        var grid = new AssignmentGrid();
-        foreach (var node in tracker.AllNodes())
-        {
-            var copy = grid.WithNode(node.AssignedNodeId, node.Id, node.Capabilities);
-            copy.Running(node.ActiveAgents.ToArray());
-            copy.IsLeader = node.IsLeader();
-        }
-
-        foreach (var agentUri in tracker.AllAgents()) grid.WithAgent(agentUri);
-
-        return grid;
-    }
-
     /// <summary>
     ///     Add an executing node to the grid. Useful for testing custom agent assignment
     ///     schemes
@@ -53,11 +38,15 @@ public class AssignmentGrid
     /// <param name="id"></param>
     /// <param name="capabilities"></param>
     /// <returns></returns>
-    public Node WithNode(int assignedId, Guid id, List<Uri> capabilities)
+    public Node WithNode(WolverineNode wolverineNode)
     {
-        var node = new Node(this, assignedId, id, capabilities);
+        var node = new Node(this, wolverineNode.AssignedNodeId, wolverineNode.Id, wolverineNode.Capabilities);
+        node.ControlUri = wolverineNode.ControlUri;
+        
         _nodes.Add(node);
 
+        node.Running(wolverineNode.ActiveAgents.ToArray());
+        
         return node;
     }
 
@@ -279,7 +268,7 @@ public class AssignmentGrid
     /// </summary>
     /// <param name="actuals"></param>
     /// <returns></returns>
-    public IEnumerable<IAgentCommand> FindDelta(Dictionary<Uri, Guid> actuals)
+    public IEnumerable<IAgentCommand> FindDelta(Dictionary<Uri, NodeDestination> actuals)
     {
         foreach (var assignment in _agents)
         {
@@ -290,22 +279,22 @@ public class AssignmentGrid
 
             if (actuals.TryGetValue(assignment.Key, out var actual))
             {
-                var specified = assignment.Value.AssignedNode;
+                var specified = assignment.Value.AssignedNode?.ToDestination();
                 if (specified == null)
                 {
                     // Should not be running, so stop it
                     yield return new StopRemoteAgent(assignment.Key, actual);
                 }
-                else if (actual != specified.NodeId)
+                else if (actual != specified)
                 {
                     // Running in wrong place, reassign to correct place
-                    yield return new ReassignAgent(assignment.Key, actual, specified.NodeId);
+                    yield return new ReassignAgent(assignment.Key, actual, specified);
                 }
             }
             else if (assignment.Value.AssignedNode != null)
             {
                 // Missing, so add it
-                yield return new AssignAgent(assignment.Key, assignment.Value.AssignedNode.NodeId);
+                yield return new AssignAgent(assignment.Key, assignment.Value.AssignedNode.ToDestination());
             }
         }
 
@@ -313,14 +302,14 @@ public class AssignmentGrid
             yield return new StopRemoteAgent(actual.Key, actual.Value);
     }
 
-    internal Dictionary<Uri, Guid> CompileAssignments()
+    internal Dictionary<Uri, NodeDestination> CompileAssignments()
     {
-        var dict = new Dictionary<Uri, Guid>();
+        var dict = new Dictionary<Uri, NodeDestination>();
         foreach (var pair in _agents)
         {
             if (pair.Value.AssignedNode != null)
             {
-                dict.Add(pair.Key, pair.Value.AssignedNode.NodeId);
+                dict.Add(pair.Key, pair.Value.AssignedNode.ToDestination());
             }
         }
 
@@ -393,14 +382,14 @@ public class AssignmentGrid
                 }
 
                 // Start the agent up for the first time on the designated node
-                command = new AssignAgent(Uri, AssignedNode.NodeId);
+                command = new AssignAgent(Uri, AssignedNode.ToDestination());
                 return true;
             }
 
             if (AssignedNode == null)
             {
                 // No longer assigned, so stop it where it was running
-                command = new StopRemoteAgent(Uri, OriginalNode.NodeId);
+                command = new StopRemoteAgent(Uri, OriginalNode.ToDestination());
                 return true;
             }
 
@@ -410,7 +399,7 @@ public class AssignmentGrid
             }
 
             // reassign the agent to a different node
-            command = new ReassignAgent(Uri, OriginalNode.NodeId, AssignedNode.NodeId);
+            command = new ReassignAgent(Uri, OriginalNode.ToDestination(), AssignedNode.ToDestination());
             return true;
         }
 
@@ -442,6 +431,9 @@ public class AssignmentGrid
         public bool IsLeader { get; internal set; }
 
         public IReadOnlyList<Agent> Agents => _agents;
+        public Uri? ControlUri { get; set; }
+
+        public NodeDestination ToDestination() => new NodeDestination(NodeId, ControlUri!);
 
         public IEnumerable<Agent> ForScheme(string agentScheme)
         {

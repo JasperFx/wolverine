@@ -64,8 +64,11 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            Status = AgentStatus.Stopped;
             return Task.CompletedTask;
         }
+        
+        public AgentStatus Status { get; set; } = AgentStatus.Started;
 
         public Uri Uri { get; } = new Uri("dummy://");
     }

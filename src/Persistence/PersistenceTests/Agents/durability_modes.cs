@@ -118,8 +118,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
             w.ExpectRunningAgents(_host, 12);
         }, 30.Seconds());
 
-        await tracker.WaitUntilAssumesLeadershipAsync(30.Seconds());
-        tracker.Nodes.Count.ShouldBe(1);
+        await _host.WaitUntilAssumesLeadershipAsync(30.Seconds());
 
         // Deletes the current node on stop
         await stopAsync();

@@ -384,6 +384,22 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         return executeOnAllAsync(d => d.Admin.ReleaseAllOwnershipAsync());
     }
 
+    Task IMessageStoreAdmin.ReleaseAllOwnershipAsync(int ownerId)
+    {
+        return executeOnAllAsync(async d =>
+        {
+            try
+            {
+                await d.Admin.ReleaseAllOwnershipAsync(ownerId);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Can happen when the host is disposed without going through a clean
+                // StopAsync()
+            }
+        });
+    }
+
     Task IMessageStoreAdmin.CheckConnectivityAsync(CancellationToken token)
     {
         return executeOnAllAsync(d => d.Admin.CheckConnectivityAsync(token));

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,20 +18,18 @@ public partial class NodeAgentController
     private readonly INodeAgentPersistence _persistence;
 
     private readonly IWolverineRuntime _runtime;
-    private readonly INodeStateTracker _tracker;
 
-    private ImHashMap<Uri, IAgent> _agents = ImHashMap<Uri, IAgent>.Empty;
+    private readonly ConcurrentDictionary<Uri, IAgent> _agents = new();
 
     // May be valuable later
     private DateTimeOffset? _lastAssignmentCheck;
 
 
-    internal NodeAgentController(IWolverineRuntime runtime, INodeStateTracker tracker,
+    internal NodeAgentController(IWolverineRuntime runtime,
         INodeAgentPersistence persistence,
         IEnumerable<IAgentFamily> agentControllers, ILogger logger, CancellationToken cancellation)
     {
         _runtime = runtime;
-        _tracker = tracker;
         _persistence = persistence;
         foreach (var agentController in agentControllers)
         {
@@ -72,19 +71,11 @@ public partial class NodeAgentController
         handlers.RegisterMessageType(typeof(AgentsStopped));
         handlers.RegisterMessageType(typeof(StopAgent));
         handlers.RegisterMessageType(typeof(StopAgents));
-        handlers.RegisterMessageType(typeof(QueryAgents));
-        handlers.RegisterMessageType(typeof(NodeEvent));
-        handlers.RegisterMessageType(typeof(TryAssumeLeadership));
     }
 
     public async Task StopAsync(IMessageBus messageBus)
     {
         await stopAllAgentsAsync();
-
-        if (_runtime.Options.Durability.Mode == DurabilityMode.Balanced)
-        {
-            await informOtherNodesAboutExitingAsync(messageBus);
-        }
 
         try
         {
@@ -97,44 +88,14 @@ public partial class NodeAgentController
         }
     }
 
-    private async Task informOtherNodesAboutExitingAsync(IMessageBus messageBus)
-    {
-        try
-        {
-            if (_tracker.Self!.IsLeader())
-            {
-                // notify everyone
-                // Don't trust the in memory storage of nodes, fetch from storage
-                var controlUris = await _persistence.LoadAllOtherNodeControlUrisAsync(_tracker.Self.Id);
-                foreach (var uri in controlUris)
-                    await messageBus.EndpointFor(uri).SendAsync(new NodeEvent(_tracker.Self, NodeEventType.Exiting));
-            }
-            else
-            {
-                // Don't trust the in memory storage of nodes, fetch from storage
-                // ONLY notify the leader. Makes tests work better:)
-                var controlUri = await _persistence.FindLeaderControlUriAsync(_tracker.Self.Id);
-
-                if (controlUri != null)
-                {
-                    await messageBus.EndpointFor(controlUri)
-                        .SendAsync(new NodeEvent(_tracker.Self, NodeEventType.Exiting));
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Error trying to notify other nodes about this node exiting");
-        }
-    }
-
     private async Task stopAllAgentsAsync()
     {
-        foreach (var entry in _agents.Enumerate())
+        foreach (var entry in _agents)
         {
             try
             {
                 await entry.Value.StopAsync(CancellationToken.None);
+                _agents.Remove(entry.Key, out var _);
             }
             catch (Exception e)
             {
@@ -155,7 +116,7 @@ public partial class NodeAgentController
 
     public async Task StartAgentAsync(Uri agentUri)
     {
-        if (_agents.Contains(agentUri))
+        if (_agents.ContainsKey(agentUri))
         {
             return;
         }
@@ -167,9 +128,6 @@ public partial class NodeAgentController
             await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStarted,
                 agentUri));
 
-            // Need to update the current node
-            _tracker.Publish(new AgentStarted(_runtime.Options.UniqueNodeId, agentUri));
-
             _logger.LogInformation("Successfully started agent {AgentUri} on Node {NodeNumber}", agentUri,
                 _runtime.Options.Durability.AssignedNodeNumber);
         }
@@ -178,7 +136,7 @@ public partial class NodeAgentController
             throw new AgentStartingException(agentUri, _runtime.Options.UniqueNodeId, e);
         }
 
-        _agents = _agents.AddOrUpdate(agentUri, agent);
+        _agents[agentUri] = agent;
 
         try
         {
@@ -193,11 +151,12 @@ public partial class NodeAgentController
 
     public async Task StopAgentAsync(Uri agentUri)
     {
-        if (_agents.TryFind(agentUri, out var agent))
+        if (_agents.TryGetValue(agentUri, out var agent))
         {
             try
             {
                 await agent.StopAsync(_cancellation.Token);
+                _agents.TryRemove(agentUri, out _);
                 _logger.LogInformation("Successfully stopped agent {AgentUri} on node {NodeNumber}", agentUri,
                     _runtime.Options.Durability.AssignedNodeNumber);
                 await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStopped,
@@ -207,8 +166,6 @@ public partial class NodeAgentController
             {
                 throw new AgentStoppingException(agentUri, _runtime.Options.UniqueNodeId, e);
             }
-
-            _agents = _agents.Remove(agentUri);
         }
 
         try
@@ -225,7 +182,7 @@ public partial class NodeAgentController
 
     public Uri[] AllRunningAgentUris()
     {
-        return _agents.Enumerate().Select(x => x.Key).ToArray();
+        return _agents.Where(x => x.Value.Status == AgentStatus.Started).Select(x => x.Key).ToArray();
     }
 
     /// <summary>
@@ -233,10 +190,19 @@ public partial class NodeAgentController
     /// </summary>
     internal async Task DisableAgentsAsync()
     {
-        var agents = _agents.Enumerate().Select(x => x.Value).ToArray();
-        foreach (var agent in agents) await agent.StopAsync(CancellationToken.None);
+        var agents = _agents.Select(x => x.Value).ToArray();
+        foreach (var agent in agents)
+        {
+            await agent.StopAsync(CancellationToken.None);
+        }
 
-        _agents = ImHashMap<Uri, IAgent>.Empty;
+        await _persistence.ReleaseLeadershipLockAsync();
+
+#if NET8_0_OR_GREATER
+        await _cancellation.CancelAsync();
+#else
+        _cancellation.Cancel();
+#endif
     }
 }
 

@@ -130,8 +130,9 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
     private async Task send(Func<IMessageContext, ValueTask> action)
     {
-        using var nested = theSender.Services.CreateScope();
-        await withContext(theSender, nested.ServiceProvider.GetRequiredService<IMessageContext>().As<MessageContext>(), action);
+        var context = new MessageContext(theSender.GetRuntime());
+        
+        await withContext(theSender, context, action);
     }
 
     [Fact]
@@ -145,7 +146,8 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
             Id = Guid.NewGuid()
         };
 
-        await send(async c => { await c.ScheduleAsync(item, 1.Hours()); });
+        await send(async c => { await 
+            c.ScheduleAsync(item, 1.Hours()); });
 
         var persistence = theSender.Get<IMessageStore>();
         var counts = await persistence.Admin.FetchCountsAsync();

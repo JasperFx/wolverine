@@ -55,6 +55,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         DataSource = dataSource;
     }
 
+    public IAdvisoryLock AdvisoryLock { get; protected set; }
+
     public ILogger Logger { get; }
 
     public bool HasDisposed { get; protected set; }
@@ -152,6 +154,11 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public async ValueTask DisposeAsync()
     {
         if (HasDisposed) return;
+
+        if (AdvisoryLock != null)
+        {
+            await AdvisoryLock.DisposeAsync();
+        }
 
         if (_batcher != null)
         {

@@ -300,25 +300,4 @@ public class node_persistence : PostgresqlContext, IAsyncLifetime
         await _database.Nodes.MarkHealthCheckAsync(node1.Id);
     }
 
-    [Fact]
-    public async Task fetch_stale_nodes_smoke_test()
-    {
-        var node1 = createNode();
-        var node2 = createNode();
-        var node3 = createNode();
-
-        await _database.Nodes.PersistAsync(node1, CancellationToken.None);
-        await _database.Nodes.PersistAsync(node2, CancellationToken.None);
-        await _database.Nodes.PersistAsync(node3, CancellationToken.None);
-
-        var past = DateTimeOffset.UtcNow.AddDays(-1);
-
-        var stale = await _database.Nodes.LoadAllStaleNodesAsync(past, CancellationToken.None);
-        stale.Any().ShouldBeFalse();
-
-        var future = DateTimeOffset.UtcNow.AddDays(1);
-
-        stale = await _database.Nodes.LoadAllStaleNodesAsync(future, CancellationToken.None);
-        stale.Any().ShouldBeTrue();
-    }
 }

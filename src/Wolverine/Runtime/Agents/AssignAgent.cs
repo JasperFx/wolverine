@@ -3,11 +3,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
-internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISerializable
+internal record AssignAgent(Uri AgentUri, NodeDestination Destination) : IAgentCommand
 {
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
-        if (NodeId == runtime.Options.UniqueNodeId)
+        if (Destination.NodeId == runtime.Options.UniqueNodeId)
         {
             await runtime.Agents.StartLocallyAsync(AgentUri);
         }
@@ -15,31 +15,19 @@ internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISeriali
         {
             try
             {
-                await runtime.Agents.InvokeAsync(NodeId, new StartAgent(AgentUri));
+                await runtime.Agents.InvokeAsync(Destination, new StartAgent(AgentUri));
             }
             catch (UnknownWolverineNodeException e)
             {
                 runtime.Logger.LogWarning(e, "Error while trying to assign agent {AgentUri} to {NodeId}", AgentUri,
-                    NodeId);
+                    Destination.NodeId);
                 return AgentCommands.Empty;
             }
         }
 
         runtime.Logger.LogInformation("Successfully started agent {AgentUri} on node {NodeId}", AgentUri, runtime.Options.Durability.AssignedNodeNumber);
-        runtime.Tracker.Publish(new AgentStarted(NodeId, AgentUri));
 
         return AgentCommands.Empty;
-    }
-
-    public byte[] Write()
-    {
-        return NodeId.ToByteArray().Concat(Encoding.UTF8.GetBytes(AgentUri.ToString())).ToArray();
-    }
-
-    public static object Read(byte[] bytes)
-    {
-        var agentUriString = Encoding.UTF8.GetString(bytes[16..]);
-        return new AssignAgent(new Uri(agentUriString), new Guid(bytes[..16]));
     }
 
     public virtual bool Equals(AssignAgent? other)
@@ -54,16 +42,6 @@ internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISeriali
             return true;
         }
 
-        return AgentUri.Equals(other.AgentUri) && NodeId.Equals(other.NodeId);
-    }
-
-    public override string ToString()
-    {
-        return $"Assign agent {AgentUri} to node {NodeId}";
-    }
-
-    public override int GetHashCode()
-    {
-        return HashCode.Combine(AgentUri, NodeId);
+        return AgentUri.Equals(other.AgentUri) && Destination.NodeId.Equals(other.Destination.NodeId);
     }
 }

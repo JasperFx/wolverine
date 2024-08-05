@@ -12,7 +12,7 @@
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Marten.CommandLine" Version="7.19.0" />
+      <PackageReference Include="Marten.CommandLine" Version="7.26.1" />
     </ItemGroup>
     <ItemGroup>
       <Compile Remove="CritterStackHostBuilder.cs" />

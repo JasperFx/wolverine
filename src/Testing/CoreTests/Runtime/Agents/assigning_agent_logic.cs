@@ -230,7 +230,7 @@ public class assigning_agent_logic
 
         agent.TryBuildAssignmentCommand(out var command).ShouldBeTrue();
 
-        command.ShouldBe(new AssignAgent(agent.Uri, node4.NodeId));
+        command.ShouldBe(new AssignAgent(agent.Uri, node4.ToDestination()));
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class assigning_agent_logic
 
         agent.TryBuildAssignmentCommand(out var command).ShouldBeTrue();
 
-        command.ShouldBe(new StopRemoteAgent(agent.Uri, node1.NodeId));
+        command.ShouldBe(new StopRemoteAgent(agent.Uri, node1.ToDestination()));
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public class assigning_agent_logic
 
         agent.TryBuildAssignmentCommand(out var command).ShouldBeTrue();
 
-        command.ShouldBe(new ReassignAgent(agent.Uri, node1.NodeId, node4.NodeId));
+        command.ShouldBe(new ReassignAgent(agent.Uri, node1.ToDestination(), node4.ToDestination()));
     }
 
     [Fact]
@@ -430,7 +430,7 @@ public class assigning_agent_logic
         dict.Remove(blue2);
 
         var delta = grid.FindDelta(dict).ToArray();
-        delta.Single().ShouldBe(new AssignAgent(blue2, node1.NodeId));
+        delta.Single().ShouldBe(new AssignAgent(blue2, node1.ToDestination()));
     }
 
     [Fact]
@@ -444,10 +444,10 @@ public class assigning_agent_logic
 
         var dict = grid.CompileAssignments();
 
-        dict.Add(green8, node2.NodeId);
+        dict.Add(green8, node2.ToDestination());
 
         var delta = grid.FindDelta(dict).ToArray();
-        delta.Single().ShouldBe(new StopRemoteAgent(green8, node2.NodeId));
+        delta.Single().ShouldBe(new StopRemoteAgent(green8, node2.ToDestination()));
 
     }
 
@@ -462,10 +462,10 @@ public class assigning_agent_logic
 
         var dict = grid.CompileAssignments();
 
-        dict[red1] = node1.NodeId;
+        dict[red1] = node1.ToDestination();
 
         var delta = grid.FindDelta(dict).ToArray();
-        delta.Single().ShouldBe(new ReassignAgent(red1, node1.NodeId, node3.NodeId));
+        delta.Single().ShouldBe(new ReassignAgent(red1, node1.ToDestination(), node3.ToDestination()));
 
     }
 

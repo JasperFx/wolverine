@@ -55,14 +55,21 @@ public interface IWolverineRuntime
     void AssertHasStarted();
 }
 
+public record NodeDestination(Guid NodeId, Uri ControlUri)
+{
+    public static NodeDestination Empty() => new NodeDestination(Guid.Empty, new Uri("null://null"));
+
+    public static NodeDestination Standin() => new NodeDestination(Guid.NewGuid(), new Uri("tcp://1000"));
+}
+
 public interface IAgentRuntime
 {
     Task StartLocallyAsync(Uri agentUri);
     Task StopLocallyAsync(Uri agentUri);
 
-    Task InvokeAsync(Guid nodeId, IAgentCommand command);
+    Task InvokeAsync(NodeDestination destination, IAgentCommand command);
 
-    Task<T> InvokeAsync<T>(Guid nodeId, IAgentCommand command) where T : class;
+    Task<T> InvokeAsync<T>(NodeDestination destination, IAgentCommand command) where T : class;
     Uri[] AllRunningAgentUris();
 
     /// <summary>
@@ -72,23 +79,7 @@ public interface IAgentRuntime
     /// <returns></returns>
     Task KickstartHealthDetectionAsync();
 
-    /// <summary>
-    /// Use with caution! This will force Wolverine to try to take leadership
-    /// on this node or a designated node
-    /// </summary>
-    /// <param name="currentLeaderId"></param>
-    /// <returns></returns>
-    Task<AgentCommands> AssumeLeadershipAsync(Guid? currentLeaderId);
 
-    /// <summary>
-    /// Use with caution! Used internally to start local agent processing
-    /// and health checks
-    /// </summary>
-    /// <returns></returns>
-    Task<AgentCommands> StartLocalAgentProcessingAsync();
-
-    Task<AgentCommands> ApplyNodeEvent(NodeEvent nodeEvent);
-    Task<AgentCommands> VerifyAssignmentsAsync();
     Task<AgentCommands> DoHealthChecksAsync();
 
     /// <summary>
