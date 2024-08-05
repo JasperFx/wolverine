@@ -118,6 +118,15 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// </summary>
     /// <returns></returns>
     T UseForReplies();
+
+    /// <summary>
+    /// Direct Wolverine to use the specified handler type for its messages on
+    /// only this listening endpoint. This is helpful to create "sticky" handlers for the
+    /// same message type on multiple queues
+    /// </summary>
+    /// <param name="handlerType"></param>
+    /// <returns></returns>
+    T AddStickyHandler(Type handlerType);
 }
 
 public interface IListenerConfiguration : IListenerConfiguration<IListenerConfiguration>;

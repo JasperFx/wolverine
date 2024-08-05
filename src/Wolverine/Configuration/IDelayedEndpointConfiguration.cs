@@ -10,7 +10,7 @@ public interface IDelayedEndpointConfiguration
 public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpointConfiguration where TEndpoint : Endpoint
 {
     private readonly List<Action<TEndpoint>> _configurations = new();
-    private readonly TEndpoint? _endpoint;
+    protected readonly TEndpoint? _endpoint;
     private readonly object _locker = new();
     private readonly Func<TEndpoint>? _source;
     private bool _haveApplied;
