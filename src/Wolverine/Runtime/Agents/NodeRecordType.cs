@@ -8,8 +8,7 @@ public enum NodeRecordType
     AgentStopped,
     DormantNodeEjected,
     AssignmentChanged,
-    LeadershipAssumed,
-    ElectionRequested
+    LeadershipAssumed
 }
 
 public class NodeRecord
@@ -25,16 +24,6 @@ public class NodeRecord
         {
             NodeNumber = options.Durability.AssignedNodeNumber,
             RecordType = eventType
-        };
-    }
-
-    public static NodeRecord Starting(WolverineOptions options, NodeRecordType eventType)
-    {
-        return new NodeRecord
-        {
-            NodeNumber = options.Durability.AssignedNodeNumber,
-            RecordType = eventType,
-            Description = $"UniqueNodeId: {options.UniqueNodeId}, MachineName: {Environment.MachineName}"
         };
     }
 

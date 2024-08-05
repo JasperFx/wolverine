@@ -12,4 +12,12 @@ public interface IAgent : IHostedService
     ///     Unique identification for this agent within the Wolverine system
     /// </summary>
     Uri Uri { get; }
+    
+    AgentStatus Status { get; }
+}
+
+public enum AgentStatus
+{
+    Started,
+    Stopped
 }

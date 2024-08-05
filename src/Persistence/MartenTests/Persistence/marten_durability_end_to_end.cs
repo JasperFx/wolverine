@@ -78,6 +78,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
                     {
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = ReceiverSchemaName;
+                        m.DisableNpgsqlLogging = true;
                     }).IntegrateWithWolverine();
 
                     opts.ListenForMessagesFrom(_listener).UseDurableInbox();
@@ -100,6 +101,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
                     {
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = SenderSchemaName;
+                        m.DisableNpgsqlLogging = true;
                     }).IntegrateWithWolverine();
 
                     opts.Durability.ScheduledJobPollingTime = 1.Seconds();

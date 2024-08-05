@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -28,7 +29,7 @@ public class message_timeout_mechanics
     {
         using var host = WolverineHost.Basic();
         var handlers = host.Services.GetRequiredService<HandlerGraph>();
-        var chain = handlers.ChainFor(typeof(PotentiallySlowMessage));
+        var chain = handlers.HandlerFor(typeof(PotentiallySlowMessage)).As<MessageHandler>().Chain;
         chain.ExecutionTimeoutInSeconds.ShouldBe(1); // coming from the attribute
     }
 

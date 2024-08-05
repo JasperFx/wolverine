@@ -18,6 +18,8 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
 
         Uri = new Uri($"{StickyPostgresqlQueueListenerAgentFamily.StickyListenerSchema}://{_queue}/{_databaseName}");
     }
+    
+    public AgentStatus Status { get; set; } = AgentStatus.Started;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -45,6 +47,7 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
     {
         _tenantEndpoint ??= await findOrBuildEndpoint();
         await _runtime.Endpoints.StopListenerAsync(_tenantEndpoint, cancellationToken);
+        Status = AgentStatus.Stopped;
     }
 
     public Uri Uri { get; }

@@ -8,11 +8,11 @@ public class WolverineNode
     public string Description { get; set; } = Environment.MachineName;
 
     public List<Uri> Capabilities { get; } = new();
-
+    
     public List<Uri> ActiveAgents { get; } = new();
     public DateTimeOffset Started { get; set; }
     public DateTimeOffset LastHealthCheck { get; set; }
-
+    
     public bool IsLeader()
     {
         return ActiveAgents.Contains(NodeAgentController.LeaderUri);

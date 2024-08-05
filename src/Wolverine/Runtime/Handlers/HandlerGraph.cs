@@ -125,6 +125,17 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     public IMessageHandler? HandlerFor(Type messageType, Endpoint endpoint)
     {
+        if (messageType.CanBeCastTo(typeof(IAgentCommand)))
+        {
+            if (_handlers.TryFind(typeof(IAgentCommand), out var handler))
+            {
+                _handlers = _handlers.AddOrUpdate(messageType, handler);
+                return handler;
+            }
+
+            throw new NotSupportedException();
+        }
+        
         // This is cached in the HandlerPipeline for each endpoint, so 
         // not terribly important to cache it here
         var chain = ChainFor(messageType);

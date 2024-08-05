@@ -21,12 +21,15 @@ internal class ExclusiveListenerAgent : IAgent
         return _runtime.Endpoints.StartListenerAsync(_endpoint, cancellationToken);
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
-        return _runtime.Endpoints.StopListenerAsync(_endpoint, cancellationToken);
+        await _runtime.Endpoints.StopListenerAsync(_endpoint, cancellationToken);
+        Status = AgentStatus.Stopped;
     }
 
     public Uri Uri { get; set; }
+    
+    public AgentStatus Status { get; set; } = AgentStatus.Started;
 }
 
 internal class ExclusiveListenerFamily : IStaticAgentFamily

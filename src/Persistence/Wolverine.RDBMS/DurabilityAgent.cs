@@ -62,6 +62,8 @@ internal class DurabilityAgent : IAgent
         });
     }
 
+    public AgentStatus Status { get; set; } = AgentStatus.Started;
+
     public static Uri SimplifyUri(Uri uri)
     {
         return new Uri($"{DurabilityAgent.AgentScheme}://{uri.Host}");
@@ -131,6 +133,8 @@ internal class DurabilityAgent : IAgent
         {
             await _recoveryTimer.DisposeAsync();
         }
+
+        Status = AgentStatus.Stopped;
     }
 
     public Uri Uri { get; internal set; }

@@ -41,6 +41,13 @@ public interface IMessageStoreAdmin
     /// </summary>
     /// <returns></returns>
     Task ReleaseAllOwnershipAsync();
+    
+    /// <summary>
+    ///     Release the node specific ownership of all persisted envelopes for a specific node so they
+    ///     may be claimed by other nodes
+    /// </summary>
+    /// <returns></returns>
+    Task ReleaseAllOwnershipAsync(int ownerId);
 
     /// <summary>
     ///     Merely checks whether or not the system can connect to the durable envelope storage as an

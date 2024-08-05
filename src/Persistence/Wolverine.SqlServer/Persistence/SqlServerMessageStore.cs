@@ -35,6 +35,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         _moveToDeadLetterStorageSql = $"EXEC {SchemaName}.uspDeleteIncomingEnvelopes @IDLIST;";
 
         _scheduledLockId = "Wolverine:Scheduled:" + database.ScheduledJobLockId.ToString();
+        AdvisoryLock = new AdvisoryLock(() => new SqlConnection(database.ConnectionString),
+            logger, Identifier);
     }
 
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,

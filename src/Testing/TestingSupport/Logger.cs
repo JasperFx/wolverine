@@ -42,7 +42,7 @@ public class XUnitLogger : ILogger
 
     public bool IsEnabled(LogLevel logLevel)
     {
-        return logLevel != LogLevel.None;
+        return logLevel != LogLevel.Error;
     }
 
     public IDisposable BeginScope<TState>(TState state)

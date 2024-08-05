@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Polling;
@@ -42,4 +43,6 @@ public interface IMessageDatabase : IMessageStore
         CancellationToken cancellationToken);
 
     void Enqueue(IDatabaseOperation operation);
+    
+    IAdvisoryLock AdvisoryLock { get; }
 }

@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -97,8 +98,8 @@ public class Bug_252_codegen_issue
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();
 
-        var chain = host.Services.GetRequiredService<HandlerGraph>().ChainFor<CreateOrder>();
-
+        var chain = host.Services.GetRequiredService<HandlerGraph>().HandlerFor<CreateOrder>().As<MessageHandler>().Chain;
+        
         var lines = chain.SourceCode.ReadLines();
 
         // Just proving that the code generation did NOT opt to use a nested container

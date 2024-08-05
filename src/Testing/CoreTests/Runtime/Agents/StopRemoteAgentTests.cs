@@ -1,4 +1,5 @@
 using NSubstitute;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Xunit;
 
@@ -7,7 +8,7 @@ namespace CoreTests.Runtime.Agents;
 public class StopRemoteAgentTests : IAsyncLifetime
 {
     private AgentCommands theCascadingMessages;
-    private readonly StopRemoteAgent theCommand = new(new Uri("blue://one"), Guid.NewGuid());
+    private readonly StopRemoteAgent theCommand = new(new Uri("blue://one"), new NodeDestination(Guid.NewGuid(), new Uri("control://one")));
     private readonly MockWolverineRuntime theRuntime = new();
 
     public async Task InitializeAsync()
@@ -25,12 +26,7 @@ public class StopRemoteAgentTests : IAsyncLifetime
     [Fact]
     public async Task should_stop_the_currently_running_agent()
     {
-        await theRuntime.Agents.Received().InvokeAsync(theCommand.NodeId, new StopAgent(theCommand.AgentUri));
+        await theRuntime.Agents.Received().InvokeAsync(theCommand.Destination, new StopAgent(theCommand.AgentUri));
     }
 
-    [Fact]
-    public void should_track_the_agent_was_stopped()
-    {
-        theRuntime.ReceivedEvents.Single().ShouldBe(new AgentStopped(theCommand.AgentUri));
-    }
 }

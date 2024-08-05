@@ -1,5 +1,6 @@
 ﻿using IntegrationTests;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Attributes;
@@ -41,7 +42,8 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
     protected override async Task withContext(IHost sender, MessageContext context,
         Func<MessageContext, ValueTask> action)
     {
-        var outbox = sender.Get<IMartenOutbox>();
+        using var scope = sender.Services.CreateScope();
+        var outbox = scope.ServiceProvider.GetRequiredService<IMartenOutbox>();
 
         await action(context);
 

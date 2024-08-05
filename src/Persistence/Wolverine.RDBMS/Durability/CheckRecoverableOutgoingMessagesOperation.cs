@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.RDBMS.Polling;
@@ -28,6 +29,10 @@ internal class CheckRecoverableOutgoingMessagesOperation : IDatabaseOperation
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {
+        if (_database.SchemaName == "sender")
+        {
+            Debug.WriteLine("remember to remove this");
+        }
         builder.Append(
             $"select distinct destination from {_database.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = 0;");
     }
