@@ -16,7 +16,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
     public AzureServiceBusQueue(AzureServiceBusTransport parent, string queueName,
         EndpointRole role = EndpointRole.Application) : base(parent,
-        new Uri($"{AzureServiceBusTransport.ProtocolName}://queue/{queueName}"), role)
+        new Uri($"{parent.Protocol}://queue/{queueName}"), role)
     {
         if (parent == null)
         {
