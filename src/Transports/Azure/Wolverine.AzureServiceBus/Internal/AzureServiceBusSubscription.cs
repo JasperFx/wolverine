@@ -16,7 +16,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public AzureServiceBusSubscription(AzureServiceBusTransport parent, AzureServiceBusTopic topic,
         string subscriptionName) : base(parent,
-        new Uri($"{AzureServiceBusTransport.ProtocolName}://topic/{topic.TopicName}/{subscriptionName}"),
+        new Uri($"{parent.Protocol}://topic/{topic.TopicName}/{subscriptionName}"),
         EndpointRole.Application)
     {
         if (parent == null)
