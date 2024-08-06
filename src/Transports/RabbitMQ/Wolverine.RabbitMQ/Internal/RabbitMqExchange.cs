@@ -14,7 +14,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     private bool _initialized;
 
     internal RabbitMqExchange(string name, RabbitMqTransport parent)
-        : base(new Uri($"{RabbitMqTransport.ProtocolName}://{ExchangeSegment}/{name}"), EndpointRole.Application,
+        : base(new Uri($"{parent.Protocol}://{ExchangeSegment}/{name}"), EndpointRole.Application,
             parent)
     {
         _parent = parent;
