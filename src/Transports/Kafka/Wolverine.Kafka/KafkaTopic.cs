@@ -16,7 +16,7 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     public KafkaTransport Parent { get; }
 
-    public KafkaTopic(KafkaTransport parent, string topicName, EndpointRole role) : base(new Uri("kafka://topic/" + topicName), role)
+    public KafkaTopic(KafkaTransport parent, string topicName, EndpointRole role) : base(new Uri($"{parent.Protocol}://topic/" + topicName), role)
     {
         Parent = parent;
         EndpointName = topicName;
