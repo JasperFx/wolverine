@@ -9,7 +9,7 @@ namespace Wolverine.RabbitMQ;
 public class RabbitMqTopicEndpoint : RabbitMqEndpoint
 {
     public RabbitMqTopicEndpoint(string topicName, RabbitMqExchange exchange, RabbitMqTransport parent) : base(
-        new Uri($"rabbitmq://topic/{exchange.Name}/{topicName}"), EndpointRole.Application, parent)
+        new Uri($"{parent.Protocol}://topic/{exchange.Name}/{topicName}"), EndpointRole.Application, parent)
     {
         EndpointName = TopicName = topicName;
         Exchange = exchange;

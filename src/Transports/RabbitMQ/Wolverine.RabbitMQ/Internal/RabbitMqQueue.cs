@@ -17,7 +17,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     private ushort? _preFetchCount;
 
     internal RabbitMqQueue(string queueName, RabbitMqTransport parent, EndpointRole role = EndpointRole.Application) :
-        base(new Uri($"{RabbitMqTransport.ProtocolName}://{QueueSegment}/{queueName}"), role, parent)
+        base(new Uri($"{parent.Protocol}://{QueueSegment}/{queueName}"), role, parent)
     {
         _parent = parent;
         QueueName = EndpointName = queueName;

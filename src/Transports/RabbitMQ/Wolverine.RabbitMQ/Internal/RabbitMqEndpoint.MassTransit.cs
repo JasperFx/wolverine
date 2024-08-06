@@ -28,7 +28,7 @@ public abstract partial class RabbitMqEndpoint : IMassTransitInteropEndpoint
             return null;
         }
 
-        return $"rabbitmq://{_parent.ConnectionFactory.HostName}/{segments.Join("/")}".ToUri();
+        return $"{_parent.Protocol}://{_parent.ConnectionFactory.HostName}/{segments.Join("/")}".ToUri();
     }
 
     public Uri? MassTransitReplyUri()
