@@ -19,7 +19,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
     private ISqsEnvelopeMapper _mapper = new DefaultSqsEnvelopeMapper();
     private int _visibilityTimeout = 120;
 
-    internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base(new Uri($"sqs://{queueName}"),
+    internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base(new Uri($"{parent.Protocol}://{queueName}"),
         EndpointRole.Application)
     {
         _parent = parent;
