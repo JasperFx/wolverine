@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine", "src\Wolverine\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Testing", "Testing", "{96119B5E-B5F0-400A-9580-B342EBE26212}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestingSupport", "src\Testing\TestingSupport\TestingSupport.csproj", "{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.ComplianceTests", "src\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj", "{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoreTests", "src\Testing\CoreTests\CoreTests.csproj", "{76B3D37E-E3DC-4F6D-B20D-D27DFBD716F7}"
 EndProject

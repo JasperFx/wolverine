@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Postgresql;

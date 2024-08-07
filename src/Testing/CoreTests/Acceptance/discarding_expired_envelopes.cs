@@ -1,7 +1,7 @@
 ﻿using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;

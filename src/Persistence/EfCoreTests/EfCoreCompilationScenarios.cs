@@ -1,6 +1,6 @@
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine;
 
 namespace EfCoreTests;

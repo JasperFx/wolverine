@@ -2,7 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;

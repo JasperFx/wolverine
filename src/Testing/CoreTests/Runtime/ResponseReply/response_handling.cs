@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime.RemoteInvocation;
 using Xunit;
 

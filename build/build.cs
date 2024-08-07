@@ -156,6 +156,7 @@ namespace build
                 "./src/Http/Wolverine.Http",
                 "./src/Http/Wolverine.Http.FluentValidation",
                 "./src/Http/Wolverine.Http.Marten",
+                "./src/Testing/Wolverine.ComplianceTests"
             };
 
             Target("pack", ForEach(nugetProjects), project =>

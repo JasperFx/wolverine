@@ -1,5 +1,5 @@
 using Oakton.Resources;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 
 namespace Wolverine.Kafka.Tests;
 

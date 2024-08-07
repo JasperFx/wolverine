@@ -7,7 +7,7 @@
     <ItemGroup>
         <PackageReference Include="Alba" Version="7.4.1"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.3.2"/>
-        <PackageReference Include="xunit" Version="2.8.0"/>
+        <PackageReference Include="xunit" Version="2.9.0"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -19,7 +19,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Testing\TestingSupport\TestingSupport.csproj"/>
+        <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
         <ProjectReference Include="..\DiagnosticsApp\DiagnosticsApp.csproj"/>
         <ProjectReference Include="..\DiagnosticsModule\DiagnosticsModule.csproj"/>
     </ItemGroup>

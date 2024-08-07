@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Persistence.Durability;

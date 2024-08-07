@@ -1,6 +1,6 @@
 using CoreTests.Transports.Tcp.Protocol;
 using Microsoft.Extensions.Logging.Abstractions;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Transports.Sending;
 using Wolverine.Transports.Tcp;
 using Xunit;

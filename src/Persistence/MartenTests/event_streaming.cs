@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Marten;

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Xunit;
 
 namespace CoreTests.Configuration;

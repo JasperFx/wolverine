@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 
 namespace ConsoleApp;

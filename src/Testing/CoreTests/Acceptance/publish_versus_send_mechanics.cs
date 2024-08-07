@@ -1,6 +1,6 @@
 ﻿using JasperFx.Core;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Xunit;

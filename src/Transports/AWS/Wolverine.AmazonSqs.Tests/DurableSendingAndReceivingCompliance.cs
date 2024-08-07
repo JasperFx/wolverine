@@ -4,8 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport.Compliance;
 using Wolverine.AmazonSqs.Internal;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Marten;
 using Wolverine.Runtime;
 
@@ -13,7 +13,7 @@ namespace Wolverine.AmazonSqs.Tests;
 
 public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public static int Number = 0;
+    public static int Number;
 
     public DurableComplianceFixture() : base(new Uri("sqs://receiver"), 120)
     {
@@ -91,7 +91,6 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             await queue.InitializeAsync(NullLogger.Instance);
             var messages = await transport.Client.ReceiveMessageAsync(queue.QueueUrl);
             messages.Messages.Count.ShouldBeGreaterThan(0);
-
         }
     }
 }

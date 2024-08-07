@@ -2,7 +2,7 @@ using JasperFx.Core.TypeScanning;
 using Microsoft.Extensions.DependencyInjection;
 using Module2;
 using OrderExtension;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
 using Wolverine.Runtime;
 using Xunit;

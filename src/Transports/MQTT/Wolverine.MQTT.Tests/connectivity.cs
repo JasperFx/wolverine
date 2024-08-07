@@ -4,7 +4,7 @@ using MQTTnet;
 using MQTTnet.Extensions.ManagedClient;
 using MQTTnet.Internal;
 using MQTTnet.Protocol;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;

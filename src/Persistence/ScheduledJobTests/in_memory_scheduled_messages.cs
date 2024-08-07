@@ -1,6 +1,6 @@
 ﻿using JasperFx.Core;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;

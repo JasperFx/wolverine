@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Xunit;
 
 namespace CoreTests.Acceptance;

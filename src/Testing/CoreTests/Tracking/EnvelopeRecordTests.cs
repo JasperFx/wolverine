@@ -2,7 +2,7 @@ using System.Diagnostics;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Xunit;
 

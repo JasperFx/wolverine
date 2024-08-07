@@ -1,6 +1,6 @@
 using CoreTests.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
 using Xunit;
 

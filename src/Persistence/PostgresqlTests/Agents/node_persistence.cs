@@ -3,7 +3,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Postgresql;

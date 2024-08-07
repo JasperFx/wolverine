@@ -1,4 +1,4 @@
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 
 namespace ConsoleApp;

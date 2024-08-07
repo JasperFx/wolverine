@@ -11,8 +11,8 @@
         <PackageReference Include="Npgsql" Version="8.0.3" />
         <PackageReference Include="Refit" Version="7.0.0" />
         <PackageReference Include="Refit.HttpClientFactory" Version="7.0.0" />
-        <PackageReference Include="xunit" Version="2.8.0" />
-        <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
+        <PackageReference Include="xunit" Version="2.9.0" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
@@ -25,7 +25,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
+        <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
         <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj"/>
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj"/>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>

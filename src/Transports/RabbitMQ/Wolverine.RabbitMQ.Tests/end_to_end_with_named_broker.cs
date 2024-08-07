@@ -2,7 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
 using Xunit;

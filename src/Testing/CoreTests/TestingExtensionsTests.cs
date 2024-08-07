@@ -1,4 +1,4 @@
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Xunit;
 
 namespace CoreTests;
@@ -40,7 +40,7 @@ public class TestingExtensionsTests
         });
 
         ex.Message.ShouldBe(
-            "Should be no messages of type TestingSupport.Compliance.Message1, but the actual messages were TestingSupport.Compliance.Message1, TestingSupport.Compliance.Message3");
+            "Should be no messages of type Wolverine.ComplianceTests.Compliance.Message1, but the actual messages were Wolverine.ComplianceTests.Compliance.Message1, Wolverine.ComplianceTests.Compliance.Message3");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class TestingExtensionsTests
         });
 
         ex.Message.ShouldBe(
-            "Should be no messages of type TestingSupport.Compliance.Message1, but the actual messages were Wolverine.DeliveryMessage`1[TestingSupport.Compliance.Message1]");
+            "Should be no messages of type Wolverine.ComplianceTests.Compliance.Message1, but the actual messages were Wolverine.DeliveryMessage`1[Wolverine.ComplianceTests.Compliance.Message1]");
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class TestingExtensionsTests
         });
 
         ex.Message.ShouldBe(
-            "Should be no messages of type TestingSupport.Compliance.Message3, but the actual messages were TestingSupport.Compliance.Message1, TestingSupport.Compliance.Message3");
+            "Should be no messages of type Wolverine.ComplianceTests.Compliance.Message3, but the actual messages were Wolverine.ComplianceTests.Compliance.Message1, Wolverine.ComplianceTests.Compliance.Message3");
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class TestingExtensionsTests
         });
 
         ex.Message.ShouldBe(
-            "Should be a message of type TestingSupport.Compliance.Message4, but actual messages were TestingSupport.Compliance.Message1, TestingSupport.Compliance.Message2, TestingSupport.Compliance.Message3");
+            "Should be a message of type Wolverine.ComplianceTests.Compliance.Message4, but actual messages were Wolverine.ComplianceTests.Compliance.Message1, Wolverine.ComplianceTests.Compliance.Message2, Wolverine.ComplianceTests.Compliance.Message3");
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class TestingExtensionsTests
                 .ShouldHaveMessageOfType<Message4>();
         });
 
-        ex.Message.ShouldBe("Should be a message of type TestingSupport.Compliance.Message4, but there were no messages");
+        ex.Message.ShouldBe("Should be a message of type Wolverine.ComplianceTests.Compliance.Message4, but there were no messages");
     }
 
     [Fact]

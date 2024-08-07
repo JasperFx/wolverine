@@ -3,6 +3,7 @@ using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
@@ -66,13 +67,13 @@ public record PostgresqlPong(string Name);
 public static class PingPongHandler
 {
     [Transactional]
-    public static PostgresqlPong Handle(PostgresqlPing ping, SqlConnection connection)
+    public static PostgresqlPong Handle(PostgresqlPing ping, NpgsqlConnection connection)
     {
 
         return new PostgresqlPong(ping.Name);
     }
 
-    public static void Handle(PostgresqlPong pong, SqlConnection connection)
+    public static void Handle(PostgresqlPong pong, NpgsqlConnection connection)
     {
         Debug.WriteLine("Got it");
     }

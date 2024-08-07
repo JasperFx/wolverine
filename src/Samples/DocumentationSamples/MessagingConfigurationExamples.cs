@@ -1,6 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Transports.Tcp;

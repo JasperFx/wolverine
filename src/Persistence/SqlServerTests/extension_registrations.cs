@@ -1,6 +1,6 @@
 ﻿using IntegrationTests;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;

@@ -6,7 +6,7 @@ using DotPulsar.Internal.PulsarApi;
 using JasperFx.Core;
 using NSubstitute;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
 using Xunit;
 using MessageMetadata = DotPulsar.MessageMetadata;

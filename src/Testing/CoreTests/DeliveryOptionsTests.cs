@@ -2,7 +2,7 @@ using CoreTests.Util;
 using Wolverine.Util;
 using Xunit;
 using JasperFx.Core;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 
 namespace CoreTests;
 

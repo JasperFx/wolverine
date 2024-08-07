@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime;

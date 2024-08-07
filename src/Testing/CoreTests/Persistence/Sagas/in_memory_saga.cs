@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
-using TestingSupport.Sagas;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Sagas;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Transports;
 

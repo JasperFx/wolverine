@@ -3,7 +3,7 @@ using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.RDBMS;

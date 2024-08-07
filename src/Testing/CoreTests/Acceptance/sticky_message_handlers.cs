@@ -2,7 +2,7 @@ using System.Collections;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;

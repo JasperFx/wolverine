@@ -4,7 +4,7 @@ using CoreTests.Runtime.Handlers;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 

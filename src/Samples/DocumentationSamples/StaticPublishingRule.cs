@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Hosting;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.Transports.Tcp;
 

@@ -5,7 +5,7 @@ using MartenTests.Persistence.Resiliency;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;

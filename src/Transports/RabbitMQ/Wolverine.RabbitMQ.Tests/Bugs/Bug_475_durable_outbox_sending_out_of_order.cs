@@ -4,7 +4,7 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Xunit;

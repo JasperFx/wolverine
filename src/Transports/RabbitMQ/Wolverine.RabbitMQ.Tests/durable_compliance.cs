@@ -1,7 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Marten;
 using Xunit;
 

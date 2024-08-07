@@ -1,6 +1,6 @@
 using JasperFx.Core;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Transports.Tcp;
 using Xunit;
 

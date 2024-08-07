@@ -1,6 +1,6 @@
 using CoreTests.Runtime;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Transports.Local;
 using Xunit;

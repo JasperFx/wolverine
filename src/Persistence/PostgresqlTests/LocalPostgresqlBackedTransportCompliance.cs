@@ -1,6 +1,6 @@
 using IntegrationTests;
 using JasperFx.Core;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.Postgresql;
 

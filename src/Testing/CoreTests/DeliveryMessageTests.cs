@@ -1,6 +1,6 @@
 ﻿using JasperFx.Core.Reflection;
 using NSubstitute;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Xunit;
 
 namespace CoreTests;

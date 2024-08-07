@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 using Xunit.Abstractions;

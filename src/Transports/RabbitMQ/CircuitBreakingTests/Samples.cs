@@ -2,6 +2,7 @@ using System.Data.SqlClient;
 using System.Net.Sockets;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.RabbitMQ;
@@ -38,7 +39,7 @@ public class Samples
                         cb.FailurePercentageThreshold = 10;
 
                         // Optional allow list
-                        cb.Include<SqlException>(e => e.Message.Contains("Failure"));
+                        cb.Include<NpgsqlException>(e => e.Message.Contains("Failure"));
                         cb.Include<SocketException>();
 
                         // Optional ignore list

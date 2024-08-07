@@ -1,4 +1,4 @@
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 
 namespace CoreTests.Runtime.Samples;
 

@@ -1,7 +1,7 @@
 ﻿using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;

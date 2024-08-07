@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;

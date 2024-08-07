@@ -1,7 +1,7 @@
 ﻿using JasperFx.Core;
 using NSubstitute;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;

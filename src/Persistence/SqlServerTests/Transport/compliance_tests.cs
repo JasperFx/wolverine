@@ -1,7 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.SqlServer;

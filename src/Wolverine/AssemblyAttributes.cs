@@ -10,7 +10,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("DiagnosticsTests")]
 [assembly: InternalsVisibleTo("PolicyTests")]
 [assembly: InternalsVisibleTo("CircuitBreakingTests")]
-[assembly: InternalsVisibleTo("TestingSupport")]
+[assembly: InternalsVisibleTo("Wolverine.ComplianceTests")]
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq")]
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus")]

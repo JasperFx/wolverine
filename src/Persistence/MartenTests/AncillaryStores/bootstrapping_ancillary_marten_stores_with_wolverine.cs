@@ -8,7 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;

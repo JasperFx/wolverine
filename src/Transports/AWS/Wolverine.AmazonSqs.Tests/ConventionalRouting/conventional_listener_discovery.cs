@@ -1,8 +1,8 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Shouldly;
-using TestingSupport.Compliance;
 using Wolverine.AmazonSqs.Internal;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;

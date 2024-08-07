@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.MQTT.Internals;
 using Wolverine.Runtime;
 

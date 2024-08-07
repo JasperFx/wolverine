@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
-using TestingSupport.ErrorHandling;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.ErrorHandling;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Tracking;
 

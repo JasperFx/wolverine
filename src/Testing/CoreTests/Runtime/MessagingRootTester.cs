@@ -1,5 +1,5 @@
 ﻿using JasperFx.Core.Reflection;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
 using Xunit;
 

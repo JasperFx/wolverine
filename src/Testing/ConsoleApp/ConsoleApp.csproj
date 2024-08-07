@@ -5,6 +5,6 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj"/>
+        <ProjectReference Include="..\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
 </Project>

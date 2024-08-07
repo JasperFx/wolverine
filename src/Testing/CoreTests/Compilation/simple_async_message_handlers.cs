@@ -1,5 +1,5 @@
-﻿using TestingSupport;
-using TestingSupport.Compliance;
+﻿using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Xunit;
 
 namespace CoreTests.Compilation;

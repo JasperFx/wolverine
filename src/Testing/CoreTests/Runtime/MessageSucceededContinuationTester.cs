@@ -1,5 +1,5 @@
 ﻿using NSubstitute;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
 using Xunit;
 

@@ -1,5 +1,5 @@
 using JasperFx.Core;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Xunit;
 
 namespace CoreTests;

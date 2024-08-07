@@ -1,6 +1,6 @@
 using Alba;
 using Microsoft.Extensions.DependencyInjection;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;

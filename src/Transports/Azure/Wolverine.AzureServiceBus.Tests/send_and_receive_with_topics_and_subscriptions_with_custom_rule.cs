@@ -1,6 +1,6 @@
 using Azure.Messaging.ServiceBus.Administration;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Tracking;
 using Xunit;
 

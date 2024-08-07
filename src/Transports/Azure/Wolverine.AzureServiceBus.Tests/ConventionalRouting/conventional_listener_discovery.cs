@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;

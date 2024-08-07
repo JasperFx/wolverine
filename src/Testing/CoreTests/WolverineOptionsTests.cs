@@ -3,8 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Oakton.Resources;
-using TestingSupport;
-using TestingSupport.Fakes;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Fakes;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -69,7 +69,7 @@ public class WolverineOptionsTests
         {
             registry.DisableConventionalDiscovery();
             registry.Services.AddScoped<IFoo, Foo>();
-            registry.Services.AddSingleton<TestingSupport.Fakes.Tracking>();
+            registry.Services.AddSingleton<Wolverine.ComplianceTests.Fakes.Tracking>();
             registry.Services.AddTransient<IFakeStore, FakeStore>();
         });
 
