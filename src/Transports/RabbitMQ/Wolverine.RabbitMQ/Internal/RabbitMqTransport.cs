@@ -21,7 +21,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     private ConnectionMonitor? _listenerConnection;
     private ConnectionMonitor? _sendingConnection;
 
-    public RabbitMqTransport() : base(ProtocolName, "Rabbit MQ")
+    public RabbitMqTransport(string protocol) : base(protocol, "Rabbit MQ")
     {
         Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
         Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
@@ -38,6 +38,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
             exchange.ExchangeType = ExchangeType.Topic;
             return new RabbitMqTopicEndpoint(uri.Segments.Last(), exchange, this);
         });
+    }
+
+    public RabbitMqTransport() : this(ProtocolName)
+    {
+        
     }
 
     private void configureDefaults(ConnectionFactory factory)

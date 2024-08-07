@@ -185,15 +185,44 @@ public class WolverineOptionsTests
             .ShouldBeSameAs(transport);
     }
 
+    [Fact]
+    public void find_named_transport()
+    {
+        var one = new BrokerName("one");
+        var two = new BrokerName("two");
+
+        var options = new WolverineOptions();
+
+        var main = options.Transports.GetOrCreate<FakeTransport>();
+        main.Protocol.ShouldBe("fake");
+
+        var transport1 = options.Transports.GetOrCreate<FakeTransport>(one);
+        transport1.Protocol.ShouldBe("one");
+        transport1.ShouldBeSameAs(options.Transports.GetOrCreate<FakeTransport>(one));
+
+        var transport2 = options.Transports.GetOrCreate<FakeTransport>(two);
+        transport2.ShouldNotBeSameAs(main);
+        transport2.ShouldNotBeSameAs(transport1);
+    }
+
     public interface IFoo;
 
     public class Foo : IFoo;
 
     public class FakeTransport : ITransport
     {
+        public FakeTransport(string protocol)
+        {
+            Protocol = protocol;
+        }
+
+        public FakeTransport() : this("fake")
+        {
+        }
+
         public string Name => "Fake";
 
-        public string Protocol => "fake";
+        public string Protocol { get; }
 
 
         public Endpoint ReplyEndpoint()
@@ -253,3 +282,4 @@ public class WolverineOptionsTests
         }
     }
 }
+

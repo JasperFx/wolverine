@@ -28,6 +28,15 @@ public class RabbitMqQueueTests
     }
 
     [Fact]
+    public void uri_construction_from_different_broker()
+    {
+        var transport = new RabbitMqTransport("random");
+        var queue = new RabbitMqQueue("foo", transport);
+        queue.Uri.ShouldBe(new Uri("random://queue/foo"));
+
+    }
+    
+    [Fact]
     public void set_time_to_live()
     {
         var queue = new RabbitMqQueue("foo", new RabbitMqTransport());
