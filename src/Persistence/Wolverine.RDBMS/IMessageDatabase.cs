@@ -32,8 +32,6 @@ public interface IMessageDatabase : IMessageStore
     /// <returns></returns>
     Task<PersistedCounts> FetchCountsAsync();
 
-    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
-
     DbCommandBuilder ToCommandBuilder();
 
     Task EnqueueAsync(IDatabaseOperation operation);

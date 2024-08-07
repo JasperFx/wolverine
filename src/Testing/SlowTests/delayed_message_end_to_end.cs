@@ -3,8 +3,9 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Xunit;
 
-namespace ScheduledJobTests;
+namespace SlowTests;
 
 public class delayed_message_end_to_end
 {

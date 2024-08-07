@@ -1,21 +1,19 @@
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Oakton.Resources;
 using Shouldly;
-using Wolverine.ComplianceTests;
-using Wolverine;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
+using Xunit;
 
-namespace ScheduledJobTests;
+namespace Wolverine.ComplianceTests.Scheduling;
 
 public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedHandler> : IAsyncLifetime
 {

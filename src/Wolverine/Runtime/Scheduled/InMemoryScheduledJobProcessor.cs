@@ -3,7 +3,7 @@ using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Runtime.Scheduled;
 
-internal class InMemoryScheduledJobProcessor : IScheduledJobProcessor
+public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
 {
     private readonly Cache<Guid, InMemoryScheduledJob> _outstandingJobs = new();
 
@@ -44,7 +44,7 @@ internal class InMemoryScheduledJobProcessor : IScheduledJobProcessor
         return _outstandingJobs.Count;
     }
 
-    public ScheduledJob[] QueuedJobs()
+    ScheduledJob[] IScheduledJobProcessor.QueuedJobs()
     {
         return _outstandingJobs.ToArray().Select(x => x.ToReport()).ToArray();
     }

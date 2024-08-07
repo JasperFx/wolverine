@@ -94,6 +94,18 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         }
     }
 
+    public async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
+    {
+        // Really just here for diagnostics
+        var list = new List<Envelope>();
+        foreach (var database in databases())
+        {
+            list.AddRange(await database.LoadPageOfGloballyOwnedIncomingAsync(listenerAddress, limit));
+        }
+
+        return list;
+    }
+
     async Task IMessageInbox.ScheduleJobAsync(Envelope envelope)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);

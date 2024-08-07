@@ -1,25 +1,31 @@
 using System.Diagnostics;
-using IntegrationTests;
 using JasperFx.Core;
-using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
-using ScheduledJobTests.SqlServer;
 using Shouldly;
-using Wolverine;
-using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Tracking;
-using Xunit.Sdk;
+using Xunit;
 
-namespace ScheduledJobTests.Postgresql;
+namespace Wolverine.ComplianceTests.Scheduling;
 
-public class marten_scheduled_jobs : IAsyncLifetime
+public class ScheduledMessageReceiver
+{
+    public readonly IList<ScheduledMessage> ReceivedMessages = new List<ScheduledMessage>();
+
+    public readonly TaskCompletionSource<ScheduledMessage> Source = new();
+
+    public Task<ScheduledMessage> Received => Source.Task;
+}
+
+public abstract class ScheduledJobCompliance: IAsyncLifetime
 {
     private readonly ScheduledMessageReceiver theReceiver = new();
     private IHost theHost;
-
+    
+    public abstract void ConfigurePersistence(WolverineOptions options);
+    
     public async Task InitializeAsync()
     {
         theHost = await Host
@@ -35,8 +41,8 @@ public class marten_scheduled_jobs : IAsyncLifetime
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<ScheduledMessageCatcher>();
 
-                opts.Services.AddMarten(Servers.PostgresConnectionString)
-                    .IntegrateWithWolverine();
+                ConfigurePersistence(opts);
+
             })
             .StartAsync();
 
@@ -48,7 +54,7 @@ public class marten_scheduled_jobs : IAsyncLifetime
         await theHost.StopAsync();
         theHost.Dispose();
     }
-
+    
     protected ValueTask ScheduleMessage(int id, int seconds)
     {
         return theHost.Services.GetRequiredService<IMessageContext>()
@@ -120,11 +126,22 @@ public class marten_scheduled_jobs : IAsyncLifetime
     }
 }
 
-public class ScheduledMessageReceiver
+public class ScheduledMessageCatcher
 {
-    public readonly IList<ScheduledMessage> ReceivedMessages = new List<ScheduledMessage>();
+    private readonly ScheduledMessageReceiver _receiver;
 
-    public readonly TaskCompletionSource<ScheduledMessage> Source = new();
+    public ScheduledMessageCatcher(ScheduledMessageReceiver receiver)
+    {
+        _receiver = receiver;
+    }
 
-    public Task<ScheduledMessage> Received => Source.Task;
+    public void Consume(ScheduledMessage message)
+    {
+        if (!_receiver.Source.Task.IsCompleted)
+        {
+            _receiver.Source.SetResult(message);
+        }
+
+        _receiver.ReceivedMessages.Add(message);
+    }
 }

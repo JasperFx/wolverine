@@ -4,13 +4,14 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
+using Xunit;
 
-namespace ScheduledJobTests;
+namespace SlowTests;
 
 public class message_timeout_mechanics
 {
@@ -50,7 +51,8 @@ public class message_timeout_mechanics
     {
         PotentiallySlowMessageHandler.DidTimeout = false; // start clean
 
-        using var host = WolverineHost.For(opts => { opts.DefaultExecutionTimeout = 50.Milliseconds(); });
+        using var host = WolverineHost.For(
+            opts => { opts.DefaultExecutionTimeout = 50.Milliseconds(); });
 
         var session = await host
             .TrackActivity()

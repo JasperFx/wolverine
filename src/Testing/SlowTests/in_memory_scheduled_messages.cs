@@ -1,12 +1,13 @@
 ﻿using JasperFx.Core;
 using Shouldly;
-using Wolverine.ComplianceTests;
 using Wolverine;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
+using Xunit;
 
-namespace ScheduledJobTests;
+namespace SlowTests;
 
 public class in_memory_scheduled_messages : ILocalQueue
 {

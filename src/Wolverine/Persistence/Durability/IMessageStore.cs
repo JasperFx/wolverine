@@ -120,6 +120,7 @@ public interface IMessageStore : IAsyncDisposable
     IAgent StartScheduledJobs(IWolverineRuntime runtime);
 
     IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime);
+    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 }
 
 public record IncomingCount(Uri Destination, int Count);

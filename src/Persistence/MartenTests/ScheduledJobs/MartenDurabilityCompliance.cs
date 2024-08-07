@@ -4,11 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests.Scheduling;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 
-namespace ScheduledJobTests.Postgresql;
+namespace MartenTests.ScheduledJobs;
 
 [Collection("marten")]
 public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMessageReceiver, ItemCreatedHandler>

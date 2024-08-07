@@ -8,6 +8,7 @@ using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests.Scheduling;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -15,7 +16,7 @@ using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using CommandExtensions = Weasel.Core.CommandExtensions;
 
-namespace ScheduledJobTests.SqlServer;
+namespace SqlServerTests.ScheduledJobs;
 
 public class SqlServerDurabilityCompliance : DurabilityComplianceContext<TriggerMessageReceiver, ItemCreatedHandler>
 {
