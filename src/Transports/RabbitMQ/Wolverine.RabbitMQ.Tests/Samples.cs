@@ -524,3 +524,48 @@ public interface ITenantMessage
 #endregion
 
 public record SendEmail;
+
+public static class AdditionalBrokers
+{
+    public static async Task configure()
+    {
+        #region sample_configure_additional_rabbit_mq_broker
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Connect to the "main" Rabbit MQ broker for this application
+            opts.UseRabbitMq(builder.Configuration.GetConnectionString("internal-rabbit-mq"));
+
+            // Listen for incoming messages on the main broker at the queue named "incoming"
+            opts.ListenToRabbitQueue("incoming");
+
+            // Let's say there's one Rabbit MQ broker for internal communications
+            // and a second one for external communications
+            var external = new BrokerName("external");
+
+            // BUT! Let's also use a second broker
+            opts.AddNamedRabbitMqBroker(external, factory =>
+            {
+                factory.Uri = new Uri(builder.Configuration.GetConnectionString("external-rabbit-mq"));
+            });
+
+            // Listen to a queue on the named, secondary broker
+            opts.ListenToRabbitQueueOnNamedBroker(external, "incoming");
+            
+            // Other options for publishing messages to the named broker
+            opts.PublishAllMessages().ToRabbitExchangeOnNamedBroker(external, "exchange1");
+
+            opts.PublishAllMessages().ToRabbitQueueOnNamedBroker(external, "outgoing");
+
+            opts.PublishAllMessages().ToRabbitRoutingKeyOnNamedBroker(external, "exchange1", "key2");
+
+            opts.PublishAllMessages().ToRabbitTopicsOnNamedBroker(external, "topics");
+        });
+
+        #endregion
+
+        var host = builder.Build();
+        await host.StartAsync();
+    }
+}

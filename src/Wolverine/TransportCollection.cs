@@ -70,16 +70,31 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
         _transports[transport.Protocol] = transport;
     }
 
-    public T GetOrCreate<T>() where T : ITransport, new()
+    public T GetOrCreate<T>(BrokerName? name = null) where T : ITransport, new()
     {
-        var transport = _transports.Values.OfType<T>().FirstOrDefault();
-        if (transport == null)
+        if (name == null)
         {
-            transport = new T();
-            _transports[transport.Protocol] = transport;
-        }
+            var transport = _transports.Values.OfType<T>().FirstOrDefault();
+            if (transport == null)
+            {
+                transport = new T();
+                _transports[transport.Protocol] = transport;
+            }
 
-        return transport;
+            return transport;
+        }
+        else
+        {
+            var transport = _transports.Values.OfType<T>().FirstOrDefault(x => x.Protocol == name.Name);
+            if (transport == null)
+            {
+                transport = (T)Activator.CreateInstance(typeof(T), name.Name);
+                _transports[name.Name] = transport;
+            }
+
+            return transport;
+        }
+        
     }
 
     internal ITransport Find(Uri uri)
