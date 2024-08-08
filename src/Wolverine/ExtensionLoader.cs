@@ -42,7 +42,6 @@ internal static class ExtensionLoader
 
         if (assemblies.Length == 0)
         {
-            Console.WriteLine("No Wolverine extensions are detected");
             return;
         }
 
