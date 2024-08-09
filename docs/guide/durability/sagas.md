@@ -66,9 +66,15 @@ public class Order : Saga
         // That's it, we're done. Delete the saga state after the message is done.
         MarkCompleted();
     }
+
+    public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
+    {
+        logger.LogInformation("Tried to complete order {Id}, but it cannot be found", complete.Id);
+    }
+
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A few explanatory notes on this code before we move on to detailed documentation:
@@ -373,16 +379,140 @@ The following method names are meaningful in `Saga` types:
 | `Consume`, `Consumes`                | Called only when the identified saga already exists |
 | `Orchestrate`, `Orchestrates`        | Called only when the identified saga already exists |
 | `NotFound`                           | Only called if the identified saga does not already exist, and there is no matching `Start` handler for the incoming message |
-// todo -- more later on Create
+
 
 
 ## When Sagas are Not Found
 
-In the case
+If you receive a command message against a `Saga` that no longer exists, Wolverine will ignore the message unless
+you explicitly handle the "not found" case. To do so for a particular command type -- and note that Wolverine does not
+do any magic handling today based on abstractions -- you can implement a public static method called `NotFound` on your
+`Saga` class for a particular message type that will take action against that incoming message as shown below:
+
+<!-- snippet: sample_using_not_found -->
+<a id='snippet-sample_using_not_found'></a>
+```cs
+public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
+{
+    logger.LogInformation("Tried to complete order {Id}, but it cannot be found", complete.Id);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L65-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_not_found' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that you will have to explicitly use `IMessageBus` as an argument to a `NotFound` method to send out any messages
+to potentially take action on a missing saga if you so wish.
 
 ## Marking a Saga as Complete
 
+When a `Saga` workflow is complete, call the `MarkCompleted()` method as shown in the following method
+to let Wolverine know that the `Saga` can be safely deleted:
 
+<!-- snippet: sample_using_saga_mark_completed -->
+<a id='snippet-sample_using_saga_mark_completed'></a>
+```cs
+// Apply the CompleteOrder to the saga
+public void Handle(CompleteOrder complete, ILogger<Order> logger)
+{
+    logger.LogInformation("Completing order {Id}", complete.Id);
 
+    // That's it, we're done. Delete the saga state after the message is done.
+    MarkCompleted();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L38-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_saga_mark_completed' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Timeout Messages
+
+You may frequently want to create "timeout" messages as part of a `Saga` to enforce time limitations. This can be done
+with scheduled messages in Wolverine, but because this usage is so common with `Saga` implementations and because
+Wolverine really wants you to be able to use pure functions as much as possible, you can subclass the Wolverine `TimeoutMessage`
+for any logical message that will be scheduled in the future like so:
+
+<!-- snippet: sample_OrderTimeout -->
+<a id='snippet-sample_ordertimeout'></a>
+```cs
+// This message will always be scheduled to be delivered after
+// a one minute delay
+public record OrderTimeout(string Id) : TimeoutMessage(1.Minutes());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L12-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ordertimeout' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+That `OrderTimeout` message can be published with normal cascaded messages (or by calling `IMessageBus.PublishAsync()` if you prefer)
+like so:
+
+<!-- snippet: sample_starting_a_saga_inside_a_handler -->
+<a id='snippet-sample_starting_a_saga_inside_a_handler'></a>
+```cs
+// This method would be called when a StartOrder message arrives
+// to start a new Order
+public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
+{
+    logger.LogInformation("Got a new order with id {Id}", order.OrderId);
+
+    // creating a timeout message for the saga
+    return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L24-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And the handler for the message type is just a normal handler signature:
+
+<!-- snippet: sample_handling_a_timeout_message -->
+<a id='snippet-sample_handling_a_timeout_message'></a>
+```cs
+// Delete this order if it has not already been deleted to enforce a "timeout"
+// condition
+public void Handle(OrderTimeout timeout, ILogger<Order> logger)
+{
+    logger.LogInformation("Applying timeout to order {Id}", timeout.Id);
+
+    // That's it, we're done. Delete the saga state after the message is done.
+    MarkCompleted();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L51-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_a_timeout_message' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Lightweight Saga Storage <Badge type="tip" text="3.0" />
+
+The Wolverine integration with either Sql Server or PostgreSQL comes with a lightweight saga storage mechanism
+where Wolverine will happily stand up a database table per `Saga` type in your configured envelope storage database and
+merely store the saga state as serialized JSON (System.Text.Json is used for serialization in all cases). There's 
+a handful of things to know about this:
+
+* The automatic migration of lightweight saga tables can be disabled by the [AutoBuildMessageStorageOnStartup](/guide/durability/managing.html#disable-automatic-storage-migration)
+  flag
+* The lightweight saga storage supports optimistic concurrency by default and will throw a `SagaConcurrencyException` in
+  the case of a `Saga` being modified by another `Saga` command while the current command is being processed
+* The lightweight saga storage is supported by both the [PostgreSQL](/guide/durability/postgresql.html) and [Sql Server](/guide/durability/sqlserver.html) integration
+* If the Marten integration is active, Marten will take precedence for the `Saga` storage for each type
+* If the EF Core integration is active, the EF Core `DbContext` backed `Saga` persistence will take precedence *if* Wolverine
+  can find a `DbContext` that has a mapping for that `Saga` type
+* Wolverine's default table naming convention is just "{Saga class name}_saga"
+
+To either control the saga table names or to ensure that the lightweight tables are part of Wolverine's offline database migration
+capabilities, you can manually register saga types at configuration time:
+
+<!-- snippet: sample_manually_adding_saga_types -->
+<a id='snippet-sample_manually_adding_saga_types'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.AddSagaType<RedSaga>("red");
+        opts.AddSagaType(typeof(BlueSaga),"blue");
+        
+        
+        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "color_sagas");
+        opts.Services.AddResourceSetupOnStartup();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Sagas/configuring_saga_table_storage.cs#L22-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_manually_adding_saga_types' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that this manual registration is not necessary at development time or if you're content to just let Wolverine
+handle database migrations at runtime.

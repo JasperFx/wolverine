@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Data.Common;
+using System.Runtime.InteropServices;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
@@ -9,8 +10,10 @@ using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
+using Wolverine.SqlServer.Sagas;
 using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Util;
 using Wolverine.Transports;
@@ -18,15 +21,16 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerMessageStore : MessageDatabase<SqlConnection>
+public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSagaStorage
 {
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _moveToDeadLetterStorageSql;
     private readonly string _scheduledLockId;
+    private ImHashMap<Type, ISagaStorage> _sagaStorage = ImHashMap<Type, ISagaStorage>.Empty;
 
 
     public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
-        ILogger<SqlServerMessageStore> logger)
+        ILogger<SqlServerMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes)
         : base(database, SqlClientFactory.Instance.CreateDataSource(database.ConnectionString), settings, logger, new SqlServerMigrator(), "dbo")
     {
         _findAtLargeEnvelopesSql =
@@ -37,6 +41,12 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         _scheduledLockId = "Wolverine:Scheduled:" + database.ScheduledJobLockId.ToString();
         AdvisoryLock = new AdvisoryLock(() => new SqlConnection(database.ConnectionString),
             logger, Identifier);
+
+        foreach (var sagaTableDefinition in sagaTypes)
+        {
+            var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+            _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
+        }
     }
 
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
@@ -336,6 +346,84 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("GETUTCDATE()").NotNull();
             eventTable.AddColumn("description", "varchar(500)").AllowNulls();
             yield return eventTable;
+
+            foreach (var entry in _sagaStorage.Enumerate())
+            {
+                yield return entry.Value.Table;
+            }
         }
+    }
+
+    public SagaStorage<T, TId> SagaStorageFor<T, TId>() where T : Saga
+    {
+        if (_sagaStorage.TryFind(typeof(T), out var raw))
+        {
+            if (raw is SagaStorage<T, TId> sagaStorage)
+            {
+                return sagaStorage;
+            }
+        }
+        
+        var definition = new SagaTableDefinition(typeof(T), null);
+        var storage = new SagaStorage<T, TId>(definition, _settings);
+        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
+        
+        return storage;
+    }
+
+    public Task InsertAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
+    {
+        if (_sagaStorage.TryFind(typeof(T), out var raw))
+        {
+            if (raw is ISagaStorage<T> sagaStorage)
+            {
+                return sagaStorage.InsertAsync(saga, transaction, cancellationToken);
+            }
+        }
+
+        var definition = new SagaTableDefinition(typeof(T), null);
+        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
+        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
+        
+        return storage.InsertAsync(saga, transaction, cancellationToken);
+    }
+
+    public Task UpdateAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
+    {
+        if (_sagaStorage.TryFind(typeof(T), out var raw))
+        {
+            if (raw is ISagaStorage<T> sagaStorage)
+            {
+                return sagaStorage.UpdateAsync(saga, transaction, cancellationToken);
+            }
+        }
+
+        var definition = new SagaTableDefinition(typeof(T), null);
+        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
+        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
+        
+        return storage.UpdateAsync(saga, transaction, cancellationToken);
+    }
+
+    public Task DeleteAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
+    {
+        if (_sagaStorage.TryFind(typeof(T), out var raw))
+        {
+            if (raw is ISagaStorage<T> sagaStorage)
+            {
+                return sagaStorage.DeleteAsync(saga, transaction, cancellationToken);
+            }
+        }
+
+        var definition = new SagaTableDefinition(typeof(T), null);
+        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
+        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
+        
+        return storage.DeleteAsync(saga, transaction, cancellationToken);
+    }
+
+    public Task<T?> LoadAsync<T, TId>(TId id, DbTransaction tx, CancellationToken cancellationToken) where T : Saga
+    {
+        return SagaStorageFor<T, TId>().LoadAsync(id, tx, cancellationToken);
     }
 }

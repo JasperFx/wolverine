@@ -18,8 +18,13 @@ public static class SqlServerConfigurationExtensions
     public static void PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
         string? schema = null)
     {
-        var extension = new SqlServerBackedPersistence();
-        extension.Settings.ConnectionString = connectionString;
+        var extension = new SqlServerBackedPersistence
+        {
+            Settings =
+            {
+                ConnectionString = connectionString
+            }
+        };
 
         if (schema.IsNotEmpty())
         {
@@ -27,8 +32,7 @@ public static class SqlServerConfigurationExtensions
         }
         else
         {
-            schema = "dbo";
-
+            extension.Settings.SchemaName = "dbo";
         }
 
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
@@ -44,8 +48,7 @@ public static class SqlServerConfigurationExtensions
             }
             else
             {
-                schema = "dbo";
-
+                x.Settings.SchemaName = "dbo";
             }
 
             x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();

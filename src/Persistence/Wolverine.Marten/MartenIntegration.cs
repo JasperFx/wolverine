@@ -1,5 +1,8 @@
 using JasperFx.Core.Reflection;
+using Marten;
 using Marten.Events;
+using Marten.Schema;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Persistence.Sagas;
@@ -24,7 +27,7 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
     {
         options.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
 
-        options.CodeGeneration.AddPersistenceStrategy<MartenPersistenceFrameProvider>();
+        options.CodeGeneration.InsertFirstPersistenceStrategy<MartenPersistenceFrameProvider>();
 
         options.CodeGeneration.Sources.Add(new SessionVariableSource());
 
@@ -51,6 +54,21 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
     EventForwardingTransform<T> IEventForwarding.SubscribeToEvent<T>()
     {
         return new EventForwardingTransform<T>(EventRouter);
+    }
+}
+
+internal class SagasShouldUseNumericRevisions : IConfigureMarten
+{
+    public void Configure(IServiceProvider services, StoreOptions options)
+    {
+        options.Policies.ForAllDocuments(mapping =>
+        {
+            if (mapping.DocumentType.CanBeCastTo<Saga>())
+            {
+                mapping.UseNumericRevisions = true;
+                mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(nameof(Saga.Version));
+            }
+        });
     }
 }
 

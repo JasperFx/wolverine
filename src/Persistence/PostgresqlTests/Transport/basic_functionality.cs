@@ -43,7 +43,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "transports");
+                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema:"transports", transportSchema:"transports");
                 opts.ListenToPostgresqlQueue("one");
             }).StartAsync();
 

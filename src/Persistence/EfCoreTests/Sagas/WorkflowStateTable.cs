@@ -12,5 +12,6 @@ internal class WorkflowStateTable<T> : Table
         AddColumn<bool>("three");
         AddColumn<bool>("four");
         AddColumn<string>("Name");
+        AddColumn<int>("version");
     }
 }

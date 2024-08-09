@@ -50,6 +50,7 @@ public class Bug_252_codegen_issue
 
         var table = new Table("OrderSagas");
         table.AddColumn<Guid>("id").AsPrimaryKey();
+        table.AddColumn<int>("version");
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 

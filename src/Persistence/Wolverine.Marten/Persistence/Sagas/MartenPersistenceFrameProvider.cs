@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
+using Marten.Metadata;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
@@ -78,6 +79,11 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
+        if (saga.VariableType.CanBeCastTo<IRevisioned>())
+        {
+            return new UpdateSagaRevisionFrame(saga);
+        }
+        
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Update));
     }
 

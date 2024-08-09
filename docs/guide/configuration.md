@@ -127,7 +127,30 @@ return await Host.CreateDefaultBuilder(args)
 
 As of Wolverine 3.0, you can also use the `HostApplicationBuilder` mechanism as well:
 
-snippet: sample_bootstrapping_with_auto_apply_transactions_for_sql_server
+<!-- snippet: sample_bootstrapping_with_auto_apply_transactions_for_sql_server -->
+<a id='snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("database");
+
+    opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
+    {
+        x.UseSqlServer(connectionString);
+    });
+
+    opts.UseEntityFrameworkCoreTransactions();
+
+    // Add the auto transaction middleware attachment policy
+    opts.Policies.AutoApplyTransactions();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L13-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 And lastly, you can just use `IServiceCollection.AddWolverine()` by itself.
 

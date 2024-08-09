@@ -64,7 +64,19 @@ var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("postgres");
-    opts.UsePostgresqlPersistenceAndTransport(connectionString, "myapp")
+    opts.UsePostgresqlPersistenceAndTransport(
+            connectionString, 
+            
+            // This argument is the database schema for the envelope storage
+            // If separate logical services are targeting the same physical database,
+            // you should use a separate schema name for each logical application
+            // to make basically *everything* run smoother
+            "myapp", 
+            
+            // This schema name is for the actual PostgreSQL queue tables. If using
+            // the PostgreSQL transport between two logical applications, make sure
+            // to use the same transportSchema!
+            transportSchema:"queues")
 
         // Tell Wolverine to build out all necessary queue or scheduled message
         // tables on demand as needed
@@ -94,7 +106,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L12-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L12-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The PostgreSQL transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
@@ -117,7 +129,13 @@ lost if held in memory when the application shuts down unexpectedly.
 If utilizing the PostgreSQL transport with Marten multi-tenancy through separate databases per tenant, the PostgreSQL
 queues will be built an monitored for each tenant database as well as any master database.
 
+## Lightweight Saga Usage <Badge type="tip" text="3.0" />
+
+See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#lightweight-saga-storage) for more information.
+
 ## Integration with Marten
 
 The PostgreSQL message persistence and transport is automatically included with the `AddMarten().IntegrateWithWolverine()`
 configuration syntax.
+
+

@@ -16,7 +16,10 @@ public class DbTransactionFrame<TTransaction, TConnection> : AsyncFrame
     public DbTransactionFrame()
     {
         Transaction = new Variable(typeof(TTransaction), this);
+        RawTransaction = new Variable(typeof(DbTransaction), this);
     }
+
+    public Variable RawTransaction { get; set; }
 
     public bool ShouldFlushOutgoingMessages { get; set; }
 
@@ -26,7 +29,7 @@ public class DbTransactionFrame<TTransaction, TConnection> : AsyncFrame
     {
         writer.Write($"await {_connection!.Usage}.{nameof(DbConnection.OpenAsync)}();");
         writer.Write($"var {Transaction.Usage} = {_connection.Usage}.{nameof(DbConnection.BeginTransaction)}();");
-
+        writer.Write($"var {RawTransaction.Usage} = ({typeof(DbTransaction).FullNameInCode()}){Transaction.Usage};");
 
         if (_context != null && _isUsingPersistence)
         {

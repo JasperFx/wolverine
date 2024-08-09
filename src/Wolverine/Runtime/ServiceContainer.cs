@@ -145,6 +145,11 @@ public class ServiceContainer : IServiceProviderIsService, IServiceContainer
 
     private ServicePlan planFor(ServiceDescriptor descriptor, List<ServiceDescriptor> trail)
     {
+        if (descriptor == null)
+        {
+            throw new ArgumentNullException(nameof(descriptor));
+        }
+        
         if (_plans.TryFind(descriptor, out var plan)) return plan;
 
         var family = findFamily(descriptor.ServiceType);
@@ -178,6 +183,8 @@ public class ServiceContainer : IServiceProviderIsService, IServiceContainer
         }
         
         var descriptor = findDefaultDescriptor(type);
+        if (descriptor == null) return false;
+        
         plan = planFor(descriptor, trail);
         return plan is not InvalidPlan;
     }

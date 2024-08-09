@@ -32,22 +32,22 @@ public class MartenSagaHost : ISagaHost
         return _host;
     }
 
-    public Task<T> LoadState<T>(Guid id) where T : class
+    public Task<T> LoadState<T>(Guid id) where T : Wolverine.Saga
     {
         return _host.DocumentStore().QuerySession().LoadAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(int id) where T : class
+    public Task<T> LoadState<T>(int id) where T : Wolverine.Saga
     {
         return _host.DocumentStore().QuerySession().LoadAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(long id) where T : class
+    public Task<T> LoadState<T>(long id) where T : Wolverine.Saga
     {
         return _host.DocumentStore().QuerySession().LoadAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(string id) where T : class
+    public Task<T> LoadState<T>(string id) where T : Wolverine.Saga
     {
         return _host.DocumentStore().QuerySession().LoadAsync<T>(id);
     }
