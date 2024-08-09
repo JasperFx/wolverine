@@ -93,10 +93,12 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MartenMessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
+        
+        expression.Services.AddSingleton<IConfigureMarten, SagasShouldUseNumericRevisions>();
 
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration
         {
-            TransportSchemaName = transportSchemaName ?? schemaName ?? "wolverine_queues",
+            TransportSchemaName = transportSchemaName ?? "wolverine_queues",
             MessageStorageSchemaName = schemaName ?? "public"
         });
 

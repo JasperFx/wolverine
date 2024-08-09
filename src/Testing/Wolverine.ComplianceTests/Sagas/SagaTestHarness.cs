@@ -6,6 +6,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.ComplianceTests.Sagas;
 
+
 public class SagaTestHarness<T> : IDisposable
     where T : Saga
 {

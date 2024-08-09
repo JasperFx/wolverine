@@ -13,10 +13,10 @@ internal class ResolveSagaFrame : Frame
     {
         _findSagaIdFrame = findSagaIdFrame;
         _loadFrame = loadFrame;
-        var innerSagaId = findSagaIdFrame.Creates.Single();
+        var innerSagaId = findSagaIdFrame.Creates.First();
         SagaId = new Variable(innerSagaId.VariableType, innerSagaId.Usage, this);
 
-        var innerSaga = loadFrame.Creates.Single();
+        var innerSaga = loadFrame.Creates.First();
         Saga = new Variable(innerSaga.VariableType, innerSaga.Usage, this);
     }
 

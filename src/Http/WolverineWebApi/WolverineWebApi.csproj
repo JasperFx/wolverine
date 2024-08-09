@@ -3,7 +3,6 @@
     <ItemGroup>
         <PackageReference Include="FluentValidation" Version="11.3.0" />
         <PackageReference Include="Lamar.Diagnostics" Version="13.0.3" />
-        <PackageReference Include="Marten.AspNetCore" Version="7.12.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
         <PackageReference Include="Shouldly" Version="4.2.1" />

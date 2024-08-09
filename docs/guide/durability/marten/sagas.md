@@ -8,3 +8,8 @@ Marten [identity member](https://martendb.io/documents/identity.html). Remember 
 IoC container.
 
 See the [Saga with Marten sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderSagaSample).
+
+## Optimistic Concurrency <Badge type="tip" text="3.0" />
+
+Marten will automatically apply numeric revisioning to Wolverine `Saga` storage, and will increment
+the `Version` while handling `Saga` commands to use Marten's native optimistic concurrency protection.

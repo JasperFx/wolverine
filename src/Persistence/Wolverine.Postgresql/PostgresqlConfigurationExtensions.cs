@@ -108,7 +108,8 @@ public static class PostgresqlConfigurationExtensions
         });
 
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
-
+        transport.MessageStorageSchemaName = schema ?? "public";
+        
         if (transportSchema.IsNotEmpty())
         {
             transport.TransportSchemaName = transportSchema;

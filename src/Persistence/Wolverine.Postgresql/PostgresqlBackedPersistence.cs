@@ -6,6 +6,7 @@ using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 
 namespace Wolverine.Postgresql;
 
@@ -34,5 +35,7 @@ internal class PostgresqlBackedPersistence : IWolverineExtension
         options.CodeGeneration.Sources.Add(new NpgsqlConnectionSource());
 
         options.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
+        
+        options.Services.AddSingleton<IDatabaseSagaStorage>(s => (IDatabaseSagaStorage)s.GetRequiredService<IMessageStore>());
     }
 }

@@ -53,7 +53,7 @@ public class SagaChain : HandlerChain
 
     public MethodCall[] NotFoundCalls { get; set; } = [];
 
-    internal static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType)
+    public static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType)
     {
         var expectedSagaIdName = $"{sagaType.Name}Id";
 
@@ -75,6 +75,8 @@ public class SagaChain : HandlerChain
         applyCustomizations(rules, container);
 
         var frameProvider = rules.GetPersistenceProviders(this, container);
+        
+        frameProvider.ApplyTransactionSupport(this, container);
 
         NotFoundCalls = findByNames(NotFound);
         StartingCalls = findByNames(Start, Starts, StartOrHandle, StartsOrHandles);
@@ -108,7 +110,7 @@ public class SagaChain : HandlerChain
             : new PullSagaIdFromMessageFrame(MessageType, SagaIdMember);
 
 
-        var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.Single());
+        var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.First());
 
         // Using this one frame to tie everything together
         var resolve = new ResolveSagaFrame(findSagaId, load);

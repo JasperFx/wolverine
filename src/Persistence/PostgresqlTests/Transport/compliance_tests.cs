@@ -18,7 +18,7 @@ public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAs
     {
         await SenderIs(opts =>
         {
-            opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable")
+            opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable", transportSchema:"durable")
                 .AutoProvision().AutoPurgeOnStartup();
 
             opts.ListenToPostgresqlQueue("sender");
@@ -27,7 +27,7 @@ public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAs
 
         await ReceiverIs(opts =>
         {
-            opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable");
+            opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable", transportSchema:"durable");
 
             opts.ListenToPostgresqlQueue("receiver").UseDurableInbox();
         });

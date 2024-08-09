@@ -26,6 +26,23 @@ public abstract class Saga
     {
         _isCompleted = true;
     }
+    
+    /// <summary>
+    /// For saga providers that support this, this is a version of the saga to help enforce optimistic concurrency
+    /// protections. This value is the current version that is stored by saga storage and will
+    /// be incremented upon save
+    /// </summary>
+    public int Version { get; set; }
 }
 
 #endregion
+
+/// <summary>
+/// Optimistic concurrency exception from Wolverine saga operations
+/// </summary>
+public class SagaConcurrencyException : Exception
+{
+    public SagaConcurrencyException(string message) : base(message)
+    {
+    }
+}

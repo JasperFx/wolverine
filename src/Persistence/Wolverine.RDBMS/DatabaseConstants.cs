@@ -7,6 +7,7 @@ public class DatabaseConstants
     public const string Destination = "destination";
     public const string DeliverBy = "deliver_by";
     public const string Body = "body";
+    public const string Version = "version";
     public const string Status = "status";
 
     public const string ExecutionTime = "execution_time";

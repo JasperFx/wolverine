@@ -6,6 +6,7 @@ using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.SqlServer.Persistence;
 
 namespace SqlServerTests.Agents;
@@ -30,7 +31,7 @@ public class node_persistence : NodePersistenceCompliance
         };
 
         var database = new SqlServerMessageStore(settings, new DurabilitySettings(),
-            NullLogger<SqlServerMessageStore>.Instance);
+            NullLogger<SqlServerMessageStore>.Instance, Array.Empty<SagaTableDefinition>());
 
         await database.Admin.MigrateAsync();
 

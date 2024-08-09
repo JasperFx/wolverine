@@ -1,11 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-
+    <PropertyGroup>
+        <TargetFrameworks>net8.0</TargetFrameworks>
+        
+    </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Marten.AspNetCore" Version="7.12.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\Http\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
         <ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
         <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />

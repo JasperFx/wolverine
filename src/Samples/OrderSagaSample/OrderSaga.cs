@@ -35,6 +35,8 @@ public class Order : Saga
 
     #endregion
 
+    #region sample_using_saga_mark_completed
+
     // Apply the CompleteOrder to the saga
     public void Handle(CompleteOrder complete, ILogger<Order> logger)
     {
@@ -43,6 +45,10 @@ public class Order : Saga
         // That's it, we're done. Delete the saga state after the message is done.
         MarkCompleted();
     }
+
+    #endregion
+
+    #region sample_handling_a_timeout_message
 
     // Delete this order if it has not already been deleted to enforce a "timeout"
     // condition
@@ -53,6 +59,17 @@ public class Order : Saga
         // That's it, we're done. Delete the saga state after the message is done.
         MarkCompleted();
     }
+
+    #endregion
+
+    #region sample_using_not_found
+
+    public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
+    {
+        logger.LogInformation("Tried to complete order {Id}, but it cannot be found", complete.Id);
+    }
+
+    #endregion
 }
 
 #endregion

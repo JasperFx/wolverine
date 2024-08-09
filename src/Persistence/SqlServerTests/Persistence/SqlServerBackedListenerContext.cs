@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer.Persistence;
@@ -28,7 +29,7 @@ public class SqlServerBackedListenerContext : SqlServerContext
 
         thePersistence =
             new SqlServerMessageStore(new DatabaseSettings{ConnectionString = Servers.SqlServerConnectionString}, theSettings,
-                new NullLogger<SqlServerMessageStore>());
+                new NullLogger<SqlServerMessageStore>(), Array.Empty<SagaTableDefinition>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Storage.Returns(thePersistence);

@@ -12,6 +12,7 @@ using Weasel.Core;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 
@@ -33,13 +34,13 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
         await new SqlServerMessageStore(
                 new DatabaseSettings()
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = ReceiverSchemaName },
-                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
+                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>(), Array.Empty<SagaTableDefinition>())
             .RebuildAsync();
 
         await new SqlServerMessageStore(
 
                     new DatabaseSettings(){ ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
-                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
+                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>(), Array.Empty<SagaTableDefinition>())
             .RebuildAsync();
 
         await buildTraceDocTable();
