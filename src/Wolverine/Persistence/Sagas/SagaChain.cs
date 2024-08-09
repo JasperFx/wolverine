@@ -108,7 +108,7 @@ public class SagaChain : HandlerChain
             : new PullSagaIdFromMessageFrame(MessageType, SagaIdMember);
 
 
-        var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.Single());
+        var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.First());
 
         // Using this one frame to tie everything together
         var resolve = new ResolveSagaFrame(findSagaId, load);
