@@ -90,7 +90,8 @@ internal class ParsedNullableQueryStringValue : SyncFrame
         }
         else if (_innerTypeFromNullable.IsBoolean())
         {
-            writer.Write($"{_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
+            writer.Write(
+                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
         }
         else
         {
