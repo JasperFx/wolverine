@@ -264,6 +264,11 @@ public partial class Envelope
     public string? DeduplicationId { get; set; }
 
     /// <summary>
+    /// Key partition for Kafka
+    /// </summary>
+    public string? Key { get; set; }
+
+    /// <summary>
     ///     Schedule this envelope to be sent or executed
     ///     after a delay
     /// </summary>
