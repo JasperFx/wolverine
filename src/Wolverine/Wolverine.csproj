@@ -5,6 +5,7 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="FastExpressionCompiler" Version="4.1.0" />
+        <PackageReference Include="NewId" Version="4.0.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="Oakton" Version="6.1.0" />
         <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />

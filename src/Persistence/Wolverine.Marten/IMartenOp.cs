@@ -1,6 +1,6 @@
 ﻿using JasperFx.Core;
 using Marten;
-using CombGuidIdGeneration = Marten.Schema.Identity.CombGuidIdGeneration;
+using MassTransit;
 
 namespace Wolverine.Marten;
 
@@ -111,7 +111,7 @@ public static class MartenOps
     /// <returns></returns>
     public static IStartStream StartStream<T>(params object[] events) where T : class
     {
-        var streamId = CombGuidIdGeneration.NewGuid();
+        var streamId = NewId.NextSequentialGuid();
         return new StartStream<T>(streamId, events);
     }
 

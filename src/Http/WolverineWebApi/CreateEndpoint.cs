@@ -1,4 +1,4 @@
-﻿using Marten.Schema.Identity;
+﻿using MassTransit;
 using Wolverine.Http;
 using Wolverine.Marten;
 
@@ -9,7 +9,7 @@ public class CreateEndpoint
     [WolverinePost("/issue")]
     public (IssueCreated, InsertDoc<Issue>) Create(CreateIssue command)
     {
-        var id = CombGuidIdGeneration.NewGuid();
+        var id = NewId.NextSequentialGuid();
         var issue = new Issue
         {
             Id = id, Title = command.Title
