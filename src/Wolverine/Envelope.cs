@@ -1,6 +1,6 @@
-﻿using System.Runtime.Serialization;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using MassTransit;
 using Wolverine.Attributes;
 using Wolverine.Util;
 
@@ -228,7 +228,7 @@ public partial class Envelope
     /// <summary>
     ///     Specific message id for this envelope
     /// </summary>
-    public Guid Id { get; set; } = CombGuidIdGeneration.NewGuid();
+    public Guid Id { get; set; } = NewId.NextSequentialGuid();
 
     /// <summary>
     ///     If specified, the message type alias for the reply message that is requested for this message

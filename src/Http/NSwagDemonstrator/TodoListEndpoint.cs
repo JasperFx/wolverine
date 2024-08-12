@@ -1,4 +1,4 @@
-using JasperFx.Core;
+using MassTransit;
 using Wolverine.Http;
 using Wolverine.Marten;
 
@@ -18,7 +18,7 @@ public static class TodoListEndpoint
         HttpRequest req
     )
     {
-        var listId = CombGuidIdGeneration.NewGuid();
+        var listId = NewId.NextSequentialGuid();
         var result = new TodoListCreated(listId, request.Title);
         var startStream = MartenOps.StartStream<TodoList>(result);
         var response = Results.Created("api/todo-lists/" + listId, result);

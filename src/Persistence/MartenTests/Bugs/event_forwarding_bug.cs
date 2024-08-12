@@ -1,13 +1,11 @@
 using IntegrationTests;
-using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
+using MassTransit;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 
 namespace MartenTests.Bugs;
@@ -80,7 +78,7 @@ public static class CreateShoppingListHandler
 {
     public static string Handle(CreateShoppingList _, IDocumentSession session)
     {
-        var shoppingListId = CombGuidIdGeneration.NewGuid().ToString();
+        var shoppingListId = NewId.NextSequentialGuid().ToString();
         session.Events.StartStream<ShoppingList>(shoppingListId, new ShoppingListCreated(shoppingListId));
         return shoppingListId;
     }
