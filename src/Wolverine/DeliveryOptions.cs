@@ -130,6 +130,11 @@ public class DeliveryOptions
         {
             envelope.DeduplicationId = DeduplicationId;
         }
+
+        if (Key.IsNotEmpty())
+        {
+            envelope.Key = Key;
+        }
     }
 
     /// <summary>
@@ -142,6 +147,10 @@ public class DeliveryOptions
     /// MessageDeduplicationId for Amazon SQS FIFO Queue
     /// </summary>
     public string? DeduplicationId { get; set; }
+    /// <summary>
+    /// Message key for kafka
+    /// </summary>
+    public string? Key { get; set; }
 
     /// <summary>
     ///     Add a header key/value pair to the outgoing message
