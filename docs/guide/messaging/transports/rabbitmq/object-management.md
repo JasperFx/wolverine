@@ -153,14 +153,15 @@ var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 // Declare new Exchanges, Queues, and Bindings at runtime
 runtime.ModifyRabbitMqObjects(o =>
 {
+    var queue = o.DeclareQueue(queueName);
     var exchange = o.DeclareExchange(exchangeName);
-    exchange.BindQueue(queueName, bindingKey);
+    queue.BindExchange(exchange.ExchangeName, bindingKey);
 });
 
 // Unbind a queue from an exchange
 runtime.UnBindRabbitMqQueue(queueName, exchangeName, bindingKey);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/dynamic_object_creation_smoke_tests.cs#L33-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_dynamic_creation_of_rabbit_mq_objects' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/dynamic_object_creation_smoke_tests.cs#L33-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_dynamic_creation_of_rabbit_mq_objects' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Inside of Wolverine Extensions

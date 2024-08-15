@@ -374,6 +374,6 @@ public object Handle(PingMessage message)
     return Respond.ToSender(pong);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/TestingSupport/Compliance/Messages.cs#L50-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_respond_to_sender' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/Compliance/Messages.cs#L50-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_respond_to_sender' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

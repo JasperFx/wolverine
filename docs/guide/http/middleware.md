@@ -49,7 +49,7 @@ Which is registered like this (or as described in [`Registering Middleware by Me
 opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L169-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L176-L179' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point to notice there is that `IResult` is a "return value" of the middleware. In the case of an HTTP endpoint,
@@ -152,7 +152,7 @@ And a matching `IHttpPolicy` to apply that middleware to any HTTP endpoint where
 ```cs
 internal class RequestIdPolicy : IHttpPolicy
 {
-    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains)
         {

@@ -408,7 +408,7 @@ using var host = await Host.CreateDefaultBuilder()
                 cb.FailurePercentageThreshold = 10;
 
                 // Optional allow list
-                cb.Include<SqlException>(e => e.Message.Contains("Failure"));
+                cb.Include<NpgsqlException>(e => e.Message.Contains("Failure"));
                 cb.Include<SocketException>();
 
                 // Optional ignore list
@@ -416,7 +416,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/CircuitBreakingTests/Samples.cs#L15-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_circuit_breaker_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/CircuitBreakingTests/Samples.cs#L16-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_circuit_breaker_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the exception includes and excludes are optional. If there are no explicit `Include()`

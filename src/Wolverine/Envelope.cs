@@ -266,7 +266,7 @@ public partial class Envelope
     /// <summary>
     /// Key partition for Kafka
     /// </summary>
-    public string? Key { get; set; }
+    public string? PartitionKey { get; set; }
 
     /// <summary>
     ///     Schedule this envelope to be sent or executed

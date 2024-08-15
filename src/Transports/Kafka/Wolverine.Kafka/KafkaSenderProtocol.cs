@@ -23,11 +23,12 @@ public class KafkaSenderProtocol : ISenderProtocol
             // TODO -- separate try/catch here!
 
             var message = _topic.Mapper.CreateMessage(envelope);
-            var task = producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
-            tasks.Add(task);
+            await producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
+            // var task = producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
+            // tasks.Add(task);
         }
 
-        await Task.WhenAll(tasks);
+        // await Task.WhenAll(tasks);
 
         await callback.MarkSuccessfulAsync(batch);
     }

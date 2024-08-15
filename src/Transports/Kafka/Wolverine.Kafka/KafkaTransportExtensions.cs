@@ -112,7 +112,7 @@ public static class KafkaTransportExtensions
     {
         var envelope = new Envelope
         {
-            Key = message.Key,
+            PartitionKey = message.Key,
             Data = Encoding.Default.GetBytes(message.Value),
             TopicName = topicName
         };
@@ -128,7 +128,7 @@ public static class KafkaTransportExtensions
     {
         var message = new Message<string, string>
         {
-            Key = !string.IsNullOrEmpty(envelope.Key) ? envelope.Key : envelope.Id.ToString(),
+            Key = !string.IsNullOrEmpty(envelope.PartitionKey) ? envelope.PartitionKey : envelope.Id.ToString(),
             Value = Encoding.Default.GetString(envelope.Data),
             Headers = new Headers()
         };

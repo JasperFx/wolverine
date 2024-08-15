@@ -281,7 +281,7 @@ To do so, you'd need to write an implementation of the `IParameterStrategy` inte
 /// <param name="variable">The Variable referring to the input of this parameter</param>
 public interface IParameterStrategy
 {
-    bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable);
+    bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable);
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/IParameterStrategy.cs#L7-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iparameterstrategy' title='Start of snippet'>anchor</a></sup>
@@ -295,7 +295,7 @@ system time. To do that, we can write this class:
 ```cs
 public class NowParameterStrategy : IParameterStrategy
 {
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         if (parameter.Name == "now" && parameter.ParameterType == typeof(DateTimeOffset))
         {
@@ -321,7 +321,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L188-L193' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L195-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:

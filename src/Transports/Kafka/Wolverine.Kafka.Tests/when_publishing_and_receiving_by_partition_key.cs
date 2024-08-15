@@ -3,12 +3,22 @@ using NSubstitute;
 using NSubstitute.ReceivedExtensions;
 using Oakton.Resources;
 using Shouldly;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Tracking;
 
 namespace Wolverine.Kafka.Tests;
 
-public class PublishAndReceiveWithKey : IAsyncLifetime
+public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
 {
+    #region sample_publish_to_kafka_by_partition_key
+
+    public static ValueTask publish_by_partition_key(IMessageBus bus)
+    {
+        return bus.PublishAsync(new Message1(), new DeliveryOptions { PartitionKey = "one" });
+    }
+
+    #endregion
+    
     private IHost _sender;
     private IHost _receiver;
     public async Task InitializeAsync()
@@ -46,7 +56,7 @@ public class PublishAndReceiveWithKey : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("tortoise"), new DeliveryOptions()
             {
-                Key = "key1"
+                PartitionKey = "key1"
             });
         session.Received.SingleMessage<ColorMessage>()
             .Color.ShouldBe("tortoise");
@@ -59,9 +69,9 @@ public class PublishAndReceiveWithKey : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("tortoise"), new DeliveryOptions()
             {
-                Key = "key1"
+                PartitionKey = "key1"
             });
-        session.Received.SingleEnvelope<ColorMessage>().Key.ShouldBe("key1");
+        session.Received.SingleEnvelope<ColorMessage>().PartitionKey.ShouldBe("key1");
     }
 
     public async Task DisposeAsync()
