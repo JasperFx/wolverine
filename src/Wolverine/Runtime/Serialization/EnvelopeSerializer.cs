@@ -98,6 +98,10 @@ public static class EnvelopeSerializer
                 case EnvelopeConstants.TopicNameKey:
                     env.TopicName = value;
                     break;
+                
+                case EnvelopeConstants.PartitionKey:
+                    env.PartitionKey = value;
+                    break;
 
                 default:
                     env.Headers.Add(key, value);
@@ -237,6 +241,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.AckRequestedKey, env.AckRequested);
         writer.WriteProp(ref count, EnvelopeConstants.IsResponseKey, env.IsResponse);
         writer.WriteProp(ref count, EnvelopeConstants.GroupIdKey, env.GroupId);
+        writer.WriteProp(ref count, EnvelopeConstants.PartitionKey, env.PartitionKey);
 
         if (env.ScheduledTime.HasValue)
         {

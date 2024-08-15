@@ -16,6 +16,16 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         OutboundAddress = new Uri("kafka://topic/" + receiverTopic);
 
+
+        await ReceiverIs(opts =>
+        {
+            opts.UseKafka("localhost:29092");
+
+            opts.ListenToKafkaTopic(receiverTopic).Named("receiver").BufferedInMemory();
+
+            opts.Services.AddResourceSetupOnStartup();
+        });
+        
         await SenderIs(opts =>
         {
             opts.UseKafka("localhost:29092").ConfigureConsumers(x => x.EnableAutoCommit = false);
@@ -23,15 +33,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
             opts.ListenToKafkaTopic(senderTopic);
 
             opts.PublishAllMessages().ToKafkaTopic(receiverTopic).BufferedInMemory();
-
-            opts.Services.AddResourceSetupOnStartup();
-        });
-
-        await ReceiverIs(opts =>
-        {
-            opts.UseKafka("localhost:29092");
-
-            opts.ListenToKafkaTopic(receiverTopic).Named("receiver").BufferedInMemory();
 
             opts.Services.AddResourceSetupOnStartup();
         });

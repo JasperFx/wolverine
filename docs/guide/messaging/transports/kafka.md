@@ -68,3 +68,19 @@ using var host = await Host.CreateDefaultBuilder()
 
 The various `Configure*****()` methods provide quick access to the full API of the Confluent Kafka library for security
 and fine tuning the Kafka topic behavior. 
+
+## Publishing by Partition Key 
+
+To publish messages with Kafka using a designated [partition key](https://developer.confluent.io/courses/apache-kafka/partitions/), use the
+`DeliveryOptions` to designate a partition like so:
+
+<!-- snippet: sample_publish_to_kafka_by_partition_key -->
+<a id='snippet-sample_publish_to_kafka_by_partition_key'></a>
+```cs
+public static ValueTask publish_by_partition_key(IMessageBus bus)
+{
+    return bus.PublishAsync(new Message1(), new DeliveryOptions { PartitionKey = "one" });
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L13-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

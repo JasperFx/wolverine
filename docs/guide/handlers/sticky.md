@@ -23,7 +23,7 @@ message as an input.
 <!-- snippet: sample_StickyMessage -->
 <a id='snippet-sample_stickymessage'></a>
 ```cs
-public record StickyMessage;
+public class StickyMessage;
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L172-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stickymessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
