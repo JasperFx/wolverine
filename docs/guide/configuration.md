@@ -1,11 +1,10 @@
 # Configuration
 
-::: warning
-Wolverine requires the usage of the [Lamar](https://jasperfx.github.io/lamar) IoC container, and the call
-to `UseWolverine()` quietly replaces the built in .NET container with Lamar.
+::: info
+As of 3.0,  Wolverine **does not require the usage of the [Lamar](https://jasperfx.github.io/lamar) IoC container**, and will no longer replace the built in .NET container with Lamar.
 
-Lamar was originally written specifically to support Wolverine's runtime model as well as to be a higher performance
-replacement for the older StructureMap tool.
+Wolverine 3.0 *is* tested with both the built in `ServiceProvider` and Lamar. It's theoretically possible to use other
+IoC containers now as long as they conform to the .NET conforming container, but this isn't tested by the Wolverine team.
 :::
 
 Wolverine is configured with the `IHostBuilder.UseWolverine()` extension methods, with the actual configuration
@@ -81,7 +80,7 @@ return await app.RunOaktonCommands(args);
 
 :::tip
 The `WolverineOptions.Services` property can be used to add additional IoC service registrations with
-either the standard .NET `IServiceCollection` model or the [Lamar ServiceRegistry](https://jasperfx.github.io/lamar/guide/ioc/registration/registry-dsl.html) syntax.
+either the standard .NET `IServiceCollection` model syntax.
 :::
 
 For "headless" console applications with no user interface or HTTP service endpoints, the bootstrapping
@@ -126,3 +125,11 @@ return await Host.CreateDefaultBuilder(args)
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+As of Wolverine 3.0, you can also use the `HostApplicationBuilder` mechanism as well:
+
+snippet: sample_bootstrapping_with_auto_apply_transactions_for_sql_server
+
+And lastly, you can just use `IServiceCollection.AddWolverine()` by itself.
+
+

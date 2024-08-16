@@ -1,5 +1,7 @@
 ﻿using JasperFx.Core.Reflection;
+using Lamar.Microsoft.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Oakton.Resources;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
@@ -13,11 +15,14 @@ public class DefaultApp : IDisposable
 {
     public DefaultApp()
     {
-        Host = WolverineHost.For(x =>
-        {
-            x.IncludeType<MessageConsumer>();
-            x.IncludeType<InvokedMessageHandler>();
-        });
+        Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .UseLamar()
+            .UseWolverine(opts =>
+            {
+                opts.IncludeType<MessageConsumer>();
+                opts.IncludeType<InvokedMessageHandler>();
+            })
+            .UseResourceSetupOnStartup(StartupAction.ResetState).Start();
     }
 
     public IHost Host { get; private set; }

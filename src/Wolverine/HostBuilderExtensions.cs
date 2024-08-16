@@ -100,7 +100,7 @@ public static class HostBuilderExtensions
                 "IHostBuilder.UseWolverine() can only be called once per service collection");
         }
 
-        services.AddSingleton<IServiceCollection>(services);
+        services.AddSingleton(services);
             
         services.AddSingleton<WolverineSupplementalCodeFiles>();
         services.AddSingleton<ICodeFileCollection>(x => x.GetRequiredService<WolverineSupplementalCodeFiles>());
