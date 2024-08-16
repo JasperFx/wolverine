@@ -31,10 +31,7 @@ public class Bug_1004_allow_nullable_bools
             opts.Discovery.DisableConventionalDiscovery();
             opts.ApplicationAssembly = GetType().Assembly;
         });
-
-        builder.Services.AddWolverineHttp();
-
-        builder.Services.AddWolverineHttp();
+        
         builder.Services.AddControllers();
 
         // This is using Alba, which uses WebApplicationFactory under the covers

@@ -3,7 +3,7 @@ using NSubstitute;
 using NSubstitute.ReceivedExtensions;
 using Oakton.Resources;
 using Shouldly;
-using Wolverine.ComplianceTests.Compliance;
+using TestingSupport.Compliance;
 using Wolverine.Tracking;
 
 namespace Wolverine.Kafka.Tests;
