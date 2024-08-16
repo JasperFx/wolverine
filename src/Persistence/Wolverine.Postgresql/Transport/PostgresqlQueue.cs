@@ -60,6 +60,11 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
+        if (Parent.AutoProvision)
+        {
+            await SetupAsync(runtime.LoggerFactory.CreateLogger<PostgresqlQueue>());
+        }
+        
         if (Parent.Databases != null)
         {
             var mtListener = new MultiTenantedQueueListener(
