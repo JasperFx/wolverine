@@ -84,8 +84,7 @@ public static class PostgresqlConfigurationExtensions
         }
         else
         {
-            schema = "dbo";
-
+            schema = "public";
         }
 
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
@@ -101,7 +100,7 @@ public static class PostgresqlConfigurationExtensions
             }
             else
             {
-                schema = "dbo";
+                schema = "public";
 
             }
 
@@ -115,6 +114,7 @@ public static class PostgresqlConfigurationExtensions
             transport.TransportSchemaName = schema;
             transport.MessageStorageSchemaName = schema;
         }
+        
         if (transportSchema.IsNotEmpty())
         {
             transport.TransportSchemaName = transportSchema;
