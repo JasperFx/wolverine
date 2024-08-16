@@ -77,7 +77,7 @@ public partial class Envelope
 
     internal ISendingAgent? Sender { get; set; }
 
-    public IListener? Listener { get; private set; }
+    public IListener? Listener { get; internal set; }
     public bool IsResponse { get; set; }
     public Exception? Failure { get; set; }
 

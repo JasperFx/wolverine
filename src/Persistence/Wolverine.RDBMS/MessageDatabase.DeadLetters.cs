@@ -58,12 +58,12 @@ public abstract partial class MessageDatabase<T>
 
         if (queryParameters.From.HasValue)
         {
-            command = command.With("from", queryParameters.From.Value);
+            command = command.With("from", queryParameters.From.Value.ToUniversalTime());
         }
 
         if (queryParameters.Until.HasValue)
         {
-            command = command.With("until", queryParameters.Until.Value);
+            command = command.With("until", queryParameters.Until.Value.ToUniversalTime());
         }
 
         if (queryParameters.StartId.HasValue)

@@ -104,7 +104,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }, _logger,
             _settings.Cancellation);
 
-        _receivingOne = new RetryBlock<Envelope>((e, _) => deferOneAsync(e), _logger, _settings.Cancellation);
+        _receivingOne = new RetryBlock<Envelope>((e, _) => receiveOneAsync(e), _logger, _settings.Cancellation);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
@@ -141,22 +141,27 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         return new ValueTask(_markAsHandled.PostAsync(envelope));
     }
 
-    public ValueTask DeferAsync(Envelope envelope)
+    public async ValueTask DeferAsync(Envelope envelope)
     {
-        if (_latched && !envelope.IsFromLocalDurableQueue())
-        {
-            return new ValueTask(executeWithRetriesAsync(() => deferOneAsync(envelope)));
-        }
-
         // GH-826, the attempts are already incremented from the executor
         if (!envelope.IsFromLocalDurableQueue())
         {
             envelope.Attempts++;
         }
 
-        Enqueue(envelope);
+        await _incrementAttempts.PostAsync(envelope);
+        
+        if (_latched)
+        {
+            if (envelope.Listener != null)
+            {
+                await _deferBlock.PostAsync(envelope);
+            }
+            
+            return;
+        }
 
-        return new ValueTask(_incrementAttempts.PostAsync(envelope));
+        Enqueue(envelope);
     }
 
     public int QueueCount => _receiver.InputCount;
@@ -186,15 +191,19 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new ArgumentNullException(nameof(envelope));
         }
 
-        if (_latched)
+        if (_latched && !envelope.IsFromLocalDurableQueue())
         {
-            await executeWithRetriesAsync(() => deferOneAsync(envelope));
+            await _deferBlock.PostAsync(envelope);
             return;
         }
 
         if (envelope.IsExpired())
         {
-            await _completeBlock.PostAsync(envelope);
+            if (envelope.Listener != null)
+            {
+                await _completeBlock.PostAsync(envelope);
+            }
+            
             return;
         }
 
@@ -258,16 +267,44 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         return _scheduleExecution.PostAsync(envelope);
     }
-
-    private async Task deferOneAsync(Envelope envelope)
+    
+    private async Task receiveOneAsync(Envelope envelope)
     {
-        if (_latched && envelope.Listener != null)
+        if (_latched)
         {
-            await _deferBlock.PostAsync(envelope);
+            if (!envelope.IsFromLocalDurableQueue())
+            {
+                // Persist once as owner id = 0, then get out.
+                await executeWithRetriesAsync(async () =>
+                {
+                    envelope.OwnerId = TransportConstants.AnyNode;
+                    try
+                    {
+                        await _inbox.StoreIncomingAsync(envelope);
+                    }
+                    catch (DuplicateIncomingEnvelopeException)
+                    {
+                        // Just get out
+                    }
+                });
+            }
+
+            if (envelope.Listener != null)
+            {
+                try
+                {
+                    await envelope.Listener.DeferAsync(envelope);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error trying to defer message {MessageId} from {Listener}", envelope.Id, Uri);
+                }
+            }
+
             return;
         }
 
-        if (_shouldPersistBeforeProcessing)
+        if (_shouldPersistBeforeProcessing && !envelope.IsFromLocalDurableQueue())
         {
             try
             {
@@ -278,7 +315,18 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             {
                 _logger.LogError(e, "Duplicate incoming envelope detected");
 
-                await _completeBlock.PostAsync(envelope);
+                if (envelope.Listener != null)
+                {
+                    try
+                    {
+                        await envelope.Listener.CompleteAsync(envelope);
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}", envelope.Id, Uri);
+                    }
+                }
+
                 return;
             }
         }
@@ -290,7 +338,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         _logger.IncomingReceived(envelope, Uri);
 
-        await _completeBlock.PostAsync(envelope);
+        if (envelope.Listener != null)
+        {
+            await _completeBlock.PostAsync(envelope);
+        }
     }
 
     private async Task executeWithRetriesAsync(Func<Task> action)
