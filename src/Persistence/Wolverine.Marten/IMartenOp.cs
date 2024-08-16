@@ -111,7 +111,7 @@ public static class MartenOps
     /// <returns></returns>
     public static IStartStream StartStream<T>(params object[] events) where T : class
     {
-        var streamId = NewId.NextSequentialGuid();
+        var streamId = CombGuidIdGeneration.NewGuid();
         return new StartStream<T>(streamId, events);
     }
 
