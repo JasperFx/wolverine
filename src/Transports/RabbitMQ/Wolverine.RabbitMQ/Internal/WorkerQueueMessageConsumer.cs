@@ -10,13 +10,13 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     private readonly CancellationToken _cancellation;
     private readonly RabbitMqListener _listener;
     private readonly ILogger _logger;
-    private readonly IEnvelopeMapper<ReadOnlyBasicProperties, IBasicProperties> _mapper;
+    private readonly IRabbitMqEnvelopeMapper _mapper;
     private readonly IReceiver _workerQueue;
     private bool _latched;
 
     public WorkerQueueMessageConsumer(IChannel channel, IReceiver workerQueue, ILogger logger,
         RabbitMqListener listener,
-        IEnvelopeMapper<ReadOnlyBasicProperties, IBasicProperties> mapper, Uri address, CancellationToken cancellation) : base(channel)
+        IRabbitMqEnvelopeMapper mapper, Uri address, CancellationToken cancellation) : base(channel)
     {
         _workerQueue = workerQueue;
         _logger = logger;
@@ -31,14 +31,14 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         _latched = true;
     }
 
-    public override Task HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered, string exchange, string routingKey,
-        ReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body)
+    public override Task HandleBasicDeliverAsync(string consumerTag, ulong deliveryTag, bool redelivered, string exchange,
+        string routingKey, IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body)
     {
         return HandleBasicDeliverImpl(consumerTag, deliveryTag, redelivered, exchange, routingKey, properties, body);
     }
     
     public async Task HandleBasicDeliverImpl(string consumerTag, ulong deliveryTag, bool redelivered, string exchange, string routingKey,
-        ReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body)
+        IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body)
     {
         if (_latched || _cancellation.IsCancellationRequested)
         {

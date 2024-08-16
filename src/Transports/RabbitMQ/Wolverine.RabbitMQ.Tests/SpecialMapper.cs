@@ -29,7 +29,7 @@ public class SpecialMapper : IRabbitMqEnvelopeMapper
         }
     }
 
-    public void MapIncomingToEnvelope(Envelope envelope, ReadOnlyBasicProperties incoming)
+    public void MapIncomingToEnvelope(Envelope envelope, IReadOnlyBasicProperties incoming)
     {
         envelope.CorrelationId = incoming.CorrelationId;
         envelope.ContentType = "application/json";

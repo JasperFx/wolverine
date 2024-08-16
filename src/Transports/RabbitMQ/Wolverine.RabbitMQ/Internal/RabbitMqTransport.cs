@@ -48,7 +48,6 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     private void configureDefaults(ConnectionFactory factory)
     {
         factory.AutomaticRecoveryEnabled = true;
-        factory.DispatchConsumersAsync = true;
         factory.ClientProvidedName ??= "Wolverine";
     }
 

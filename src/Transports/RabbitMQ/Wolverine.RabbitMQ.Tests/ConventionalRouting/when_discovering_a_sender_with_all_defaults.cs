@@ -14,8 +14,9 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
     private readonly MessageRoute theRoute;
     public when_discovering_a_sender_with_all_defaults()
     {
+        DisableListenerDiscovery = true;
         ConfigureConventions(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly));
-        theRoute = PublishingRoutesFor<PublishedMessage>().Single() as MessageRoute;
+        theRoute = PublishingRoutesFor<ConventionallyRoutedMessage>().Single() as MessageRoute;
     }
 
     [Fact]
@@ -28,7 +29,7 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
     public void routed_to_rabbit_mq_exchange()
     {
         var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
-        endpoint.ExchangeName.ShouldBe(typeof(PublishedMessage).ToMessageTypeName());
+        endpoint.ExchangeName.ShouldBe(typeof(ConventionallyRoutedMessage).ToMessageTypeName());
     }
 
     [Fact]
@@ -42,7 +43,7 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
     public async Task has_declared_exchange()
     {
         // The rabbit object construction is lazy, so force it to happen
-        await new MessageBus(theRuntime).SendAsync(new PublishedMessage());
+        await new MessageBus(theRuntime).SendAsync(new ConventionallyRoutedMessage());
 
         var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
         theTransport.Exchanges.Contains(endpoint.ExchangeName).ShouldBeTrue();

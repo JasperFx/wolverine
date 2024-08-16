@@ -14,10 +14,32 @@ public class end_to_end_with_conventional_routing_custom_exchange : IDisposable
 
     public end_to_end_with_conventional_routing_custom_exchange()
     {
+        _receiver = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().UseConventionalRouting(conventions =>
+                {
+                    conventions.ExchangeNameForSending(type => type.Name + "_headers");
+                    conventions.IncludeTypes(x => x == typeof(HeadersMessage));
+                    conventions.ConfigureListeners((x, c) =>
+                    {
+                        if (c.MessageType == typeof(HeadersMessage))
+                        {
+                            x.BindToExchange<HeadersMessage>(ExchangeType.Headers, arguments: new Dictionary<string, object>()
+                            {
+                                {"tenant-id", "tenant-id"}
+                            });
+                        }
+                    });
+                })
+                .AutoProvision().AutoPurgeOnStartup();
+            opts.ServiceName = "Receiver";
+        });
+        
         _sender = WolverineHost.For(opts =>
         {
             opts.UseRabbitMq().UseConventionalRouting(conventions =>
                 {
+                    conventions.ExchangeNameForSending(type => type.Name + "_headers");
                     conventions.IncludeTypes(x => x == typeof(HeadersMessage));
                     conventions.ConfigureSending((x, c) =>
                     {
@@ -32,25 +54,7 @@ public class end_to_end_with_conventional_routing_custom_exchange : IDisposable
             opts.ServiceName = "Sender";
         });
 
-        _receiver = WolverineHost.For(opts =>
-        {
-            opts.UseRabbitMq().UseConventionalRouting(conventions =>
-            {
-                conventions.IncludeTypes(x => x == typeof(HeadersMessage));
-                conventions.ConfigureListeners((x, c) =>
-                {
-                    if (c.MessageType == typeof(HeadersMessage))
-                    {
-                        x.BindToExchange<HeadersMessage>(ExchangeType.Headers, arguments: new Dictionary<string, object>()
-                        {
-                            {"tenant-id", "tenant-id"}
-                        });
-                    }
-                });
-            })
-                .AutoProvision().AutoPurgeOnStartup();
-            opts.ServiceName = "Receiver";
-        });
+
     }
 
     public void Dispose()

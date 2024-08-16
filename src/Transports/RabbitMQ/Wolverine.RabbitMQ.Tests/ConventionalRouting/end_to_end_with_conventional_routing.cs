@@ -39,11 +39,11 @@ public class end_to_end_with_conventional_routing : IDisposable
         var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver)
             .IncludeExternalTransports()
-            .SendMessageAndWaitAsync(new RoutedMessage());
+            .SendMessageAndWaitAsync(new ConventionallyRoutedMessage());
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
+            .Where(x => x.Envelope.Message?.GetType() == typeof(ConventionallyRoutedMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received
