@@ -35,7 +35,10 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     [Fact]
     public void exclude_types()
     {
-        ConfigureConventions(c => { c.ExcludeTypes(t => t == typeof(PublishedMessage)); });
+        ConfigureConventions(c =>
+        {
+            c.ExcludeTypes(t => t == typeof(PublishedMessage) || t == typeof(HeadersMessage));
+        });
 
         AssertNoRoutes<PublishedMessage>();
 
@@ -85,10 +88,10 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     {
         ConfigureConventions(c =>
         {
-            c.IncludeTypes(t => t == typeof(RoutedMessage));
+            c.IncludeTypes(t => t == typeof(ConventionallyRoutedMessage));
             c.QueueNameForListener(t =>
             {
-                if (t == typeof(RoutedMessage))
+                if (t == typeof(ConventionallyRoutedMessage))
                 {
                     return null; // should not be routed
                 }
@@ -110,7 +113,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     {
         ConfigureConventions(c =>
         {
-            c.IncludeTypes(t => t == typeof(RoutedMessage));
+            c.IncludeTypes(t => t == typeof(ConventionallyRoutedMessage));
             c.ConfigureListeners((x, _) => { x.ListenerCount(6); });
         });
 
