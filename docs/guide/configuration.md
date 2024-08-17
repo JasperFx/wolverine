@@ -106,17 +106,16 @@ return await Host.CreateDefaultBuilder(args)
         opts.PublishMessage<RabbitMessage2>().ToRabbitQueue(MessagingConstants.Subscriber2Queue);
 
         // Add Open Telemetry tracing
-        opts.Services.AddOpenTelemetryTracing(builder =>
-        {
-            builder
-                .SetResourceBuilder(ResourceBuilder
-                    .CreateDefault()
-                    .AddService("Subscriber1"))
-                .AddJaegerExporter()
-
-                // Add Wolverine as a source
-                .AddSource("Wolverine");
-        });
+        opts.Services.AddOpenTelemetry()
+            .ConfigureResource(resources => resources.AddService("Subscriber1")) // <-- sets service name
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddOtlpExporter() // <-- Add otlp exporter that by default outputs to the Jaeger default port
+                    
+                    // Add Wolverine as a source
+                    .AddSource("Wolverine");
+            });
     })
 
     // Executing with Oakton as the command line parser to unlock
