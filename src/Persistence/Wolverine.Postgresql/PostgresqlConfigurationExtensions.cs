@@ -78,32 +78,19 @@ public static class PostgresqlConfigurationExtensions
             }
         };
 
-        if (schema.IsNotEmpty())
-        {
-            extension.Settings.SchemaName = schema;
-        }
-        else
+        if (schema.IsEmpty())
         {
             schema = "public";
         }
 
+        extension.Settings.SchemaName = schema;
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         options.Include(extension);
 
         options.Include<PostgresqlBackedPersistence>(x =>
         {
             x.Settings.ConnectionString = connectionString;
-
-            if (schema.IsNotEmpty())
-            {
-                x.Settings.SchemaName = schema;
-            }
-            else
-            {
-                schema = "public";
-
-            }
-
+            x.Settings.SchemaName = schema;
             x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
         });
 
