@@ -18,6 +18,7 @@ export default withMermaid( {
 
         nav: [
             {text: 'Guide', link: '/guide/basics'},
+            {text: 'Migration', link: '/guide/migration'},
             {text: 'Tutorials', link: '/tutorials/'},
             {
                 text: 'Discord | Join Chat',

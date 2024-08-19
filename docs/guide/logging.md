@@ -209,18 +209,18 @@ code sample:
 <a id='snippet-sample_enabling_open_telemetry'></a>
 ```cs
 // builder.Services is an IServiceCollection object
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resources => resources.AddService("OtelWebApi")) // <-- sets service name
-    .WithTracing(tracing =>
-    {
-        tracing
-            .AddOtlpExporter() // <-- Add otlp exporter that by default outputs to the Jaeger default port
-            .AddAspNetCoreInstrumentation()
-            
-            // This is absolutely necessary to collect the Wolverine
-            // open telemetry tracing information in your application
-            .AddSource("Wolverine");
-    });
+builder.Services.AddOpenTelemetryTracing(x =>
+{
+    x.SetResourceBuilder(ResourceBuilder
+            .CreateDefault()
+            .AddService("OtelWebApi")) // <-- sets service name
+        .AddJaegerExporter()
+        .AddAspNetCoreInstrumentation()
+
+        // This is absolutely necessary to collect the Wolverine
+        // open telemetry tracing information in your application
+        .AddSource("Wolverine");
+});
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

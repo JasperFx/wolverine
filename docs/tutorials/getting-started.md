@@ -1,9 +1,5 @@
 # Getting Started
 
-::: tip
-Wolverine targets .NET 6/7 and above.
-:::
-
 Wolverine is a toolset for command execution and message handling within .NET Core applications.
 The killer feature of Wolverine (we think) is its very efficient command execution pipeline that
 can be used as:
