@@ -22,3 +22,7 @@ migrations for any Marten-backed `Saga` types as it will now require the numeric
 The leader election functionality in Wolverine has been largely rewritten and *should* eliminate the issues with poor 
 behavior in clusters or local debugging time usage where nodes do not gracefully shut down. Internal testing has shown
 a significant improvement in Wolverine's ability to detect node changes and rollover the leadership election.
+
+The PostgreSQL transport option requires you to explicitly set the `transportSchema`, or Wolverine will fall through to
+using `wolverine_queues` as the schema for the database backed queues. Wolverine will no longer use the envelope storage
+schema for the queues.
