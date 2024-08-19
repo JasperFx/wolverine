@@ -30,6 +30,8 @@ public partial class NodeAgentController
         {
             return AgentCommands.Empty;
         }
+        
+        using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
 
         // write health check regardless
         await _persistence.MarkHealthCheckAsync(_runtime.Options.UniqueNodeId);

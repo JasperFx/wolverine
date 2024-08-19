@@ -9,6 +9,8 @@ public partial class NodeAgentController
     // Tested w/ integration tests all the way
     public async Task<AgentCommands> EvaluateAssignmentsAsync(IReadOnlyList<WolverineNode> nodes)
     {
+        using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
+        
         var grid = new AssignmentGrid();
 
         var capabilities = nodes.SelectMany(x => x.Capabilities).Distinct().ToArray();
