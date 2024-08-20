@@ -127,15 +127,22 @@ public class ServiceContainer : IServiceProviderIsService, IServiceContainer
 
     public IEnumerable<Type> ServiceDependenciesFor(Type serviceType)
     {
-        var family = findFamily(serviceType);
-        if (family.Default == null)
+        try
         {
-            return Array.Empty<Type>();
-        }
+            var family = findFamily(serviceType);
+            if (family.Default == null)
+            {
+                return Array.Empty<Type>();
+            }
 
-        var list = new List<ServiceDescriptor>();
-        var plan = planFor(family.Default, list);
-        return plan.FindDependencies().Distinct().ToArray();
+            var list = new List<ServiceDescriptor>();
+            var plan = planFor(family.Default, list);
+            return plan.FindDependencies().Distinct().ToArray();
+        }
+        catch (Exception e)
+        {
+            throw new InvalidOperationException($"Wolverine encountered an error while trying to find service dependencies for type {serviceType.FullNameInCode()}", e);
+        }
     }
 
     bool IServiceProviderIsService.IsService(Type serviceType)
