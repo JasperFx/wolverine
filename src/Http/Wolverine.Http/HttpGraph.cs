@@ -112,7 +112,10 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies);
 
         var policies = _options.Policies.OfType<IChainPolicy>();
-        foreach (var policy in policies) policy.Apply(_chains, Rules, Container);
+        foreach (var policy in policies)
+        {
+            policy.Apply(_chains, Rules, Container);
+        }
 
         foreach (var policy in wolverineHttpOptions.Policies) policy.Apply(_chains, Rules, Container);
 
