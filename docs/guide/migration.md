@@ -31,4 +31,17 @@ For [Wolverine.Http usage](/guide/http/), the Wolverine 3.0 usage of the less ca
 mandated [Lamar](https://jasperfx.github.io/lamar) library necessitates the usage of this API to register necessary
 services for Wolverine.HTTP in addition to adding the Wolverine endpoints:
 
-snippet: sample_adding_http_services
+<!-- snippet: sample_adding_http_services -->
+<a id='snippet-sample_adding_http_services'></a>
+```cs
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+
+// Necessary services for Wolverine HTTP
+// And don't worry, if you forget this, Wolverine
+// will assert this is missing on startup:(
+builder.Services.AddWolverineHttp();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L26-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_http_services' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

@@ -10,4 +10,5 @@ public interface ILocalReceiver
 public interface ILocalQueue : IReceiver, ILocalReceiver
 {
     int QueueCount { get; }
+    Uri Uri { get; }
 }

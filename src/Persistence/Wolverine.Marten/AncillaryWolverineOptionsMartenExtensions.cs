@@ -41,7 +41,6 @@ public static class AncillaryWolverineOptionsMartenExtensions
     ///     This does not have to be one of the tenant databases
     ///     Wolverine will try to use the master database from the Marten configuration when possible
     /// </param>
-    /// <param name="transportSchemaName">Optionally configure the schema name for any PostgreSQL queues</param>
     /// <param name="autoCreate">Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>.</param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenStoreExpression<T> IntegrateWithWolverine<T>(
@@ -49,7 +48,6 @@ public static class AncillaryWolverineOptionsMartenExtensions
         string? schemaName = null,
         string? masterDatabaseConnectionString = null, 
         NpgsqlDataSource? masterDataSource = null, 
-        string? transportSchemaName = null,
         AutoCreate? autoCreate = null) where T : IDocumentStore
     {
         if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())

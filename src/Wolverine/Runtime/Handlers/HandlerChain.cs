@@ -52,7 +52,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         _parent = parent;
         MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
 
-        TypeName = messageType.ToSuffixedTypeName(HandlerSuffix);
+        TypeName = messageType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
 
         Description = "Message Handler for " + MessageType.FullNameInCode();
 

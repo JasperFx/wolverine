@@ -102,7 +102,8 @@ export default withMermaid( {
                                 {text: 'Multi-Tenancy', link: '/guide/handlers/multi-tenancy'},
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'},
-                                {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'}
+                                {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'},
+                                {text: 'Message Batching', link: '/guide/handlers/batching'}
                             ]
                         },
                     ]

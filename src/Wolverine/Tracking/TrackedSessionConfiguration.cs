@@ -86,6 +86,12 @@ public class TrackedSessionConfiguration
         return this;
     }
 
+    public TrackedSessionConfiguration WaitForCondition(ITrackedCondition condition)
+    {
+        _session.AddCondition(condition);
+        return this;
+    }
+
     /// <summary>
     ///     Execute a user defined Lambda against an IMessageContext
     ///     and wait for all activity to end

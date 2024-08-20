@@ -26,6 +26,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
+        Uri = endpoint.Uri;
         _settings = runtime.DurabilitySettings;
         _inbox = runtime.Storage.Inbox;
         _messageLogger = runtime.MessageTracking;
@@ -58,6 +59,8 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         _storeAndEnqueue = new RetryBlock<Envelope>((e, _) => storeAndEnqueueAsync(e), _logger, _runtime.Cancellation);
     }
+
+    public Uri Uri { get;  }
 
     public IHandlerPipeline Pipeline { get; }
 

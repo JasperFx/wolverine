@@ -136,9 +136,22 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _deferBlock.Dispose();
     }
 
-    public ValueTask CompleteAsync(Envelope envelope)
+    public async ValueTask CompleteAsync(Envelope envelope)
     {
-        return new ValueTask(_markAsHandled.PostAsync(envelope));
+        if (envelope.InBatch) return;
+
+        if (envelope.Batch != null)
+        {
+            foreach (var child in envelope.Batch)
+            {
+                child.InBatch = false;
+                await _markAsHandled.PostAsync(child);
+            }
+        }
+        else
+        {
+            await _markAsHandled.PostAsync(envelope);
+        }
     }
 
     public async ValueTask DeferAsync(Envelope envelope)
