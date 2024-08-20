@@ -85,8 +85,8 @@ internal class ServiceFamily
         
         if (!descriptor.ImplementationType.IsConcrete())
         {
-            throw new ArgumentOutOfRangeException(nameof(descriptor),
-                "Impossible to resolve a descriptor where the implementation is not concrete");
+            // If you don't know how to create it, you can't use it, period
+            return new InvalidPlan(descriptor);
         }
 
         if (descriptor.ImplementationType.IsNotPublic)
