@@ -37,6 +37,8 @@ public class Bug_970_starting_up_in_mediator_only_mode
         });
 
         builder.Services.AddControllers();
+
+        builder.Services.AddWolverineHttp();
         
         // This is using Alba, which uses WebApplicationFactory under the covers
         await using var host = await AlbaHost.For(builder, app =>

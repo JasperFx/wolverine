@@ -1,5 +1,6 @@
 using JasperFx.Core.Reflection;
 using Shouldly;
+using Wolverine.Tracking;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
@@ -11,10 +12,14 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
     {
         // Given
         var exceptionMessage = $"fetchable-{Guid.NewGuid()}";
-        await Scenario(x =>
+
+        await Host.TrackActivity().DoNotAssertOnExceptionsDetected().ExecuteAndWaitAsync(_ =>
         {
-            x.Post.Json(new MessageThatAlwaysGoesToDeadLetter(exceptionMessage)).ToUrl("/send/always-dead-letter");
-            x.StatusCodeShouldBe(202);
+            return Scenario(x =>
+            {
+                x.Post.Json(new MessageThatAlwaysGoesToDeadLetter(exceptionMessage)).ToUrl("/send/always-dead-letter");
+                x.StatusCodeShouldBe(202);
+            });
         });
 
         // When
@@ -46,12 +51,16 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
     {
         // Given
         var exceptionMessage = $"replayable-{Guid.NewGuid()}";
-        await Scenario(x =>
-        {
-            x.Post.Json(new MessageThatAlwaysGoesToDeadLetter(exceptionMessage)).ToUrl("/send/always-dead-letter");
-            x.StatusCodeShouldBe(202);
-        });
 
+        await Host.TrackActivity().DoNotAssertOnExceptionsDetected().ExecuteAndWaitAsync(_ =>
+        {
+            return Scenario(x =>
+            {
+                x.Post.Json(new MessageThatAlwaysGoesToDeadLetter(exceptionMessage)).ToUrl("/send/always-dead-letter");
+                x.StatusCodeShouldBe(202);
+            });
+        });
+        
         var result = await Scenario(x =>
         {
             x.Post.Json(new DeadLetterEnvelopeGetRequest
@@ -76,12 +85,16 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
     {
         // Given
         var exceptionMessage = $"deletable-{Guid.NewGuid()}";
-        await Scenario(x =>
-        {
-            x.Post.Json(new MessageThatAlwaysGoesToDeadLetter(exceptionMessage)).ToUrl("/send/always-dead-letter");
-            x.StatusCodeShouldBe(202);
-        });
 
+        await Host.TrackActivity().DoNotAssertOnExceptionsDetected().ExecuteAndWaitAsync(_ =>
+        {
+            return Scenario(x =>
+            {
+                x.Post.Json(new MessageThatAlwaysGoesToDeadLetter(exceptionMessage)).ToUrl("/send/always-dead-letter");
+                x.StatusCodeShouldBe(202);
+            });
+        });
+        
         var result = await Scenario(x =>
         {
             x.Post.Json(new DeadLetterEnvelopeGetRequest
@@ -92,6 +105,7 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
 
         // When & Expect
         var deadletters = result.ReadAsJson<DeadLetterEnvelopesFoundResponse>();
+        
         await Scenario(x =>
         {
             x.Delete.Json(new DeadLetterEnvelopeIdsRequest
