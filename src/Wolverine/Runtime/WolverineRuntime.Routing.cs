@@ -3,6 +3,7 @@ using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
@@ -47,13 +48,25 @@ internal class LocalRouting : IMessageRouteSource
     public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
     {
         var options = runtime.Options;
-        if (!options.LocalRoutingConventionDisabled && options.HandlerGraph.CanHandle(messageType))
+        if (options.LocalRoutingConventionDisabled) return Array.Empty<IMessageRoute>();
+        
+        if (options.HandlerGraph.CanHandle(messageType))
         {
             var endpoints = options.LocalRouting.DiscoverSenders(messageType, runtime).ToArray();
             return endpoints.Select(e => new MessageRoute(messageType, e, runtime.Replies));
         }
 
-        return Array.Empty<IMessageRoute>();
+        var batching = options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
+        if (batching == null)
+        {
+            return Array.Empty<IMessageRoute>();
+        }
+
+        var endpoint = options.Transports.GetOrCreate<LocalTransport>()
+            .QueueFor(batching.LocalExecutionQueueName);
+
+        return [new MessageRoute(messageType, endpoint, runtime.Replies)];
+
     }
 
     public bool IsAdditive => false;

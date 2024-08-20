@@ -31,8 +31,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _logger = runtime.LoggerFactory.CreateLogger<BufferedReceiver>();
         _settings = runtime.DurabilitySettings;
         Pipeline = pipeline;
-
-
+        
         _scheduler = new InMemoryScheduledJobProcessor(this);
 
         endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
@@ -151,7 +150,11 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         foreach (var envelope in messages)
         {
             envelope.MarkReceived(listener, now, _settings);
-            Enqueue(envelope);
+            if (!envelope.IsExpired())
+            {
+                Enqueue(envelope);
+            }
+            
             await _completeBlock.PostAsync(envelope);
         }
 

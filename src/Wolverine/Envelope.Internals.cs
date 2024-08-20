@@ -74,12 +74,15 @@ public partial class Envelope
     ///     Node owner of this message. 0 denotes that no node owns this message
     /// </summary>
     internal int OwnerId { get; set; }
+    
+    internal bool InBatch { get; set; }
 
     internal ISendingAgent? Sender { get; set; }
 
     public IListener? Listener { get; internal set; }
     public bool IsResponse { get; set; }
     public Exception? Failure { get; set; }
+    internal Envelope[]? Batch { get; set; }
 
     internal void StartTiming()
     {

@@ -33,7 +33,6 @@ internal class Executor : IExecutor
     private readonly ObjectPool<MessageContext> _contextPool;
     private readonly Action<ILogger, string, string, Guid, Exception?> _executionFinished;
     private readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
-    private readonly IMessageHandler _handler;
     private readonly ILogger _logger;
 
     private readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
@@ -54,7 +53,7 @@ internal class Executor : IExecutor
         IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout)
     {
         _contextPool = contextPool;
-        _handler = handler;
+        Handler = handler;
         _tracker = tracker;
         _rules = rules;
         _timeout = timeout;
@@ -77,9 +76,11 @@ internal class Executor : IExecutor
             "{CorrelationId}: Finished processing {Name}#{Id}");
     }
 
+    public IMessageHandler Handler { get; }
+
     public async Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation)
     {
-        using var activity = _handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
+        using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
         _tracker.ExecutionStarted(envelope);
 
@@ -161,7 +162,7 @@ internal class Executor : IExecutor
 
         try
         {
-            await _handler.HandleAsync(context, combined.Token);
+            await Handler.HandleAsync(context, combined.Token);
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
@@ -199,7 +200,7 @@ internal class Executor : IExecutor
 
         try
         {
-            await _handler.HandleAsync(context, cancellation);
+            await Handler.HandleAsync(context, cancellation);
             return InvokeResult.Success;
         }
         catch (Exception e)
@@ -223,7 +224,7 @@ internal class Executor : IExecutor
 
     internal Executor WrapWithMessageTracking(IMessageSuccessTracker tracker)
     {
-        return new Executor(_contextPool, _logger, new CircuitBreakerWrappedMessageHandler(_handler, tracker), _tracker,
+        return new Executor(_contextPool, _logger, new CircuitBreakerWrappedMessageHandler(Handler, tracker), _tracker,
             _rules, _timeout);
     }
 
@@ -231,6 +232,15 @@ internal class Executor : IExecutor
         HandlerGraph handlerGraph, Type messageType)
     {
         var handler = handlerGraph.HandlerFor(messageType);
+        if (handler == null )
+        {
+            var batching = runtime.Options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
+            if (batching != null)
+            {
+                handler = batching.BuildHandler((WolverineRuntime)runtime);
+            }
+        }
+        
         if (handler == null)
         {
             return new NoHandlerExecutor(messageType, (WolverineRuntime)runtime);

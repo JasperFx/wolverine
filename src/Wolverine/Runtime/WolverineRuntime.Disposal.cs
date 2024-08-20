@@ -28,5 +28,10 @@ public partial class WolverineRuntime : IAsyncDisposable
         {
             ScheduledJobs.Dispose();
         }
+
+        foreach (var definition in Options.BatchDefinitions)
+        {
+            await definition.As<IAsyncDisposable>().DisposeAsync();
+        }
     }
 }

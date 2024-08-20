@@ -8,11 +8,11 @@ namespace Wolverine.Transports.Local;
 
 internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCircuit
 {
-    private readonly IMessageTracker _messageLogger;
+    private readonly IMessageTracker _messageTracker;
 
     public BufferedLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime, new HandlerPipeline((WolverineRuntime)runtime, (IExecutorFactory)runtime, endpoint))
     {
-        _messageLogger = runtime.MessageTracking;
+        _messageTracker = runtime.MessageTracking;
         Destination = endpoint.Uri;
         Endpoint = endpoint;
     }
@@ -62,7 +62,7 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
 
     internal void EnqueueDirectly(Envelope envelope)
     {
-        _messageLogger.Sent(envelope);
+        _messageTracker.Sent(envelope);
         envelope.ReplyUri = envelope.ReplyUri ?? ReplyUri;
 
         if (envelope.IsScheduledForLater(DateTimeOffset.Now))

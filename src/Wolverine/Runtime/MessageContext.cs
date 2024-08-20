@@ -135,10 +135,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
     }
 
-    public Task MoveToDeadLetterQueueAsync(Exception exception)
+    public async Task MoveToDeadLetterQueueAsync(Exception exception)
     {
         // Don't bother with agent commands
-        if (Envelope?.Message is IAgentCommand) return Task.CompletedTask;
+        if (Envelope?.Message is IAgentCommand) return;
         
         if (_channel == null || Envelope == null)
         {
@@ -147,11 +147,33 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         if (_channel is ISupportDeadLetterQueue c && c.NativeDeadLetterQueueEnabled)
         {
-            return c.MoveToErrorsAsync(Envelope, exception);
-        }
+            if (Envelope.Batch != null)
+            {
+                foreach (var envelope in Envelope.Batch)
+                {
+                    await c.MoveToErrorsAsync(envelope, exception);
+                }
+            }
+            else
+            {
+                await c.MoveToErrorsAsync(Envelope, exception);
+            }
 
-        // If persistable, persist
-        return Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
+            return;
+        }
+        
+        if (Envelope.Batch != null)
+        {
+            foreach (var envelope in Envelope.Batch)
+            {
+                await Storage.Inbox.MoveToDeadLetterStorageAsync(envelope, exception);
+            }
+        }
+        else
+        {
+            // If persistable, persist
+            await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
+        }
     }
 
     public Task RetryExecutionNowAsync()

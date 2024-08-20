@@ -29,7 +29,7 @@ public abstract class MessageHandler : IMessageHandler
 
     public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
 
-    public Type MessageType => Chain!.MessageType;
+    public virtual Type MessageType => Chain!.MessageType;
 
     public LogLevel ExecutionLogLevel => Chain!.ExecutionLogLevel;
 

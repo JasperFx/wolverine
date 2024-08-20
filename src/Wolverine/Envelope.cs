@@ -316,6 +316,16 @@ public partial class Envelope
             text += $" to {Destination}";
         }
 
+        if (TenantId.IsNotEmpty())
+        {
+            text += $" for tenant {TenantId}";
+        }
+
+        if (Batch != null)
+        {
+            text += $" as a batch of {Batch.Length}";
+        }
+
         return text;
     }
 
