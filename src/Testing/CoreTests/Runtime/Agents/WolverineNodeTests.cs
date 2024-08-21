@@ -16,7 +16,7 @@ public class WolverineNodeTests
 
         var node = WolverineNode.For(options);
 
-        node.Id.ShouldBe(options.UniqueNodeId);
+        node.NodeId.ShouldBe(options.UniqueNodeId);
         node.ControlUri.ShouldBe(options.Transports.NodeControlEndpoint.Uri);
 
     }

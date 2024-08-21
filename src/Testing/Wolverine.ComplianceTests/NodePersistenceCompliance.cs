@@ -36,7 +36,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         var id = Guid.NewGuid();
         var node = new WolverineNode
         {
-            Id = id,
+            NodeId = id,
             ControlUri = new Uri($"dbcontrol://{id}"),
             Description = Environment.MachineName,
 
@@ -50,7 +50,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
 
         var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
         var persisted = nodes.Single();
-        persisted.Id.ShouldBe(id);
+        persisted.NodeId.ShouldBe(id);
         persisted.AssignedNodeId.ShouldBe(assignedId);
         persisted.ControlUri.ShouldBe(node.ControlUri);
         persisted.Description.ShouldBe(node.Description);
@@ -64,7 +64,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         var id = Guid.NewGuid();
         var node = new WolverineNode
         {
-            Id = id,
+            NodeId = id,
             ControlUri = new Uri($"dbcontrol://{id}"),
             Description = Environment.MachineName,
 
@@ -96,7 +96,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         var id = Guid.NewGuid();
         var node = new WolverineNode
         {
-            Id = id,
+            NodeId = id,
             ControlUri = new Uri($"dbcontrol://{id}"),
             Description = Environment.MachineName,
 
@@ -125,7 +125,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         var id = Guid.NewGuid();
         var node = new WolverineNode
         {
-            Id = id,
+            NodeId = id,
             ControlUri = new Uri($"dbcontrol://{id}"),
             Description = Environment.MachineName,
 
@@ -145,7 +145,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         await _database.Nodes.AddAssignmentAsync(id, agent2, CancellationToken.None);
         await _database.Nodes.AddAssignmentAsync(id, agent3, CancellationToken.None);
 
-        var persisted = await _database.Nodes.LoadNodeAsync(node.Id, CancellationToken.None);
+        var persisted = await _database.Nodes.LoadNodeAsync(node.NodeId, CancellationToken.None);
 
         persisted.ActiveAgents.OrderBy(x => x.ToString()).ShouldBe([agent3, agent2, agent1]);
     }
@@ -156,7 +156,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         var id = Guid.NewGuid();
         var node = new WolverineNode
         {
-            Id = id,
+            NodeId = id,
             ControlUri = new Uri($"dbcontrol://{id}"),
             Description = Environment.MachineName,
 
@@ -190,7 +190,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         var id = Guid.NewGuid();
         return new WolverineNode
         {
-            Id = id,
+            NodeId = id,
             ControlUri = $"dbcontrol://{id}".ToUri(),
             AssignedNodeId = ++_count
         };
@@ -203,7 +203,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
 
         var assignedId = await _database.Nodes.PersistAsync(node1, CancellationToken.None);
 
-        await _database.Nodes.MarkNodeAsLeaderAsync(null, node1.Id);
+        await _database.Nodes.MarkNodeAsLeaderAsync(null, node1.NodeId);
 
         var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
         var persisted = nodes.Single();
@@ -222,16 +222,16 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         await _database.Nodes.PersistAsync(node2, CancellationToken.None);
         await _database.Nodes.PersistAsync(node3, CancellationToken.None);
 
-        await _database.Nodes.MarkNodeAsLeaderAsync(null, node1.Id);
+        await _database.Nodes.MarkNodeAsLeaderAsync(null, node1.NodeId);
 
-        var assigned = await _database.Nodes.MarkNodeAsLeaderAsync(node1.Id, node3.Id);
-        assigned.ShouldBe(node3.Id);
+        var assigned = await _database.Nodes.MarkNodeAsLeaderAsync(node1.NodeId, node3.NodeId);
+        assigned.ShouldBe(node3.NodeId);
 
         var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
-        var persistedNode3 = nodes.Single(x => x.Id == node3.Id);
+        var persistedNode3 = nodes.Single(x => x.NodeId == node3.NodeId);
         persistedNode3.IsLeader().ShouldBeTrue();
 
-        var persistedNode1 = nodes.Single(x => x.Id == node1.Id);
+        var persistedNode1 = nodes.Single(x => x.NodeId == node1.NodeId);
         persistedNode1.IsLeader().ShouldBeFalse();
     }
 
@@ -246,21 +246,21 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         await _database.Nodes.PersistAsync(node2, CancellationToken.None);
         await _database.Nodes.PersistAsync(node3, CancellationToken.None);
 
-        await _database.Nodes.MarkNodeAsLeaderAsync(null, node1.Id);
-        await _database.Nodes.MarkNodeAsLeaderAsync(node1.Id, node2.Id);
+        await _database.Nodes.MarkNodeAsLeaderAsync(null, node1.NodeId);
+        await _database.Nodes.MarkNodeAsLeaderAsync(node1.NodeId, node2.NodeId);
 
         // Nope, stays with node2
-        var assigned = await _database.Nodes.MarkNodeAsLeaderAsync(node1.Id, node3.Id);
-        assigned.ShouldBe(node2.Id);
+        var assigned = await _database.Nodes.MarkNodeAsLeaderAsync(node1.NodeId, node3.NodeId);
+        assigned.ShouldBe(node2.NodeId);
 
         var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
-        var persistedNode2 = nodes.Single(x => x.Id == node2.Id);
+        var persistedNode2 = nodes.Single(x => x.NodeId == node2.NodeId);
         persistedNode2.IsLeader().ShouldBeTrue();
 
-        var persistedNode3 = nodes.Single(x => x.Id == node3.Id);
+        var persistedNode3 = nodes.Single(x => x.NodeId == node3.NodeId);
         persistedNode3.IsLeader().ShouldBeFalse();
 
-        var persistedNode1 = nodes.Single(x => x.Id == node1.Id);
+        var persistedNode1 = nodes.Single(x => x.NodeId == node1.NodeId);
         persistedNode1.IsLeader().ShouldBeFalse();
     }
 
@@ -275,7 +275,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         await _database.Nodes.PersistAsync(node2, CancellationToken.None);
         await _database.Nodes.PersistAsync(node3, CancellationToken.None);
 
-        await _database.Nodes.MarkHealthCheckAsync(node1.Id);
+        await _database.Nodes.MarkHealthCheckAsync(node1.NodeId);
     }
 
 }

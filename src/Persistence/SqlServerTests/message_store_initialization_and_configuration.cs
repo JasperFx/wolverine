@@ -86,7 +86,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
 
         var current = nodes.Single();
 
-        current.Id.ShouldBe(runtime.Options.UniqueNodeId);
+        current.NodeId.ShouldBe(runtime.Options.UniqueNodeId);
         current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint.Uri);
 
     }

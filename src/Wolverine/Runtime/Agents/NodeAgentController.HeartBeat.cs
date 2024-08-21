@@ -82,7 +82,7 @@ public partial class NodeAgentController
     {
         foreach (var staleNode in staleNodes)
         {
-            await _persistence.DeleteAsync(staleNode.Id);
+            await _persistence.DeleteAsync(staleNode.NodeId);
         }
 
         if (staleNodes.Any())

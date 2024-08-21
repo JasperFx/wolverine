@@ -1,15 +1,23 @@
+using JasperFx.Core;
+
 namespace Wolverine.Runtime.Agents;
 
 public class WolverineNode
 {
-    public Guid Id { get; set; }
+    public string Id
+    {
+        get => NodeId.ToString();
+        set => NodeId = Guid.Parse(value);
+    }
+    
+    public Guid NodeId { get; set; }
     public int AssignedNodeId { get; set; } = 1; // Important, this can NEVER be 0
     public Uri? ControlUri { get; set; }
     public string Description { get; set; } = Environment.MachineName;
 
-    public List<Uri> Capabilities { get; } = new();
+    public List<Uri> Capabilities { get; set; } = new();
     
-    public List<Uri> ActiveAgents { get; } = new();
+    public List<Uri> ActiveAgents { get; set; } = new();
     public DateTimeOffset Started { get; set; }
     public DateTimeOffset LastHealthCheck { get; set; }
     
@@ -27,8 +35,16 @@ public class WolverineNode
 
         return new WolverineNode
         {
-            Id = options.UniqueNodeId,
+            NodeId = options.UniqueNodeId,
             ControlUri = options.Transports.NodeControlEndpoint?.Uri
         };
+    }
+
+    public void AssignAgents(IReadOnlyList<Uri> agents)
+    {
+        foreach (var agent in agents)
+        {
+            ActiveAgents.Fill(agent);
+        }
     }
 }

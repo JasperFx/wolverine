@@ -49,7 +49,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     {
         var cmd = _dataSource.CreateCommand(
                 $"insert into {_nodeTable} (id, uri, capabilities, description) values (:id, :uri, :capabilities, :description) returning node_number")
-            .With("id", node.Id)
+            .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
             .With("description", node.Description);
 
@@ -84,7 +84,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             nodes.Add(node);
         }
 
-        var dict = nodes.ToDictionary(x => x.Id);
+        var dict = nodes.ToDictionary(x => x.NodeId);
 
         await reader.NextResultAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -236,7 +236,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     {
         var node = new WolverineNode
         {
-            Id = await reader.GetFieldValueAsync<Guid>(0),
+            NodeId = await reader.GetFieldValueAsync<Guid>(0),
             AssignedNodeId = await reader.GetFieldValueAsync<int>(1),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),

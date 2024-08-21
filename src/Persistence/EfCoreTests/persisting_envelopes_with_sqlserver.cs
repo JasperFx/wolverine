@@ -7,6 +7,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;

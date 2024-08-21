@@ -118,7 +118,7 @@ public static class WolverineAdminApiExtensions
         {
             table.AddBodyRow(row =>
             {
-                row.Cell(node.Id.ToString());
+                row.Cell(node.NodeId.ToString());
                 var idText = node.AssignedNodeId.ToString();
                 if (node.IsLeader())
                 {

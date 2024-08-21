@@ -338,7 +338,7 @@ public static class TestingExtensions
             foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
             {
                 writer.WriteLine($"Node {node.AssignedNodeId} is running:");
-                var runtime = _runtimes[node.Id];
+                var runtime = _runtimes[node.NodeId];
 
                 foreach (var uri in runtime.AllRunningAgentUris().OrderBy(x => x.ToString()))
                 {

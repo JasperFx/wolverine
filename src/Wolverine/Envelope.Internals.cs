@@ -68,7 +68,7 @@ public partial class Envelope
     /// <summary>
     ///     Status according to the message persistence
     /// </summary>
-    internal EnvelopeStatus Status { get; set; }
+    public EnvelopeStatus Status { get; set; }
 
     /// <summary>
     ///     Node owner of this message. 0 denotes that no node owns this message
@@ -76,7 +76,7 @@ public partial class Envelope
     internal int OwnerId { get; set; }
     
     internal bool InBatch { get; set; }
-
+    
     internal ISendingAgent? Sender { get; set; }
 
     public IListener? Listener { get; internal set; }

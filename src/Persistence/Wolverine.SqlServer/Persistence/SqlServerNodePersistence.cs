@@ -50,7 +50,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
 
         var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
-            .With("id", node.Id)
+            .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString()).With("description", node.Description)
             .With("capabilities", strings);
 
@@ -89,7 +89,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             nodes.Add(node);
         }
 
-        var dict = nodes.ToDictionary(x => x.Id);
+        var dict = nodes.ToDictionary(x => x.NodeId);
 
         await reader.NextResultAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -163,7 +163,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     {
         var node = new WolverineNode
         {
-            Id = await reader.GetFieldValueAsync<Guid>(0),
+            NodeId = await reader.GetFieldValueAsync<Guid>(0),
             AssignedNodeId = await reader.GetFieldValueAsync<int>(1),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),

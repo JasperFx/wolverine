@@ -40,7 +40,7 @@ public class AssignmentGrid
     /// <returns></returns>
     public Node WithNode(WolverineNode wolverineNode)
     {
-        var node = new Node(this, wolverineNode.AssignedNodeId, wolverineNode.Id, wolverineNode.Capabilities);
+        var node = new Node(this, wolverineNode.AssignedNodeId, wolverineNode.NodeId, wolverineNode.Capabilities);
         node.ControlUri = wolverineNode.ControlUri;
         
         _nodes.Add(node);

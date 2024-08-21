@@ -16,6 +16,7 @@ public interface INodeAgentPersistence
     Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken);
     Task AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken);
 
+    [Obsolete("Kill this in 3.0")]
     Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id);
     Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken);
     Task MarkHealthCheckAsync(Guid nodeId);
