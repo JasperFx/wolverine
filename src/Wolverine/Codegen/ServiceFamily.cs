@@ -27,11 +27,11 @@ internal class ServiceFamily
             throw new InvalidOperationException($"{ServiceType.FullNameInCode()} is not an open type");
         var serviceType = ServiceType.MakeGenericType(parameterTypes);
         
-        var candidates = Services.Select(open =>
+        var candidates = Services.Where(x => x.ImplementationType != null).Select(open =>
         {
             try
             {
-                var concreteType = ServiceType.MakeGenericType(parameterTypes);
+                var concreteType = open.ImplementationType!.MakeGenericType(parameterTypes);
                 if (concreteType.CanBeCastTo(serviceType))
                 {
                     return new ServiceDescriptor(serviceType, concreteType, open.Lifetime);
