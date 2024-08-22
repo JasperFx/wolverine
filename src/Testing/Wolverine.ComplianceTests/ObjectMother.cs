@@ -17,7 +17,8 @@ public static class ObjectMother
             Source = "SomeApp",
             DeliverBy = new DateTimeOffset(DateTime.Today.AddHours(28)),
             OwnerId = 567,
-            Attempts = 1
+            Attempts = 1,
+            SentAt = new DateTimeOffset(DateTime.Today.AddHours(1)),
         };
     }
 }
