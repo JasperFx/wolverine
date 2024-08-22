@@ -27,6 +27,11 @@ public class OutgoingMessage
     public byte[] Body { get; set; } = [];
     public int Attempts { get; set; }
     public string MessageType { get; set; } = string.Empty;
-    
-    internal Envelope Read() => EnvelopeSerializer.Deserialize(Body);
+
+    public Envelope Read()
+    {
+        var envelope = EnvelopeSerializer.Deserialize(Body);
+        envelope.OwnerId = OwnerId;
+        return envelope;
+    }
 }

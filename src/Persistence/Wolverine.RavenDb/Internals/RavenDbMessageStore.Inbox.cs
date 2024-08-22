@@ -51,7 +51,7 @@ public partial class RavenDbMessageStore : IMessageInbox
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         using var session = _store.OpenAsyncSession();
-        session.Advanced.Patch<IncomingMessage, string>(envelope.Id.ToString(), x => x.Status, EnvelopeStatus.Handled.ToString());
+        session.Advanced.Patch<IncomingMessage, EnvelopeStatus>(envelope.Id.ToString(), x => x.Status, EnvelopeStatus.Handled);
         await session.SaveChangesAsync();
     }
 

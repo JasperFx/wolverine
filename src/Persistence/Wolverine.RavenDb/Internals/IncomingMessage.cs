@@ -11,7 +11,7 @@ public class IncomingMessage
     public IncomingMessage(Envelope envelope)
     {
         Id = envelope.Id.ToString();
-        Status = envelope.Status.ToString();
+        Status = envelope.Status;
         OwnerId = envelope.OwnerId;
         ExecutionTime = envelope.ScheduledTime?.ToUniversalTime();
         Attempts = envelope.Attempts;
@@ -21,7 +21,7 @@ public class IncomingMessage
     }
 
     public string Id { get; set; }
-    public string Status { get; set; } = EnvelopeStatus.Incoming.ToString();
+    public EnvelopeStatus Status { get; set; } = EnvelopeStatus.Incoming;
     public int OwnerId { get; set; }
     public DateTimeOffset? ExecutionTime { get; set; }
     public int Attempts { get; set; }
@@ -29,5 +29,13 @@ public class IncomingMessage
     public string MessageType { get; set; } = string.Empty;
     public string? ReceivedAt { get; set; }
 
-    internal Envelope Read() => EnvelopeSerializer.Deserialize(Body);
+    public Envelope Read()
+    {
+        var envelope = EnvelopeSerializer.Deserialize(Body);
+        envelope.OwnerId = OwnerId;
+        envelope.Status = Status;
+        return envelope;
+        
+
+    }
 }
