@@ -2,6 +2,7 @@ using Raven.Client.Documents;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals;
 
@@ -14,9 +15,11 @@ public partial class RavenDbMessageStore : IMessageStore
         _store = store;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        throw new NotImplementedException();
+        // Assume that the RavenDb store is owned by the IoC container
+        HasDisposed = true;
+        return new ValueTask();
     }
 
     public bool HasDisposed { get; set; }
@@ -27,17 +30,17 @@ public partial class RavenDbMessageStore : IMessageStore
     public IDeadLetters DeadLetters => this;
     public void Initialize(IWolverineRuntime runtime)
     {
-        throw new NotImplementedException();
+        // NOTHING YET
     }
 
     public void Describe(TextWriter writer)
     {
-        throw new NotImplementedException();
+        writer.WriteLine("RavenDb backed Wolverine envelope storage");
     }
 
-    public async Task DrainAsync()
+    public Task DrainAsync()
     {
-        throw new NotImplementedException();
+        return Task.CompletedTask;
     }
 
     public IAgent StartScheduledJobs(IWolverineRuntime runtime)
@@ -47,11 +50,19 @@ public partial class RavenDbMessageStore : IMessageStore
 
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
     {
-        throw new NotImplementedException();
+        return null;
     }
 
     public async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
-        throw new NotImplementedException();
+        using var session = _store.OpenAsyncSession();
+        var incoming = await session
+            .Query<IncomingMessage>()
+            .Where(x => x.OwnerId == TransportConstants.AnyNode)
+            .OrderBy(x => x.EnvelopeId)
+            .Take(limit)
+            .ToListAsync();
+        
+        return incoming.Select(x => x.Read()).ToList();
     }
 }
