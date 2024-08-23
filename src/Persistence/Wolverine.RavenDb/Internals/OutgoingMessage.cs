@@ -32,6 +32,7 @@ public class OutgoingMessage
     {
         var envelope = EnvelopeSerializer.Deserialize(Body);
         envelope.OwnerId = OwnerId;
+        envelope.Attempts = Attempts;
         return envelope;
     }
 }

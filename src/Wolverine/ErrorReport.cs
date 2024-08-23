@@ -1,4 +1,6 @@
-﻿namespace Wolverine;
+﻿using JasperFx.Core.Reflection;
+
+namespace Wolverine;
 
 public class ErrorReport
 {
@@ -10,7 +12,7 @@ public class ErrorReport
     public ErrorReport(Envelope envelope, Exception ex)
     {
         ExceptionMessage = ex.Message;
-        ExceptionType = ex.GetType().FullName;
+        ExceptionType = ex.GetType().FullNameInCode();
         Exception = ex;
         Envelope = envelope;
     }

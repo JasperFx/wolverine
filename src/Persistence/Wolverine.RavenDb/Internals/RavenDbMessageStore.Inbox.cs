@@ -8,7 +8,14 @@ public partial class RavenDbMessageStore : IMessageInbox
 {
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
-        throw new NotImplementedException();
+        using var session = _store.OpenAsyncSession();
+        var incoming = await session.LoadAsync<IncomingMessage>(envelope.Id.ToString());
+        incoming.ExecutionTime = envelope.ScheduledTime;
+        incoming.Attempts = envelope.Attempts;
+        incoming.Status = EnvelopeStatus.Scheduled;
+        incoming.OwnerId = TransportConstants.AnyNode;
+        await session.StoreAsync(incoming);
+        await session.SaveChangesAsync();
     }
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
@@ -23,14 +30,21 @@ public partial class RavenDbMessageStore : IMessageInbox
     public async Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
         using var session = _store.OpenAsyncSession();
-        session.Advanced.Increment<IncomingMessage, int>(envelope.Id.ToString(), x => x.Attempts, 1);
+        session.Advanced.Patch<IncomingMessage, int>(envelope.Id.ToString(), x => x.Attempts, envelope.Attempts);
         await session.SaveChangesAsync();
     }
 
     public async Task StoreIncomingAsync(Envelope envelope)
     {
-        var incoming = new IncomingMessage(envelope);
+        // TODO -- gotta be a way to do this w/ less chattiness
         using var session = _store.OpenAsyncSession();
+        
+        if (await session.Advanced.ExistsAsync(envelope.Id.ToString()))
+        {
+            throw new DuplicateIncomingEnvelopeException(envelope.Id);
+        }
+
+        var incoming = new IncomingMessage(envelope);
         await session.StoreAsync(incoming);
         await session.SaveChangesAsync();
     }

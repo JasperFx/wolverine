@@ -24,7 +24,7 @@ public class DeadLetterMessage_mapping
     [Fact]
     public void map_the_id()
     {
-        theMessage.Id.ShouldBe(theEnvelope.Id.ToString());
+        theMessage.Id.ShouldBe("dlq/" + theEnvelope.Id.ToString());
     }
 
     [Fact]

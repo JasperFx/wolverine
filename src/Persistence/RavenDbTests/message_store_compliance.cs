@@ -44,7 +44,7 @@ public class message_store_compliance : MessageStoreCompliance
 
     public override async Task<IHost> BuildCleanHost()
     {
-        var store = await EmbeddedServer.Instance.GetDocumentStoreAsync("MessageCompliance");
+        var store = await EmbeddedServer.Instance.GetDocumentStoreAsync(Guid.NewGuid().ToString());
 
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

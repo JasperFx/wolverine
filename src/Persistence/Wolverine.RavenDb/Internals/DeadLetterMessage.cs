@@ -12,7 +12,7 @@ public class DeadLetterMessage
 
     public DeadLetterMessage(Envelope envelope, Exception? exception)
     {
-        Id = envelope.Id.ToString();
+        Id = "dlq/" + envelope.Id.ToString();
         EnvelopeId = envelope.Id;
         MessageType = envelope.MessageType;
         ReceivedAt = envelope.Destination;

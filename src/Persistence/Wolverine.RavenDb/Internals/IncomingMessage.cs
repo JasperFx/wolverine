@@ -18,7 +18,7 @@ public class IncomingMessage
         Attempts = envelope.Attempts;
         Body = EnvelopeSerializer.Serialize(envelope);
         MessageType = envelope.MessageType!;
-        ReceivedAt = envelope.Destination?.ToString();
+        ReceivedAt = envelope.Destination;
     }
 
     public Guid EnvelopeId { get; set; }
@@ -30,7 +30,7 @@ public class IncomingMessage
     public int Attempts { get; set; }
     public byte[] Body { get; set; } = [];
     public string MessageType { get; set; } = string.Empty;
-    public string? ReceivedAt { get; set; }
+    public Uri? ReceivedAt { get; set; }
 
     public Envelope Read()
     {
@@ -38,6 +38,8 @@ public class IncomingMessage
         envelope.Id = EnvelopeId;
         envelope.OwnerId = OwnerId;
         envelope.Status = Status;
+        envelope.Attempts = Attempts;
+        envelope.ScheduledTime = ExecutionTime;
         return envelope;
         
 

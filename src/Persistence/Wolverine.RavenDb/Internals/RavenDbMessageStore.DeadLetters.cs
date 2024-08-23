@@ -8,15 +8,20 @@ namespace Wolverine.RavenDb.Internals;
 
 public partial class RavenDbMessageStore : IDeadLetters
 {
+    private static string dlqId(Guid id)
+    {
+        return $"dlq/{id}";
+    }
+    
     public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId = null)
     {
         using var session = _store.OpenAsyncSession();
-        var queryable = session.Query<DeadLetterMessage>();
+        var queryable = session.Query<DeadLetterMessage>().Customize(x => x.WaitForNonStaleResults());
         if (queryParameters.StartId.HasValue)
         {
             queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.EnvelopeId >= queryParameters.StartId.Value);
         }
-
+        
         if (queryParameters.MessageType.IsNotEmpty())
         {
             queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.MessageType == queryParameters.MessageType);
@@ -48,9 +53,13 @@ public partial class RavenDbMessageStore : IDeadLetters
             .ToListAsync();
 
         var envelopes = messages.Select(x => x.ToEnvelope()).ToList();
-        
-        var next = envelopes.LastOrDefault()?.Id;
-        envelopes.RemoveAt(envelopes.Count - 1);
+
+        var next = Guid.Empty;
+        if (envelopes.Count > queryParameters.Limit)
+        {
+            next = envelopes.Last().Envelope.Id;
+            envelopes.RemoveAt(envelopes.Count - 1);
+        }
         
         return new DeadLetterEnvelopesFound(envelopes, next, tenantId);
     }
@@ -58,7 +67,7 @@ public partial class RavenDbMessageStore : IDeadLetters
     public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
         using var session = _store.OpenAsyncSession();
-        var message = await session.LoadAsync<DeadLetterMessage>(id.ToString());
+        var message = await session.LoadAsync<DeadLetterMessage>(dlqId(id));
         if (message is null) return null;
         
         return message.ToEnvelope();
@@ -103,7 +112,7 @@ update
         using var session = _store.OpenAsyncSession();
         foreach (var id in ids)
         {
-            session.Advanced.Patch<DeadLetterEnvelope, bool>(id.ToString(), x => x.Replayable, true);
+            session.Advanced.Patch<DeadLetterEnvelope, bool>(dlqId(id), x => x.Replayable, true);
         }
         
         await session.SaveChangesAsync();
@@ -114,7 +123,7 @@ update
         using var session = _store.OpenAsyncSession();
         foreach (var id in ids)
         {
-            session.Delete(id.ToString());
+            session.Delete(dlqId(id));
         }
         
         await session.SaveChangesAsync();

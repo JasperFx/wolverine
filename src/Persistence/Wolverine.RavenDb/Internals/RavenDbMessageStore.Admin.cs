@@ -39,14 +39,14 @@ public partial class RavenDbMessageStore : IMessageStoreAdmin
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
         using var session = _store.OpenAsyncSession();
-        var messages = await session.Query<IncomingMessage>().ToListAsync();
+        var messages = await session.Query<IncomingMessage>().Customize(x => x.WaitForNonStaleResults()).ToListAsync();
         return messages.Select(m => m.Read()).ToList();
     }
 
     public async Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
     {
         using var session = _store.OpenAsyncSession();
-        var messages = await session.Query<OutgoingMessage>().ToListAsync();
+        var messages = await session.Query<OutgoingMessage>().Customize(x => x.WaitForNonStaleResults()).ToListAsync();
         return messages.Select(m => m.Read()).ToList();
     }
 
@@ -61,6 +61,7 @@ update
 }}";
 
         var op1 = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        await op1.WaitForCompletionAsync();
         
         var command2 = $@"
 from OutgoingMessages as m
@@ -70,8 +71,6 @@ update
 }}";
 
         var op2 = await _store.Operations.SendAsync(new PatchByQueryOperation(command2));
-
-        await op1.WaitForCompletionAsync();
         await op2.WaitForCompletionAsync();
     }
 
@@ -87,7 +86,7 @@ update
 }}";
 
         var op1 = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
-        
+
         var command2 = $@"
 from OutgoingMessages as m
 where m.OwnerId = {ownerId}
@@ -97,9 +96,6 @@ update
 }}";
 
         var op2 = await _store.Operations.SendAsync(new PatchByQueryOperation(command2));
-        
-        await op1.WaitForCompletionAsync();
-        await op2.WaitForCompletionAsync();
     }
 
     public async Task CheckConnectivityAsync(CancellationToken token)

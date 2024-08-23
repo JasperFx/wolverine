@@ -58,7 +58,8 @@ public partial class RavenDbMessageStore : IMessageStore
         using var session = _store.OpenAsyncSession();
         var incoming = await session
             .Query<IncomingMessage>()
-            .Where(x => x.OwnerId == TransportConstants.AnyNode)
+            .Customize(x => x.WaitForNonStaleResults())
+            .Where(x => x.OwnerId == TransportConstants.AnyNode && x.ReceivedAt == listenerAddress && x.Status == EnvelopeStatus.Incoming)
             .OrderBy(x => x.EnvelopeId)
             .Take(limit)
             .ToListAsync();
