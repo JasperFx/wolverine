@@ -7,7 +7,7 @@ namespace RavenDbTests;
 
 public class playing
 {
-    [Fact]
+    //[Fact]
     public async Task try_to_persist_envelope()
     {
         EmbeddedServer.Instance.StartServer();

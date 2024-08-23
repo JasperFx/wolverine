@@ -45,7 +45,7 @@ public partial class RavenDbMessageStore : IMessageStore
 
     public IAgent StartScheduledJobs(IWolverineRuntime runtime)
     {
-        throw new NotImplementedException();
+        return new RavenDbDurabilityAgent(_store, runtime);
     }
 
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)

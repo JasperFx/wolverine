@@ -92,10 +92,9 @@ update
 }}";
         }
     
-        await _store.Operations.SendAsync(new PatchByQueryOperation(command));
-        
-        await session.SaveChangesAsync();
-        
+        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        await op.WaitForCompletionAsync();
+
         return count;
     }
 

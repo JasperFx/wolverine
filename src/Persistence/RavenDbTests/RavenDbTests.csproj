@@ -15,6 +15,7 @@
         <PackageReference Include="GitHubActionsTestLogger" Version="2.0.1" PrivateAssets="All"/>
         <PackageReference Include="RavenDB.Embedded" Version="6.0.105" />
         <PackageReference Include="xunit" Version="2.9.0"/>
+        <PackageReference Include="xunit.assemblyfixture" Version="2.2.0" />
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

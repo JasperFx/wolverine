@@ -13,7 +13,11 @@ public partial class RavenDbMessageStore : IMessageInbox
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
-        throw new NotImplementedException();
+        using var session = _store.OpenAsyncSession();
+        session.Delete(envelope.Id.ToString());
+        var dlq = new DeadLetterMessage(envelope, exception);
+        await session.StoreAsync(dlq);
+        await session.SaveChangesAsync();
     }
 
     public async Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
@@ -66,7 +70,8 @@ update
     m.OwnerId = 0
 }}";
 
-        await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        await op.WaitForCompletionAsync();
     }
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
@@ -80,6 +85,7 @@ update
     m.OwnerId = 0
 }}";
 
-        await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        await op.WaitForCompletionAsync();
     }
 }
