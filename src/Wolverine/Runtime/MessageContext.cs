@@ -203,7 +203,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         var acknowledgement = new FailureAcknowledgement
         {
             RequestId = Envelope.Id,
-            Message = failureDescription
+            Message = failureDescription.Elid(200)
         };
 
         var envelope = Runtime.RoutingFor(typeof(FailureAcknowledgement))

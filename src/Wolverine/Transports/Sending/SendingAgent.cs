@@ -83,8 +83,10 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
     public Task MarkProcessingFailureAsync(OutgoingMessageBatch outgoing, Exception? exception)
     {
+        var messageCounts = outgoing.Messages.GroupBy(x => x.MessageType).Select(x => $"{x.Key}:{x.Count()}").Join(", ");
+        
         _logger.LogError(exception,
-            "Failure trying to send a message batch to {Destination}", outgoing.Destination);
+            "Failure trying to send a message batch to {Destination} with messages {Counts}", outgoing.Destination, messageCounts);
         _logger.OutgoingBatchFailed(outgoing, exception);
         return markFailedAsync(outgoing);
     }
