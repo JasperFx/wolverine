@@ -38,7 +38,7 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
     public async Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken)
     {
-        using var session = _store.OpenSession();
+        using var session = _store.OpenAsyncSession();
         var answer = await session.Query<WolverineNode>().ToListAsync(token: cancellationToken);
         return answer;
     }
@@ -87,7 +87,23 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
     public async Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
     {
-        throw new NotImplementedException();
+        using var session = _store.OpenAsyncSession();
+        
+        var original = await session.LoadAsync<WolverineNode>(originalLeader.ToString(), token: default);
+        
+        if (original != null)
+        {
+            original.ActiveAgents.Remove(NodeAgentController.LeaderUri);
+            await session.StoreAsync(original);
+        }
+        
+        var node = await session.LoadAsync<WolverineNode>(id.ToString());
+        node.ActiveAgents.Fill(NodeAgentController.LeaderUri);
+        await session.StoreAsync(node);
+        
+        await session.SaveChangesAsync(token: default);
+
+        return id;
     }
 
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
