@@ -1,5 +1,7 @@
 using JasperFx.Core;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Session;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.RavenDb.Internals;
@@ -9,27 +11,38 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     public async Task ClearAllAsync(CancellationToken cancellationToken)
     {
         // Shouldn't really get called at runtime, so we're doing it crudely
+        var nodes = await LoadAllNodesAsync(cancellationToken);
         using var session = _store.OpenAsyncSession();
-        var nodes = await session.Query<WolverineNode>().ToListAsync(cancellationToken);
+        
         foreach (var node in nodes)
         {
             session.Delete(node);
+            foreach (var agent in node.ActiveAgents)
+            {
+                session.Delete(AgentAssignment.ToId(agent));
+            }
         }
         
         await session.SaveChangesAsync(cancellationToken);
     }
 
-    private int _nodeNumber;
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
-        node.AssignedNodeId = ++_nodeNumber;
+        using var session = _store.OpenAsyncSession(new SessionOptions
+        {
+            TransactionMode = TransactionMode.ClusterWide
+        });
         
-        using var session = _store.OpenAsyncSession();
+        var sequence = await session.LoadAsync<NodeSequence>(NodeSequence.SequenceId, cancellationToken);
+        sequence ??= new NodeSequence();
+
+        node.AssignedNodeId = ++sequence.Count;
+        
+        await session.StoreAsync(sequence, cancellationToken);
         await session.StoreAsync(node, cancellationToken);
         await session.SaveChangesAsync(cancellationToken);
         
-        // TODO -- how to effect a sequence
-        return node.AssignedNodeId; // This is cheating for the test harness code, can't be like this in production
+        return node.AssignedNodeId; 
     }
 
     public async Task DeleteAsync(Guid nodeId)
@@ -46,19 +59,29 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
             .Query<WolverineNode>()
             .Customize(x => x.WaitForNonStaleResults())
             .ToListAsync(token: cancellationToken);
+
+        var assignments = await session
+            .Query<AgentAssignment>()
+            .Customize(x => x.WaitForNonStaleResults())
+            .ToListAsync(token: cancellationToken);
+        
+        foreach (var node in answer)
+        {
+            node.ActiveAgents.Clear();
+            node.ActiveAgents.AddRange(assignments.Where(x => x.NodeId == node.NodeId).Select(x => x.AgentUri));
+        }
+        
         return answer;
     }
 
     public async Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();
-        var node = await session.LoadAsync<WolverineNode>(nodeId.ToString(), token: cancellationToken);
-        node ??= new WolverineNode
+        foreach (var agent in agents)
         {
-            NodeId = nodeId
-        };
-
-        node.AssignAgents(agents);
+            var agentAssignment = new AgentAssignment(agent, nodeId);
+            await session.StoreAsync(agentAssignment, cancellationToken);
+        }
         
         await session.SaveChangesAsync(token: cancellationToken);
     }
@@ -66,13 +89,7 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     public async Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();
-        var node = await session.LoadAsync<WolverineNode>(nodeId.ToString(), token: cancellationToken);
-        node ??= new WolverineNode
-        {
-            NodeId = nodeId
-        };
-        
-        node.ActiveAgents.Remove(agentUri);
+        session.Delete(AgentAssignment.ToId(agentUri));
         
         await session.SaveChangesAsync(token: cancellationToken);
     }
@@ -80,13 +97,9 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     public async Task AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();
-        var node = await session.LoadAsync<WolverineNode>(nodeId.ToString(), token: cancellationToken);
-        node ??= new WolverineNode
-        {
-            NodeId = nodeId
-        };
-        
-        node.ActiveAgents.Fill(agentUri);
+
+        var agentAssignment = new AgentAssignment(agentUri, nodeId);
+        await session.StoreAsync(agentAssignment, agentAssignment.Id, cancellationToken);
         
         await session.SaveChangesAsync(token: cancellationToken);
     }
@@ -94,28 +107,38 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     public async Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
     {
         using var session = _store.OpenAsyncSession();
+        var original = await session.LoadAsync<AgentAssignment>(NodeAgentController.LeaderUri.ToString(), token: default);
         
-        var original = await session.LoadAsync<WolverineNode>(originalLeader.ToString(), token: default);
-        
-        if (original != null)
+        // No current leader, assign
+        var agentAssignment = new AgentAssignment(NodeAgentController.LeaderUri, id);
+        if (original == null)
         {
-            original.ActiveAgents.Remove(NodeAgentController.LeaderUri);
-            await session.StoreAsync(original);
+            await session.StoreAsync(agentAssignment, agentAssignment.Id);
+            await session.SaveChangesAsync(token: default);
+            return id;
         }
         
-        var node = await session.LoadAsync<WolverineNode>(id.ToString());
-        node.ActiveAgents.Fill(NodeAgentController.LeaderUri);
-        await session.StoreAsync(node);
+        // The current leader is who we thought it was, assign
+        if (originalLeader.HasValue && originalLeader.Value == original.NodeId)
+        {
+            await session.StoreAsync(agentAssignment, agentAssignment.Id);
+            await session.SaveChangesAsync(token: default);
+            return id;
+        }
         
-        await session.SaveChangesAsync(token: default);
-
-        return id;
+        // Some other node has taken over in the meantime, do nothing
+        return original.NodeId;
     }
 
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();
-        return await session.LoadAsync<WolverineNode>(nodeId.ToString(), token: cancellationToken);
+        var node = await session.LoadAsync<WolverineNode>(nodeId.ToString(), token: cancellationToken);
+        var agents = await session.Query<AgentAssignment>().Customize(x => x.WaitForNonStaleResults()).Where(x => x.NodeId == nodeId).ToListAsync(token: cancellationToken);
+        node.ActiveAgents.Clear();
+        node.ActiveAgents.AddRange(agents.OrderBy(x => x.Id).Select(x => x.AgentUri));
+
+        return node;
     }
 
     public async Task MarkHealthCheckAsync(Guid nodeId)
@@ -163,4 +186,12 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     }
 
 
+}
+
+public class NodeSequence
+{
+    public static readonly string SequenceId = "nodes/sequence";
+    
+    public string Id { get; set; } = SequenceId;
+    public int Count { get; set; }
 }
