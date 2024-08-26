@@ -3,6 +3,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.RavenDb.Internals;
 
 namespace Wolverine.RavenDb;
@@ -18,6 +19,7 @@ public static class WolverineRavenDbExtensions
     public static WolverineOptions UseRavenDbPersistence(this WolverineOptions options)
     {
         options.Services.AddSingleton<IMessageStore, RavenDbMessageStore>();
+        options.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
         return options;
     }
 
