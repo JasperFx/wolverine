@@ -20,7 +20,7 @@ public class leader_election : LeadershipElectionCompliance
         opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "registry");
     }
 
-    protected override async Task dropSchema()
+    protected override async Task beforeBuildingHost()
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();

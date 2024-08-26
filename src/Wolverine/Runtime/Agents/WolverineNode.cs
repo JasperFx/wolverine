@@ -19,7 +19,7 @@ public class WolverineNode
     
     public List<Uri> ActiveAgents { get; set; } = new();
     public DateTimeOffset Started { get; set; }
-    public DateTimeOffset LastHealthCheck { get; set; }
+    public DateTimeOffset LastHealthCheck { get; set; } = DateTimeOffset.Now;
     
     public bool IsLeader()
     {

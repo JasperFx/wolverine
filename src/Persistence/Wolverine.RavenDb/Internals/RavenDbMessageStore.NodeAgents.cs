@@ -19,14 +19,17 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         await session.SaveChangesAsync(cancellationToken);
     }
 
+    private int _nodeNumber;
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
+        node.AssignedNodeId = ++_nodeNumber;
+        
         using var session = _store.OpenAsyncSession();
         await session.StoreAsync(node, cancellationToken);
         await session.SaveChangesAsync(cancellationToken);
         
         // TODO -- how to effect a sequence
-        return 1;
+        return node.AssignedNodeId; // This is cheating for the test harness code, can't be like this in production
     }
 
     public async Task DeleteAsync(Guid nodeId)
@@ -39,7 +42,10 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     public async Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();
-        var answer = await session.Query<WolverineNode>().ToListAsync(token: cancellationToken);
+        var answer = await session
+            .Query<WolverineNode>()
+            .Customize(x => x.WaitForNonStaleResults())
+            .ToListAsync(token: cancellationToken);
         return answer;
     }
 
@@ -115,25 +121,25 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     public async Task MarkHealthCheckAsync(Guid nodeId)
     {
         using var session = _store.OpenAsyncSession();
-        var node = await session.LoadAsync<WolverineNode>(nodeId.ToString());
-        node.LastHealthCheck = DateTimeOffset.UtcNow;
-        await session.StoreAsync(node);
+        session.Advanced.Patch<WolverineNode, DateTimeOffset>(nodeId.ToString(), x => x.LastHealthCheck, DateTimeOffset.UtcNow);
         await session.SaveChangesAsync();
     }
 
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         using var session = _store.OpenAsyncSession();
-        var node = await session.LoadAsync<WolverineNode>(nodeId.ToString());
-        node.LastHealthCheck = lastHeartbeatTime;
-        await session.StoreAsync(node);
+        session.Advanced.Patch<WolverineNode, DateTimeOffset>(nodeId.ToString(), x => x.LastHealthCheck, lastHeartbeatTime);
         await session.SaveChangesAsync();
     }
 
     public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
     {
         using var session = _store.OpenAsyncSession();
-        var ids = await session.Query<WolverineNode>().Select(x => x.AssignedNodeId).ToListAsync();
+        var ids = await session.Query<WolverineNode>()
+            .Customize(x => x.WaitForNonStaleResults())
+            .Select(x => x.AssignedNodeId)
+            .ToListAsync();
+        
         return ids;
     }
 

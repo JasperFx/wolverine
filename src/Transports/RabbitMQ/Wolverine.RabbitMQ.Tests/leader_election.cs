@@ -21,7 +21,7 @@ public class leader_election : LeadershipElectionCompliance
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
     }
 
-    protected override async Task dropSchema()
+    protected override async Task beforeBuildingHost()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();

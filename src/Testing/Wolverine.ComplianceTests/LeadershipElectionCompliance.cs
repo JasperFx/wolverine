@@ -17,7 +17,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
     private IHost _originalHost;
     
     // TODO -- rename this after combining
-    protected abstract Task dropSchema();
+    protected abstract Task beforeBuildingHost();
 
     public LeadershipElectionCompliance(ITestOutputHelper output)
     {
@@ -26,7 +26,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
     
     public async Task InitializeAsync()
     {
-        await dropSchema();
+        await beforeBuildingHost();
 
         _originalHost = await startHostAsync();
     }
