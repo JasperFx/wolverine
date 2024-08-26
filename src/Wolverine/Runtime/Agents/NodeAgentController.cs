@@ -79,6 +79,18 @@ public partial class NodeAgentController
 
         try
         {
+            try
+            {
+                if (_persistence.HasLeadershipLock())
+                {
+                    await _persistence.ReleaseLeadershipLockAsync();
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to release the leadership lock");
+            }
+            
             await _persistence.DeleteAsync(_runtime.Options.UniqueNodeId);
             await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStopped));
         }
