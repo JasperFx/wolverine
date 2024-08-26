@@ -9,10 +9,14 @@ namespace Wolverine.RavenDb.Internals;
 public partial class RavenDbMessageStore : IMessageStore
 {
     private readonly IDocumentStore _store;
+    
 
     public RavenDbMessageStore(IDocumentStore store)
     {
         _store = store;
+
+        _leaderLockId = "wolverine/leader";
+        _scheduledLockId = "wolverine/scheduled";
     }
 
     public ValueTask DisposeAsync()
@@ -45,6 +49,9 @@ public partial class RavenDbMessageStore : IMessageStore
 
     public IAgent StartScheduledJobs(IWolverineRuntime runtime)
     {
+        _leaderLockId = "wolverine/leader/" + runtime.Options.ServiceName.ToLowerInvariant();
+        _scheduledLockId = _scheduledLockId + "/" + runtime.Options.ServiceName.ToLowerInvariant();
+        _runtime = runtime;
         return new RavenDbDurabilityAgent(_store, runtime);
     }
 

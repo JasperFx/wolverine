@@ -156,18 +156,5 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         return list;
     }
 
-    public bool HasLeadershipLock()
-    {
-        throw new NotImplementedException();
-    }
 
-    public async Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)
-    {
-        throw new NotImplementedException();
-    }
-
-    public async Task ReleaseLeadershipLockAsync()
-    {
-        throw new NotImplementedException();
-    }
 }
