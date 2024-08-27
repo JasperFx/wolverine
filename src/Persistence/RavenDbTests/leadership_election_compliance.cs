@@ -12,16 +12,18 @@ namespace RavenDbTests;
 [Collection("raven")]
 public class leadership_election_compliance : LeadershipElectionCompliance
 {
+    private readonly DatabaseFixture _fixture;
     private IDocumentStore _store;
 
-    public leadership_election_compliance(ITestOutputHelper output) : base(output)
+    public leadership_election_compliance(ITestOutputHelper output, DatabaseFixture fixture) : base(output)
     {
+        _fixture = fixture;
     }
 
-    protected override async Task beforeBuildingHost()
+    protected override Task beforeBuildingHost()
     {
-        _store = await EmbeddedServer.Instance.GetDocumentStoreAsync(Guid.NewGuid().ToString());
-        
+        _store = _fixture.StartRavenStore();
+        return Task.CompletedTask;
     }
 
     protected override void configureNode(WolverineOptions options)

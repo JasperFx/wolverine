@@ -12,16 +12,18 @@ namespace RavenDbTests;
 [Collection("raven")]
 public class leadership_locking : IAsyncLifetime
 {
+    private readonly DatabaseFixture _fixture;
     private IDocumentStore _store;
     private IHost _host;
 
     public leadership_locking(DatabaseFixture fixture)
     {
+        _fixture = fixture;
     }
 
     public async Task InitializeAsync()
     {
-        _store = await EmbeddedServer.Instance.GetDocumentStoreAsync(Guid.NewGuid().ToString());
+        _store = _fixture.StartRavenStore();
         _host = await buildHost();
     }
 

@@ -4,6 +4,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
 using Raven.Embedded;
+using Raven.TestDriver;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.RavenDb;
@@ -12,18 +13,11 @@ using Wolverine.Transports.Tcp;
 
 namespace RavenDbTests;
 
-public class DatabaseFixture : IAsyncLifetime
+public class DatabaseFixture : RavenTestDriver
 {
-    public Task InitializeAsync()
+    public IDocumentStore StartRavenStore()
     {
-        EmbeddedServer.Instance.StartServer();
-        return Task.CompletedTask;
-    }
-
-    public Task DisposeAsync()
-    {
-        EmbeddedServer.Instance.Dispose();
-        return Task.CompletedTask;
+        return GetDocumentStore();
     }
 }
 
@@ -38,13 +32,16 @@ public class DatabaseCollection : ICollectionFixture<DatabaseFixture>
 [Collection("raven")]
 public class message_store_compliance : MessageStoreCompliance
 {
+    private readonly DatabaseFixture _fixture;
+
     public message_store_compliance(DatabaseFixture fixture)
     {
+        _fixture = fixture;
     }
 
     public override async Task<IHost> BuildCleanHost()
     {
-        var store = await EmbeddedServer.Instance.GetDocumentStoreAsync(Guid.NewGuid().ToString());
+        var store = _fixture.StartRavenStore();
 
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

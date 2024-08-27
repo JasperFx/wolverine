@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Queries;
 using Raven.Client.Documents.Session;
 using Wolverine.Runtime.Agents;
 
@@ -53,8 +54,16 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         await session.SaveChangesAsync();
         
         // Actually okay for these to be eventually consistent
+
+        var query = new IndexQuery
+        {
+            Query = $"from AgentAssignments a where a.NodeId = '{nodeId}'",
+            WaitForNonStaleResults = true,
+            WaitForNonStaleResultsTimeout = 5.Seconds()
+        };
+        
         var op = await _store.Operations.SendAsync(
-            new DeleteByQueryOperation($"from AgentAssignments a where a.NodeId = '{nodeId}'"));
+            new DeleteByQueryOperation(query));
         await op.WaitForCompletionAsync();
 
         await ReleaseAllOwnershipAsync(assignedNodeNumber);

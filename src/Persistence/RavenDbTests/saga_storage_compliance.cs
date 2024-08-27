@@ -4,29 +4,20 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Raven.Client.Documents;
 using Raven.Embedded;
+using Raven.TestDriver;
 using Wolverine;
 using Wolverine.ComplianceTests.Sagas;
 using Wolverine.RavenDb;
 
 namespace RavenDbTests;
 
-public class RavenDbSagaHost : ISagaHost
+public class RavenDbSagaHost : RavenTestDriver, ISagaHost
 {
     private IDocumentStore _store;
-
-
+    
     public IHost BuildHost<TSaga>()
     {
-        try
-        {
-            EmbeddedServer.Instance.StartServer();
-        }
-        catch (Exception)
-        {
-            // It's already started, good to go
-        }
-        
-        _store = EmbeddedServer.Instance.GetDocumentStore(Guid.NewGuid().ToString());
+        _store = GetDocumentStore();
 
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

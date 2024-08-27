@@ -1,4 +1,6 @@
+using JasperFx.Core;
 using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Queries;
 using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
@@ -79,15 +81,21 @@ public partial class RavenDbMessageStore : IMessageInbox
     public async Task ReleaseIncomingAsync(int ownerId)
     {
         using var session = _store.OpenAsyncSession();
-        var command = $@"
+
+        var query = new IndexQuery
+        {
+            Query = $@"
 from IncomingMessages as m
 where m.OwnerId = {ownerId}
 update
 {{
     m.OwnerId = 0
-}}";
+}}",
+            WaitForNonStaleResults = true,
+            WaitForNonStaleResultsTimeout = 10.Seconds()
+        };
 
-        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(query));
         await op.WaitForCompletionAsync();
     }
 
@@ -102,7 +110,14 @@ update
     m.OwnerId = 0
 }}";
 
-        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        var query = new IndexQuery
+        {
+            Query = command,
+            WaitForNonStaleResults = true,
+            WaitForNonStaleResultsTimeout = 5.Seconds()
+        };
+
+        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(query));
         await op.WaitForCompletionAsync();
     }
 }

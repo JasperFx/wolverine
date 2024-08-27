@@ -55,24 +55,34 @@ public partial class RavenDbMessageStore : IMessageStoreAdmin
     public async Task ReleaseAllOwnershipAsync()
     {
         using var session = _store.OpenAsyncSession();
-        var command = $@"
+
+        var query1 = new IndexQuery
+        {
+            Query = $@"
 from IncomingMessages as m
 update
 {{
     m.OwnerId = 0
-}}";
-
-        var op1 = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+}}",
+            WaitForNonStaleResults = true,
+            WaitForNonStaleResultsTimeout = 10.Seconds()
+        };
+        var op1 = await _store.Operations.SendAsync(new PatchByQueryOperation(query1));
         await op1.WaitForCompletionAsync();
-        
-        var command2 = $@"
+
+        var query2 = new IndexQuery
+        {
+            Query = $@"
 from OutgoingMessages as m
 update
 {{
     m.OwnerId = 0
-}}";
+}}",
+            WaitForNonStaleResults = true,
+            WaitForNonStaleResultsTimeout = 10.Seconds()
+        };
 
-        var op2 = await _store.Operations.SendAsync(new PatchByQueryOperation(command2));
+        var op2 = await _store.Operations.SendAsync(new PatchByQueryOperation(query2));
         await op2.WaitForCompletionAsync();
     }
 

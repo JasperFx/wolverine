@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Linq;
 using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Queries;
 using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RavenDb.Internals;
@@ -100,8 +101,13 @@ update
     m.Replayable = true
 }}";
         }
-    
-        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+
+        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(new IndexQuery
+        {
+            Query = command,
+            WaitForNonStaleResults = true,
+            WaitForNonStaleResultsTimeout = 10.Seconds()
+        }));
         await op.WaitForCompletionAsync();
 
         return count;

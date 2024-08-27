@@ -13,7 +13,7 @@
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0"/>
         <PackageReference Include="GitHubActionsTestLogger" Version="2.0.1" PrivateAssets="All"/>
-        <PackageReference Include="RavenDB.Embedded" Version="6.0.105" />
+        <PackageReference Include="RavenDB.TestDriver" Version="6.0.105" />
         <PackageReference Include="xunit" Version="2.9.0"/>
         <PackageReference Include="xunit.assemblyfixture" Version="2.2.0" />
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
