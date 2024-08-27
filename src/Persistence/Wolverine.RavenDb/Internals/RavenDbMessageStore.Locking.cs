@@ -3,14 +3,18 @@ using Wolverine.Runtime;
 
 namespace Wolverine.RavenDb.Internals;
 
+// TODO -- harden all locking methods
 public partial class RavenDbMessageStore
 {
     private string _leaderLockId;
     private string _scheduledLockId;
+    private long _lastScheduledLockIndex = 0;
+    private DistributedLock? _scheduledLock;
     private IWolverineRuntime _runtime;
 
     private DistributedLock? _leaderLock;
     private long _lastLockIndex = 0;
+    
 
     public bool HasLeadershipLock()
     {
@@ -56,6 +60,44 @@ public partial class RavenDbMessageStore
         if (_leaderLock == null) return;
         await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(_leaderLockId, _lastLockIndex));
         _leaderLock = null;
+    }
+
+    public async Task<bool> TryAttainScheduledJobLockAsync(CancellationToken token)
+    {
+        var newLock = new DistributedLock
+        {
+            NodeId = _runtime!.Options.UniqueNodeId,
+            ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5),
+        };
+        
+        if (_leaderLock == null)
+        {
+            var result = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(_scheduledLockId, newLock, 0), token: token);
+            if (result.Successful)
+            {
+                _scheduledLock = newLock;
+                _lastScheduledLockIndex = result.Index;
+                return true;
+            }
+
+            return false;
+        }
+        
+        var result2 = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(_scheduledLockId, newLock, _lastScheduledLockIndex), token: token);
+        if (result2.Successful)
+        {
+            _scheduledLock = newLock;
+            _lastScheduledLockIndex = result2.Index;
+            return true;
+        }
+
+        return false;
+    }
+
+    public async Task ReleaseScheduledJobLockAsync()
+    {
+        if (_scheduledLock == null) return;
+        await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(_scheduledLockId, _lastScheduledLockIndex));
     }
 }
 

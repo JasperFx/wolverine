@@ -10,13 +10,13 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
-internal enum InvokeResult
+public enum InvokeResult
 {
     Success,
     TryAgain
 }
 
-internal interface IExecutor : IMessageInvoker
+public interface IExecutor : IMessageInvoker
 {
     Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation);
     Task<InvokeResult> InvokeAsync(MessageContext context, CancellationToken cancellation);

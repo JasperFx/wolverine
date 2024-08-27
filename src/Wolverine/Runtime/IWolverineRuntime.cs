@@ -90,7 +90,7 @@ public interface IAgentRuntime
     void DisableHealthChecks();
 }
 
-internal interface IExecutorFactory
+public interface IExecutorFactory
 {
     IExecutor BuildFor(Type messageType);
     IExecutor BuildFor(Type messageType, Endpoint endpoint);

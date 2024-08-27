@@ -61,9 +61,12 @@ public partial class RavenDbMessageStore : IMessageInbox
         await session.SaveChangesAsync();
     }
 
-    public async Task ScheduleJobAsync(Envelope envelope)
+    public Task ScheduleJobAsync(Envelope envelope)
     {
-        throw new NotImplementedException();
+        envelope.Status = EnvelopeStatus.Scheduled;
+        envelope.OwnerId = TransportConstants.AnyNode;
+
+        return StoreIncomingAsync(envelope);
     }
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
