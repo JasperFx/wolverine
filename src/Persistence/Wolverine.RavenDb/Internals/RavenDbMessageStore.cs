@@ -52,7 +52,9 @@ public partial class RavenDbMessageStore : IMessageStore
         _leaderLockId = "wolverine/leader/" + runtime.Options.ServiceName.ToLowerInvariant();
         _scheduledLockId = _scheduledLockId + "/" + runtime.Options.ServiceName.ToLowerInvariant();
         _runtime = runtime;
-        return new RavenDbDurabilityAgent(_store, runtime, this);
+        var agent =  new RavenDbDurabilityAgent(_store, runtime, this);
+        agent.StartTimers();
+        return agent;
     }
 
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)

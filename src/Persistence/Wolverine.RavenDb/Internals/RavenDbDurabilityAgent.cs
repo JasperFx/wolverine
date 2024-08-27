@@ -46,6 +46,13 @@ public class RavenDbDurabilityAgent : IAgent
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        StartTimers();
+
+        return Task.CompletedTask;
+    }
+
+    internal void StartTimers()
+    {
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
 
         _recoveryTask = Task.Run(async () =>
@@ -71,10 +78,8 @@ public class RavenDbDurabilityAgent : IAgent
                 await timer.WaitForNextTickAsync(_combined.Token);
             }
         }, _combined.Token);
-
-        return Task.CompletedTask;
     }
-    
+
     private async Task tryRecoverMessages()
     {
         // TODO -- use a subscription for replayable dlq messages
