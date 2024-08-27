@@ -22,6 +22,8 @@ public interface INodeAgentPersistence
     Task MarkHealthCheckAsync(Guid nodeId);
     
     Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime);
+    
+    [Obsolete("kill this in 3.0")]
     Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync();
 
 

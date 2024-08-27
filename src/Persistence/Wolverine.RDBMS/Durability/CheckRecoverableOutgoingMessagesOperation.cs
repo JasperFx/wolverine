@@ -29,10 +29,6 @@ internal class CheckRecoverableOutgoingMessagesOperation : IDatabaseOperation
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {
-        if (_database.SchemaName == "sender")
-        {
-            Debug.WriteLine("remember to remove this");
-        }
         builder.Append(
             $"select distinct destination from {_database.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = 0;");
     }
