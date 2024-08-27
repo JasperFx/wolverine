@@ -42,7 +42,7 @@ public class RavenDbDurabilityAgent : IAgent
 
         _logger = runtime.LoggerFactory.CreateLogger<RavenDbDurabilityAgent>();
         
-        _combined = CancellationTokenSource.CreateLinkedTokenSource(_combined.Token, _cancellation.Token);
+        _combined = CancellationTokenSource.CreateLinkedTokenSource(runtime.Cancellation, _cancellation.Token);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)

@@ -56,8 +56,8 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         var op = await _store.Operations.SendAsync(
             new DeleteByQueryOperation($"from AgentAssignments a where a.NodeId = '{nodeId}'"));
         await op.WaitForCompletionAsync();
-        
-        
+
+        await ReleaseAllOwnershipAsync(assignedNodeNumber);
     }
 
     public async Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken)

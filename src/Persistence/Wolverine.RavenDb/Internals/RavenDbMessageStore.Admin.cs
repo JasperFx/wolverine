@@ -1,6 +1,8 @@
+using JasperFx.Core;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Queries;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 
@@ -76,7 +78,6 @@ update
 
     public async Task ReleaseAllOwnershipAsync(int ownerId)
     {
-        using var session = _store.OpenAsyncSession();
         var command = $@"
 from IncomingMessages as m
 where m.OwnerId = {ownerId}
@@ -85,7 +86,13 @@ update
     m.OwnerId = 0
 }}";
 
-        var op1 = await _store.Operations.SendAsync(new PatchByQueryOperation(command));
+        var op1 = await _store.Operations.SendAsync(new PatchByQueryOperation(new IndexQuery
+        {
+            Query = command,
+            WaitForNonStaleResults = true,
+            WaitForNonStaleResultsTimeout = 10.Seconds()
+        }));
+        await op1.WaitForCompletionAsync();
 
         var command2 = $@"
 from OutgoingMessages as m
@@ -95,7 +102,13 @@ update
     m.OwnerId = 0
 }}";
 
-        var op2 = await _store.Operations.SendAsync(new PatchByQueryOperation(command2));
+        var op2 = await _store.Operations.SendAsync(new PatchByQueryOperation(new IndexQuery
+        {
+            Query = command2,
+            WaitForNonStaleResults = true,
+            WaitForNonStaleResultsTimeout = 10.Seconds()
+        }));
+        await op2.WaitForCompletionAsync();
     }
 
     public async Task CheckConnectivityAsync(CancellationToken token)
