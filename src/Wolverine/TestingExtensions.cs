@@ -324,9 +324,9 @@ public static class TestingExtensions
 
             writer.WriteLine("According to the database...");
 
-            foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
+            foreach (var node in nodes.OrderBy(x => x.AssignedNodeNumber))
             {
-                writer.WriteLine($"Node {node.AssignedNodeId} is running:");
+                writer.WriteLine($"Node {node.AssignedNodeNumber} is running:");
                 foreach (var uri in node.ActiveAgents.OrderBy(x => x.ToString()))
                 {
                     writer.WriteLine(uri);
@@ -335,9 +335,9 @@ public static class TestingExtensions
 
             writer.WriteLine();
             writer.WriteLine("According to the runtimes");
-            foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
+            foreach (var node in nodes.OrderBy(x => x.AssignedNodeNumber))
             {
-                writer.WriteLine($"Node {node.AssignedNodeId} is running:");
+                writer.WriteLine($"Node {node.AssignedNodeNumber} is running:");
                 var runtime = _runtimes[node.NodeId];
 
                 foreach (var uri in runtime.AllRunningAgentUris().OrderBy(x => x.ToString()))

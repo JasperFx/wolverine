@@ -8,7 +8,7 @@ public interface INodeAgentPersistence
     Task ClearAllAsync(CancellationToken cancellationToken);
 
     Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken);
-    Task DeleteAsync(Guid nodeId);
+    Task DeleteAsync(Guid nodeId, int assignedNodeNumber);
     Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken);
 
     Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken);

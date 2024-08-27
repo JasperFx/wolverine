@@ -61,7 +61,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         return (int)raw;
     }
 
-    public async Task DeleteAsync(Guid nodeId)
+    public async Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
@@ -164,7 +164,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         var node = new WolverineNode
         {
             NodeId = await reader.GetFieldValueAsync<Guid>(0),
-            AssignedNodeId = await reader.GetFieldValueAsync<int>(1),
+            AssignedNodeNumber = await reader.GetFieldValueAsync<int>(1),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),
             Started = await reader.GetFieldValueAsync<DateTimeOffset>(4),

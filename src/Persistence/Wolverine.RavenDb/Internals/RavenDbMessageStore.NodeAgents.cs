@@ -36,16 +36,16 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         var sequence = await session.LoadAsync<NodeSequence>(NodeSequence.SequenceId, cancellationToken);
         sequence ??= new NodeSequence();
 
-        node.AssignedNodeId = ++sequence.Count;
+        node.AssignedNodeNumber = ++sequence.Count;
         
         await session.StoreAsync(sequence, cancellationToken);
         await session.StoreAsync(node, cancellationToken);
         await session.SaveChangesAsync(cancellationToken);
         
-        return node.AssignedNodeId; 
+        return node.AssignedNodeNumber; 
     }
 
-    public async Task DeleteAsync(Guid nodeId)
+    public async Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
     {
         using var session = _store.OpenAsyncSession();
         session.Delete(nodeId.ToString());
@@ -168,7 +168,7 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         using var session = _store.OpenAsyncSession();
         var ids = await session.Query<WolverineNode>()
             .Customize(x => x.WaitForNonStaleResults())
-            .Select(x => x.AssignedNodeId)
+            .Select(x => x.AssignedNodeNumber)
             .ToListAsync();
         
         return ids;

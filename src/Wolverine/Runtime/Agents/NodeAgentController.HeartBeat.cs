@@ -82,14 +82,14 @@ public partial class NodeAgentController
     {
         foreach (var staleNode in staleNodes)
         {
-            await _persistence.DeleteAsync(staleNode.NodeId);
+            await _persistence.DeleteAsync(staleNode.NodeId, staleNode.AssignedNodeNumber);
         }
 
         if (staleNodes.Any())
         {
             var records = staleNodes.Select(x => new NodeRecord
             {
-                NodeNumber = x.AssignedNodeId,
+                NodeNumber = x.AssignedNodeNumber,
                 RecordType = NodeRecordType.DormantNodeEjected,
                 Description = "Health check on Node " + _runtime.Options.Durability.AssignedNodeNumber
             }).ToArray();

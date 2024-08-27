@@ -51,7 +51,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
         var persisted = nodes.Single();
         persisted.NodeId.ShouldBe(id);
-        persisted.AssignedNodeId.ShouldBe(assignedId);
+        persisted.AssignedNodeNumber.ShouldBe(assignedId);
         persisted.ControlUri.ShouldBe(node.ControlUri);
         persisted.Description.ShouldBe(node.Description);
 
@@ -75,7 +75,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         node.Capabilities.Add(new Uri("green://"));
 
 
-        var assignedId = await _database.Nodes.PersistAsync(node, CancellationToken.None);
+        var assignedNodeNumber = await _database.Nodes.PersistAsync(node, CancellationToken.None);
 
         // Adding capabilities to prove that the cascade works
         var agent1 = new Uri("red://leader");
@@ -84,7 +84,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
 
         await _database.Nodes.AssignAgentsAsync(id, new[] { agent1, agent2, agent3 }, CancellationToken.None);
 
-        await _database.Nodes.DeleteAsync(id);
+        await _database.Nodes.DeleteAsync(id, assignedNodeNumber);
 
         var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
         nodes.ShouldBeEmpty();
@@ -192,7 +192,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         {
             NodeId = id,
             ControlUri = $"dbcontrol://{id}".ToUri(),
-            AssignedNodeId = ++_count
+            AssignedNodeNumber = ++_count
         };
     }
 

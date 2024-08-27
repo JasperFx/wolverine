@@ -61,7 +61,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         return (int)raw!;
     }
 
-    public Task DeleteAsync(Guid nodeId)
+    public Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
     {
         if (_database.HasDisposed) return Task.CompletedTask;
 
@@ -237,7 +237,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         var node = new WolverineNode
         {
             NodeId = await reader.GetFieldValueAsync<Guid>(0),
-            AssignedNodeId = await reader.GetFieldValueAsync<int>(1),
+            AssignedNodeNumber = await reader.GetFieldValueAsync<int>(1),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),
             Started = await reader.GetFieldValueAsync<DateTimeOffset>(4),

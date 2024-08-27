@@ -11,7 +11,7 @@ public class WolverineNode
     }
     
     public Guid NodeId { get; set; }
-    public int AssignedNodeId { get; set; } = 1; // Important, this can NEVER be 0
+    public int AssignedNodeNumber { get; set; } = 1; // Important, this can NEVER be 0
     public Uri? ControlUri { get; set; }
     public string Description { get; set; } = Environment.MachineName;
 

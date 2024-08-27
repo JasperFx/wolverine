@@ -244,7 +244,7 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.FromResult(0);
     }
 
-    public Task DeleteAsync(Guid nodeId)
+    public Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
     {
         return Task.CompletedTask;
     }

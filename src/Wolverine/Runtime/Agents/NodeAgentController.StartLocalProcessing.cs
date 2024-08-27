@@ -12,13 +12,13 @@ public partial class NodeAgentController
             current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
         }
 
-        current.AssignedNodeId = await _persistence.PersistAsync(current, _cancellation.Token);
+        current.AssignedNodeNumber = await _persistence.PersistAsync(current, _cancellation.Token);
         await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
 
-        _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId;
+        _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeNumber;
 
         _logger.LogInformation("Starting agents for Node {NodeId} with assigned node id {Id}",
-            options.UniqueNodeId, current.AssignedNodeId);
+            options.UniqueNodeId, current.AssignedNodeNumber);
 
         HasStartedLocalAgentWorkflowForBalancedMode = true;
 

@@ -91,7 +91,7 @@ public partial class NodeAgentController
                 _logger.LogError(e, "Error trying to release the leadership lock");
             }
             
-            await _persistence.DeleteAsync(_runtime.Options.UniqueNodeId);
+            await _persistence.DeleteAsync(_runtime.Options.UniqueNodeId, _runtime.DurabilitySettings.AssignedNodeNumber);
             await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStopped));
         }
         catch (Exception e)
