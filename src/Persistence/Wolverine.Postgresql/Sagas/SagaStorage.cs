@@ -96,9 +96,8 @@ public class SagaStorage<T, TId> : ISagaStorage<T> where T : Saga
 
         var id = IdSource(saga);
         var count = await transaction.CreateCommand(_updateSql).As<NpgsqlCommand>()
-            .With("id", id)
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga), NpgsqlDbType.Jsonb)
-            .With("version", saga.Version)
+            .With("id", id)
             .ExecuteNonQueryAsync(cancellationToken);
 
         if (count == 0)

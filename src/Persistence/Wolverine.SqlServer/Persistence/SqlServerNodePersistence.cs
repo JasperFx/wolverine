@@ -66,8 +66,9 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
 
-        await CommandExtensions.CreateCommand(conn, $"delete from {_nodeTable} where id = @id")
+        await CommandExtensions.CreateCommand(conn, $"delete from {_nodeTable} where id = @id;update {_settings.SchemaName}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = @number;update {_settings.SchemaName}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = @number;")
             .With("id", nodeId)
+            .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();
 
         await conn.CloseAsync();
