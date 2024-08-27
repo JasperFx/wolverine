@@ -21,7 +21,6 @@ public class RavenDbDurabilityAgent : IAgent
     private readonly ILogger<RavenDbDurabilityAgent> _logger;
 
     private Task? _recoveryTask;
-    private Task? _reassignmentTask;
     private Task? _scheduledJob;
     private readonly IExecutor _executor;
 
@@ -61,18 +60,6 @@ public class RavenDbDurabilityAgent : IAgent
             }
         }, _combined.Token);
 
-        _reassignmentTask = Task.Run(async () =>
-        {
-            await Task.Delay(_settings.FirstNodeReassignmentExecution, _combined.Token);
-            using var timer = new PeriodicTimer(_settings.NodeReassignmentPollingTime);
-            
-            while (!_combined.IsCancellationRequested)
-            {
-                await tryReassignDormantNodes();
-                await timer.WaitForNextTickAsync(_combined.Token);
-            }
-        }, _combined.Token);
-
         _scheduledJob = Task.Run(async () =>
         {
             await Task.Delay(_settings.ScheduledJobFirstExecution, _combined.Token);
@@ -93,8 +80,7 @@ public class RavenDbDurabilityAgent : IAgent
         // TODO -- use a subscription for replayable dlq messages
         // TODO -- try to use RavenDb's internal document expiry for expired envelopes
         // TODO -- use a subscription on the leader for outgoing messages marked as any node?
-        // TODO -- reassign nodes when deleting them
-        
+
 /*
             var operations = new IDatabaseOperation[]
    {
@@ -108,11 +94,6 @@ public class RavenDbDurabilityAgent : IAgent
    var batch = new DatabaseOperationBatch(_database, operations);
    _runningBlock.Post(batch);
  */
-    }
-
-    private async Task tryReassignDormantNodes()
-    {
-        
     }
 
     private async Task runScheduledJobs()
@@ -172,12 +153,7 @@ public class RavenDbDurabilityAgent : IAgent
         {
             _recoveryTask.SafeDispose();
         }
-        
-        if (_reassignmentTask != null)
-        {
-            _reassignmentTask.SafeDispose();
-        }
-        
+
         if (_scheduledJob != null)
         {
             _scheduledJob.SafeDispose();

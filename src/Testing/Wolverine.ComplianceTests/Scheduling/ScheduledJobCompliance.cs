@@ -24,7 +24,7 @@ public abstract class ScheduledJobCompliance: IAsyncLifetime
     private readonly ScheduledMessageReceiver theReceiver = new();
     private IHost theHost;
     
-    public abstract void ConfigurePersistence(WolverineOptions options);
+    public abstract void ConfigurePersistence(WolverineOptions opts);
     
     public async Task InitializeAsync()
     {

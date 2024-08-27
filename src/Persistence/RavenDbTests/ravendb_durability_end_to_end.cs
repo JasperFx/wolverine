@@ -13,6 +13,7 @@ using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.RavenDb;
 using Wolverine.RavenDb.Internals;
 
@@ -45,12 +46,16 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
                     opts.IncludeType<TraceHandler>();
                     opts.Policies.AutoApplyTransactions();
 
+                    opts.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
                     opts.Services.AddSingleton<IMessageStore>(new RavenDbMessageStore(_receiverStore));
-                    opts.UseRavenDbPersistence();
-
+                    
                     opts.ListenForMessagesFrom(_listener).UseDurableInbox();
 
                     opts.Services.AddResourceSetupOnStartup();
+                    
+                    opts.Transports.NodeControlEndpoint =
+                        opts.Transports.GetOrCreateEndpoint(
+                            new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}"));
                 })
                 .Start();
         });
@@ -66,8 +71,12 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
                     opts.Publish(x => x.Message<TraceMessage>().To(_listener)
                         .UseDurableOutbox());
 
+                    opts.Transports.NodeControlEndpoint =
+                        opts.Transports.GetOrCreateEndpoint(
+                            new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}"));
+                    
+                    opts.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
                     opts.Services.AddSingleton<IMessageStore>(new RavenDbMessageStore(_senderStore));
-                    opts.UseRavenDbPersistence();
 
                     opts.Durability.ScheduledJobPollingTime = 1.Seconds();
                     opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
@@ -129,7 +138,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 
     protected int ReceivedMessageCount()
     {
-        using var session = _receiverStore.OpenAsyncSession();
+        using var session = _receiverStore.OpenSession();
         return session.Query<TraceDoc>().Customize(x => x.WaitForNonStaleResults()).Count();
     }
 
@@ -155,13 +164,13 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 
     protected long PersistedIncomingCount()
     {
-        using var session = _receiverStore.OpenAsyncSession();
+        using var session = _receiverStore.OpenSession();
         return session.Query<IncomingMessage>().Customize(x => x.WaitForNonStaleResults()).Count();
     }
 
     protected long PersistedOutgoingCount()
     {
-        using var session = _senderStore.OpenAsyncSession();
+        using var session = _senderStore.OpenSession();
         return session.Query<OutgoingMessage>().Customize(x => x.WaitForNonStaleResults()).Count();
     }
 
