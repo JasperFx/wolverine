@@ -82,6 +82,13 @@ public class RavenDbDurabilityAgent : IAgent
 
     private async Task tryRecoverMessages()
     {
+        using var session = _store.OpenAsyncSession();
+        var listeners = await session.Query<IncomingMessage>()
+            .Where(x => x.OwnerId == 0)
+            .Select(x => x.ReceivedAt)
+            .Distinct()
+            .ToListAsync();
+
         // TODO -- use a subscription for replayable dlq messages
         // TODO -- try to use RavenDb's internal document expiry for expired envelopes
         // TODO -- use a subscription on the leader for outgoing messages marked as any node?
