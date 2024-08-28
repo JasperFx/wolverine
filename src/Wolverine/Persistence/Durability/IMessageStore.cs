@@ -110,6 +110,7 @@ public interface IMessageStore : IAsyncDisposable
 
     IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime);
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
+    Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 }
 
 public record IncomingCount(Uri Destination, int Count);

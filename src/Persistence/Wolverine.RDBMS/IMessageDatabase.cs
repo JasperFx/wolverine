@@ -24,8 +24,6 @@ public interface IMessageDatabase : IMessageStore
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
 
-    Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
-
     /// <summary>
     ///     Access the current count of persisted envelopes
     /// </summary>

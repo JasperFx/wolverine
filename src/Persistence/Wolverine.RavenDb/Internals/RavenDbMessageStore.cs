@@ -75,4 +75,15 @@ public partial class RavenDbMessageStore : IMessageStore
         
         return incoming.Select(x => x.Read()).ToList();
     }
+
+    public async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        using var session = _store.OpenAsyncSession();
+        foreach (var envelope in incoming)
+        {
+            session.Advanced.Patch<IncomingMessage, int>(envelope.Id.ToString(), x => x.OwnerId, ownerId);
+        }
+
+        await session.SaveChangesAsync();
+    }
 }

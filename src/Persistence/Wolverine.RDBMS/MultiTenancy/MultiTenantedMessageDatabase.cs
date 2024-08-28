@@ -49,6 +49,23 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         await database.Inbox.ScheduleExecutionAsync(envelope);
     }
 
+    public async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        string tenantId = null;
+        try
+        {
+            tenantId = incoming.Select(x => x.TenantId).Distinct().Single();
+        }
+        catch (Exception e)
+        {
+            throw new ArgumentOutOfRangeException(nameof(incoming),
+                "Invalid in this case to use a mixed bag of tenanted envelopes");
+        }
+        
+        var database = await GetDatabaseAsync(tenantId);
+        await database.ReassignIncomingAsync(ownerId, incoming);
+    }
+
     async Task IMessageInbox.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
