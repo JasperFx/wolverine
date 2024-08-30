@@ -52,7 +52,7 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
     {
         foreach (var incoming in _incoming)
         {
-            var listener = findListenerCircuit(incoming);
+            var listener = _endpoints.FindListenerCircuit(incoming.Destination);
 
             if (listener.Status == ListeningStatus.Accepting)
             {
@@ -60,7 +60,7 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
                     "Issuing a command to recover {Count} incoming messages from the inbox to destination {Destination}",
                     incoming.Count, incoming.Destination);
                 yield return
-                    new RecoverableIncomingMessagesOperation(_database, incoming, listener, _settings, _logger);
+                    new RecoverIncomingMessagesCommand(_database, incoming, listener, _settings, _logger);
             }
             else
             {
@@ -70,15 +70,5 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
         }
     }
 
-    private IListenerCircuit findListenerCircuit(IncomingCount count)
-    {
-        if (count.Destination.Scheme == TransportConstants.Local)
-        {
-            return (IListenerCircuit)_endpoints.GetOrBuildSendingAgent(count.Destination);
-        }
 
-        var listener = _endpoints.FindListeningAgent(count.Destination) ??
-                       _endpoints.FindListeningAgent(TransportConstants.Durable);
-        return listener!;
-    }
 }

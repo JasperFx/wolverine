@@ -6,7 +6,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Durability;
 
-public class RecoverableIncomingMessagesOperation : IAgentCommand
+public class RecoverIncomingMessagesCommand : IAgentCommand
 {
     private readonly IListenerCircuit _circuit;
     private readonly IncomingCount _count;
@@ -14,7 +14,7 @@ public class RecoverableIncomingMessagesOperation : IAgentCommand
     private readonly ILogger _logger;
     private readonly DurabilitySettings _settings;
 
-    public RecoverableIncomingMessagesOperation(IMessageStore store, IncomingCount count,
+    public RecoverIncomingMessagesCommand(IMessageStore store, IncomingCount count,
         IListenerCircuit circuit, DurabilitySettings settings, ILogger logger)
     {
         _store = store;
@@ -49,7 +49,7 @@ public class RecoverableIncomingMessagesOperation : IAgentCommand
         {
             var count = _count with { Count = _count.Count - pageSize };
 
-            return [new RecoverableIncomingMessagesOperation(_store, count, _circuit, _settings, _logger)];
+            return [new RecoverIncomingMessagesCommand(_store, count, _circuit, _settings, _logger)];
         }
 
         return AgentCommands.Empty;

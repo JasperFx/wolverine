@@ -22,11 +22,11 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
             if (chain is not SagaChain)
             {
                 var saveChanges = MethodCall.For<IAsyncDocumentSession>(x => x.SaveChangesAsync(default));
-                saveChanges.CommentText = "Commit any outstanding Marten changes";
+                saveChanges.CommentText = "Commit any outstanding RavenDb changes";
                 chain.Postprocessors.Add(saveChanges);
 
                 var methodCall = MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
-                methodCall.CommentText = "Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536";
+                methodCall.CommentText = "Have to flush outgoing messages just in case RavenDb did nothing because of https://github.com/JasperFx/wolverine/issues/536";
 
                 chain.Postprocessors.Add(methodCall);
             }
@@ -79,6 +79,7 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
+        // TODO -- try to do this with just a comment frame
         var call = MethodCall.For<IAsyncDocumentSession>(x => x.StoreAsync(null, default));
         call.Arguments[0] = saga;
         return call;

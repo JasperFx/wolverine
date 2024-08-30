@@ -16,7 +16,7 @@ public class CheckRecoverableIncomingMessageOperationTests
 {
     public const int theRecoveryBatchSize = 100;
     public const int theBufferedLimit = 500;
-    private readonly RecoverableIncomingMessagesOperation theAction;
+    private readonly RecoverIncomingMessagesCommand theAction;
 
     private readonly IListeningAgent theAgent = Substitute.For<IListeningAgent, IListenerCircuit>();
 
@@ -29,7 +29,7 @@ public class CheckRecoverableIncomingMessageOperationTests
 
     public CheckRecoverableIncomingMessageOperationTests()
     {
-        theAction = new RecoverableIncomingMessagesOperation(Substitute.For<IMessageDatabase>(), new IncomingCount(new Uri("local://one"), 4), theAgent, theSettings, NullLogger.Instance);
+        theAction = new RecoverIncomingMessagesCommand(Substitute.For<IMessageDatabase>(), new IncomingCount(new Uri("local://one"), 4), theAgent, theSettings, NullLogger.Instance);
 
         var settings = new LocalQueue("one");
         settings.BufferingLimits = new BufferingLimits(theBufferedLimit, 100);

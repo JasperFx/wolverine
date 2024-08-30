@@ -38,22 +38,27 @@ public partial class RavenDbMessageStore : IMessageInbox
 
     public async Task StoreIncomingAsync(Envelope envelope)
     {
-        // TODO -- gotta be a way to do this w/ less chattiness
         using var session = _store.OpenAsyncSession();
+        session.Advanced.UseOptimisticConcurrency = true;
         
-        if (await session.Advanced.ExistsAsync(envelope.Id.ToString()))
-        {
-            throw new DuplicateIncomingEnvelopeException(envelope.Id);
-        }
+        // if (await session.Advanced.ExistsAsync(envelope.Id.ToString()))
+        // {
+        //     throw new DuplicateIncomingEnvelopeException(envelope.Id);
+        // }
 
+        // TODO -- test for duplication, catch exception, throw DuplicateIncomingEnvelopeException instead
         var incoming = new IncomingMessage(envelope);
+        
         await session.StoreAsync(incoming);
         await session.SaveChangesAsync();
     }
 
     public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
+        // TODO -- how to check for idempotency
         using var session = _store.OpenAsyncSession();
+        session.Advanced.UseOptimisticConcurrency = true;
+        
         foreach (var envelope in envelopes)
         {
             var incoming = new IncomingMessage(envelope);
@@ -75,6 +80,7 @@ public partial class RavenDbMessageStore : IMessageInbox
     {
         using var session = _store.OpenAsyncSession();
         session.Advanced.Patch<IncomingMessage, EnvelopeStatus>(envelope.Id.ToString(), x => x.Status, EnvelopeStatus.Handled);
+        
         await session.SaveChangesAsync();
     }
 

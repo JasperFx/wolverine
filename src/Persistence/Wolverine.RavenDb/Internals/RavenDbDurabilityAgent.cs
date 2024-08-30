@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Raven.Client.Documents;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
@@ -69,7 +70,7 @@ public class RavenDbDurabilityAgent : IAgent
 
         _scheduledJob = Task.Run(async () =>
         {
-            await Task.Delay(_settings.ScheduledJobFirstExecution, _combined.Token);
+            await Task.Delay(recoveryStart, _combined.Token);
             using var timer = new PeriodicTimer(_settings.ScheduledJobPollingTime);
             
             while (!_combined.IsCancellationRequested)
@@ -88,6 +89,17 @@ public class RavenDbDurabilityAgent : IAgent
             .Select(x => x.ReceivedAt)
             .Distinct()
             .ToListAsync();
+
+        var bus = new MessageBus(_runtime);
+        foreach (var listener in listeners)
+        {
+            var circuit = _runtime.Endpoints.FindListenerCircuit(listener);
+            if (circuit.Status == ListeningStatus.Accepting)
+            {
+                throw new NotImplementedException("COME BACK HERE");
+                //await bus.InvokeAsync(new RecoverIncomingMessagesCommand(_runtime.Storage, ))
+            }
+        }
 
         // TODO -- use a subscription for replayable dlq messages
         // TODO -- try to use RavenDb's internal document expiry for expired envelopes
