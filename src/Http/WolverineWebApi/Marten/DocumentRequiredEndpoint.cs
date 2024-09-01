@@ -23,13 +23,13 @@ public class DocumentRequiredEndpoint
     }
     
     [WolverineGet("document-required/separate-attributes/{id}")]
-    public static Invoice SeparateAttributes([Document][Required] Invoice invoice)
+    public static Invoice SeparateAttributes([Document(Required = false)][Required] Invoice invoice)
     {
         return invoice;
     }
     
     [WolverineGet("document-required/document-attribute-only/{id}")]
-    public static Invoice DocumentAttributeOnly([Document(Required = true)] Invoice invoice)
+    public static Invoice DocumentAttributeOnly([Document] Invoice invoice)
     {
         return invoice;
     }
