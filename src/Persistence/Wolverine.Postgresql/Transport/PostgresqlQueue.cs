@@ -22,6 +22,8 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     private bool _hasInitialized;
     private IPostgresqlQueueSender? _sender;
     private ImHashMap<string, bool> _checkedDatabases = ImHashMap<string, bool>.Empty;
+    private readonly Lazy<QueueTable> _queueTable;
+    private readonly Lazy<ScheduledMessageTable> _scheduledMessageTable;
 
     public PostgresqlQueue(string name, PostgresqlTransport parent, EndpointRole role = EndpointRole.Application,
         string? databaseName = null) :
@@ -35,17 +37,19 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         Name = name;
         EndpointName = name;
 
-        QueueTable = new QueueTable(Parent, queueTableName);
-        ScheduledTable = new ScheduledMessageTable(Parent, scheduledTableName);
+        // Gotta be lazy so the schema names get set 
+        _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, queueTableName));
+        _scheduledMessageTable =
+            new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, scheduledTableName));
     }
 
     public string Name { get; }
 
     internal PostgresqlTransport Parent { get; }
 
-    internal Table QueueTable { get; private set; }
+    internal Table QueueTable => _queueTable.Value;
 
-    internal Table ScheduledTable { get; private set; }
+    internal Table ScheduledTable => _scheduledMessageTable.Value;
 
     protected override bool supportsMode(EndpointMode mode)
     {

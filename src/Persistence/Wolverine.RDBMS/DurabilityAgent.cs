@@ -95,10 +95,13 @@ internal class DurabilityAgent : IAgent
             _runningBlock.Post(batch);
         }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
 
-        _reassignmentTimer =
-            new Timer(
-                _ => { _runningBlock.Post(new ReassignDormantNodes(_runtime.Storage.Nodes, _database)); },
-                _settings, _settings.FirstNodeReassignmentExecution, _settings.NodeReassignmentPollingTime);
+        if (_settings.DurabilityAgentEnabled && _settings.Mode == DurabilityMode.Balanced)
+        {
+            _reassignmentTimer =
+                new Timer(
+                    _ => { _runningBlock.Post(new ReassignDormantNodes(_runtime.Storage.Nodes, _database)); },
+                    _settings, _settings.FirstNodeReassignmentExecution, _settings.NodeReassignmentPollingTime);
+        }
 
         if (AutoStartScheduledJobPolling)
         {

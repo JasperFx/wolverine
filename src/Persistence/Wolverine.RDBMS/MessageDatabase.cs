@@ -183,11 +183,13 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     {
         if (_cancellation.IsCancellationRequested) return;
 
-        await _dataSource
+        var count = await _dataSource
             .CreateCommand(
                 $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner")
             .With("owner", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
+        
+        Logger.LogInformation("Reassigned {Count} incoming messages from {Owner} to any node in the durable inbox", count, ownerId);
     }
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
