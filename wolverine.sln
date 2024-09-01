@@ -237,6 +237,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MartenTests", "src\Persiste
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PostgresqlTests", "src\Persistence\PostgresqlTests\PostgresqlTests.csproj", "{4257ECCC-A172-4FC0-BE0D-A60FDE0C8A74}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DuplicateMessageSending", "src\Persistence\DuplicateMessageSending\DuplicateMessageSending.csproj", "{1A34A78B-F6AB-41A9-8B90-384C6E1DBC63}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -598,6 +600,10 @@ Global
 		{4257ECCC-A172-4FC0-BE0D-A60FDE0C8A74}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4257ECCC-A172-4FC0-BE0D-A60FDE0C8A74}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4257ECCC-A172-4FC0-BE0D-A60FDE0C8A74}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1A34A78B-F6AB-41A9-8B90-384C6E1DBC63}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A34A78B-F6AB-41A9-8B90-384C6E1DBC63}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A34A78B-F6AB-41A9-8B90-384C6E1DBC63}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A34A78B-F6AB-41A9-8B90-384C6E1DBC63}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4} = {96119B5E-B5F0-400A-9580-B342EBE26212}
@@ -703,5 +709,6 @@ Global
 		{F3ECE3DC-153D-4F8A-AC48-2396F2B46ED7} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 		{D01C99ED-B735-4854-A07D-B55E506A1441} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 		{4257ECCC-A172-4FC0-BE0D-A60FDE0C8A74} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
+		{1A34A78B-F6AB-41A9-8B90-384C6E1DBC63} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 	EndGlobalSection
 EndGlobal
