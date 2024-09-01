@@ -69,26 +69,13 @@ public static IMartenOp Approve([Document("number")] Invoice invoice)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L54-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_route_argument_with_document_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-You can also combine the behavior of `[Document]` and `[Required]` through a single attribute like this:
+In the code above, if the `Invoice` document does not exist, the route will stop and return a status code 404 for Not Found.  
 
-<!-- snippet: sample_using_Document_required -->
-<a id='snippet-sample_using_document_required'></a>
-```cs
-[WolverinePost("/api/tenants/{tenant}/counters/{id}/inc2")]
-public static IMartenOp Increment2([Document(Required = true)] Counter counter)
-{
-    counter = counter with { Count = counter.Count + 1 };
-    return MartenOps.Store(counter);
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Bugs/Bug_865_returning_IResult_using_Auto_codegen.cs#L120-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_required' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
+If you, for whatever reason, want your handler executed even if the document does not exist, then you can set the `DocumentAttribute.Required` property to `false`.
 
-In the code above, if the `Counter` document does not exist, the route will stop and return a status code 404 for Not Found.
-
-:::warning
-It is recommended to use `[Document(Required = true)]` instead of the combination of `[Document][Required]`!  
-If the document is `NULL`, the former skip your `Load` / `Before` / etc. method, while the latter will still call it.
+:::info
+Starting with Wolverine 3 `DocumentAttribute.Required = true` is the default behavior.
+In previous versions the default value was `false`.
 :::
 
 However, if the document is soft-deleted your endpoint will still be executed.
