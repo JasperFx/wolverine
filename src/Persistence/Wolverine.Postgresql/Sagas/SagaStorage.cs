@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
 using Npgsql;
+using NpgsqlTypes;
 using Weasel.Core;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
@@ -81,9 +82,9 @@ public class SagaStorage<T, TId> : ISagaStorage<T> where T : Saga
         if (id == null || id.Equals(default(TId))) throw new ArgumentOutOfRangeException(nameof(saga), "You must define the saga id when using the lightweight saga storage");
         
         await ensureStorageExistsAsync(cancellationToken);
-        await transaction.CreateCommand(_insertSql)
+        await transaction.CreateCommand(_insertSql).As<NpgsqlCommand>()
             .With("id", id)
-            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga))
+            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga), NpgsqlDbType.Jsonb)
             .ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -94,9 +95,9 @@ public class SagaStorage<T, TId> : ISagaStorage<T> where T : Saga
         await ensureStorageExistsAsync(cancellationToken);
 
         var id = IdSource(saga);
-        var count = await transaction.CreateCommand(_updateSql)
+        var count = await transaction.CreateCommand(_updateSql).As<NpgsqlCommand>()
             .With("id", id)
-            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga))
+            .With("body", JsonSerializer.SerializeToUtf8Bytes(saga), NpgsqlDbType.Jsonb)
             .With("version", saga.Version)
             .ExecuteNonQueryAsync(cancellationToken);
 
