@@ -362,7 +362,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         
         if (Envelope?.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
-                                               Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
+                                               Envelope.ResponseType.IsInstanceOfType(message)))
         {
             Envelope.Response = message;
 

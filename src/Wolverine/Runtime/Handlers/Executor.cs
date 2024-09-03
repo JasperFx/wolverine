@@ -122,7 +122,8 @@ internal class Executor : IExecutor
             ReplyUri = TransportConstants.RepliesUri,
             ReplyRequested = typeof(T).ToMessageTypeName(),
             ResponseType = typeof(T),
-            TenantId = tenantId ?? bus.TenantId
+            TenantId = tenantId ?? bus.TenantId,
+            DoNotCascadeResponse = true
         };
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
