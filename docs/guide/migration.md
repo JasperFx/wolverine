@@ -26,3 +26,9 @@ a significant improvement in Wolverine's ability to detect node changes and roll
 The PostgreSQL transport option requires you to explicitly set the `transportSchema`, or Wolverine will fall through to
 using `wolverine_queues` as the schema for the database backed queues. Wolverine will no longer use the envelope storage
 schema for the queues.
+
+For [Wolverine.Http usage](/guide/http/), the Wolverine 3.0 usage of the less capable `ServiceProvider` instead of the previously
+mandated [Lamar](https://jasperfx.github.io/lamar) library necessitates the usage of this API to register necessary
+services for Wolverine.HTTP in addition to adding the Wolverine endpoints:
+
+snippet: sample_adding_http_services

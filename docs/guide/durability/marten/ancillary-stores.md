@@ -115,8 +115,15 @@ In the case of the ancillary Marten stores, the `IDocumentSession` objects are "
 any identity map mechanics for better performance. 
 :::
 
-What's not (yet) supported:
+## What's not (yet) supported
 
+::: warning
+There is currently a limitation where Wolverine can only use the inbox/outbox storage from the main Marten
+document store even if your handler declares that it is from a separate store. This is perfectly fine if your
+ancillary stores target the same PostgreSQL database. This limitation will be removed in 3.0.
+:::
+
+* It is not possible to use more than one ancillary store in the same handler with the middleware
 * The "Event Forwarding" from Marten to Wolverine
 * Fine grained configuration of the `IDocumentSession` objects created for the ancillary stores, so no ability to tag
   custom `IDocumentSessionListener` objects or control the session type. Listeners could be added through Wolverine middlware

@@ -23,15 +23,22 @@ using WolverineWebApi.Samples;
 using WolverineWebApi.WebSockets;
 using Order = WolverineWebApi.Order;
 
+#region sample_adding_http_services
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddLogging();
-
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
+// Necessary services for Wolverine HTTP
+// And don't worry, if you forget this, Wolverine
+// will assert this is missing on startup:(
 builder.Services.AddWolverineHttp();
+
+#endregion
+
+
+builder.Services.AddLogging();
+builder.Services.AddEndpointsApiExplorer();
 
 #region sample_register_custom_swashbuckle_filter
 
