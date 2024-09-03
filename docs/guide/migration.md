@@ -47,3 +47,7 @@ builder.Services.AddWolverineHttp();
 <!-- endSnippet -->
 
 Also for Wolverine.Http users, the `[Document]` attribute behavior in the Marten integration is now "required by default."
+
+The behavior of `IMessageBus.InvokeAsync<T>(message)` changed in 3.0 such that the `T` response **is not also published as a 
+message** at the same time when the initial message is sent with request/response semantics. Wolverine has gone back and forth
+in this behavior in its life, but at this point, the Wolverine thinks that this is the least confusing behavioral rule. 
