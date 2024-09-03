@@ -172,6 +172,18 @@ public class StartStream<T> : IStartStream where T : class
         StreamKey = streamKey;
         Events.AddRange(events);
     }
+    
+    public StartStream(Guid streamId, IList<object> events)
+    {
+        StreamId = streamId;
+        Events.AddRange(events);
+    }
+
+    public StartStream(string streamKey, IList<object> events)
+    {
+        StreamKey = streamKey;
+        Events.AddRange(events);
+    }
 
     public StartStream<T> With(object[] events)
     {
