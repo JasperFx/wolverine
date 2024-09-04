@@ -63,7 +63,7 @@ public partial class Envelope
     /// message as a cascading message. Originally added for the
     /// Http transport request/reply
     /// </summary>
-    internal bool DoNotCascadeResponse { get; set; }
+    public bool DoNotCascadeResponse { get; set; }
 
     /// <summary>
     ///     Status according to the message persistence

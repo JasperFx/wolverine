@@ -52,8 +52,6 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
         });
 
         result.ReadAsJson<CustomResponse>().Name.ShouldBe("Alan Alda");
-
-        tracked.Sent.SingleMessage<CustomResponse>();
     }
 
     [Fact]
@@ -65,8 +63,6 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
         });
 
         result.ReadAsJson<CustomResponse>().Name.ShouldBe("FDR");
-
-        tracked.Sent.SingleMessage<CustomResponse>();
     }
 
     [Fact]
@@ -78,7 +74,5 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
         });
 
         result.ReadAsJson<CustomResponse>().Name.ShouldBe("LBJ");
-
-        tracked.Sent.SingleMessage<CustomResponse>();
     }
 }
