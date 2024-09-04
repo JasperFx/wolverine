@@ -5,6 +5,7 @@ using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Shouldly;
+using Wolverine.Attributes;
 
 namespace MartenTests.Bugs;
 
@@ -35,8 +36,13 @@ public class CreateItemCommand
     public string Name { get; set; } = string.Empty;
 }
 
+#region sample_using_AlwaysPublishResponse
+
 public class CreateItemCommandHandler
 {
+    // Using this attribute will force Wolverine to also publish the ItemCreated event even if
+    // this is called by IMessageBus.InvokeAsync<ItemCreated>()
+    [AlwaysPublishResponse]
     public async Task<(ItemCreated, SecondItemCreated)> Handle(CreateItemCommand command, IDocumentSession session)
     {
         var item = new Item
@@ -50,6 +56,8 @@ public class CreateItemCommandHandler
         return (new ItemCreated(item.Id, item.Name), new SecondItemCreated(item.Id, item.Name));
     }
 }
+
+#endregion
 
 public record ItemCreated(Guid Id, string Name);
 

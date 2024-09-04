@@ -96,8 +96,6 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         response.BCount.ShouldBe(1);
         response.CCount.ShouldBe(1);
 
-        tracked.Sent.SingleMessage<Response>().ACount.ShouldBe(1);
-
         await OnAggregate(a =>
         {
             a.ACount.ShouldBe(1);
@@ -130,8 +128,6 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         response.ACount.ShouldBe(2);
         response.BCount.ShouldBe(1);
         response.CCount.ShouldBe(2);
-
-        tracked.Sent.SingleMessage<Response>().ACount.ShouldBe(2);
 
         await OnAggregate(a =>
         {

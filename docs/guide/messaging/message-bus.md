@@ -137,6 +137,11 @@ Note that if you execute the `Numbers` message from above with `InvokeAsync<Resu
 returned as the response and will not be published as a message. This was a breaking change in Wolverine 3.0. We think (hope)
 that this will be less confusing.
 
+You can explicitly override this behavior on a handler by handler basis with the `[AlwaysPublishResponse]` attribute
+as shown below:
+
+snippet: sample_using_AlwaysPublishResponse
+
 ## Sending or Publishing Messages
 
 [Publish/Subscribe](https://docs.microsoft.com/en-us/azure/architecture/patterns/publisher-subscriber) is a messaging pattern where the senders of messages do not need to specifically know what the specific subscribers are for a given message. In this case, some kind of middleware or infrastructure is responsible for either allowing subscribers to express interest in what messages they need to receive or apply routing rules to send the published messages to the right places. Wolverine's messaging support was largely built to support the publish/subscribe messaging pattern.
