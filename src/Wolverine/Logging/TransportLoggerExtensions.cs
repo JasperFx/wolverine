@@ -3,7 +3,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Logging;
 
-internal static class TransportLoggerExtensions
+public static class TransportLoggerExtensions
 {
     public const int OutgoingBatchSucceededEventId = 200;
     public const int OutgoingBatchFailedEventId = 201;

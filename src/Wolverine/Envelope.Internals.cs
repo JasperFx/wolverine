@@ -73,7 +73,7 @@ public partial class Envelope
     /// <summary>
     ///     Node owner of this message. 0 denotes that no node owns this message
     /// </summary>
-    internal int OwnerId { get; set; }
+    public int OwnerId { get; set; }
     
     internal bool InBatch { get; set; }
     

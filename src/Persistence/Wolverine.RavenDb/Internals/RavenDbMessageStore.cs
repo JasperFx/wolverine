@@ -1,5 +1,6 @@
 using Raven.Client.Documents;
 using Wolverine.Persistence.Durability;
+using Wolverine.RavenDb.Internals.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;

@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
+using Raven.Client.Exceptions;
 using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
@@ -41,16 +42,17 @@ public partial class RavenDbMessageStore : IMessageInbox
         using var session = _store.OpenAsyncSession();
         session.Advanced.UseOptimisticConcurrency = true;
         
-        // if (await session.Advanced.ExistsAsync(envelope.Id.ToString()))
-        // {
-        //     throw new DuplicateIncomingEnvelopeException(envelope.Id);
-        // }
-
-        // TODO -- test for duplication, catch exception, throw DuplicateIncomingEnvelopeException instead
         var incoming = new IncomingMessage(envelope);
-        
-        await session.StoreAsync(incoming);
-        await session.SaveChangesAsync();
+
+        try
+        {
+            await session.StoreAsync(incoming);
+            await session.SaveChangesAsync();
+        }
+        catch (ConcurrencyException)
+        {
+            throw new DuplicateIncomingEnvelopeException(envelope.Id);
+        }
     }
 
     public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)

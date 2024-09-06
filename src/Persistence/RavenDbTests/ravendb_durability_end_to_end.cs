@@ -48,6 +48,9 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 
                     opts.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
                     opts.Services.AddSingleton<IMessageStore>(new RavenDbMessageStore(_receiverStore));
+
+                    // Leave it as a lambda so it doesn't get disposed
+                    opts.Services.AddSingleton<IDocumentStore>(s => _receiverStore);
                     
                     opts.ListenForMessagesFrom(_listener).UseDurableInbox();
 
@@ -77,6 +80,9 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
                     
                     opts.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
                     opts.Services.AddSingleton<IMessageStore>(new RavenDbMessageStore(_senderStore));
+                    
+                    // Leave it as a lambda so it doesn't get disposed
+                    opts.Services.AddSingleton<IDocumentStore>(s => _senderStore);
 
                     opts.Durability.ScheduledJobPollingTime = 1.Seconds();
                     opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
@@ -146,10 +152,11 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
     {
         for (var i = 0; i < 200; i++)
         {
+            var outgoing = PersistedOutgoingCount();
             var actual = ReceivedMessageCount();
             var envelopeCount = PersistedIncomingCount();
 
-            Trace.WriteLine($"waitForMessages: {actual} actual & {envelopeCount} incoming envelopes");
+            Trace.WriteLine($"waitForMessages: {actual} received, {envelopeCount} incoming envelopes, {outgoing} outgoing envelopes");
 
             if (actual == count && envelopeCount == 0)
             {
@@ -165,7 +172,10 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
     protected long PersistedIncomingCount()
     {
         using var session = _receiverStore.OpenSession();
-        return session.Query<IncomingMessage>().Customize(x => x.WaitForNonStaleResults()).Count();
+        return session
+            .Query<IncomingMessage>()
+            .Customize(x => x.WaitForNonStaleResults())
+            .Count(x => x.Status == EnvelopeStatus.Incoming);
     }
 
     protected long PersistedOutgoingCount()
@@ -220,7 +230,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 
 public class TraceDoc
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Id { get; set; }
     public string Name { get; set; }
 }
 
