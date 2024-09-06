@@ -31,6 +31,7 @@ public class IncomingMessage
     public byte[] Body { get; set; } = [];
     public string MessageType { get; set; } = string.Empty;
     public Uri? ReceivedAt { get; set; }
+    public DateTimeOffset? KeepUntil { get; set; }
 
     public Envelope Read()
     {

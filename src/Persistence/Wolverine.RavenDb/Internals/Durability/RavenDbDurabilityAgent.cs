@@ -73,11 +73,23 @@ public partial class RavenDbDurabilityAgent : IAgent
         {
             await Task.Delay(recoveryStart, _combined.Token);
             using var timer = new PeriodicTimer(_settings.ScheduledJobPollingTime);
-            
+
+            var cycle = 0;
+                
+                
             while (!_combined.IsCancellationRequested)
             {
+                cycle++;
+                
                 await tryRecoverIncomingMessages();
                 await tryRecoverOutgoingMessagesAsync();
+
+                // Just want to do this occasionally at most
+                if (cycle == 5)
+                {
+                    await DeleteExpiredIncomingEnvelopes();
+                    cycle = 0;
+                }
                 
                 await timer.WaitForNextTickAsync(_combined.Token);
             }

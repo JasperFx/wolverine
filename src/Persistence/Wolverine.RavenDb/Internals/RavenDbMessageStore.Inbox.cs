@@ -57,7 +57,6 @@ public partial class RavenDbMessageStore : IMessageInbox
 
     public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
-        // TODO -- how to check for idempotency
         using var session = _store.OpenAsyncSession();
         session.Advanced.UseOptimisticConcurrency = true;
         
@@ -81,8 +80,10 @@ public partial class RavenDbMessageStore : IMessageInbox
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         using var session = _store.OpenAsyncSession();
+        var expirationTime = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.KeepAfterMessageHandling);
+        session.Advanced.Patch<IncomingMessage, DateTimeOffset?>(envelope.Id.ToString(), x => x.KeepUntil, expirationTime);
         session.Advanced.Patch<IncomingMessage, EnvelopeStatus>(envelope.Id.ToString(), x => x.Status, EnvelopeStatus.Handled);
-        
+
         await session.SaveChangesAsync();
     }
 
