@@ -94,7 +94,7 @@ public static class WolverineOptionsMartenExtensions
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MartenMessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
         
-        expression.Services.AddSingleton<IConfigureMarten, SagasShouldUseNumericRevisions>();
+        expression.Services.AddSingleton<IConfigureMarten, MartenOverrides>();
 
         expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration
         {

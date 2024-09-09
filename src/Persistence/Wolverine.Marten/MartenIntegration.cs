@@ -1,10 +1,12 @@
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
+using Marten.Internal;
 using Marten.Schema;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.Runtime;
@@ -57,10 +59,12 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
     }
 }
 
-internal class SagasShouldUseNumericRevisions : IConfigureMarten
+internal class MartenOverrides : IConfigureMarten
 {
     public void Configure(IServiceProvider services, StoreOptions options)
     {
+        options.Events.MessageOutbox = new MartenToWolverineOutbox(services);
+        
         options.Policies.ForAllDocuments(mapping =>
         {
             if (mapping.DocumentType.CanBeCastTo<Saga>())
@@ -71,6 +75,8 @@ internal class SagasShouldUseNumericRevisions : IConfigureMarten
         });
     }
 }
+
+internal class MartenOverrides<T> : MartenOverrides, IConfigureMarten<T> where T : IDocumentStore{}
 
 internal class EventWrapperForwarder : IHandledTypeRule
 {
