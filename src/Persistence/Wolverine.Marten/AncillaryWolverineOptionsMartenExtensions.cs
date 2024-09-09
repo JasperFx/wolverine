@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
 using Marten;
+using Marten.Internal;
 using Marten.Storage;
 using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,6 +56,8 @@ public static class AncillaryWolverineOptionsMartenExtensions
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
+
+        expression.Services.AddSingleton<IConfigureMarten<T>, MartenOverrides<T>>();
 
         expression.Services.AddSingleton<IAncillaryMessageStore>(s =>
         {
