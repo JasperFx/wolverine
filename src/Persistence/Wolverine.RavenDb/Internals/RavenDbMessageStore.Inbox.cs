@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Raven.Client;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
 using Raven.Client.Exceptions;
@@ -11,14 +12,31 @@ public partial class RavenDbMessageStore : IMessageInbox
 {
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
-        using var session = _store.OpenAsyncSession();
-        var incoming = await session.LoadAsync<IncomingMessage>(envelope.Id.ToString());
-        incoming.ExecutionTime = envelope.ScheduledTime;
-        incoming.Attempts = envelope.Attempts;
-        incoming.Status = EnvelopeStatus.Scheduled;
-        incoming.OwnerId = TransportConstants.AnyNode;
-        await session.StoreAsync(incoming);
-        await session.SaveChangesAsync();
+        var query = $@"
+            from IncomingMessages as m
+            where id() = $id
+            update {{
+                this.ExecutionTime = $time;
+                this.Status = $status;
+                this.Attempts = $attempts;
+                this.OwnerId = 0;
+            }}";
+
+        var operation = new PatchByQueryOperation(new IndexQuery
+        {
+            Query = query,
+            WaitForNonStaleResults = true,
+            QueryParameters = new Parameters()
+            {
+                {"id", envelope.Id.ToString()},
+                {"attempts", envelope.Attempts},
+                {"status", EnvelopeStatus.Scheduled},
+                {"time", envelope.ScheduledTime}
+            }
+        });
+        
+        var op = await _store.Operations.SendAsync(operation);
+        await op.WaitForCompletionAsync();
     }
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
@@ -65,7 +83,9 @@ public partial class RavenDbMessageStore : IMessageInbox
             var incoming = new IncomingMessage(envelope);
             await session.StoreAsync(incoming);
         }
-        
+
+        // It's okay if it does fail here with the duplicate detection, because that
+        // will force the DurableReceiver to try envelope at a time to get at the actual differences
         await session.SaveChangesAsync();
     }
 
@@ -79,26 +99,62 @@ public partial class RavenDbMessageStore : IMessageInbox
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
-        using var session = _store.OpenAsyncSession();
         var expirationTime = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.KeepAfterMessageHandling);
-        session.Advanced.Patch<IncomingMessage, DateTimeOffset?>(envelope.Id.ToString(), x => x.KeepUntil, expirationTime);
-        session.Advanced.Patch<IncomingMessage, EnvelopeStatus>(envelope.Id.ToString(), x => x.Status, EnvelopeStatus.Handled);
+        
+        var query = $@"
+            from IncomingMessages as m
+            where id() = $id
+            update {{
+                this[""@metadata""][""@expires""] = $expire;
+                this.Status = $status;
+                
+            }}";
 
-        await session.SaveChangesAsync();
+
+        var operation = new PatchByQueryOperation(new IndexQuery
+        {
+            Query = query,
+            WaitForNonStaleResults = true,
+            QueryParameters = new Parameters()
+            {
+                {"id", envelope.Id.ToString()},
+                {"expire", expirationTime},
+                {"status", EnvelopeStatus.Handled}
+            }
+        });
+        
+        var op = await _store.Operations.SendAsync(operation);
+        await op.WaitForCompletionAsync();
     }
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
-        using var session = _store.OpenAsyncSession();
         var expirationTime = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.KeepAfterMessageHandling);
+        
+        var query = $@"
+            from IncomingMessages as m
+            where id() in ($ids)
+            update {{
+                this[""@metadata""][""@expires""] = $expire;
+                this.Status = $status;
+                
+            }}";
 
-        foreach (var envelope in envelopes)
+
+        var operation = new PatchByQueryOperation(new IndexQuery
         {
-            session.Advanced.Patch<IncomingMessage, DateTimeOffset?>(envelope.Id.ToString(), x => x.KeepUntil, expirationTime);
-            session.Advanced.Patch<IncomingMessage, EnvelopeStatus>(envelope.Id.ToString(), x => x.Status, EnvelopeStatus.Handled);
-        }
-
-        await session.SaveChangesAsync();
+            Query = query,
+            WaitForNonStaleResults = true,
+            QueryParameters = new Parameters()
+            {
+                {"ids", envelopes.Select(x => x.Id.ToString()).ToArray()},
+                {"expire", expirationTime},
+                {"status", EnvelopeStatus.Handled}
+            }
+        });
+        
+        var op = await _store.Operations.SendAsync(operation);
+        await op.WaitForCompletionAsync();
     }
 
     public async Task ReleaseIncomingAsync(int ownerId)
@@ -109,13 +165,17 @@ public partial class RavenDbMessageStore : IMessageInbox
         {
             Query = $@"
 from IncomingMessages as m
-where m.OwnerId = {ownerId}
+where m.OwnerId = $owner
 update
 {{
     m.OwnerId = 0
 }}",
             WaitForNonStaleResults = true,
-            WaitForNonStaleResultsTimeout = 10.Seconds()
+            WaitForNonStaleResultsTimeout = 10.Seconds(),
+            QueryParameters = new()
+            {
+                {"owner", ownerId}
+            }
         };
 
         var op = await _store.Operations.SendAsync(new PatchByQueryOperation(query));
@@ -127,7 +187,7 @@ update
         using var session = _store.OpenAsyncSession();
         var command = $@"
 from IncomingMessages as m
-where m.OwnerId = {ownerId} and m.Destination = '{receivedAt}'
+where m.OwnerId = $owner and m.Destination = $uri
 update
 {{
     m.OwnerId = 0
@@ -137,7 +197,12 @@ update
         {
             Query = command,
             WaitForNonStaleResults = true,
-            WaitForNonStaleResultsTimeout = 5.Seconds()
+            WaitForNonStaleResultsTimeout = 5.Seconds(),
+            QueryParameters = new Parameters()
+            {
+                {"owner", ownerId},
+                {"uri", receivedAt}
+            }
         };
 
         var op = await _store.Operations.SendAsync(new PatchByQueryOperation(query));

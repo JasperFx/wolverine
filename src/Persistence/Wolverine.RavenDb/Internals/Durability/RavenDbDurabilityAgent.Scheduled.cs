@@ -43,7 +43,14 @@ public partial class RavenDbDurabilityAgent
         }
         finally
         {
-            await _parent.ReleaseScheduledJobLockAsync();
+            try
+            {
+                await _parent.ReleaseScheduledJobLockAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to release the scheduled job lock");
+            }
         }
     }
 

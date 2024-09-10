@@ -52,30 +52,42 @@ public partial class NodeAgentController
             return await EvaluateAssignmentsAsync(nodes);
         }
 
-        if (await _persistence.TryAttainLeadershipLockAsync(_cancellation.Token))
+        try
         {
-            try
+            if (await _persistence.TryAttainLeadershipLockAsync(_cancellation.Token))
             {
-                // If this fails, release the leadership lock!
-                await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, LeaderUri,
-                    _cancellation.Token);
+                return await tryStartLeadershipAsync(nodes);
             }
-            catch (Exception)
-            {
-                await _persistence.ReleaseLeadershipLockAsync();
-                throw;
-            }
-
-            IsLeader = true;
-
-            _logger.LogInformation("Node {NodeNumber} successfully assumed leadership", _runtime.Options.UniqueNodeId);
-            await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options,
-                NodeRecordType.LeadershipAssumed, LeaderUri));
-
-            return await EvaluateAssignmentsAsync(nodes);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to attain a leadership lock");
         }
 
         return AgentCommands.Empty;
+    }
+
+    private async Task<AgentCommands> tryStartLeadershipAsync(IReadOnlyList<WolverineNode> nodes)
+    {
+        try
+        {
+            // If this fails, release the leadership lock!
+            await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, LeaderUri,
+                _cancellation.Token);
+        }
+        catch (Exception)
+        {
+            await _persistence.ReleaseLeadershipLockAsync();
+            throw;
+        }
+
+        IsLeader = true;
+
+        _logger.LogInformation("Node {NodeNumber} successfully assumed leadership", _runtime.Options.UniqueNodeId);
+        await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options,
+            NodeRecordType.LeadershipAssumed, LeaderUri));
+
+        return await EvaluateAssignmentsAsync(nodes);
     }
 
     private async Task ejectStaleNodes(IReadOnlyList<WolverineNode> staleNodes)
