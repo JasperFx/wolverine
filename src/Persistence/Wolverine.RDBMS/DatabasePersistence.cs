@@ -53,11 +53,11 @@ public static class DatabasePersistence
     }
 
     public static DbCommand BuildIncomingStorageCommand(IEnumerable<Envelope> envelopes,
-        IMessageDatabase settings)
+        IMessageDatabase database)
     {
-        var builder = settings.ToCommandBuilder();
+        var builder = database.ToCommandBuilder();
 
-        foreach (var envelope in envelopes) BuildIncomingStorageCommand(settings, builder, envelope);
+        foreach (var envelope in envelopes) BuildIncomingStorageCommand(database, builder, envelope);
 
         return builder.Compile();
     }

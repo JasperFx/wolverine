@@ -135,6 +135,32 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
     }
 
+    public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
+    {
+        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+
+        if (groups.Length == 1)
+        {
+            var database = await GetDatabaseAsync(groups[0].Key);
+            await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelopes);
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            try
+            {
+                var database = await GetDatabaseAsync(group.Key);
+                await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(group.ToArray());
+            }
+            catch (UnknownTenantException e)
+            {
+                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
+                    group.Key);
+            }
+        }
+    }
+
     Task IMessageInbox.ReleaseIncomingAsync(int ownerId)
     {
         return executeOnAllAsync(d => d.Inbox.ReleaseIncomingAsync(ownerId));

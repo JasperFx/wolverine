@@ -13,6 +13,7 @@ public interface IMessageInbox
     Task ScheduleJobAsync(Envelope envelope);
 
     Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope);
+    Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes);
 
     // Good as is
     Task ReleaseIncomingAsync(int ownerId);

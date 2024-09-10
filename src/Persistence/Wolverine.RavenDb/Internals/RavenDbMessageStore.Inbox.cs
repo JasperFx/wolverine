@@ -87,6 +87,20 @@ public partial class RavenDbMessageStore : IMessageInbox
         await session.SaveChangesAsync();
     }
 
+    public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
+    {
+        using var session = _store.OpenAsyncSession();
+        var expirationTime = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.KeepAfterMessageHandling);
+
+        foreach (var envelope in envelopes)
+        {
+            session.Advanced.Patch<IncomingMessage, DateTimeOffset?>(envelope.Id.ToString(), x => x.KeepUntil, expirationTime);
+            session.Advanced.Patch<IncomingMessage, EnvelopeStatus>(envelope.Id.ToString(), x => x.Status, EnvelopeStatus.Handled);
+        }
+
+        await session.SaveChangesAsync();
+    }
+
     public async Task ReleaseIncomingAsync(int ownerId)
     {
         using var session = _store.OpenAsyncSession();

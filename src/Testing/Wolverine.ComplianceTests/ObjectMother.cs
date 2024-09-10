@@ -19,6 +19,7 @@ public static class ObjectMother
             OwnerId = 567,
             Attempts = 1,
             SentAt = new DateTimeOffset(DateTime.Today.AddHours(1)),
+            Status = EnvelopeStatus.Incoming
         };
     }
 }

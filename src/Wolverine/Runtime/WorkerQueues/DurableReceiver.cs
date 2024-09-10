@@ -74,8 +74,20 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             runtime.Cancellation);
 
 
-        _markAsHandled = new RetryBlock<Envelope>((e, _) => _inbox.MarkIncomingEnvelopeAsHandledAsync(e), _logger,
+        _markAsHandled = new RetryBlock<Envelope>(async (e, _) =>
+            {
+                // Only care about the batch if one exists
+                if (e.Batch != null)
+                {
+                    await _inbox.MarkIncomingEnvelopeAsHandledAsync(e.Batch);
+                }
+                else
+                {
+                    await _inbox.MarkIncomingEnvelopeAsHandledAsync(e);
+                }
+            }, _logger,
             _settings.Cancellation);
+        
         _incrementAttempts = new RetryBlock<Envelope>((e, _) => _inbox.IncrementIncomingEnvelopeAttemptsAsync(e),
             _logger, _settings.Cancellation);
 
