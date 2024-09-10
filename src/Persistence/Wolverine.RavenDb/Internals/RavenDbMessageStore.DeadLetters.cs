@@ -95,7 +95,7 @@ update
         {
             command = $@"
 from DeadLetterMessages as m
-where m.ExceptionType = '{exceptionType}'
+where m.ExceptionType = @exceptionType
 update
 {{
     m.Replayable = true
@@ -106,7 +106,8 @@ update
         {
             Query = command,
             WaitForNonStaleResults = true,
-            WaitForNonStaleResultsTimeout = 10.Seconds()
+            WaitForNonStaleResultsTimeout = 10.Seconds(),
+            QueryParameters = new(){{"exceptionType", exceptionType}}
         }));
         await op.WaitForCompletionAsync();
 

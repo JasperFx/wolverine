@@ -23,6 +23,7 @@ public partial class RavenDbMessageStore
         return true;
     }
 
+    // Error handling is outside of this
     public async Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)
     {
         var newLock = new DistributedLock
@@ -55,6 +56,7 @@ public partial class RavenDbMessageStore
         return false;
     }
 
+    // Error handling is outside of this
     public async Task ReleaseLeadershipLockAsync()
     {
         if (_leaderLock == null) return;
@@ -62,6 +64,7 @@ public partial class RavenDbMessageStore
         _leaderLock = null;
     }
 
+    // Error handling is outside of this
     public async Task<bool> TryAttainScheduledJobLockAsync(CancellationToken token)
     {
         var newLock = new DistributedLock

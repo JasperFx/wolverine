@@ -57,9 +57,10 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
         var query = new IndexQuery
         {
-            Query = $"from AgentAssignments a where a.NodeId = '{nodeId}'",
+            Query = $"from AgentAssignments a where a.NodeId = $node",
             WaitForNonStaleResults = true,
-            WaitForNonStaleResultsTimeout = 5.Seconds()
+            WaitForNonStaleResultsTimeout = 5.Seconds(),
+            QueryParameters = new(){{"node", nodeId}}
         };
         
         var op = await _store.Operations.SendAsync(

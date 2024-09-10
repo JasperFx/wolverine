@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Raven.Client.Documents;
@@ -5,6 +6,7 @@ using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
 using Raven.Embedded;
 using Raven.TestDriver;
+using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.RavenDb;
@@ -33,6 +35,7 @@ public class DatabaseCollection : ICollectionFixture<DatabaseFixture>
 public class message_store_compliance : MessageStoreCompliance
 {
     private readonly DatabaseFixture _fixture;
+    private IDocumentStore _store;
 
     public message_store_compliance(DatabaseFixture fixture)
     {
@@ -42,6 +45,7 @@ public class message_store_compliance : MessageStoreCompliance
     public override async Task<IHost> BuildCleanHost()
     {
         var store = _fixture.StartRavenStore();
+        _store = store;
 
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -56,6 +60,24 @@ public class message_store_compliance : MessageStoreCompliance
             }).StartAsync();
         
         return host;
+    }
+
+    [Fact]
+    public async Task marks_envelope_as_having_an_expires_on_mark_handled()
+    {
+        var envelope = ObjectMother.Envelope();
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+
+        using var session = _store.OpenAsyncSession();
+        var incoming = await session.LoadAsync<IncomingMessage>(envelope.Id.ToString());
+        var metadata = session.Advanced.GetMetadataFor(incoming);
+        metadata.TryGetValue("@expires", out var raw).ShouldBeTrue();
+        
+        var value = metadata["@expires"];
+        Debug.WriteLine(value);
+
     }
 
 
