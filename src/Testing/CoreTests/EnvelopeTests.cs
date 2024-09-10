@@ -265,6 +265,7 @@ public class EnvelopeTests
         sender.Latched.Returns(true);
 
         var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Outgoing;
         envelope.OwnerId = 33333;
         envelope.Sender = sender;
         envelope.Destination = new Uri("tcp://localhost:100"); // just to make it be not remote
