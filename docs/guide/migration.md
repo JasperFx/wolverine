@@ -55,4 +55,27 @@ in this behavior in its life, but at this point, the Wolverine thinks that this 
 You can selectively override this behavior and tell Wolverine to publish the response as a message no matter what
 by using the new 3.0 `[AlwaysPublishResponse]` attribute like this:
 
-snippet: sample_using_AlwaysPublishResponse
+<!-- snippet: sample_using_AlwaysPublishResponse -->
+<a id='snippet-sample_using_alwayspublishresponse'></a>
+```cs
+public class CreateItemCommandHandler
+{
+    // Using this attribute will force Wolverine to also publish the ItemCreated event even if
+    // this is called by IMessageBus.InvokeAsync<ItemCreated>()
+    [AlwaysPublishResponse]
+    public async Task<(ItemCreated, SecondItemCreated)> Handle(CreateItemCommand command, IDocumentSession session)
+    {
+        var item = new Item
+        {
+            Id = Guid.NewGuid(),
+            Name = command.Name
+        };
+
+        session.Store(item);
+
+        return (new ItemCreated(item.Id, item.Name), new SecondItemCreated(item.Id, item.Name));
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L39-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

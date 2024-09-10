@@ -22,7 +22,6 @@ public class RavenDbSagaHost : RavenTestDriver, ISagaHost
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                // TODO -- TEMP!
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
                 opts.CodeGeneration.GeneratedCodeOutputPath = AppContext.BaseDirectory.ParentDirectory().ParentDirectory().ParentDirectory().AppendPath("Internal", "Generated");

@@ -59,6 +59,7 @@ public class CreateDocCommand
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 
+
 public class CreateDocCommandHandler
 {
     [Transactional]
@@ -67,6 +68,7 @@ public class CreateDocCommandHandler
         session.Store(new FakeDoc { Id = message.Id });
     }
 }
+
 
 public class UsingDocumentSessionHandler
 {
