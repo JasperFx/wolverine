@@ -2,6 +2,7 @@ using Marten;
 using Marten.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
 using TeleHealth.Common;
+using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
 
@@ -9,6 +10,11 @@ namespace TeleHealth.WebApi;
 
 public record CompleteCharting(
     Guid ProviderShiftId,
+    
+    // This version is meant to mean "I was issued
+    // assuming that the ProviderShift is currently
+    // at this version in the server, and if the version
+    // has shifted since, then this command is now invalid"
     int Version
 );
 
@@ -118,5 +124,44 @@ public class CompleteChartingHandler
         }
 
         return new ChartingFinished();
+    }
+}
+
+
+// Since we're focusing on Marten, I'm using an MVC Core
+// controller just because it's commonly used and understood
+public class CompleteChartingController : ControllerBase
+{
+    [HttpPost("/provider/charting/complete")]
+    public async Task Post(
+        [FromBody] CompleteCharting charting,
+        [FromServices] IDocumentSession session)
+    {
+// We're looking up the current state of the ProviderShift aggregate
+// for the designated provider
+var stream = await session
+    .Events
+    .FetchForExclusiveWriting<ProviderShift>(
+        charting.ProviderShiftId, 
+        HttpContext.RequestAborted);
+
+        // The current state
+        var shift = stream.Aggregate;
+        
+        if (shift.Status != ProviderStatus.Charting)
+        {
+            // Obviously do something smarter in your app, but you 
+            // get the point
+            throw new Exception("The shift is not currently charting");
+        }
+        
+        // Append a single new event just to say 
+        // "charting is finished". I'm relying on 
+        // Marten's automatic metadata to capture
+        // the timestamp of this event for me
+        stream.AppendOne(new ChartingFinished());
+
+        // Commit the transaction
+        await session.SaveChangesAsync();
     }
 }

@@ -153,6 +153,34 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task mark_several_envelopes_as_handled()
+    {
+        var envelope1 = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope1);
+        
+        var envelope2 = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope2);
+        
+        var envelope3 = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope3);
+        
+        var envelope4 = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope4);
+        
+        var envelope5 = ObjectMother.Envelope();
+        
+        await thePersistence.Inbox.StoreIncomingAsync(envelope5);
+        
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync([envelope1, envelope2, envelope3, envelope4]);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+
+        counts.Incoming.ShouldBe(1);
+        counts.Scheduled.ShouldBe(0);
+        counts.Handled.ShouldBe(4);
+    }
+
+    [Fact]
     public async Task schedule_execution()
     {
         var list = new List<Envelope>();

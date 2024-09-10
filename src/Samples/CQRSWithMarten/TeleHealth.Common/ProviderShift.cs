@@ -1,4 +1,5 @@
 using Marten;
+using Marten.Events.Aggregation;
 
 namespace TeleHealth.Common;
 
@@ -11,7 +12,11 @@ public class ProviderShift
     public ProviderStatus Status { get; private set; }
     public string Name { get; init; }
     public Guid? AppointmentId { get; set; }
-
+    
+    // The Create & Apply methods are conventional targets
+    // for Marten's "projection" capabilities
+    // But don't worry, you would never *have* to take a reference
+    // to Marten itself like I did below jsut out of laziness
     public static async Task<ProviderShift> Create(
         ProviderJoined joined,
         IQuerySession session)
@@ -54,3 +59,4 @@ public class ProviderShift
         Status = ProviderStatus.Charting;
     }
 }
+

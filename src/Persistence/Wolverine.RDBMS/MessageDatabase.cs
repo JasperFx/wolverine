@@ -41,7 +41,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Durability = settings;
         _cancellation = settings.Cancellation;
 
-        _deleteIncomingEnvelopeById =
+        _markEnvelopeAsHandledById =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
         _incrementIncomingEnvelopeAttempts =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id";
