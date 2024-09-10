@@ -213,6 +213,7 @@ export default withMermaid( {
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
+                        {text: 'RavenDb Integration', link: '/guide/durability/ravendb'},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},
