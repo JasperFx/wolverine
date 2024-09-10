@@ -20,6 +20,7 @@ public static class WolverineRavenDbExtensions
     {
         options.Services.AddSingleton<IMessageStore, RavenDbMessageStore>();
         options.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
+        options.Services.AddHostedService<DeadLetterQueueReplayer>();
         return options;
     }
 

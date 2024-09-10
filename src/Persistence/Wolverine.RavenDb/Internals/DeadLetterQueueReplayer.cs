@@ -9,7 +9,6 @@ using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.RavenDb.Internals;
 
-// TODO -- just register this one.
 public class DeadLetterQueueReplayer : IHostedService
 {
     private readonly IDocumentStore _store;
