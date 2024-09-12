@@ -20,7 +20,7 @@ using var host = await Host.CreateDefaultBuilder()
             .UseConventionalRouting();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L293-L303' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L295-L305' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With the defaults from above, for each message that the application can handle
@@ -73,8 +73,58 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L308-L342' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L310-L344' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Adjusting Routing Conventions
+
+If the exchange/queue routing defaults don't suit your message routing requirements, they can be overridden as below. 
+This keeps existing naming conventions intact and avoids the need to drop down to manual exchange/queue definitions.
+
+<!-- snippet: sample_conventional_routing_exchange_conventions -->
+<a id='snippet-sample_conventional_routing_exchange_conventions'></a>
+```cs
+var sender = WolverineHost.For(opts =>
+{
+    opts.UseRabbitMq()
+        .UseConventionalRouting(conventions =>
+        {
+            conventions.ExchangeNameForSending(type => type.Name + "_custom");
+            conventions.ConfigureSending((x, c) =>
+            {
+                // Route messages via headers exchange whilst taking advantage of conventional naming
+                if (c.MessageType == typeof(HeadersMessage))
+                {
+                    x.ExchangeType(ExchangeType.Headers);
+                }
+            });
+        });
+});
+
+var receiver = WolverineHost.For(opts =>
+{
+    opts.UseRabbitMq()
+        .UseConventionalRouting(conventions =>
+        {
+            conventions.ExchangeNameForSending(type => type.Name + "_custom");
+            conventions.ConfigureListeners((x, c) =>
+            {
+                if (c.MessageType == typeof(HeadersMessage))
+                {
+                    // Bind our queue based on the headers tenant-id
+                    x.BindToExchange<HeadersMessage>(ExchangeType.Headers,
+                        arguments: new Dictionary<string, object>()
+                        {
+                            { "tenant-id", "tenant-id" }
+                        });
+                }
+            });
+        });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L503-L541' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_exchange_conventions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 
 
 TODO -- add content on filtering message types
