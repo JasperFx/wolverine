@@ -1,7 +1,7 @@
-import {bundledLanguages} from 'shiki';
 import { withMermaid } from "vitepress-plugin-mermaid"
+import { DefaultTheme, UserConfig } from 'vitepress'
 
-export default withMermaid( {
+const config: UserConfig<DefaultTheme.Config> = {
     base: '/',
     lang: 'en-US',
     title: 'Wolverine',
@@ -58,7 +58,7 @@ export default withMermaid( {
             '/': [
                 {
                     text: 'Tutorials',
-                    collapsible: true,
+                    collapsed: true,
                     items: [
                         {text: 'Getting Started', link: '/tutorials/getting-started'},
                         {text: 'Wolverine as Mediator', link: '/tutorials/mediator'},
@@ -70,7 +70,6 @@ export default withMermaid( {
                 },
                 {
                     text: 'General',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Basic Concepts', link: '/guide/basics'},
@@ -87,7 +86,6 @@ export default withMermaid( {
                 },
                 {
                     text: 'Messages and Handlers',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Messages and Serialization', link: '/guide/messages'},
@@ -110,7 +108,6 @@ export default withMermaid( {
                 },
                 {
                     text: 'Messaging',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Introduction to Messaging', link: '/guide/messaging/introduction'},
@@ -119,7 +116,6 @@ export default withMermaid( {
                         {text: 'Listening Endpoints', link: '/guide/messaging/listeners'},
                         {
                             text: 'Transports',
-                            collapsible: true,
                             collapsed: true,
                             items: [
                                 {text: 'Local Queues', link: '/guide/messaging/transports/local'},
@@ -167,7 +163,6 @@ export default withMermaid( {
                 },
                 {
                     text: 'ASP.Net Core Integration',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Http Services with Wolverine', link: '/guide/http/'},
@@ -193,13 +188,12 @@ export default withMermaid( {
                 },
                 {
                     text: 'Durability and Persistence',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Durable Inbox and Outbox Messaging', link: '/guide/durability/'},
                         {text: 'Troubleshooting and Leadership Election', link: '/guide/durability/leadership-and-troubleshooting'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
-                        {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
+                        {text: 'Marten Integration', link: '/guide/durability/marten/',  collapsed: false, items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/marten/transactional-middleware'},
                                 {text: 'Transactional Outbox Support', link: '/guide/durability/marten/outbox'},
                                 {text: 'Transactional Inbox Support', link: '/guide/durability/marten/inbox'},
@@ -228,7 +222,9 @@ export default withMermaid( {
         linkify: false
     },
     ignoreDeadLinks: true
-});
+}
+
+export default withMermaid(config);
 
 
 

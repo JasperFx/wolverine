@@ -8,7 +8,7 @@ titleTemplate: Next Generation .NET Mediator and Message Bus
 hero:
   name: Wolverine
   text: Next Generation .NET Mediator and Message Bus
-  tagline: A batteries included modern and opinionated library!
+  tagline: The cutting edge of messaging frameworks
   image:
     src: /logo.png
     alt: Wolverine Logo image
@@ -19,11 +19,11 @@ hero:
 
 features:
 - title: 💪 Command Execution
-  details: Wolverine has a unique approach to command processing that delivers fast performance while still providing an effective middleware strategy and mostly keeping out of your application code
+  details: A unique approach to command processing that delivers fast performance & provides an effective middleware strategy whilst keeping out of the way of your application code
 - title: 📚 Asynchronous Processing
-  details: Use Wolverine as an in memory command bus to easily leverage asynchronous and parallel processing within a single process
+  details: Use Wolverine as an in memory command bus to easily leverage asynchronous and parallel processing within a single or multiple processes
 - title: ⚡️ Messaging
-  details: Everything you need for robust messaging solutions between services including support for many popular transports, message failure policies, and persistent inbox/outbox messaging
+  details: Everything you need for a robust messaging solution between services including support for many popular transports, message failure policies, and persistent inbox/outbox messaging
 
 footer: MIT Licensed | Copyright © Jeremy D. Miller and contributors.
 ---

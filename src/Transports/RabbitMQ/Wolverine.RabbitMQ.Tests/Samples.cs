@@ -2,7 +2,9 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
 namespace Wolverine.RabbitMQ.Tests;
 
@@ -494,6 +496,50 @@ public class Samples
         await host.StartAsync();
 
         #endregion
+    }
+
+    public static void configure_routing_conventions()
+    {
+        #region sample_conventional_routing_exchange_conventions
+        var sender = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq()
+                .UseConventionalRouting(conventions =>
+                {
+                    conventions.ExchangeNameForSending(type => type.Name + "_custom");
+                    conventions.ConfigureSending((x, c) =>
+                    {
+                        // Route messages via headers exchange whilst taking advantage of conventional naming
+                        if (c.MessageType == typeof(HeadersMessage))
+                        {
+                            x.ExchangeType(ExchangeType.Headers);
+                        }
+                    });
+                });
+        });
+        
+        var receiver = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq()
+                .UseConventionalRouting(conventions =>
+                {
+                    conventions.ExchangeNameForSending(type => type.Name + "_custom");
+                    conventions.ConfigureListeners((x, c) =>
+                    {
+                        if (c.MessageType == typeof(HeadersMessage))
+                        {
+                            // Bind our queue based on the headers tenant-id
+                            x.BindToExchange<HeadersMessage>(ExchangeType.Headers,
+                                arguments: new Dictionary<string, object>()
+                                {
+                                    { "tenant-id", "tenant-id" }
+                                });
+                        }
+                    });
+                });
+        });
+        #endregion
+      
     }
 
     #region sample_RabbitMQ_configuration_in_wolverine_extension
