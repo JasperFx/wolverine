@@ -81,4 +81,3 @@ The diagram above should just say "Message Handler" as Wolverine makes no struct
 * *Message Store* -- Database storage for Wolverine's [inbox/outbox persistent messaging](/guide/durability/)
 * *Durability Agent* -- An internal subsystem in Wolverine that runs in a background service to interact with the message store for Wolverine's [transactional inbox/outbox](https://microservices.io/patterns/data/transactional-outbox.html) functionality
 
-For more context, see 
