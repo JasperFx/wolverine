@@ -8,7 +8,6 @@ using Xunit.Abstractions;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-[Collection("rabbitmq")]
 public class leader_election : LeadershipElectionCompliance
 {
     public leader_election(ITestOutputHelper output) : base(output)

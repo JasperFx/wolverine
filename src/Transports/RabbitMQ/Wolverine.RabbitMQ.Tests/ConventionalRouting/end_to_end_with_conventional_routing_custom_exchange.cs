@@ -26,7 +26,7 @@ public class end_to_end_with_conventional_routing_custom_exchange : IDisposable
                         {
                             x.BindToExchange<HeadersMessage>(ExchangeType.Headers, arguments: new Dictionary<string, object>()
                             {
-                                {"tenant-id", "tenant-id"}
+                                {EnvelopeConstants.TenantIdKey, EnvelopeConstants.TenantIdKey}
                             });
                         }
                     });
@@ -69,6 +69,7 @@ public class end_to_end_with_conventional_routing_custom_exchange : IDisposable
         var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver)
             .IncludeExternalTransports()
+            .WaitForMessageToBeReceivedAt<HeadersMessage>(_receiver)
             .Timeout(30.Seconds())
             .SendMessageAndWaitAsync(new HeadersMessage(), new DeliveryOptions() {TenantId = "tenant-id"});
 

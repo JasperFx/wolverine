@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-public class interoperability_specs : RabbitMQContext, IAsyncLifetime
+public class interoperability_specs : IAsyncLifetime
 {
     private string theQueueName;
     private IHost _host;
@@ -50,7 +50,7 @@ public class interoperability_specs : RabbitMQContext, IAsyncLifetime
             using var channel = await transport.CreateAdminChannelAsync();
             var props = new BasicProperties();
             
-            await channel.BasicPublishAsync(string.Empty, theQueueName, props, data, true);
+            await channel.BasicPublishAsync(string.Empty, theQueueName, true, props, data);
         });
 
         session.Received.SingleEnvelope<NumberMessage>()

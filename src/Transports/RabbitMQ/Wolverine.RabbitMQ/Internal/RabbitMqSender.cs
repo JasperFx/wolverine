@@ -10,11 +10,11 @@ namespace Wolverine.RabbitMQ.Internal;
 internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 {
     private readonly RabbitMqEndpoint _endpoint;
-    private readonly string _exchangeName;
+    private readonly CachedString _exchangeName;
     private readonly bool _isDurable;
     private readonly string _key;
     private readonly IRabbitMqEnvelopeMapper _mapper;
-    private readonly Func<Envelope, string> _toRoutingKey;
+    private readonly Func<Envelope, CachedString> _toRoutingKey;
 
     public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,
         RoutingMode routingType, IWolverineRuntime runtime) : base(
@@ -24,10 +24,10 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
         _isDurable = endpoint.Mode == EndpointMode.Durable;
 
-        _exchangeName = endpoint.ExchangeName;
+        _exchangeName = new CachedString(endpoint.ExchangeName);
         _key = endpoint.RoutingKey();
 
-        _toRoutingKey = routingType == RoutingMode.Static ? _ => _key : TopicRouting.DetermineTopicName;
+        _toRoutingKey = routingType == RoutingMode.Static ? _ => new CachedString(_key) : x => new CachedString(TopicRouting.DetermineTopicName(x));
 
         _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
@@ -60,7 +60,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         _mapper.MapEnvelopeToOutgoing(envelope, props);
 
         var routingKey = _toRoutingKey(envelope);
-        await Channel.BasicPublishAsync(_exchangeName, routingKey, props, envelope.Data);
+        await Channel.BasicPublishAsync(_exchangeName, routingKey, false, props, envelope.Data);
     }
 
     public override string ToString()
