@@ -20,6 +20,11 @@ internal class ArrayFamily : ServiceFamily
     public override ServicePlan? BuildDefaultPlan(ServiceContainer graph, List<ServiceDescriptor> trail)
     {
         var plans = graph.FindAll(ElementType, trail);
+        
+#if NET8_0_OR_GREATER
+        if (plans.Any(x => x.Descriptor.IsKeyedService)) return new ServiceLocationPlan(Default);
+#endif
+        
         if (plans.All(x => x.Lifetime == ServiceLifetime.Singleton))
         {
             return new SingletonPlan(Default);

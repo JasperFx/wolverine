@@ -3,6 +3,17 @@ namespace CoreTests.Codegen;
 public interface IWidget{}
 
 public class AWidget : IWidget{}
+public class BWidget : IWidget{}
+
+public class ServiceUsingWidget : IWidget
+{
+    public ServiceUsingWidget(IColor color)
+    {
+        Color = color;
+    }
+
+    public IColor Color { get; set; }
+}
 
 public interface ISingletonLambda{}
 public class SingletonLambda : ISingletonLambda{}

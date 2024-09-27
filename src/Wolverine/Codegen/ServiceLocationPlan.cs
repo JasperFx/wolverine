@@ -8,16 +8,7 @@ internal class ServiceLocationPlan : ServicePlan
 {
     public ServiceLocationPlan(ServiceDescriptor descriptor) : base(descriptor)
     {
-#if NET8_0_OR_GREATER
-        if (descriptor.IsKeyedService)
-        {
-            ArgumentNullException.ThrowIfNull(descriptor.KeyedImplementationFactory);
-        }
-        else
-        {
-            ArgumentNullException.ThrowIfNull(descriptor.ImplementationFactory);
-        }
-#endif
+
     }
 
     protected override bool requiresServiceProvider(IMethodVariables method)
