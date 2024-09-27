@@ -1,5 +1,12 @@
 # Fluent Validation Middleware
 
+::: warning
+Wolverine's `UseFluentValidation()` does "type scanning" to discover validators unless you explicitly tell
+Wolverine not to. Be careful to not double register validators through some other mechanism and Wolverine's. Do
+note that Wolverine makes some performance optimizations around the `ServiceLifetime` of DI registrations
+for validation that can be valuable in terms of performance.
+:::
+
 You will frequently want or need to validate the messages coming into your Wolverine system for correctness
 or at least the presence of vital information. To that end, Wolverine has support for integrating the
 popular [Fluent Validation](https://docs.fluentvalidation.net/en/latest/) library via an unobtrusive middleware strategy
