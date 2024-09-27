@@ -67,5 +67,4 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
     }
 }
 
-[Collection("acceptance")]
 public class durable_compliance : TransportCompliance<RabbitMqTransportFixture>;

@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
+public class native_dead_letter_queue_mechanics : IDisposable
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
     private IHost _host;
