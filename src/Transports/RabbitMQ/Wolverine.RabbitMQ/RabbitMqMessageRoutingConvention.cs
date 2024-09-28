@@ -10,13 +10,13 @@ namespace Wolverine.RabbitMQ;
 ///     exchange named after the MessageTypeName that is bound to a queue of the same name.
 /// </summary>
 public class RabbitMqMessageRoutingConvention : MessageRoutingConvention<RabbitMqTransport,
-    RabbitMqListenerConfiguration, RabbitMqExchangeConfiguration, RabbitMqMessageRoutingConvention>
+    RabbitMqConventionalListenerConfiguration, RabbitMqExchangeConfiguration, RabbitMqMessageRoutingConvention>
 {
-    protected override (RabbitMqListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
+    protected override (RabbitMqConventionalListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
         RabbitMqTransport transport, Type messageType)
     {
         var queue = transport.Queues[identifier];
-        return (new RabbitMqListenerConfiguration(queue, transport), queue);
+        return (new RabbitMqConventionalListenerConfiguration(queue, transport, _identifierForSender), queue);
     }
 
     protected override void ApplyListenerRoutingDefaults(string listenerIdentifier, RabbitMqTransport transport, Type messageType)
