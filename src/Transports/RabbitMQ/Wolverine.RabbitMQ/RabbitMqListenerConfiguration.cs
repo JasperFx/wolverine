@@ -6,18 +6,67 @@ using Wolverine.Util;
 
 namespace Wolverine.RabbitMQ;
 
+public sealed class RabbitMqConventionalListenerConfiguration : RabbitMqListenerConfiguration
+{
+    private readonly Func<Type, string?> _senderConvention;
+
+    public RabbitMqConventionalListenerConfiguration(RabbitMqQueue endpoint, RabbitMqTransport transport, Func<Type, string?> senderConvention) : base(endpoint, transport)
+    {
+        _senderConvention = senderConvention;
+    }
+    
+    /// <summary>
+    /// Binds to an exchange with provided name & type
+    /// </summary>
+    /// <param name="bindingKey"></param>
+    /// <param name="arguments"></param>
+    /// <returns></returns>
+    public RabbitMqListenerConfiguration BindToExchange(
+        ExchangeType exchangeType,
+        string exchangeName, 
+        string? bindingKey = null,
+        Dictionary<string, object>? arguments = null)
+    {
+        var exchange = Transport.Exchanges[exchangeName];
+        exchange.ExchangeType = exchangeType;
+        if (exchangeType is ExchangeType.Direct)
+            exchange.DirectRoutingKey = bindingKey;
+        
+        add(e=> e.BindExchange(exchangeName, exchangeType == ExchangeType.Headers ? string.Empty : bindingKey, arguments));
+
+        return this;
+    }
+    
+    /// <summary>
+    /// Binds to an exchange named with the message type name. 
+    /// </summary>
+    /// <param name="bindingKey"></param>
+    /// <param name="arguments"></param>
+    /// <typeparam name="TMessage"></typeparam>
+    /// <returns></returns>
+    public RabbitMqListenerConfiguration BindToExchange<TMessage>(
+        ExchangeType exchangeType,
+        string? bindingKey = null,
+        Dictionary<string, object>? arguments = null)
+    {
+        var convention = _senderConvention(typeof(TMessage))!;
+        var name = Transport.MaybeCorrectName(convention);
+        return BindToExchange(exchangeType, name, bindingKey ?? name, arguments);
+    }
+}
+
 public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListenerConfiguration, RabbitMqQueue>
 {
-    private readonly RabbitMqQueue _queue;
-    private readonly RabbitMqTransport _transport;
+    protected readonly RabbitMqQueue Queue;
+    protected readonly RabbitMqTransport Transport;
 
     public RabbitMqListenerConfiguration(RabbitMqQueue endpoint, RabbitMqTransport transport) : base(endpoint)
     {
-        _queue = endpoint;
-        _transport = transport;
+        Queue = endpoint;
+        Transport = transport;
     }
 
-    public string QueueName => _queue.QueueName;
+    public string QueueName => Queue.QueueName;
 
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
@@ -103,38 +152,6 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
         add(e => configure(e));
         
         return this;
-    }
-
-    public RabbitMqListenerConfiguration BindToExchange(
-        ExchangeType exchangeType,
-        string exchangeName, 
-        string? bindingKey = null,
-        Dictionary<string, object>? arguments = null)
-    {
-        var exchange = _transport.Exchanges[exchangeName];
-        exchange.ExchangeType = exchangeType;
-        if (exchangeType is ExchangeType.Direct)
-            exchange.DirectRoutingKey = bindingKey;
-        
-        add(e=> e.BindExchange(exchangeName, exchangeType == ExchangeType.Headers ? string.Empty : bindingKey, arguments));
-
-        return this;
-    }
-    
-    /// <summary>
-    /// Binds to an exchange named with the message type name. 
-    /// </summary>
-    /// <param name="bindingKey"></param>
-    /// <param name="arguments"></param>
-    /// <typeparam name="TMessage"></typeparam>
-    /// <returns></returns>
-    public RabbitMqListenerConfiguration BindToExchange<TMessage>(
-        ExchangeType exchangeType,
-        string? bindingKey = null,
-        Dictionary<string, object>? arguments = null)
-    {
-        var name = _transport.MaybeCorrectName(typeof(TMessage).ToMessageTypeName());
-        return BindToExchange(exchangeType, name, bindingKey ?? name, arguments);
     }
 
     /// <summary>
