@@ -8,7 +8,6 @@ using Wolverine.Marten;
 
 namespace MartenTests;
 
-[Collection("marten")]
 public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public DurableTcpTransportFixture() : base($"tcp://localhost:{PortFinder.GetAvailablePort()}/incoming".ToUri())
@@ -53,5 +52,4 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
     }
 }
 
-[Collection("marten")]
 public class DurableTcpTransportCompliance : TransportCompliance<DurableTcpTransportFixture>;
