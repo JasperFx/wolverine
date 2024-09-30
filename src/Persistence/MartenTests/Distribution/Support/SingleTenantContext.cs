@@ -64,6 +64,8 @@ public abstract class SingleTenantContext : IAsyncLifetime
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
                 opts.Durability.CheckAssignmentPeriod = 1.Seconds();
 
+                #region sample_opt_into_wolverine_managed_subscription_distribution
+
                 opts.Services.AddMarten(m =>
                     {
                         m.DisableNpgsqlLogging = true;
@@ -74,7 +76,15 @@ public abstract class SingleTenantContext : IAsyncLifetime
                         m.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
                         m.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
                     })
-                    .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
+                    .IntegrateWithWolverine(m =>
+                    {
+                        // This makes Wolverine distribute the registered projections
+                        // and event subscriptions evenly across a running application
+                        // cluster
+                        m.UseWolverineManagedEventSubscriptionDistribution = true;
+                    });
+
+                #endregion
 
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 

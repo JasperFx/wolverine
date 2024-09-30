@@ -114,7 +114,7 @@ builder.Services.AddMarten(m =>
 
         m.DatabaseSchemaName = "mttodo";
     })
-    .IntegrateWithWolverine(masterDatabaseConnectionString:connectionString);
+    .IntegrateWithWolverine(x => x.MasterDatabaseConnectionString = connectionString);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L12-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
