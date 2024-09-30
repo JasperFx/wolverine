@@ -37,7 +37,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             {
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "sender";
-            }).IntegrateWithWolverine("sender");
+            }).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "sender");
 
             opts.Services.AddResourceSetupOnStartup();
 
@@ -56,7 +56,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             {
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "receiver";
-            }).IntegrateWithWolverine("receiver");
+            }).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "receiver");
 
             opts.Services.AddResourceSetupOnStartup();
 

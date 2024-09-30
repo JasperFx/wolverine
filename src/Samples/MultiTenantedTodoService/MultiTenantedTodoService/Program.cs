@@ -26,7 +26,7 @@ builder.Services.AddMarten(m =>
 
         m.DatabaseSchemaName = "mttodo";
     })
-    .IntegrateWithWolverine(masterDatabaseConnectionString:connectionString);
+    .IntegrateWithWolverine(x => x.MasterDatabaseConnectionString = connectionString);
 
 #endregion
 

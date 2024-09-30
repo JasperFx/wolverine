@@ -12,6 +12,7 @@ using Npgsql;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;
+using Wolverine.Marten;
 using Wolverine.Marten.Distribution;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -120,7 +121,11 @@ public class MultiTenantContext : IAsyncLifetime
                         m.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
                         m.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
                     })
-                    .IntegrateWithCritterStackPro(masterDatabaseConnectionString: Servers.PostgresConnectionString);
+                    .IntegrateWithWolverine(m =>
+                    {
+                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.UseWolverineManagedEventSubscriptionDistribution = true;
+                    });
 
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
@@ -152,9 +157,9 @@ public class MultiTenantContext : IAsyncLifetime
                         m.Projections.Add<StartingProjection>(ProjectionLifecycle.Async);
                         m.Projections.Add<EndingProjection>(ProjectionLifecycle.Async);
                     })
+                    .IntegrateWithWolverine(m => m.MasterDatabaseConnectionString = Servers.PostgresConnectionString);
 
                     // TODO --derive this from Marten Tenancy
-                    .IntegrateWithCritterStackPro(masterDatabaseConnectionString: Servers.PostgresConnectionString);
 
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 

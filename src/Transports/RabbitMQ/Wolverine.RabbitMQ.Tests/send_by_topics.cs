@@ -208,7 +208,7 @@ public class send_by_topics_durable : IDisposable
                 opts.Durability.Mode = DurabilityMode.Solo;
 
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
-                    .IntegrateWithWolverine("sender");
+                    .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "sender");
 
                 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 

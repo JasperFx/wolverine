@@ -65,7 +65,7 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
                 {
                     o.Connection(Servers.PostgresConnectionString);
                     o.AutoCreateSchemaObjects = AutoCreate.All;
-                }).IntegrateWithWolverine("wolverine");
+                }).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "wolverine");
 
                 opts.Services.AddResourceSetupOnStartup();
             }).Start();

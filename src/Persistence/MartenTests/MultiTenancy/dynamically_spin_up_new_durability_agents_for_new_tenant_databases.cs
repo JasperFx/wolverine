@@ -74,7 +74,11 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
                         // database by tenant
                         o.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
                     })
-                    .IntegrateWithWolverine("mt", masterDatabaseConnectionString:Servers.PostgresConnectionString)
+                    .IntegrateWithWolverine(m =>
+                    {
+                        m.MessageStorageSchemaName = "mt";
+                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                    })
 
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup
@@ -163,7 +167,11 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
                         // database by tenant
                         o.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
                     })
-                    .IntegrateWithWolverine("mt", masterDatabaseConnectionString:Servers.PostgresConnectionString)
+                    .IntegrateWithWolverine(m =>
+                    {
+                        m.MessageStorageSchemaName = "mt";
+                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                    })
 
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup
