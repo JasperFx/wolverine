@@ -17,8 +17,9 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         DurabilitySettings settings)
     {
         Chain = chain ?? throw new ArgumentOutOfRangeException(nameof(chain));
+        
         _options = options;
-        Batcher = batcher;
+        Batcher = batcher ?? throw new ArgumentNullException(nameof(batcher));
         Queue = queue;
 
         _processingBlock = new ActionBlock<Envelope[]>(processEnvelopes);

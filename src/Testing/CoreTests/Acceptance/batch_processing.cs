@@ -134,6 +134,25 @@ public class batch_processing : IAsyncLifetime
     }
 
     #endregion
+
+
+    public static async Task sample_registration_of_custom_message_batcher()
+    {
+        #region sample_registering_a_custom_message_batcher
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.BatchMessagesOf<SubTaskCompleted>(x =>
+                {
+                    // We just have to let Wolverine know about our custom
+                    // message batcher
+                    x.Batcher = new SubTaskCompletedBatcher();
+                });
+            }).StartAsync();
+
+        #endregion
+    }
 }
 
 public record NoItem(string Name);
@@ -156,3 +175,86 @@ public static class ItemHandler
 }
 
 #endregion
+
+
+
+#region sample_subtask_completed_messages
+
+// Messages at the granular level that might be streaming in
+// very quickly
+public record SubTaskCompleted(string TaskId, string SubTaskId);
+
+
+// A custom message type for processing a batch of sub task
+// completed messages. Note that it's batched by the TaskId
+public record SubTaskCompletedBatch(string TaskId, string[] SubTaskIdList);
+
+#endregion
+
+#region sample_SubTaskCompletedBatcher
+
+public class SubTaskCompletedBatcher : IMessageBatcher
+{
+    public IEnumerable<Envelope> Group(IReadOnlyList<Envelope> envelopes)
+    {
+        var groups = envelopes
+            // You can trust that the message will be a non-null SubTaskCompleted here
+            .GroupBy(x => x.Message!.As<SubTaskCompleted>().TaskId)
+            .ToArray();
+        
+        foreach (var group in groups)
+        {
+            var subTaskIdList = group
+                .Select(x => x.Message)
+                .OfType<SubTaskCompleted>()
+                .Select(x => x.SubTaskId)
+                .ToArray();
+            
+            var message = new SubTaskCompletedBatch(group.Key,
+                subTaskIdList);
+
+            // It's important here to pass along the group of envelopes that make up 
+            // this batched message for Wolverine's transactional inbox/outbox
+            // tracking
+            yield return new Envelope(message, group);
+        }
+    }
+
+    public Type BatchMessageType => typeof(SubTaskCompletedBatch);
+}
+
+#endregion
+
+public class TrackedTask
+{
+    
+}
+
+public interface ITrackedTaskRepository
+{
+    public Task<TrackedTask> LoadAsync(string id)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+#region sample_SubTaskCompletedBatchHandler
+
+public static class SubTaskCompletedBatchHandler
+{
+    public static Task<TrackedTask> LoadAsync(SubTaskCompletedBatch batch, ITrackedTaskRepository repository)
+    {
+        return repository.LoadAsync(batch.TaskId);
+    }
+
+    public static Task Handle(SubTaskCompletedBatch batch)
+    {
+        // actually do something here....
+
+        return Task.CompletedTask;
+    }
+}
+
+#endregion
+
+
