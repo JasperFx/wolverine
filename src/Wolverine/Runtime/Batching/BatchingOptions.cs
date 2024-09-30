@@ -14,6 +14,9 @@ public class BatchingOptions(Type elementType) : IAsyncDisposable
     /// </summary>
     public Type ElementType { get; } = elementType;
 
+    public IMessageBatcher Batcher { get; set; } =
+        typeof(DefaultMessageBatcher<>).CloseAndBuildAs<IMessageBatcher>(elementType);
+
     /// <summary>
     /// The maximum size of the message batch. Default is 100.
     /// </summary>
@@ -37,21 +40,21 @@ public class BatchingOptions(Type elementType) : IAsyncDisposable
         if (_handler != null) return _handler;
         
         var builder = typeof(ProcessorBuilder<>).CloseAndBuildAs<IProcessorBuilder>(ElementType);
-        _handler = builder.Build(runtime, this);
+        _handler = builder.Build(runtime, Batcher, this);
 
         return _handler;
     }
 
     private interface IProcessorBuilder
     {
-        IMessageHandler Build(WolverineRuntime runtime, BatchingOptions batchingOptions);
+        IMessageHandler Build(WolverineRuntime runtime, IMessageBatcher batcher, BatchingOptions batchingOptions);
     }
 
     private class ProcessorBuilder<T> : IProcessorBuilder
     {
-        public IMessageHandler Build(WolverineRuntime runtime, BatchingOptions options)
+        public IMessageHandler Build(WolverineRuntime runtime, IMessageBatcher batcher, BatchingOptions options)
         {
-            var parentChain = runtime.Handlers.ChainFor<T[]>();
+            var parentChain = runtime.Handlers.ChainFor(batcher.BatchMessageType);
             if (parentChain == null)
             {
                 throw new InvalidOperationException(
@@ -60,7 +63,7 @@ public class BatchingOptions(Type elementType) : IAsyncDisposable
 
             var localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(options.LocalExecutionQueueName);
 
-            return new BatchingProcessor<T>(parentChain, options, localQueue,
+            return new BatchingProcessor<T>(parentChain, batcher, options, localQueue,
                 runtime.DurabilitySettings);
         }
     }
