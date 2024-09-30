@@ -82,7 +82,11 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
                         // database by tenant
                         o.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
                     })
-                    .IntegrateWithWolverine("mt", Servers.PostgresConnectionString)
+                    .IntegrateWithWolverine(m =>
+                    {
+                        m.MessageStorageSchemaName = "mt";
+                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                    })
                     .SubscribeToEvents(new ColorsSubscription())
                     .AddAsyncDaemon(DaemonMode.Solo)
 
@@ -161,7 +165,11 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
                         // database by tenant
                         o.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
                     })
-                    .IntegrateWithWolverine("mt_queues", Servers.PostgresConnectionString)
+                    .IntegrateWithWolverine(m =>
+                    {
+                        m.MessageStorageSchemaName = "mt_queues";
+                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                    })
 
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup

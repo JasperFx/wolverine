@@ -53,7 +53,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
                         // database by tenant
                         o.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
                     })
-                    .IntegrateWithWolverine("mt")
+                    .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "mt")
 
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup

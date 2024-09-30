@@ -52,7 +52,11 @@ await Host.CreateDefaultBuilder(args)
                 opts.Connection(Servers.PostgresConnectionString);
                 opts.DisableNpgsqlLogging = true;
             })
-            .IntegrateWithWolverine("public", transportSchemaName: "public")
+            .IntegrateWithWolverine(w =>
+            {
+                w.MessageStorageSchemaName = "public";
+                w.TransportSchemaName = "public";
+            })
             .ApplyAllDatabaseChangesOnStartup();
     })
     .UseResourceSetupOnStartup()

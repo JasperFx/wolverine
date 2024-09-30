@@ -4,6 +4,8 @@ using Marten.Events;
 using Marten.Internal;
 using Marten.Schema;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using Weasel.Core;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Marten.Publishing;
@@ -15,15 +17,24 @@ using Wolverine.Util;
 
 namespace Wolverine.Marten;
 
-internal class MartenIntegration : IWolverineExtension, IEventForwarding
+public class MartenIntegration : IWolverineExtension, IEventForwarding
 {
     private readonly List<Action<WolverineOptions>> _actions = [];
 
     /// <summary>
     ///     This directs the Marten integration to try to publish events out of the enrolled outbox
-    ///     for a Marten session on SaveChangesAsync()
+    ///     for a Marten session on SaveChangesAsync(). This is the "event forwarding" option.
+    /// There is no ordering guarantee with this option, but this will distribute event messages
+    /// faster than strictly ordered event subscriptions. Default is false
     /// </summary>
-    public bool ShouldPublishEvents { get; set; }
+    public bool UseFastEventForwarding { get; set; }
+    
+    /// <summary>
+    /// Use Wolverine to evenly distribute event projection and subscription work of Marten
+    /// asynchronous projections. This should be used exclusively with Marten's AddAsyncDaemon() option
+    /// and takes the place of Marten's built in, naive load distribution
+    /// </summary>
+    public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
 
     public void Configure(WolverineOptions options)
     {
@@ -48,12 +59,54 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
         transport.TransportSchemaName = TransportSchemaName;
         transport.MessageStorageSchemaName = MessageStorageSchemaName;
     }
+    
+    /// <summary>
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    /// </summary>
+    public string? MasterDatabaseConnectionString { get; set; }
+    
+    /// <summary>
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    /// </summary>
+    public NpgsqlDataSource? MasterDataSource { get; set; }
 
     internal MartenEventRouter EventRouter { get; } = new();
-    public string TransportSchemaName { get; set; } = "wolverine_queues";
-    public string MessageStorageSchemaName { get; set; } = "public";
 
-    EventForwardingTransform<T> IEventForwarding.SubscribeToEvent<T>()
+    private string _transportSchemaName = "wolverine_queues";
+
+    /// <summary>
+    /// The database schema to place postgres-backed queues. The default is "wolverine_queues"
+    /// </summary>
+    public string TransportSchemaName
+    {
+        get => _transportSchemaName;
+        set => _transportSchemaName = value.ToLowerInvariant();
+    }
+
+    private string? _messageStorageSchemaName;
+
+    /// <summary>
+    /// The database schema to place the message store tables for Wolverine
+    /// The default is to use the same schema as the Marten DocumentStore
+    /// </summary>
+    public string? MessageStorageSchemaName
+    {
+        get => _messageStorageSchemaName;
+        set => _messageStorageSchemaName = value?.ToLowerInvariant();
+    }
+    
+    /// <summary>
+    /// Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>
+    /// </summary>
+    public AutoCreate? AutoCreate { get; set; }
+
+    public EventForwardingTransform<T> SubscribeToEvent<T>()
     {
         return new EventForwardingTransform<T>(EventRouter);
     }

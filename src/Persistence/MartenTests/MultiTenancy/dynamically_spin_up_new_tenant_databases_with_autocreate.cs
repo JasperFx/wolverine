@@ -117,9 +117,11 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
                         // Required because AutoCreate.None
                         o.Schema.For<PersistedDoc>();
                     })
-                    .IntegrateWithWolverine(
-                        schemaName: "wolv",
-                        autoCreate: wolverineAutoCreate)
+                    .IntegrateWithWolverine(m =>
+                    {
+                        m.MessageStorageSchemaName = "wolv";
+                        m.AutoCreate = wolverineAutoCreate;
+                    })
 
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup

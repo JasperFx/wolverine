@@ -40,7 +40,7 @@ public class OutboxedSessionFactory
     {
         _factory = factory;
         _store = store;
-        _shouldPublishEvents = runtime.TryFindExtension<MartenIntegration>()?.ShouldPublishEvents ?? false;
+        _shouldPublishEvents = runtime.TryFindExtension<MartenIntegration>()?.UseFastEventForwarding ?? false;
 
         if (factory is SessionFactoryBase factoryBase)
         {

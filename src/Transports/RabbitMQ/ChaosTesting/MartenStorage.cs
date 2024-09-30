@@ -31,7 +31,7 @@ public class MartenStorageStrategy : IMessageStorageStrategy
             m.RegisterDocumentType<MessageRecord>();
 
             m.AutoCreateSchemaObjects = AutoCreate.None;
-        }).IntegrateWithWolverine("chaos_receiver");
+        }).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "chaos_receiver");
 
         opts.Services.AddResourceSetupOnStartup();
 
@@ -53,7 +53,7 @@ public class MartenStorageStrategy : IMessageStorageStrategy
             m.RegisterDocumentType<MessageRecord>();
 
             m.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
-        }).IntegrateWithWolverine("chaos_sender");
+        }).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "chaos_sender");
 
         opts.Services.AddResourceSetupOnStartup();
 
@@ -150,7 +150,12 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
             m.RegisterDocumentType<MessageRecord>();
 
             m.AutoCreateSchemaObjects = AutoCreate.None;
-        }).IntegrateWithWolverine("chaos_receiver", masterDatabaseConnectionString: Servers.PostgresConnectionString);
+        })
+        .IntegrateWithWolverine(x =>
+        {
+            x.MessageStorageSchemaName = "chaos_receiver";
+            x.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+        });
 
         opts.Services.AddResourceSetupOnStartup();
 
@@ -178,7 +183,12 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
             m.RegisterDocumentType<MessageRecord>();
 
             m.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
-        }).IntegrateWithWolverine("chaos_sender", masterDatabaseConnectionString: Servers.PostgresConnectionString);
+        })
+        .IntegrateWithWolverine(x =>
+        {
+            x.MessageStorageSchemaName = "chaos_sender";
+            x.MasterDatabaseConnectionString = "Servers.PostgresConnectionString";
+        });
 
         opts.Services.AddResourceSetupOnStartup();
 

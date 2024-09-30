@@ -89,7 +89,11 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                         // database by tenant
                         o.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
                     })
-                    .IntegrateWithWolverine("mt", masterDatabaseConnectionString:Servers.PostgresConnectionString)
+                    .IntegrateWithWolverine(m =>
+                    {
+                        m.MessageStorageSchemaName = "mt";
+                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                    })
 
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup
@@ -119,7 +123,11 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                         // database by tenant
                         o.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
                     })
-                    .IntegrateWithWolverine("mt", masterDatabaseConnectionString:Servers.PostgresConnectionString)
+                    .IntegrateWithWolverine(m =>
+                    {
+                        m.MessageStorageSchemaName = "mt";
+                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                    })
 
                     // All detected changes will be applied to all
                     // the configured tenant databases on startup

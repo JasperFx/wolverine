@@ -12,6 +12,7 @@ using Weasel.Core;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine;
+using Wolverine.Marten;
 using Wolverine.Marten.Distribution;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
@@ -73,7 +74,7 @@ public abstract class SingleTenantContext : IAsyncLifetime
                         m.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
                         m.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
                     })
-                    .IntegrateWithCritterStackPro();
+                    .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
 
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
@@ -106,7 +107,7 @@ public abstract class SingleTenantContext : IAsyncLifetime
                         m.Projections.Add<StartingProjection>(ProjectionLifecycle.Async);
                         m.Projections.Add<EndingProjection>(ProjectionLifecycle.Async);
                     })
-                    .IntegrateWithCritterStackPro();
+                    .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
 
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 

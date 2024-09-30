@@ -26,7 +26,7 @@ builder.Services.AddMarten(opts =>
     })
     // Adding Wolverine outbox integration to Marten in the "messages"
     // database schema
-    .IntegrateWithWolverine("messages");
+    .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "messages");
 
 // Adding Wolverine as a straight up Command Bus
 builder.Host.UseWolverine(opts =>

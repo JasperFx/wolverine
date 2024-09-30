@@ -13,6 +13,7 @@ using Wolverine.Runtime;
 using JasperFx.Core;
 using JasperFx.Core.IoC;
 using Marten.Events;
+using Marten.Events.Daemon.Coordination;
 using Marten.Events.Projections;
 using Marten.Storage;
 using Marten.Subscriptions;
@@ -20,7 +21,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Weasel.Core;
 using Weasel.Postgresql;
+using Wolverine.Marten.Distribution;
 using Wolverine.Marten.Subscriptions;
+using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Marten;
 
@@ -57,16 +60,20 @@ public static class WolverineOptionsMartenExtensions
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, 
-        string? schemaName = null,
-        string? masterDatabaseConnectionString = null, 
-        NpgsqlDataSource? masterDataSource = null, 
-        string? transportSchemaName = null,
-        AutoCreate? autoCreate = null)
+        Action<MartenIntegration>? configure = null)
     {
-        if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
+        var integration = expression.Services.FindMartenIntegration();
+        if (integration == null)
         {
-            throw new ArgumentOutOfRangeException(nameof(schemaName),
-                "The schema name must be in all lower case characters");
+            integration = new();
+            
+            configure?.Invoke(integration);
+            
+            expression.Services.AddSingleton<IWolverineExtension>(integration);
+        }
+        else
+        {
+            configure?.Invoke(integration);
         }
 
         expression.Services.AddSingleton<IWolverineExtension, MapEventTypeMessages>();
@@ -80,27 +87,27 @@ public static class WolverineOptionsMartenExtensions
             var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<PostgresqlMessageStore>>();
 
-            schemaName ??= store.Options.DatabaseSchemaName;
+            var schemaName = integration.MessageStorageSchemaName ?? store.Options.DatabaseSchemaName ?? "public";
 
             // TODO -- hacky. Need a way to expose this in Marten
             if (store.Tenancy.GetType().Name == "DefaultTenancy")
             {
-                return BuildSinglePostgresqlMessageStore(schemaName, autoCreate, store, runtime, logger);
+                return BuildSinglePostgresqlMessageStore(schemaName, integration.AutoCreate, store, runtime, logger);
             }
 
-            return BuildMultiTenantedMessageDatabase(schemaName, autoCreate, masterDatabaseConnectionString, masterDataSource, store, runtime, s);
+            return BuildMultiTenantedMessageDatabase(schemaName, integration.AutoCreate, integration.MasterDatabaseConnectionString, integration.MasterDataSource, store, runtime, s);
         });
+
+        if (integration.UseWolverineManagedEventSubscriptionDistribution)
+        {
+            expression.Services.AddSingleton<IAgentFamily, ProjectionAgents>();
+            expression.Services.AddSingleton<IProjectionCoordinator, ProjectionCoordinator>();
+        }
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MartenMessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
         
         expression.Services.AddSingleton<IConfigureMarten, MartenOverrides>();
-
-        expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration
-        {
-            TransportSchemaName = transportSchemaName ?? "wolverine_queues",
-            MessageStorageSchemaName = schemaName ?? "public"
-        });
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
@@ -194,6 +201,7 @@ public static class WolverineOptionsMartenExtensions
     /// </summary>
     /// <param name="expression"></param>
     /// <returns></returns>
+    [Obsolete($"Favor using the {nameof(MartenIntegration.UseFastEventForwarding)} property as part of {nameof(WolverineOptionsMartenExtensions.IntegrateWithWolverine)}. This will be removed in Wolverine 4.0")]
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression)
     {
@@ -204,7 +212,7 @@ public static class WolverineOptionsMartenExtensions
             integration = expression.Services.FindMartenIntegration();
         }
 
-        integration!.ShouldPublishEvents = true;
+        integration!.UseFastEventForwarding = true;
 
         return expression;
     }
@@ -216,6 +224,7 @@ public static class WolverineOptionsMartenExtensions
     /// </summary>
     /// <param name="expression"></param>
     /// <returns></returns>
+    [Obsolete($"All of these options are available within the {nameof(IntegrateWithWolverine)}() method. This will be removed in Wolverine 4.0")]
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, Action<IEventForwarding> configure)
     {
@@ -226,7 +235,7 @@ public static class WolverineOptionsMartenExtensions
             integration = expression.Services.FindMartenIntegration();
         }
 
-        integration!.ShouldPublishEvents = true;
+        integration!.UseFastEventForwarding = true;
 
         configure(integration);
 
