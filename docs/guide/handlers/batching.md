@@ -17,7 +17,7 @@ let's say that you have a message type called `Item`:
 ```cs
 public record Item(string Name);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L141-L145' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_batch_processing_item' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L160-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_batch_processing_item' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And for whatever reason, we need to process these messages in batches. To do that, we first need to have 
@@ -35,7 +35,7 @@ public static class ItemHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L147-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_batch_processing_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L166-L177' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_batch_processing_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -154,25 +154,106 @@ sub tasks for each parent task that could be getting marked complete in rapid su
 of where batching would be handy. Let's say that we have two message types for the individual item message and a custom
 task for the batched message like so:
 
-snippet: sample_subtask_completed_messages
+<!-- snippet: sample_subtask_completed_messages -->
+<a id='snippet-sample_subtask_completed_messages'></a>
+```cs
+// Messages at the granular level that might be streaming in
+// very quickly
+public record SubTaskCompleted(string TaskId, string SubTaskId);
+
+// A custom message type for processing a batch of sub task
+// completed messages. Note that it's batched by the TaskId
+public record SubTaskCompletedBatch(string TaskId, string[] SubTaskIdList);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L181-L192' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subtask_completed_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 To teach Wolverine how to batch up our `SubTaskCompleted` messages into our custom batch message, we need to supply our own implementation of Wolverine's built in `Wolverine.Runtime.Batching.IMessageBatcher`
 type:
 
-snippet: sample_IMessageBatcher
+<!-- snippet: sample_IMessageBatcher -->
+<a id='snippet-sample_imessagebatcher'></a>
+```cs
+/// <summary>
+/// Plugin strategy for creating custom grouping of messages
+/// </summary>
+public interface IMessageBatcher
+{
+    /// <summary>
+    /// Main method that batches items
+    /// </summary>
+    /// <param name="envelopes"></param>
+    /// <returns></returns>
+    IEnumerable<Envelope> Group(IReadOnlyList<Envelope> envelopes);
+    
+    /// <summary>
+    /// The actual message type being built that is assumed to contain
+    /// all the batched items
+    /// </summary>
+    Type BatchMessageType { get; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Batching/IMessageBatcher.cs#L5-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessagebatcher' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 A custom implementation of that interface in this case would look like this:
 
-snippet: sample_SubTaskCompletedBatch
+<!-- snippet: sample_subtask_completed_messages -->
+<a id='snippet-sample_subtask_completed_messages'></a>
+```cs
+// Messages at the granular level that might be streaming in
+// very quickly
+public record SubTaskCompleted(string TaskId, string SubTaskId);
+
+// A custom message type for processing a batch of sub task
+// completed messages. Note that it's batched by the TaskId
+public record SubTaskCompletedBatch(string TaskId, string[] SubTaskIdList);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L181-L192' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subtask_completed_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 And of course, this doesn't work without a matching message handler for our custom message type:
 
-snippet: sample_SubTaskCompletedBatchHandler
+<!-- snippet: sample_SubTaskCompletedBatchHandler -->
+<a id='snippet-sample_subtaskcompletedbatchhandler'></a>
+```cs
+public static class SubTaskCompletedBatchHandler
+{
+    public static Task<TrackedTask> LoadAsync(SubTaskCompletedBatch batch, ITrackedTaskRepository repository)
+    {
+        return repository.LoadAsync(batch.TaskId);
+    }
+
+    public static Task Handle(SubTaskCompletedBatch batch)
+    {
+        // actually do something here....
+
+        return Task.CompletedTask;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L241-L258' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subtaskcompletedbatchhandler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 And finally, we need to tell Wolverine about the batching and the strategy for batching the `SubTaskCompleted`
 message type:
 
-snippet: sample_registering_a_custom_message_batcher
+<!-- snippet: sample_registering_a_custom_message_batcher -->
+<a id='snippet-sample_registering_a_custom_message_batcher'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.BatchMessagesOf<SubTaskCompleted>(x =>
+        {
+            // We just have to let Wolverine know about our custom
+            // message batcher
+            x.Batcher = new SubTaskCompletedBatcher();
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L141-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_custom_message_batcher' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 
