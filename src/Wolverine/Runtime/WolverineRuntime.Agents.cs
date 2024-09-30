@@ -73,7 +73,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
         return await messageBus
             .EndpointFor(destination.ControlUri)
-            .InvokeAsync<T>(command, _agentCancellation.Token, 60.Seconds());
+            .InvokeAsync<T>(command, _agentCancellation.Token, 10.Seconds());
     }
 
     public Uri[] AllRunningAgentUris()

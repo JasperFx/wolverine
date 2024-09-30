@@ -11,7 +11,6 @@ using Wolverine.Runtime;
 
 namespace MartenTests.ScheduledJobs;
 
-[Collection("marten")]
 public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMessageReceiver, ItemCreatedHandler>
 {
     protected override void configureReceiver(WolverineOptions receiverOptions)

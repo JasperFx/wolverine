@@ -192,6 +192,25 @@ public class AssignmentGrid
         }
     }
 
+    public bool AllNodesHaveSameCapabilities(string scheme)
+    {
+        var gold = _nodes[0].Capabilities.Where(x => x.Scheme.EqualsIgnoreCase(scheme)).OrderBy(x => x.ToString())
+            .ToArray();
+
+        foreach (var node in _nodes.Skip(1))
+        {
+            var matching = node.Capabilities.Where(x => x.Scheme.EqualsIgnoreCase(scheme)).OrderBy(x => x.ToString())
+                .ToArray();
+
+            if (!gold.SequenceEqual(matching))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+    
     /// <summary>
     /// Attempts to redistribute agents for a given agent type evenly
     /// across the known, executing nodes with minimal disruption. This version assumes
@@ -205,6 +224,12 @@ public class AssignmentGrid
         if (nodes.Count == 0)
         {
             throw new InvalidOperationException("There are no active nodes");
+        }
+
+        if (AllNodesHaveSameCapabilities(scheme))
+        {
+            DistributeEvenly(scheme);
+            return;
         }
 
         var agents = MatchAgentsToCapableNodesFor(scheme);
@@ -418,7 +443,9 @@ public class AssignmentGrid
         public Node(AssignmentGrid parent, int assignedId, Guid nodeId, List<Uri> capabilities)
         {
             _parent = parent;
-            _capabilities = capabilities;
+            
+            // It's important to order here
+            _capabilities = capabilities.OrderBy(x => x.ToString()).ToList();
             AssignedId = assignedId;
             NodeId = nodeId;
         }
