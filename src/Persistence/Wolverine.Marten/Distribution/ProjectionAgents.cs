@@ -11,7 +11,7 @@ namespace Wolverine.Marten.Distribution;
 
 internal class ProjectionAgents : IStaticAgentFamily
 {
-    public const string SchemeName = "critter-stack-pro-projection";
+    public const string SchemeName = "event-subscriptions";
     
     private readonly IDocumentStore _store;
     private readonly IProjectionCoordinator _coordinator;
