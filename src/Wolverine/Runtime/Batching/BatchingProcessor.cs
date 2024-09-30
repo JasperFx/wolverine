@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
+using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Util.Dataflow;
@@ -12,11 +13,12 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
     private readonly ActionBlock<Envelope[]> _processingBlock;
     private readonly BatchingBlock<Envelope> _batchingBlock;
 
-    public BatchingProcessor(HandlerChain chain, BatchingOptions options, ILocalQueue queue,
+    public BatchingProcessor(HandlerChain chain, IMessageBatcher batcher, BatchingOptions options, ILocalQueue queue,
         DurabilitySettings settings)
     {
-        Chain = chain;
+        Chain = chain ?? throw new ArgumentOutOfRangeException(nameof(chain));
         _options = options;
+        Batcher = batcher;
         Queue = queue;
 
         _processingBlock = new ActionBlock<Envelope[]>(processEnvelopes);
@@ -24,38 +26,23 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
     }
 
 
+    public IMessageBatcher Batcher { get; }
     public ILocalQueue Queue { get; }
 
     public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
-        context.Envelope.InBatch = true;
+        context.Envelope!.InBatch = true;
         return _batchingBlock.SendAsync(context.Envelope);
     }
     
     private Task processEnvelopes(Envelope[] envelopes)
     {
-        // Group by tenant id
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
-        foreach (var group in groups)
+        foreach (var grouped in Batcher.Group(envelopes).ToArray())
         {
-            var message = group.Select(x => x.Message).OfType<T>().ToArray();
+            grouped.Destination = Queue.Uri;
+            grouped.MessageType = Chain!.TypeName;
+            grouped.SentAt = DateTimeOffset.UtcNow;
             
-Debug.WriteLine($"SENDING {group.Count()} messages to tenant '{group.Key}'");            
-            
-            foreach (var envelope in group)
-            {
-                envelope.InBatch = true;
-            }
-            
-            var grouped = new Envelope(message)
-            {
-                Destination = Queue.Uri,
-                Batch = envelopes,
-                MessageType = Chain.TypeName,
-                SentAt = DateTimeOffset.UtcNow,
-                TenantId = group.Key
-            };
-
             Queue.Enqueue(grouped);
         }
 
