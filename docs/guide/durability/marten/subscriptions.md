@@ -343,4 +343,4 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L140-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_batched_subscription_with_services' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-See the [Marten documentation on subscriptions](/guide/durability/marten/subscriptions.html#using-ioc-services-in-subscriptions) for more information about the lifecycle and mechanics. 
+See the [Marten documentation on subscriptions](/guide/durability/marten/subscriptions.html#using-ioc-services-in-subscriptions) for more information about the lifecycle and mechanics.

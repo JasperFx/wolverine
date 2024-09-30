@@ -26,6 +26,31 @@ to "fix" those issues with code generation planning.
 Wolverine 3.0 can now be bootstrapped with the `HostApplicationBuilder` or any standard .NET bootstrapping mechanism through
 `IServiceCollection.AddWolverine()`. The limitation of having to use `IHostBuilder` is gone.
 
+### Marten Integration
+
+The Marten/Wolverine `IntegrateWithWolverine()` integration syntax changed from a *lot* of optional arguments to a single
+call with a nested lambda registration like this:
+
+<!-- snippet: sample_using_integrate_with_wolverine_with_multiple_options -->
+<a id='snippet-sample_using_integrate_with_wolverine_with_multiple_options'></a>
+```cs
+services.AddMarten(opts =>
+    {
+        opts.Connection(Servers.PostgresConnectionString);
+        opts.DisableNpgsqlLogging = true;
+    })
+    .IntegrateWithWolverine(w =>
+    {
+        w.MessageStorageSchemaName = "public";
+        w.TransportSchemaName = "public";
+    })
+    .ApplyAllDatabaseChangesOnStartup();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/DuplicateMessageSending/Program.cs#L50-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_integrate_with_wolverine_with_multiple_options' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+All Marten/Wolverine integration options are available by this one syntax call now, with the exception of event subscriptions.
+
 ### Wolverine.RabbitMq
 
 The RabbitMq transport recieved a significant overhaul for 3.0.

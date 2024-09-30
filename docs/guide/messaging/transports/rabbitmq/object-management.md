@@ -123,7 +123,7 @@ builder.Services.AddMarten(opts =>
     opts.RegisterDocumentType<Issue>();
 
     // I'm putting the inbox/outbox tables into a separate "issue_service" schema
-}).IntegrateWithWolverine("issue_service");
+}).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "issue_service");
 
 var app = builder.Build();
 
