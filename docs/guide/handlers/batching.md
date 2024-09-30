@@ -139,3 +139,40 @@ Alright, with all that being said, here's a few more facts about the batch messa
 The durable inbox behaves just a little bit differently for message batching. Wolverine will technically
 "handle" the individual messages, but does not mark them as handled in the message store until a batch message
 that refers to the original message is completely processed. 
+
+## Custom Batching Strategies
+
+::: info
+This feature was originally added for a [JasperFx Software](https://jasperfx.net) customer who needed to batch messages by a logical saga id.
+:::
+
+By default, Wolverine is simply batching messages of type `Item` into a message of type `Item[]`. But what if you need
+to do something a little more custom? Like batching messages by a logical saga id or some kind of entity identity?
+
+As an example, let's say that you are building some kind of task tracking system where you might easily have dozens of
+sub tasks for each parent task that could be getting marked complete in rapid succession. That's maybe a good example 
+of where batching would be handy. Let's say that we have two message types for the individual item message and a custom
+task for the batched message like so:
+
+snippet: sample_subtask_completed_messages
+
+To teach Wolverine how to batch up our `SubTaskCompleted` messages into our custom batch message, we need to supply our own implementation of Wolverine's built in `Wolverine.Runtime.Batching.IMessageBatcher`
+type:
+
+snippet: sample_IMessageBatcher
+
+A custom implementation of that interface in this case would look like this:
+
+snippet: sample_SubTaskCompletedBatch
+
+And of course, this doesn't work without a matching message handler for our custom message type:
+
+snippet: sample_SubTaskCompletedBatchHandler
+
+And finally, we need to tell Wolverine about the batching and the strategy for batching the `SubTaskCompleted`
+message type:
+
+snippet: sample_registering_a_custom_message_batcher
+
+
+

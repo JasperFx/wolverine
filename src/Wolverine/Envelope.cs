@@ -20,6 +20,22 @@ public partial class Envelope
     private TimeSpan? _scheduleDelay;
     private DateTimeOffset? _scheduledTime;
 
+    /// <summary>
+    /// Create an envelope for a batched message
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="items"></param>
+    /// <returns></returns>
+    public Envelope(object message, IEnumerable<Envelope> batch)
+    {
+        Message = message;
+        Batch = batch.ToArray();
+        foreach (var envelope in Batch)
+        {
+            envelope.InBatch = true;
+        }
+    }
+    
     public Envelope()
     {
     }
@@ -28,7 +44,7 @@ public partial class Envelope
     {
         Message = message ?? throw new ArgumentNullException(nameof(message));
     }
-
+    
     /// <summary>
     ///     Optional metadata about this message
     /// </summary>
