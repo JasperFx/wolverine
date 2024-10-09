@@ -37,10 +37,10 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     {
         _connection = await _transport.CreateConnectionAsync();
         
-        _connection.ConnectionShutdown += connectionOnConnectionShutdown;
-        _connection.ConnectionUnblocked += connectionOnConnectionUnblocked;
-        _connection.ConnectionBlocked += connectionOnConnectionBlocked;
-        _connection.CallbackException += connectionOnCallbackException;
+        _connection.ConnectionShutdownAsync += connectionOnConnectionShutdownAsync;
+        _connection.ConnectionUnblockedAsync += connectionOnConnectionUnblockedAsync;
+        _connection.ConnectionBlockedAsync += connectionOnConnectionBlockedAsync;
+        _connection.CallbackExceptionAsync += connectionOnCallbackExceptionAsync;
     }
 
     public Task<IChannel> CreateChannelAsync()
@@ -73,32 +73,37 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         _agents.Add(agent);
     }
 
-    private void connectionOnCallbackException(object? sender, CallbackExceptionEventArgs e)
+    private Task connectionOnCallbackExceptionAsync(object? sender, CallbackExceptionEventArgs e)
     {
         if (e.Exception != null)
         {
             _logger.LogError(e.Exception, "Rabbit MQ connection error on callback");
         }
+
+        return Task.CompletedTask;
     }
 
-    private void connectionOnConnectionBlocked(object? sender, ConnectionBlockedEventArgs e)
+    private Task connectionOnConnectionBlockedAsync(object? sender, ConnectionBlockedEventArgs e)
     {
         _logger.LogInformation("Rabbit MQ connection is blocked because of {Reason}", e.Reason);
+        return Task.CompletedTask;
     }
 
-    private void connectionOnConnectionUnblocked(object? sender, EventArgs e)
+    private Task connectionOnConnectionUnblockedAsync(object? sender, AsyncEventArgs e)
     {
         _logger.LogInformation("Rabbit MQ connection unblocked");
+        return Task.CompletedTask;
     }
 
-    private void connectionOnConnectionShutdown(object? sender, ShutdownEventArgs e)
+    private Task connectionOnConnectionShutdownAsync(object? sender, ShutdownEventArgs e)
     {
-        if (e.Initiator == ShutdownInitiator.Application) return;
+        if (e.Initiator == ShutdownInitiator.Application) return Task.CompletedTask;
 
         if (e.Exception != null)
         {
             _logger.LogError(e.Exception, "Unexpected Rabbit MQ connection shutdown");
         }
+        return Task.CompletedTask;
     }
 
     public void Remove(RabbitMqChannelAgent agent)

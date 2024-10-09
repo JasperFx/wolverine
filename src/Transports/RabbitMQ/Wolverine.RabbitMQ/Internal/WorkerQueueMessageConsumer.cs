@@ -31,14 +31,10 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         _latched = true;
     }
 
-    public override Task HandleBasicDeliverAsync(string consumerTag, ulong deliveryTag, bool redelivered, string exchange,
-        string routingKey, IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body)
-    {
-        return HandleBasicDeliverImpl(consumerTag, deliveryTag, redelivered, exchange, routingKey, properties, body);
-    }
-    
-    public async Task HandleBasicDeliverImpl(string consumerTag, ulong deliveryTag, bool redelivered, string exchange, string routingKey,
-        IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body)
+    //TODO do something with the token passed in here
+    public override async Task HandleBasicDeliverAsync(string consumerTag, ulong deliveryTag, bool redelivered, string exchange,
+        string routingKey, IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body,
+        CancellationToken cancellationToken = new())
     {
         if (_latched || _cancellation.IsCancellationRequested)
         {
