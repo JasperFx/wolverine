@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -64,19 +65,20 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
     {
         Channel = await _monitor.CreateChannelAsync();
 
-        Channel.CallbackException += (sender, args) =>
+        Channel.CallbackExceptionAsync += (sender, args) =>
         {
             Logger.LogError(args.Exception, "Callback error in Rabbit Mq agent");
+            return Task.CompletedTask;
         };
 
-        Channel.ChannelShutdown += ChannelOnModelShutdown;
+        Channel.ChannelShutdownAsync += ChannelOnModelShutdown;
 
         Logger.LogInformation("Opened a new channel for Wolverine endpoint {Endpoint}", this);
     }
 
-    private void ChannelOnModelShutdown(object? sender, ShutdownEventArgs e)
+    private Task ChannelOnModelShutdown(object? sender, ShutdownEventArgs e)
     {
-        if (e.Initiator == ShutdownInitiator.Application) return;
+        if (e.Initiator == ShutdownInitiator.Application) return Task.CompletedTask;
 
         if (e.Exception != null)
         {
@@ -85,13 +87,15 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
         }
 
         _ = EnsureConnected();
+        
+        return Task.CompletedTask;
     }
 
     protected async Task teardownChannel()
     {
         if (Channel != null)
         {
-            Channel.ChannelShutdown -= ChannelOnModelShutdown;
+            Channel.ChannelShutdownAsync -= ChannelOnModelShutdown;
             await Channel.CloseAsync();
             await Channel.AbortAsync();
             Channel.Dispose();
