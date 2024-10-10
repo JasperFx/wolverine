@@ -238,6 +238,12 @@ public class CompleteOrderHandler1228388417 : MessageHandler
 
 ## Saga Message Identity
 
+::: warning
+The automatic saga id tracking on messaging **only** works when the saga already exists and you are handling
+a message to an existing saga. In the case of creating a new `Saga` and needing to publish outgoing messages related
+to that `Saga` in the same logical transaction, you will have to embed the new `Saga` identity into the outgoing message bodies.
+:::
+
 In the case of two Wolverine applications sending messages between themselves, or a single Wolverine
 application messaging itself in regards to an existing ongoing saga, Wolverine will quietly track
 the saga id through headers. In most other cases, you will need to expose the saga identity
@@ -300,6 +306,12 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L24-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+::: warning
+The automatic saga id tracking on messaging **only** works when the saga already exists and you are handling
+a message to an existing saga. In the case of creating a new `Saga` and needing to publish outgoing messages related
+to that `Saga` in the same logical transaction, you will have to embed the new `Saga` identity into the outgoing message bodies.
+:::
 
 You can also simply return one or more `Saga` type objects from a handler method as shown below where `Reservation` is a Wolverine saga:
 
