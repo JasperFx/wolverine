@@ -1,9 +1,13 @@
 using System.Collections;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Wolverine.Transports.Local;
@@ -29,6 +33,46 @@ public class sticky_message_handlers : IntegrationContext
         records.Length.ShouldBe(2);
         records.ShouldContain(new StickyMessageResponse("green", stickyMessage, new Uri("local://green")));
         records.ShouldContain(new StickyMessageResponse("blue", stickyMessage, new Uri("local://blue")));
+    }
+
+    public class FakeChainPolicy : IChainPolicy
+    {
+        public List<HandlerChain> Chains = new();
+
+        public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
+        {
+            Chains.AddRange(chains.OfType<HandlerChain>());
+        }
+    }
+    
+    [Fact]
+    public async Task handler_policies_apply_to_sticky_message_handlers()
+    {
+        var policy = new FakeChainPolicy();
+        
+        using var host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(BlueStickyHandler))
+                    .IncludeType(typeof(GreenStickyHandler));
+                
+                opts.Policies.Add(policy);
+
+            }).StartAsync();
+        
+        // Original chain for StickyMessage
+        // The sticky handler for "blue"
+        // The sticky handler for "green"
+        policy.Chains.Count.ShouldBe(3);
+
+        foreach (var chain in policy.Chains)
+        {
+            // The DefaultApp sets this by policy, proving
+            // that the log levels go to the sticky chains
+            // to verify https://github.com/JasperFx/wolverine/issues/1054
+            chain.ProcessingLogLevel.ShouldBe(LogLevel.Debug);
+        }
     }
 }
 

@@ -214,12 +214,22 @@ public sealed partial class WolverineOptions : IPolicies
         return new MessageTypePolicies<T>(this);
     }
 
+    /// <summary>
+    /// Logger level for Wolverine to use to log the successful processing of a message. The
+    /// default is Information
+    /// </summary>
+    /// <param name="logLevel"></param>
     public void MessageSuccessLogLevel(LogLevel logLevel)
     {
         var policy = new LambdaHandlerPolicy(c => c.SuccessLogLevel = logLevel);
         Policies.Add(policy);
     }
 
+    /// <summary>
+    /// Logger level for Wolverine to use for log messages marking the execution stop and finish for all
+    /// messages being processed. Wolverine's default is Debug
+    /// </summary>
+    /// <param name="logLevel"></param>
     public void MessageExecutionLogLevel(LogLevel logLevel)
     {
         var policy = new LambdaHandlerPolicy(c => c.ProcessingLogLevel = logLevel);

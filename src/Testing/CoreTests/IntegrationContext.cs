@@ -1,6 +1,7 @@
 ﻿using JasperFx.Core.Reflection;
 using Lamar.Microsoft.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
@@ -19,6 +20,9 @@ public class DefaultApp : IDisposable
             .UseLamar()
             .UseWolverine(opts =>
             {
+                opts.MessageExecutionLogLevel(LogLevel.Information);
+                opts.MessageSuccessLogLevel(LogLevel.Debug);
+                
                 opts.IncludeType<MessageConsumer>();
                 opts.IncludeType<InvokedMessageHandler>();
             })
