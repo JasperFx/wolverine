@@ -11,7 +11,6 @@ using Wolverine.SqlServer.Persistence;
 
 namespace SqlServerTests.Agents;
 
-[Collection("sqlserver")]
 public class node_persistence : NodePersistenceCompliance
 {
     protected override async Task<IMessageStore> buildCleanMessageStore()

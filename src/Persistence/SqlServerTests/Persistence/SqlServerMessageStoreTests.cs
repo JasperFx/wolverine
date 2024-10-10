@@ -19,7 +19,6 @@ using Wolverine.Transports.Local;
 
 namespace SqlServerTests.Persistence;
 
-[Collection("sqlserver")]
 public class SqlServerMessageStoreTests : MessageStoreCompliance
 {
     public override async Task<IHost> BuildCleanHost()

@@ -8,7 +8,6 @@ using Xunit.Abstractions;
 
 namespace SqlServerTests.Agents;
 
-[Collection("sqlserver")]
 public class leader_election : LeadershipElectionCompliance
 {
     public leader_election(ITestOutputHelper output) : base(output)

@@ -16,6 +16,8 @@ internal class PostgresqlPersistenceFrameProvider : IPersistenceFrameProvider
 {
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
+        if (chain.Middleware.OfType<DbTransactionFrame<NpgsqlTransaction, NpgsqlConnection>>().Any()) return;
+        
         var shouldFlushOutgoingMessages = chain.ShouldFlushOutgoingMessages();
         
         var frame = new DbTransactionFrame<NpgsqlTransaction, NpgsqlConnection>

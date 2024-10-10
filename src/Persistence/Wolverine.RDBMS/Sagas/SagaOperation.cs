@@ -2,23 +2,26 @@ using System.Data.Common;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using Wolverine.Persistence;
 
 namespace Wolverine.RDBMS.Sagas;
 
-public class SagaOperation : AsyncFrame
+public class SagaOperation : AsyncFrame, ISagaOperation
 {
-    private readonly Variable _saga;
-    private readonly SagaOperationType _operation;
     private Variable _storage;
     private Variable _cancellation;
     private Variable _transaction;
 
     public SagaOperation(Variable saga, SagaOperationType operation)
     {
-        _saga = saga;
-        _operation = operation;
+        Saga = saga;
+        Operation = operation;
         uses.Add(saga);
     }
+
+    public Variable Saga { get; }
+
+    public SagaOperationType Operation { get; }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
@@ -34,7 +37,7 @@ public class SagaOperation : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteLine($"await {_storage.Usage}.{_operation}({_saga.Usage}, {_transaction.Usage}, {_cancellation.Usage});");
+        writer.WriteLine($"await {_storage.Usage}.{Operation}({Saga.Usage}, {_transaction.Usage}, {_cancellation.Usage});");
         Next?.GenerateCode(method, writer);
     }
 }

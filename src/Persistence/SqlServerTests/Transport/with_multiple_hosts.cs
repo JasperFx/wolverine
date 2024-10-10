@@ -11,7 +11,6 @@ using Shouldly;
 
 namespace SqlServerTests.Transport;
 
-[Collection("sqlserver")]
 public class with_multiple_hosts : IAsyncLifetime
 {
     private IHost _sender;

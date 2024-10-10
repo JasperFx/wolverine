@@ -16,6 +16,8 @@ internal class SqlServerPersistenceFrameProvider : IPersistenceFrameProvider
 {
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
+        if (chain.Middleware.OfType<DbTransactionFrame<SqlTransaction, SqlConnection>>().Any()) return;
+        
         var shouldFlushOutgoingMessages = chain.ShouldFlushOutgoingMessages();
         
         var frame = new DbTransactionFrame<SqlTransaction, SqlConnection>
