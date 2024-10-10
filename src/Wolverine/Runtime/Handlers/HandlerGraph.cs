@@ -270,7 +270,21 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         Group(options);
 
-        foreach (var policy in handlerPolicies(options)) policy.Apply(Chains, Rules, container);
+        // This was to address the issue with policies not extending to sticky message
+        // handlers
+        IEnumerable<HandlerChain> explodeChains(HandlerChain chain)
+        {
+            yield return chain;
+
+            foreach (var stickyChain in chain.ByEndpoint)
+            {
+                yield return stickyChain;
+            }
+        }
+
+        var allChains = Chains.SelectMany(explodeChains).ToArray();
+
+        foreach (var policy in handlerPolicies(options)) policy.Apply(allChains, Rules, container);
 
         Container = container;
 
