@@ -20,5 +20,6 @@ public interface IAgent : IHostedService
 public enum AgentStatus
 {
     Started,
-    Stopped
+    Stopped,
+    Paused
 }

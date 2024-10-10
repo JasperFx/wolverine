@@ -31,6 +31,13 @@ internal class ProjectionAgent : IAgent
         Status = AgentStatus.Stopped;
     }
 
+    public async Task PauseAsync(CancellationToken cancellationToken)
+    {
+        var daemon = await _coordinator.DaemonForDatabase(_databaseName);
+        await daemon.StopAgentAsync(_shardName);
+        Status = AgentStatus.Paused;
+    }
+
     public Uri Uri { get; }
     public AgentStatus Status { get; set; } = AgentStatus.Stopped;
 }
