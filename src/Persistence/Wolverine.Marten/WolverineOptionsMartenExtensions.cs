@@ -100,8 +100,9 @@ public static class WolverineOptionsMartenExtensions
 
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
-            expression.Services.AddSingleton<IAgentFamily, ProjectionAgents>();
-            expression.Services.AddSingleton<IProjectionCoordinator, ProjectionCoordinator>();
+            expression.Services.AddSingleton<ProjectionAgents>();
+            expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<ProjectionAgents>());
+            expression.Services.AddSingleton<IProjectionCoordinator>(s => s.GetRequiredService<ProjectionAgents>());
         }
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MartenMessageDatabaseDiscovery),

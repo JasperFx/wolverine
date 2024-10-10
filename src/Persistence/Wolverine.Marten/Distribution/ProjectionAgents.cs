@@ -4,17 +4,22 @@ using Marten;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Coordination;
 using Marten.Storage;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using AgentStatus = Wolverine.Runtime.Agents.AgentStatus;
 
 namespace Wolverine.Marten.Distribution;
 
-internal class ProjectionAgents : IStaticAgentFamily
+internal class ProjectionAgents : IStaticAgentFamily, IProjectionCoordinator
 {
     public const string SchemeName = "event-subscriptions";
     
     private readonly IDocumentStore _store;
     private readonly IProjectionCoordinator _coordinator;
+    private ImHashMap<Uri, ProjectionAgent> _agents = ImHashMap<Uri, ProjectionAgent>.Empty;
+    private readonly object _agentLocker = new();
 
     public static Uri UriFor(string databaseName, string shardName)
     {
@@ -30,10 +35,10 @@ internal class ProjectionAgents : IStaticAgentFamily
 
     }
 
-    public ProjectionAgents(IDocumentStore store, IProjectionCoordinator coordinator)
+    public ProjectionAgents(IDocumentStore store, ILogger<ProjectionCoordinator> logger)
     {
         _store = store;
-        _coordinator = coordinator;
+        _coordinator = new ProjectionCoordinator(store, logger);
     }
 
     public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
@@ -51,10 +56,26 @@ internal class ProjectionAgents : IStaticAgentFamily
             }
         }
     }
-
+    
     public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
     {
-        return new ValueTask<IAgent>(new ProjectionAgent(uri, _coordinator));
+        if (_agents.TryFind(uri, out var agent))
+        {
+            return new ValueTask<IAgent>(agent);
+        }
+
+        lock (_agentLocker)
+        {
+            if (_agents.TryFind(uri, out agent))
+            {
+                return new ValueTask<IAgent>(agent);
+            }
+            
+            agent = new ProjectionAgent(uri, _coordinator);
+            _agents = _agents.AddOrUpdate(uri, agent);
+        }
+
+        return new ValueTask<IAgent>(agent);
     }
 
     public async ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
@@ -72,4 +93,46 @@ internal class ProjectionAgents : IStaticAgentFamily
     }
 
     public string Scheme => SchemeName;
+
+    Task IHostedService.StartAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    Task IHostedService.StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    IProjectionDaemon IProjectionCoordinator.DaemonForMainDatabase()
+    {
+        return _coordinator.DaemonForMainDatabase();
+    }
+
+    ValueTask<IProjectionDaemon> IProjectionCoordinator.DaemonForDatabase(string databaseIdentifier)
+    {
+        return _coordinator.DaemonForDatabase(databaseIdentifier);
+    }
+
+    async Task IProjectionCoordinator.PauseAsync()
+    {
+        var active = _agents.Enumerate().Select(x => x.Value)
+            .Where(x => x.Status == AgentStatus.Started).ToArray();
+
+        foreach (var agent in active)
+        {
+            await agent.PauseAsync(CancellationToken.None);
+        }
+    }
+
+    async Task IProjectionCoordinator.ResumeAsync()
+    {
+        var paused = _agents.Enumerate().Select(x => x.Value)
+            .Where(x => x.Status == AgentStatus.Paused).ToArray();
+
+        foreach (var agent in paused)
+        {
+            await agent.StartAsync(CancellationToken.None);
+        }
+    }
 }

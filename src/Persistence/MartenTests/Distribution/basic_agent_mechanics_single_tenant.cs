@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Marten;
 using MartenTests.Distribution.Support;
 using Shouldly;
 using Wolverine;
@@ -11,6 +12,13 @@ public class basic_agent_mechanics_single_tenant : SingleTenantContext
 {
     public basic_agent_mechanics_single_tenant(ITestOutputHelper output) : base(output)
     {
+    }
+
+    [Fact]
+    public async Task can_do_the_full_marten_reset_all_data_call()
+    {
+        // It's a smoke test to fix GH-1057
+        await theOriginalHost.ResetAllMartenDataAsync();
     }
 
     [Fact]
