@@ -11,7 +11,6 @@ using Shouldly;
 
 namespace SqlServerTests.Transport;
 
-[Collection("sqlserver")]
 public class inbox_outbox_usage : IAsyncLifetime
 {
     private IHost _host;

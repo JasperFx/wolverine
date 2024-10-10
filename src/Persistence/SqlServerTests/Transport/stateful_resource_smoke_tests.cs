@@ -12,7 +12,6 @@ using Wolverine.SqlServer.Transport;
 
 namespace SqlServerTests.Transport;
 
-[Collection("sqlserver")]
 public class stateful_resource_smoke_tests : IAsyncLifetime
 {
     private IHost _host;

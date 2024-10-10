@@ -26,3 +26,16 @@ public interface IPersistenceFrameProvider
     Frame DetermineUpdateFrame(Variable saga, IServiceContainer container);
     Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container);
 }
+
+public interface ISagaOperation
+{
+    Variable Saga { get; }
+    SagaOperationType Operation { get; }
+}
+
+public enum SagaOperationType
+{
+    InsertAsync,
+    UpdateAsync,
+    DeleteAsync
+}

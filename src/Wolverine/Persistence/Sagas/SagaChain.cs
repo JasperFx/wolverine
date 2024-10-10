@@ -144,6 +144,12 @@ public class SagaChain : HandlerChain
                 frames.Add(frame);
         }
 
+        if (sagaVariable.ReturnAction(this).Frames().OfType<ISagaOperation>()
+            .Any(x => x.Saga == sagaVariable && x.Operation == SagaOperationType.InsertAsync))
+        {
+            return;
+        }
+        
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
         frames.Add(ifNotCompleted);
     }

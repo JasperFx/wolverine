@@ -10,6 +10,11 @@ public static class VariableExtensions
 {
     internal static readonly string ReturnActionKey = "ReturnAction";
 
+    public static bool HasReturnAction(this Variable variable)
+    {
+        return variable.Properties.ContainsKey(ReturnActionKey);
+    }
+    
     /// <summary>
     ///     Override how Wolverine will generate code to handle this value returned from a handler call
     /// </summary>

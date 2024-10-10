@@ -134,7 +134,7 @@ public class saga_storage_operations : PostgresqlContext
         await conn.CreateCommand("delete from lightweight_sagas.lightweightsaga_saga")
             .ExecuteNonQueryAsync();
         
-        await using var db = await conn.BeginTransactionAsync();
+        var db = await conn.BeginTransactionAsync();
 
         var saga = new LightweightSaga
         {
@@ -143,16 +143,26 @@ public class saga_storage_operations : PostgresqlContext
         };
         
         await theStorage.InsertAsync(saga, db, CancellationToken.None);
+        await db.CommitAsync();
+        await db.DisposeAsync();
+        
+        db = await conn.BeginTransactionAsync();
 
         saga.Name = "Rashee Rice";
         await theStorage.UpdateAsync(saga, db, CancellationToken.None);
-
+        await db.CommitAsync();
+        await db.DisposeAsync();
+        
+        db = await conn.BeginTransactionAsync();
+        
         // I'm rewinding the version to make it throw
         saga.Version = 1;
 
         await Should.ThrowAsync<SagaConcurrencyException>(async () =>
         {
             await theStorage.UpdateAsync(saga, db, CancellationToken.None);
+            await db.CommitAsync();
+            await db.DisposeAsync();
         });
     }
 }

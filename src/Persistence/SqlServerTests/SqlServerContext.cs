@@ -7,7 +7,6 @@ using Wolverine.SqlServer.Persistence;
 
 namespace SqlServerTests;
 
-[Collection("sqlserver")]
 public abstract class SqlServerContext : IAsyncLifetime
 {
     protected SqlServerMessageStore thePersistence;
