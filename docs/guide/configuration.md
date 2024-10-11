@@ -7,7 +7,7 @@ Wolverine 3.0 *is* tested with both the built in `ServiceProvider` and Lamar. It
 IoC containers now as long as they conform to the .NET conforming container, but this isn't tested by the Wolverine team.
 :::
 
-Wolverine is configured with the `IHostBuilder.UseWolverine()` extension methods, with the actual configuration
+Wolverine is configured with the `IHostBuilder.UseWolverine()` or `HostApplicationBuilder` extension methods, with the actual configuration
 living on a single `WolverineOptions` object. The `WolverineOptions` is the configuration model for your Wolverine application,
 and as such it can be used to configure directives about:
 
@@ -24,6 +24,42 @@ and as such it can be used to configure directives about:
 At this point, Wolverine only supports [IHostBuilder](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.ihostbuilder?view=dotnet-plat-ext-7.0) for bootstrapping, but may also support the newer [HostApplicationBuilder](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.hostapplicationbuilder?view=dotnet-plat-ext-7.0)
 model in the future.
 :::
+
+## Replacing ServiceProvider with Lamar
+
+If you run into any trouble whatsoever with code generation after upgrading to Wolverine 3.0, please:
+
+1. Please [raise a GitHub issue in Wolverine](https://github.com/JasperFx/wolverine/issues/new/choose) with some description of the offending message handler or http endpoint
+2. Fall back to Lamar for your IoC tool
+
+To use Lamar, add this Nuget to your main project:
+
+```bash
+dotnet add package Lamar.Microsoft.DependencyInjection
+```
+
+If you're using `IHostBuilder` like you might for a simple console app, it's:
+
+snippet: sample_use_lamar_with_host_builder
+
+In a web application, it's:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseLamar();
+```
+
+and with `HostApplicationBuilder`, try:
+
+```csharp
+var builder = Host.CreateApplicationBuilder();
+
+// Little ugly, and Lamar *should* have a helper for this...
+builder.ConfigureContainer<ServiceRegistry>(new LamarServiceProviderFactory());
+```
+
+
+
 
 ## With ASP.NET Core
 
