@@ -29,7 +29,7 @@ public sealed partial class WolverineOptions
         Transports = new TransportCollection();
 
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
-        _serializers.Add(IntrinsicSerializer.MimeType, new IntrinsicSerializer());
+        _serializers.Add(IntrinsicSerializer.MimeType, IntrinsicSerializer.Instance);
 
         UseSystemTextJsonForSerialization();
 

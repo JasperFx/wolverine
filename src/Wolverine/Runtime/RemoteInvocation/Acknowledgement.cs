@@ -1,9 +1,11 @@
-﻿namespace Wolverine.Runtime.RemoteInvocation;
+﻿using System.Text;
+
+namespace Wolverine.Runtime.RemoteInvocation;
 
 /// <summary>
 ///     Successful receipt of an outgoing message
 /// </summary>
-public class Acknowledgement
+public class Acknowledgement : ISerializable
 {
     /// <summary>
     ///     The message id of the original request
@@ -15,6 +17,29 @@ public class Acknowledgement
     ///     of the acknowledgement
     /// </summary>
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+
+    public byte[] Write()
+    {
+        var guid = RequestId.ToByteArray();
+        var timestamp = Encoding.UTF8.GetBytes(Timestamp.ToString("O"));
+        return guid.Concat(timestamp).ToArray();
+    }
+
+    public static object Read(byte[] bytes)
+    {
+        var ack = new Acknowledgement
+        {
+            RequestId = new Guid(bytes[..16])
+        };
+
+        var timestampString = Encoding.UTF8.GetString(bytes[16..]);
+        if (DateTimeOffset.TryParse(timestampString, out var timestamp))
+        {
+            ack.Timestamp = timestamp;
+        }
+
+        return ack;
+    }
 
     protected bool Equals(Acknowledgement other)
     {

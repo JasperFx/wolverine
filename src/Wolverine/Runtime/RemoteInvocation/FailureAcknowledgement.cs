@@ -5,11 +5,6 @@ namespace Wolverine.Runtime.RemoteInvocation;
 
 public class FailureAcknowledgement : ISerializable
 {
-    public FailureAcknowledgement()
-    {
-        Debug.WriteLine("Why here?");
-    }
-
     public Guid RequestId { get; init; }
     public string Message { get; init; } = null!;
 
