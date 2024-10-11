@@ -14,6 +14,7 @@ using Weasel.Postgresql.Tables;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Marten.Distribution;
+using Wolverine.MessagePack;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
@@ -63,6 +64,8 @@ public abstract class SingleTenantContext : IAsyncLifetime
             {
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
                 opts.Durability.CheckAssignmentPeriod = 1.Seconds();
+                
+                opts.UseMessagePackSerialization();
 
                 #region sample_opt_into_wolverine_managed_subscription_distribution
 
@@ -120,6 +123,8 @@ public abstract class SingleTenantContext : IAsyncLifetime
                     .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
 
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
+                
+                opts.UseMessagePackSerialization();
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             }).StartAsync();

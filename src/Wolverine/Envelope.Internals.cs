@@ -32,7 +32,7 @@ public partial class Envelope
     {
         Message = message;
         Sender = agent;
-        Serializer = agent.Endpoint.DefaultSerializer;
+        Serializer = message is ISerializable ? IntrinsicSerializer.Instance : agent.Endpoint.DefaultSerializer;
         ContentType = Serializer!.ContentType;
         Destination = agent.Destination;
         ReplyUri = agent.ReplyUri;
@@ -168,7 +168,7 @@ public partial class Envelope
 
         if (message is ISerializable)
         {
-            child.Serializer = new IntrinsicSerializer();
+            child.Serializer = IntrinsicSerializer.Instance;
             child.ContentType = IntrinsicSerializer.MimeType;
         }
 
