@@ -5,6 +5,8 @@ using Raven.Embedded;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.RavenDb;
+using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit.Abstractions;
 
 namespace RavenDbTests;
@@ -28,12 +30,10 @@ public class leadership_election_compliance : LeadershipElectionCompliance
 
     protected override void configureNode(WolverineOptions options)
     {
-        var port = PortFinder.GetAvailablePort();
-        var controlUri = $"tcp://localhost:{port}".ToUri();
-        var controlPoint = options.Transports.GetOrCreateEndpoint(controlUri);
+        options.UseTcpForControlEndpoint();
 
         options.ServiceName = "raven";
-        options.Transports.NodeControlEndpoint = controlPoint;
+        
         options.Services.AddSingleton(_store);
         options.UseRavenDbPersistence();
     }

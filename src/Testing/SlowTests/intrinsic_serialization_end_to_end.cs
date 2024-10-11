@@ -5,6 +5,7 @@ using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 
 namespace SlowTests;
