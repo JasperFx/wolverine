@@ -1,6 +1,7 @@
 using System.Text;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -365,5 +366,30 @@ public static class TestingExtensions
 
             return true;
         }
+    }
+
+    /// <summary>
+    /// Just overrides the Wolverine configuration to run in "solo" mode
+    /// that is advantageous in testing because the Wolverine application can
+    /// start up faster
+    /// </summary>
+    /// <param name="services"></param>
+    /// <returns></returns>
+    public static IServiceCollection RunWolverineInSoloMode(this IServiceCollection services)
+    {
+        return services.AddSingleton<IWolverineExtension, RunWolverineInSoloMode>();
+    }
+}
+
+/// <summary>
+/// Just overrides the Wolverine configuration to run in "solo" mode
+/// that is advantageous in testing because the Wolverine application can
+/// start up faster
+/// </summary>
+internal class RunWolverineInSoloMode : IWolverineExtension
+{
+    public void Configure(WolverineOptions options)
+    {
+        options.Durability.Mode = DurabilityMode.Solo;
     }
 }

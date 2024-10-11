@@ -24,9 +24,27 @@ public class AppFixture : IAsyncLifetime
         // use WebApplicationFactory and/or Alba for integration testing
         OaktonEnvironment.AutoStartHost = true;
 
+        #region sample_using_run_wolverine_in_solo_mode_with_extension
+
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
-        Host = await AlbaHost.For<Program>(x => { });
+        // For non-Alba users, this is using IWebHostBuilder 
+        Host = await AlbaHost.For<Program>(x =>
+        {
+            x.ConfigureServices(services =>
+            {
+                // Override the Wolverine configuration in the application
+                // to run the application in "solo" mode for faster
+                // testing cold starts
+                services.RunWolverineInSoloMode();
+
+                // And just for completion, disable all Wolverine external 
+                // messaging transports
+                services.DisableAllExternalWolverineTransports();
+            });
+        });
+
+        #endregion
     }
 
     public Task DisposeAsync()
