@@ -5,7 +5,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="DotPulsar" Version="2.2.0"/>
+        <PackageReference Include="DotPulsar" Version="3.3.2" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props"/>
