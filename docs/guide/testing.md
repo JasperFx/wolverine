@@ -586,3 +586,71 @@ public class When_message_is_sent : IAsyncLifetime
 <!-- endSnippet -->
 
 As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.
+
+## Running Wolverine in "Solo" Mode <Badge type="tip" text="3.0" />
+
+Wolverine's [leadership election](/guide/durability/leadership-and-troubleshooting.html#troubleshooting-and-leadership-election) process is necessary for distributing several background tasks in real life production,
+but that subsystem can lead to some inconvenient sluggishness in [cold start times](https://dontpaniclabs.com/blog/post/2022/09/20/net-cold-starts/#:~:text=In%20software%20development%2C%20cold%20starts,have%20an%20increased%20start%20time.) in automation testing.
+
+To sidestep that problem, you can direct Wolverine to run in "Solo" mode where the current process assumes that it's the 
+only running node and automatically starts up all known background tasks immediately. 
+
+To do so, you could do something like this in your main `Program` file:
+
+<!-- snippet: sample_configuring_the_solo_mode -->
+<a id='snippet-sample_configuring_the_solo_mode'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    opts.Services.AddMarten("some connection string")
+
+        // This adds quite a bit of middleware for
+        // Marten
+        .IntegrateWithWolverine();
+
+    // You want this maybe!
+    opts.Policies.AutoApplyTransactions();
+
+    if (builder.Environment.IsDevelopment())
+    {
+        // But wait! Optimize Wolverine for usage as
+        // if there would never be more than one node running
+        opts.Durability.Mode = DurabilityMode.Solo;
+    }
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L63-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or if you're using something like [WebHostFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-8.0) to 
+bootstrap your Wolverine application in an integration testing harness, you can use this helper to override Wolverine into being
+"Solo":
+
+<!-- snippet: sample_using_run_wolverine_in_solo_mode_with_extension -->
+<a id='snippet-sample_using_run_wolverine_in_solo_mode_with_extension'></a>
+```cs
+// This is bootstrapping the actual application using
+// its implied Program.Main() set up
+// For non-Alba users, this is using IWebHostBuilder 
+Host = await AlbaHost.For<Program>(x =>
+{
+    x.ConfigureServices(services =>
+    {
+        // Override the Wolverine configuration in the application
+        // to run the application in "solo" mode for faster
+        // testing cold starts
+        services.RunWolverineInSoloMode();
+
+        // And just for completion, disable all Wolverine external 
+        // messaging transports
+        services.DisableAllExternalWolverineTransports();
+    });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L27-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
