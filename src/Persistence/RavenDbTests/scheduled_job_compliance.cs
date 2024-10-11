@@ -3,6 +3,7 @@ using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Scheduling;
 using Wolverine.RavenDb;
+using Wolverine.Util;
 
 namespace RavenDbTests;
 

@@ -15,6 +15,7 @@ using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
+using Wolverine.Util;
 
 namespace SqlServerTests;
 

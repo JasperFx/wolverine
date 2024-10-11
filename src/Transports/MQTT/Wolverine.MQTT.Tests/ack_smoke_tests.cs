@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
+using Wolverine.Util;
 using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;

@@ -13,6 +13,7 @@ using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.Util;
 
 namespace MartenTests.Persistence;
 

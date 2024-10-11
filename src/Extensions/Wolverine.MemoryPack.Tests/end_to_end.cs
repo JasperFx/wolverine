@@ -3,6 +3,7 @@ using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.MemoryPack.Tests;

@@ -15,6 +15,7 @@ using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 using Xunit.Abstractions;
 

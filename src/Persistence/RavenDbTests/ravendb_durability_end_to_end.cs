@@ -16,6 +16,8 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RavenDb;
 using Wolverine.RavenDb.Internals;
+using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 
 public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 {
@@ -56,9 +58,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 
                     opts.Services.AddResourceSetupOnStartup();
                     
-                    opts.Transports.NodeControlEndpoint =
-                        opts.Transports.GetOrCreateEndpoint(
-                            new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}"));
+                    opts.UseTcpForControlEndpoint();
                 })
                 .Start();
         });
@@ -74,9 +74,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
                     opts.Publish(x => x.Message<TraceMessage>().To(_listener)
                         .UseDurableOutbox());
 
-                    opts.Transports.NodeControlEndpoint =
-                        opts.Transports.GetOrCreateEndpoint(
-                            new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}"));
+                    opts.UseTcpForControlEndpoint();
                     
                     opts.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
                     opts.Services.AddSingleton<IMessageStore>(new RavenDbMessageStore(_senderStore));
