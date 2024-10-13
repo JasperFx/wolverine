@@ -25,7 +25,7 @@ public class broadcast_to_topic_async : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:29092").AutoProvision();
+                opts.UseKafka("localhost:9092").AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.Services.AddResourceSetupOnStartup();
@@ -34,7 +34,7 @@ public class broadcast_to_topic_async : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:29092").AutoProvision();
+                opts.UseKafka("localhost:9092").AutoProvision();
                 opts.ListenToKafkaTopic("incoming.one");
 
                 opts.Services.AddResourceSetupOnStartup();

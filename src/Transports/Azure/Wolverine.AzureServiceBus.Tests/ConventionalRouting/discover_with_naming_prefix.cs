@@ -35,6 +35,6 @@ public class discover_with_naming_prefix : IDisposable
 
         var uris = runtime.Endpoints.ActiveListeners().Select(x => x.Uri).ToArray();
         uris.ShouldContain(new Uri("asb://queue/zztop.routed"));
-        uris.ShouldContain(new Uri("asb://queue/zztop.Wolverine.AzureServiceBus.Tests.AsbMessage"));
+        uris.ShouldContain(new Uri("asb://queue/zztop.wolverine.azureservicebus.tests.asbmessage1"));
     }
 }

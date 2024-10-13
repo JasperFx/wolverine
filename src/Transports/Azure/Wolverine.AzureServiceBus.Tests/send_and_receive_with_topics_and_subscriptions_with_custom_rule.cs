@@ -38,7 +38,6 @@ public class TopicsWithCustomRuleComplianceFixture()
     }
 }
 
-[Collection("acceptance")]
 public class TopicAndSubscriptionWithCustomRuleSendingAndReceivingCompliance : TransportCompliance<TopicsWithCustomRuleComplianceFixture>
 {
     [Fact]

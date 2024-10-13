@@ -15,7 +15,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
     public async Task InitializeAsync()
     {
-        var number = Guid.NewGuid().ToString();
+        var number = Guid.NewGuid().ToString().Replace(".", "-");
 
         OutboundAddress = new Uri("sqs://receiver-" + number);
 
@@ -42,7 +42,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     }
 }
 
-[Collection("acceptance")]
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
 {
     [Fact]

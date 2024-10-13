@@ -33,6 +33,11 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         IdentifierDelimiter = ".";
     }
 
+    public override string SanitizeIdentifier(string identifier)
+    {
+        return identifier.ToLowerInvariant();
+    }
+
     /// <summary>
     /// Is this transport connection allowed to build and use response and retry queues
     /// for just this node?
