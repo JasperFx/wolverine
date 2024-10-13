@@ -72,7 +72,6 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
         await DisposeAsync();
     }
 
-    [Collection("acceptance")]
     public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture>
     {
         [Fact]

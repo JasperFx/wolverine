@@ -32,5 +32,4 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     }
 }
 
-[Collection("acceptance")]
 public class TopicAndSubscriptionSendingAndReceivingCompliance : TransportCompliance<TopicsComplianceFixture>;

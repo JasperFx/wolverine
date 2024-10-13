@@ -57,11 +57,23 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         var client = Parent.ManagementClient;
 
         var exists = await client.QueueExistsAsync(QueueName);
-        if (!exists)
+        if (!exists.Value)
         {
             Options.Name = QueueName;
 
-            await client.CreateQueueAsync(Options);
+            try
+            {
+                await client.CreateQueueAsync(Options);
+            }
+            catch (ServiceBusException e)
+            {
+                if (e.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
+                {
+                    return;
+                }
+                
+                throw;
+            }
         }
     }
 
@@ -82,7 +94,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Error trying to purge Azure Service Bus queue {Queue}", QueueName);
+            logger.LogDebug(e, "Error trying to purge Azure Service Bus queue {Queue}", QueueName);
         }
     }
 

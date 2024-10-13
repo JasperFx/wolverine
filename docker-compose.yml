@@ -36,7 +36,7 @@ services:
 
 
   localstack:
-    image: localstack/localstack
+    image: localstack/localstack:stable
     ports:
       - "127.0.0.1:4566:4566"            # LocalStack Gateway
       - "127.0.0.1:4510-4559:4510-4559"  # external services port range
@@ -59,15 +59,8 @@ services:
       - 22181:2181
   
   kafka:
-    image: confluentinc/cp-kafka:latest
-    depends_on:
-      - zookeeper
+    image: confluentinc/confluent-local:latest
     ports:
-      - 29092:29092
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      - "8082:8082"
+      - "9092:9092"
+      - "9101:9101"

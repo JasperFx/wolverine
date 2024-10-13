@@ -12,7 +12,7 @@ public class DocumentationSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:29092")
+                opts.UseKafka("localhost:9092")
 
                     // See https://github.com/confluentinc/confluent-kafka-dotnet for the exact options here
                     .ConfigureClient(client =>
