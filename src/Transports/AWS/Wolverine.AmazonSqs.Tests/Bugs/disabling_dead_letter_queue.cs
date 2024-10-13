@@ -67,7 +67,7 @@ public class disabling_dead_letter_queue
             .UseWolverine(options =>
             {
                 options.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
-                options.UseAmazonSqsTransportLocally();
+                options.UseAmazonSqsTransportLocally().DisableAllNativeDeadLetterQueues().AutoProvision();
 
                 options.Durability.Mode = DurabilityMode.Solo;
 
