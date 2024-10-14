@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <Description>Next Generation .NET Mediator and Message Bus</Description>
+        <Description>Build Robust Event Driven Architectures with Simpler Code</Description>
         <PackageId>WolverineFx</PackageId>
     </PropertyGroup>
     <ItemGroup>

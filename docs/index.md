@@ -3,12 +3,12 @@ layout: home
 sidebar: false
 
 title: Wolverine
-titleTemplate: Next Generation .NET Mediator and Message Bus
+titleTemplate: Robust Event Driven Architectures with Simpler Code
 
 hero:
   name: Wolverine
-  text: Next Generation .NET Mediator and Message Bus
-  tagline: The cutting edge of messaging frameworks
+  text: Build Robust Event Driven Architectures with Simpler Code
+  tagline: The messaging and web development framework that gets out of your way
   image:
     src: /logo.png
     alt: Wolverine Logo image
@@ -18,12 +18,12 @@ hero:
       link: /tutorials/getting-started
 
 features:
-- title: 💪 Command Execution
-  details: A unique approach to command processing that delivers fast performance & provides an effective middleware strategy whilst keeping out of the way of your application code
-- title: 📚 Asynchronous Processing
-  details: Use Wolverine as an in memory command bus to easily leverage asynchronous and parallel processing within a single or multiple processes
+- title: 💪 Write Less Code
+  details: A unique approach to writing server side code that delivers fast performance & provides an effective middleware strategy whilst keeping out of the way of your application code
 - title: ⚡️ Messaging
   details: Everything you need for a robust messaging solution between services including support for many popular transports, message failure policies, and persistent inbox/outbox messaging
+- title: 📚 Asynchronous Processing
+  details: Use Wolverine as an in memory command bus to easily leverage asynchronous and parallel processing within a single or multiple processes
 
 footer: MIT Licensed | Copyright © Jeremy D. Miller and contributors.
 ---
