@@ -95,7 +95,10 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     [Fact]
     public void configure_listener()
     {
-        ConfigureConventions(c => c.ConfigureListeners((x, _) => { x.UseDurableInbox(); }));
+        ConfigureConventions(c => c.ConfigureListeners((x, _) =>
+        {
+            x.UseDurableInbox();
+        }));
 
         var endpoint = theRuntime.Endpoints.EndpointFor("asb://queue/routed".ToUri())
             .ShouldBeOfType<AzureServiceBusQueue>();

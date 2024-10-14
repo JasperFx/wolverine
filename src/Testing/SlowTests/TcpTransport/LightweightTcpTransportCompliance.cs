@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 
 namespace SlowTests.TcpTransport;

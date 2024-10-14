@@ -9,6 +9,7 @@ using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Configuration;

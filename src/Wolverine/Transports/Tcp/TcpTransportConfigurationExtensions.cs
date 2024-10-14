@@ -1,5 +1,7 @@
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Tcp;
 
@@ -41,5 +43,19 @@ public static class TcpTransportConfigurationExtensions
         publishing.As<PublishingExpression>().Parent.Transports.GetOrCreate<TcpTransport>();
         var uri = TcpEndpoint.ToUri(port, hostName);
         return publishing.To(uri);
+    }
+
+    /// <summary>
+    /// Probably mostly just for testing, but if you need a control endpoint for your
+    /// Wolverine application because of Wolverine managed agent assignments and cannot
+    /// use any other transport, use a TCP endpoint to an open port for this node
+    /// </summary>
+    /// <param name="options"></param>
+    public static void UseTcpForControlEndpoint(this WolverineOptions options)
+    {
+        var port = PortFinder.GetAvailablePort();
+        var controlUri = $"tcp://localhost:{port}".ToUri();
+        var controlPoint = options.Transports.GetOrCreateEndpoint(controlUri);
+        options.Transports.NodeControlEndpoint = controlPoint;
     }
 }

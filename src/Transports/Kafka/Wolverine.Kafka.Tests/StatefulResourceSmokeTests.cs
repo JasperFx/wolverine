@@ -14,11 +14,11 @@ public class StatefulResourceSmokeTests
             {
                 if (autoProvision)
                 {
-                    opts.UseKafka("localhost:29092").AutoProvision();
+                    opts.UseKafka("localhost:9092").AutoProvision();
                 }
                 else
                 {
-                    opts.UseKafka("localhost:29092");;
+                    opts.UseKafka("localhost:9092");;
                 }
 
                 opts.PublishMessage<SRMessage1>()

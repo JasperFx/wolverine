@@ -9,6 +9,10 @@ public class IntrinsicSerializer : IMessageSerializer
 
     private ImHashMap<Type, IMessageSerializer> _inner = ImHashMap<Type, IMessageSerializer>.Empty;
 
+    public static readonly IntrinsicSerializer Instance = new();
+    
+    private IntrinsicSerializer(){}
+
     public string ContentType => MimeType;
     public byte[] Write(Envelope envelope)
     {

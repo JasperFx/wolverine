@@ -16,6 +16,7 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit.Abstractions;
 
 namespace MartenTests;

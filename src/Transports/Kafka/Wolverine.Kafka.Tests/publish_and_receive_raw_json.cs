@@ -17,7 +17,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:29092").AutoProvision();
+                opts.UseKafka("localhost:9092").AutoProvision();
                 opts.ListenToKafkaTopic("json")
                     .ReceiveRawJson<ColorMessage>();
 
@@ -27,7 +27,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:29092").AutoProvision();
+                opts.UseKafka("localhost:9092").AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.Services.AddResourceSetupOnStartup();

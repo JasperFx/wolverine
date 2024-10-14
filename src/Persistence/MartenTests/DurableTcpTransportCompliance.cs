@@ -5,6 +5,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Util;
 
 namespace MartenTests;
 

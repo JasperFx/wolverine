@@ -78,4 +78,9 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
     /// If specified, applies a custom envelope mapper to this endp[oint
     /// </summary>
     public IAzureServiceBusEnvelopeMapper? Mapper { get; set; }
+
+    public override string ToString()
+    {
+        return $"{GetType().Name}: {Uri}";
+    }
 }

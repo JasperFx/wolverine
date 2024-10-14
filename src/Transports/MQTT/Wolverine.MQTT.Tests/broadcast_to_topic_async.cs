@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
+using Wolverine.Util;
 using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;

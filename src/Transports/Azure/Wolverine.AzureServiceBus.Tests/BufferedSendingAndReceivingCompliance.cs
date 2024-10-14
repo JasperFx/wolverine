@@ -40,7 +40,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     }
 }
 
-[Collection("acceptance")]
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
 {
     [Fact]

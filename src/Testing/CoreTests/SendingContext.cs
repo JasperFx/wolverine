@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 
 namespace CoreTests;
 

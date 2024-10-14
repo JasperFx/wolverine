@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
+using Wolverine.Util;
 using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;
@@ -52,7 +53,7 @@ public class ack_smoke_tests : IAsyncLifetime
     [Fact]
     public async Task send_zero_message()
     {
-        var bus = _sender.Services.GetRequiredService<IMessageBus>();
+        var bus = _sender.MessageBus();
         await bus.BroadcastToTopicAsync("red", new ZeroMessage("Zero"));
 
         await Task.Delay(2.Seconds());
@@ -61,7 +62,7 @@ public class ack_smoke_tests : IAsyncLifetime
     [Fact]
     public async Task send_ack_message()
     {
-        var bus = _sender.Services.GetRequiredService<IMessageBus>();
+        var bus = _sender.MessageBus();
         await bus.BroadcastToTopicAsync("red", new TriggerZero("red"));
 
         await Task.Delay(2.Seconds());

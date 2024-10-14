@@ -4,6 +4,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.MQTT.Internals;
 using Wolverine.Runtime;
+using Wolverine.Util;
 
 namespace Wolverine.MQTT.Tests;
 
