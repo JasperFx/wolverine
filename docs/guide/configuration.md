@@ -40,7 +40,15 @@ dotnet add package Lamar.Microsoft.DependencyInjection
 
 If you're using `IHostBuilder` like you might for a simple console app, it's:
 
-snippet: sample_use_lamar_with_host_builder
+<!-- snippet: sample_use_lamar_with_host_builder -->
+<a id='snippet-sample_use_lamar_with_host_builder'></a>
+```cs
+// With IHostBuilder
+var builder = Host.CreateDefaultBuilder();
+builder.UseLamar();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L11-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_lamar_with_host_builder' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 In a web application, it's:
 
