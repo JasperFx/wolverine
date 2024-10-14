@@ -166,6 +166,10 @@ ClientBin/
 *.publishsettings
 node_modules/
 bower_components/
+.vscode/
+.editorconfig
+omnisharp.json
+.env.*
 
 # RIA/Silverlight projects
 Generated_Code/
