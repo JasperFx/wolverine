@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Tracking;
@@ -22,6 +23,68 @@ public class compound_handlers
         tracer.Messages.ShouldContain("LoadAsync");
         tracer.Messages.ShouldContain("PostProcess");
         tracer.Messages.ShouldContain("PostProcessAsync");
+    }
+
+    [Fact]
+    public async Task can_send_messages_from_before_methods_that_ultimately_stop_the_processing()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        // Should fail validation if Number > 20
+        var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing(20));
+        
+        tracked.Received.SingleMessage<RejectYourThing>()
+            .Number.ShouldBe(20);
+    }
+    
+    [Fact]
+    public async Task can_send_messages_from_before_methods_that_ultimately_stop_the_processing_2()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        // Should fail validation if Number > 20
+        var tracked = await host
+            .TrackActivity()
+            .WaitForMessageToBeReceivedAt<RejectYourThing>(host)
+            .SendMessageAndWaitAsync(new MaybeBadThing(20));
+        
+        tracked.Received.SingleMessage<RejectYourThing>()
+            .Number.ShouldBe(20);
+    }
+    
+    [Fact]
+    public async Task can_send_messages_from_before_methods_that_ultimately_stop_the_processing_with_outgoing_messages()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        // Should fail validation if Number > 20
+        var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing2(20));
+        
+        tracked.Received.SingleMessage<RejectYourThing>()
+            .Number.ShouldBe(20);
+    }
+    
+    [Fact]
+    public async Task can_send_messages_from_before_methods_that_ultimately_stop_the_processing_with_OutgoingMessages_2()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        // Should fail validation if Number > 20
+        var tracked = await host
+            .TrackActivity()
+            .WaitForMessageToBeReceivedAt<RejectYourThing>(host)
+            .SendMessageAndWaitAsync(new MaybeBadThing2(20));
+        
+        tracked.Received.SingleMessage<RejectYourThing>()
+            .Number.ShouldBe(20);
     }
 }
 
@@ -60,6 +123,64 @@ public static class CompoundHandler
         tracer.Messages.Add("PostProcessAsync");
         tool.Handled.ShouldBeTrue();
         return Task.CompletedTask;
+    }
+}
+
+public record MaybeBadThing(int Number);
+public record MaybeBadThing2(int Number);
+
+public record RejectYourThing(int Number);
+
+#region sample_sending_messages_in_before_middleware
+
+public static class MaybeBadThingHandler
+{
+    public static async Task<HandlerContinuation> ValidateAsync(MaybeBadThing thing, IMessageBus bus)
+    {
+        if (thing.Number > 10)
+        {
+            await bus.PublishAsync(new RejectYourThing(thing.Number));
+            return HandlerContinuation.Stop;
+        }
+
+        return HandlerContinuation.Continue;
+    }
+
+    public static void Handle(MaybeBadThing message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+
+#endregion
+
+#region sample_using_outgoing_messages_from_before_middleware
+
+public static class MaybeBadThing2Handler
+{
+    public static (HandlerContinuation, OutgoingMessages) ValidateAsync(MaybeBadThing2 thing, IMessageBus bus)
+    {
+        if (thing.Number > 10)
+        {
+            return (HandlerContinuation.Stop, [new RejectYourThing(thing.Number)]);
+        }
+
+        return (HandlerContinuation.Continue, []);
+    }
+
+    public static void Handle(MaybeBadThing2 message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+
+#endregion
+
+public static class RejectYourThingHandler
+{
+    public static void Handle(RejectYourThing thing)
+    {
+        Debug.WriteLine("Got " + thing);
     }
 }
 

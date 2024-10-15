@@ -202,6 +202,73 @@ public static class AccountLookupMiddleware
 Notice that the middleware above uses a tuple as the return value so that it can both pass an `Account` entity to the inner handler and also
 to return the continuation directing Wolverine to continue or stop the message processing. 
 
+## Sending Messages From Middleware
+
+::: tip
+Everything shown here works for both middleware methods on external types that are applied to the message handlers,
+or to 
+:::
+
+::: warning
+This will not work for WolverineFx.Http endpoints, but at least there, you'd probably be better served through
+returning a `ProblemDetails` response or some other error response to the original caller.
+:::
+
+Wolverine *can* send outgoing messages from middleware. You can use either `IMessageBus` directly as shown below:
+
+<!-- snippet: sample_sending_messages_in_before_middleware -->
+<a id='snippet-sample_sending_messages_in_before_middleware'></a>
+```cs
+public static class MaybeBadThingHandler
+{
+    public static async Task<HandlerContinuation> ValidateAsync(MaybeBadThing thing, IMessageBus bus)
+    {
+        if (thing.Number > 10)
+        {
+            await bus.PublishAsync(new RejectYourThing(thing.Number));
+            return HandlerContinuation.Stop;
+        }
+
+        return HandlerContinuation.Continue;
+    }
+
+    public static void Handle(MaybeBadThing message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L134-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_in_before_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or by returning `OutgoingMessages` from a middleware method as shown below:
+
+<!-- snippet: sample_using_outgoing_messages_from_before_middleware -->
+<a id='snippet-sample_using_outgoing_messages_from_before_middleware'></a>
+```cs
+public static class MaybeBadThing2Handler
+{
+    public static (HandlerContinuation, OutgoingMessages) ValidateAsync(MaybeBadThing2 thing, IMessageBus bus)
+    {
+        if (thing.Number > 10)
+        {
+            return (HandlerContinuation.Stop, [new RejectYourThing(thing.Number)]);
+        }
+
+        return (HandlerContinuation.Continue, []);
+    }
+
+    public static void Handle(MaybeBadThing2 message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L157-L177' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_outgoing_messages_from_before_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+
 ## Registering Middleware by Message Type
 
 Let's say that some of our message types implement this interface:

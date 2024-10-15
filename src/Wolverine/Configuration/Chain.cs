@@ -8,6 +8,7 @@ using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Middleware;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Configuration;
 
@@ -236,6 +237,16 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 MiddlewarePolicy.AssertMethodDoesNotHaveDuplicateReturnValues(frame);
 
                 Middleware.Add(frame);
+
+                // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
+                // like the HTTP support has
+                var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+                int start = 100;
+                foreach (var outgoing in outgoings)
+                {
+                    outgoing.OverrideName(outgoing.Usage + (++start));
+                    Middleware.Add(new CaptureCascadingMessages(outgoing));
+                }
 
                 // Potentially add handling for IResult or HandlerContinuation
                 if (generationRules.TryFindContinuationHandler(this, frame, out var continuation))
