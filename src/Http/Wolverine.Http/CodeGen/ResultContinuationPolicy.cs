@@ -3,13 +3,14 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Configuration;
 using Wolverine.Middleware;
 
 namespace Wolverine.Http.CodeGen;
 
 internal class ResultContinuationPolicy : IContinuationStrategy
 {
-    public bool TryFindContinuationHandler(MethodCall call, out Frame? frame)
+    public bool TryFindContinuationHandler(IChain chain, MethodCall call, out Frame? frame)
     {
         var result = call.Creates.FirstOrDefault(x => x.VariableType.CanBeCastTo<IResult>());
 

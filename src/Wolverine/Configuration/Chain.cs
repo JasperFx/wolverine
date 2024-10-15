@@ -238,7 +238,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 Middleware.Add(frame);
 
                 // Potentially add handling for IResult or HandlerContinuation
-                if (generationRules.TryFindContinuationHandler(frame, out var continuation))
+                if (generationRules.TryFindContinuationHandler(this, frame, out var continuation))
                 {
                     Middleware.Add(continuation!);
                 }

@@ -139,3 +139,13 @@ public static ProblemDetails Before(IShipOrder command, Order order)
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L87-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_before_on_http_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Within Message Handlers <Badge type="tip" text="3.0" />
+
+`ProblemDetails` can be used within message handlers as well with similar rules. See this example
+from the tests:
+
+snippet: sample_using_problem_details_in_message_handler
+
+This functionality was added so that some handlers could be both an endpoint and message handler
+without having to duplicate code or delegate to the handler through an endpoint. 

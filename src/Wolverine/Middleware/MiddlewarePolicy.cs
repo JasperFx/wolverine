@@ -143,19 +143,19 @@ public class MiddlewarePolicy : IChainPolicy
             foreach (var frame in frames) yield return frame;
         }
 
-        private IEnumerable<Frame> wrapBeforeFrame(MethodCall call, GenerationRules rules)
+        private IEnumerable<Frame> wrapBeforeFrame(IChain chain, MethodCall call, GenerationRules rules)
         {
             if (_finals.Length == 0)
             {
                 yield return call;
-                if (rules.TryFindContinuationHandler(call, out var frame))
+                if (rules.TryFindContinuationHandler(chain, call, out var frame))
                 {
                     yield return frame!;
                 }
             }
             else
             {
-                if (rules.TryFindContinuationHandler(call, out var frame))
+                if (rules.TryFindContinuationHandler(chain, call, out var frame))
                 {
                     call.Next = frame;
                 }
@@ -209,7 +209,7 @@ public class MiddlewarePolicy : IChainPolicy
                 {
                     AssertMethodDoesNotHaveDuplicateReturnValues(call);
 
-                    foreach (var frame in wrapBeforeFrame(call, rules)) yield return frame;
+                    foreach (var frame in wrapBeforeFrame(chain, call, rules)) yield return frame;
                 }
             }
         }

@@ -1,5 +1,6 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using Wolverine.Configuration;
 
 namespace Wolverine.Middleware;
 
@@ -41,11 +42,12 @@ public static class ContinuationHandling
         }
     }
 
-    public static bool TryFindContinuationHandler(this GenerationRules rules, MethodCall call, out Frame? frame)
+    public static bool TryFindContinuationHandler(this GenerationRules rules, IChain chain, MethodCall call,
+        out Frame? frame)
     {
         var strategies = rules.ContinuationStrategies();
         foreach (var strategy in strategies)
-            if (strategy.TryFindContinuationHandler(call, out frame))
+            if (strategy.TryFindContinuationHandler(chain, call, out frame))
             {
                 return true;
             }
@@ -57,12 +59,12 @@ public static class ContinuationHandling
 
 public interface IContinuationStrategy
 {
-    bool TryFindContinuationHandler(MethodCall call, out Frame? frame);
+    bool TryFindContinuationHandler(IChain chain, MethodCall call, out Frame? frame);
 }
 
 internal class HandlerContinuationPolicy : IContinuationStrategy
 {
-    public bool TryFindContinuationHandler(MethodCall call, out Frame? frame)
+    public bool TryFindContinuationHandler(IChain chain, MethodCall call, out Frame? frame)
     {
         if (call.CreatesNewOf<HandlerContinuation>())
         {

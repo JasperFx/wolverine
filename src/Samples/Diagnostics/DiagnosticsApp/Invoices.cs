@@ -1,5 +1,6 @@
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
 
